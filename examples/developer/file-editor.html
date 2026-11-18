@@ -24,17 +24,20 @@
         data-height="480"
       ></lf-file-editor>
       <details id="file-editing-setup">
-        <summary>Connect a local file</summary>
+        <summary>Where the file lives</summary>
         <p>
-          This example needs a file on the machine serving the page. Bind it explicitly
-          before opening the editor:
+          The page binds <code>files/research-notes.md</code> in its own directory, so
+          every copy of the page, a preview or a visitor's on leaf.page, edits its own
+          copy:
         </p>
-        <pre><code>leaf file bind "$PAGE" research-notes /absolute/path/research-notes.md</code></pre>
+        <pre><code>leaf file bind "$PAGE" research-notes "$PAGE/files/research-notes.md"</code></pre>
         <p>
-          On a live page, edit a line and inspect the file on disk. A normal save leaves
-          the header still. Hold a write request open to inspect delayed saving
-          feedback; change the file externally during an unsaved edit to inspect
-          conflict recovery. Without a binding, the editor explains what is missing.
+          Edit a line and inspect the file on disk. A normal save leaves the header
+          still. Hold a write request open to inspect delayed saving feedback. Change a
+          line you are not editing during an unsaved edit and the editor takes it in;
+          change the line you are editing to inspect conflict recovery. With the binding
+          withdrawn (<code>leaf file unbind</code>), the editor explains what is
+          missing.
         </p>
       </details>
     </main>

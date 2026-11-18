@@ -35,10 +35,10 @@
    already says it. Restated shortcut metadata is news to whatever is reading the page —
    the mutation stream a screen reader rebuilds its buffer from.
 
-   Until 7 November 2026 a control's chips and attribute named every key any row bound to
-   it wherever the user stood, and a close control Escape too: the Inspect button inside a
-   suggestion said `x y` while the user was on the suggestion, where only its digit
-   worked, and kept `x` after a nearer declaration took `x`. A close control now says
+   Rejected: a control's chips and attribute naming every key any row binds to
+   it wherever the user stands, and a close control Escape too: the Inspect button inside a
+   suggestion then says `x y` while the user is on the suggestion, where only its digit
+   works, and keeps `x` after a nearer declaration takes `x`. A close control says
    Escape where a row says Escape presses it, as the image viewer's does. */
 import {
   ariaBindings,

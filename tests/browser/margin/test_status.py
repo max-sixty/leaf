@@ -96,6 +96,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
                   id: `tone-${index}`,
                   subject: {kind: 'widget', id: `${tone}-target`},
                   stage,
+                  at_work: stage === 'working',
                   condition: null,
                 } : null
               })]}), activate: () => {}
@@ -194,6 +195,9 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
             hovered = []
             focused = []
             for button in buttons:
+                # Focus left on the entry above rests the comment box in the rail,
+                # over this one (floating-response.js), so let it go first.
+                page.evaluate(RELEASE_FOCUS)
                 button.hover()
                 hovered.append(button.evaluate(read))
                 page.mouse.move(0, 0)
@@ -998,7 +1002,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     group that waits for Done hands the agent nothing, so it has no receipt.
     """
     single = OBLIGATION_PAGE.replace(
-        '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
+        '<lf-options id="jobs" multiple>', '<lf-options id="jobs">'
     )
     page = open_page(browser, live_url(serve(single)))
     page_dir = serve.page_dir
@@ -1282,12 +1286,12 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(page.get_by_role("button", name=re.compile(r"^On it,"))).to_have_count(1)
 
     honored = single.replace(
-        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
+        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" selected'
     )
     stamped = stamp_page(page_dir, honored, "Honor the mounts choice")
     wait_for_revision(page, stamped["revision"])
     expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
-    expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
+    expect(page.locator("#job-mounts[selected]")).to_have_count(1)
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(

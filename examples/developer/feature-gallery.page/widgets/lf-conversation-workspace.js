@@ -1,5 +1,6 @@
 /* A package chooses layout while Leaf retains conversations, messages and replies.
    Local selection and ordering never change the log or decide obligation membership. */
+import { noChange } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
   HeldReading,
@@ -9,7 +10,6 @@ import {
   offer,
   offerAction,
   LeafElement,
-  noChange,
   queueActions,
   queueItemKey,
   queueTitle,
@@ -279,7 +279,7 @@ customElements.define(
       const items = readObligations();
       const answered = items.all.filter((item) => item.status === "answered");
       // Counts cover every obligation; this summary lists completed widget choices, not the
-      // words that answered a question (an lf-ask).
+      // words that answered a question asked in a message.
       const labels = items.all
         .filter(
           (item) =>

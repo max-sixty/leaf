@@ -10,23 +10,26 @@
  * index.
  * Live pages select their panel before the strip arrives. Without the runtime,
  * panels stack as labeled sections. */
-/* A set authored as layout-flow shares the document's space and draws no frame. Every
- * other set is boxed. layouts.css owns the flow declaration the module reads for
- * scrolling; primary URL/history ownership is a separate fact (lf-tabs.js). */
+/* A set written `flow="page"` stands in the page's flow, its panels sharing the
+ * document's room (`flow`, layouts.css), and draws no frame. Every other set
+ * is boxed. Which set owns the page's URL and history is a separate fact
+ * (lf-tabs.js). */
 
 :where(lf-tabs) {
-  --lf-views-flow: box;
   --lf-tab-end: calc(var(--lf-sp-4) + var(--lf-end-room));
   display: block;
   margin: 14px 0;
 }
-:is(lf-tab, lf-parts, lf-part) {
+lf-tab,
+lf-parts,
+lf-part {
   display: block;
 }
 /* A stacked panel's name takes the label font (base.css, `.lf-label`), which a
  * generated name can't wear as a class. A side list's group label is a list's group
  * heading (controls.css, `.lf-rows-head`). */
-:is(lf-tab, lf-part)::before {
+lf-tab::before,
+lf-part::before {
   content: attr(label);
   display: block;
   margin: 18px 0 8px;
@@ -184,7 +187,9 @@ lf-tabs[data-lf-views] > lf-tab {
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block. */
 @media screen {
-  :is(lf-tabs, lf-tab, .lf-tabstrip) {
+  lf-tabs,
+  lf-tab,
+  .lf-tabstrip {
     scroll-padding-block-end: var(--lf-end-room);
   }
   @scope (html[data-lf-interactive]) {
@@ -314,7 +319,8 @@ lf-tabs[data-lf-views] > lf-tab {
      * the item where the user is reading it, and the focused tab stays on screen while
      * they read. A column that scrolled with the page moved the item at each step and
      * left the tab off screen, so the next arrow let go of it (keyboard/controller.js). */
-    :is(lf-tabs[list="side"], lf-parts) {
+    lf-tabs[list="side"],
+    lf-parts {
       --lf-tab-context-h: 0px;
       --lf-tab-outcome-h: 0px;
       --lf-tab-row-h: calc(
@@ -745,13 +751,16 @@ lf-tabs[data-lf-views] > lf-tab {
 
     /* Page tabs told they have a definite height to fill (`--lf-full-height`, layouts.css),
    * as a full-height workspace's body is, give the open tab what the strip leaves. A tab
-   * that is one block, such as a playground's lf-ask, passes that height on and says so,
-   * so the playground fills the window as it does when its lf-ask is the body. A tab of
-   * reading keeps its flow, and where it runs longer the body scrolls under the sticky
-   * strip. */
+   * that is one block, such as a playground's question group, passes that height on and
+   * says so, so the playground fills the window as it does when its group is the body.
+   * The tab keeps at least its block's own height, so where the window is shorter than
+   * that the set scrolls to the tab's end, which keeps the panel's room after the
+   * playground's bar; a block that holds the height it is given and scrolls inside, such
+   * as a pane or a side list, asks no more than that height. A tab of reading keeps its
+   * flow, and where it runs longer the body scrolls under the sticky strip. */
     @container style(--lf-full-height: 1) {
       /* The set is the body's scroller here, and a block filling it, such as the
-     * playground's lf-ask, would lose its ring's sides to the scroller's edges, so the set
+     * playground's group, would lose its ring's sides to the scroller's edges, so the set
      * keeps a region's ring room inside them (base.css); its margin gives the inline room back, so the
      * strip and the panel keep the edges they had. */
     }
@@ -904,7 +913,7 @@ lf-tabs[data-lf-views] > lf-tab {
 
 @media screen {
   @scope (html[data-lf-interactive]) {
-    @scope (lf-tabs.layout-flow) {
+    @scope (lf-tabs[flow="page"]) {
       /* Page tabs have no panel padding. Keep the ring outside the three text edges,
      * with its top on the strip's rule; boxed sets and parts keep their inset ring. */
       :scope:is(lf-tabs)[data-lf-views]::after {
@@ -969,7 +978,6 @@ lf-tabs[data-lf-views] > lf-tab {
               )
           ) {
           flex: 1 1 0;
-          min-block-size: 0;
           display: flex;
           flex-direction: column;
           --lf-full-height: inherit;

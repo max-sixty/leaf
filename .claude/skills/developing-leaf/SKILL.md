@@ -129,8 +129,8 @@ never one per scheme, size or pointer, which a run chooses with `--scheme`,
 `--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
 For a change to thread-card placement, also run `uv run leaf-dev placement cards --base`,
-a gallery of cards across subjects, messages, routes and windows, and add a case to its
-`CASES` for each new shape a reader meets.
+a gallery of cards across subjects, messages, routes, windows and page Layouts, and add
+a case to its `CASES` for each new shape a reader meets.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live
@@ -209,10 +209,7 @@ read off the code overstates the saving.
 
 ## Land a change
 
-The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
-(issue #4046, "Resume the thread appearance gate"), so a thread appearance change needs
-no snapshot run before landing. `tests/AGENTS.md`, "Selecting checks", says what the
-landing gates run and what a failure there means. `wt merge` checks the rebased tree
+`tests/AGENTS.md`, "Selecting checks", says what the landing gates run and what a failure there means. `wt merge` checks the rebased tree
 and lands it; `✗ Can't push to local main branch` means a fast-forward failed.
 
 Installed sessions load harness caches, not the checkout, and follow `main`: Claude

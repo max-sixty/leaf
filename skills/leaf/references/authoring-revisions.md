@@ -12,7 +12,8 @@ When `source.live` is false, `index.html` differs from the live revision and
 the rest of the output may be wrong until you do.
 
 `data_bindings` names each external data source and the widgets that read it; change a
-source's value with `leaf data set`.
+source's value with `leaf data set`. `files` names each file the page's editors edit, by
+its binding: the label the page shows and the path to write it at.
 
 Read the author instructions for the page's packages and the widgets you are revising
 (`page-authoring.md`, "Read the registry"). They own how each widget keeps the user's
@@ -57,9 +58,9 @@ keeping the meaning of the user's decisions. To withdraw a decision, follow the
 registry's `$restated`.
 
 Take in a user's answer to a page's obligation in a stamped version. Where the widget's
-`x-state` declares a `record` form, write that form as its author instructions describe.
-Where it declares no form, the next stamp takes in the answer. Preserve the user's
-decisions and the ids of content you retain. A worker's report likewise stays
+`verbs` declares a `record` form, write that form as its author instructions
+describe. Where it declares no form, the next stamp takes in the answer. Preserve the
+user's decisions and the ids of content you retain. A worker's report likewise stays
 provisional until the stamped revision its `handling` asks for.
 
 ## Make changes easy to find
@@ -71,9 +72,15 @@ heading. Remove those marks in the next version you hand over.
 ## Keep the current page current
 
 [SOUL.md](../SOUL.md), "Keep the page current and the record trustworthy", sets the
-goal. Restructuring the page is an ordinary revision. Threads and user state follow ids
-(`page-authoring.md`, "Stable anchors"), so a passage you keep keeps its id wherever it
-moves, and moving it needs neither a suggestion nor `restated`.
+goal: the page is the one you would write now for a reader arriving now. It leads with
+where the work stands and what waits on the user, keeps open only what that reader
+needs for the current work, however true the rest remains, and shows each result on
+something that still exists. The rest goes, such as a concluded run, a superseded
+section or material about something since removed, or is collapsed where the current
+work still rests on it. Restructuring the page is an ordinary revision. Threads and
+user state follow ids (`page-authoring.md`, "Stable anchors"), so a passage you keep
+keeps its id wherever it moves, and moving it needs neither a suggestion nor
+`restated`.
 
 When a revision removes a passage a thread quotes, the thread moves to the surviving
 section, or is detached if the section is gone too. When you know where the subject
@@ -83,9 +90,7 @@ A work list shows unfinished items. When an item of a plan, backlog or list of
 problems is done, cut it down to its outcome and move it to the finished work,
 collapsed after the open work, such as a `<details>` at the bottom or a separate tab.
 A widget that tracks completion itself, such as a board or task list, keeps its
-members. Remove material the current state replaces, such as a concluded run or a
-superseded section; keep older material, collapsed, only where current work needs its
-context. Keep deferred work in the list with enough context to resume it.
+members. Keep deferred work in the list with enough context to resume it.
 
 A decision the user answered and you have acted on becomes a record. Present it as
 the widget's instructions describe, and say beside it what you did about the choice.

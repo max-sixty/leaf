@@ -9,6 +9,7 @@ from interact_support import (
     DRAFTED,
     FLOW_PAGE,
     PAGE,
+    PAGE_GROUP,
     SUGGESTED,
     append_carried_log_record,
     append_command,
@@ -30,6 +31,7 @@ from interact_support import (
     state_json,
     suggested,
     thread_records,
+    with_modules,
 )
 
 from leaf import cli as cli_model
@@ -41,6 +43,7 @@ from leaf import structure as structure_model
 from leaf.delivery import current_responses
 from leaf.events import build_threads
 from leaf.revisioning import activate_source
+from leaf.thread_context import logged_fragment
 
 
 def undelivered(page_dir, input_id: str) -> str:
@@ -60,6 +63,26 @@ def test_an_explicit_line_break_separates_quoted_words():
     )
     assert passages_model.page_passages(document).text == (
         "Short label here Then a second line."
+    )
+
+
+def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
+    """Outside a text block, two elements' words that meet show a space, as a chip beside
+    its title or a title above its description is drawn, but none before a closing mark
+    or after an opening one, so `leaf page state` reads an inline title's sentence as its
+    author punctuated it. A straight quote opening a title is no closing mark, so the
+    chip before it still reads apart. The runtime's `says` shows the same words."""
+    document = structure_model.SourceDocument(
+        '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps '
+        "<code>Foo</code>'s place (<code>beta</code>).</lf-option>"
+        '<lf-option id="chipped"><small class="tag">recommended</small>'
+        "<strong>Apply</strong>Ship it.</lf-option>"
+        '<lf-option id="quoted"><small class="tag">recommended</small>'
+        '<strong>"Update" for mixed input</strong></lf-option></main>'
+    )
+    assert passages_model.page_passages(document).text == (
+        "Leave it; the send keeps Foo's place (beta). recommended Apply Ship it. "
+        'recommended "Update" for mixed input'
     )
 
 
@@ -344,7 +367,8 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
     page_dir,
 ):
     """A diagnostic on any message names the delivery route for the thread's
-    exact owed input; proactive replies cannot infer that input."""
+    exact owed input; a proactive reply cannot infer that input, so it answers
+    nothing and its note names the route too."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
@@ -365,8 +389,9 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         cli_model.cli,
         ["thread", "reply", str(page_dir), own["id"], "--text", "more"],
     )
-    assert posted.exit_code != 0
-    assert f"{undelivered(page_dir, asked['id'])} answers it" in posted.output
+    assert posted.exit_code == 0, posted.output
+    [owed] = json.loads(posted.stdout)["findings"]
+    assert f"{undelivered(page_dir, asked['id'])} answers it" in owed["text"]
     answered = CliRunner().invoke(
         cli_model.cli,
         [
@@ -434,7 +459,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     """A message is not the only id an agent is handed. A user's press on a widget
-    frozen into a reply is answered through its exact delivery reference. The
+    in a reply is answered through its exact delivery reference. The
     diagnostic must name that response route for the action rather than treating
     its event id as a page element or a proactive thread destination."""
     publish(page_dir)
@@ -442,10 +467,10 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
     )
-    frozen = (
-        '<lf-ask id="thread-ask"><h2>Choose one</h2>'
-        '<lf-options id="thread-picks" choose><lf-option id="thread-option">'
-        "Thread option</lf-option></lf-options></lf-ask>"
+    ask = (
+        '<lf-group id="thread-ask" label="Choose one">\n<h2 id="thread-ask-h">Choose one</h2>'
+        '<lf-options id="thread-picks"><lf-option id="thread-option">'
+        "Thread option</lf-option></lf-options></lf-group>"
     )
     answered = CliRunner().invoke(
         cli_model.cli,
@@ -454,10 +479,8 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
-            "--markup",
-            frozen,
             "--text",
-            "Which?",
+            f"Which?\n\n{ask}",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1222,7 +1245,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
 
 def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
     """The registry draws the line: lf-draft renders the authored Markdown into a body
-    the anchor pass can see (x-verbatim), and lf-diagram renders a picture instead."""
+    the anchor pass can see (`verbatim`), and lf-diagram renders a picture instead."""
     result = comment(
         drafted(page_dir), "--quote", "every mutating command", "--text", "which ones?"
     )
@@ -1252,7 +1275,7 @@ def test_an_edited_draft_reads_as_the_users_words(page_dir, formatted):
 
 
 def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
-    html = PAGE.replace("<lf-options>", '<lf-options id="routes" choose>')
+    html = PAGE.replace(PAGE_GROUP, '<lf-options id="routes">')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     identity = "routes-option-user"
@@ -1419,15 +1442,14 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     assert gone.exit_code != 0 and "doesn't say" in gone.output
 
 
-def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir):
-    """renderSaid puts these words in the DOM, so the anchor pass can find them and this
-    has to offer them — otherwise an attribute's own words are the one thing on the page
-    Claude can't point at. Both edges the registry can give one are here: the option's
-    chip band opens the element, and the gloss's tip closes it."""
+def test_words_a_widget_shows_apart_are_quotable_like_any_other_passage(page_dir):
+    """Words a widget shows apart from the sentence are still the page's, so the anchor
+    pass can find them and this has to offer them: the option's chip band opens the
+    element, and the gloss's explanation, a popover until opened, closes it."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</section>",
-            '  <lf-gloss id="k-visits" tip="312 daily visits">Traffic</lf-gloss>\n'
+            '  <lf-gloss id="k-visits">Traffic<span popover>312 daily visits</span></lf-gloss>\n'
             "</section>",
         )
     )
@@ -1706,12 +1728,11 @@ def test_a_closed_thread_stops_asking(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which mitigations?",
-            "markup": '<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
+            "text": 'Which mitigations?\n\n<lf-group id="gm-decision" label="Which mitigations?">\n<h3 id="gm-decision-h">Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
-            '<lf-options id="gm" choose>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            "</lf-options></lf-ask>",
+            '<lf-options id="gm">'
+            '<lf-option id="m-cap" label="Cap retries"><strong>Cap retries</strong></lf-option>'
+            "</lf-options></lf-group>",
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -1741,12 +1762,12 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "kind": "comment",
                     "author": "agent",
                     "revision": 1,
-                    "text": f"Choose {suffix}",
-                    "markup": (
-                        f'<lf-ask id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
-                        f'<lf-options id="group-{suffix}" choose>'
-                        f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
-                        "</lf-options></lf-ask>"
+                    "text": (
+                        f"Choose {suffix}\n\n"
+                        f'<lf-group id="group-{suffix}-decision" label="Choose {suffix}">\n<h3 id="group-{suffix}-decision-h">Choose {suffix}</h3>'
+                        f'<lf-options id="group-{suffix}">'
+                        f'<lf-option id="option-{suffix}" label="{suffix}"><strong>{suffix}</strong></lf-option>'
+                        "</lf-options></lf-group>"
                     ),
                 },
             )
@@ -1790,7 +1811,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
     ]
 
 
-def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
+def test_native_message_html_shares_admission_and_id_ownership(page_dir):
     """Native evidence posts through every agent writer and reserves its ids."""
     published(page_dir)
     table = (
@@ -1798,13 +1819,13 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
         '<tr><th scope="col">Check</th><th scope="col">Result</th></tr>'
         "<tr><td>Smoke test</td><td>Passed</td></tr></table>"
     )
-    opened = comment(page_dir, "--text", "Results:", "--markup", table)
+    opened = comment(page_dir, "--text", f"Results:\n\n{table}")
     assert opened.exit_code == 0, opened.output
     root = events_model.read_events(page_dir)[-1]["id"]
     log = '<details id="deploy-log"><summary>Deploy log</summary><pre>Ready\nDone</pre></details>'
     proactive = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), root, "--text", "Log:", "--markup", log],
+        ["thread", "reply", str(page_dir), root, "--text", f"Log:\n\n{log}"],
     )
     assert proactive.exit_code == 0, proactive.output
     append_command(
@@ -1820,22 +1841,21 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
             "--done",
             response_reference(page_dir, user),
             "--text",
-            "Ready.",
-            "--markup",
-            '<p id="deploy-status">All checks passed.</p>',
+            'Ready.\n\n<p id="deploy-status">All checks passed.</p>',
         ],
     )
     assert answered.exit_code == 0, answered.output
-    assert [
-        e["markup"] for e in events_model.read_events(page_dir) if "markup" in e
-    ] == [table, log, '<p id="deploy-status">All checks passed.</p>']
+    held = [e for e in events_model.read_events(page_dir) if logged_fragment(e)]
+    assert [e["text"] for e in held] == [
+        f"Results:\n\n{table}",
+        f"Log:\n\n{log}",
+        'Ready.\n\n<p id="deploy-status">All checks passed.</p>',
+    ]
     for identifier in ("run-results", "deploy-log", "deploy-status", "plan"):
         refused = comment(
             page_dir,
             "--text",
-            "Again:",
-            "--markup",
-            f'<p id="{identifier}">Duplicate</p>',
+            f'Again:\n\n<p id="{identifier}">Duplicate</p>',
         )
         assert refused.exit_code != 0, refused.output
         assert "already taken" in refused.output, refused.output
@@ -1851,7 +1871,7 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, native):
+def test_message_html_may_not_dress_the_document_it_is_put_into(page_dir, native):
     """A fragment has no page of its own, so it gets no stylesheet of its own.
 
     The runtime parses an agent's markup into a template and moves those nodes into the
@@ -1863,8 +1883,8 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, nati
     Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
-        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
-        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+        '<lf-group id="d1-decision" label="Choose one">\n<h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-group>'
     )
     if native:
         widget = '<pre id="native-log">Ready</pre>'
@@ -1872,22 +1892,18 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, nati
     sheet = comment(
         page_dir,
         "--text",
-        "look:",
-        "--markup",
-        "<style>main h1 { color: red }</style>" + widget,
+        "look:\n\n<style>main h1 { color: red }</style>\n\n" + widget,
     )
     assert sheet.exit_code != 0 and "<style>" in sheet.output
 
     linked = comment(
         page_dir,
         "--text",
-        "look:",
-        "--markup",
-        '<link rel="stylesheet" href="/theme.css">' + widget,
+        'look:\n\n<link rel="stylesheet" href="/theme.css">\n\n' + widget,
     )
     assert linked.exit_code != 0 and "stylesheet" in linked.output
 
-    assert comment(page_dir, "--text", "look:", "--markup", widget).exit_code == 0
+    assert comment(page_dir, "--text", f"look:\n\n{widget}").exit_code == 0
 
 
 def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
@@ -1899,20 +1915,18 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     task as answered and `state` reporting that nobody had answered anything,
     while the browser had been folding that same action all along.
 
-    It is named by its thread rather than by a version, because thread markup is
-    frozen in the log and page versions do not bound its state."""
+    It is named by its thread rather than by a version, because page versions do
+    not bound thread markup's state."""
     published(page_dir)
     assert (
         comment(
             page_dir,
             "--text",
-            "Pick one:",
-            "--markup",
-            '<lf-ask id="ps-decision"><h3>Which store?</h3>'
-            '<lf-options id="ps-q" choose>'
+            'Pick one:\n\n<lf-group id="ps-decision" label="Which store?">\n<h3 id="ps-decision-h">Which store?</h3>'
+            '<lf-options id="ps-q">'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></lf-group>",
         ).exit_code
         == 0
     )
@@ -1937,14 +1951,14 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_message_markup_may_not_declare_the_document(page_dir, native):
+def test_message_html_may_not_declare_the_document(page_dir, native):
     """A message renders in every revision of its page, so a base, header, or import
     map in one would redirect, navigate, or break that page for good. Handlers are the
     author's to write, as in the page itself."""
     published(page_dir)
     widget = (
-        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
-        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+        '<lf-group id="d1-decision" label="Choose one">\n<h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-group>'
     )
     if native:
         widget = '<table id="native-checks"><tr><td>Passed</td></tr></table>'
@@ -1953,18 +1967,64 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
         '<meta http-equiv="refresh" content="0;url=https://outside.example/">',
         '<script type="importmap">{"imports": {}}</script>',
     ):
-        refused = comment(page_dir, "--text", "look:", "--markup", declaration + widget)
+        refused = comment(page_dir, "--text", f"look:\n\n{declaration}\n\n{widget}")
         assert refused.exit_code != 0, declaration
         assert "document-declaration" in refused.output, refused.output
-    handled = '<p onclick="this.hidden = true">Hide me</p>' + widget
-    assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
+    handled = '<p onclick="this.hidden = true">Hide me</p>\n\n' + widget
+    assert comment(page_dir, "--text", f"look:\n\n{handled}").exit_code == 0
+
+
+def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
+    """A blank line ends a block of HTML, a `<pre>` inside a widget included, and
+    Markdown reads the lines after it as its own blocks, such as paragraphs or a list,
+    so the code loses its blank lines, indents and marks while the HTML stays well
+    formed. A fence, or a `<pre>` opening its own line after a blank line, keeps them."""
+    published(page_dir)
+    code = "def a():\n    return 1\n\ndef b():\n    return 2"
+    for split in (code, "steps:\n\n- build\n- ship"):
+        refused = comment(
+            page_dir,
+            "--text",
+            f'Here:\n\n<lf-code id="split">\n<pre>{split}</pre>\n</lf-code>',
+        )
+        assert refused.exit_code != 0 and "split-pre" in refused.output, refused.output
+    for kept in (
+        f'<lf-code id="fenced">\n\n```python\n{code}\n```\n\n</lf-code>',
+        f'<lf-code id="own-line">\n\n<pre>{code}</pre>\n\n</lf-code>',
+    ):
+        assert code in passages_model.message_markup(kept)
+        assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
+
+
+def test_a_widget_sharing_its_opening_line_is_refused_for_its_paragraph_alone(
+    page_dir,
+):
+    """A widget whose opening tag shares its line with its content is inline HTML, so
+    Markdown draws a paragraph around it, and its `<pre>` closes that paragraph. The
+    refusal names that repair alone, not the widget the parser emptied, which the
+    agent wrote whole."""
+    published(page_dir)
+    code = '<lf-code id="snippet">{}<pre><code class="language-python">print(1)</code></pre></lf-code>'
+    refused = comment(page_dir, "--text", "Here:\n\n" + code.format(""))
+    assert refused.exit_code != 0
+    assert [f["code"] for f in json.loads(refused.output)["findings"]] == ["unclosed"]
+    kept = comment(page_dir, "--text", "Here:\n\n" + code.format("\n"))
+    assert kept.exit_code == 0, kept.output
 
 
 def test_data_widget_prose_members_are_quotable_without_admitting_source():
-    registry = {
-        "lf-source": {"x-content": "data", "x-upgrade": True},
-        "lf-remark": {"x-content": "markup", "x-owners": ["lf-source"]},
-    }
+    registry = with_modules(
+        {
+            "lf-source": {
+                "content": "data",
+            },
+            "lf-remark": {
+                "content": "markup",
+                "owners": ["lf-source"],
+            },
+        },
+        "lf-source",
+    )
     document = structure_model.SourceDocument(
         '<p>Before.</p><lf-source id="source"><pre>Hidden source '
         "<lf-remark>Still source.</lf-remark></pre>"

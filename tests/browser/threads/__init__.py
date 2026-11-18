@@ -140,6 +140,7 @@ def append_user_reply(page_dir, parent, text):
 
 
 def append_agent_reply(page_dir, parent, text, markup=None):
+    """An agent's reply; `markup` is HTML written after its words, as `leaf thread reply` reads it."""
     event = {
         "kind": "reply",
         "author": "agent",
@@ -147,10 +148,8 @@ def append_agent_reply(page_dir, parent, text, markup=None):
         "session": "pytest-summary",
         "parent": parent,
         "revision": 1,
-        "text": text,
+        "text": text if markup is None else f"{text}\n\n{markup}",
     }
-    if markup is not None:
-        event["markup"] = markup
     return append_carried_log_record(page_dir, event)
 
 
@@ -244,14 +243,15 @@ def _shadow_tree_widget(tag):
     shadow tree."""
     declaration = {
         "description": "A project-supplied tree.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-shadow": True,
-        "x-example": f'<{tag} id="example"></{tag}>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
+        "shadow": True,
+        "example": f'<{tag} id="example"></{tag}>',
     }
     module = f"""
 import {{shadowStage}} from '/runtime/widget-api.js';
@@ -281,11 +281,14 @@ CHANGE_HEAD = "<h1 id='dc-h'>Session store</h1>"
 CHANGE_PAGE = leaf_page("doc-change", CHANGE_HEAD + PAGE_CHANGE)
 
 
-REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-")
+# A reply's widget starts a line of its own, so Markdown keeps it one block.
+REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-").replace(
+    "<lf-old>", "\n<lf-old>", 1
+)
 
 
 def seed_reply(d, markup, anchor_id, chatter=0, after=0):
-    """A thread whose reply carries `markup`, with a thread anchored on it.
+    """A thread whose reply holds the HTML `markup`, with a thread anchored on it.
 
     `chatter` is what makes the panel a scroller of its own: a travel that lands by
     accident when the whole list already fits proves nothing about which box moved.
@@ -321,8 +324,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
             "author": "agent",
             "parent": "tv-decisioned",
             "revision": 1,
-            "text": "Depends what you want to keep:",
-            "markup": markup,
+            "text": "Depends what you want to keep:\n\n" + markup,
         },
     )
     append_carried_log_record(
@@ -476,8 +478,10 @@ def seated_page(serve, kind):
     return serve(
         leaf_page(
             "seat",
-            f'<h1>Review the plan</h1>{SEAT_FILLER}<lf-verdict id="proposal" asks>'
-            f"Should these jobs share a visit?</lf-verdict>{SEAT_FILLER}",
+            f"<h1>Review the plan</h1>{SEAT_FILLER}"
+            '<lf-group id="proposal-q" label="Should these jobs share a visit?">'
+            '<lf-verdict id="proposal" asks>Should these jobs share a visit?</lf-verdict>'
+            f"</lf-group>{SEAT_FILLER}",
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,

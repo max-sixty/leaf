@@ -18,23 +18,20 @@ list is a complete answer.
 ## Asks waiting on the user
 
 Leaf's guidance for asking and for threads, the agent's own, comes after this
-check: what goes On Me (`conversation-loop.md`, "The On lists"), how a question
-reads in a thread, and how the agent keeps a thread current.
+check: what goes On Me (`conversation-loop.md`, "The On lists"), which action asks
+for permission and which is a step, how a question reads in a thread, when it asks
+with a choice, and how the agent keeps a thread current.
 Name each ask that guidance puts On Me which the agent left to the user, in its
 replies or anywhere in the conversation, where no On Me item holds it and the user
 hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
-message in a thread, and the agent takes the user's reply or withdraws the ask. For
+message in a thread, and the agent takes the user's answer or withdraws the ask. For
 each, give:
 
 - `title`: a few words naming its thread's subject ("Merging the two mark styles",
   "Reloading the plugin").
 - `text`: the message that asks it, written as that guidance says the agent writes
-  one. For a step the user takes, such as running a command or trying a build, say
-  what to do. Ask for a reply only for what the user alone can report, such as what
-  the build showed them, or where the agent's next step waits on it, such as a merge
-  waiting on the user's approval, since the reply is what tells the agent to go on.
-  The agent checks for itself whatever else it can, such as a file deleted or an
-  issue filed.
+  one, a choice included, which Leaf posts as the agent's `leaf thread` command
+  would. It marks an option recommended only where the agent advised it.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
   stands on; otherwise empty, and it stands on the page as a whole.
@@ -52,18 +49,21 @@ first makes a stale passage's fix itself where you give one. Leaf's earlier mess
 from this check are in the conversation; leave out a finding one of them already
 passed on. Name:
 
-- `stale`: what a page, not a reply, still says that the work or the conversation
-  has since changed, such as a result, a capture, a lede, a question it still asks,
-  or a section the user dropped in chat. Name only what the conversation shows the
-  page saying now, quoting its words where it holds them, and leave out what the
-  page might still say. A page that doesn't yet mention something isn't stale; the
-  agent decides what to add. Where a few of the page's words say it and a few new words
-  fix it, give the fix as `edit`: `words`, the page's words exactly as its text
-  below shows them and found nowhere else on it, and `replacement`, the words that
-  should stand there now, written as the page writes. Leaf makes the change and
-  tells the agent, which can undo it. Leave `edit` null where the fix needs more
-  than a sentence or a choice the conversation hasn't made; the agent revises the
-  page.
+- `stale`: anything on a page, not a reply, that no longer fits the work as it now
+  stands, wherever it is on the page. That covers words the work or the conversation
+  has since changed, such as a result, a capture or a question the page still asks,
+  and finished or dropped work the page still presents as current, such as a title
+  and opening that still tell finished work as news while the question the work moved
+  on to waits below, or a section the user dropped in chat. Name only what the
+  conversation shows the page holding now, quoting its words where it holds them,
+  and leave out what the page might still hold. A page that doesn't yet mention
+  something isn't stale; the agent decides what to add. Where a few of the page's
+  words say it and a few new words fix it, give the fix as `edit`: `words`, the
+  page's words exactly as its text below shows them and found nowhere else on it,
+  and `replacement`, the words that should stand there now, written as the page
+  writes. Leaf makes the change and tells the agent, which can undo it. Leave `edit`
+  null where the fix needs more than a sentence or a choice the conversation hasn't
+  made; the agent revises the page.
 - `settled`: an On Me item the user has answered elsewhere, such as in chat, or
   that the work has made moot. The agent records the answer on the page, or resolves
   the thread that asks it.

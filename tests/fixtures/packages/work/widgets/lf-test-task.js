@@ -1,10 +1,11 @@
 /* A local consumer exercises declaration-driven reports without shipping a task UI. */
+import { nothing } from "/vendor/lit.js";
 import {
+  generatedElement,
   keeps,
   keepsHidden,
   keepsText,
   LeafElement,
-  nothing,
   offer,
   offerAction,
   readWork,
@@ -20,15 +21,14 @@ customElements.define(
         Boolean,
       );
       this.statusLine =
-        this.querySelector(':scope > [data-lf-said="status"]') ??
+        this.querySelector(":scope > .work-state[data-lf-gen]") ??
         document.createElement("span");
       this.statusLine.className = "work-state";
-      this.statusLine.dataset.lfGen = "1";
-      this.statusLine.dataset.lfSaid = "status";
+      generatedElement(this.statusLine, { says: true });
       this.append(this.statusLine);
       this.progress = document.createElement("output");
       this.progress.className = "work-progress";
-      this.progress.dataset.lfGen = "1";
+      generatedElement(this.progress, { says: false });
       this.append(this.progress);
       if (!this.hasAttribute("talk")) return;
       // A task marked `talk` seats the threads about it, and the comment box that

@@ -62,7 +62,7 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
 
-def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve):
+def test_on_me_materializes_a_reply_review_at_its_requested_case(browser, serve):
     """A reply's record is reachable before its widget or selected case is drawn."""
     url = serve(VISUAL_REVIEW_GALLERY)
     append_carried_log_record(
@@ -70,8 +70,8 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
         {
             "kind": "comment",
             "author": "agent",
-            "text": "Review the comparisons in this reply.",
-            "markup": '<lf-visual-review id="reply-review" source="gallery-visual-run"></lf-visual-review>',
+            "text": "Review the comparisons in this reply.\n\n"
+            '<lf-visual-review id="reply-review" source="gallery-visual-run"></lf-visual-review>',
         },
     )
     page = open_page(browser, url)

@@ -81,33 +81,35 @@
   },
   "lf-test-roster": {
     "description": "A view of multiple workers, their durable remits, and their current activity.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      },
+      "additionalProperties": false
     },
-    "additionalProperties": false,
-    "x-content": "members",
-    "x-upgrade": false,
-    "x-space": "wide"
+    "content": "members",
+    "space": "wide"
   },
   "lf-test-worker": {
     "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "state": {
-        "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "state": {
+          "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
+        },
+        "on": { "type": "string" },
+        "overruled": {
+          "type": "boolean"
+        }
       },
-      "on": { "type": "string" },
-      "overruled": {
-        "type": "boolean"
-      }
+      "required": ["id", "state"],
+      "additionalProperties": false
     },
-    "required": ["id", "state"],
-    "additionalProperties": false,
-    "x-owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
-    "x-content": "markup",
-    "x-refers": {
+    "owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
+    "refers": {
       "on": {
         "via": "$work.widgets",
         "where": {
@@ -115,8 +117,7 @@
         }
       }
     },
-    "x-upgrade": true,
-    "x-state": {
+    "verbs": {
       "state": {
         "writer": "agent",
         "unit": "widget",
@@ -130,35 +131,36 @@
   },
   "lf-test-tasks": {
     "description": "A hierarchy of work with ownership, status, and progress derived from its tasks.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      },
+      "additionalProperties": false
     },
-    "additionalProperties": false,
-    "x-content": "members",
-    "x-upgrade": true
+    "content": "members"
   },
   "lf-test-plan": {
     "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
-    "x-name": "label",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "label": {
-        "type": "string"
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "readings": {
+          "type": "string"
+        }
       },
-      "phase": {
-        "type": "string"
-      },
-      "readings": {
-        "type": "string"
-      }
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "members",
-    "x-upgrade": true,
-    "x-refers": {
+    "content": "members",
+    "refers": {
       "readings": {
         "via": "$work.widgets",
         "where": {
@@ -170,44 +172,46 @@
   },
   "lf-test-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "status": {
-        "enum": ["planned", "active", "blocked", "review", "stalled", "done"]
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": ["planned", "active", "blocked", "review", "stalled", "done"]
+        },
+        "owner": {
+          "type": "string"
+        },
+        "when": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
+        },
+        "needs": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*( [a-z0-9][a-z0-9-]*)*$"
+        },
+        "stopped-at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "talk": {
+          "type": "boolean"
+        },
+        "overruled": {
+          "type": "boolean"
+        }
       },
-      "owner": {
-        "type": "string"
-      },
-      "when": {
-        "type": "string"
-      },
-      "tags": {
-        "type": "string",
-        "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
-      },
-      "needs": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*( [a-z0-9][a-z0-9-]*)*$"
-      },
-      "stopped-at": {
-        "type": "string",
-        "format": "date-time"
-      },
-      "talk": {
-        "type": "boolean"
-      },
-      "overruled": {
-        "type": "boolean"
-      }
+      "required": ["id", "status"],
+      "additionalProperties": false
     },
-    "required": ["id", "status"],
-    "additionalProperties": false,
-    "x-owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
-    "x-content": "markup",
-    "x-upgrade": true,
-    "x-thread-surface": true,
-    "x-state": {
+    "owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
+    "verbs": {
       "status": {
         "writer": "agent",
         "unit": "widget",
@@ -220,27 +224,28 @@
   },
   "lf-test-tree": {
     "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "source": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "required": ["id", "source"],
+      "additionalProperties": false
     },
-    "required": ["id", "source"],
-    "additionalProperties": false,
-    "x-owners": ["lf-test-worker"],
-    "x-content": "empty",
-    "x-data": {
+    "content": "empty",
+    "inputs": {
       "worktrees": {
         "contract": "lf-test-tree",
         "source": "source",
         "property": "value"
       }
     },
-    "x-upgrade": true,
-    "x-space": "wide"
+    "owners": ["lf-test-worker"],
+    "space": "wide"
   },
   "$work": {
-    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in x-state, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
+    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in `verbs`, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
     "widgets": {
       "lf-test-plan": {
         "role": "scope"
@@ -255,7 +260,7 @@
       "lf-test-worker": {
         "role": "worker",
         "state": "state",
-        "running": ["working"],
+        "running": ["working", "waiting"],
         "retired": ["reaped", "done"],
         "on": "on"
       },
@@ -275,15 +280,16 @@
   },
   "lf-test-summary": {
     "description": "A local exclusive-reference target.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-upgrade": false
+    "content": "empty"
   }
 }

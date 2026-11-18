@@ -42,8 +42,7 @@ def _refreshes_restate_no_margin_name(page, population):
     `render` follows semantic and viewport refreshes, so an unconditional write here
     restates itself on a page nobody has touched: the mutation stream a
     screen reader rebuilds its buffer from, and a dirty box for whatever reads
-    next. The corpus used to restate 205 attributes and the margin entry's
-    words on every pass.
+    next.
 
     What the pass wrote without changing anything is one reading rather than two.
     An attribute the pass leaves carrying the value it opened with said nothing,
@@ -64,7 +63,7 @@ def _refreshes_restate_no_margin_name(page, population):
     Half of `render` runs in a frame callback — `scheduleMarginLayout` and
     `scheduleRoving` are its whole tail — and five refreshes in one synchronous task
     never reach it. Each refresh is therefore
-    read across a settled frame, which both pages now allow. The layout pass
+    read across a settled frame, which both pages allow. The layout pass
     places every row from what it writes, so a refresh that restated a posture, an
     offset or a push shows up here as a restatement.
     """
@@ -341,18 +340,18 @@ OBLIGATION_MARKERS_PAGE = leaf_page(
     "Question markers",
     """
 <h1 id="h">Two open questions</h1>
-<lf-ask id="short-ask"><h2>Where should sessions live?</h2>
-<lf-options id="short-choice" choose>
-  <lf-option id="short-a"><strong>Keep the store</strong></lf-option>
-  <lf-option id="short-b"><strong>Signed tokens</strong></lf-option>
-</lf-options></lf-ask>
+<lf-group id="short-ask" label="Where should sessions live?"><h2 id="short-ask-h">Where should sessions live?</h2>
+<lf-options id="short-choice">
+  <lf-option id="short-a" label="Keep the store"><strong>Keep the store</strong></lf-option>
+  <lf-option id="short-b" label="Signed tokens"><strong>Signed tokens</strong></lf-option>
+</lf-options></lf-group>
 <p id="between">Between the two questions, a paragraph of ordinary prose.</p>
-<lf-ask id="long-ask"><h2>Should the nightly export keep writing one file per tenant,
+<lf-group id="long-ask" label="Should the nightly export keep writing one file per tenant, or roll every tenant into a single partitioned archive?"><h2 id="long-ask-h">Should the nightly export keep writing one file per tenant,
 or roll every tenant into a single partitioned archive?</h2>
-<lf-options id="long-choice" choose>
-  <lf-option id="long-a"><strong>One file per tenant</strong></lf-option>
-  <lf-option id="long-b"><strong>One archive</strong></lf-option>
-</lf-options></lf-ask>
+<lf-options id="long-choice">
+  <lf-option id="long-a" label="One file per tenant"><strong>One file per tenant</strong></lf-option>
+  <lf-option id="long-b" label="One archive"><strong>One archive</strong></lf-option>
+</lf-options></lf-group>
 """,
 )
 
@@ -365,7 +364,7 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     heading already says the question, and a preview nobody pointed at covers the ask's
     controls.
 
-    Hovering an obligation's marker shows the obligation's question, where it used to show only
+    Hovering an obligation's marker shows the obligation's question, not only
     "Ask…", which the marker's glyph already says. Its accessible name identifies
     the question too, independently of how the visible label fits."""
     page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
@@ -457,7 +456,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     resized(page, 1280, 900)
     marker = page.locator('[data-lf-margin-for="how-cap"] > .lf-margin-marker')
     icon = marker.locator(":scope > .lf-margin-entry-icon")
-    badge = marker.locator(":scope > .lf-margin-count")
+    badge = marker.locator(":scope > .lf-badges > .lf-badge-count")
     icon.evaluate("node => { window.__heldMarginEntryIcon = node; }")
     badge.evaluate("node => { window.__heldMarginEntryBadge = node; }")
     marker.evaluate(
@@ -832,8 +831,8 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
 </p>
 <lf-board id="packing">
   <lf-column id="ready" label="Ready">
-    <lf-card id="map"><strong>Print the workshop map</strong></lf-card>
-    <lf-card id="signs"><strong>Pack the direction signs</strong></lf-card>
+    <lf-card id="map" label="Print the workshop map"><strong>Print the workshop map</strong></lf-card>
+    <lf-card id="signs" label="Pack the direction signs"><strong>Pack the direction signs</strong></lf-card>
   </lf-column>
 </lf-board>
 """,

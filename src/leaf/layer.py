@@ -25,7 +25,7 @@ from .locations import first_overlap, located
 from .machine import package_store
 from .page_memory import once
 from .refusals import Refused
-from .registry.contract import is_element_name
+from .registry.contract import MODULES, is_element_name
 from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
@@ -172,6 +172,28 @@ def input_paths(inputs: list[Path]) -> list[Path]:
                 )
                 paths.extend(path.resolve() for path in entries)
     return paths
+
+
+def package_files(root: Path) -> dict[str, bytes]:
+    """The files of package `root` a layer composes (`checked_inputs`), by their path
+    in the package: its top files, every sheet one of its sheets imports, wherever in
+    the package that stands (`stylesheet`), and its directories. A copy of a package
+    is these files, so a page's copy and an installed one compose as the source does."""
+    root = root.resolve()
+    files = {}
+    for name in PACKAGE_FILES:
+        if not (root / name).is_file():
+            continue
+        files[name] = (root / name).read_bytes()
+        if name.endswith(".css"):
+            for imported in imported_sheets(root / name, root):
+                files[imported.relative_to(root).as_posix()] = imported.read_bytes()
+    for sub in PACKAGE_DIRS:
+        if (root / sub).is_dir():
+            for path in sorted((root / sub).rglob("*")):
+                if path.is_file():
+                    files[path.relative_to(root).as_posix()] = path.read_bytes()
+    return files
 
 
 def overlapping_inputs(inputs: list[Path]):
@@ -525,7 +547,7 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
     widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
     module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
     the shared sheet's page-wide faces (a native control's font, and the faces a Leaf
-    page's own controls take by name, such as `.lf-btn`) to the widgets' insides, so
+    page's own controls take under its theme) to the widgets' insides, so
     the host's own markup keeps its look; it adds no
     specificity and keeps each rule's order, so a widget's insides rank as on a Leaf
     page. A rule there that reaches the widget element itself, or declares on `:root`,
@@ -945,8 +967,7 @@ def provenance_label(provenance: dict) -> str:
 
 
 def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
-    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`),
-    refusing a registry that marks a widget upgraded whose module no input holds.
+    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`).
 
     Its registry is merged and stamped but not validated. `page init` validated the
     selection, and every Leaf that serves, exports or checks the page validates it
@@ -956,17 +977,6 @@ def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
 
     incoming = stamp_composition(merged_registry(roots)[0])
     widgets = frozenset(composed_dir_files(roots, "widgets"))
-    missing_modules = sorted(
-        tag
-        for tag, entry in incoming.items()
-        if is_element_name(tag) and entry["x-upgrade"] and f"{tag}.js" not in widgets
-    )
-    if missing_modules:
-        raise Refused(
-            "the incoming registry marks widgets as upgraded but their modules "
-            "are missing:\n"
-            + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
-        )
     return LayerVocabulary(incoming, widgets, composed_instructions(roots))
 
 
@@ -1002,6 +1012,8 @@ def _composition(
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - set(
         PUBLIC_MODULES
     )
+    # Every module path an import in the layer names.
+    imported = set()
     for root in roots:
         if root.resolve() == ASSETS.resolve():
             continue
@@ -1025,11 +1037,33 @@ def _composition(
                 path = "/" + module.relative_to(root).as_posix()
                 for _, _, specifier in javascript_imports(module.read_bytes(), path):
                     dependency = dependency_reference(specifier, path, module=True)
+                    if dependency is not None:
+                        imported.add(dependency[0])
                     if dependency is not None and dependency[0] in private_modules:
                         raise Refused(
                             f"{module} imports private kernel module {specifier!r}; "
                             "use /runtime/widget-api.js"
                         )
+    # A module named as a widget's is loaded because its tag is declared or because
+    # another module imports it, as `lf-options.js` imports `lf-options-settled.js`.
+    # One that neither holds for is a widget's module under the wrong name, a typo or
+    # a tag renamed in the registry alone, and its widget would draw as plain markup
+    # with nothing else to say so.
+    loaded = set(vocabulary.registry[MODULES].values())
+    unloaded = sorted(
+        name
+        for name in vocabulary.widgets
+        if is_element_name(name.removesuffix(".js"))
+        and name.endswith(".js")
+        and f"widgets/{name}" not in loaded
+        and f"/widgets/{name}" not in imported
+    )
+    if unloaded:
+        raise Refused(
+            "nothing loads these modules: no declared tag has the name and no module "
+            "imports them. A widget's module is `widgets/<tag>.js`:\n"
+            + "\n".join(f"  - widgets/{name}" for name in unloaded)
+        )
     directory_sources = {
         sub: composed_dir_files(
             [

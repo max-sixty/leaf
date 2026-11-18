@@ -1,11 +1,8 @@
-# Added after a simplification audit queried lf-toc's example and schema, then
-# wrote a custom anchor index without reading its behavioral description.
-# The initial cold prompt passed 3/3 on both arms; this less directive prompt
-# passed 2/2 on both. It guards navigation and comparison together rather than
-# reproducing the long session. Also passed 2/2 with both the landed Contents
-# rule and its short-document exception. Native history replays, rather than
-# this cold prompt, discriminate the long-session instruction changes.
-# Without the pointer to the registry, 2 of 2 Claude Code runs at 0e538e29d passed.
+# A simplification audit queried lf-toc's example and schema, then wrote a custom
+# anchor index without reading its behavioral description. This prompt guards
+# navigation and comparison together rather than reproducing the long session.
+# Native history replays, rather than this cold prompt, discriminate the
+# long-session instruction changes.
 description: report-navigation-uses-vocabulary
 metadata:
   purpose: "Contents navigation: retain comparison metadata alongside the report outline."

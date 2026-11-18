@@ -17,7 +17,7 @@
  * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
- * an Escape became a cross-session nudge (measured at 2.1.307 with the
+ * an Escape would become a cross-session nudge (measured at 2.1.307 with the
  * claude-code journey).
  *
  * Starting an idle turn always draws a row, and no hook or exit code wakes the
@@ -102,7 +102,7 @@ let remote: boolean | undefined;
 let lineForks = true;
 // Whether a thread whose line fork judged the work a fork's goes to a fork that does
 // it (`workFork`): `LEAF_FORK_WORK=on` in Claude Code's environment, while the design
-// in docs/forks.html is tried.
+// in How it works' Forks tab (docs/how-it-works.html) is tried.
 let workForks = false;
 
 // The summary `hooks.json` gives the background watch's wake, which Claude Code
@@ -129,9 +129,9 @@ type Leaf = {
 // (`completions.pending`).
 type Listing = { pages: Leaf[]; completions: Completion[] };
 
-// A thread whose waiting messages Leaf keeps back for a line fork, as the follower prints
-// it.
-type KeptBack = { page: string; thread: string; inputs: string[] };
+// A thread whose waiting messages a line turn holds for a line fork, as the follower
+// prints it.
+type KeptBack = { page: string; thread: string; inputs: string[]; turn: string };
 
 // A completion a page server asks of the session, as the follower prints it.
 type Completion = { id: string; request: ModelCompleteRequest };
@@ -382,10 +382,7 @@ let forkAgain = false;
  * Claude Code's own lines for the fork's tokens (`Forked agent [plugin_model_fork]
  * finished`); the module logs no usage of its own, since the debug log redacts
  * a `*_tokens` field, and hands the fork's usage and time, or why it gave no answer,
- * to Leaf, which notes them with the answer in each page's diagnostics. In the
- * claude-code journey on 2026-11-04, with the session at xhigh, 102 forks at low
- * over a 57–202k-token conversation read 98% of it from the cache, cost
- * $0.04–0.12 each at list price and took 0.5–8 s. */
+ * to Leaf, which notes them with the answer in each page's diagnostics. */
 async function clerk($: EngineInterface, session: string) {
   if (forking) {
     forkAgain = true;
@@ -432,8 +429,7 @@ async function clerk($: EngineInterface, session: string) {
 // attachments, hook context and compaction summaries. The fork reads the
 // conversation as it would next go out: with a tool call running, to `sent`, since
 // the call's tool_use can't go out before its result; otherwise to `row`, a turn's
-// final reply included (`notes/fork-replies.md`, under the fork probes, and a
-// turn-end ask in the claude-code journey on 2026-11-01 that quoted only that reply).
+// final reply included (`notes/fork-replies.md`, under the fork probes).
 // Each fork hands this to Leaf, so a fork's diagnostics say where a replay cuts the
 // conversation.
 let lastStep:
@@ -452,14 +448,13 @@ function request() {
  * its time, its usage, and the main thread's request it resent (`request`).
  *
  * The fork thinks at the session's effort, and Leaf's prompt asks it to answer
- * straight away (`clerk.py` and `forks.py` hold what each fork measured at either
- * effort). A fork at another effort reads the conversation from the cache only where Claude Code's per-message
- * effort reaches the model; elsewhere, as on Vertex, through a proxy that rewrites
- * mid-conversation system messages, or with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`,
- * it writes the conversation to the cache again from the session's first reply on
- * (#5891, #5904). Learning that per backend from each check's usage (#5892, #5907)
- * cost a stored answer per backend, a rewrite to learn it and another to check it
- * again each week. */
+ * straight away. A fork at another effort reads the conversation from the cache only
+ * where Claude Code's per-message effort reaches the model; elsewhere, as on Vertex,
+ * through a proxy that rewrites mid-conversation system messages, or with
+ * `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`, it writes the conversation to the cache
+ * again from the session's first reply on. Learning that per backend from each
+ * check's usage would cost a stored answer per backend, a rewrite to learn it and
+ * another to check it again each week. */
 async function runFork(
   $: EngineInterface,
   asked: { prompt: string },
@@ -492,8 +487,7 @@ const running = new Map<string, { tool: string; input: Record<string, string> }>
 // The arguments of a call a fork's prompt names, each cut to a line's worth.
 const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"];
 
-// The kept-back threads a line fork has been made for, by page, thread and newest
-// message.
+// The line turns a line fork has been made for.
 const asked = new Set<string>();
 
 /** Fork the conversation for the agent's working line on a kept-back thread's waiting
@@ -502,18 +496,23 @@ const asked = new Set<string>();
  * Leaf writes the prompt and checks again that the thread is still kept back; the
  * module adds the calls the session is running, makes the
  * fork, and hands back the line, or the failure, which hands the thread over. Forks
- * for different threads run side by side, and the follower lists a kept-back thread until
- * its fork decides, so each is made once. Its outcomes go to the debug log and the
- * page's diagnostics, since the user meets the line only as the agent's. */
+ * for different threads run side by side, and the follower lists a kept-back thread
+ * under its line turn until its fork decides, so each line turn gets one fork; a
+ * message that joins the thread meanwhile opens a new line turn, whose fork is asked
+ * about them all. Its outcomes go to the debug log and the page's diagnostics, since
+ * the user meets the line only as the agent's. Leaf may name more forks to make
+ * beside it (`beside`), such as one that summarizes a long thread
+ * (`src/leaf/summary_fork.py`), each started at once and answered on its own
+ * (`besideFork`), so the line waits on none of them. */
 function lineFork($: EngineInterface, session: string, kept: KeptBack) {
-  const key = `${kept.page} ${kept.thread} ${kept.inputs.at(-1)}`;
-  if (asked.has(key)) return;
-  asked.add(key);
+  if (asked.has(kept.turn)) return;
+  asked.add(kept.turn);
   void (async () => {
     try {
       const calls = [...running.values()];
       const question = await forkStep($, session, { thread: kept, running: calls });
       if (!question) return;
+      for (const beside of question.beside ?? []) besideFork($, session, beside);
       const ran = await runFork($, question);
       const outcome = await forkStep($, session, {
         thread: kept,
@@ -528,7 +527,7 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
     } catch (error) {
       // Leaf's own step failed. Telling Leaf hands the thread to the session now and
       // notes why in the page, which a session without a debug log keeps nowhere
-      // else; where Leaf can't be told either, the bound runs out.
+      // else; where Leaf can't be told either, the line turn lapses.
       $.ui.log(`Leaf: the line fork for thread ${kept.thread} failed: ${error}`, {
         to: "debug",
       });
@@ -536,6 +535,30 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
         thread: kept,
         failed: `Leaf's step failed: ${error}`,
       }).catch(() => undefined);
+    }
+  })();
+}
+
+/** Make a fork Leaf asked for beside a line fork, and hand its answer back with the
+ * basis Leaf gave it, for Leaf to write what it answered (`forks.cmd_fork`). The
+ * user never meets such a fork, so its failures go to the debug log. */
+function besideFork(
+  $: EngineInterface,
+  session: string,
+  asked: { prompt: string; basis: { duty: string; thread: string } },
+) {
+  void (async () => {
+    const { duty, thread } = asked.basis;
+    try {
+      const ran = await runFork($, asked);
+      const outcome = await forkStep($, session, { beside: asked.basis, ...ran });
+      $.ui.log(`Leaf: the ${duty} fork for thread ${thread}: ${outcome?.outcome}`, {
+        to: "debug",
+      });
+    } catch (error) {
+      $.ui.log(`Leaf: the ${duty} fork for thread ${thread} failed: ${error}`, {
+        to: "debug",
+      });
     }
   })();
 }

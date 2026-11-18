@@ -1,12 +1,13 @@
 /* Atlas task rows keep their authored hierarchy and report identity. A row marked
  * `talk` shows the conversations about it at its foot, where its Comment control opens
  * the box that starts one. */
+import { nothing } from "/vendor/lit.js";
 import {
+  generatedElement,
   keeps,
   keepsHidden,
   keepsText,
   LeafElement,
-  nothing,
   offer,
   offerAction,
   threadSurface,
@@ -18,11 +19,10 @@ customElements.define(
       keeps(this, "role", "group");
       this.ariaLabelledByElements = [this.querySelector(":scope > strong")];
       const status =
-        this.querySelector(':scope > [data-lf-said="status"]') ??
+        this.querySelector(":scope > .atlas-task-state[data-lf-gen]") ??
         document.createElement("p");
       status.className = "atlas-task-state";
-      status.dataset.lfGen = "1";
-      status.dataset.lfSaid = "status";
+      generatedElement(status, { says: true });
       this.prepend(status);
       this.statusLine = status;
       if (!this.hasAttribute("talk")) return;

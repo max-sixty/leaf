@@ -70,6 +70,10 @@ interface LeafRootState {
   styles(node: ElementCSSInlineStyle): Set<string>;
 }
 
+/** What the keys the bootstrap holds while the page loads say: Leaf's words, with each
+ * key as its badge (`bootstrap.js`, `holdEarlyKeys`). */
+type HeldWords = readonly (string | { readonly key: string })[];
+
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
 interface LeafSampleBridge {
   ready: Promise<void>;
@@ -144,7 +148,10 @@ interface Element {
     | null
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
-  lfCopy?: () => string;
+  lfCopy?: (() => string) | undefined;
+  /** The toolbar a widget draws over a block marked `data-lf-copy`, where Leaf stands
+   * the block's Copy as the last mark (`code-copy.js`). */
+  lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;
@@ -192,7 +199,6 @@ interface WindowEventMap {
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
-    incomplete: boolean;
     page: boolean;
   }>;
 }
@@ -219,6 +225,9 @@ interface DocumentEventMap {
       | { keys: KeyboardEvent[]; pause(): void; release(): void }
     )
   >;
+  /** The floating panel's offer of its field to say the bootstrap's held keys in, null
+   * once none are shown (`bootstrap.js`, `floating-panel.js`). */
+  "lf-held-keys-seat": CustomEvent<{ show(words: HeldWords | null): void }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<
@@ -244,6 +253,10 @@ interface Window {
 
 interface CustomElementConstructor {
   answerWords?: (value: unknown, element: Element) => unknown;
+  /** How a revision reaches the widget while it stands in the page: `"members"` has
+   * Leaf edit inside its direct authored children in place (`version.js`,
+   * `reachesMembers`). A class field's literal is typed `string`, so this is too. */
+  lfPatch?: string;
 }
 
 interface ShadowRootEventMap {
@@ -278,7 +291,8 @@ interface ShadowRoot {
 }
 
 interface Element {
-  /** Package-provided words when the registry declares x-word: module. */
+  /** The word a widget's module names its kind by where it depends on the element
+   * (`addressable-names.widgetWord`); a fixed word is the declaration's `word`. */
   lfWord?(): string;
   lfSays?(): string;
 }

@@ -16,13 +16,9 @@
  * capture is shown; this module owns only geometry, labels and gestures. Times are
  * milliseconds from the recording's origin.
  */
+import { html, keyed, nothing, render, repeat } from "/vendor/lit.js";
 import {
   setScroll,
-  html,
-  keyed,
-  nothing,
-  render,
-  repeat,
   frameFor,
   sizeObserver,
   whileConnected,
@@ -870,6 +866,9 @@ export class RecordingTimeline {
   /** @param {PointerEvent} event */
   #tap(event) {
     if (this.#options.quoted) return;
+    // A mouse's press on the track scrubbed at pointerdown, so its click is the track's
+    // too.
+    event.preventDefault();
     const touched = event.pointerType === "touch" ? this.#touched : null;
     this.#touched = null;
     const target = touched?.target ?? event.target;

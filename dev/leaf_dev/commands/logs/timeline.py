@@ -42,14 +42,13 @@ which agent of the session had it.
 minutes on where it has none, its thread's events and everything the sessions did
 meanwhile. `--calls` adds every tool call and the agent's words in the terminal.
 
-The line per message comes from `response_times.page_timings`, so it times each step
+The line per message comes from `leaf_dev.page_timings`, so it times each step
 as `leaf-dev logs response-times` does: the fork and its outcome, the agent's first words
 on the page, the session's pickup and what it waited on (`reply_phases.pickup_wait`),
 its start and its answer, each in seconds after the message was admitted.
 """
 
 import json
-import os
 import re
 from collections.abc import Set as AbstractSet
 from datetime import datetime, timedelta
@@ -61,7 +60,9 @@ import click
 from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
 from leaf.events import build_threads, is_answer
+from leaf.harness import claude_code_config
 from leaf.holding import reading, rounds
+from leaf.hook_transport import inline_delivery
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import (
@@ -72,7 +73,7 @@ from leaf.state import (
     session_record,
 )
 from leaf.thread_context import thread_names
-from leaf_dev.commands.logs.response_times import page_timings
+from leaf_dev.page_timings import page_timings
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
     claude_code_records,
@@ -97,9 +98,6 @@ DIAGNOSTICS = (
 QUIET = {"seen", "read", "reanchor", "receipt"}
 # How long after a message `--message` reads where nothing answered it.
 UNANSWERED_WINDOW = timedelta(minutes=10)
-# The line a hook carries Leaf's input in, before the delivery's JSON
-# (`hook_transport.INLINE_OPENING`).
-DELIVERY_OPENING = "Leaf has new input"
 # A shell command that runs `leaf`, anywhere in it, as `hooks/claude-code.ts` finds one.
 LEAF_COMMAND = re.compile(r"(^|[\s;&|(/])leaf(\s|$)")
 
@@ -161,7 +159,7 @@ def page_entries(
                     else f"{row['event']} not kept back: "
                     + (
                         without_lane(row, followers)
-                        if row["lane"] is None
+                        if not row["lane"]
                         else "with the session"
                     ),
                     thread=threads.get(row["event"]),
@@ -378,10 +376,11 @@ def without_lane(admission: dict, followers: list[dict]) -> str:
 
 def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> list[str]:
     """Each agent turn of `session` as this machine's state home holds it now
-    (`leaf.state.AGENT_TURNS`): its agent, the threads it took on the page, when it
-    opened and was last renewed, and whether it runs, closed or lapsed: open but
-    believed running no longer (`leaf.activity.agent_turn_state`). Only the turns
-    that took `thread`, where one is given."""
+    (`leaf.state.AGENT_TURNS`): a line turn, or a fork's by its agent, the threads it
+    took on the page, when it opened and was last renewed, and whether it runs,
+    closed or lapsed: open but believed running no longer
+    (`leaf.activity.agent_turn_state`). Only the turns that took `thread`, where one
+    is given."""
     record = session_record(session)
     turns = agent_turns(session)
     running = running_agent_turns(
@@ -406,9 +405,13 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         shown = (
             f"closed {local(held['closed']):%H:%M:%S}" if state == "closed" else state
         )
+        named = (
+            f"line turn {turn[:8]}"
+            if held["role"] == "line"
+            else f"agent turn {turn[:8]} of {held['agent'] or 'an agent not yet named'}"
+        )
         lines.append(
-            f"agent turn {turn[:8]} of {held['agent'] or 'an agent not yet named'} "
-            f"on {', '.join(took) or 'no thread here'}: opened "
+            f"{named} on {', '.join(took) or 'no thread here'}: opened "
             f"{local(held['opened']):%H:%M:%S}, renewed "
             f"{local(held['renewed']):%H:%M:%S}, {shown}"
         )
@@ -465,10 +468,6 @@ def fork_entries(row: dict) -> list[dict]:
     return out
 
 
-def claude_directory() -> Path:
-    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-
-
 def transcript_path(page: Path, session: str) -> Path | None:
     """Where `session`'s transcript is: beside a journey's evidence, else in Claude
     Code's projects."""
@@ -483,7 +482,7 @@ def debug_log(page: Path, session: str) -> str:
     kept = page / "debug.log"
     for path in (
         kept if (page / "claude" / f"{session}.jsonl").exists() else None,
-        claude_directory() / "debug" / f"{session}.txt",
+        claude_code_config() / "debug" / f"{session}.txt",
     ):
         if path is not None and path.exists():
             return path.read_text(errors="replace")
@@ -498,15 +497,10 @@ def native(path: Path) -> list[dict]:
 def told(text: str) -> list[str]:
     """What one context a Leaf hook gave the session says: the delivery it carried, by
     event id, and each line Leaf's clerk queued after it (`clerk.queued`)."""
-    if not text.startswith(DELIVERY_OPENING):
+    if (delivery := inline_delivery(text)) is None:
         return [
             f"said “{clip(line, 90)}”" for line in text.splitlines() if line.strip()
         ]
-    start = text.find("{")
-    try:
-        delivery, end = json.JSONDecoder().raw_decode(text, start)
-    except ValueError:
-        return [f"said “{clip(text, 90)}”"]
     ids = [
         event["id"]
         for batch in delivery.get("batches", [])
@@ -514,7 +508,8 @@ def told(text: str) -> list[str]:
     ]
     return [
         f"carried delivery {delivery.get('id')}: {', '.join(ids) or 'no events'}",
-        *told(text[end:].strip()),
+        # The lines after the delivery's own, which the clerk queued.
+        *told("".join(text.split("\n", 2)[2:])),
     ]
 
 
@@ -560,7 +555,7 @@ def session_entries(path: Path, session: str, *, calls: bool) -> list[dict]:
         attachment = record.get("attachment") or {}
         if attachment.get("type") == "hook_additional_context":
             for text in attachment.get("content") or []:
-                if not text.startswith(DELIVERY_OPENING) and "Leaf" not in text[:200]:
+                if "Leaf" not in text[:200]:
                     continue
                 out.extend(
                     entry(
@@ -655,7 +650,7 @@ def subagent_entries(meta: Path, session: str) -> list[dict]:
                     session=session,
                 )
                 for text in attachment.get("content") or []
-                if text.startswith(DELIVERY_OPENING)
+                if inline_delivery(text) is not None
                 for line in told(text)
             )
     return [
@@ -716,7 +711,7 @@ def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
         else f"held by turn {note['held_by'][:8]} · "
         if note["held_by"]
         else f"not kept back ({without_lane(note, followers)}) · "
-        if note["lane"] is None
+        if not note["lane"]
         else "not kept back (with the session) · "
     )
     if (fork := row["fork"]) is not None:

@@ -146,8 +146,8 @@ def _sample_containment_page():
    {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
     "text":"Checking the nested reading region."},
    {"kind":"reply","author":"agent","parent":"question",
-    "text":"The destination is inside the nested reading region.",
-    "markup":"<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
+    "revision":1,
+    "text":"The destination is inside the nested reading region.\\n\\n<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
 </script>
 <script type="module">
   const sample = document.querySelector('#practice');
@@ -179,32 +179,33 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-old>Keep the broad sweep.</lf-old>
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
-<lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
-<lf-options id="stable-options" choose>
+<lf-group id="stable-options-decision" label="Which control should stay?"><h2 id="stable-options-decision-h">Which control should stay?</h2>
+<lf-options id="stable-options">
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
 </lf-tabs>
 
-<lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
+<lf-group id="stable-playground-decision" label="How should the release card look?"><h2 id="stable-playground-decision-h">How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
-  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-    value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
-  </lf-playground-control>
-  <lf-playground-preview id="stable-playground-preview">
+  <aside>
+    <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
+    <fieldset id="tone"><legend>Tone</legend>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
+    </fieldset>
+  </aside>
+  <div id="stable-playground-preview">
     <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
-  </lf-playground-preview>
+  </div>
   <lf-playground-output id="stable-playground-instruction">Use a
-    <lf-playground-value for="radius"></lf-playground-value> corner radius and a
-    <lf-playground-value for="tone"></lf-playground-value> tone.
+    <output for="radius"></output>px corner radius and a
+    <output for="tone"></output> tone.
   </lf-playground-output>
-</lf-playground></lf-ask>
+</lf-playground></lf-group>
 <lf-diff id="stable-diff"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -272,9 +273,7 @@ CONTROL_ARCHETYPES = (
 
 # The layer's focus floor (surfaces.css), which rings every box holding visible focus
 # where no carrier wears the ring for it: the panel's own controls and rows among them.
-FLOOR_RING = (
-    "[data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])"
-)
+FLOOR_RING = "[data-lf-focus-visible]:not([data-lf-projected-mark], [data-lf-projected-location])"
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served
@@ -299,7 +298,12 @@ RING_CASES = (
                 (".lf-grip", FLOOR_RING),
                 (".lf-fp-leaf", FLOOR_RING),
                 (".lf-fp-on-user", FLOOR_RING),
-                (".lf-fp-field leaf-text", ".lf-fp-field .lf-compose-field"),
+                # The field's slot wears the ring, so Send in the editor's corner
+                # stays put (floating-panel.css).
+                (
+                    ".lf-fp-field leaf-text",
+                    "[data-lf-control-focus-visible] > .lf-fp-field",
+                ),
             ),
             "feature-gallery": (
                 (".lf-tab-btn", ".lf-tab-btn"),
@@ -313,12 +317,15 @@ RING_CASES = (
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
-            # Working density, where a choice's gap is narrowest beside the next face.
-            "notification-playground": (
+            # The rail's working density, where a choice's gap is narrowest beside the
+            # next face, and a candidate's radio in its card: each is the page's own
+            # label, which wears the plain choice face's ring (page-controls.css).
+            "notification-playground": tuple(
                 (
-                    "lf-playground input[type=radio]",
-                    ".lf-choice[data-lf-control-focus-visible]",
-                ),
+                    f"#{field} input[type=radio]",
+                    ":not([data-lf-offer]))[data-lf-control-focus-visible]",
+                )
+                for field in ("tone", "format")
             ),
             "pr-walkthrough": (
                 ("#pr-path-tree > summary", "[data-lf-mark]"),
@@ -749,17 +756,17 @@ AIM_PAGE = leaf_page(
   <lf-tab id="aim-first" label="First">
     <lf-board id="aim-board">
       <lf-column id="aim-todo" label="Todo">
-        <lf-card id="aim-card"><strong>Heated perch</strong></lf-card>
-        <lf-card id="aim-other"><strong>Squirrel baffle</strong></lf-card>
+        <lf-card id="aim-card" label="Heated perch"><strong>Heated perch</strong></lf-card>
+        <lf-card id="aim-other" label="Squirrel baffle"><strong>Squirrel baffle</strong></lf-card>
       </lf-column>
       <lf-column id="aim-done" label="Done"></lf-column>
     </lf-board>
-    <lf-ask id="aim-ask"><h2>Which jobs?</h2>
-      <lf-options id="aim-jobs" choose multiple>
+    <lf-group id="aim-ask" label="Which jobs?"><h2 id="aim-ask-h">Which jobs?</h2>
+      <lf-options id="aim-jobs" multiple>
         <lf-option id="aim-mounts">Replace the mounts</lf-option>
         <lf-option id="aim-bath">Heat the bird bath</lf-option>
       </lf-options>
-    </lf-ask>
+    </lf-group>
     <p>Start at <lf-suggestion id="aim-change"><lf-old>nine.</lf-old><lf-new>ten.</lf-new>
     </lf-suggestion></p>
   </lf-tab>
@@ -872,7 +879,8 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     anchored = views["you"].locator(".lf-margin-preview")
     expect(anchored).to_be_visible()
     expect(anchored).to_have_attribute(
-        "aria-label", "Thread for Agenda and room photo."
+        "aria-label",
+        re.compile(r"^Thread for § paragraph · Agenda and room photo\. Practice"),
     )
     expect(anchored.locator(".lf-msg")).to_have_count(3)
     expect(anchored.locator("leaf-text")).to_be_visible()

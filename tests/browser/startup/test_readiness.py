@@ -21,7 +21,6 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
-    is_problem,
     leaf_page,
     open_page,
     open_threads,
@@ -40,7 +39,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import asked_again, wait_until_ready
 from leaf.render_gate.page_code import run_page_code
 from leaf_dev.example_data import named_source
 
@@ -126,11 +125,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             '<lf-old><a id="startup-link" href="#after">Continue reading</a>',
         ).replace(
             "</main>",
-            """<lf-ask id="startup-decision"><h2>Startup choice</h2>
-<lf-options id="startup-choice" choose>
+            """<lf-group id="startup-decision" label="Startup choice"><h2 id="startup-decision-h">Startup choice</h2>
+<lf-options id="startup-choice">
   <lf-option id="startup-a">First</lf-option>
   <lf-option id="startup-b">Second</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 <lf-draft id="startup-note"><pre>Ship on Tuesday from the blue room.</pre></lf-draft>
 """
             + SHADOWED_DIFF,
@@ -177,7 +176,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     expect(choice).to_have_attribute("aria-disabled", "true")
     expect(choice).to_be_visible()
     choice.dispatch_event("click")
-    expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#startup-a")).not_to_have_attribute("selected", "")
     suggestion_accept = page.locator(
         "[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]"
     )
@@ -263,7 +262,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state response"
     playground = page.locator("#notification-playground")
-    expect(playground.locator(".lf-playground-controls")).to_be_visible()
+    expect(playground.locator(".lf-playground-controls-region > aside")).to_be_visible()
     expect(playground.locator(".lf-playground-presets")).to_be_visible()
     expect(playground.locator(".lf-playground-actions")).to_be_visible()
     submit = playground.get_by_role("button", name="Create notification")
@@ -437,7 +436,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
     with page.expect_console_message(
         predicate=lambda message: "page failed to start" in message.text
     ):
-        page.goto(url, wait_until="load")
+        page.goto(asked_again(url), wait_until="load")
     expect(page.get_by_role("status")).to_contain_text("Leaf couldn't start")
     expect(page.get_by_role("status")).to_be_visible()
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
@@ -626,7 +625,7 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
             " window.faulted = true; });",
         ),
     )
-    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    page.goto(asked_again(serve(SHORT_SUGGESTION)), wait_until="load")
     page.wait_for_function("() => window.faulted")
     root = page.locator("html")
     expect(root).to_have_attribute("data-lf-startup-error", re.compile("first fault"))
@@ -644,7 +643,7 @@ def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve
     waits for, is refused here."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route(re.compile(r"annotation-overlay(/index)?\.js$"), refuse)
-    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    page.goto(asked_again(serve(SHORT_SUGGESTION)), wait_until="load")
     root = page.locator("html")
     expect(root).to_have_attribute(
         "data-lf-startup-error", re.compile("dynamically imported module")
@@ -753,8 +752,9 @@ def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
             serve(
                 leaf_page(
                     "Departing",
-                    '<lf-options id="ship" choose><lf-option id="now">Now</lf-option>'
-                    '<lf-option id="later">Later</lf-option></lf-options>',
+                    '<lf-group id="ship-q" label="When?">'
+                    '<lf-options id="ship"><lf-option id="now">Now</lf-option>'
+                    '<lf-option id="later">Later</lf-option></lf-options></lf-group>',
                 )
             ),
             wait_until="commit",
@@ -767,12 +767,7 @@ def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
     # The import's rejection settles startup within the task that delivers it.
     page.evaluate("() => new Promise(done => setTimeout(() => setTimeout(done)))")
     assert page.evaluate("document.documentElement.dataset.lfStartupError") is None
-    # Firefox may also classify the loopback host as a bounce tracker during
-    # navigation. That browser privacy notice says nothing about page startup.
-    errors = consume_browser_errors(
-        page, "Loading failed for the module", "classified as a bounce tracker"
-    )
-    assert any(is_problem(error, "Loading failed for the module") for error in errors)
+    consume_browser_errors(page, "Loading failed for the module")
     assert not page.lf_errors
     assert not [
         event

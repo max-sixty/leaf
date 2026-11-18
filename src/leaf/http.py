@@ -35,6 +35,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
+from .drafts import write_draft
 from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
@@ -64,8 +65,9 @@ from .revision_delivery import (
     compose_document,
     deliver_resource,
     delivered_resource,
+    json_script,
     layer_import_map,
-    rebase_document,
+    runtime_element,
     runtime_settings,
 )
 from .runtime_selection import (
@@ -152,11 +154,13 @@ def _query_int(raw, name: str, minimum: int) -> int:
 
 
 def scope_page_urls(value, page_root: str):
-    """Address a state response's documents and message markup at a page root.
+    """Address a state response's documents at a page root.
 
-    A response carries version addresses and frozen message markup in their canonical,
-    root-relative form; beneath a prefix both answer at the page root, as the live
-    page's media does.
+    A response carries version addresses in their canonical, root-relative form;
+    beneath a prefix they answer at the page root, as the live page's media does. A
+    message's media is the browser's to address as it renders the message
+    (`scopedMediaUrl` in markdown.js and thread/messages.js), since only its rendering
+    tells a reference from words that spell one.
     """
     if not page_root:
         return value
@@ -172,8 +176,6 @@ def scope_page_urls(value, page_root: str):
             and item.startswith(("/versions/", "/revisions/"))
         ):
             scoped[key] = page_root.rstrip("/") + item
-        elif key == "markup" and isinstance(item, str):
-            scoped[key] = rebase_document(item, DeliveryAddress(page_root, page_root))
         else:
             scoped[key] = scope_page_urls(item, page_root)
     return scoped
@@ -288,9 +290,8 @@ class PostRoute:
 # The stored copy outlives the visit in the browser's disk cache. Locally it holds what
 # the page directory already holds in plain files, for the same user. On leaf.page it
 # holds a visitor's comments, replies and images, and Back shows them to whoever next
-# uses that browser profile. leaf.page answered `no-store` to keep them out until
-# 2026-11-08, when the maintainer reversed that choice for an instant Back (issue
-# #4024).
+# uses that browser profile. Answering `no-store` on leaf.page would keep them out;
+# the maintainer chose an instant Back over that.
 CACHE_CONTROL = "no-cache"
 # A revision's resources and page media (`media.media_name`) are named by digests of
 # their bytes, so a name never changes what it answers and the browser keeps one copy
@@ -553,9 +554,8 @@ class PageEndpoint:
         (`served_state.tail`). Without this every gesture's answer would carry back
         every record and past event the tab already holds. The answer goes out as
         it stands (`_json_body`), since addressing it again would address its
-        markup twice. The log travels apart from the reading, as only the events
-        after the held reading's, so only the events sent are addressed, rather than
-        every message's markup the session has logged.
+        versions twice. The log travels apart from the reading, and its events hold
+        no address.
 
         A whole answer to a tab that names, in `Leaf-Data-Version`, the data version
         it still holds leaves out its sources for the tab to restore (`completeState`
@@ -581,7 +581,7 @@ class PageEndpoint:
             self.headers.get("Leaf-Data-Version") == answer["data"]["version"]
         ):
             answer = {**answer, "data": {"version": answer["data"]["version"]}}
-        return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
+        return answer
 
     def page_comparison(
         self, revision: int, through_seq: int, shown: int | None
@@ -636,6 +636,7 @@ class PageEndpoint:
             {
                 "reading": self.source.news(),
                 "pages": pages_reading(self.source.other_pages()),
+                "drafts": self.source.drafts()["version"],
             }
         )
 
@@ -1095,7 +1096,19 @@ class PageEndpoint:
         # takes once this one stops, so the page directory names it: by the address
         # alone, Threads listed a draft typed on another page a month before.
         scope = f"{page_key(self.page_dir)[:16]}{self.page_root}/"
-        return replace(delivery, html_attributes={"data-lf-page-scope": scope})
+        # The drafts the user is writing arrive with the document, so a box opens on
+        # its words before any look (`runtime/drafts.js`). A release's document may be
+        # the edge's, which its visitors share, so there they arrive with the first look.
+        drafts = runtime_element(
+            "script",
+            {"type": "application/json", "id": "lf-drafts"},
+            json_script(self.source.drafts()),
+        )
+        return replace(
+            delivery,
+            head=delivery.head + drafts,
+            html_attributes={"data-lf-page-scope": scope},
+        )
 
     def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
@@ -1202,6 +1215,8 @@ class PageEndpoint:
             return self._news()
         if path == "/api/pages":
             return self._json_body(self.source.other_pages())
+        if path == "/api/drafts":
+            return self._json_body(self.source.drafts())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
@@ -1390,6 +1405,12 @@ class PageEndpoint:
         except (FileBindingError, UnicodeEncodeError) as error:
             return self._refuse(str(error))
 
+    def _write_draft(self) -> Response:
+        try:
+            return self._json_body(write_draft(self.page_dir, self.posted))
+        except ValueError as error:
+            return self._refuse(str(error))
+
     def _observe_user_view(self) -> Response:
         # Captured render previews are instruments, not the user's reading.
         if not self.source.writable:
@@ -1511,6 +1532,9 @@ class PageEndpoint:
             (_runtime_gate, _live_files_gate, _same_origin_gate, _body_gate),
         ),
         "/api/user-view": PostRoute(_observe_user_view, (_runtime_gate, _body_gate)),
+        "/api/draft": PostRoute(
+            _write_draft, (_writable_gate, _runtime_gate, _body_gate)
+        ),
         "/api/interaction": PostRoute(_record_interactions, (_body_gate,)),
         "/api/samples": PostRoute(
             _create_sample, (_runtime_gate, _layer_gate, _body_gate)

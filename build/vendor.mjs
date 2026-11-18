@@ -82,7 +82,8 @@ function patches(...files) {
 /**
  * An esbuild plugin editing upstream modules as they load. Each adaptation names
  * the modules it edits by path, one adaptation to a module; one that edits nothing in
- * a build fails it.
+ * a build fails it. An edited module loads as the build's `loader` option says for its
+ * extension, as a stylesheet bundled as text does.
  */
 export function adapt(adaptations) {
   const used = new Set();
@@ -95,6 +96,8 @@ export function adapt(adaptations) {
           return {
             contents: await edit(await readFile(at, "utf8"), at),
             resolveDir: path.dirname(at),
+            // esbuild reads what a plugin returns as JavaScript unless told otherwise.
+            loader: builder.initialOptions.loader?.[path.extname(at)],
           };
         }),
       );
@@ -429,17 +432,24 @@ const bundles = {
   }),
 
   // File editing extensions sharing the runtime's CodeMirror implementation. Merge
-  // and autocomplete live in this optional package; their state/view/language
+  // and autocomplete live in this optional package, and each language the editor
+  // highlights beyond the core's Markdown in a module of its own, loaded when a file
+  // of it opens (file-editor's editor.js). Their state/view/language and Lezer
   // imports bind to the core Leaf's composers use, so extensions never mix
-  // CodeMirror identities.
+  // CodeMirror identities: a second Lezer tree would read none of the core's node
+  // props, and a language parsed with it would highlight nothing.
   "file-editor": () => ({
     out: `${packageVendor("file-editor")}/extensions.esm.js`,
-    entryPoints: [input("entries/file-editor/entry.mjs")],
+    entryPoints: {
+      "extensions.esm": input("entries/file-editor/entry.mjs"),
+      "codemirror-yaml.esm": input("entries/file-editor/yaml.mjs"),
+    },
+    outdir: packageVendor("file-editor"),
     platform: "browser",
     target: "es2022",
     plugins: [
       bindTo(
-        /^(?:@codemirror\/(?:state|view|language)|@lezer\/highlight)$/,
+        /^(?:@codemirror\/(?:state|view|language)|@lezer\/(?:highlight|common))$/,
         "/vendor/codemirror.esm.js",
       ),
     ],
@@ -484,6 +494,32 @@ const bundles = {
     splitting: true,
     platform: "browser",
     target: "chrome105",
+  }),
+
+  // Temml typesets the LaTeX in a page's `<code class="language-math">` as MathML the
+  // browser draws itself (`runtime/formulas.js`). Its sheet travels in the module as
+  // text, as PhotoSwipe's does, so only a page that shows a formula loads it, and the
+  // font that sheet names for primes and script capitals travels inside the sheet, so
+  // an export needs no file beside the module.
+  temml: () => ({
+    out: `${assets}/vendor/temml.esm.js`,
+    entryPoints: [input("entries/temml/entry.mjs")],
+    loader: { ".css": "text" },
+    banner: { js: `/*! Temml ${version("temml")} — MIT — temml.org */` },
+    adapt: [
+      {
+        file: /temml\/dist\/Temml-Local\.css$/,
+        edit: (source, at) =>
+          seam(
+            source,
+            "url('Temml.woff2')",
+            `url(data:font/woff2;base64,${readFileSync(
+              path.join(path.dirname(at), "Temml.woff2"),
+            ).toString("base64")})`,
+            "Temml font",
+          ),
+      },
+    ],
   }),
 
   // Bundle only jsdiff's array comparison for the core browser runtime.
@@ -674,6 +710,27 @@ const bundles = {
           ),
       },
       {
+        file: /@pierre\/trees\/dist\/render\/scrollTarget\.js$/,
+        // Trees measures its viewport with getBoundingClientRect, so a reveal target
+        // can be fractional (138.16) where the browser holds the box at a device
+        // pixel (138). Compared exactly, the target never equals where the box
+        // stands, so each focus change writes a scroll that moves nothing and stops
+        // one under way. A target within a pixel is where the box already stands.
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "return nextScrollTop === currentScrollTop ? null : nextScrollTop;",
+              "return Math.abs(nextScrollTop - currentScrollTop) < 1 ? null : nextScrollTop;",
+              "Trees scroll-target comparison",
+              3,
+            ),
+            "return preservedScrollTop === currentScrollTop ? null : preservedScrollTop;",
+            "return Math.abs(preservedScrollTop - currentScrollTop) < 1 ? null : preservedScrollTop;",
+            "Trees preserved scroll-target comparison",
+          ),
+      },
+      {
         file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
         edit: (source) =>
           seam(
@@ -834,9 +891,11 @@ async function bundle(spec) {
 /**
  * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
  * a literal import for each, so an export binds it, and each name and alias Shiki
- * gives a grammar, which a native Markdown fence uses, read here so that identifying a
+ * gives a grammar, which a `language-…` class names, read here so that identifying a
  * block loads no grammar. Both come from this build, which a page's grammars need
- * anyway, so the browser doesn't read `$languages.names` itself.
+ * anyway, so the browser doesn't read `$languages.names` itself. `page check` reads the
+ * names too, as the one line of JSON `syntaxLanguageNames` is written on
+ * (`leaf.validation.markup.COLOURED_LANGUAGES`).
  */
 async function syntaxLoaders() {
   const names = languages();

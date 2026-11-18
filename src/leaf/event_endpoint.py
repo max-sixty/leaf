@@ -121,8 +121,8 @@ def _execute_event(
         if appended:
             claim = page.active_claim
             # Input that asks for the agent reaches it even when no watcher will,
-            # unless a fork of its conversation is deciding on it, whose hand-over
-            # nudges in its place (`forks`).
+            # unless an agent's turn holds it, a line turn admission opens for it
+            # included, whose end nudges in its place (`forks`).
             if requires_agent_attention(admitted) and not kept_from_main_at_admission(
                 page, admitted
             ):

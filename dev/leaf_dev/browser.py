@@ -113,10 +113,19 @@ ENGINES = ("chromium", "firefox", "webkit", "ios")
 # Firefox's own smooth scroll reads the host's reduced-motion setting, which a
 # context's `reduced_motion` emulates only for the page's media queries. On a host
 # that asks for reduced motion, every smooth scroll lands in one step while the page
-# reads no preference, and a test that needs a scroll under way never has one; the
-# nightly macOS runner's three Firefox failures of that kind reproduce exactly with
-# this pref at 1. So Firefox answers no preference, as the page's context does.
-FIREFOX_PREFS = {"ui.prefersReducedMotion": 0}
+# reads no preference, and a test that needs a scroll under way never has one. So
+# Firefox answers no preference, as the page's context does.
+#
+# Bounce-tracking protection classifies a host the tab passed through without user
+# activation, after the host stored state, as a tracker, and logs a console warning on
+# the page then showing. Tests serve every page from 127.0.0.1 and navigate by script,
+# so any test can trip it, and the browser fixtures fail a test on that warning as on
+# one the page raised. Mode 0 (`nsIBounceTrackingProtection.MODE_DISABLED`) leaves the
+# feature off.
+FIREFOX_PREFS = {
+    "ui.prefersReducedMotion": 0,
+    "privacy.bounceTrackingProtection.mode": 0,
+}
 
 
 def engine_option(command):
@@ -298,11 +307,11 @@ def screenshot(page) -> bytes:
     the host:
 
     - A caret is drawn steadily where the engine can stop its blink, as Chromium can
-      (`caret-animation: manual`), and hidden where it can't: on 2026-11-03
-      Playwright's WebKit (build 2370) faded it in and out, and its Firefox (build
-      1555) drew none. Both declarations are inherited, so they reach the caret
-      inside Leaf's text field, whose closed shadow root takes the caret's colour
-      from its host (`runtime/composing/text-field.js`).
+      (`caret-animation: manual`), and hidden where it can't: Playwright's WebKit
+      (build 2370) fades it in and out, and its Firefox (build 1555) draws none.
+      Both declarations are inherited, so they reach the caret inside Leaf's text
+      field, whose closed shadow root takes the caret's colour from its host
+      (`runtime/composing/text-field.js`).
     - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
       box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
       passes over it and leaves, as a reader sees it while scrolling; Playwright's
@@ -390,8 +399,8 @@ QUOTE_RANGE = """(root, words) => {
 
 # Where a mouse was last over a `tab`'s document, in its viewport, and which of its
 # buttons it held. A native drag sends no `pointerup`; it ends in `dragend` where it
-# drops, with no button held. On 2026-11-04 its `pointercancel` read (0, 0) in Chromium
-# and the button still held in Firefox, and WebKit sent none.
+# drops, with no button held. Its `pointercancel` can read (0, 0) in Chromium and the
+# button still held in Firefox, and WebKit can send none.
 POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dragend"])
   addEventListener(type, (event) => {
     if ((event.pointerType ?? "mouse") === "mouse")
@@ -402,13 +411,13 @@ POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dra
 
 # Whether the document's hover ends at the element under a resting mouse, or no mouse
 # rests here. Both are read in the document's own tree, where a shadow host stands for
-# everything its shadow root draws. Read inside a shadow root they can disagree: on
-# 2026-11-04 Firefox hovered a radio button's host but not the slot under the pointer.
+# everything its shadow root draws. Read inside a shadow root they can disagree:
+# Firefox can hover a radio button's host but not the slot under the pointer.
 # A held button keeps the hover where the press began, and a mouse over a child frame
 # moves where this document can't follow it. A subtree hidden under the pointer keeps
-# its hover after the hover moves on, so only drawn elements count: on 2026-11-15
-# Chromium left `.lf-fp-opened` hovered once the panel's view closed under a press,
-# through every later move.
+# its hover after the hover moves on, so only drawn elements count: Chromium can
+# leave `.lf-fp-opened` hovered once the panel's view closes under a press, through
+# every later move.
 HOVER_CAUGHT_UP = """() => {
   const at = globalThis.__lfPointer;
   if (!at || at.buttons) return true;
@@ -428,10 +437,10 @@ def catch_up_hover(page: Page) -> bool:
 
     Content that scrolls under a resting pointer keeps the old element hovered until
     the engine hit-tests again on a timer of its own, dispatching `pointerover` as the
-    hover moves. On 2026-11-04 Playwright's Firefox (build 1555) took about 100 ms,
-    its WebKit (build 2370) 20 to 120 ms, and its Chromium about a frame, though on a
-    loaded host sometimes longer than the rest of `settle`, so a capture taken first
-    drew the button a state's driver had pressed still hovered. The page may answer
+    hover moves. In Playwright's Firefox (build 1555) and WebKit (build 2370) that
+    can take around 100 ms, and in its Chromium about a frame, though on a loaded host
+    sometimes longer than the rest of `settle`, so a capture taken first can draw the
+    button a state's driver pressed still hovered. The page may answer
     `pointerover`, so `settle` settles again after a hover moved.
 
     Moving the pointer to where it already is would move the hover at once, but every
@@ -596,7 +605,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has
     changed between runtimes, so a driver one checkout runs against another's runtime,
-    as `stills`, `bench`, thread snapshots and `site verify` do, takes this
+    as `stills`, `bench` and `site verify` do, takes this
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).

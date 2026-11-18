@@ -42,7 +42,7 @@ import { sectionMarks } from "./toc-marks.js";
  * Fitting the map into a scrollable outline preserves its reading position, except
  * when a viewport change would put the focused link outside the outline's window.
  *
- * Each row also marks where the page's open threads, its On me items and, while the
+ * Each row also marks where the page's open threads, its On Me items and, while the
  * changes view is on, its changes stand (toc-marks.js), and its link previews how many
  * of each its section holds. The element is a `LeafElement` for this alone: its
  * `render()` reads those readings, so it draws again exactly when they change, in the
@@ -56,6 +56,7 @@ import { sectionMarks } from "./toc-marks.js";
  * restoration; hidden-until-found reveals a disclosure or tab containing the target.
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
+import { render } from "/vendor/lit.js";
 import {
   atLayoutPrecision,
   atScrollEnd,
@@ -63,7 +64,6 @@ import {
   frameFor,
   holdFocus,
   inChrome,
-  render,
   keeps,
   landingInsets,
   LAYOUT,
@@ -79,7 +79,7 @@ import {
   scrollLimit,
   sizeObserver,
   whileConnected,
-  wrote,
+  named,
   focused,
   currentLocationIn,
 } from "/runtime/widget-api.js";
@@ -96,7 +96,7 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, { label: wrote, chrome: inChrome }));
+      return (this.#drawingOwner ??= drawToc(this, { label: named, chrome: inChrome }));
     }
     get #nav() {
       return this.#drawing.nav;

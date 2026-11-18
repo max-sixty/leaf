@@ -78,7 +78,8 @@ def requested_documents(page):
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { html, LeafElement } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;
@@ -116,25 +117,24 @@ customElements.define("lf-offline-test", class extends LeafElement {
 OFFLINE_REGISTRY = {
     "lf-offline-test": {
         "description": "A page-owned offline export test widget.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "choice": {"type": "string"},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "choice": {"type": "string"},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-state": {
+        "content": "empty",
+        "verbs": {
             "choose": {
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "choice"},
             }
         },
-        "x-example": (
-            '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>'
-        ),
+        "example": '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>',
     },
 }
 

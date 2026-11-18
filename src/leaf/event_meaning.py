@@ -11,16 +11,21 @@ from leaf.events import event_document
 from leaf.obligations import answer_verbs, answering_action, replayed_attrs
 from leaf.projection import (
     AuthoredOrders,
-    frozen_thread_reading,
     page_reading,
+    thread_markup_reading,
     with_action,
 )
-from leaf.registry.contract import deciding_verb, matches_when, state_definition
+from leaf.registry.contract import (
+    deciding_verb,
+    matches_when,
+    state_definition,
+    withdrawing_outcome,
+)
 from leaf.thread_context import thread_structure
 
 
 class AdmissionReadings:
-    """The page and frozen-thread readings one admission folds, each built once.
+    """The page and thread-markup readings one admission folds, each built once.
 
     The contract gates and the meaning stamped after them read the same log, so
     they share one fold of it rather than each paying for their own."""
@@ -53,7 +58,7 @@ class AdmissionReadings:
 
     @cached_property
     def thread(self):
-        return frozen_thread_reading(
+        return thread_markup_reading(
             self.events, self.registry, withdrawn=self.log.withdrawn
         )
 
@@ -93,7 +98,7 @@ def state_meaning(event: dict, record: dict, registry: dict, scope: str) -> dict
     the old event remains history instead of being read as the new operation."""
     origin = record["tag"]
     entry = registry[origin]
-    spec = entry["x-state"][event["action"]]
+    spec = entry["verbs"][event["action"]]
     dependencies = direct_dependencies(event, spec)
     meaning = {
         "scope": scope,
@@ -119,7 +124,7 @@ def answer_meaning(
     condition hold, so it is read with the candidate in force in the fold of its own
     document. The thread it closes is the widget's authored `resolves`, read from the
     immutable document that sent it rather than carried in the command. A decision
-    whose outcome is the widget's `x-withdrawn-as` leaves the page as if nothing had
+    whose outcome is the one its verb `withdraws` leaves the page as if nothing had
     been proposed, so it answers the obligation and closes no thread: turning a fix down
     leaves the question it was written for open. A registered source may retain
     answer provenance after its request is withdrawn; only a source currently
@@ -128,7 +133,7 @@ def answer_meaning(
     entry = registry[record["tag"]]
     if event["kind"] != "action" or event["action"] not in answer_verbs(entry):
         return False, None
-    withdrawn = entry.get("x-withdrawn-as")
+    withdrawn = withdrawing_outcome(entry)
     declined = (
         event["action"] == deciding_verb(entry)
         and withdrawn is not None
@@ -145,7 +150,7 @@ def answer_meaning(
         "seq": readings.events[-1]["seq"] + 1 if readings.events else 1,
     }
     projection = with_action(
-        reading.projection, candidate, entry["x-state"][event["action"]]
+        reading.projection, candidate, entry["verbs"][event["action"]]
     )
     return (
         answering_action(
@@ -170,7 +175,7 @@ def answer_meaning(
         record["attrs"].get("resolves")
         if not declined
         and matches_when(
-            replayed_attrs(record, projection), entry["x-awaits"].get("when")
+            replayed_attrs(record, projection), entry["awaits"].get("when")
         )
         else None,
     )
@@ -189,7 +194,7 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     entry = registry[record["tag"]]
     admitted = dict(event)
     admitted["meaning"] = state_meaning(event, record, registry, scope)
-    position = entry["x-state"][event["action"]].get("record") or {}
+    position = entry["verbs"][event["action"]].get("record") or {}
     if position.get("kind") == "position":
         # The authored units the rank lies among, in their order on the sending
         # document: a later document that authors them differently has placed

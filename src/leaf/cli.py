@@ -7,8 +7,8 @@ ending the command, `{"error", "findings"}` (`LeafGroup`), which its exit status
 marks. stdout is the one stream only Leaf writes. stderr also carries whatever the
 launcher, the interpreter and Leaf's dependencies print, such as a warning, a
 traceback or a library's log record, so Leaf puts nothing a reader parses there.
-Findings went on stderr until a library's log line broke the suite's parse of it; a
-reader piping stdout alone now meets them in the pipe rather than beside it.
+Findings stay off stderr, where a library's log line breaks a parse of them; a
+reader piping stdout alone meets them in the pipe rather than beside it.
 `--help`, `--version` and `--root` print text.
 
 A command returns its result and never prints it: `LeafGroup.main` prints what it
@@ -485,9 +485,8 @@ def init(
         raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
         raise click.UsageError("--package selections cannot be empty")
-    if len(set(selected)) != len(selected):
-        raise click.UsageError("each --package selection may appear only once")
-    selections = () if no_packages else selected or None
+    # A selection named twice means it once.
+    selections = () if no_packages else tuple(dict.fromkeys(selected)) or None
     return cmd_init(
         page_path(dir),
         selections,
@@ -759,8 +758,8 @@ def state(
     revision's HTML beside it for the document.
 
     MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
-    frozen into one, names its thread: the output is that thread with a page of its
-    messages, their frozen markup, and the state of its widgets, paged by --after
+    in one, names its thread: the output is that thread with a page of its
+    messages and the state of their widgets, paged by --after
     and --limit. Each action in force and each message carries what its delivery
     added to it, such as a choice's words and a message's `unsent`. A widget on the page names itself: its element, its current
     actions and reports, its obligations and to-dos, and its workflows."""
@@ -888,9 +887,9 @@ def picture(page_dir: Path, message: str) -> dict:
 def report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     """Report a state change onto a page widget, as a worker.
 
-    VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE one of
-    its fields: `leaf page report <page> t-parser status value=review text="Ready for
-    review"` moves a task. The page shows the report at once, marked provisional,
+    VERB is one of the widget's agent-written `verbs`, and each NAME=VALUE
+    one of its fields: `leaf page report <page> t-parser status value=review text="Ready
+    for review"` moves a task. The page shows the report at once, marked provisional,
     until a stamped version writes it into the markup or overrules it.
     """
     from leaf.reports import cmd_report
@@ -1099,8 +1098,8 @@ def file() -> None:
 @click.argument("binding", metavar="ID")
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
 def file_bind(page_dir: Path, binding: str, path: Path) -> dict:
-    """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH. Prints the binding,
-    the file it grants, and its size in bytes."""
+    """Name ID in an <lf-file-editor>'s binding to edit PATH. Prints the binding,
+    the file it grants, the label the page shows for it and its size in bytes."""
     from leaf.file_bindings import bind_file
 
     return bind_file(page_dir, binding, path)
@@ -1280,14 +1279,13 @@ def start(page_dir: Path, host: str | None, lifetime: str) -> dict:
     itself keeps running in a session of its own. `leaf server stop` takes one
     down, and a session server goes down with the session that claimed it
     besides. A page already served reconnects delivery and prints that server's
-    URL. A persistent server claims no page and prepares no agent delivery. Beside
-    the URL it prints the server's lifetime, the page's layer and the Leaf serving
-    it.
+    URL, after restarting it at that URL where another Leaf started it. A
+    persistent server claims no page and prepares no agent delivery. Beside the URL
+    it prints the server's lifetime, the page's layer and the Leaf serving it.
     """
-    from leaf.hosting import claim_and_start, started_server
+    from leaf.hosting import start_page, started_server
 
-    with claim_and_start(page_dir, host, lifetime == "persistent") as started:
-        pass
+    started = start_page(page_dir, host, lifetime == "persistent")
     return started_server(page_dir, started.url)
 
 
@@ -1448,7 +1446,6 @@ def _title_option(command):
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
 @click.option("--part", metavar="ID", help="declared visual part within --section")
 @body_options("the comment's text")
-@click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
 @click.option(
     "--obligation",
@@ -1462,17 +1459,16 @@ def thread_create(
     part: str,
     text: str | None,
     body_file,
-    markup: str,
     title: str | None,
     obligation: bool,
 ) -> dict:
     """Create a thread as the agent: anchored where --quote or
     --section points at a passage, general where neither does — a question about
-    the work as a whole.
+    the work as a whole. The text is Markdown, and HTML in it draws, checked here.
 
     Use --obligation when the next move is the user's: the message waits on
     On Me until their reply or settling reaction. A question whose answers you
-    can list takes an `lf-options` choice in --markup instead, which waits on
+    can list takes an `lf-options` choice in the text instead, which waits on
     the user until they pick. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
     """
@@ -1484,7 +1480,6 @@ def thread_create(
         section,
         part,
         read_body(text, body_file),
-        markup,
         title=title,
         obligation=obligation,
     )
@@ -1499,7 +1494,6 @@ def thread_create(
     "--done", is_flag=True, help="the reply delivers what the message asked for"
 )
 @body_options("the reply's text")
-@click.option("--markup", default="", help="frozen HTML fragment after the text")
 @click.option(
     "--todo",
     metavar="TITLE",
@@ -1532,10 +1526,11 @@ def thread_reply(
     **options,
 ) -> dict | None:
     """Answer a delivered update by its `answer.ref` alone, or post into the
-    thread PAGE MESSAGE names, which is refused while that thread owes an answer.
+    thread PAGE MESSAGE names, which answers nothing that thread owes.
+    The text is Markdown, and HTML in it draws, checked here.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
-    carries a widget in --markup that asks, as an `lf-options` choice asks a
+    carries a widget in its text that asks, as an `lf-options` choice asks a
     question whose answers you can list; --ephemeral progress declares nothing,
     and --done needs a reference. The reply
     publishes your saved page edits, checked as `page check` checks them without a
@@ -1599,8 +1594,8 @@ def thread_edit(
     or with --title rename the thread MESSAGE is in, whoever opened it. --title
     alone leaves the text as it is.
 
-    Frozen markup is not editable. Keep a title stable unless the thread's subject
-    changes.
+    The replacement may hold HTML, checked as a new message's is. Keep a title
+    stable unless the thread's subject changes.
     """
     from leaf.thread import cmd_edit
 
@@ -1644,7 +1639,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
-    A to-do on a widget needs a widget that declares x-work or holds an
+    A to-do on a widget needs a widget that declares `work` or holds an
     unsettled update. A thread attachment provides discussion context;
     replying does not complete the task. To leave the user something to do or
     answer, send a message with --obligation instead."""

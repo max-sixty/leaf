@@ -18,7 +18,7 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
 ):
     """Clicks retain the current location; keyboard arrivals show one ring, including carriers."""
     declaration = element_declaration("lf-shadow-focus", upgrade=True)
-    declaration["x-shadow"] = True
+    declaration["shadow"] = True
     page = open_page(
         browser,
         serve(
@@ -26,28 +26,28 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
                 "Focus routes",
                 """
 <h1 id="focus-heading">Focus routes</h1>
-<p><button class="lf-btn" id="focus-button" type="button">Ordinary button</button></p>
+<p><button id="focus-button" type="button">Ordinary button</button></p>
 <lf-tabs id="focus-tabs">
   <lf-tab id="focus-first" label="First">First panel.</lf-tab>
   <lf-tab id="focus-second" label="Second">Second panel.</lf-tab>
 </lf-tabs>
-<lf-ask id="focus-decision"><h2>Which option?</h2>
-<lf-options id="focus-options" choose>
+<lf-group id="focus-decision" label="Which option?"><h2 id="focus-decision-h">Which option?</h2>
+<lf-options id="focus-options">
   <lf-option id="focus-choice" for="focus-heading">Keep this option.</lf-option>
   <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
-</lf-options></lf-ask>
-<lf-shadow-focus id="focus-shadow"><button class="lf-btn" type="button">Shadow button</button></lf-shadow-focus>
-<lf-ask id="focus-open-decision"><h2>Which other option?</h2>
-<lf-options id="focus-open-options" choose>
+</lf-options></lf-group>
+<lf-shadow-focus id="focus-shadow"></lf-shadow-focus>
+<lf-group id="focus-open-decision" label="Which other option?"><h2 id="focus-open-decision-h">Which other option?</h2>
+<lf-options id="focus-open-options">
   <lf-option id="focus-open-choice">Keep this one.</lf-option>
   <lf-option id="focus-open-peer">Keep that one.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 """,
             ),
             layer_registry={"lf-shadow-focus": declaration},
             layer_widgets={
                 "lf-shadow-focus.js": """
-import {once, shadowStage} from '/runtime/widget-api.js';
+import {offerAction, once, shadowStage} from '/runtime/widget-api.js';
 import '/vendor/webawesome.esm.js';
 customElements.define('lf-shadow-focus', class extends HTMLElement {
   connectedCallback() {
@@ -62,7 +62,8 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
       option.textContent = label;
       select.append(option);
     }
-    shadowStage(this, [...this.childNodes, select]);
+    // A widget's own control in its shadow tree, built by role as a widget builds one.
+    shadowStage(this, [offerAction('word', '', 'Shadow button'), select]);
   }
 });
 """

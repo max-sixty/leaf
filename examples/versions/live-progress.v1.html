@@ -161,7 +161,7 @@
         </section>
       </div>
 
-      <section id="lp-release" class="layout-flow">
+      <section id="lp-release">
         <h2>Release</h2>
         <dl class="facts" id="lp-release-facts">
           <dt>Environment</dt>
@@ -208,25 +208,25 @@
           <summary>Release owners · 5</summary>
           <section id="lp-owners">
             <section id="lp-agent-deployer">
-              <p class="eyebrow">working</p>
+              <p>working</p>
               <strong>deployer</strong> Expanding candidate traffic while guardrails
               stay green.
             </section>
             <section id="lp-agent-ledger">
-              <p class="eyebrow">working</p>
+              <p>working</p>
               <strong>ledger</strong> Comparing candidate and stable order counts.
             </section>
             <section id="lp-agent-finance">
-              <p class="eyebrow">waiting</p>
+              <p>waiting</p>
               <strong>finance</strong> Ready to inspect the first complete export batch.
             </section>
             <section id="lp-agent-observer">
-              <p class="eyebrow">working</p>
+              <p>working</p>
               <strong>observer</strong> Sampling error rate and latency during canary
               expansion.
             </section>
             <section id="lp-agent-builder">
-              <p class="eyebrow">done</p>
+              <p>done</p>
               <strong>builder</strong> Signed the candidate and recorded its provenance.
             </section>
           </section>
@@ -234,7 +234,7 @@
 
         <details id="lp-rollback-procedure">
           <summary>Rollback procedure · 3 steps</summary>
-          <ol class="steps">
+          <ol>
             <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
             <li>Drain the candidate after active sessions finish.</li>
             <li>Verify order counts and finance-export isolation.</li>

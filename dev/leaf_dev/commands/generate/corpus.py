@@ -7,7 +7,9 @@ and the combined-page tests generate them when requested. Edit their authored so
 corpus tab scopes that outline to its source page. Every source must therefore keep
 its ids disjoint, which this command enforces.
 Each example's page declarations and files join examples/corpus.page/, so its
-markup keeps its named contracts and custom widgets in the composed page.
+markup keeps its named contracts and custom widgets in the composed page. Each
+example's bound files join examples/corpus.files/ under its own name, with their
+bindings, so its editors edit the same files there.
 
     uv run leaf-dev generate corpus
 """
@@ -18,7 +20,6 @@ import tempfile
 from pathlib import Path
 
 import click
-import turbohtml
 
 from leaf.event_log import read_events
 from leaf.registry.contract import is_element_name
@@ -31,10 +32,13 @@ from leaf_dev import ROOT
 from leaf_dev.example_data import (
     CORPUS,
     authored_sources,
+    bindings_file,
+    bound_files,
     capture_file,
     catalog_sources,
     data_companion,
     data_file,
+    file_bindings,
     page_files,
     seed_log,
     source_directories,
@@ -66,14 +70,17 @@ def composition_inputs(root: Path) -> tuple[list[Path], list[Path]]:
     discovering = source_directories(root)
     for source in sources(root):
         companions = page_files(source)
-        discovering.append(companions)
+        files = bound_files(source)
+        discovering.extend([companions, files])
         inputs.extend(
             [
                 source,
                 data_file(source),
                 seed_log(source),
+                bindings_file(source),
                 companions,
                 *companions.rglob("*"),
+                *files.rglob("*"),
                 *(
                     capture_file(source, spec)
                     for spec in data_companion(source).get("$captures", {}).values()
@@ -93,8 +100,10 @@ HEAD = """\
 </head>
 <body>
 <main class="layout-column">
-<p class="eyebrow">internal page corpus</p>
+<hgroup>
+<p>internal page corpus</p>
 <h1>Every Leaf page fixture, composed</h1>
+</hgroup>
 <p class="lede" id="corpus-lede">This internal stress surface puts every
 authored page in one document so the browser suite can exercise their combined
 weight and distributed controls. It is a test fixture, not the public examples
@@ -150,12 +159,8 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
 
     A page's own Layout (the class on its `<main>`) is its document's to declare; a tab
     in the corpus is part of the corpus's column page, so only the body carries over.
-    The tab's label is the page's title, so its opening eyebrow repeats the page's
-    context. On screen the strip carries it; wherever there is no
-    strip (unupgraded, in print, in a copy) the theme paints the label back onto the
-    panel. The eyebrow is the copy that has nowhere to be. Contents outlines stay:
-    the enclosing corpus tab supplies their reading scope, and outlines inside a
-    live sample keep that sample's own document.
+    Contents outlines stay: the enclosing corpus tab supplies their reading scope, and
+    outlines inside a live sample keep that sample's own document.
     """
     mains = parsed.tree.select("main")
     if len(mains) != 1:
@@ -175,20 +180,6 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     assert main.source_location is not None
     _, start = parsed.offsets(main.source_location.start_tag)
     end, _ = parsed.offsets(main.source_location.end_tag)
-
-    first = next(
-        (child for child in main.children if isinstance(child, turbohtml.Element)),
-        None,
-    )
-    if (
-        first is not None
-        and first.tag == "p"
-        and first.attrs.get("class") == ["eyebrow"]
-    ):
-        assert first.source_location is not None
-        cut_start = parsed.offsets(first.source_location.start_tag)[0]
-        if not text[start:cut_start].strip():
-            start = parsed.offsets(first.source_location.end_tag)[1]
     return text[start:end].strip()
 
 
@@ -269,6 +260,25 @@ def build_page(inputs: list[Path]) -> dict[str, bytes]:
     return {"registry.json": registry.encode(), **files}
 
 
+def build_files(inputs: list[Path]) -> tuple[dict[str, str], dict[str, bytes]]:
+    """Every example's bindings and the files they name, each example's under its own
+    name, since two examples may each bind a file at the same path."""
+    bindings = {}
+    files = {}
+    for source in inputs:
+        for binding, path in file_bindings(source).items():
+            if binding in bindings:
+                raise ValueError(f"corpus examples both bind {binding!r}")
+            bindings[binding] = f"{source.stem}/{path}"
+        tree = bound_files(source)
+        for path in sorted(tree.rglob("*")):
+            if path.is_file():
+                files[f"{source.stem}/{path.relative_to(tree).as_posix()}"] = (
+                    path.read_bytes()
+                )
+    return bindings, files
+
+
 def admitted_history(source: Path) -> list[dict]:
     """The log a page built from `source` holds: its seed as the door admitted it,
     with the fields admission derives, which a thread closure reads."""
@@ -327,6 +337,7 @@ def generate(root: Path = ROOT) -> Path:
     """
     inputs = sources(root)
     output = root / CORPUS
+    bindings, bound = build_files(inputs)
     files = {
         output: build(inputs).encode(),
         data_file(output): (
@@ -337,6 +348,12 @@ def generate(root: Path = ROOT) -> Path:
         **{
             page_files(output) / name: data for name, data in build_page(inputs).items()
         },
+        **(
+            {bindings_file(output): (json.dumps(bindings, indent=2) + "\n").encode()}
+            if bindings
+            else {}
+        ),
+        **{bound_files(output) / name: data for name, data in bound.items()},
     }
     (root / ".tmp").mkdir(parents=True, exist_ok=True)
     with flocked(root / ".tmp" / "corpus.lock"):
@@ -347,7 +364,11 @@ def generate(root: Path = ROOT) -> Path:
             path.parent.mkdir(parents=True, exist_ok=True)
             writes.append((path, data, False))
         replace_bytes(writes)
-        for path in page_files(output).rglob("*"):
+        for path in [
+            *page_files(output).rglob("*"),
+            *bound_files(output).rglob("*"),
+            bindings_file(output),
+        ]:
             if path.is_file() and path not in files:
                 path.unlink()
     return output

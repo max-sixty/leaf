@@ -23,6 +23,7 @@ from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
     PREVIEW,
+    latest_press,
     open_page,
     panel_menu,
     panel_settled,
@@ -79,10 +80,11 @@ from render_harness import (
 def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     """An open view's foot keeps no room for anything but its padding, and nothing lies
     over it: not the line over the field, which would repeat where the words go, nor
-    news arriving in it, which the view shows. At the view's end its last words stand
-    just above its padding, in a long Threads list and a long thread the user types at
-    the end of. New reply alone stands at its foot, on the panel's ground and inside the
-    view, clear of the user's own last turn while the answer to it waits below."""
+    news arriving in it, which the view shows. At the view's end a long Threads list's
+    last row stands just above its padding, and the last words of a long thread the user
+    types at the end of stand a message's gap above the field, as over a next message.
+    New reply alone stands at its foot, on the panel's ground and inside the view, clear
+    of the user's own last turn while the answer to it waits below."""
     url = serve(LONG_PAGE, comments=12)
     long_root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
     for step in range(8):
@@ -100,14 +102,15 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
         )
     page = floating(browser, url)
 
-    def at_end(parts):
+    def at_end(parts, *, gap=False):
         page.locator(".lf-fp-view:not([data-lf-leaving])").evaluate(
             "view => view.scrollTop = view.scrollHeight"
         )
         settled(page)
         foot = page.evaluate(FOOT, [parts, 0])
         assert foot["said"] == [], foot
-        assert 0 <= foot["below"] < 10, foot
+        room = foot["gap"] - foot["pad"] if gap else 0
+        assert 0 <= foot["below"] - room < 10, foot
 
     open_threads(page)
     inventory = page.locator(panel_view("threads"))
@@ -125,7 +128,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     field(page).click()
     page.keyboard.type("Could")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
-    at_end(".lf-msg")
+    at_end(".lf-msg", gap=True)
 
     # The answer to the user's turn waits below the fold behind New reply, and its
     # arrival goes unsaid over the view that holds it.
@@ -392,9 +395,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     page.clock.set_fixed_time(now)
     ticked(page)
     assert peek.inner_text() == words
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
-    )
+    page.evaluate("async () => (await window.__lfCheckApi()).notice('Saved for later')")
     expect(page.locator(".lf-fp-peek")).to_have_text("Saved for later")
 
 
@@ -450,43 +451,49 @@ def test_versions_opens_at_the_version_the_page_shows(browser, serve, route):
 def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     browser, serve
 ):
-    """While the page shows a version older than the latest, the row says which beside
-    the On Me mark, which keeps its seat, since the field gives up the room; its one
-    press, which the keyboard reaches in the row's order, opens the latest, and the
-    notice goes with it: in place on a tab the agent has since revised, and from a
-    version the user travelled back to."""
+    """While the page shows a version older than the latest, the field's words say which
+    before the status, and its end offers Open latest in Comment's place, so nothing in
+    the row moves and the On Me mark keeps its seat; the press opens the latest, and the
+    words and the press go with it: in place on a tab the agent has since revised, and
+    from a version the user travelled back to, where the press wears its keys, Versions'
+    `g V` and then its `l`, which make it too, leaving Versions."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
-    notice = page.locator(".lf-fp-row-notice")
+    latest = latest_press(page)
     marks = page.locator(".lf-fp-quick")
     settled(page)
     seats = marks.bounding_box()
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
 
     # The agent revises the page under the open tab, which keeps what it shows.
     stamp_page(
         serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "two"
     )
     told(page)
-    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^v1 of 2 · "))
+    expect(latest).to_be_visible()
     settled(page)
     assert marks.bounding_box() == seats
-    notice.locator("button").click()
+    latest.click()
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile(r"of 2"))
 
     panel_menu(page, "versions").locator(
         ".lf-fp-version:not([data-lf-current]) .lf-fp-label"
     ).click()
     expect(page).to_have_url(re.compile(r"/versions/v1\b"))
-    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
-    page.locator(".lf-fp-on-user").focus()
-    page.keyboard.press("Shift+Tab")
-    expect(notice.locator("button")).to_be_focused()
-    page.keyboard.press("Enter")
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^v1 of 2 · "))
+    expect(latest).to_be_visible()
+    expect(latest.locator("kbd")).to_have_text(["g", "V", "l"])
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    panel_settled(page, view="versions")
+    page.keyboard.press("l")
     expect(page).not_to_have_url(re.compile(r"/versions/"))
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
 
 
 def test_all_pages_in_the_menu_counts_the_pages_it_lists(
@@ -574,8 +581,8 @@ def test_a_long_reply_takes_its_room_from_the_thread_s_top(browser, serve):
     """Once the panel reaches the window's top, each line a reply gains takes its room
     from the open thread's view, which gives way at its top and keeps the message the
     user is answering beside the field; taking the lines away gives the room back the
-    same way. The view once kept its scroll and gave way at its foot, so a long reply
-    covered the agent's last line."""
+    same way. A view that kept its scroll and gave way at its foot would let a long
+    reply cover the agent's last line."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")
     thread_model.post_reply(
@@ -769,8 +776,7 @@ def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, se
     """A draft past the field's cap scrolls inside it; deleting its last lines until
     the rest fits stops that scroll, and the lines still shown stay where they stood
     on the tween's first frame, then travel down as the lines scrolled away come into
-    view, carrying on from where they are drawn when another line goes midway. They
-    used to jump down by the scroll the field gave up."""
+    view, carrying on from where they are drawn when another line goes midway."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     page.emulate_media(reduced_motion="no-preference")
     field(page).click()

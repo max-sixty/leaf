@@ -43,7 +43,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
@@ -55,11 +55,17 @@ import click
 
 from leaf.codex import APP_SERVER_ENV
 from leaf.event_log import initialized
-from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.harness import (
+    IDENTITY_VARIABLES,
+    ClaudeCodeHarness,
+    CodexHarness,
+    claude_code_config,
+)
+from leaf.harness import codex_home as host_codex_home
 from leaf.registry.kernel import kernel_event_kinds
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
-from leaf_dev import ROOT, plain_html
+from leaf_dev import LEAF_COMMAND, ROOT, plain_html
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import (
     admit_events,
@@ -105,23 +111,25 @@ HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 # the author under evaluation never changes who assesses its output.
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
-    CodexHarness.name: "gpt-6.1-sol",
-    "user": "gpt-6.1-sol",
+    CodexHarness.name: "gpt-6.2-sol",
+    "user": "gpt-6.2-sol",
     # It answers only setup and the developer's turns, so a fast one does.
     "journey-session": "claude-sonnet-5-5",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
-    CodexHarness.name: "gpt-6-astra",
+    CodexHarness.name: "gpt-6.2-astra",
 }
 # Models an experiment compares beside the pinned authors and judges.
 COMPARED_MODELS = ("claude-fable-5-2",)
 
 
 def run_directory(parent: Path) -> Path:
-    """Allocate one invocation's evidence without replacing another run's files."""
+    """Allocate one invocation's evidence without replacing another run's files,
+    named `run-` and the time it started, so a listing sorts runs by age."""
     parent.mkdir(parents=True, exist_ok=True)
-    return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+    started = datetime.now().astimezone()
+    return Path(tempfile.mkdtemp(prefix=f"run-{started:%Y%m%d-%H%M%S}-", dir=parent))
 
 
 def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str, str]:
@@ -181,28 +189,55 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
 
 
 def run_leaf(
-    arm: Path,
-    state: Path,
+    arm: Path | None,
+    state: Path | None,
     *args: str,
+    env: dict[str, str] | None = None,
     check: bool = False,
+    error: Callable[[str], BaseException] = click.ClickException,
     timeout: float | None = None,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run an arm's launcher under its state home, without personal configuration."""
+    """Run `arm`'s launcher, or where `arm` is None this environment's own Leaf
+    (`LEAF_COMMAND`), and capture what it says. It runs in `env`, by default this
+    process's environment less the agent session it may run in (`environment`),
+    under the state home `state` where one is given, and without personal
+    configuration (`fixture_environment`). With `check`, a nonzero exit raises
+    `error` with the command, its status and its output."""
+    command = [*LEAF_COMMAND] if arm is None else [str(arm / "bin/leaf")]
+    base = environment() if env is None else dict(env)
+    if state is not None:
+        base["XDG_STATE_HOME"] = str(state)
+    # From the repository root, against which a page's layer resolves a relative
+    # package path, as the site's `docs/layer.json` names `./docs/package`.
     proc = subprocess.run(
-        [str(arm / "bin/leaf"), *args],
+        [*command, *args],
         input=input_text,
         capture_output=True,
         text=True,
         check=False,
         timeout=timeout,
-        env=fixture_environment(environment(XDG_STATE_HOME=str(state))),
+        env=fixture_environment(base),
+        cwd=ROOT,
     )
     if check and proc.returncode:
-        raise click.ClickException(
+        raise error(
             f"leaf {' '.join(args)} exited {proc.returncode}:\n{proc.stdout}{proc.stderr}"
         )
     return proc
+
+
+def arm_python(arm: Path, *, dev: Path | None = None) -> list[str]:
+    """The command that runs Python in `arm`'s own environment, the one its `bin/leaf`
+    syncs, so the arm's Leaf is what it imports: its interpreter, isolated from this
+    process's paths, or with `dev`, that `leaf_dev` tree laid over the environment by
+    `uv run`, for code that imports `leaf_dev` too, which a harness never installs."""
+    if dev is None:
+        return [str(arm / ".venv/bin/python"), "-I"]
+    return [
+        "uv", "run", "-q", "--no-dev", "--project", str(arm),
+        "--with-editable", str(dev), "python",
+    ]  # fmt: skip
 
 
 def pages(*roots: Path) -> list[Path]:
@@ -404,9 +439,7 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
     # Serial: `-j` needs a forkserver socket, which a sandboxed CI runner refuses.
-    subprocess.run(
-        [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
-    )
+    subprocess.run([*arm_python(dest), "-m", "compileall", "-q", dest], check=True)
     return arm_commit(ref)
 
 
@@ -556,7 +589,7 @@ def codex_home(path: Path, config: str = "") -> Path:
     `~/.agents/skills`, which `CODEX_HOME` does not move. Keep one credential file:
     a child refreshing a copied login would leave the host's refresh token stale."""
     path.mkdir(mode=0o700)
-    host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    host = host_codex_home()
     (path / "auth.json").symlink_to((host / "auth.json").resolve())
     (path / "config.toml").write_text(config)
     return path
@@ -570,7 +603,7 @@ def pi_home(path: Path) -> Path:
     The copy leaves out the refresh token: refreshing it rotates it, which would log
     the host's Codex out. A login that expires within the hour is refused, since the
     copy cannot outlive it."""
-    host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    host = host_codex_home()
     tokens = json.loads((host / "auth.json").read_text())["tokens"]
     claims = tokens["access_token"].split(".")[1]
     expires = json.loads(base64.urlsafe_b64decode(claims + "=" * (-len(claims) % 4)))[
@@ -611,10 +644,7 @@ def claude_home(path: Path) -> Path:
     if keychains.is_dir() and not (path / "Library/Keychains").is_symlink():
         (path / "Library").mkdir(parents=True, exist_ok=True)
         (path / "Library/Keychains").symlink_to(keychains)
-    credentials = (
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
-        / ".credentials.json"
-    )
+    credentials = claude_code_config() / ".credentials.json"
     if credentials.is_file():
         (path / ".claude").mkdir(parents=True, exist_ok=True)
         shutil.copy(credentials, path / ".claude/.credentials.json")
@@ -653,7 +683,7 @@ def retire_sessions(payload: Path, state: Path) -> None:
         return
     subprocess.run(
         [
-            str(payload / ".venv/bin/python"),
+            *arm_python(payload),
             "-c",
             """
 import json
@@ -719,8 +749,8 @@ def authoring_sandbox(*owned: Path) -> str:
         rf"|codex-daemon-{uid}(/|$)"
     )
     host_plugins = (
-        Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "plugins",
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "plugins",
+        host_codex_home() / "plugins",
+        claude_code_config() / "plugins",
     )
     return "\n".join(
         [
@@ -1320,6 +1350,18 @@ def read_trace(stream: Path) -> list[dict]:
         if stream.exists()
         else []
     )
+
+
+def phase_traces(trace: list[dict]) -> list[list[dict]]:
+    """A session's records split at the `eval_phase` marks its driver noted, each
+    phase opening with its mark, and any records before the first mark a phase of
+    their own."""
+    phases: list[list[dict]] = []
+    for record in trace:
+        if record.get("type") == "eval_phase" or not phases:
+            phases.append([])
+        phases[-1].append(record)
+    return phases
 
 
 def trace_result(trace: list[dict]) -> dict:

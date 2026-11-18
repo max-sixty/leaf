@@ -128,7 +128,7 @@ def test_a_sample_waits_out_a_release_still_rolling_out(browser, serve):
     expect(status).to_have_text("Loading sample…")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     page.locator("#yes").click()
-    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    expect(page.locator("#yes")).to_have_attribute("selected", "")
     frame = page.locator("#s iframe")
     height = "frame => frame.getBoundingClientRect().height"
     waiting_height = frame.evaluate(height)
@@ -155,7 +155,7 @@ def test_a_sample_queued_behind_a_rollout_leaves_the_page_live(browser, serve):
     holding(page, asked, 3, "the three allocations a page makes at once")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     page.locator("#yes").click()
-    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    expect(page.locator("#yes")).to_have_attribute("selected", "")
     expect(page.locator(".lf-sample-status")).to_have_text(["Loading sample…"] * 4)
     # Whichever sample mounted last is the one queued.
     assert len({template for _, template in asked}) == 3

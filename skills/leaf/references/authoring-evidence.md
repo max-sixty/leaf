@@ -50,7 +50,7 @@ named for what the part is, since the thread reports it to you. For `lf-diagram`
 entry says which boxes `parts="all"` makes commentable.
 
 A comment's mark stays where its part was when the mark was drawn, so a part that moves
-leaves its mark behind. Draw moving parts in a page widget that declares `x-visual`
+leaves its mark behind. Draw moving parts in a page widget that declares `visual`
 parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
@@ -111,5 +111,3 @@ For recordings compared inside `lf-motion`, use its shared transport as the moti
 package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
-
-Put invented examples inside `lf-sample` and make them visibly fictional.

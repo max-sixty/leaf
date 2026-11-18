@@ -3,8 +3,8 @@ fields from.
 
 Every check behind `page check` and `package check` reports through this one type: the
 registry's validation, the markup checks, a sample's initial history, the capture of a
-revision, the page-code run, the render gate in each color scheme and viewport, its
-width sweep and advice, and the widget quality report. The suite's browser fixture
+revision, the page-code run, the render gate, its width sweep and advice, and the
+widget quality report. The suite's browser fixture
 reports through it too: what the browser said, and what its health sensors
 (`tests/*_watch.js`) found. So does every gate that refuses one event at the append
 door (`event_contracts.admitted_event`). A refusal raised with what a check found
@@ -24,9 +24,8 @@ other reader, the gate's retry policy and the suite among them, reads the fields
 - `values` are what the check measured, as JSON.
 - `severity` is `error`, which refuses the page, or `advice`, which leaves the call to
   its author.
-- `scheme`, `viewports` and `widths` say where it was read: one color scheme, or none
-  where the reading is scheme-blind; the fixed viewports it was read at, empty where it
-  holds at every one; the swept widths a run spans, lowest and highest.
+- `widths` says where a swept reading stands: the widths its run spans, lowest and
+  highest.
 - `samples` says which document a markup check read: the page's own, where it is
   empty, or the live sample child these template ids name, outermost first (None for
   a template without one).
@@ -55,8 +54,6 @@ class Finding:
     at: str = ""
     values: dict = field(default_factory=dict)
     severity: str = "error"
-    scheme: str | None = None
-    viewports: tuple[str, ...] = ()
     widths: tuple[int, int] | None = None
     samples: tuple[str | None, ...] = ()
 
@@ -71,16 +68,10 @@ class Finding:
 
     def __str__(self) -> str:
         text = _words(self)
-        if self.code in _CONSOLE and self.scheme is not None:
-            text = f"console: {text}"
         if self.widths is not None:
             low, high = self.widths
             span = f"{low}px" if low == high else f"{low}–{high}px"
             text = f"at {span} wide, {text}"
-        if self.scheme is not None:
-            text = f"[{self.scheme}] {text}"
-        if self.viewports:
-            text = f"{text} (at {', '.join(self.viewports)})"
         return "".join(f"sample {s or '<unnamed>'!r}: " for s in self.samples) + text
 
     @classmethod
@@ -97,8 +88,6 @@ class Finding:
             found.get("at", ""),
             found.get("values", {}),
             found["severity"],
-            found.get("scheme"),
-            tuple(found.get("viewports", ())),
             tuple(found["widths"]) if "widths" in found else None,
             tuple(found.get("samples", ())),
         )
@@ -107,10 +96,6 @@ class Finding:
         found = {"code": self.code, "severity": self.severity}
         if self.at:
             found["at"] = self.at
-        if self.scheme is not None:
-            found["scheme"] = self.scheme
-        if self.viewports:
-            found["viewports"] = list(self.viewports)
         if self.widths is not None:
             found["widths"] = list(self.widths)
         if self.samples:
@@ -241,7 +226,7 @@ def _verbatim(at: str, v: dict) -> str:
     else:
         where = f" at {provenance[0]} {provenance[1]} occurrence {provenance[2] + 1}"
     return (
-        f"{at}{where} declares x-verbatim but shows {v['says'][:80]!r} with owned "
+        f"{at}{where} declares `verbatim` but shows {v['says'][:80]!r} with owned "
         f"structure {_json(v['shown'])} where the file reads "
         f"{_json(v['expected'])}"
     )
@@ -276,6 +261,20 @@ def _squeezed(at: str, v: dict) -> str:
         " wrapped cells' words a few to a line; an identifier in <code> breaks inside"
         " its cell, and a shorter word in the widest column gives the rest the measure,"
         " while hiding a column at this width takes its facts from the reader"
+    )
+
+
+def _broken_names(at: str, v: dict) -> str:
+    # The reading knows which names break, not which column holds the row's name, so
+    # the words offer the remedy for either.
+    names = ", ".join(v["names"])
+    if (more := v["count"] - len(v["names"])) > 0:
+        names += f" and {more} more"
+    return (
+        f"{at} draws {names} on more than one line, though each is under a third of the"
+        " table's width; a name written as its row's <th scope=\"row\"> stays whole up"
+        " to a third of the column, and white-space: nowrap in the page's CSS keeps a"
+        " column of names on one line"
     )
 
 
@@ -370,19 +369,6 @@ def _bearing(at: str, v: dict, value: str) -> str:
     return _line(f"{at[:-1]} {v['attr']}={value}>", v)
 
 
-def _conditions(lacks: dict) -> str:
-    """The `x-awaits.when` conditions a widget never met (`instances.unasked`)."""
-    return " and ".join(
-        " or ".join(
-            f"`{attr}` is {'set' if value else 'unset'}"
-            if isinstance(value, bool)
-            else f"{attr}={_json(value)}"
-            for value in values
-        )
-        for attr, values in lacks.items()
-    )
-
-
 def _seat(seat: dict) -> str:
     return (
         f"{seat['document']} <{seat['tag']}> input `{seat['input']}`"
@@ -405,19 +391,6 @@ def _reference_contract(at: str, v: dict) -> str:
     return (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a {v["via"]} widget'
         f" where {expected}; {actual}"
-    )
-
-
-def _empty_question(at: str, v: dict) -> str:
-    widgets = "; ".join(
-        f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
-        for w in v["widgets"]
-    )
-    return f"{_line(at, v)}: asks the user nothing, " + (
-        f"since {widgets}"
-        if widgets
-        else "since it holds no widget that asks (one declaring x-awaits); add one,"
-        " or ask a question answered in words in a thread message with --obligation"
     )
 
 
@@ -472,15 +445,15 @@ def _plain(value) -> str:
 
 
 def _predicate(v: dict, says: str) -> str:
-    return f"{v['key']} tests `{v['attr']}` {says}"
+    return f"`{v['key']}` tests `{v['attr']}` {says}"
 
 
 def _created(v: dict, says: str) -> str:
-    return f"x-state verb `{v['verb']}` creates <{v['child']}>, {says}"
+    return f"verb `{v['verb']}` (`verbs`) creates <{v['child']}>, {says}"
 
 
 def _answering(v: dict, says: str) -> str:
-    return f"x-awaits answering verb `{v['verb']}` {says}"
+    return f"`awaits` answering verb `{v['verb']}` {says}"
 
 
 def _box(box: dict) -> str:
@@ -556,8 +529,7 @@ _MOVE_UNDER_PAGE = (
 
 
 # The words for each code, from the finding's `at` and `values`. A console code's
-# words are what the console said; read by the gate in a color scheme, beside findings
-# of its own, it says "console: " first.
+# words are what the console said.
 _TEXT = {
     "invalid-output": lambda at, v: (
         f"{at} ("
@@ -594,11 +566,6 @@ _TEXT = {
     ),
     # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
     # steps (`placed`).
-    "startup-layout-shift": lambda at, v: (
-        f"startup CLS {v['cls']:.4f} before first settled presentation; "
-        "inspect the movement and whether it interrupts reading: "
-        + json.dumps(v["entries"], ensure_ascii=False)
-    ),
     "moved-without-input": lambda at, v: (
         f"{placed(v['node'])} moved without input{_by(v)}{_shift_evidence(v)}"
     ),
@@ -701,12 +668,9 @@ _TEXT = {
         )
     ),
     "verbatim": _verbatim,
-    "silent-word": lambda at, v: (
-        f'{at} declares {v["attr"]} as x-says and never says "{v["value"]}"'
-    ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
-        " declare it as a verb's record form (x-state) if a version is meant to carry"
+        " declare it as a verb's record form (`verbs`) if a version is meant to carry"
         " it, or write the state on the chrome the module built"
     ),
     "settlement-mark": lambda at, v: (
@@ -749,9 +713,10 @@ _TEXT = {
         ' overflow-x: auto and class="lf-scroll"'
     ),
     "outside-frame": lambda at, v: (
-        f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"
-        " --lf-block-frame: 1 in the rule that draws the frame, so the box holds the"
-        " room in as well as the margins"
+        f"{at} stands {v['past']}px outside the {v['frame']} that frames it — to widen"
+        " the frame with it, put data-width on the frame; to hold it inside, draw the"
+        " frame on a div, since a section, article or details hands the page's room on"
+        " to what it holds"
     ),
     "past-room": lambda at, v: (
         f"{at} stands {v['past']}px past the room the page has for a wide widget"
@@ -815,17 +780,20 @@ _TEXT = {
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])
-        + "; to let it break out with the words around it staying on the column, give"
-        ' the unframed wrappers class="layout-flow"; to widen a frame around it, put'
-        " data-width on the frame"
+        + "; to let it break out with the words around it staying on the column, write"
+        " each unframed wrapper as a section, article or details, which hands the"
+        " page's room on, or drop it; to widen a frame around it, put data-width on"
+        " the frame"
     ),
     "words-off-column": lambda at, v: (
         f"{at} reaches past the column's start edge and takes its words with it, so"
-        " they no longer line up with the page's; put data-width on the block inside"
-        ' that needs the room, and give this wrapper class="layout-flow"'
+        " they no longer line up with the page's; move data-width to the block inside"
+        " that needs the room, which a section, article or details around it hands"
+        " the page's room"
     ),
     "squeezed-table": _squeezed,
     "squeezed-code": _squeezed_code,
+    "broken-name": _broken_names,
     "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
@@ -901,6 +869,12 @@ _TEXT = {
         f"{at[:-1]}/> at line {v['line']} is self-closing: HTML ignores the slash and"
         f" the element would swallow what follows — write {at[:-1]} …></{at[1:-1]}>"
     ),
+    "split-pre": lambda at, v: (
+        f"{at} holds a <{v['block']}> at line {v['line']}: a blank line inside a block"
+        " of HTML ends the block, and Markdown read the lines after it as Markdown."
+        " Start the <pre> on its own line after a blank line, or write its text in a"
+        " Markdown fence"
+    ),
     "noscript": lambda at, v: (
         f"{at} at line {v['line']}: the browser renders none of its content; write it"
         " plainly or leave it out"
@@ -919,6 +893,11 @@ _TEXT = {
             if v["allowed"] is None
             else f"one of {', '.join(v['allowed'])}"
         )
+    ),
+    "unnamed-card": lambda at, v: (
+        f"{_line(at, v)}: leads with a <strong> but has no label, so Leaf names it by"
+        ' all its words; give its name in label="…" and keep the <strong> as the title'
+        " the page shows"
     ),
     "inert-allocation": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has no effect: "
@@ -982,11 +961,6 @@ _TEXT = {
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
-        + " or stand inside its "
-        + " or ".join(f"<{region}>" for region in v["within"])
-        if v["within"]
-        else f"{_line(at, v)}: must be a direct member of "
-        + " or ".join(f"<{owner}>" for owner in v["owners"])
         + (f", found <{v['parent']}>" if v["parent"] else "")
     ),
     "content-empty": lambda at, v: (
@@ -1018,36 +992,44 @@ _TEXT = {
         ' own (page-layout.md, "A page of parts")'
     ),
     "pane-ends": lambda at, v: (
-        f"{_line(at, v)}: x-reading-role {v['role']} admits at most one direct"
-        " <header> and one direct <footer>"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds more than one direct"
+        " <header> or <footer>; its grid sets each one after the first beside it, in a"
+        " column of its own, so put what they hold in one <header> or <footer>"
     ),
     "pane-header-first": lambda at, v: (
-        f"{_line(at, v)}: x-reading-role {v['role']} direct <header> must be first"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <header> after"
+        " other children; its grid still draws the header on top, but keyboard and"
+        " screen-reader order follow the markup"
     ),
     "pane-footer-last": lambda at, v: (
-        f"{_line(at, v)}: x-reading-role {v['role']} direct <footer> must be last"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <footer> before"
+        " other children; its grid still draws the footer at the bottom, but keyboard"
+        " and screen-reader order follow the markup"
     ),
     "pane-body": lambda at, v: (
-        f"{_line(at, v)}: x-reading-role {v['role']} must contain exactly one direct"
-        " body element between its header and footer, found "
-        + (_json(v["body"]) if v["body"] else "nothing")
-        + "; wrap several blocks in one <div> or <section>"
+        f"{_line(at, v)}: `reading-role` {v['role']} "
+        + (
+            "holds loose text as its body, which stands without the body's padding"
+            " and doesn't scroll as the pane's body; wrap it in a <p> or <div>"
+            if v["body"] == ["#text"]
+            else f"holds {len(v['body'])} body blocks ({_json(v['body'])}); its grid"
+            " places them all in its one body cell, where they overlap, and only the"
+            " first element among them scrolls as the pane's body, so wrap them in one"
+            " <div> or <section>"
+        )
     ),
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-question": _empty_question,
-    "untitled-question": lambda at, v: (
-        f"{_line(at, v)}: this enclosing widget needs a heading to title its obligations,"
-        " leading its content alone or in an <hgroup> or <header>"
+    "ungrouped-question": lambda at, v: (
+        f"{_line(at, v)}: asks the user, but no group holds its question; write its"
+        " premise and this widget in "
+        + " or ".join(f'<{tag} id="…" label="…">' for tag in v["groups"])
+        + ", its label asking the question"
     ),
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
         f" {v['first_line']} in the same <{v['scope']}>"
-    ),
-    "unmatched-member": lambda at, v: (
-        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no <{v["member"]}'
-        f' {v["key"]}="{v["target"]}"> in its <{v["scope"]}>'
     ),
     "unknown-reference": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
@@ -1065,8 +1047,8 @@ _TEXT = {
     ),
     "shows-no-answer": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget whose answer no'
-        " view can show: its x-awaits value verb records neither a value nor members"
-        " an x-awaits key names"
+        " view can show: its `awaits` value verb records neither a value nor members"
+        " an `awaits` key names"
     ),
     "shows-without-open": lambda at, v: (
         f"{_line(at, v)}: every <{v['place']}> beside its own has a `{v['value_attr']}`,"
@@ -1115,10 +1097,10 @@ _TEXT = {
         f" at {_seat(v['first'])} and contract {v['then']['contract']!r} at"
         f" {_seat(v['then'])}; use a new source id for the new meaning"
     ),
-    # Message markup, which the log freezes.
-    "frozen-settlement": lambda at, v: (
-        f"{at} is a settlement holder, but thread markup is frozen in the log and no"
-        " version could ever settle it; put the change in the next version instead"
+    # Message markup, which no version settles.
+    "message-settlement": lambda at, v: (
+        f"{at} is a settlement holder, but a version settles only the page's markup,"
+        " never a message's; put the change in the next version instead"
     ),
     "message-style": lambda at, v: (
         "<style> in message markup becomes a stylesheet of the whole document it is"
@@ -1147,6 +1129,19 @@ _TEXT = {
     "unpointable-wide": lambda at, v: (
         "unpointable — a comment aimed at a block with no id lands on the whole of"
         f" the element named: {_blocks(v)}; give each block its own id"
+    ),
+    "uncoloured-language": lambda at, v: (
+        f'{_line(at, v)}: class="language-{v["language"]}" names no language Leaf'
+        " colours, so its code shows uncoloured; Leaf colours "
+        + ", ".join(v["names"])
+        + ", and short names for them such as py and sh, and typesets LaTeX in"
+        ' class="language-math" as a formula'
+    ),
+    "literal-markdown": lambda at, v: (
+        "Markdown shown as typed — HTML reads no Markdown, so the page shows the"
+        " backticks, ** or brackets of a code span, bold or link in"
+        f" {_blocks(v)}; write each as <code>, <strong> or <a href>, or, where the"
+        " syntax is itself the text, put it in <code>, <samp> or <pre>"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
@@ -1248,113 +1243,102 @@ _TEXT = {
         )
     ),
     # An element declaration, on its own.
-    "declaration-schema": _declared(
-        lambda v: f"is not a valid JSON Schema: {v['reason']}"
-    ),
-    "no-description": _declared(lambda v: "must carry a non-empty description"),
-    "invalid-extensions": _declared(
-        lambda v: f"registry extensions are invalid: {v['reason']}"
-    ),
-    "example-data": _declared(lambda v: f"x-example-data is invalid: {v['reason']}"),
-    "invalid-example": _declared(
-        lambda v: f"x-example is invalid: {Finding.loads(v['finding'])}"
-    ),
-    "missing-module": _declared(
+    "invalid-declaration": _declared(
         lambda v: (
-            "is upgraded but its module is missing; expected"
-            f" {v['expected'][0]} or {v['expected'][1]}"
+            "is not a valid declaration ($keys)"
+            + (f" at `{_json_path(v['path'])}`" if v.get("path") else "")
+            + f": {v['reason']}"
         )
     ),
-    "markdown-needs-data": _declared(
-        lambda v: "block Markdown requires x-content: data"
+    "attributes-schema": _declared(
+        lambda v: f"attributes are not a valid JSON Schema: {v['reason']}"
     ),
+    "invalid-example": _declared(
+        lambda v: f"`example` is invalid: {Finding.loads(v['finding'])}"
+    ),
+    "markdown-needs-data": _declared(lambda v: "block Markdown requires content: data"),
     "data-input": _declared(
         lambda v: (
-            "its <pre> is the text of its x-data input when the markup binds"
-            " none, so x-content: data takes "
+            "its <pre> is the text of its one input when the markup binds"
+            " none, so content: data takes "
             + {
                 "inputs": "at most one input",
-                "words": "no input with x-text-format: markdown, whose <pre> is its words",
+                "words": "no input with `text-format`: markdown, whose <pre> is its words",
                 "state": "no input with a body record, whose <pre> is its state",
             }[v["reason"]]
         )
     ),
     "requires": _declared(
-        lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
+        lambda v: f"`{v['key']}` requires {v['needs']}: {_plain(v['value'])}"
     ),
-    "needs-upgrade": _declared(
-        lambda v: f"declares {', '.join(v['keys'])} but has no upgraded handler"
+    "unnamed-module": _declared(
+        lambda v: (
+            "no declared tag has the name of "
+            + ", ".join(v["modules"])
+            + "; a page widget's module is page/widgets/<tag>.js, and a helper"
+            " module stands elsewhere under page/"
+        )
+    ),
+    "needs-module": _declared(
+        lambda v: (
+            f"declares {', '.join(v['keys'])}, which a module provides, and has"
+            f" none at {v['module']}"
+        )
     ),
     "unknown-declarations": _declared(
-        lambda v: f"{v['key']} names unknown element declarations {_json(v['names'])}"
+        lambda v: f"`{v['key']}` names unknown element declarations {_json(v['names'])}"
     ),
     "undeclared-attributes": _declared(
-        lambda v: f"{v['key']} names undeclared attributes {_json(v['names'])}"
+        lambda v: f"`{v['key']}` names undeclared attributes {_json(v['names'])}"
     ),
     "reading-role-attr": _declared(
-        lambda v: f"x-reading-role {v['role']} instances require a string {v['attr']}"
+        lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
     ),
     "addressable-id": _declared(
         lambda v: (
-            f"{v['key']} instances are addressable, so the element declaration"
+            f"`{v['key']}` instances are addressable, so the element declaration"
             " must declare a string `id` attribute"
         )
     ),
-    "enclosing-id": _declared(lambda v: "x-encloses must require an id"),
-    "enclosing-prose": _declared(
-        lambda v: "x-encloses must admit prose around the obligations it frames"
-    ),
     "data-contract": _declared(
         lambda v: (
-            f"x-data input `{v['input']}` names unknown contract {v['contract']!r}"
+            f"input `{v['input']}` (`inputs`) names unknown contract {v['contract']!r}"
         )
     ),
     "unknown-output-contract": _declared(
-        lambda v: f"x-output `{v['output']}` names unknown contract {v['contract']!r}"
+        lambda v: f"`outputs` `{v['output']}` names unknown contract {v['contract']!r}"
     ),
     "data-reference": _declared(
         lambda v: (
-            f"x-data input `{v['input']}` reference `{v['attr']}` must name an x-refers element relation"
+            f"input `{v['input']}` (`inputs`) reference `{v['attr']}` must name an"
+            " element relation in `refers`"
         )
     ),
     "data-source": _declared(
         lambda v: (
-            f"x-data input `{v['input']}` source attribute `{v['attr']}` must"
+            f"input `{v['input']}` (`inputs`) source attribute `{v['attr']}` must"
             " be declared a string"
         )
     ),
-    "measured-input": _declared(
-        lambda v: f"x-measured input `{v['input']}` is not one of its x-data inputs"
-    ),
     "measured-source": _declared(
         lambda v: (
-            f"x-measured input `{v['input']}` source attribute `{v['attr']}`"
-            " must be required"
+            f"input `{v['input']}` (`inputs`) declares `measured`, so it needs a"
+            " required `source` attribute"
+            + (f", which `{v['attr']}` is not" if v["attr"] else "")
         )
     ),
     "measured-run": _declared(
         lambda v: (
-            f"x-measured run attribute `{v['attr']}` must be required and"
-            " declare a nonempty string"
-        )
-    ),
-    "refers-unknown-member": _declared(
-        lambda v: (
-            f"x-refers `{v['attr']}` names unknown element declaration <{v['member']}>"
-        )
-    ),
-    "refers-unkeyed": _declared(
-        lambda v: (
-            f"x-refers `{v['attr']}` names <{v['member']}> by `{v['key']}`,"
-            f" which <{v['member']}> does not declare in x-unique"
+            f"input `{v['input']}` (`inputs`) names `{v['attr']}` as `measured`:"
+            " that attribute must be required and declare a nonempty string"
         )
     ),
     "refers-unknown-map": _declared(
-        lambda v: f"x-refers `{v['attr']}` names unknown registry map {v['via']!r}"
+        lambda v: f"`refers` `{v['attr']}` names unknown registry map {v['via']!r}"
     ),
     "refers-unmatched": _declared(
         lambda v: (
-            f"x-refers `{v['attr']}` requires {v['via']} where "
+            f"`refers` `{v['attr']}` requires {v['via']} where "
             + ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
             + ", but no declared widget matches"
         )
@@ -1365,15 +1349,9 @@ _TEXT = {
             " for their anchor"
         )
     ),
-    "visual-upgrade": _declared(
-        lambda v: (
-            "declares addressable visual parts but has no upgraded handler to"
-            " resolve them"
-        )
-    ),
     # Its conditions, read against its own attributes.
     "predicate-attribute": _declared(
-        lambda v: f"{v['key']} names undeclared attribute `{v['attr']}`"
+        lambda v: f"`{v['key']}` names undeclared attribute `{v['attr']}`"
     ),
     "predicate-schema": _declared(
         lambda v: _predicate(
@@ -1384,35 +1362,36 @@ _TEXT = {
     ),
     "binding-written": _declared(
         lambda v: (
-            "x-data binding attributes are authored, but"
+            "`inputs` binding attributes are authored, but"
             f" {_json(v['attrs'])} are written by value records"
         )
     ),
     "run-written": _declared(
         lambda v: (
-            f"x-measured run attribute `{v['attr']}` is an authored source"
+            f"`inputs` `measured` attribute `{v['attr']}` is an authored source"
             " receipt, but is written by a value record"
         )
     ),
     # Its interactions: local work, its obligation, and the state its verbs write.
     "work-inline": _declared(
-        lambda v: "declares x-work but is inline; local work chrome needs a block slot"
+        lambda v: "declares `work` but is inline; local work chrome needs a block slot"
     ),
     "work-content": _declared(
         lambda v: (
-            f"declares x-work but x-content is {v['content']}; generated local"
+            f"declares `work` but content is {v['content']}; generated local"
             " chrome may only join authored prose"
         )
     ),
     "awaits-records": _declared(
         lambda v: (
-            "x-awaits.records must name an x-data input whose contract declares records and whose binding names only an external source attribute"
+            "`awaits.records` must name an input (`inputs`) whose contract declares"
+            " records and whose binding names only an external source attribute"
         )
     ),
     "answering-record": _declared(
         lambda v: _answering(
             v,
-            "must use the same record unit as x-awaits.value, with custom detail and no empty condition",
+            "must use the same record unit as `awaits.value`, with custom detail and no empty condition",
         )
     ),
     "answering-detail": _declared(
@@ -1421,93 +1400,87 @@ _TEXT = {
         )
     ),
     "awaits-unanswered": _declared(
-        lambda v: "x-awaits local obligation declares no `answered` condition"
+        lambda v: "`awaits` local obligation declares no `answered` condition"
     ),
     "awaits-verbs": _declared(
         lambda v: (
-            f"x-awaits answers with verbs {_json(v['verbs'])}, which are"
-            " not x-state verbs the user writes"
+            f"`awaits` answers with verbs {_json(v['verbs'])}, which are"
+            " not `verbs` the user writes"
         )
     ),
     "awaits-value": _declared(
-        lambda v: "x-awaits value must name a user-written x-state verb"
+        lambda v: "`awaits` value must name a user-written verb (`verbs`)"
     ),
     "awaits-key": _declared(
         lambda v: (
-            f"x-awaits key `{v['key']}` needs an attribute-record value verb whose"
-            f" members declare `{v['key']}` in x-unique for this widget"
+            f"`awaits` key `{v['key']}` needs an attribute-record value verb whose"
+            f" members declare `{v['key']}` in `unique` for this widget"
         )
     ),
     "shows-reference": _declared(
         lambda v: (
-            f"x-shows attr `{v['attr']}` must be an x-refers relation to any element"
+            f"`shows` reference `{v['attr']}` must be a `refers` relation to any element"
         )
     ),
     "shows-value": _declared(
         lambda v: (
-            f"x-shows value `{v['attr']}` is no attribute of "
+            f"`shows` value `{v['attr']}` is no attribute of "
             + ", ".join(f"<{owner}>" for owner in v["owners"])
         )
     ),
     "awaits-retired": _declared(
         lambda v: (
-            f"x-awaits retires with `{v['flag']}`, but its `when` does not"
+            f"`awaits` retires with `{v['flag']}`, but its `when` does not"
             f" require `{v['flag']}` absent"
         )
     ),
     "awaits-blanket": _declared(
         lambda v: (
-            f"x-awaits blanket answer `{v['outcome']}` is not an outcome of a"
+            f"`awaits` blanket answer `{v['outcome']}` is not an outcome of a"
             " deciding verb that answers its obligation"
         )
     ),
     "unoverruled": _declared(
         lambda v: (
-            "declares agent-written x-state verbs"
+            "declares agent-written `verbs`"
             f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
             " version sets to overrule a worker's report"
         )
     ),
     "unrestated": _declared(
         lambda v: (
-            "declares user x-state verbs on the whole widget but no boolean"
+            "declares user `verbs` on the whole widget but no boolean"
             " `restated` attribute, which a version sets to retract the user's"
             " decision"
         )
     ),
-    "reserved-resolves": _declared(
-        lambda v: (
-            "declares attribute `resolves`, a reserved name (the thread an"
-            " answer to its obligation closes), but originates no local obligation"
-        )
-    ),
     "verb-detail-schema": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` has an invalid detail schema: {v['reason']}"
+            f"verb `{v['verb']}` (`verbs`) has an invalid detail schema: {v['reason']}"
         )
     ),
     "creates-unit": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` creates a child, so its fold unit must"
+            f"verb `{v['verb']}` (`verbs`) creates a child, so its fold unit must"
             " name the detail field carrying the child's id and it declares no record"
             " form"
         )
     ),
     "creates-detail": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` creates a child, so its detail must be"
+            f"verb `{v['verb']}` (`verbs`) creates a child, so its detail must be"
             f" exactly the required id string `{v['unit']}` and the required non-empty"
             f" words `{v['words']}`"
         )
     ),
     "creates-unknown": _declared(
-        lambda v: f"x-state verb `{v['verb']}` creates unknown child <{v['child']}>"
+        lambda v: f"verb `{v['verb']}` (`verbs`) creates unknown child <{v['child']}>"
     ),
     "creates-owner": _declared(
-        lambda v: _created(v, "whose x-owners does not admit the sender")
+        lambda v: _created(v, "whose `owners` does not admit the sender")
     ),
     "creates-content": _declared(
-        lambda v: _created(v, "which must declare x-content markup")
+        lambda v: _created(v, "which must declare content markup")
     ),
     "creates-required": _declared(
         lambda v: _created(v, "which must require id and no other authored attributes")
@@ -1524,7 +1497,7 @@ _TEXT = {
     ),
     "shared-slot": _declared(
         lambda v: (
-            f"x-state verbs `{v['verbs'][0]}` and `{v['verbs'][1]}` claim the"
+            f"`verbs` `{v['verbs'][0]}` and `{v['verbs'][1]}` claim the"
             f" same physical record slot (unit `{v['unit']}`, {v['kind']}"
             + (f" `{v['attr']}`" if v["attr"] else "")
             + "); distinct verbs must record independently"
@@ -1532,72 +1505,67 @@ _TEXT = {
     ),
     "unit-undeclared": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` must declare and require its fold unit"
+            f"verb `{v['verb']}` (`verbs`) must declare and require its fold unit"
             f" `{v['unit']}` in detail"
         )
     ),
     "unit-type": _declared(
-        lambda v: f"x-state verb `{v['verb']}` fold unit `{v['unit']}` must be a string"
+        lambda v: (
+            f"verb `{v['verb']}` (`verbs`) fold unit `{v['unit']}` must be a string"
+        )
     ),
     "record-unit": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` record `{v['kind']}` requires unit:"
+            f"verb `{v['verb']}` (`verbs`) record `{v['kind']}` requires unit:"
             f" {v['unit']!r}"
         )
     ),
     "record-within": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` records a position within unknown"
+            f"verb `{v['verb']}` (`verbs`) records a position within unknown"
             f" widget <{v['within']}>"
         )
     ),
     "body-content": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` records its body, so x-content must be"
+            f"verb `{v['verb']}` (`verbs`) records its body, so content must be"
             " data; projection states text rather than a prose subtree"
         )
     ),
     "body-nested": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` records its body but admits nested"
+            f"verb `{v['verb']}` (`verbs`) records its body but admits nested"
             f" widgets {_json(v['widgets'])}; a text statement cannot reconstruct"
             " their state"
         )
     ),
     "record-undeclared": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` records undeclared attribute `{v['attr']}`"
-        )
-    ),
-    "record-says": _declared(
-        lambda v: (
-            f"x-state verb `{v['verb']}` records x-says attribute"
-            f" `{v['attr']}`, whose value is words the user sees — declared state may not"
-            " move the page's words"
+            f"verb `{v['verb']}` (`verbs`) records undeclared attribute `{v['attr']}`"
         )
     ),
     "record-type": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` record attribute `{v['attr']}` must be"
+            f"verb `{v['verb']}` (`verbs`) record attribute `{v['attr']}` must be"
             " a string or string enum; HTML attributes cannot restore another JSON type"
         )
     ),
     "deciding-verbs": _declared(
         lambda v: (
-            f"x-state verbs {_json(v['verbs'])} all declare `decides: true`;"
+            f"`verbs` {_json(v['verbs'])} all declare `decides: true`;"
             " only one verb may decide which members retire"
         )
     ),
     "deciding-verb": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` declares `decides: true`:"
+            f"verb `{v['verb']}` (`verbs`) declares `decides: true`:"
             " the deciding verb folds by widget, is written by the user,"
             " and requires `outcome` as a string enum"
         )
     ),
     "verb-contract": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` binds detail field `{v['field']}` to"
+            f"verb `{v['verb']}` (`verbs`) binds detail field `{v['field']}` to"
             f" attribute `{v['attribute']}`: the field must be declared and the"
             " attribute declared a string"
         )
@@ -1606,13 +1574,16 @@ _TEXT = {
         f"{at} attribute `{v['attribute']}` names unknown data contract"
         f" {v['contract']!r} for `{v['verb']}` detail field `{v['field']}`"
     ),
-    "withdrawn-as": _declared(
-        lambda v: f"x-withdrawn-as `{v['outcome']}` is not a deciding outcome"
+    "withdraws-outcome": _declared(
+        lambda v: (
+            f"verb `{v['verb']}` (`verbs`) declares `withdraws: {v['outcome']}`,"
+            " which is not a value of its `outcome` field"
+        )
     ),
     "retired-when": _declared(
         lambda v: (
-            f"x-retired-when `{v['outcome']}` is invalid: <{v['owner']}>"
-            " declares no deciding x-state verb with that outcome"
+            f"`retired-when` `{v['outcome']}` is invalid: <{v['owner']}>"
+            " declares no deciding verb (`verbs`) with that outcome"
         )
     ),
     "answering-part": _declared(
@@ -1627,9 +1598,7 @@ _TEXT = {
         lambda v: _answering(v, f"names unknown container <{v['within']}>")
     ),
     "answering-members": _declared(
-        lambda v: _answering(
-            v, f"names <{v['within']}>, whose x-content is not members"
-        )
+        lambda v: _answering(v, f"names <{v['within']}>, whose content is not members")
     ),
     "answering-undeclared": _declared(
         lambda v: _answering(
@@ -1720,12 +1689,6 @@ _TEXT = {
         f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
-    "passive-layout-shift": lambda at, v: (
-        f"{at} moved without input during a {v['observed_ms']}ms observation after"
-        f" presentation: {v['before']} → {v['after']}. These are the moved node's"
-        " boxes, not necessarily the cause; reserve space for changing content."
-        " Later timers and gesture paths were not checked."
-    ),
     "keeps-first-box": lambda at, v: (
         f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
         f" before upgrade, {_size(v['now'])} once presented"
@@ -1774,8 +1737,8 @@ _TEXT = {
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
         f"unknown report widget {v['widget']!r} in revision r{v['revision']} — reports"
-        " name page widgets only, since no version can answer a report in frozen"
-        " thread markup"
+        " name page widgets only, since no version can answer a report in thread"
+        " markup"
         if v["kind"] == "report"
         else f"unknown action widget {v['widget']!r} in revision r{v['revision']} or"
         " agent-authored thread markup"
@@ -1800,7 +1763,7 @@ _TEXT = {
         f"<{v['tag']}> {v['kind']} {v['verb']!r} detail is invalid: {v['error']}"
     ),
     "quoted-widget": lambda at, v: (
-        f"<{v['tag']}> {v['widget']!r} stands inside an exhibit (x-exhibit); quoted"
+        f"<{v['tag']}> {v['widget']!r} stands inside an exhibit (`exhibit`); quoted"
         " material takes no input"
     ),
     "created-exists": lambda at, v: (
@@ -1896,7 +1859,8 @@ _TEXT = {
         "summary endpoints must name spoken turns in one thread"
     ),
     "summary-order": lambda at, v: (
-        "summary must cover at least two messages in thread order"
+        f"summary's `from` {v['from']!r} comes after its `through` {v['through']!r}"
+        " in thread order"
     ),
     "summary-gap": lambda at, v: (
         "summary would leave messages unsummarized above a summary, and only the"
@@ -1926,10 +1890,6 @@ _TEXT = {
         " markup now places its unit; move it again instead"
     ),
     # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
-    "progress-parent": lambda at, v: (
-        f"this progress line replies to {v['parent']!r} but starts an update you owe"
-        f" no reply to {v['parent']!r} for; it may already be answered"
-    ),
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
     "hidden-widget": lambda at, v: (
@@ -1940,7 +1900,7 @@ _TEXT = {
         f"{v['widget']} is quoted exhibit content, not a live page widget"
     ),
     "no-work-seat": lambda at, v: (
-        f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
+        f"{v['widget']} has no work seat; its widget declares no `work` and it holds"
         " no unsettled action"
     ),
     "plan-depth": lambda at, v: (
@@ -1974,16 +1934,6 @@ _TEXT = {
         " an id it asks a new question"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
-    "todo-execution": lambda at, v: (
-        f"to-do {v['todo']!r} was last started by "
-        + (
-            f"session {v['session']!r}"
-            if v["session"] is not None
-            else "a sessionless command"
-        )
-        + f" (start {v['start']!r}); start it with `leaf task start`"
-        " before ending it from another session"
-    ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     # What other commands note beside their result (`note`). `page open` over
     # updates it still owes an answer, each named by the command that answers it:
@@ -2024,6 +1974,14 @@ _TEXT = {
     "stopped-during-init": lambda at, v: (
         f"{v['page']}'s server was stopped while `page init` held it down, so it"
         " stays stopped."
+    ),
+    # `page check`'s advice on a page whose live server runs another Leaf
+    # (`server.another_leaf_serving`).
+    "another-leaf-serving": lambda at, v: (
+        f"{v['page']}'s server runs Leaf {v['server']}, not this Leaf"
+        f" ({v['checked']}), so the user's tab may not draw what this Leaf checked;"
+        f" restart it with `leaf server stop {v['page']}` then"
+        f" `leaf server start {v['page']}`"
     ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (
@@ -2102,10 +2060,6 @@ _TEXT = {
             else ""
         )
     ),
-    "redeclared-answer": lambda at, v: (
-        f"{v['message']!r} already answered this with a different declaration; ask or"
-        " promise in a new message with `leaf thread reply`"
-    ),
     "unowed-reply": lambda at, v: (
         f"event {v['event']!r} takes no reply; "
         + (v.get("held") or f"this page's log holds no event {v['event']!r}")
@@ -2113,6 +2067,25 @@ _TEXT = {
     "superseded-reply": lambda at, v: (
         f"event {v['event']!r} no longer requires a reply to {v['parent']!r}; "
         + (v.get("held") or "read the current delivery or thread state")
+    ),
+    # What `thread.post_reply` notes beside a message that answers nothing: progress
+    # on an update no longer owed, which takes nothing in hand; an answer to an
+    # update whose earlier answer promised a to-do still open; and an answer the
+    # thread it joins still owes.
+    "superseded-progress": lambda at, v: (
+        f"event {v['event']!r} no longer requires a reply, so this progress takes"
+        " nothing in hand; "
+        + (v.get("held") or "read the current delivery or thread state")
+    ),
+    "promised-todo": lambda at, v: (
+        f"event {v['event']!r} was already answered by {v['todo']!r}, whose to-do"
+        f" {v['title']!r} is still open, so this reply answers nothing new;"
+        f' `leaf task end {v["page"]} {v["todo"]} done --text "<where the result is>"`'
+        " ends the to-do"
+    ),
+    "owed-response": lambda at, v: (
+        f"thread {v['thread']!r} still owes the user an answer, which this message"
+        f" doesn't give; {v['answer']} answers it"
     ),
     "reserved-answer": lambda at, v: (
         f"event {v['event']!r} is answered by this turn's messages; "
@@ -2123,16 +2096,12 @@ _TEXT = {
             else f"use {v['command']} to commit an explicit answer"
         )
     ),
-    "owed-response": lambda at, v: (
-        f"thread {v['thread']!r} currently requires a response; {v['answer']} answers"
-        " it"
-    ),
     "not-a-reply": lambda at, v: (
         f"response {v['reference']!r} requires {v['answer']}, not a reply"
     ),
     "ephemeral-content": lambda at, v: (
-        "--ephemeral is for progress text; it cannot ask the user, open a to-do, carry"
-        " widgets, report failure, or move the thread"
+        "--ephemeral is for progress text; it cannot ask the user, open a to-do, hold"
+        " a widget, report failure, or move the thread"
     ),
     "detach-with-target": lambda at, v: (
         "--detach cannot be combined with --quote, --section, or --part"
@@ -2149,19 +2118,29 @@ _TEXT = {
         " TITLE when it promises work it doesn't deliver, or --obligation when it needs"
         " the user's next move"
         + (
-            f"; or let the <{v['tag']} id={v['id']!r}> in --markup ask in its place,"
+            f"; or let the <{v['tag']} id={v['id']!r}> in the text ask in its place,"
             f" which it does with {v['needs']}"
             if v
-            else " (a widget in --markup may also ask)"
+            else " (a widget in the text may also ask)"
         )
     ),
     "obligation-beside-widget": lambda at, v: (
-        f"the <{v['tag']} id={v['id']!r}> in --markup already waits on the user's"
+        f"the <{v['tag']} id={v['id']!r}> in the text already waits on the user's"
         " answer; drop --obligation, which would keep the message on their On Me list"
         " after they answer it, and ask anything the widget doesn't answer in a message"
         " of its own"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
+    "edit-answered-widget": lambda at, v: (
+        f"the user has acted on {at} in message {v['message']!r}; their answer stays"
+        " recorded against its ids"
+        + (
+            ", so it shows on the markup this edit leaves there"
+            if v["kept"]
+            else ", and this edit removes what it chose, so the thread no longer shows"
+            " that answer"
+        )
+    ),
 }
 
 # What a browser shows the person whose gesture a refusal turned down, where the
@@ -2169,14 +2148,6 @@ _TEXT = {
 _USER = {
     "stale-move": "The page changed while I moved this; move it again.",
     "stale-edit": "The message changed while I edited it; edit it again.",
-}
-
-_CONSOLE = {
-    "console-error",
-    "console-warning",
-    "page-exception",
-    "window-error",
-    "resize-loop",
 }
 
 

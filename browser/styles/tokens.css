@@ -73,9 +73,8 @@
   );
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room, the page's own heads (base.css, at `--lf-top`) and any sticky header
-     under them. Ordinary content never sees either band; the document already keeps
-     clear of both (html[data-lf-live], base.css). */
+     the head room and any sticky header under it. Ordinary content never sees either
+     band; the document already keeps clear of both (html[data-lf-live], base.css). */
   --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's
@@ -159,7 +158,7 @@
   /* A step dimmer than --lf-muted, for words that stand in for what isn't there yet: an
      empty box's prompt and its keys, and the floating panel's status. Ink at 62% is
      as dim as WCAG AA's 4.5:1 lets text be on the page's paper in the light scheme,
-     where it reads 4.8:1; the 48% the panel's status first wore read 3.1:1. */
+     where it reads 4.8:1; 48% reads 3.1:1. */
   --lf-quiet: color-mix(in srgb, var(--lf-ink) 62%, transparent);
   --lf-rule: light-dark(
     oklab(
@@ -224,6 +223,11 @@
      to be a fixed size under a finger — a margin entry, a panel's mark — still
      says so where it is written; this is the floor, not the size. */
   --lf-aim-floor: 24px;
+  /* The room between a choice's mark and its words (controls.css, `.lf-choice`): half
+     the em of its type, as Web Awesome spaces its radios and checkboxes, so it grows
+     with the words. A row that lines its words up with a choice's, as a screenshot's
+     key does, reads it too. */
+  --lf-choice-gap: 0.5em;
   /* The line: the face of a one-line control, a button, field, picker or transport.
      Controls that take turns in a place or stand side by side in it are each a line
      tall, so none of them sizes it. Each reads the token in its own rule, so a place
@@ -270,10 +274,6 @@
     2 * var(--lf-margin-entry) + var(--lf-margin-gap) + var(--lf-rail-hang) +
       var(--lf-focus-ring-room)
   );
-  /* A note's preferred text measure plus the gutter beside its passage. The
-     column Layout centers this pair when both fit; native flex wrapping stacks
-     them otherwise (layouts.css). */
-  --lf-note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. Beside its words a card stands at the
      minimum until `size-width` widens it (placement-rules.json). The minimum chooses whether the card and the
@@ -310,7 +310,7 @@
   --lf-pane-bar-pad-block: 10px;
   --lf-pane-bar-pad: var(--lf-pane-bar-pad-block) 14px;
   --lf-pane-inset: 14px;
-  /* How wide a block with `x-space: wide` may stand, from the prose's start edge
+  /* How wide a block with `space: wide` may stand, from the prose's start edge
      (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
      widget is how a page becomes a ransom note. It is the width at which 100 columns of
      code, the common limit of formatters such as rustfmt, read unwrapped in the widest
@@ -333,8 +333,8 @@
   /* The chrome's line box, said once, because one control in the chrome cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
-     rule is written — so the picker stood 3.3px shorter than every button beside
-     it, centred, and read as sunk into the row. Its height is stated instead, from
+     rule is written — so the picker can stand shorter than every button beside it,
+     centred, and read as sunk into the row. Its height is stated instead, from
      this and its own padding (see the picker's rule), which is the same number
      .lf-btn arrives at through the line box. Stated in one place so the two cannot
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
@@ -349,9 +349,9 @@
   --lf-callout-margin-block: 18px;
   --lf-hr-margin-block: 40px;
   /* The ladder, body at --lf-t-4. Prose in Charter at 17px averages about 7.4px a
-     character, and a full line of the 720px column (--lf-col) holds about 93 of them,
-     89 to 97 in nine lines of ten (measured in Chromium on macOS over the docs' and
-     examples' paragraphs). The numbered rungs are the prose's hierarchy;
+     character in Chromium on macOS, and a full line of the 720px column (--lf-col)
+     holds about 93 of them.
+     The numbered rungs are the prose's hierarchy;
      --lf-t-working-label is the shared compact heading between its two smallest rungs, and
      Leaf's interface sets its words in them through its fonts (`--lf-font-*`, below). Every
      font size in Leaf's sheets names a token declared in this file or scales the size it
@@ -423,14 +423,14 @@
      grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
      only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
      the same declaration over the dark paper lifts 1.4 — which is a drop shadow that is
-     in the stylesheet and not on the screen. Nine of the layer's twelve were written that
-     way. The dark value is as far as the medium goes: the paper is already at L* 8.3, so
+     in the stylesheet and not on the screen. The dark value is as far as the medium
+     goes: the paper is already at L* 8.3, so
      black takes it to 3.0 and no further, and the WCAG ratio is the wrong instrument down
      there (1.11:1 for an edge the eye reads perfectly well).
 
-     Depth is geometry here and nowhere else. The alphas that were spread .12–.24 across
-     the sites are gone, because a shadow's spread and offset already say how high a thing
-     is and a second dial saying the same thing is a second dial to keep in step: a card
+     Depth is geometry here and nowhere else. Rejected: an alpha for each site, because
+     a shadow's spread and offset already say how high a thing is and a second dial
+     saying the same thing is a second dial to keep in step: a card
      in the hand is --lf-raise-2 against its resting --lf-raise-1, which is the whole
      difference and enough of one. */
   --lf-shade: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.55));
@@ -472,7 +472,7 @@
   --lf-tip-r: var(--lf-r-s);
   /* Inline code's ground is a step from the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over the reading theme's ivory is 1.01:1, so the chip
-     vanished and its side padding read as double spaces around every span. */
+     would vanish and its side padding read as double spaces around every span. */
   --lf-code-bg: light-dark(
     oklab(
       from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5.6%) l
@@ -485,6 +485,15 @@
         calc(b * min(0.5, 1 + 0.014 / hypot(a, b)))
     )
   );
+  /* A code block's colours. Each code surface's own sheet sets `color-scheme:
+     var(--lf-code-scheme, inherit)`, so a theme or page that sets --lf-code-scheme to
+     `dark` or `light` draws its code in that scheme whatever the page's is: every
+     light-dark() token inside the block, these, the syntax colours, the status inks and
+     the paper a thread among the code's rows stands on, takes that scheme's branch.
+     Unset, the block inherits the scheme of whatever holds it, which a page may set on
+     any part of itself, so the token has no value here: one naming the root's scheme
+     would draw light code in a page's dark panel. Chromium, Firefox and WebKit all read
+     `inherit` as a var() fallback. */
   --lf-pre-bg: light-dark(#fff, #1b1b1a);
   --lf-code-chrome: light-dark(#f6f8fa, #222220);
   --lf-code-ink: light-dark(#24292f, #e8e7e3);
@@ -539,7 +548,7 @@
   --lf-mark-hover: light-dark(#dfd1edb3, #6152a079);
   --lf-mark-strong: light-dark(#dfd1ed, #6152a099);
   --lf-mark-ink: light-dark(#4a3b7d, #9d8fd6);
-  /* The words a passage highlight covers (annotation-marks.css): a comment's in
+  /* The words a passage highlight covers (marks.css): a comment's in
      --lf-mark-ink, and a draft's in the accent, each lifted in dark toward the light ink
      the dark paper's prose wears. */
   --lf-mark-ink-text: light-dark(
@@ -551,7 +560,7 @@
     color-mix(in srgb, var(--lf-accent) 60%, var(--lf-ink))
   );
   /* The draft's wash, relative to the accent so one definition serves both schemes; the
-     passage highlight (annotation-marks.css) reads it. */
+     passage highlight (marks.css) reads it. */
   --lf-mark-pending: color-mix(in srgb, var(--lf-accent) 20%, transparent);
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as
@@ -609,8 +618,8 @@
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
-     read back in a calc, and the number was therefore being retyped wherever the
-     room was worked out. --lf-focus-ring is composed from it, --lf-focus-ring-room adds
+     read back in a calc, and without the token the number would be retyped wherever
+     the room is worked out. --lf-focus-ring is composed from it, --lf-focus-ring-room adds
      the gap to it, and --lf-focus-ring-inset negates it, so there is still one place
      the band's thickness is decided. */
   --lf-focus-ring-w: 2px;
@@ -618,7 +627,7 @@
   /* A forced palette replaces the accent with its own ink for every outline, so the
      ring would read as one more edge. Naming the platform's Highlight here gives every
      rule that draws with the token the system's focus colour, inside the chrome and
-     out, where each surface once restated it for itself. A forced palette drops box
+     out. A forced palette drops box
      shadows outright, so --lf-focus-shadow has no such answer: the browsed key hint that
      wears it is told apart there only by its bold face. */
   @media (forced-colors: active) {
@@ -629,16 +638,16 @@
   --lf-focus-ring-inset: calc(-1 * var(--lf-focus-ring-w));
   /* A region's gap is wider than a control's: a control's label already has its
      padding inside the ring, while prose has none, so at the control's 3px the band
-     stood 3px from the first letter of every line (the user's choice, 29 October
-     2026). Past 6px a bracket meets a heading's link, which shows 9px left of it. */
+     stood 3px from the first letter of every line (the user's choice). Past 6px a
+     bracket meets a heading's link, which shows 9px left of it. */
   --lf-focus-region-gap: 6px;
   --lf-focus-region-room: calc(var(--lf-focus-ring-w) + var(--lf-focus-region-gap));
   /* What a landing keeps clear for a ring at a scroller's edge: the widest ring's room,
      a region's, since a landing reads it as focus arrives, before the runtime marks
-     what the box is, and two pixels to spare, because the browser rounds both a box
-     laid out at fractions of a pixel and the whole-pixel offset it scrolls to. A code
-     block Tab brought to a pane's top with the room alone stood 3.5px under the edge,
-     short of the ring's 5px. */
+     what the box is, and two pixels to spare for the browser rounding both a box laid
+     out at fractions of a pixel and the whole-pixel offset it scrolls to: with the room
+     alone, a code block Tab brings to a pane's top can stand 1.5px short of the ring's
+     5px. */
   --lf-focus-ring-landing: calc(var(--lf-focus-region-room) + 2px);
   --lf-focus-surface: color-mix(in srgb, var(--lf-accent) 4%, var(--lf-card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
@@ -646,9 +655,9 @@
      the field and its choices keep one silhouette, and an item hint, a chip in a layer
      nothing can focus. A spread with no offsets and no blur draws exactly what the
      outline draws, in the same ink and through the same width, so there is still one
-     place the band's thickness and colour are decided. The bar once cast it at a
-     quarter of the accent, beside a border already tinted with it, and in dark that
-     ring all but vanished where every other control wore the solid band.
+     place the band's thickness and colour are decided. Rejected: the bar casting it at
+     a quarter of the accent, beside a border already tinted with it, where in dark that
+     ring all but vanished while every other control wore the solid band.
 
      A rule draws the ring with this token or --lf-focus-ring and gives it no name of its
      own: the suite asks the browser which rule drew a ring it sees, and the token is
@@ -688,9 +697,9 @@
      A light status tint is darker than every ground it stands on. A dark one is
      lighter than the paper, as a card and the panel are, so it takes its distance
      from them in colour. Each stands at least 5 apart (OKLab, ΔE × 100) from the
-     paper, a card and the panel, about as far as the light tints stand. Tuned on the
-     paper alone, the dark tints stood 3 apart on the panel, where a tag's tint all
-     but vanished. */
+     paper, a card and the panel, about as far as the light tints stand. Rejected:
+     tuning them on the paper alone, which can leave a dark tint close to the panel,
+     where a tag's tint all but vanishes. */
   --lf-ok-tint: color-mix(
     in oklab,
     var(--lf-paper) 70%,
@@ -727,7 +736,7 @@
      size by Stone, Szafir and Setlur's model (CIC 2014), every reader tells apart at
      most four colours at a 7px dot, and those four are a neon magenta, a near-black
      navy, a bright green and a brick red. So a mark's other meanings are carried by its
-     shape, place and motion, and changed and settled marks no longer wear the turn's
+     shape, place and motion, and changed and settled marks don't wear the turn's
      green. */
   --lf-turn: var(--lf-ok);
   --lf-turn-ink: var(--lf-ok-ink);
@@ -794,9 +803,9 @@
      --lf-accent, --lf-ok, --lf-warn and --lf-danger reused, because those four say something on this
      page — a decision's link, a passing check, a warning — and a bar wearing one would
      be making that claim about a number.
-     Not chosen by eye. The first attempt at this line was, and its blue and its plum
-     came out 0.3 apart under deuteranopia — the same color, to a user who has no way
-     to tell us. So the steps are stepped to clear the measurable floors: every pair
+     Not chosen by eye: a line chosen by eye can set a blue and a plum 0.3 apart under
+     deuteranopia — the same color, to a user who has no way to tell us. So the steps
+     are stepped to clear the measurable floors: every pair
      (not merely the neighbors, since a stacked bar puts any two of them edge to edge)
      at least 8 apart in OKLab ΔE×100 under simulated protanopia and deuteranopia, at
      least 15 apart under ordinary vision, chroma above the point where a hue reads as

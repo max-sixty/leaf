@@ -87,7 +87,7 @@ from leaf.publishing import authored_digest, authored_files, write_authored_file
 from leaf.refusals import Refused
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
-from leaf_dev.arms import base_option
+from leaf_dev.arms import arm_python, base_option
 from leaf_dev.example_data import (
     capture_file,
     data_companion,
@@ -983,15 +983,7 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     SIGTERM, which `uv run` forwards — reaches the preview itself.
     """
     command = [
-        "uv",
-        "run",
-        "-q",
-        "--no-dev",
-        "--project",
-        str(runtime),
-        "--with-editable",
-        str(runtime / "dev"),
-        "python",
+        *arm_python(runtime, dev=runtime / "dev"),
         "-m",
         "leaf_dev.commands.preview",
         "--source",

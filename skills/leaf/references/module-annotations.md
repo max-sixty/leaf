@@ -47,8 +47,7 @@ every surface redraws from the new entries. Each entry needs a `key`, a `label`,
 of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
 `module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
 holds rather than what it does). `behavior`, `tone`, `rank` and
-`state` default to an ordinary primary action; `CONTRIBUTION_ENTRY_SCHEMA` lists their
-values and, under `options`, every field an entry accepts.
+`state` default to an ordinary primary action.
 
 Pressing an entry calls `activate(activation, context)`, where an entry's `activation`
 defaults to its key. An entry for one of the widget's declared commands instead sets
@@ -64,7 +63,8 @@ which the registration's `activateReading(id)` calls.
 
 A widget that shows margin entries inside its own content, as the feature gallery does,
 draws its own control as an entry with
-`presentContributionEntry(control, entry, {selected})`, and shows whether the agent is
+`presentContributionEntry(control, entry, {selected, unread})`, where `unread` draws
+the dot for agent words the user hasn't read beside the entry's count, and shows whether the agent is
 working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
 `receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
 
@@ -76,9 +76,9 @@ node. Use the focus query when retaining a focused entry while updating its read
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
-part. It declares the ids' prefixes in `x-visual.prefixes` (here `commit:`) and calls
-`registerVisualParts(source, read, {reveal, label})` once. `read()` returns the parts
-drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
+part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and
+calls `registerVisualParts(source, read, {reveal, label})` once. `read()` returns the
+parts drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
 `reveal(id)` shows a part when someone follows its thread, even if it is visible
 already, so cancel work that would hide it. `label(id)` names a part in Threads without
 changing the visual, or returns `null`. Call the returned `update()` after the parts or
@@ -224,9 +224,10 @@ gallery's `lf-conversation-workspace` is the worked example.
 
 ### Widget-local Thread placement
 
-A widget that declares `"x-thread-surface": true` shows threads inside itself: beside
+A widget whose element has a `threadOutlets` method shows threads inside itself: beside
 its own projected data, as `lf-diff` does beside lines, or about the widget as a whole,
-as a task in `examples/command-hub.page/` does at its foot. Leaf calls its
+as a task in `examples/command-hub.page/` does at its foot. The method is the
+declaration, and the registry says nothing. Leaf calls
 `threadOutlets(targets, {signal, collection, onCommit})` whenever placement changes,
 with the threads anchored exactly to the widget or to its data, and the open comment
 box. Return, in the same order, an outlet for each target or `null`, or a promise of

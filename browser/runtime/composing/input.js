@@ -80,7 +80,7 @@ import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused, focusRevision } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
 import { applicationState } from "../semantic-state.js";
-import { errorsReading, passErrorsAt, raiseError } from "../errors.js";
+import { errorOver, passErrorsAt, raiseError } from "../errors.js";
 import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -95,7 +95,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
  * @property {(() => unknown) | null} [hintParts]
  * @property {() => unknown} [hintLead]
- * @property {() => string | BoxPress} [enters]
+ * @property {() => string | BoxPress | null} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
@@ -271,14 +271,10 @@ export const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
 // name reads has changed and the caller holds the field rather than its wiring.
 /** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
-// The newest error about a box the user has not come back to, which covers its words.
-/** @param {Element} ta */
-const errorOver = (ta) =>
-  errorsReading().find((error) => error.subject === ta && !error.passed) ?? null;
 // Whether an error stands at a box, which says it there; the panel's dot marks only
 // those that stand nowhere. A box that stops showing the words passes its errors, so a
 // standing one is always on screen.
-/** @param {ReturnType<typeof errorsReading>[number]} error */
+/** @param {import("../errors.js").RaisedError} error */
 export const standsAtItsBox = (error) => {
   /** @type {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} */
   const subject = error.subject;
@@ -355,6 +351,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // as the entering word and its key are, and pressed where they read, by a pointer
       // or a finger, since it stands where the box's own words do and goes when they go
       // (`pressAtRest`). A finger is shown its word alone, as no key is shown there.
+      // Null where no key enters the box at rest, so not even its key stands there, as
+      // while the page holds keys pressed before it loaded, which a key would only join.
       enters = () => "",
       accessibleName = null,
       save,
@@ -587,13 +585,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const status = dictationStatus();
       const offered = focusedHere.value || status ? "" : enters();
       const press = typeof offered === "string" ? null : offered;
-      const suffix = !advertising
-        ? ""
-        : focusedHere.value
-          ? sendKeys
-          : press
-            ? ""
-            : enteringHint.value;
+      const suffix =
+        !advertising || offered === null
+          ? ""
+          : focusedHere.value
+            ? sendKeys
+            : press
+              ? ""
+              : enteringHint.value;
       const pressKeys = press && advertising ? press.keys : [];
       const word = status || label();
       // Where Return sends a box that holds lines, the box says which key makes one,
@@ -797,9 +796,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // sync() asks for the paint of what the box holds. It is not how a draft gets in:
     // what the user would miss is the words and the attached images together, and the
     // images show only in the shelf, so a caller writing .value states half a draft.
-    // Emptying a box that way left an image in a box the runtime then read as
-    // still holding something — the box said "draft kept" over a comment it had just
-    // sent, and the picture rode into the next passage's draft.
+    // Emptying a box that way would leave an image in a box the runtime then reads as
+    // still holding something — the box would say "draft kept" over a comment it just
+    // sent, and the picture would ride into the next passage's draft.
     /** @type {InputSync} */
     const sync = () => refresh();
     // Closing belongs to each surface's existing owner, rather than a DOM observer
@@ -1057,8 +1056,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     );
     // The box's own scope: one row, so the hint's word, the command reference dialog's sentence and
     // the press are the same object. Every box the runtime wires gets it — the general box,
-    // each thread's reply, the selection composer, a widget thread — where the reference
-    // used to carry one row saying "in the focused composer" for a sequence that fires in all
+    // each thread's reply, the selection composer, a widget thread — rather than one row in
+    // the reference saying "in the focused composer" for a sequence that fires in all
     // of them, including widget-owned text boxes.
     // The sentence is the same in every box, so the reference names the binding once however
     // many boxes the page holds; the word is this box's, because what the press does here is
@@ -1092,10 +1091,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // next starts from the state Enter starts it from.
     //
     // Except while an input method holds unfinished words: leaving the box is what
-    // finishes them, so there the press takes the focus as it always did, and the words
-    // are committed before the click sends them. Held in the box, they were sent
-    // unfinished, and the input method's later commit wrote them back into the box the
-    // send had just emptied. Enter never meets this, since the input method takes Enter.
+    // finishes them, so there the press takes the focus, and the words
+    // are committed before the click sends them. Held in the box, they would be sent
+    // unfinished, and the input method's later commit would write them back into the box
+    // the send just emptied. Enter never meets this, since the input method takes Enter.
     ta.addEventListener("compositionstart", () => (composing = true));
     ta.addEventListener("compositionend", () => (composing = false));
     // A send key, or Send reached by the keyboard, in a covered box lifts the cover and

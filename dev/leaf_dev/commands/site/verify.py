@@ -27,6 +27,7 @@ import base64
 import gzip
 import hashlib
 import json
+import select
 import shutil
 import subprocess
 import sys
@@ -44,7 +45,13 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
-from playwright.sync_api import APIRequestContext, APIResponse, BrowserContext, Page
+from playwright.sync_api import (
+    APIRequestContext,
+    APIResponse,
+    BrowserContext,
+    Page,
+    Response,
+)
 from playwright.sync_api import Error as PlaywrightError
 
 from leaf.findings import Finding
@@ -184,6 +191,21 @@ def await_presentation(
         ) from None
 
 
+def load_presented(
+    page: Page, url: str, unloaded: str | None = None
+) -> tuple[list[Finding], Response]:
+    """Open `url` in `page` as every pass opens a page: watching its startup and the
+    errors that stop it (`observe_startup`), requiring the document to load, else
+    failing with `unloaded`, and its state to present (`await_presentation`).
+    Returns the errors the page raised and the document's response."""
+    failures = observe_startup(page)
+    response = page.goto(url, wait_until="load", timeout=120_000)
+    check(response is not None and response.ok, unloaded or f"{url} did not load")
+    assert response is not None
+    await_presentation(page, url, failures)
+    return failures, response
+
+
 @contextmanager
 def capture_script_responses(page: Page):
     """Keep the reload's actual script responses if its verification fails.
@@ -319,7 +341,6 @@ def verify_page(
 ) -> dict:
     context = browser.new_context()
     page = context.new_page()
-    failures = observe_startup(page)
     url = urljoin(f"{origin}/", path.lstrip("/"))
     with page.expect_response(
         lambda response: (
@@ -327,9 +348,7 @@ def verify_page(
             and response.request.method == "POST"
         )
     ) as startup_report:
-        response = page.goto(url, wait_until="load", timeout=120_000)
-        check(response is not None and response.ok, f"{url} did not load")
-        await_presentation(page, url, failures)
+        failures, _ = load_presented(page, url)
     check(
         startup_report.value.status == 204,
         f"{url} startup report returned {startup_report.value.status}",
@@ -431,21 +450,17 @@ def verify_page(
     if path == "/examples/triage-board/":
         neighbor_url = urljoin(f"{origin}/", "how-it-works/")
         neighbor = context.new_page()
-        neighbor_failures = observe_startup(neighbor)
         with neighbor.expect_response(
             lambda response: (
                 response.url.endswith("/api/performance")
                 and response.request.method == "POST"
             )
         ) as neighbor_report:
-            neighbor_response = neighbor.goto(
-                neighbor_url, wait_until="load", timeout=120_000
+            neighbor_failures, neighbor_response = load_presented(
+                neighbor,
+                neighbor_url,
+                f"{neighbor_url} did not load beside an active page",
             )
-            await_presentation(neighbor, neighbor_url, neighbor_failures)
-        check(
-            neighbor_response is not None and neighbor_response.ok,
-            f"{neighbor_url} did not load beside an active page",
-        )
         check(
             neighbor_response.headers.get("leaf-session") != "active",
             f"{neighbor_url} inherited another page's private container",
@@ -550,10 +565,7 @@ def verify_cross_tab_activation(
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
-        failures = observe_startup(page)
-        response = page.goto(url, wait_until="load", timeout=120_000)
-        check(response is not None and response.ok, f"{url} did not load")
-        await_presentation(page, url, failures)
+        load_presented(page, url)
     passive = read_state(context.request, state_url, timeout=120_000)
     check(
         passive.headers.get("leaf-session") == "passive",
@@ -598,10 +610,7 @@ def user_session(
     """One activated user session, or why this allocation cannot admit a turn."""
     context = browser.new_context()
     page = context.new_page()
-    failures = observe_startup(page)
-    response = page.goto(url, wait_until="load", timeout=120_000)
-    check(response is not None and response.ok, f"{url} did not load for its agent")
-    await_presentation(page, url, failures)
+    failures, _ = load_presented(page, url, f"{url} did not load for its agent")
     passive = read_state(context.request, state_url, timeout=120_000)
     if direct_agent:
         reached = passive.headers.get("leaf-release")
@@ -830,13 +839,9 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
         "private revision was not activated",
     )
     warm_page = context.new_page()
-    warm_failures = observe_startup(warm_page)
-    warm_response = warm_page.goto(url, wait_until="load", timeout=120_000)
-    check(
-        warm_response is not None and warm_response.ok,
-        "warm private document did not load",
+    warm_failures, _ = load_presented(
+        warm_page, url, "warm private document did not load"
     )
-    await_presentation(warm_page, url, warm_failures)
     check(not warm_failures, f"warm saved-state browser errors: {warm_failures}")
     warm_profile = startup_reading(warm_page)
     context.close()
@@ -853,16 +858,15 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     context = browser.new_context()
     context.add_cookies(cookies)
     page = context.new_page()
-    failures = observe_startup(page)
-    response = page.goto(url, wait_until="load", timeout=120_000)
-    check(response is not None and response.ok, "saved private document did not load")
+    failures, response = load_presented(
+        page, url, "saved private document did not load"
+    )
     check(
         response.headers.get("leaf-state-source") == "durable",
         "private document woke its container",
     )
-    await_presentation(page, url, failures)
     page.locator("#saved-state-recall").wait_for(state="visible")
-    page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
+    page.locator("#heat-opt-window[selected]").wait_for(state="visible")
     state_response = read_state(context.request, state_url)
     check(
         state_response.headers.get("leaf-state-source") == "durable",
@@ -1056,32 +1060,39 @@ class LocalWorker:
         )
         stopping = int(time.time())
         docker_command("stop", "--time", "1", container)
-        if container in self.containers():
-            # `docker stop` returned after the container exited, so a listed
-            # container is either still exiting or was started again under the
-            # same id. Its state and lifecycle events since the stop tell which.
-            state = docker_command(
-                "inspect",
-                "--format",
-                "{{json .State}} restarts={{.RestartCount}}"
-                " policy={{json .HostConfig.RestartPolicy}}",
-                container,
-            )
-            events = docker_command(
+        # `docker stop` returns once the container stops running, which can precede
+        # the `die` event and the update to the list `docker ps` reads. Wait for
+        # that event, so the listing below and the verifier's later readings of
+        # it see the container gone.
+        with subprocess.Popen(
+            [
+                "docker",
                 "events",
                 "--since",
                 str(stopping),
-                "--until",
-                str(int(time.time()) + 1),
                 "--filter",
                 f"container={container}",
+                "--filter",
+                "event=die",
                 "--format",
-                "{{.TimeNano}} {{.Action}}",
-            )
-            raise RuntimeError(
-                f"the page container did not stop (stop requested at {stopping}):\n"
-                f"{state.strip()}\nevents since the stop:\n{events.strip() or 'none'}"
-            )
+                "{{.Action}}",
+            ],
+            stdout=subprocess.PIPE,
+            text=True,
+        ) as events:
+            try:
+                assert events.stdout is not None
+                ready, _, _ = select.select([events.stdout], [], [], 30)
+                check(
+                    bool(ready) and bool(events.stdout.readline()),
+                    "the page container did not report its exit",
+                )
+            finally:
+                events.kill()
+        check(
+            container not in self.containers(),
+            "the page container started again after it stopped",
+        )
         wait_for_host_network()
 
 

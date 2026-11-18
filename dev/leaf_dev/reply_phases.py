@@ -59,13 +59,12 @@ first byte and hook (`claude_code_debug_records`).
 """
 
 import json
-import os
 import re
 import shlex
 from datetime import datetime
 from pathlib import Path
 
-from leaf.harness import NUDGE_WORDS
+from leaf.harness import NUDGE_WORDS, claude_code_config
 from leaf_dev import ROOT
 
 # The directory change an agent puts before a command, which says nothing of it.
@@ -471,8 +470,7 @@ def claude_code_transcript_path(session: str) -> Path | None:
     """Where Claude Code keeps `session`'s transcript, in its configuration
     directory's projects, with its subagents' beside it (`<session>/subagents/`), or
     None where it is not on disk. Leaf's session record keeps no path to it."""
-    config = os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
-    found = sorted(Path(config).glob(f"projects/*/{session}.jsonl"))
+    found = sorted(claude_code_config().glob(f"projects/*/{session}.jsonl"))
     return found[0] if found else None
 
 

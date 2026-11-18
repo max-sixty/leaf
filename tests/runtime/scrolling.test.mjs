@@ -5,12 +5,22 @@
    what the press changed stand down. A link or a button takes no arrow or paging key,
    and a radio no paging key, so the browser scrolls for those. And which way such a
    scroll heads its box until it ends, and where it found the box (`readerScroll`),
-   which a writer of the box's end asks first. */
+   which a writer of the box's end asks first. And how a move to a box's end meets a
+   glide already headed there (`scrollToEnd`): the owners that keep a box at its end
+   move it there at every fit, and a jump there cut the glide following an answer into
+   sight. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { aimScroll, readerScroll, scrollsFor } from "/runtime/scrolling.js";
+import {
+  aimScroll,
+  readerScroll,
+  scrollGoal,
+  scrollsFor,
+  scrollToEnd,
+  stopGlide,
+} from "/runtime/scrolling.js";
 
 test("the browser scrolls for a wheel, and for a scroll key a control leaves it", () => {
   const button = document.createElement("button");
@@ -124,5 +134,39 @@ test("a scroll heads its box the furthest way any of its inputs does, until it e
     fromEnd: 50,
     starts: 0,
   });
+  box.remove();
+});
+
+test("a move to the end leaves a glide headed there going, and turns it to a new end", () => {
+  // A box 400px tall over content 1000px tall, which grows as an answer arrives.
+  const box = document.createElement("div");
+  document.body.append(box);
+  let top = 0;
+  let height = 1000;
+  Object.defineProperties(box, {
+    scrollTop: {
+      get: () => top,
+      set: (value) => {
+        top = value;
+      },
+    },
+    scrollHeight: { get: () => height },
+    clientHeight: { get: () => 400 },
+  });
+  box.scrollTo = ({ top: to = top }) => {
+    top = to;
+  };
+  scrollToEnd(box, "smooth");
+  assert.equal(scrollGoal(box), 600);
+  scrollToEnd(box);
+  assert.equal(box.scrollTop, 0, "a move to the end cut the glide to a jump");
+  assert.equal(scrollGoal(box), 600);
+  height = 1200;
+  scrollToEnd(box);
+  assert.equal(box.scrollTop, 0, "a move to the new end cut the glide to a jump");
+  assert.equal(scrollGoal(box), 800, "the glide kept going to the old end");
+  stopGlide(box);
+  scrollToEnd(box);
+  assert.equal(box.scrollTop, 800, "with no glide under way, the move is instant");
   box.remove();
 });

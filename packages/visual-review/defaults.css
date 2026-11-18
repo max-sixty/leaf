@@ -105,7 +105,7 @@ lf-visual-review {
   color: var(--lf-ok-ink);
 }
 .lf-vr-case-status[data-lf-state="agent"] {
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 .lf-vr-case-status[data-lf-state="user"] {
   visibility: hidden;
@@ -171,7 +171,6 @@ lf-visual-review {
    the workspace's gap beside the queue, so the checkbox stands on the row's edge. The
    stacked desk has no such gap (below). */
 .lf-vr-approval {
-  gap: 7px;
   margin-inline-start: calc(-1 * var(--lf-choice-pad));
   font: var(--lf-font-compact);
 }

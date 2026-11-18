@@ -735,9 +735,7 @@ def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
-        has=page.get_by_role(
-            "heading", name="question · Which jobs are worth starting?"
-        )
+        has=page.get_by_role("heading", name="group · Which jobs are worth starting?")
     )
     expect(group).to_have_count(1)
     expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on me"])
@@ -1254,7 +1252,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     told(page)
     expect(
         page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').locator(
-            ".lf-margin-count"
+            ".lf-badge-count"
         )
     ).to_have_text("10")
     expect(actions).to_have_count(13)

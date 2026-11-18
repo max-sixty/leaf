@@ -39,7 +39,7 @@ def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
     a recorded value the controls can't hold draws as their default."""
     url = serve(PLAYGROUND_PAGE)
     page = open_page(browser, url)
-    title = page.locator('lf-playground-control[name="title"] input')
+    title = page.locator('input[name="title"]')
 
     def titles():
         return [
@@ -320,7 +320,7 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     # at 700px tall; 600 still runs it past the rail's foot.
     resized(page, 1100, 600)
     playground = page.locator("#notification-playground")
-    controls = playground.locator(".lf-playground-controls")
+    controls = playground.locator(".lf-playground-controls-region > aside")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")
     expect(controls).to_have_attribute("data-lf-more-below", "")
     # The cue fades whatever reaches the box's foot, and where a gap between two

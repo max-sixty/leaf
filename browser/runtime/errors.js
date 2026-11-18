@@ -14,16 +14,16 @@
    An error about a text field stands at that field, wherever it is, covering the
    field's words and actions until the user comes back to them, by a key or an image
    there, a press on the cover or Resume writing (`g i`), or the field stops showing
-   them (`passErrorsAt`; composing/input.js, `errorOver`). The floating panel's field
+   them (`passErrorsAt`, `errorOver`; composing/input.js). The floating panel's field
    also says an error about nothing, in its status's place while it is empty, until the
    user's first edit there (floating-panel.js). An error no field stands for, or one the user has
    passed, waits in the Errors list in the leaf's menu, with a dot on the leaf and on
    the menu's Errors until the user opens the list (`seeErrors`), so the row the
-   dotted leaf leads to reads at once. The user chose this on 17 October over
-   errors riding the passing notice, which faded after four seconds, was replaced by
-   whatever came next, and went unseen while the user typed; and on 19 October chose
-   the cover at a passage's comment box, where the error had shown only as the leaf's
-   dot, so nothing said a refused send's words had come back.
+   dotted leaf leads to reads at once. The user chose this over
+   errors riding the passing notice, which fades after four seconds, gives way to
+   whatever comes next, and goes unseen while the user types; and chose
+   the cover at a passage's comment box over the error showing only as the leaf's
+   dot, which leaves nothing saying a refused send's words have come back.
 
    A screen reader hears each error as it is raised, unless its producer already says
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
@@ -70,6 +70,12 @@ const publish = (next) => {
 
 /** The standing errors, newest first. */
 export const errorsReading = () => errors.value;
+
+/** The newest error about a text field the user has not come back to, which covers its
+ * words.
+ * @param {Element | null | undefined} subject */
+export const errorOver = (subject) =>
+  errorsReading().find((error) => error.subject === subject && !error.passed) ?? null;
 
 /**
  * Tell the user something failed. `subject` is the text field it concerns, if any;

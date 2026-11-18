@@ -81,7 +81,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
 
     The reply is in the log before the page loads and the panel is shut, which is the
     only reading arrangement that reproduces it: a reply arriving into an open panel upgrades
-    into boxes and was always right. Rooms are compared rather than named, because the
+    into boxes and is right. Rooms are compared rather than named, because the
     number is the face's and this is about whether it was ever read.
 
     The board exercises `measure` through the same module in both places."""
@@ -104,8 +104,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "author": "agent",
             "parent": "c-room",
             "revision": 1,
-            "text": "These, and who is on them:",
-            "markup": ROOM_WIDGETS.format(id="mr-msg"),
+            "text": "These, and who is on them:\n\n" + ROOM_WIDGETS.format(id="mr-msg"),
         },
     )
     page = open_page(browser, url)
@@ -136,24 +135,24 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
     """A selection made in the panel is not the page's words, whatever it looks like.
 
     `leaf thread create --section` refuses to anchor on a widget an agent sent, and it is the
-    reading that is supposed to promise less than the browser's. The browser offered
-    the 💬 over a question in a reply and wrote an anchor onto that widget's own id into
+    reading that is supposed to promise less than the browser's. A browser offering the
+    💬 over a question in a reply would write an anchor onto that widget's own id into
     an append-only log — naming a section no version holds, so it could never paint and
     never be found again.
 
-    A declared label is the hole it came through: it is the page speaking inside the
-    control it labels, so it answers the "are these the runtime's words" question for
-    itself and the panel above it never got asked. That question was standing in for a
-    second one nobody was putting — which document is this — and the drag needs both.
+    A declared label is the hole it would come through: it is the page speaking inside
+    the control it labels, so it answers the "are these the runtime's words" question
+    for itself and the panel above it never gets asked. That question stands in for a
+    second one — which document is this — and the drag needs both.
 
     The same drag on the page's own prose comes first and must raise the button. It is
     the control: this asserts an absence, and an absence proves nothing on a page where
     nothing was ever going to appear. The drags are real ones, so the mouseup guard is
     under test with the button.
 
-    Then two turns of the macrotask queue, because the handler raises the button from a
-    bare `setTimeout` — asserting straight after the drag reads the frame before the
-    decision and passes whatever the decision would have been."""
+    Then the rendering the release queued settles, because the handler raises the
+    button in a later frame — asserting straight after the drag reads the frame before
+    the decision and passes whatever the decision would have been."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     append_carried_log_record(
@@ -173,13 +172,13 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
             "author": "agent",
             "parent": "c-store",
             "revision": 1,
-            "text": "Depends what you want to keep:",
-            "markup": (
-                '<lf-ask id="ps-decision-region"><h3>Which store should I write up?</h3>'
-                '<lf-options id="ps-decision" choose>'
+            "text": (
+                "Depends what you want to keep:\n\n"
+                '<lf-group id="ps-decision-region" label="Which store should I write up?">\n<h3 id="ps-decision-region-h">Which store should I write up?</h3>'
+                '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-group>"
             ),
         },
     )
@@ -207,10 +206,8 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
 
     open_panel_thread(page, "c-store")
     assert "Which store" in drag(page.locator("#ps-decision-region > h3"))
-    # Both turns the handler could have used: it defers with a bare setTimeout, and the
-    # step it queues queues nothing further.
-    for _ in range(2):
-        page.evaluate("() => new Promise((r) => setTimeout(r))")
+    # The release raises the button from the rendering it queues (`nextRender`).
+    rendered(page)
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 
@@ -223,14 +220,14 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
     page holds and keys each by `wrote`, which is exactly the reading that leaves
     generated words out, so those blocks key to nothing and are skipped.
 
-    They stopped being skipped when `wrote` was bounded at the element handed in: a
+    Bounding `wrote` at the element handed in would stop them being skipped: a
     reading can start *inside* generated chrome, and rooted at one of those `<p>`s the
-    box above it was no longer over the reading. The base version is parsed unupgraded
-    and holds no thread at all, so every message became an insertion — the
+    box above it is not over the reading. The base version is parsed unupgraded
+    and holds no thread at all, so every message would become an insertion — the
     user's own comment and the agent's reply painted as changes to the document, and
     the count in the version note inflated by both.
 
-    The bound is the widget the reading belongs to now, and a thread seat is
+    The bound is the widget the reading belongs to, and a thread seat is
     inside its widget, so the box is between the words and their frame either way."""
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
@@ -302,11 +299,6 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
             "revision": 1,
             "text": "The north bracket fit.",
             "anchor": {"section": "cd-q"},
-            "markup": (
-                '<lf-options id="edited-message-choice" choose>'
-                '<lf-option id="edited-message-now">Fit it now</lf-option>'
-                "</lf-options>"
-            ),
         },
     )
     page = open_page(browser, url)
@@ -322,7 +314,6 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
             `#cd-q .lf-msg[data-lf-event="${message}"]`);
           window.__editedPanel = document.querySelector(
             `.lf-fp-view .lf-msg[data-lf-event="${message}"]`);
-          window.__editedWidget = document.querySelector('#edited-message-choice');
         }""",
         [message["id"]],
     )
@@ -359,9 +350,8 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         f"""() => window.__editedInline === document.querySelector(
           '#cd-q .lf-msg[data-lf-event="{message["id"]}"]')
           && window.__editedPanel === document.querySelector(
-            '.lf-fp-view .lf-msg[data-lf-event="{message["id"]}"]')
-          && window.__editedWidget === document.querySelector('#edited-message-choice')"""
-    ), "the edit replaced an existing message or its frozen widget"
+            '.lf-fp-view .lf-msg[data-lf-event="{message["id"]}"]')"""
+    ), "the edit replaced an existing message"
     assert (
         next(
             event
@@ -394,13 +384,13 @@ def thread_on_a_sent_widget(serve):
             "author": "agent",
             "parent": "c-sent",
             "revision": 1,
-            "text": "Depends what you want to keep:",
-            "markup": (
-                '<lf-ask id="ps-decision-region"><h3>Which store should I write up?</h3>'
-                '<lf-options id="ps-decision" choose>'
+            "text": (
+                "Depends what you want to keep:\n\n"
+                '<lf-group id="ps-decision-region" label="Which store should I write up?">\n<h3 id="ps-decision-region-h">Which store should I write up?</h3>'
+                '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-group>"
             ),
         },
     )
@@ -424,18 +414,18 @@ def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(
 ):
     """A thread about a widget an agent sent stands in the message that carried it.
 
-    The panel draws a message's widgets only while it has their thread open, and anchor
-    placement looked for the widget only among the nodes the page held, so whenever that
-    thread was closed the thread about the widget read as detached ("can't be
-    identified") and had no way to what it was about. Placement now finds the widget in
-    the message that keeps it: the head quotes it as found, and Show in message opens the
+    The panel draws a message's widgets only while it has their thread open, so anchor
+    placement that looked for the widget only among the nodes the page held would read
+    the thread about the widget as detached ("can't be identified") whenever that thread
+    was closed, with no way to what it was about. Placement finds the widget in the
+    message that keeps it: the head quotes it as found, and Show in message opens the
     message's thread on the widget and lands there.
 
     The quote reads the widget's opening words rather than its bare id. An element
     anchor is labelled with them when the node is built, and on the reconcile that first
     builds this node, the message body carrying the widget has not been connected yet,
-    so the element did not exist and the reading came back empty. A node the reconcile
-    keeps is never built again, so it is repainted with the quote now.
+    so read then the element would not exist and the reading would come back empty. A
+    node the reconcile keeps is never built again, so it is repainted with the quote.
 
     An anchor captured detached names no passage the user selected, so finding the
     widget its section names in a message identifies nothing: that thread still reads as

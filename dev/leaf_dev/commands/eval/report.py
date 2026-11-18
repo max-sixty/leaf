@@ -13,7 +13,7 @@ its tabs come before one holding the browser. Its one element of its own,
 and links, or a retained file. The report replaces each citation with elements Leaf
 already ships, so the page holds no citation and no widget of its own, and a citation
 that names nothing the report can find stops it. Scores never infer a decision; only
-the review's `lf-ask` makes one. Comparisons default to complete pairs; only an
+the review's question makes one. Comparisons default to complete pairs; only an
 `aligned` citation uses a before/after wipe.
 
 Saved Leaf phases export through the standard exporter on disposable copies, retaining
@@ -41,7 +41,7 @@ from leaf.event_log import initialized
 from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND, gallery
-from leaf_dev.arms import observed_sum
+from leaf_dev.arms import arm_python, observed_sum
 from leaf_dev.eval_records import judgments, run_samples
 from leaf_dev.regrade import ASPECTS, saved_comparison
 
@@ -592,12 +592,7 @@ def exported_output(
                 shutil.copytree(source, copied)
                 subprocess.run(
                     [
-                        "uv",
-                        "run",
-                        "--no-dev",
-                        "--project",
-                        sample["diagnostics"]["payload"],
-                        "python",
+                        *arm_python(Path(sample["diagnostics"]["payload"])),
                         "-c",
                         EXPORT_PHASE,
                         str(copied),

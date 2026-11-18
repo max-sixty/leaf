@@ -1,16 +1,17 @@
 import { createPlayground } from "./playground-view.js";
-/* lf-playground: one declarative control loop with one durable decision.
+/* lf-playground: one form's working configuration, with one durable decision.
  *
- * Authors define controls, presets, real preview markup, and an instruction in light
- * DOM. The retained view owns their DOM and typed control values;
- * this module owns the live mechanics: working state and its record,
- * CSS reflection, instruction copying, commands, and the final recordless action.
+ * Authors write the form as native fields among the preview's own markup, with presets
+ * and an instruction. The retained view draws the regions around them and reads and
+ * writes the fields (playground-view.js); this module owns the live mechanics: working
+ * state and its record, CSS reflection, instruction copying, commands, and the final
+ * recordless action.
  * The instruction opens from its actions in a popover over the page, so reading it
  * moves nothing the user set or pressed, in any Layout; the log never records it. The
  * popover's head holds Leaf's copy control (`copyControl`). Rejected: unfolding
  * the instruction in the pane, which had to grow below the bar in a flowing page and
  * above it at the foot of a held workspace, and still moved the bar wherever a stage
- * at its floor, a resize or a short window left it no room (2026-10-25).
+ * at its floor, a resize or a short window left it no room.
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and its editor root, and get an immutable slice handle; set replaces
@@ -39,10 +40,10 @@ import { createPlayground } from "./playground-view.js";
  * never changes them, so undoing a choice leaves the controls as the user set them,
  * ready to adjust and resubmit; Reset records the authored defaults. Rejected: tab-local
  * storage, which lost the settings with the tab and kept them from the agent, who
- * answered comments on the preview without knowing what it showed (2026-10-30).
+ * answered comments on the preview without knowing what it showed.
  * Each tune records the whole configuration, so a preset or Reset is one gesture Undo
  * takes back whole; when two tabs' records cross in flight, the later one sets every
- * field. Rejected: a tune per field, which would split those gestures (2026-10-31).
+ * field. Rejected: a tune per field, which would split those gestures.
  * The submit control withdraws the current choice while its values and instruction
  * match the working configuration; editing either makes it submit a replacement. Its
  * face derives from that comparison, never from delivery timing or a separate saved
@@ -51,20 +52,21 @@ import { createPlayground } from "./playground-view.js";
  * observe requests an update, as other inputs outside its reading do. Command reads
  * never call page code that prepares its next presentation.
  *
- * Under `actions="page"` the page draws the submission and Reset, and
- * `registerActions` hands this playground the two buttons. They become the controls of
- * its commands, which wire their presses and keep the digit, On Me's arrival and
- * availability, and this module writes the submission's words, as it does for its own,
- * since the words must say what the press will do. The page's CSS draws them: they are
- * the page's elements, not Leaf's controls. Rejected: methods the page calls from its
- * own handlers with a decision state to label from, which would leave every page to
- * restate when the press withdraws the choice. */
+ * A `<button type="submit">` the page writes in the playground is its submission, and a
+ * `<button type="reset">` beside it its Reset. They become the controls of its commands,
+ * which wire their presses and keep the digit, On Me's arrival and availability, and
+ * this module writes the submission's words, as it does for its own, since the words
+ * must say what the press will do. The page's CSS draws them: they are the page's
+ * elements, not Leaf's controls. Their form's own submission and reset do nothing; nor
+ * does any submission of a form inside the playground, which would leave the page.
+ * Rejected: methods the page calls from its own handlers with a decision state to label
+ * from, which would leave every page to restate when the press withdraws the choice;
+ * an attribute and a script call that handed over buttons the markup could name. */
+import { render } from "/vendor/lit.js";
 import {
-  afterPresentation,
   compoundReadingRegionId,
   closeNativeLayer,
   copyControl,
-  failSoft,
   focusDestination,
   holdFocus,
   layoutChanged,
@@ -72,7 +74,6 @@ import {
   onPress,
   isNativeLayer,
   LeafElement,
-  render,
   registerReadingRegion,
   reachedForWords,
   says,
@@ -94,12 +95,12 @@ const NAME = /^[a-z0-9][a-z0-9-]*$/;
 // How long the settings wait without input before an edit no event ended is recorded.
 const PAUSE_MS = 1000;
 // What one pointer press operates: a preset, Reset, and the controls whose press or
-// drag is the whole gesture. Their readable labels remain ordinary selection targets.
+// drag is the whole gesture, with the labels that hold a box or radio.
 const ONE_PRESS = [
   ".lf-playground-preset",
   ".lf-playground-reset",
-  '.lf-playground-choice:not([appearance="select"])',
-  ...["toggle", "range"].map((kind) => `.lf-playground-${kind}`),
+  'label:has(> input:is([type="checkbox"], [type="radio"]))',
+  'input:is([type="checkbox"], [type="radio"], [type="range"])',
 ].join(", ");
 
 /** @param {readonly string[]} left @param {readonly string[]} right */
@@ -171,8 +172,8 @@ customElements.define(
       if (!this.#renderedView) throw new Error("The playground has not built its view");
       return this.#renderedView;
     }
-    /** @type {Map<string, HTMLElement>} */
-    #controlByName = new Map();
+    /** @type {PlaygroundView["fields"]} */
+    #fields = new Map();
     /** @type {Set<(configuration: Configuration) => void>} */
     #views = new Set();
     /** @type {Set<Element>} */
@@ -191,7 +192,9 @@ customElements.define(
     /** @type {{value: string | null} | {error: unknown}} */
     #renderedInstruction = { value: null };
     get #preview() {
-      return this.#view.preview;
+      const preview = this.#view.preview;
+      if (!preview) throw new Error("The playground has not drawn its preview");
+      return preview;
     }
     /** @type {HTMLButtonElement | null} */
     #submit = null;
@@ -208,27 +211,6 @@ customElements.define(
     setup() {
       this.#build();
       this.#ready = true;
-      // A page that draws the actions hands them over in its view's `declare`, which
-      // the page's first presentation waits for (`whileInterfaceConnected`). Missing
-      // then, nothing would let the user answer, so the playground fails where `page
-      // check` reads it. A playground arriving after that presentation, in a revision
-      // applied in place or a message, has no settled point of its own to wait for, so
-      // only the page's first presentation is checked.
-      if (
-        this.#view.pageActions &&
-        this.#interactive &&
-        !document.body.hasAttribute("data-lf-presented")
-      )
-        afterPresentation(() => {
-          if (this.isConnected && !this.#submit)
-            failSoft(
-              this,
-              new Error(
-                'actions="page" needs the page script to pass its Save and Reset ' +
-                  "buttons to playground.registerActions({submit, reset}) in declare",
-              ),
-            );
-        });
       whileConnected(this, (signal) => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
@@ -290,8 +272,8 @@ customElements.define(
     registerContributor(name, defaultSnapshot, editor) {
       if (!this.#ready) throw new Error("playground is not ready");
       if (!NAME.test(name ?? "")) throw new Error(`invalid contributor name ${name}`);
-      if (this.#controlByName.has(name))
-        throw new Error(`contributor ${name} collides with a control`);
+      if (this.#fields.has(name))
+        throw new Error(`contributor ${name} collides with a field`);
       if (Object.hasOwn(this.#defaults, name))
         throw new Error(`repeats contributor ${name}`);
       if (!under(editor, this))
@@ -330,41 +312,18 @@ customElements.define(
       this.#draw();
     }
 
-    // The page's own submission and Reset, under `actions="page"` (the header says why
-    // this module labels the submission).
-    /** @param {import("./playground-view.js").PlaygroundActions} actions */
-    registerActions({ submit, reset }) {
-      if (!this.#ready) throw new Error("playground is not ready");
-      if (!this.#view.pageActions)
-        throw new Error('playground draws its own actions; set actions="page"');
-      if (this.#submit) throw new Error("playground already has its actions");
-      for (const [name, button] of [
-        ["submit", submit],
-        ["reset", reset],
-      ])
-        if (!(button instanceof HTMLButtonElement))
-          throw new Error(`registerActions needs a ${name} button`);
-      // A quotation sends nothing, so it shows neither.
-      if (!this.#interactive) {
-        submit.hidden = reset.hidden = true;
-        return;
-      }
-      this.#view.give({ submit, reset });
-      this.#submit = submit;
-      this.#reset = reset;
-      this.#commands();
-      this.#draw();
-    }
-
     #build() {
       const restore = holdFocus(this);
       this.#renderedView = createPlayground(this);
-      render(this.#view.render(), this, { host: this });
-      restore?.();
       const initial = this.#view;
-      this.#controlByName = initial.controlByName;
+      this.#fields = initial.fields;
       this.#defaults = initial.defaults;
-      this.#values = initial.defaults;
+      // What the fields showed before the upgrade are edits, recorded once the page
+      // can record them (playground-view.js says how they arise).
+      this.#values = Object.freeze({ ...initial.defaults, ...initial.edited });
+      for (const name of Object.keys(initial.edited)) this.#unsent.add(name);
+      render(this.#view.render({ values: this.#values }), this, { host: this });
+      restore?.();
       this.#interactive = initial.interactive;
       this.#submit = initial.submit;
       this.#reset = initial.reset;
@@ -375,40 +334,40 @@ customElements.define(
       const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       if (this.#interactive) {
+        // A press on a candidate's body selects its radio (playground-view.js).
         this.addEventListener("click", (event) => {
           const target = event.target;
           if (!(target instanceof Element)) return;
-          const choice = target.closest("lf-playground-choice");
-          if (!choice || choice.closest("lf-playground") !== this) return;
-          if (reachedForWords(choice) || worksInside(target, choice)) return;
-          /** @type {HTMLInputElement | null} */
-          const radio = choice.querySelector(":scope > .lf-choice > input");
-          if (!radio) throw new Error("A playground choice needs its rendered radio");
-          focusDestination(radio, "press");
-          radio.click();
+          const pick = initial.candidate(target);
+          if (!pick) return;
+          if (reachedForWords(pick.box) || worksInside(target, pick.box)) return;
+          event.preventDefault();
+          focusDestination(pick.radio, "press");
+          pick.radio.click();
         });
         // A gesture records the settings when it ends (the header says why). These
         // reach the host after the handlers inside it, a contributor's included.
         for (const type of ["change", "click"])
           this.addEventListener(type, () => this.#commit());
-        for (const control of initial.controls)
-          control.addEventListener("input", (event) => {
-            if (!initial.isInput(control, event.target)) return;
-            this.#set(
-              initial.controlName(control),
-              initial.parse(control, String(initial.readInput(control))),
-            );
-          });
+        this.addEventListener("input", (event) => {
+          const changed = initial.input(event.target);
+          if (changed) this.#set(changed.name, changed.value);
+        });
+        // The commands answer the submission and Reset (the header says why).
+        this.addEventListener("submit", (event) => event.preventDefault());
+        this.addEventListener("reset", (event) => {
+          if (event.target === this.querySelector(":scope > .lf-playground-split"))
+            event.preventDefault();
+        });
         for (const [preset, button] of initial.presetButtons)
           button.addEventListener("click", () => {
-            this.#values = this.#normalize({
-              ...this.#values,
-              ...initial.presetSettings.get(preset),
-            });
+            const settings = initial.presetSettings.get(preset) ?? {};
+            initial.forget(Object.keys(settings));
+            this.#values = this.#normalize({ ...this.#values, ...settings });
             this.#draw();
           });
         const { instruction } = initial;
-        // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
+        // Leaf's copy control in the popover's head. A code block's Copy hides
         // while its block is away and came back a frame or more after the popover
         // opened, after a Tab had passed it by. A page that draws its own actions
         // shows the instruction where it was written, with no popover to copy from.
@@ -432,7 +391,6 @@ customElements.define(
         this.addEventListener("mousedown", (event) => {
           const target = event.target;
           if (!(target instanceof Element)) return;
-          if (target.closest(".lf-playground-control-label")) return;
           const pressed = target.closest(ONE_PRESS);
           if (
             pressed?.closest("lf-playground") === this &&
@@ -468,9 +426,10 @@ customElements.define(
 
     /** @param {string} name @param {unknown} value */
     #typed(name, value) {
-      const control = this.#controlByName.get(name);
-      if (!control) return jsonSnapshot(value, `contributor ${name}`);
-      return this.#view.typed(control, value);
+      const field = this.#fields.get(name);
+      if (!field) return jsonSnapshot(value, `contributor ${name}`);
+      if (!field.holds(value)) throw new Error(`field ${name} can't hold ${value}`);
+      return /** @type {JSONSnapshot} */ (value);
     }
 
     // Native range focus and dragging share a default: cancelling it cancels the
@@ -545,7 +504,7 @@ customElements.define(
       let at = focused(document);
       if (
         !under(at, this.#preview) ||
-        at?.closest("lf-playground-control") ||
+        this.#view.isField(at) ||
         [...this.#contributorEditors].some((editor) => under(at, editor))
       )
         return null;
@@ -558,7 +517,6 @@ customElements.define(
       return at && at !== at.ownerDocument.body ? at : null;
     }
 
-    // A page that draws its own actions has commands once it hands over their controls.
     #commands() {
       const submit = this.#submit;
       if (!submit) return;
@@ -582,6 +540,7 @@ customElements.define(
             control: this.#reset,
             title: "reset controls",
             run: () => {
+              this.#view.forget();
               this.#restore(this.#defaults);
               this.#draw();
               this.#commit();
@@ -703,15 +662,21 @@ customElements.define(
       }
     }
 
+    // A choice records the controls' values. It still matches when a reload restored
+    // one of its values before that contributor registered, and ignores a name the
+    // settings hold that neither the choice nor any control does, such as a field an
+    // earlier revision had.
     #chosen() {
       const choice = this.state?.choose;
-      return Boolean(
-        choice &&
-        "action" in choice &&
-        choice.action &&
+      if (!choice || !("action" in choice) || !choice.action) return false;
+      const recorded = /** @type {Configuration} */ (choice.detail.values);
+      const waiting = Object.entries(this.#pendingValues).filter(([name]) =>
+        Object.hasOwn(recorded, name),
+      );
+      return (
         choice.detail.instruction === this.#instruction() &&
-        configurationJSON(choice.detail.values) ===
-          configurationJSON({ ...this.#pendingValues, ...this.values }),
+        configurationJSON(recorded) ===
+          configurationJSON({ ...Object.fromEntries(waiting), ...this.#values })
       );
     }
 
@@ -735,9 +700,16 @@ customElements.define(
         : null;
       if (this.#drawn !== drawn) {
         this.#drawn = drawn;
+        // An edit the tune in force already holds, such as a value the browser restored
+        // on a reload, is recorded already.
+        const recorded = /** @type {Configuration} */ (
+          tune?.detail.values ?? this.#defaults
+        );
+        for (const name of this.#unsent)
+          if (Object.is(recorded[name], this.#values[name])) this.#unsent.delete(name);
         const unsent = [...this.#unsent].map((name) => [name, this.#values[name]]);
         this.#restore({
-          ...(tune?.detail.values ?? this.#defaults),
+          ...recorded,
           ...Object.fromEntries(unsent),
         });
       }

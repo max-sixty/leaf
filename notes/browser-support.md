@@ -1318,3 +1318,18 @@ property's value is parsed only where a declaration uses it, so Chromium never p
 the plural and Firefox never the singular. To recheck, read
 `CSS.supports("position-visibility", "anchor-visible")` in Playwright's Firefox; once it
 is true, spell `anchor-visible` in each declaration and drop the property.
+
+### A stroked line's box in Chromium
+
+Leaf stands the ⌥ aim on a drawing's part only where the part's box has area
+(`placement` in `browser/runtime/target-paint-geometry.js`, from `shownBox`).
+Chromium measures an SVG shape's box by its geometry alone, without its stroke, so a
+part drawn as one straight stroked line, such as a bar matplotlib draws with
+`ax.plot(…, lw=6)`, is 0px tall: on 2026-11-17, HeadlessChrome 158.0.8127.18
+(Playwright 1.65.0) gave such a horizontal `<path>` and its `<g>` a box 0px tall, and
+Playwright Firefox 159.0 one 8.5px tall. Holding ⌥ over the bar in Chromium draws no
+aim, though an ⌥-click still comments on it. Bars drawn as rectangles and curves have
+area and aim in both. Recorded rather than corrected, since a chart's bars are usually
+rectangles. Recheck with `uv run leaf-dev probe` of a page whose inline `<svg>` holds
+`<g id="bar"><path d="M0 10 L100 10" stroke="black" stroke-width="6"/></g>`, reading
+`document.querySelector('#bar').getBoundingClientRect().height` in Chromium.

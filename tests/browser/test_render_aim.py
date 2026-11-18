@@ -3332,7 +3332,11 @@ def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve
 
     Only a registered visual keeps the ids inside it to itself; a figure the author drew
     is ordinary markup, so a named group takes the aim and the comment, and a shape
-    without an id still reaches the figure around it."""
+    without an id still reaches the figure around it. The aim marks a part that draws a
+    shape along the shape, and a part that draws only words, as a chart's key entry
+    does, or a marker it draws by `<use>`, by an outline round its box; the words keep
+    their own paint either way. The
+    comment names the part as a figure by its `aria-label`, not by SVG's `g`."""
     page = open_page(
         browser,
         serve(
@@ -3340,19 +3344,41 @@ def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve
                 "drawing",
                 """
 <h1 id="t">Drawing</h1>
-<figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
-aria-label="A drawer beside a page"><g id="fig-drawer"><rect x="2" y="2" width="100"
-height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</text></g>
-<rect x="130" y="2" width="100" height="56" fill="#ddd"></rect></svg></figure>
+<figure id="fig"><svg viewBox="0 0 250 80" width="250" height="80" role="img"
+aria-label="A drawer beside a page"><g id="fig-drawer" aria-label="The drawer"><rect
+x="2" y="2" width="100" height="56" fill="#ddd"></rect><text x="52" y="34"
+text-anchor="middle" fill="#333">Drawer</text></g>
+<rect x="130" y="2" width="100" height="56" fill="#ddd"></rect>
+<g id="fig-key"><text x="130" y="76" fill="#333">page, 600px</text></g>
+<g id="fig-dot"><defs><circle id="fig-mark" r="3" fill="#333"></circle></defs><use
+href="#fig-mark" x="236" y="70"></use></g></svg></figure>
 """,
             )
         ),
     )
+    accent = token_colour(page, "--lf-accent")
+    fill = "(text) => getComputedStyle(text).fill"
+    outline = "(part) => [getComputedStyle(part).outlineStyle, getComputedStyle(part).outlineColor]"
     drawer = page.locator("#fig-drawer rect")
     corner = {"x": 8, "y": 8}
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-drawer")
+    assert_drawn_in(page.locator("#fig-drawer"), accent, 2)
+    assert page.locator("#fig-drawer text").evaluate(fill) == "rgb(51, 51, 51)"
+    page.keyboard.up("Alt")
+    page.locator("#fig-key text").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("fig-key")
+    assert page.locator("#fig-key").evaluate(outline) == ["solid", accent]
+    assert page.locator("#fig-key text").evaluate(fill) == "rgb(51, 51, 51)"
+    page.keyboard.up("Alt")
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
+    assert page.locator("#fig-key").evaluate(outline)[0] == "none"
+    page.locator("#fig-dot use").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("fig-dot")
+    assert page.locator("#fig-dot").evaluate(outline) == ["solid", accent]
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
@@ -3360,6 +3386,7 @@ height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</
     page.keyboard.up("Alt")
 
     drawer.click(modifiers=["Alt"], position=corner)
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ figure · The drawer")
     open_compact_comment(page, "wider")
     with sending(page, "the comment on the drawer"):
         page.keyboard.press("Enter")

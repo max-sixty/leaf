@@ -76,7 +76,13 @@
               </div>
             </details></lf-atlas-worker
           >
-          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
+          <lf-atlas-task
+            id="goal-parser"
+            label="Replace the XML parser"
+            status="active"
+            when="week 3"
+            talk
+          >
             <strong>Replace the XML parser</strong>
             Two workers own separate worktrees; open each worker to inspect its
             evidence. The stalled deduplication task appears under this goal.
@@ -93,12 +99,16 @@
                   <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
                 </div></details
             ></lf-atlas-worker>
-            <lf-atlas-task id="parser-declarations" status="active">
+            <lf-atlas-task
+              id="parser-declarations"
+              label="Declarations and entities"
+              status="active"
+            >
               <strong>Declarations and entities</strong> Three new corpus cases remain.
-              <lf-atlas-task id="parser-stream" status="done">
+              <lf-atlas-task id="parser-stream" label="Streaming core" status="done">
                 <strong>Streaming core</strong> Constant memory over the full corpus.
               </lf-atlas-task>
-              <lf-atlas-task id="parser-cdata" status="active">
+              <lf-atlas-task id="parser-cdata" label="CDATA edge cases" status="active">
                 <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
                 <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
                   ><details>
@@ -119,6 +129,7 @@
             </lf-atlas-task>
             <lf-atlas-task
               id="parser-dedupe"
+              label="Deduplicate the corpus snapshot"
               status="blocked"
               stopped-at="2026-08-21T08:12:00-07:00"
             >
@@ -175,6 +186,7 @@
             </lf-atlas-task>
             <lf-atlas-task
               id="parser-zero"
+              label="Choose the zero-row behavior"
               status="active"
               stopped-at="2026-08-21T08:46:00-07:00"
             >
@@ -210,11 +222,18 @@
             </lf-atlas-task>
           </lf-atlas-task>
 
-          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
+          <lf-atlas-task
+            id="goal-schema"
+            label="Reconcile schema and ledger"
+            status="active"
+            when="week 3"
+            talk
+          >
             <strong>Reconcile schema and ledger</strong> The schema decision blocks the
             backfill, ledger fixture, and nightly variance report.
             <lf-atlas-task
               id="schema-choice"
+              label="Choose the additive schema"
               status="review"
               stopped-at="2026-08-21T07:20:00-07:00"
             >
@@ -257,11 +276,17 @@
                 </lf-options>
               </lf-group>
             </lf-atlas-task>
-            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
+            <lf-atlas-task
+              id="schema-backfill"
+              label="Backfill reconciliation fields"
+              status="planned"
+              needs="schema-choice"
+            >
               <strong>Backfill reconciliation fields</strong>
             </lf-atlas-task>
             <lf-atlas-task
               id="ledger-fixture"
+              label="Bring one replica-only ledger fixture"
               status="active"
               needs="schema-choice"
               stopped-at="2026-08-21T09:04:00-07:00"
@@ -287,6 +312,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             </lf-atlas-task>
             <lf-atlas-task
               id="ledger-variance"
+              label="Nightly variance report"
               status="planned"
               needs="schema-choice ledger-fixture"
             >
@@ -295,12 +321,19 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             </lf-atlas-task>
           </lf-atlas-task>
 
-          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
+          <lf-atlas-task
+            id="goal-api"
+            label="Publish the parser contract"
+            status="active"
+            when="week 4"
+            talk
+          >
             <strong>Publish the parser contract</strong> Review the public API branch. A
             line comment goes to a new evidence worker and stays attached to the source
             line.
             <lf-atlas-task
               id="api-shape"
+              label="Review the public result type"
               status="review"
               stopped-at="2026-08-21T10:35:00-07:00"
             >
@@ -344,42 +377,83 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                 </lf-options>
               </lf-group>
             </lf-atlas-task>
-            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
+            <lf-atlas-task
+              id="api-errors"
+              label="Map structured failures"
+              status="planned"
+              needs="api-shape"
+            >
               <strong>Map structured failures</strong>
             </lf-atlas-task>
-            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
+            <lf-atlas-task
+              id="api-sdk"
+              label="Regenerate the SDK fixture"
+              status="planned"
+              needs="api-shape"
+            >
               <strong>Regenerate the SDK fixture</strong>
             </lf-atlas-task>
           </lf-atlas-task>
 
-          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
+          <lf-atlas-task
+            id="goal-ground"
+            label="Groundwork"
+            status="done"
+            when="weeks 1–2"
+          >
             <strong>Groundwork</strong>
-            <lf-atlas-task id="ground-corpus" status="done">
+            <lf-atlas-task
+              id="ground-corpus"
+              label="Snapshot the import corpus"
+              status="done"
+            >
               <strong>Snapshot the import corpus</strong> Nine months pinned by content
               hash.
             </lf-atlas-task>
-            <lf-atlas-task id="ground-harness" status="done">
+            <lf-atlas-task
+              id="ground-harness"
+              label="Build the replay harness"
+              status="done"
+            >
               <strong>Build the replay harness</strong> Old and new importer over the
               same corpus.
             </lf-atlas-task>
-            <lf-atlas-task id="ground-schema" status="done">
+            <lf-atlas-task
+              id="ground-schema"
+              label="Map the legacy schema"
+              status="done"
+            >
               <strong>Map the legacy schema</strong> Every downstream field has an
               owner.
             </lf-atlas-task>
           </lf-atlas-task>
 
-          <lf-atlas-task id="goal-docs" status="done" when="week 3">
+          <lf-atlas-task
+            id="goal-docs"
+            label="Document the operator path"
+            status="done"
+            when="week 3"
+          >
             <strong>Document the operator path</strong>
-            <lf-atlas-task id="docs-runbook" status="done">
+            <lf-atlas-task
+              id="docs-runbook"
+              label="Write the replica runbook"
+              status="done"
+            >
               <strong>Write the replica runbook</strong>
             </lf-atlas-task>
-            <lf-atlas-task id="docs-rollback" status="done">
+            <lf-atlas-task
+              id="docs-rollback"
+              label="Write rollback and evidence capture"
+              status="done"
+            >
               <strong>Write rollback and evidence capture</strong>
             </lf-atlas-task>
           </lf-atlas-task>
 
           <lf-atlas-task
             id="goal-cutover"
+            label="Cut over the nightly"
             status="planned"
             when="weeks 5–6"
             tags="downstream"
@@ -390,12 +464,18 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             both schema and ledger evidence.
             <lf-atlas-task
               id="cutover-shadow"
+              label="Shadow both importers for one week"
               status="planned"
               needs="ledger-variance api-shape"
             >
               <strong>Shadow both importers for one week</strong>
             </lf-atlas-task>
-            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
+            <lf-atlas-task
+              id="cutover-swap"
+              label="Swap with the old path behind a flag"
+              status="planned"
+              needs="cutover-shadow"
+            >
               <strong>Swap with the old path behind a flag</strong>
             </lf-atlas-task>
           </lf-atlas-task>

@@ -41,9 +41,15 @@ const HTML_WORDS = {
   h6: "heading",
 };
 
+// A drawing the page holds inline, and each part of it an author gave an id, is a
+// figure to the reader, as a diagram's box is its diagram: SVG's element names, `g`,
+// `path` and `text`, name nothing the reader sees.
+const SVG = "http://www.w3.org/2000/svg";
+
 /** @param {Element | null | undefined} addressable */
 export function addressableWord(addressable) {
   if (!addressable) return "";
+  if (addressable.namespaceURI === SVG) return "figure";
   const tag = addressable.tagName.toLowerCase();
   const word = widgetWord(tag, addressable);
   if (word) return word;

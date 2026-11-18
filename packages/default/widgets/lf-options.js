@@ -318,6 +318,7 @@ customElements.define(
         const inner = worksInside(target, option);
         if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
         if (!this.#available("choose")) return;
+        e.preventDefault();
         const was = this.#picked();
         // Toggling is one gesture both ways, so a user who picked by mistake needn't
         // pick something else to get out of it. Without `multiple` the set the toggle

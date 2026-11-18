@@ -45,9 +45,9 @@ export {
    makes. The theme's one pressable rule reads that value.
 
    `worksInside` decides whether a container gesture may take a click. It treats
-   platform interactive elements as their own controls and uses `owners` to
-   distinguish a container's declared member widgets from nested widgets that own their
-   own interaction. What it cannot know is which of the controls it finds the
+   platform interactive elements, inside the container or pressed around it, as their
+   own controls and uses `owners` to distinguish a container's declared member widgets
+   from nested widgets that own their own interaction. What it cannot know is which of the controls it finds the
    container's own module put there — an option's pick mark, a gloss's own mark — so the
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
@@ -61,7 +61,12 @@ import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
-import { isElement, isNativeLayer, renderedUnder } from "./shadow-tree.js";
+import {
+  closestAcross,
+  isElement,
+  isNativeLayer,
+  renderedUnder,
+} from "./shadow-tree.js";
 
 import { keeps } from "./keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
@@ -160,8 +165,11 @@ export const dragging = (el, on) => {
 };
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
-// one aimed at what it holds. This is the second: the nearest thing between `node` and
-// `container` that has a use for the gesture, or null where the container is the aim.
+// one aimed at what it holds or what holds it. This is the second: the nearest thing
+// between `node` and `container` that has a use for the gesture, else a press around the
+// container, or null where the container is the aim. A press around it, as a link or a
+// label around a gloss, has the container's words for its face, and its activation is
+// the click's meaning, which a container taking the click would cancel.
 //
 // It exists because an option's case is argued inside the option — a screenshot pair
 // to flip, a disclosure to open, tabs to walk — while the whole card is what takes the
@@ -213,7 +221,8 @@ export function worksInside(node, container) {
   const inner = node.closest(
     [...held, WORKS, "[data-lf-offer]", ".lf-msg-sending"].join(","),
   );
-  return inner && inner !== container && container.contains(inner) ? inner : null;
+  if (inner && inner !== container && container.contains(inner)) return inner;
+  return closestAcross(container.parentNode, PRESSES);
 }
 
 /** What else the user could aim at, at `node`, at any point on the page, marked words

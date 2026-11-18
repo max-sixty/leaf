@@ -1269,7 +1269,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, wrote } = await window.__lfWidgetApi();
+      const { says, named } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
@@ -1289,7 +1289,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
-        wroteRename: wrote(document).includes('old-name.js → new-name.js'),
+        namedRename: named(document).includes('old-name.js → new-name.js'),
       };
     }""")
     assert result == {
@@ -1309,7 +1309,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         "bomTo": "\ufeffnew.js",
         "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
-        "wroteRename": False,
+        "namedRename": False,
     }
 
     result = page.evaluate("""() => {

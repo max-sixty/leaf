@@ -980,7 +980,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         controlsSize: [controls.clientHeight, controls.scrollHeight],
         pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
         obligationDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
-        authoredWords: leaf.wrote(playground).includes('Concurrent release events'),
+        authoredWords: leaf.named(playground).includes('Concurrent release events'),
         spokenWords: leaf.says(playground).includes('Concurrent release events'),
       };
     }"""

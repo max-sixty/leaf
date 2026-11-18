@@ -36,7 +36,7 @@ import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import { readingOrder, readingPlace, targetSegments } from "./resolved-target.js";
-import { resolveAnchor } from "./anchor-resolution.js";
+import { focusTargetAt, resolveAnchor } from "./anchor-resolution.js";
 import { draftAnchor, draftSends, draftsReading } from "./drafts.js";
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -468,16 +468,35 @@ export function createAnnotationInventory({
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same
-  // resolved record as collection, navigation and paint.
+  // resolved record as collection, navigation and paint. A thread on a part of a
+  // picture, which stands at the picture, is about that part alone: it is at a node
+  // inside the part, or at the picture itself where focus there stands on that part,
+  // as a chart's keys stand on a point (`focusTargetAt`), and at no other place in the
+  // picture.
   /** @param {Node | null} node */
   function threadIdsAt(node) {
     const place = placeOf(node);
+    /** @type {import("../types/domain.js").Anchor | null | undefined} */
+    let standsOn;
+    /** @param {ThreadRecord} thread @param {Element} element */
+    const aboutPart = ({ anchor }, element) => {
+      if (!anchor?.visual || under(place, element)) return true;
+      if (standsOn === undefined)
+        standsOn = (place && focusTargetAt(place)?.anchor) || null;
+      return (
+        standsOn !== null &&
+        standsOn.section === anchor.section &&
+        standsOn.visual === anchor.visual
+      );
+    };
     let best = null;
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread)) continue;
       const placement = placedAt(thread.id);
       const target = placement?.place;
       if (!target || !under(place, target)) continue;
+      if (placement.kind === "element" && !aboutPart(thread, placement.element))
+        continue;
       const point = livePoint(target, placement.point);
       const rank = !point ? 1 : under(place, point) ? 2 : 0;
       if (best && target === best.target && point === best.point) {

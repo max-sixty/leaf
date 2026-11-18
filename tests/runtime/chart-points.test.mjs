@@ -6,6 +6,7 @@ import {
   datumOf,
   datumPoint,
   datumWords,
+  extentOf,
   nearest,
   readPoints,
   sayPoint,
@@ -567,6 +568,53 @@ test("a datum's name is one token of its values that finds it in the next drawin
   assert.equal(datumPoint(bins, "0;x1=0;y1=0;x2=10"), null);
   assert.equal(datumPoint(bins, "1;x1=0;y1=0;x2=10;y2=2"), null);
   assert.equal(datumPoint(bins, `${datumOf(first)};z=1`), null);
+});
+
+test("a bar and a bin fill the box their shape draws, and a dot fills none", () => {
+  // The box a comment's mark outlines (lf-chart.js), read from the shape Plot drew.
+  const round = (/** @type {number} */ n) => Math.round(n * 1e6) / 1e6;
+  /** @param {any} options @param {string} shapes */
+  const boxes = (options, shapes) => {
+    const { reading, svg } = drawn(options);
+    const drawnBoxes = [...svg.querySelectorAll(shapes)].map((shape) =>
+      ["x", "y", "width", "height"].map((key) =>
+        round(Number(shape.getAttribute(key))),
+      ),
+    );
+    return { filled: reading.points.map(extentOf), drawnBoxes };
+  };
+  const bins = boxes(
+    {
+      marks: [
+        Plot.rectY(
+          [1, 2, 12, 13, 14].map((v) => ({ v })),
+          Plot.binX({ y: "count" }, { x: "v", thresholds: [0, 10, 20], inset: 0 }),
+        ),
+      ],
+    },
+    "rect",
+  );
+  assert.deepEqual(
+    bins.filled.map(
+      (box) =>
+        box &&
+        [box.left, box.top, box.right - box.left, box.bottom - box.top].map(round),
+    ),
+    bins.drawnBoxes,
+  );
+  const bars = read({
+    marks: [Plot.barY(HOURS, { x: "week", y: "hours", fill: "kind" })],
+  });
+  for (const point of bars.points) {
+    const box = extentOf(point);
+    assert.ok(box && box.left < point.x && point.x < box.right, "a bar spans its band");
+    assert.ok(box.top < point.y && point.y < box.bottom, "and its stack");
+  }
+  const dots = read({ marks: [Plot.dot(HOURS, { x: "week", y: "hours" })] });
+  assert.deepEqual(
+    dots.points.map(extentOf),
+    dots.points.map(() => null),
+  );
 });
 
 test("a time reads to the second or millisecond its datum has", () => {

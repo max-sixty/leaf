@@ -97,6 +97,7 @@ import {
   datumOf,
   datumPoint,
   datumWords,
+  extentOf,
   nearest,
   readPoints,
   sayPoint,
@@ -109,9 +110,29 @@ const POINT = "point:";
 
 /** @typedef {import("./chart-points.js").Point} Point
  * @typedef {import("./chart-points.js").PlotBundle} PlotBundle
- * @typedef {import("./chart-points.js").Reading & {svg: SVGSVGElement, ring: SVGGElement, marks: SVGGElement, aim: SVGCircleElement}} Reading
+ * @typedef {import("./chart-points.js").Reading & {svg: SVGSVGElement, ring: SVGGElement, marks: SVGGElement, aim: SVGRectElement}} Reading
  * @typedef {{id: string, element: Element, label: string}} Part
  * @typedef {"pointer" | "focus" | "key"} By */
+
+// The mark round a point, which Leaf strokes for its aim and a comment on the point: the
+// outline of the bar, bin or cell it fills, or a ring round a dot or a line's vertex,
+// wider than the chart's own ring, which a rounded rect draws.
+const RING = 7;
+/** @param {SVGRectElement} mark @param {Point} point */
+function outline(mark, point) {
+  const filled = extentOf(point);
+  const box = filled ?? {
+    left: point.x - RING,
+    right: point.x + RING,
+    top: point.y - RING,
+    bottom: point.y + RING,
+  };
+  keeps(mark, "x", String(box.left));
+  keeps(mark, "y", String(box.top));
+  keeps(mark, "width", String(box.right - box.left));
+  keeps(mark, "height", String(box.bottom - box.top));
+  keeps(mark, "rx", filled ? null : String(RING));
+}
 
 // What a point says, on one line, as a comment on it is named.
 /** @param {Point} point */
@@ -193,7 +214,8 @@ customElements.define(
     drawn;
     // The points the drawing showing says, the one the reader is on and what brought
     // them there, whether a pointer or finger is over the drawing, the point the keys
-    // step on from once Escape has put the keyboard's reading away, and the one the
+    // step on from once Escape has put the keyboard's reading away or focus has left
+    // the chart, and the one the
     // pointer rests on whose reading the page put away, quiet until the pointer reaches
     // another.
     /** @type {Reading | null} */
@@ -287,21 +309,27 @@ customElements.define(
           { signal, passive: true },
         );
         this.addEventListener("pointerleave", () => this.#leave(), { signal });
-        // Focus the browser shows lands the reader on a point, the one they are on or
-        // the first, which the arrows then step from: the keyboard's from then on.
+        // Focus the browser shows lands the reader on a point, the one they are on, the
+        // one the keys left them on, or the first, which the arrows then step from: the
+        // keyboard's from then on. So a comment's box that hands focus back to the chart
+        // puts the reader back on the point they commented on.
         this.addEventListener(
           "focus",
           () => {
             if (this.#reading && this.matches(":focus-visible"))
-              this.#choose(this.#at ?? step(this.#reading, null, "first"), "focus");
+              this.#choose(
+                this.#at ?? this.#place ?? step(this.#reading, null, "first"),
+                "focus",
+              );
           },
           { signal },
         );
-        // Leaving the chart ends the keyboard's hold on its point.
+        // Leaving the chart takes the ring off a point the keys hold, which stays the
+        // point they step on from.
         this.addEventListener(
           "blur",
           () => {
-            this.#place = null;
+            if (this.#at && this.#by !== "pointer") this.#place = this.#at;
             this.#choose(this.#over ? this.#at : null, "pointer");
           },
           { signal },
@@ -524,10 +552,8 @@ customElements.define(
     /** @param {Reading} reading @param {Point} point @param {string} id
      * @returns {Part} */
     #mark(reading, point, id) {
-      const mark = document.createElementNS(SVG, "circle");
-      mark.setAttribute("cx", String(point.x));
-      mark.setAttribute("cy", String(point.y));
-      mark.setAttribute("r", "7");
+      const mark = document.createElementNS(SVG, "rect");
+      outline(mark, point);
       reading.marks.append(mark);
       return { id, element: mark, label: pointWords(point) };
     }
@@ -636,7 +662,7 @@ customElements.define(
       if (!reading) return;
       const point = this.#at ?? this.#away;
       keeps(reading.aim, "display", point ? null : "none");
-      if (point) keeps(reading.aim, "transform", `translate(${point.x} ${point.y})`);
+      if (point) outline(reading.aim, point);
     }
 
     // The point nearest a place in the window, by Plot's pointer's rule, or none.
@@ -739,9 +765,8 @@ customElements.define(
       // on (`#partAt`), which goes where the ring goes, under the ring.
       const marks = document.createElementNS(SVG, "g");
       marks.setAttribute("class", "lf-chart-marks");
-      const aim = document.createElementNS(SVG, "circle");
+      const aim = document.createElementNS(SVG, "rect");
       aim.setAttribute("class", "lf-chart-aim");
-      aim.setAttribute("r", "7");
       aim.setAttribute("display", "none");
       marks.append(aim);
       const ring = document.createElementNS(SVG, "g");

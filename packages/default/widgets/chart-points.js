@@ -406,6 +406,32 @@ function* entries({ i, drawn }) {
     yield `${written(key)}=${written(channels[key]?.value[i])}`;
 }
 
+/** The box a point's shape fills where it fills one along both axes, as a bar, a bin or
+ * a cell does, in the drawing's coordinates: on each axis, between the two ends the mark
+ * draws it at (`x1` and `x2`), or across its band. A dot or a line's vertex fills none.
+ * @param {Point} point @returns {{left: number, top: number, right: number, bottom: number} | null} */
+export function extentOf(point) {
+  const { i, drawn } = point;
+  const { values, scales } = drawn;
+  /** @param {"x" | "y"} axis @param {number} at @param {number} local
+   * @returns {{from: number, to: number} | null} */
+  const span = (axis, at, local) => {
+    const [one, two] = [values[`${axis}1`]?.[i], values[`${axis}2`]?.[i]];
+    if (one !== undefined && two !== undefined)
+      return {
+        from: Math.min(one, two) + at - local,
+        to: Math.max(one, two) + at - local,
+      };
+    const band = values[axis] ? (scales[axis]?.bandwidth?.() ?? 0) : 0;
+    return band > 0 ? { from: at - band / 2, to: at + band / 2 } : null;
+  };
+  const across = span("x", point.x, point.px);
+  const down = span("y", point.y, point.py);
+  return across && down
+    ? { left: across.from, right: across.to, top: down.from, bottom: down.to }
+    : null;
+}
+
 /** The token naming a point's datum, kept on it once read.
  * @param {Point} point */
 export const datumOf = (point) =>

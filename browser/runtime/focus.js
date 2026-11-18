@@ -231,8 +231,13 @@ const landedOn = (node) =>
 
 // A stop is lent only to a drawn element that is no control of its own: a control that
 // would not take focus is disabled, inert or hidden, and a stop would not change that.
+// Nor to one a screen reader can't stand on, inside an image, whose content is
+// presentational, or a hidden subtree, as the marks a chart draws round its points
+// are, so a placement there goes on to its next place, the chart.
+const UNREACHED = '[role~="img"] *, [aria-hidden="true"], [aria-hidden="true"] *';
 /** @param {Element} node */
-const lendable = (node) => drawn(node) && !node.matches(TAB_STOP);
+const lendable = (node) =>
+  drawn(node) && !node.matches(TAB_STOP) && !node.matches(UNREACHED);
 
 // The elements wearing a stop lent here, which is no part of what their author wrote.
 /** @type {WeakSet<Element>} */

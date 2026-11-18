@@ -2018,22 +2018,25 @@ POINT_SHAPES = {
     "p-bins": "[data-lf-part=rect] rect",
 }
 # Where a chart's point stands in its drawing, from what Plot drew for it: the dot's or
-# bin's middle, or the frontend line's second vertex; and where the mark of the point a
-# comment names stands.
+# bin's middle and box, or the frontend line's second vertex; and the box of the mark
+# round the point a comment names, its middle and its size.
 DATUM_AT = """([chart, shapes, index]) => {
   const el = document.getElementById(chart);
   const svg = el.querySelector('svg[role=img]');
-  let at;
+  const middle = (box) => [box.x + box.width / 2, box.y + box.height / 2];
+  let at, size = null;
   if (shapes) {
-    const shape = [...svg.querySelectorAll(shapes)][index];
-    const box = shape.getBBox();
-    at = [box.x + box.width / 2, box.y + box.height / 2];
+    const box = [...svg.querySelectorAll(shapes)][index].getBBox();
+    [at, size] = [middle(box), [box.width, box.height]];
   } else {
     const [, frontend] = svg.querySelectorAll('[data-lf-part=line] path');
     at = frontend.getAttribute('d').match(/-?[\\d.]+,-?[\\d.]+/g)[1].split(',').map(Number);
   }
-  const marks = [...el.querySelectorAll('.lf-chart-marks circle:not(.lf-chart-aim)')];
-  return {at, marks: marks.map((mark) => [+mark.getAttribute('cx'), +mark.getAttribute('cy')])};
+  const marks = [...el.querySelectorAll('.lf-chart-marks > :not(.lf-chart-aim)')];
+  return {at, size, marks: marks.map((mark) => {
+    const box = mark.getBBox();
+    return {at: middle(box), size: [box.width, box.height]};
+  })};
 }"""
 
 
@@ -2145,10 +2148,12 @@ def test_a_comment_on_a_chart_s_point_stays_on_its_datum(browser, serve):
                 DATUM_AT, [chart, POINT_SHAPES.get(chart), index[chart]]
             )
             assert len(drawn["marks"]) == 1, (chart, drawn)
-            assert drawn["marks"][0] == pytest.approx(drawn["at"], abs=0.5), (
-                chart,
-                drawn,
-            )
+            [mark] = drawn["marks"]
+            assert mark["at"] == pytest.approx(drawn["at"], abs=0.5), (chart, drawn)
+            # A bin's mark outlines its bar; a dot's and a vertex's is a ring.
+            assert mark["size"] == pytest.approx(
+                drawn["size"] if chart == "p-bins" else [14, 14], abs=1.5
+            ), (chart, drawn)
         return drawn
 
     before = stands_on_its_datum()
@@ -2161,7 +2166,7 @@ def test_a_comment_on_a_chart_s_point_stays_on_its_datum(browser, serve):
 
     page.locator('[data-lf-margin-for="p-dots"] .lf-margin-marker').click()
     expect(
-        page.locator("#p-dots .lf-chart-marks circle:not(.lf-chart-aim)")
+        page.locator("#p-dots .lf-chart-marks > :not(.lf-chart-aim)")
     ).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
 
 
@@ -2195,7 +2200,70 @@ def test_a_comment_on_a_point_in_a_shut_tab_stands_on_its_chart_until_it_draws(
     expect(page.locator('[data-lf-margin-for="p-dots"]')).to_be_attached()
     expect(page.locator("#p-dots svg[role=img]")).to_have_count(0)
     page.keyboard.press("t")
-    mark = page.locator("#p-dots .lf-chart-marks circle:not(.lf-chart-aim)")
+    mark = page.locator("#p-dots .lf-chart-marks > :not(.lf-chart-aim)")
     expect(mark).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
     drawn = page.evaluate(DATUM_AT, ["p-dots", POINT_SHAPES["p-dots"], 2])
-    assert drawn["marks"] == [pytest.approx(drawn["at"], abs=0.5)]
+    assert [mark["at"] for mark in drawn["marks"]] == [
+        pytest.approx(drawn["at"], abs=0.5)
+    ]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_c_on_a_chart_takes_the_keys_point_and_hands_focus_back_to_it(
+    engine, request, serve
+):
+    """With the chart focused, `c` comments on the point the keys stand on, though the
+    chart holds a comment on another point, and on the whole chart once Escape has put
+    the point away; leaving the comment box hands focus back to the chart, on the point
+    it was about. Where the keys stand on the commented point, `c` continues its
+    thread."""
+    url = serve(POINTS_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "on-week-3",
+            "author": "user",
+            "revision": 1,
+            "text": "Why week 3?",
+            "anchor": {"section": "p-dots", "visual": POINT_IDS["p-dots"]},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    composer = page.locator(".lf-composer")
+    quote = page.locator("#lf-composer-quote")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 2", "sessions 5,200"]
+    page.keyboard.press("c")
+    expect(composer).to_be_visible()
+    expect(quote).to_have_text("\u00a7 chart \u00b7 week 2, sessions 5,200")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    expect(chart).to_be_focused()
+    # A focus handed back previews nothing (preview.js), and the ring stands on the point.
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 2"
+    expect(chart.locator(".lf-chart-at")).to_be_visible()
+
+    page.keyboard.press("ArrowLeft")
+    assert said(page) == ["week 1", "sessions 4,100"]
+    page.keyboard.press("Escape")
+    expect(page.locator(PREVIEW)).to_be_hidden()
+    expect(chart.locator(".lf-chart-at")).to_be_hidden()
+    page.keyboard.press("c")
+    expect(composer).to_be_visible()
+    expect(quote).not_to_have_text(re.compile("week"))
+    page.keyboard.press("Escape")
+    expect(chart).to_be_focused()
+
+    for _ in range(2):
+        page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 3", "sessions 8,412"]
+    page.keyboard.press("c")
+    expect(page.locator(".lf-page-thread .lf-thread-reply leaf-text")).to_be_focused()
+    expect(composer).to_be_hidden()

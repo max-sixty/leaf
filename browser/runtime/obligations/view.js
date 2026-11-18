@@ -43,7 +43,6 @@ import { keeps } from "../keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
 import { obligationEntry, readObligations } from "./model.js";
-import { walkPositionLabel } from "../walk-position.js";
 import { focused } from "../focus.js";
 import {
   commandDeclarationsWithin,
@@ -54,7 +53,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
-import { obligationWord, ownedObligationControl } from "./answer.js";
+import { ownedObligationControl } from "./answer.js";
 import { obligationAt, placeOf } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -74,14 +73,13 @@ import { revealAddressed } from "../anchor-resolution.js";
  * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
  * focusForNavigation: typeof import("../focus.js").focusDestination,
  * presentedControl: (control: Element) => Element,
- * announce: (words: string) => void, repaint: () => void}} dependencies */
+ * repaint: () => void}} dependencies */
 export function createObligationView({
   prepareNavigationStep,
   arrive,
   openPageThread,
   focusForNavigation,
   presentedControl,
-  announce,
   repaint,
 }) {
   /** @param {Obligation | null} item */
@@ -629,21 +627,6 @@ export function createObligationView({
     return ready;
   }
 
-  // A press naming an obligation outright, as a Page Map entry does: the arrival, then its
-  // place in the list the caller names.
-  /** @param {AnswerableObligation} next @param {readonly Obligation[]} items */
-  function goToObligation(next, items) {
-    const ready = arriveAtRecord(next).then((arrived) => {
-      if (!arrived) return false;
-      const state = unansweredIds().has(next.id) ? "waiting on me" : "answered";
-      const index = items.findIndex((item) => item.id === next.id);
-      announce(walkPositionLabel(obligationWord(next), index + 1, items.length, state));
-      return true;
-    });
-    void ready.catch(() => {});
-    return ready;
-  }
-
   /** @type {(() => void) | null} */
   let stopContextScopes = null;
   const actionsChanged = () => mounted && void syncObligations();
@@ -683,7 +666,6 @@ export function createObligationView({
     restoreCurrentLocation,
     markHere,
     arriveAtRecord,
-    goToObligation,
     choicesOf,
   };
 }

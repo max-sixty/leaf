@@ -80,8 +80,9 @@ import { raiseError } from "./errors.js";
  * compositionSurface: ThreadPresentationOptions["surfaceView"]["composition"],
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
+ * goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string) => Promise<void>},
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string) => Promise<void>},
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * }} ApplicationDependencies */
 
@@ -305,7 +306,7 @@ function createApplication(dependencies) {
     readObligations,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToObligation: dependencies.annotationCommands.goToObligation,
+    goToObligation: dependencies.goToObligation,
     resumeDraft: dependencies.annotationCommands.resumeDraft,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
@@ -737,10 +738,7 @@ function createApplication(dependencies) {
           part: "message",
         });
       }
-      return dependencies.annotationCommands.goToObligation(
-        item,
-        readObligations().all,
-      );
+      return dependencies.goToObligation(item);
     },
     // The On Me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (

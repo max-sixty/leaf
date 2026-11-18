@@ -456,6 +456,38 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
         page.keyboard.press("Escape")
 
 
+def test_the_thread_walk_reaches_a_thread_in_view_ahead_of_the_first_paragraph(
+    browser, serve
+):
+    """With nothing focused the walk starts from what the window shows, so `t` at the top
+    of a page opening with a question of options alone opens the thread on those
+    options, not the one on the paragraph below them that is the first the page
+    reads."""
+    url = serve(
+        leaf_page(
+            "a thread on options alone",
+            """
+<lf-group id="ask" label="Which route?"><lf-options id="routes">
+  <lf-option id="routes-left">Take the left route</lf-option>
+  <lf-option id="routes-right">Take the right route</lf-option>
+</lf-options></lf-group>
+<p id="later">The later discussion follows the question.</p>
+""",
+        ),
+        anchored=[("routes-left", "left route"), ("later", "later discussion")],
+    )
+    first = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{first}"]')
+    ).to_be_focused()
+
+
 def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, subtests):
     """Both directions measure from the open panel, not the preceding tab strip."""
     url = serve(

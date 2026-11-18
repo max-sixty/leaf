@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
+    expect_obligations_answered,
     expect_panel_says,
     field_press,
     holding,
@@ -752,6 +753,58 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
         }"""
     )
     expect(page.locator("#only-decision")).to_be_focused()
+
+
+def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
+    """A press naming one obligation, as a Page Map row or a deck's arrival does, says
+    where it stands in On Me as `m` landing there says it, counting the same list: with
+    the first of three questions answered, the third is the second of three, beside the
+    proposal still open. An answered question inside that proposal has no place in On
+    Me, so it says how it ended rather than the proposal's place, and the proposal's
+    place, said a moment before, stands no longer."""
+    asks = "".join(
+        f"""<lf-group id="ask-{index}" label="Question {index}"><h2>Question {index}</h2>
+<lf-options id="pick-{index}">
+  <lf-option id="pick-{index}-yes">Yes</lf-option>
+  <lf-option id="pick-{index}-no">No</lf-option>
+</lf-options></lf-group>"""
+        for index in range(1, 4)
+    )
+    proposal = """<lf-suggestion id="plan"><lf-old><p>The old plan reads this way.</p></lf-old>
+<lf-new><p>The new plan reads another way.</p>
+<lf-group id="step-ask" label="Keep the new step?"><lf-options id="step">
+  <lf-option id="step-keep">Keep it</lf-option>
+  <lf-option id="step-drop">Drop it</lf-option>
+</lf-options></lf-group></lf-new></lf-suggestion>"""
+    page = open_page(
+        browser,
+        serve(leaf_page("three questions", f"<h1>Questions</h1>{asks}{proposal}")),
+    )
+
+    def open_obligation(id_):
+        assert page.evaluate(
+            """async id => (await window.__lfWidgetApi()).obligationActions.open(id)""",
+            id_,
+        )
+
+    page.keyboard.press("m")
+    expect(page.locator("#ask-1")).to_be_focused()
+    page.keyboard.press("1")
+    expect_obligations_answered(page, "1/5")
+    page.keyboard.press("Escape")
+    open_obligation("widget:pick-3")
+    expect(page.locator("#ask-3")).to_be_focused()
+    expect_walk_position(page, "2 of 4 waiting on me · Options")
+
+    page.locator("#step lf-option-control").first.click()
+    expect_obligations_answered(page, "2/5")
+    page.keyboard.press("Escape")
+    open_obligation("widget:plan")
+    expect_walk_position(page, "3 of 3 waiting on me · Rewrite")
+    open_obligation("widget:step")
+    expect(page.locator("#step-ask")).to_be_focused()
+    expect(page.locator(".lf-live")).to_have_text("Options · Answered: Keep it")
+    expect_walk_position(page, None)
 
 
 def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):

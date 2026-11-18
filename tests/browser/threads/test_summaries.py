@@ -293,9 +293,9 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     )
     label = checkpoint.locator(".lf-summary-label")
     expand = checkpoint.get_by_role("button", name="2 earlier messages")
-    expect(label).to_have_text("Previous progress messages.")
+    expect(label).to_have_text("Previous progress messages")
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
-        "Previous progress messages."
+        "Previous progress messages"
     )
     expect(card.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_hidden()

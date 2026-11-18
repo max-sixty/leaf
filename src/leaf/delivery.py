@@ -216,11 +216,6 @@ _THREAD_DIGEST = object_schema(
                             "The name the agent gave the range, leading the summary.",
                             STRING,
                         ),
-                        "trigger": described(
-                            "The agent reply whose arrival folded earlier progress "
-                            "messages.",
-                            STRING,
-                        ),
                     },
                 ),
             },

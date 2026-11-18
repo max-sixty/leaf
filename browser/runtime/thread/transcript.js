@@ -79,8 +79,9 @@ import { foldBlock, motionPlays } from "../motion.js";
 import { voiced } from "../voice.js";
 
 // A summary's words, led by the name its agent gave the range as their first
-// paragraph's run-in head. Words that open with no paragraph, as a list does, and a
-// summary with no words, hold the name as a paragraph of its own.
+// paragraph's run-in head, closed by a stop where the name has none. Words that open
+// with no paragraph, as a list does, and a summary with no words, hold the name as a
+// paragraph of its own.
 /** @param {{text: string, label?: string}} summary */
 function summaryWords({ text, label }) {
   const words = document.createElement("template");
@@ -88,10 +89,12 @@ function summaryWords({ text, label }) {
   if (!label) return words.innerHTML;
   const name = document.createElement("strong");
   name.className = "lf-summary-label";
-  name.textContent = /[.!?:…]$/u.test(label) ? label : `${label}.`;
+  name.textContent = label;
   const first = words.content.firstChild;
-  if (first instanceof Element && first.localName === "p") first.prepend(name, " ");
-  else {
+  if (first instanceof Element && first.localName === "p") {
+    if (!/[.!?:…]$/u.test(label)) name.append(".");
+    first.prepend(name, " ");
+  } else {
     const named = document.createElement("p");
     named.append(name);
     words.content.prepend(named);
@@ -640,13 +643,9 @@ export class Transcript {
         progress
           ? nothing
           : html`<div class="lf-summary-checkpoint">
-              ${
-                range.forced
-                  ? nothing
-                  : html`<div class="lf-summary-header">
-                      ${this.#summaryToggle([range])}
-                    </div>`
-              }
+              <div class="lf-summary-header">
+                ${range.forced ? nothing : this.#summaryToggle([range])}
+              </div>
               ${
                 range.summary.text || range.summary.label
                   ? html`<div

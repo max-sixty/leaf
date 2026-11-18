@@ -167,10 +167,10 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     assert board.aria_snapshot() == (
         '- list "Todo":\n'
         "  - listitem:\n"
-        "    - text: Heated perch\n"
+        "    - strong: Heated perch\n"
         "    - 'button \"Move: Heated perch — Todo\"'\n"
         "  - listitem:\n"
-        "    - text: Squirrel baffle\n"
+        "    - strong: Squirrel baffle\n"
         "    - 'button \"Move: Squirrel baffle — Todo\"'\n"
         '- list "Done"'  # empty, and still announced: it is a drop target
     )
@@ -193,11 +193,12 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     assert board.aria_snapshot() == (
         '- list "Todo":\n'
         "  - listitem:\n"
-        "    - text: Heated perch\n"
+        "    - strong: Heated perch\n"
         "    - 'button \"Move: Heated perch — Todo\"'\n"
         '- list "Done":\n'
         "  - listitem:\n"
-        "    - text: Squirrel baffle my change\n"
+        "    - strong: Squirrel baffle\n"
+        "    - text: my change\n"
         "    - 'button \"Move: Squirrel baffle — Done\"'"
     )
 

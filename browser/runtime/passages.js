@@ -1880,13 +1880,11 @@ const changesTheReading = (record, reads) => {
 // Each document's reading, kept until something it is built out of moves: the page's
 // outline (`documentOutline`) and the readings of elements in its frame (`pageText`), or
 // a message's outline.
-// A record is replaced, never changed, so the record a reader took is which reading it
-// read. A change forgets the reading of the document it lands in and that one alone
-// (`forget`); a change no one document owns, the vocabulary or a settlement, forgets them
-// all. What a reader keeps to know which reading it read is the record's `token`, an
-// empty object, so a key or a kept answer that outlives the reading holds none of it. An
-// answer that holds a document's nodes is kept by the document's version
-// (`readsDocument`), so it goes with the reading it was derived from.
+// A record is replaced, never changed. A change forgets the reading of the document it
+// lands in and that one alone (`forget`); a change no one document owns, the vocabulary
+// or a settlement, forgets them all, and each moves the version a reading kept by the
+// document reads (`readsDocument`), so an answer holding the document's nodes goes with
+// the reading it was derived from.
 /** @typedef {{outline: OutlineReading | null, within: WeakMap<Element, PageReading>}} DocumentReading */
 /** @type {WeakMap<Element, DocumentReading>} */
 let documents = new WeakMap();
@@ -2061,12 +2059,13 @@ const renames = (record) =>
 // attributes because it decides whether a control takes a `<label>`'s name (`labels`).
 const pageVersion = version(catchUpReading);
 /** Which reading of the page stands: a new count each time the page's is forgotten, or
- * an id or a part's name changes. Each reader of the page reads it (kept.js,
- * `version`) as it catches up (`catchUpReading`), the readers of its words and
- * `elementById` among them, so a reading derived from the page, as On Me's places are,
- * is kept while this stands (kept.js, `kept`); work that spans tasks, as a search does,
- * compares it to hear that the page changed under it. It holds nothing of the reading
- * itself.
+ * an id or a part's name changes. A reader of the page as a whole reads it (kept.js,
+ * `version`) as it catches up (`catchUpReading`), as `pageText`, `readingParts` and
+ * `documentOutline` do, and so does `elementById`, so a reading derived from the page,
+ * as On Me's places are, is kept while this stands (kept.js, `kept`); a reading of one
+ * element's words or children stands while its piece does (`readsElement`). Work that
+ * spans tasks, as a search does, compares it to hear that the page changed under it. It
+ * holds nothing of the reading itself.
  * @returns {number} */
 export function pageReadingVersion() {
   catchUpReading();

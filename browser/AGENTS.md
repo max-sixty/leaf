@@ -693,7 +693,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                    |
-| What the user sees of a node where the glides under way leave it                                      | `scroll-containers.js` `seenGlided`, `seenAhead`                                   |
+| What the user sees of a node where the glides under way leave it, or as they carry it toward the view | `scroll-containers.js` `seenGlided`, `seenLanded`, `seenAhead`                     |
 | Land the glides under way for a key whose work reads the page where it stands                         | `scrolling.js` `landGlides`                                                        |
 | Whether a size change there would move what is seen                                                   | `geometry.js` `growthIsSeen`, `growthAfterIsSeen`                                  |
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |

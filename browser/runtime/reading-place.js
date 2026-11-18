@@ -132,7 +132,13 @@ import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusPlace, readingAt } from "./user-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { heldTravel, holderOf, seenAhead, seenGlided } from "./scroll-containers.js";
+import {
+  heldTravel,
+  holderOf,
+  seenAhead,
+  seenGlided,
+  seenLanded,
+} from "./scroll-containers.js";
 import { shifted, union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 
@@ -853,7 +859,7 @@ export function seenWhereRead(block) {
     const shown = shownBox(node);
     return (
       !afar(shown) &&
-      seenAhead(node) &&
+      seenLanded(node) &&
       (stuck || !stuckBox(node, box)) &&
       (column === null || spans(node, shown, column))
     );

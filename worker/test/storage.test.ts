@@ -340,7 +340,10 @@ describe("durable website page records", () => {
       };
       await commit();
       const latest = reading(3, "Words typed since");
-      store.saveDrafts({ root: "/", release: "release", drafts: latest }, manifest);
+      store.saveDrafts(
+        { root: "/", release: "release", replaces: null, drafts: latest },
+        manifest,
+      );
       // A commit that captured its drafts before the latest write lands after it.
       await commit();
       const get = (path: string) =>
@@ -357,7 +360,10 @@ describe("durable website page records", () => {
       // A page whose only write is a draft has no saved document to serve, and its
       // store still restores.
       const other = reading(1, "Typed on a page never sent to");
-      store.saveDrafts({ root: "/other", release: "release", drafts: other }, manifest);
+      store.saveDrafts(
+        { root: "/other", release: "release", replaces: null, drafts: other },
+        manifest,
+      );
       expect(
         await store.response("/other", "api/drafts", new Request("https://leaf.page/")),
       ).toBeNull();
@@ -366,8 +372,44 @@ describe("durable website page records", () => {
         "/other": other,
       });
       expect(() =>
-        store.saveDrafts({ root: "/", release: "previous", drafts: latest }, manifest),
+        store.saveDrafts(
+          { root: "/", release: "previous", replaces: null, drafts: latest },
+          manifest,
+        ),
       ).toThrow("not name a page in this website release");
+    } finally {
+      await new Promise((resolve) => setImmediate(resolve));
+      close();
+    }
+  });
+
+  it("takes a drafts save only over the store it replaces, so a late save changes nothing", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const store = new PageStore(storage);
+      const reading = (version: number, text: string): ServedDraftsAnswer => ({
+        store: "store-1",
+        version,
+        drafts: { general: { attempt: text, text, version } },
+      });
+      const save = (
+        replaces: { store: string; version: number } | null,
+        drafts: ServedDraftsAnswer,
+      ) =>
+        store.saveDrafts({ root: "/", release: "release", replaces, drafts }, manifest);
+      const first = reading(1, "First words");
+      expect(save(null, first)).toEqual(first);
+      // Two saves over the same store, with the same next version: the one taken
+      // first is acknowledged, and the other, arriving late, finds it held.
+      const acknowledged = reading(2, "Words the tab was answered for");
+      expect(save({ store: "store-1", version: 1 }, acknowledged)).toEqual(
+        acknowledged,
+      );
+      expect(save({ store: "store-1", version: 1 }, reading(2, "A late save"))).toEqual(
+        acknowledged,
+      );
+      expect(save(null, reading(1, "A new store's first save"))).toEqual(acknowledged);
+      expect((await snapshot(store)).drafts).toEqual({ "/": acknowledged });
     } finally {
       await new Promise((resolve) => setImmediate(resolve));
       close();

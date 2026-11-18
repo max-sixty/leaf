@@ -2434,12 +2434,17 @@ describe("website page agent", () => {
       const saved = await handler(
         new Request("https://leaf-state.internal/drafts", {
           method: "PUT",
-          body: JSON.stringify({ root: publication.root, release: RELEASE, drafts }),
+          body: JSON.stringify({
+            root: publication.root,
+            release: RELEASE,
+            replaces: null,
+            drafts,
+          }),
         }) as never,
         env as never,
         context as never,
       );
-      expect(saved.status).toBe(204);
+      expect(await saved.json()).toEqual({ drafts });
       const answer = await handler(
         new Request("https://leaf-state.internal/records") as never,
         env as never,

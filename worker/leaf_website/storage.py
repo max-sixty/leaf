@@ -11,7 +11,9 @@ The user's drafts change with every keystroke and move no page reading
 (`reading.UNWATCHED`), so they take a path of their own. Each write of a page's drafts
 store replaces the Durable Object's copy of the store before the container replaces
 its file or answers the write (`publish_drafts`), so a replacement container restores
-every write a tab was answered for. While the container sleeps, the object serves that copy as `api/drafts`
+every write a tab was answered for. The object's copy is the store of record: it
+takes a save only over the store the container's file held, so a save that reaches it
+late finds a newer store and changes nothing. While the container sleeps, the object serves that copy as `api/drafts`
 and as `api/news`'s `drafts`, in place of what the page's last commit captured. A
 page's record leaves `drafts.json` out, so no commit, however late it lands, puts an
 older store back.
@@ -459,14 +461,21 @@ def publish(page: PageTransaction) -> None:
     PUBLISHED.write(token, {"fingerprint": fingerprint})
 
 
-def publish_drafts(page_dir: Path, drafts: dict) -> None:
-    """Replace the Durable Object's copy of a page's drafts store, which `drafts.py`
-    calls under the store's lock before it replaces the file; failure fails the write.
-    The store travels whole in one request, since it holds only what the user is
-    writing."""
+def publish_drafts(page_dir: Path, drafts: dict, replaces: dict | None) -> dict | None:
+    """Replace the Durable Object's copy of a page's drafts store where it still holds
+    `replaces`, the store and version the container's file held (None for none), and
+    return the store the object holds once it answers, None for none. `drafts.py`
+    calls this under the store's lock before it replaces the file; failure fails the
+    write. The store travels whole in one request, since it holds only what the user
+    is writing."""
     if (site := _page_root(page_dir)) is None:
-        return
+        return drafts
     _site_root, manifest, root = site
-    body = {"root": root, "release": manifest["release"], "drafts": drafts}
-    with _request("/drafts", body):
-        pass
+    body = {
+        "root": root,
+        "release": manifest["release"],
+        "replaces": replaces,
+        "drafts": drafts,
+    }
+    with _request("/drafts", body) as response:
+        return json.load(response)["drafts"]

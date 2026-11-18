@@ -611,6 +611,8 @@ is acknowledged; a failed publication fails the request and permits an idempoten
 retry. A page's drafts store is saved on its own: each draft write replaces the Durable
 Object's copy before the container answers it (`publish_drafts`), no page commit
 carries it, and the object serves that copy in place of the drafts a commit captured.
+The object takes a write only over the store it replaces, so a write that reaches it
+late changes nothing, and the container works from the store the object answers with.
 The Durable Object serves each saved response with the headers Python gave it,
 so the browser caches it as it would the live answer, and Back restores a page the
 visitor has acted on from the back/forward cache, as it does a locally served page

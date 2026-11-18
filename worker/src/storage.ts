@@ -8,11 +8,15 @@
  * complete set of chunk owners. Replacing or committing a stage reclaims unused
  * bytes; an interrupted upload retains at most one successor until that page retries.
  * This owner never interprets the log, computes widget state or infers activity.
- * A page's drafts store is a record of its own, which Python replaces whole with each
- * write, before it answers the write (`saveDrafts`, `publish_drafts` in
- * `worker/leaf_website/storage.py`). No page commit carries it, so no commit puts an
- * older store back, and a saved `api/drafts` or `api/news` answer is served with the
- * stored drafts in place of those it was captured with.
+ * A page's drafts store is a record of its own, the store of record, which Python
+ * replaces whole with each write before it answers the write (`saveDrafts`,
+ * `publish_drafts` in `worker/leaf_website/storage.py`). A save names the store and
+ * version it replaces, and is taken only over that, so a save that arrives late, as
+ * one whose answer the container never heard, finds a newer store and changes
+ * nothing; the answer is the store held, which the container then works from. No page
+ * commit carries it, so no commit puts an older store back, and a saved `api/drafts`
+ * or `api/news` answer is served with the stored drafts in place of those it was
+ * captured with.
  * GET /records is one uncompressed TAR snapshot: records.json first contains the
  * committed file descriptors and each page's drafts store; each referenced chunk
  * follows once as a regular file named by its hex digest. Capture and stream
@@ -53,6 +57,7 @@ export type PagePublication = z.infer<typeof publicationSchema>;
 const draftsSchema = z.strictObject({
   root: z.string(),
   release: z.string(),
+  replaces: z.nullable(z.strictObject({ store: z.string(), version: z.number() })),
   drafts: z.strictObject({
     store: z.string(),
     version: z.number(),
@@ -288,13 +293,25 @@ export class PageStore {
     });
   }
 
-  saveDrafts(value: PageDrafts, manifest: WebsiteRelease): void {
+  /** Take a page's drafts store where the one held is the one it `replaces`, and
+   * answer with the store held once it has: the one saved, or the one that turned
+   * it away. */
+  saveDrafts(value: PageDrafts, manifest: WebsiteRelease): ServedDraftsAnswer | null {
     this.checkRelease(value.root, value.release, manifest);
+    const held = this.drafts(value.root);
+    const replaces = value.replaces;
+    if (
+      replaces === null
+        ? held !== null
+        : held?.store !== replaces.store || held.version !== replaces.version
+    )
+      return held;
     this.storage.sql.exec(
       "INSERT OR REPLACE INTO leaf_drafts VALUES (?, ?)",
       value.root,
       JSON.stringify(value.drafts),
     );
+    return value.drafts as ServedDraftsAnswer;
   }
 
   private drafts(root: string): ServedDraftsAnswer | null {

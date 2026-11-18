@@ -175,6 +175,9 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             "drafts": {"store": drafts["store"], "version": drafts["version"]},
         }
         assert b"Revised plan" in body("")
+        # A release's document carries no drafts (`http.py`), so the one saved here
+        # never shows words the drafts store has replaced since.
+        assert b'id="lf-drafts"' not in body("")
         private_entry = revision_root(private, 2).lstrip("/") + "/leaf.js"
         assert private_entry in publication["responses"]
         assert (

@@ -47,6 +47,8 @@ def durable_page_store():
         "truncate": False,
         "inventories": 0,
         "fail": False,
+        # Whether the next drafts save loses its answer after the store has had it.
+        "lose": False,
     }
 
     class Store(BaseHTTPRequestHandler):
@@ -89,8 +91,23 @@ def durable_page_store():
                 stored["blobs"][digest] = body
                 stored["uploads"].append(digest)
             elif self.path == "/drafts":
-                drafts = json.loads(body)
-                stored["drafts"][drafts["root"]] = drafts["drafts"]
+                # As the Durable Object does (`saveDrafts`), take the store only over
+                # the one it replaces, and answer with the store held.
+                save = json.loads(body)
+                held = stored["drafts"].get(save["root"])
+                if save["replaces"] == (
+                    held and {"store": held["store"], "version": held["version"]}
+                ):
+                    held = stored["drafts"][save["root"]] = save["drafts"]
+                if stored["lose"]:
+                    stored["lose"] = False
+                    self.send_response(503)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({"drafts": held}).encode())
+                return
             elif self.path == "/prepare":
                 stored["inventories"] += 1
                 publication = json.loads(body)
@@ -418,3 +435,55 @@ def test_a_draft_write_is_answered_only_once_the_page_store_holds_it(
     assert restored["store"] == answer["store"]
     assert restored["version"] == answer["version"]
     assert restored["drafts"]["general"]["text"] == words
+
+
+def test_a_drafts_save_answered_too_late_is_the_store_the_next_write_runs_on(
+    page_dir, tmp_path, monkeypatch
+):
+    """The page store holds the drafts store of record. A save it took whose answer
+    the container never heard leaves it a version ahead of the container's file. The
+    next write finds that store there, takes it as the file and runs once more against
+    it, so it is answered as any write is, and the page store keeps both writes."""
+    from leaf_website.storage import PUBLISHER, PageStoreRefused, restore
+
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+
+    def write(context, attempt, expect=()):
+        return drafts_model.write_draft(
+            private,
+            {
+                "context": context,
+                "expect": list(expect),
+                "record": {"attempt": attempt, "text": f"Words {attempt}"},
+            },
+        )
+
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        write("general", "a1")
+        stored["lose"] = True
+        with pytest.raises(PageStoreRefused):
+            write("general", "a2", ["a1"])
+        answer = write("reply:other", "b1")
+        assert answer["written"]
+        assert answer["version"] == 3
+        assert drafts_model.read_drafts(private) == stored["drafts"]["/example"]
+
+        shutil.rmtree(private)
+        shutil.copytree(page_dir, private)
+        assert restore(site)
+    restored = drafts_model.read_drafts(private)
+    assert restored["version"] == 3
+    assert {
+        context: draft["attempt"] for context, draft in restored["drafts"].items()
+    } == {
+        "general": "a2",
+        "reply:other": "b1",
+    }

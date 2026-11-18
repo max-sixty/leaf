@@ -918,7 +918,8 @@ details::details-content {
  *
  * Each edge rule checks that an element is neither chrome (`.lf-ui`), generated
  * (`data-lf-gen`) nor a popover, which stands over the page rather than at the frame's
- * edge, before it checks the element's position, in a `:where()` that adds no weight. Chromium matches these selectors against every element, whether or not
+ * edge, before it checks the element's position, in a `:where()` that adds no weight.
+ * Chromium matches these selectors against every element, whether or not
  * the frame's query holds, and once it has evaluated `:nth-child()` for a parent's
  * children, it restyles all of them whenever a child is inserted or removed. The
  * margin's rows are `.lf-ui` siblings, so without the check, sending a comment

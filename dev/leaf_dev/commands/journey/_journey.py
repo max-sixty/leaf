@@ -116,15 +116,6 @@ from leaf_dev.arms import (
     run_leaf,
 )
 from leaf_dev.browser import PANEL, WINDOWS
-from leaf_dev.commands.site.verify import (
-    await_presentation,
-    capture_script_responses,
-    check,
-    load_presented,
-    read_state,
-    said,
-    startup_profile,
-)
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.page_timings import Records, page_timings
 from leaf_dev.review_scenario import (
@@ -138,7 +129,15 @@ from leaf_dev.review_scenario import (
     require,
     settled,
 )
-from leaf_dev.startup import startup_reading
+from leaf_dev.startup import startup_profile, startup_reading
+from leaf_dev.website import (
+    await_presentation,
+    capture_script_responses,
+    check,
+    load_presented,
+    read_state,
+    said,
+)
 
 # A turn's wait ends at `TURN_PATIENCE` unless the page says a turn is still working on
 # the comment, which holds it to `TURN_LIMIT`. `TURN_LIMIT` bounds the whole pass, so
@@ -586,7 +585,7 @@ def open_news(page: Page, thread: str) -> None:
 def shown_reply(page: Page, answer: dict) -> dict | None:
     """When the page first showed the user `answer`, and by which sign, as the page
     itself recorded it however the journey was occupied then
-    (`site/verify_browser.js`), or None where it has not."""
+    (`leaf_dev/website.js`), or None where it has not."""
     return page.evaluate(
         "window.__leafVerifier.replyShownAt",
         {"thread": answer["parent"], "id": answer["id"]},

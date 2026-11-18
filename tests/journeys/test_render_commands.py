@@ -527,7 +527,6 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 
 
@@ -950,7 +949,7 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     # and a page that cannot start is read no further. A page that refuses never
     # upgrades, so a reading that missed the refusal would wait out each page's
     # deadline, shortened here.
-    monkeypatch.setattr(render_gate_scheme, "HANDOVER_DEADLINE_MS", 20_000)
+    monkeypatch.setattr(render_checks_model, "HANDOVER_DEADLINE_MS", 20_000)
     routed = RoutedBrowser(fail_helper=True)
     folded = []
     reading = render_gate_model.render_version(routed, url, page_code=folded)

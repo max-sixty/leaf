@@ -215,18 +215,18 @@
  *
  * Every change of the box's layout takes effect in one step, and what the user sees
  * then travels from where it was drawn to where it stands, by one model
- * (box-motion.js): the surface behind the box, a separate layer, follows by a
- * clip, the way the Codex app's floating panel moves, and so does the field's ring; a
- * part that kept its size is carried by a transform; one that changed size grows from
- * where it stood, carrying its words by their start corner; one that is new is revealed
- * by the edges of what holds it. That carrying is for the user's own change, a key,
- * press or typing: news, such as an answer growing a thread's view, shows what it moved
- * where it now stands, revealed by the surface's clip, so news moves nothing the reader
- * reads. Nothing's layout tweens, so the box's room on the page is its new room at
- * once. The user asked for this, so a line the field gains doesn't leave its
- * attachment vanishing and its ring outrunning the box, nor does more room leave the field
- * behind the box widening around it. Rejected: revealing everything a change moves
- * by the surface's clip, which hides each part that moved until the clip reaches it. */
+ * (box-motion.js): the surface behind the box, a separate layer, follows by a clip, the
+ * way the Codex app's floating panel moves, and so does the field's ring; a part that
+ * kept its size is carried by a transform; one that changed size grows from where it
+ * stood, carrying its words by their start corner; one that is new is revealed by the
+ * edges of what holds it. News is carried as the user's own change is, so an answer
+ * growing a thread's view slides the turns above it up rather than jumping them, as the
+ * user chose (box-motion.js). Nothing's layout tweens, so the box's room on the page is
+ * its new room at once. The user asked for this, so a line the field gains doesn't
+ * leave its attachment vanishing and its ring outrunning the box, nor does more room
+ * leave the field behind the box widening around it. Rejected: revealing everything a
+ * change moves by the surface's clip, which hides each part that moved until the clip
+ * reaches it. */
 import {
   guard,
   html,

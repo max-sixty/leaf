@@ -644,6 +644,41 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     assert page.evaluate(readiness) != "presented"
 
 
+def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, serve):
+    """A page whose deferred work lands a piece at a time is waited for however long
+    the whole takes, as a gallery's samples load on a starved machine, while a page
+    whose arrivals only make way for others is wedged and fails, naming `arrived`."""
+    page = open_page(browser, serve(leaf_page("Arrivals", "<p>Words.</p>")))
+    step_ms = EXPECTED_STALL_MS // 10
+    # Fifteen arrivals a step apart: one and a half bounds in all.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          for (let i = 1; i <= 15; i++)
+            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
+        }""",
+        step_ms,
+    )
+    wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+
+    # One arrival never lands, and above it each new one lands a step after the next
+    # has taken its place, so the arrivals left swing between two and three.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          deferredArrival(new Promise(() => {}));
+          window.churn = setInterval(() => {
+            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
+          }, step);
+        }""",
+        step_ms,
+    )
+    with pytest.raises(render_checks_model.PageNotReady) as unready:
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+    page.evaluate("() => clearInterval(window.churn)")
+    assert unready.value.stage == "arrived", unready.value
+
+
 def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
     """Every shipped probe publishes a synchronous reading or readiness fact."""
     facade = (render_checks_model.PROBE_ROOT / "index.js").read_text()

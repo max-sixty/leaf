@@ -83,11 +83,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is one row above the panel, scrolled
     sideways, so the open item never lands below the whole queue. A row carries its
-    panel's summary under its name, and beside the name its obligation's state: an open
-    mark while the obligation is unanswered, then a check and the picked option's title, said
-    in the tab's description too. Answered is the log's reading, so an undo puts the
-    open mark back once its answer is adopted, and the agent settling the question
-    keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
+    panel's summary under its name, and its obligation's state: On Me's symbol at the end
+    of the name's line while the obligation waits on the user, then a check and the
+    picked option's title under the summary, said in the tab's description too. Answered
+    is the log's reading, so an undo puts On Me's symbol back once its answer is
+    adopted, and the agent settling the question keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
     holds."""
 
     BOARD = (

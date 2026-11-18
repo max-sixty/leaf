@@ -400,8 +400,9 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
 SAVED_STATE_PAGE = """
 import json, os
 from pathlib import Path
+from leaf_website import SITE_MANIFEST
 root = Path(os.environ["LEAF_SITE_ROOT"])
-manifest = json.loads((root / "_leaf/site.json").read_text())
+manifest = json.loads((root / SITE_MANIFEST).read_text())
 page = root / manifest["pages"]["/examples/heat-loss"]["directory"]
 """
 SAVED_STATE_FIXTURE = (

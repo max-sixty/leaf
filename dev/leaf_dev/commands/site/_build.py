@@ -72,7 +72,7 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     source_packages,
 )
-from leaf_dev.website import asset_site, install_tree
+from leaf_dev.website import asset_site, install_tree, site_lock
 from leaf_website import (
     SITE_MANIFEST,
     SITE_ORIGIN,
@@ -447,3 +447,15 @@ def bundle_published_runtime(out: Path) -> None:
     if done.returncode:
         sys.exit(f"website runtime bundle failed:\n{done.stdout}{done.stderr}")
     deduplicate_tree(asset_site(out))
+
+
+def build_site(out: Path, assets: Path | None = None) -> None:
+    """Build the site into `out` from a freshly prepared installation and bundle its
+    published runtime, holding the lock a reader of `out` takes (`site_lock`)."""
+    from leaf.state import flocked
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    # One destination is one publication; independent builds use separate outputs.
+    with flocked(site_lock(out)):
+        build(out, prepared_leaf(out), assets=assets)
+        bundle_published_runtime(out)

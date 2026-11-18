@@ -463,10 +463,9 @@ export function createQueueWalk({
   // them. A thread drawn beside their place, such as the card a thread about an
   // obligation opens, is not one they are in, so a thread stop of its own is the next
   // one along from the obligation, and from the thread's target the press arrives at
-  // it. A thread asking a question they have answered puts them on no stop, so the press
-  // starts from the thread's target. `origin` names the user's place unless a walk supplies its own starting
-  // point; only a current location can be on a stop, so a place they let go of or a
-  // reading in the viewport starts a walk but selects no task to finish or count.
+  // it. `origin` names the user's place unless a walk supplies its own starting point;
+  // only a current location can be on a stop, so a place they let go of or a reading in
+  // the viewport starts a walk but selects no task to finish or count.
   /** @param {readonly PlacedStop[]} list @param {Origin | null} origin */
   function currentLocationStop(list, origin = currentLocationOrigin()) {
     if (origin?.kind !== "current-location") return null;

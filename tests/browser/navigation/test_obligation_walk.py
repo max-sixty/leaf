@@ -2,7 +2,7 @@
 and an obligation's digits and thread."""
 
 import pytest
-from interact_support import append_carried_log_record, append_command
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -35,7 +35,6 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
-    told,
 )
 
 from browser.navigation import expect_walk_position, walk_position
@@ -1479,10 +1478,10 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     on the answered option does not have the page obligation's ring and digits. A
     contributed control for a widget in the reply stands where that widget does: in no
     obligation, it stands where the thread's view does, at the page obligation the thread
-    is about. It is in the question the thread asks, as the whole view is, so that
-    question wears the ring and takes the digits, answered or not, and `m` from it steps
-    on past it. Once the agent says more, the thread asks it no longer, and the control's
-    ring and digits return to the page question."""
+    is about. While the reply's question is open, the control is in it, as the whole view
+    is, so that question wears the ring and takes the digits, and `m` from it steps on
+    past it. Once it is answered, the thread asks nothing, and the page question wears
+    the ring and takes the digits."""
     url = serve(
         OBLIGATION_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1551,42 +1550,34 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("selected", "")
 
-    # From the control on the reply's widget, a digit changes the reply's answer, which
-    # keeps its ring there: the control is a review route to it, as an On card is.
+    # That digit took the pick back, so from the control on the reply's widget the
+    # reply's question, open again, wears the ring and takes the digits.
+    expect(option).not_to_have_attribute("selected", "")
     contributed.focus()
     expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
-    page.keyboard.press("2")
+    page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("#follow-no")).to_have_attribute("selected", "")
-    expect(page.locator("#cache-ask lf-option[selected]")).to_have_count(0)
-    expect(contributed).to_be_focused()
-    expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
+    expect(option).to_have_attribute("selected", "")
 
-    append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Claude",
-            "revision": 1,
-            "parent": about_obligation,
-            "text": "Measuring now. Your pick on the page question still stands open.",
-        },
-    )
-    told(page)
-    contributed.focus()
+    # Answered, the thread asks nothing, and the control stands at the page question: its
+    # digit answers it, and the answered obligation keeps its ring there: the control is a
+    # review route to it, as an On card is.
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
-    expect(page.locator("#follow-no")).to_have_attribute("selected", "")
+    expect(page.locator("#follow-yes")).to_have_attribute("selected", "")
+    expect(contributed).to_be_focused()
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
 
 
-def test_a_thread_takes_the_digits_of_the_question_it_asks(browser, serve):
-    """A thread whose agent's latest message asks a question is in it: `t` lands on
-    the thread, that question wears the ring and its options their digits, and a digit
-    picks one there, leaving the question it asked before alone and the user on the
-    thread. The panel's view of the thread answers it too."""
+def test_a_thread_takes_the_digits_of_the_questions_it_asks_in_turn(browser, serve):
+    """A thread whose agent's latest message asks questions is in the first still open:
+    `t` lands on the thread, that question wears the ring and its options their digits,
+    and a digit picks one there, leaving the question an earlier message asked alone and
+    the user on the thread. The thread then moves on to the next, as a form does, and
+    the panel's view of the thread answers it too. Once both are answered the thread asks
+    nothing, so a further digit revises neither answer."""
     source = leaf_page(
         "Release charts",
         '<section id="release"><h2 id="release-h">The release page</h2>'
@@ -1621,7 +1612,10 @@ def test_a_thread_takes_the_digits_of_the_question_it_asks(browser, serve):
             "responds": "why",
             "text": "A script the release page's session runs. Who should run it?\n\n"
             '<lf-options id="second"><lf-option id="second-send">Its session</lf-option>'
-            '<lf-option id="second-here">This session</lf-option></lf-options>',
+            '<lf-option id="second-here">This session</lf-option></lf-options>\n\n'
+            "And when?\n\n"
+            '<lf-options id="third"><lf-option id="third-now">Now</lf-option>'
+            '<lf-option id="third-later">After the release</lf-option></lf-options>',
         },
     ]
     page = open_page(browser, serve(source, events=events))
@@ -1635,6 +1629,7 @@ def test_a_thread_takes_the_digits_of_the_question_it_asks(browser, serve):
     round_trip(page)
     expect(page.locator("#first lf-option[selected]")).to_have_count(0)
     expect(thread).to_be_focused()
+    expect(page.locator("#third")).to_have_attribute("data-lf-obligation", "1")
 
     # The panel's view of the thread draws its reply row apart from its messages, and a
     # digit from that row's Dictate answers the same question.
@@ -1643,55 +1638,13 @@ def test_a_thread_takes_the_digits_of_the_question_it_asks(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator(".lf-fp-field .lf-compose-dictate")).to_be_focused()
     page.keyboard.press("1")
-    expect(page.locator("#second-send")).to_have_attribute("selected", "")
-
-
-def test_a_digit_revises_only_the_answer_given_last_in_a_thread(browser, serve):
-    """A message asking two questions, the second answered before the first, keeps the
-    user on the first through its answer: the next digit revises the answer just given,
-    never the one given before it."""
-    source = leaf_page(
-        "Chart export",
-        '<section id="export"><h2 id="export-h">Export</h2><p>The charts.</p></section>',
-    )
-    events = [
-        {
-            "kind": "comment",
-            "author": "agent",
-            "agent": "Claude",
-            "revision": 1,
-            "id": "ask",
-            "anchor": {"section": "export"},
-            "text": "Two choices. Format?\n\n"
-            '<lf-options id="qa"><lf-option id="qa-png">PNG</lf-option>'
-            '<lf-option id="qa-svg">SVG</lf-option></lf-options>\n\nWho runs it?\n\n'
-            '<lf-options id="qb"><lf-option id="qb-me">Me</lf-option>'
-            '<lf-option id="qb-you">You</lf-option></lf-options>',
-        },
-    ]
-    url = serve(source, events=events)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "qb",
-            "action": "choose",
-            "detail": {"value": ["qb-me"]},
-        },
-    )
-    page = open_page(browser, url)
-    page.keyboard.press("t")
-    expect(page.locator("#qa")).to_have_attribute("data-lf-obligation", "1")
-    page.keyboard.press("1")
-    expect(page.locator("#qa-png")).to_have_attribute("selected", "")
+    expect(page.locator("#third-now")).to_have_attribute("selected", "")
     round_trip(page)
-    expect(page.locator("#qa")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
-    expect(page.locator("#qa-svg")).to_have_attribute("selected", "")
     round_trip(page)
-    expect(page.locator("#qb-me")).to_have_attribute("selected", "")
+    expect(page.locator("lf-option[selected]")).to_have_count(2)
+    expect(page.locator("#second-here")).to_have_attribute("selected", "")
+    expect(page.locator("#third-now")).to_have_attribute("selected", "")
 
 
 OBLIGATION_IN_A_PANE_PAGE = leaf_page(

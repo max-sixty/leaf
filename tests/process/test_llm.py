@@ -12,7 +12,6 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
-    claude_code_module,
     fetch,
     publish,
     read_page_data,
@@ -26,6 +25,7 @@ from leaf.http import PageEndpoint
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.revision_artifact import read_revision
+from leaf_dev.claude_code_module import claude_code_module
 
 SCHEMA = {
     "type": "object",

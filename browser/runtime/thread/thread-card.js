@@ -63,20 +63,21 @@
    (`settled`). The agent's answer to the user's own last turn, work under way and a
    reply streaming included, may then have arrived past the box's foot. Where the user
    stood at the box's end and their turn and the answer together fit in the box, its end
-   follows the answer into sight. Otherwise New reply stands at the box's foot until a
-   press on it, or the user scrolling there, shows the answer, or they send another turn,
-   and a user who stood at the end keeps their turn wholly in sight above the press, its
-   head included. A user whose wheel or key has the box scrolling as the answer arrives
-   stands wherever that scroll takes them, though the browser has yet to move the box
-   (arrivals.js, `readerScrolls`), or has moved it before the page heard the input, as
-   it does for macOS's precise wheels. Until then the answer is this thread's to place
-   (`answering`), and a box that follows its end, as a card's transcript does
-   (thread-preview.js), leaves it be. An answer the end followed into sight that grows afterwards, as a picture in it
-   loads, is placed again by the same rule (`placesEnd`). The user chose New reply for
-   the panel, and the rest of the floating panel's growth with it
-   (floating-panel.js, which records it); the margin card takes it too, so
-   one mechanism serves both, and that mechanism's rule at its end, under the user's
-   request for one thread view (thread-preview.js). */
+   glides to follow the answer into sight, so the turns above slide up as it comes, as
+   the user asked, rather than jumping up in one frame. Otherwise New reply stands at
+   the box's foot until a press on it, or the user scrolling there, shows the answer, or
+   they send another turn, and a user who stood at the end keeps their turn wholly in
+   sight above the press, its head included. A user whose wheel or key has the box
+   scrolling as the answer arrives stands wherever that scroll takes them, though the
+   browser has yet to move the box (arrivals.js, `readerScrolls`), or has moved it
+   before the page heard the input, as it does for macOS's precise wheels. Until then
+   the answer is this thread's to place (`answering`), and a box that follows its end,
+   as a card's transcript does (thread-preview.js), leaves it be. An answer the end
+   followed into sight that grows afterwards, as a picture in it loads, is placed again
+   by the same rule (`placesEnd`). The user chose New reply for the panel, and the rest
+   of the floating panel's growth with it (floating-panel.js, which records it); the
+   margin card takes it too, so one mechanism serves both, and that mechanism's rule at
+   its end, under the user's request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
@@ -1039,7 +1040,7 @@ export class ThreadView {
       atEnd &&
       scroller.scrollHeight - scroller.scrollTop - from() <= scroller.clientHeight
     ) {
-      scrollToEnd(scroller);
+      scrollToEnd(scroller, "smooth");
       this.#followed = answer;
       return;
     }

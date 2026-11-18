@@ -2,6 +2,7 @@
 alone, keys typed into Leaf's fields staying out of the page's listeners, the reading
 keys' steps, and the comparison's one door."""
 
+import math
 import re
 
 import pytest
@@ -309,6 +310,11 @@ def reading_keys_walk(page, down, up):
         )
     )
 
+    def land(top):
+        """Where a glide aimed at `top` rests: every glide's goal is a whole pixel
+        (scrolling.js, `glideTo`), and each press adds its step to that goal."""
+        return math.floor(top + 0.5)
+
     def rests_at(act, expected):
         """Position after `act`, awaited at `expected` and handed to the assertion:
         the bounded wait consumes the arrival, and the assert is what speaks when
@@ -323,22 +329,21 @@ def reading_keys_walk(page, down, up):
             pass
         return page.evaluate("() => document.scrollingElement.scrollTop")
 
-    assert rests_at(lambda: page.keyboard.press(down), step) == pytest.approx(
-        step, abs=1
-    )
+    one = land(step)
+    assert rests_at(lambda: page.keyboard.press(down), one) == pytest.approx(one, abs=1)
 
     def twice():
         page.keyboard.down(down)
         page.keyboard.down(down)  # a held key emits a repeated keydown
         page.keyboard.up(down)
 
-    assert rests_at(twice, step * 3) == pytest.approx(step * 3, abs=1), (
+    three = land(land(one + step) + step)
+    assert rests_at(twice, three) == pytest.approx(three, abs=1), (
         "the second press measured from the glide in flight, so the two together "
         "moved less than their full distance"
     )
-    assert rests_at(lambda: page.keyboard.press(up), step * 2) == pytest.approx(
-        step * 2, abs=1
-    )
+    two = land(three - step)
+    assert rests_at(lambda: page.keyboard.press(up), two) == pytest.approx(two, abs=1)
 
     def taken():
         page.keyboard.press(down)
@@ -349,9 +354,9 @@ def reading_keys_walk(page, down, up):
     assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
         "the glide pressed on to its goal after the user took the box"
     )
-    assert rests_at(lambda: page.keyboard.press(down), 400 + step) == pytest.approx(
-        400 + step, abs=1
-    ), (
+    assert rests_at(
+        lambda: page.keyboard.press(down), land(400 + step)
+    ) == pytest.approx(land(400 + step), abs=1), (
         "the press after the user took the box measured from the goal the taking "
         "had cancelled rather than from where they left it"
     )
@@ -367,9 +372,9 @@ def reading_keys_walk(page, down, up):
     ) == pytest.approx(foot, abs=1)
     for _ in range(4):
         page.keyboard.press(down)  # nothing left to move, and nothing banked either
-    assert rests_at(lambda: page.keyboard.press(up), foot - step) == pytest.approx(
-        foot - step, abs=1
-    ), (
+    assert rests_at(
+        lambda: page.keyboard.press(up), land(foot - step)
+    ) == pytest.approx(land(foot - step), abs=1), (
         "presses at the foot of the page ran the destination past it, and reversing spent "
         "itself paying that back"
     )

@@ -65,7 +65,15 @@
    then "Undid: Chose “Fast” · just now". Those words, a settlement's reader and a
    landing's arm live with the page that made the gesture, so after a reload or from
    another tab a gesture out of view is shown before it is taken, and a thread opens
-   where a route to it opens it. */
+   where a route to it opens it.
+
+   Taking back what the user wrote puts it to draft rather than discarding it, since no
+   redo brings it back (`writtenIn`; drafts.js, `giveBackWords`): a comment's words, and
+   its drawing, go back to its passage's draft or the page's, a reply's to its thread's
+   reply box, and a rewrite's to the message's rewrite. The log's answer decides the
+   undo, so the words come back with it. Rejected: leaving the words only in the log,
+   which no reading shows once nothing stands on the message taken back (the user's
+   decision). */
 import { notice } from "./notifications.js";
 import {
   applicationState,
@@ -90,9 +98,12 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { eventSource } from "./pointer.js";
 import { raiseError } from "./errors.js";
+import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
+import { commentDraft } from "./composing/selection.js";
+import { threadKey } from "./thread/model.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
@@ -196,6 +207,38 @@ function placeOf(event) {
   return { fragment: id, nodes: [elementById(id)] };
 }
 
+// The draft a message the user wrote was written in, holding what taking it back gives
+// back: a comment's words, and its drawing, to its passage's draft or the page's; a
+// reply's to its thread's reply box; a rewrite's to the message's rewrite, written over
+// the words taking it back restores. Null for a reaction, a deletion, whose words come
+// back on the message, and every gesture that wrote none.
+/** @param {UndoEvent} event @returns {{ctx: string, text: string, payload?: object} | null} */
+function writtenIn(event) {
+  if (event.token) return null;
+  const text = event.text ?? "";
+  switch (event.kind) {
+    case "comment": {
+      const { anchor } = event;
+      if (anchor) return { ...commentDraft({ ...event, anchor }), text };
+      return text ? { ctx: PAGE_DRAFT, text } : null;
+    }
+    case "reply": {
+      const thread = event.parent ? threadNamed(event.parent) : null;
+      return thread && text ? { ctx: replyContext(threadKey(thread)), text } : null;
+    }
+    case "edit":
+      return text
+        ? {
+            ctx: rewriteContext(event.message),
+            text,
+            ...(typeof event.base === "string" && { payload: { over: event.base } }),
+          }
+        : null;
+    default:
+      return null;
+  }
+}
+
 // Whether the user sees any of a destination (an element or a Range), past whatever
 // covers it.
 /** @param {Element | Range | null | undefined} where */
@@ -293,9 +336,12 @@ export function createUndo({
       return null;
     }
     const taken = takes(event);
+    const written = writtenIn(event);
     return post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
-        notice(`Undid: ${taken}`);
+        const kept =
+          written && giveBackWords(written.ctx, written.text, written.payload);
+        notice([`Undid: ${taken}`, kept].filter(Boolean).join(". "));
         if (event.attempt) gestures.delete(event.attempt);
       }
       return accepted;

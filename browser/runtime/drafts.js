@@ -973,6 +973,36 @@ const atEnd = (ctx) => {
   const end = (activeDraftRecord(ctx)?.text ?? "").length;
   return [end, end];
 };
+// The box on screen showing `ctx`'s words, if one does.
+/** @param {string} ctx */
+const shownIn = (ctx) =>
+  [...draftEditors]
+    .filter((view) => view.ctx === ctx)
+    .map((view) => editorInput(view))
+    .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
+// Words an undo took back from the log, given back to the draft they were sent from
+// (undo.js, `withdraw`), so taking a message back puts it to draft rather than
+// discarding it. They come before any words the draft holds now, which the user wrote
+// after them, and a draft holding something of its own keeps its own `payload`, such as
+// the passage and drawing of a comment begun since; one holding nothing takes the
+// words'. A new generation, so the log's record of the send settles nothing here
+// (`drafts.py`). As for a refusal (`keepRefusedWords`), words back in a box on screen
+// need no sentence, and words back only in a box out of view become the Resume writing
+// destination at their end, with the sentence naming that address returned for the
+// undo's notice.
+/** @param {string} ctx @param {string} text @param {DraftPayload} [payload] */
+export function giveBackWords(ctx, text, payload) {
+  const current = activeDraftRecord(ctx);
+  const own =
+    current && (current.text || field(current.payload, "drawing")) ? current : null;
+  const words = [text, own?.text].filter(Boolean).join("\n\n");
+  const kept = own ? own.payload : payload;
+  saveDraft(ctx, words, kept);
+  tellDraft(ctx, words, kept);
+  if (shownIn(ctx)) return null;
+  keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
+  return DRAFT_KEPT;
+}
 // What a refusal left the user, given every attempt it refused, read once each sender's
 // own answer has returned its words (`standGesture`) and any owner has reopened its box
 // for them.
@@ -1018,12 +1048,6 @@ export function keepRefusedWords(attempts) {
     );
     return ctx === undefined ? [] : [ctx];
   });
-  /** @param {string} ctx */
-  const shownIn = (ctx) =>
-    [...draftEditors]
-      .filter((view) => view.ctx === ctx)
-      .map((view) => editorInput(view))
-      .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
   // Words back where Resume writing already goes are resumed at their end too, not at
   // the caret the send left.

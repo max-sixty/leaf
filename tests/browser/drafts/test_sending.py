@@ -1,5 +1,5 @@
 """What a comment or reply send leaves behind: a held send yielding to later gestures
-and drafts, a refusal returning the words, and the spoken acknowledgement."""
+and drafts, a refusal or an undo returning the words, and the spoken acknowledgement."""
 
 import re
 
@@ -35,8 +35,11 @@ from render_harness import (
     panel_view,
     round_trip,
     select_words,
+    sending,
     stored_draft,
     stored_draft_text,
+    stored_drafts,
+    undo,
     until_draft_settled,
     write,
 )
@@ -1102,3 +1105,68 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     ]
     assert [event["text"] for event in comments] == [old]
     assert comments[0]["attempt"]
+
+
+def test_taking_back_a_message_puts_its_words_back_in_its_box(browser, serve):
+    """Undo takes a sent message back to draft rather than discarding it. A reply's
+    words go back to its thread's reply box, and those of the comment that opened the
+    thread to the page's field it was written in, each a box on screen, so the notice
+    adds nothing about them, and every tab's draft holds them."""
+    page = open_page(browser, serve(LONG_PAGE))
+    comment, reply = "The comment that opens a thread.", "A reply under it."
+    write(page_comment(page), comment)
+    with sending(page, "the comment"):
+        page.keyboard.press("Enter")
+    write(page.locator(PANEL_REPLY), reply)
+    with sending(page, "the reply"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    undo(page)
+    expect(page.locator(PANEL_REPLY)).to_have_js_property("value", reply)
+    undo(page)
+    expect(panel_field(page)).to_have_attribute("name", "comment")
+    expect(panel_field(page)).to_have_js_property("value", comment)
+    live = page.locator(".lf-live")
+    expect(live).to_contain_text(f"Undid: commented “{comment}”")
+    expect(live).not_to_contain_text("Draft kept")
+    drafts = {ctx: record["text"] for ctx, record in stored_drafts(page).items()}
+    assert drafts["general"] == comment, drafts
+    assert reply in drafts.values(), drafts
+
+
+@pytest.mark.parametrize("gesture", ["comment", "rewrite"])
+def test_words_an_undo_gives_back_to_a_shut_box_wait_for_resume_writing(
+    browser, serve, gesture
+):
+    """A comment on a passage goes back to its passage's draft, whose box is down, and
+    a rewrite to its message's rewrite, whose editor is shut. The notice says the draft
+    is kept, and Resume writing opens its box holding the words."""
+    url = serve(LONG_PAGE)
+    words = "Words the user wrote, then took back."
+    sent = words if gesture == "comment" else "The words first sent."
+    root = panel_comment(serve.page_dir, sent, {"section": "p3"})
+    if gesture == "rewrite":
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "edit",
+                "author": "user",
+                "revision": 1,
+                "message": root,
+                "base": root,
+                "text": words,
+            },
+        )
+    page = open_page(browser, url)
+    open_panel_thread(page, root)
+    page.keyboard.press("Escape")
+    undo(page)
+    expect_panel_says(page, "Draft kept — g i resumes writing")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    box = page.locator(
+        ".lf-fab-input" if gesture == "comment" else ".lf-msg-editor leaf-text"
+    )
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", words)

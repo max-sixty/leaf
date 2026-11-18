@@ -608,8 +608,9 @@
        where a question asked inside it stands, and an option group asking alone in a
        message: outside its edge at --lf-focus-ring-gap. The user answers a question as
        one control, and its edge is mostly that control's frame, so a ring a region's
-       gap off the frame read as a second box round it. A group that asks nothing
-       stands its marks there too.
+       gap off the frame read as a second box round it (the user's choice, over a
+       region's gap for every question). A group that asks nothing stands its marks
+       there too.
      - A box that draws its own edge, such as a field, a mark (controls.css) or a margin
        entry, or a control whose neighbours stand closer than a control's gap, such as
        a reaction beside others: on its edge, at 0. A field's ring replaces its border.

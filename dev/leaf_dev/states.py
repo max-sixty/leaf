@@ -1307,10 +1307,11 @@ def panel_resolved(page: Page) -> None:
 
 
 def panel_draw_mode(page: Page) -> None:
-    """The panel's row in Draw mode, the field naming the mode, with its way out."""
+    """The panel's row in Draw mode, the field naming the mode before the status, with
+    its way out."""
     page.keyboard.press("w")
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "data-lf-says", "stance"
+        "placeholder", re.compile("^In Draw mode")
     )
 
 

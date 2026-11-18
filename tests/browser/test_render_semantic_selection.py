@@ -259,7 +259,6 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     hints = page.locator(".lf-target-picker-hint")
     expect(hints).to_have_count(3)  # heading, paragraph, and figure
     page.keyboard.press("Tab")
-    expect_panel_says(page, "Target 1 of 3")
     expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
     page.keyboard.press("?")

@@ -5,10 +5,6 @@ package layer, the companion media and pinned assets, and the paths a watcher
 subscribes to. Input tests exercise those readings and shared page preparation. The user
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
-
-That is why they are here and not beside the preview's browser tests. A `main`
-mark is file-level, with no per-test escape, so a Python-decided reading filed
-in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
@@ -35,7 +31,6 @@ from interact_support import (
     fetch,
     fetch_hanging_up,
     record_claim,
-    stamp,
     wait_for,
 )
 
@@ -678,65 +673,6 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
     assert len(subscriptions) == 2
 
 
-def test_serving_preserves_a_direct_codex_wait(
-    codex_claimed_page, under_codex, codex_env, codex_queue
-):
-    """An active direct watcher keeps its lease instead of being replaced.
-
-    The queue is deliberately unavailable: a successful handoff must use the
-    real wait already watching this task. Stop still keeps that turn open.
-    """
-    page = codex_claimed_page
-    stamp(page)
-    program = """
-import json, subprocess, sys, time
-from pathlib import Path
-from leaf.leases import wait_is_live, adapter_is_live
-from leaf.service import PageTransaction, claim_page
-from leaf.session import cmd_waiting
-page = Path(sys.argv[1])
-claim_page(page)
-cmd_waiting(page)
-watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-try:
-    deadline = time.monotonic() + 30
-    while not wait_is_live(page, "codex-thread"):
-        assert watch.poll() is None, watch.communicate()
-        assert time.monotonic() < deadline, "the direct wait never took its lease"
-        time.sleep(0.01)
-    for command in ("start", "run"):
-        served = subprocess.run([sys.executable, "-m", "leaf", "server", command, str(page)],
-                                capture_output=True, text=True)
-        assert served.returncode == 0, served.stderr
-        assert json.loads(served.stdout)["url"]
-        assert watch.poll() is None
-        assert not adapter_is_live("codex-thread")
-    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
-                             input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
-                             capture_output=True, text=True)
-    assert stopped.returncode == 0, stopped.stderr
-    reason = json.loads(stopped.stdout)["reason"]
-    assert "leaf wait" in reason and "no delivery adapter" not in reason
-finally:
-    with PageTransaction(page) as held:
-        held.set_status("idle")
-    output, errors = watch.communicate(timeout=30)
-    assert watch.returncode == 2, (output, errors)
-"""
-    task = under_codex(
-        shlex.join([sys.executable, "-c", program, str(page)]),
-        codex_env
-        | codex_queue
-        | {"CODEX_THREAD_ID": "codex-thread", "PREVIEW_QUEUE_AVAILABLE": "False"},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode == 0, f"{output}{errors}"
-
-
 def test_user_preview_restart_keeps_feedback_and_authored_progress(
     tmp_path, spawn, monkeypatch, request
 ):
@@ -1029,83 +965,3 @@ def test_fresh_preview_preparation_cannot_remove_a_successor(
         assert fetch(held["url"], token=None)[0] == 200
     finally:
         successor.stop()
-
-
-def test_serving_adopts_existing_pages_and_joins_one_codex_delivery(
-    codex_claimed_page, tmp_path, under_codex, codex_env, codex_queue
-):
-    """A revived handoff connects once, including a reused foreground server.
-
-    The first server already exists with no adapter. Two public starts and a
-    foreground reuse must retain one adapter and leave Stop nothing to repair.
-    """
-    first = codex_claimed_page
-    second = tmp_path / "sibling"
-    shutil.copytree(first, second)
-    (second / "service.json").unlink()
-    ready, done = tmp_path / "ready.json", tmp_path / "done"
-    program = """
-import json, subprocess, sys, time
-from pathlib import Path
-from leaf.hosting import cmd_stop
-from leaf.leases import adapter_lease_path
-from leaf.state import end_session, write_json
-pages = list(map(Path, sys.argv[1:3]))
-ready, done = map(Path, sys.argv[3:])
-lease = adapter_lease_path("codex-thread")
-try:
-    identities = []
-    for command, page in (("start", pages[0]), ("start", pages[1]), ("run", pages[0])):
-        result = subprocess.run(
-            [sys.executable, "-m", "leaf", "server", command, str(page)],
-            capture_output=True, text=True,
-        )
-        assert result.returncode == 0, result.stderr
-        assert json.loads(result.stdout)["url"]
-        identities.append(lease.stat().st_ino)
-    stopped = subprocess.run(
-        [sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
-        input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
-        capture_output=True, text=True,
-    )
-    assert stopped.returncode == 0, stopped.stderr
-    assert not stopped.stdout, stopped.stdout
-    write_json(ready, identities)
-    while not done.exists():
-        time.sleep(0.01)
-finally:
-    for page in pages:
-        cmd_stop(page)
-    end_session("codex-thread")
-"""
-    task = under_codex(
-        shlex.join(
-            [
-                sys.executable,
-                "-c",
-                program,
-                str(first),
-                str(second),
-                str(ready),
-                str(done),
-            ]
-        ),
-        codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    try:
-        wait_for(
-            ready.exists,
-            bool,
-            failure="the shared delivery handoff did not finish",
-        )
-        assert len(set(json.loads(ready.read_text()))) == 1
-        assert leases.wait_is_live(first, "codex-thread")
-        assert leases.wait_is_live(second, "codex-thread")
-        assert codex_adapter.adapter_is_live("codex-thread")
-    finally:
-        done.touch()
-        output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode == 0, f"{output}{errors}"

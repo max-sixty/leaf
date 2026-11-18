@@ -277,7 +277,7 @@ export class TabSet extends LeafElement {
       focusDestination(next, "move");
       next.click();
       afterScript(() => this.#showTab(next, null));
-      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
+      beginWalk("tab", null, () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
     const arrows = rowArrows(this);

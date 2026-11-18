@@ -27,10 +27,11 @@ import {
   findEach,
   GENERATED,
   inChrome,
-  keptAnswer,
   quoteFrom,
+  readsElement,
   textNodesUnder,
 } from "./passages.js";
+import { keptEach } from "./kept.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
@@ -59,7 +60,7 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { renderedOrdering, shadowHost, under } from "./shadow.js";
+import { renderedOrdering, shadowHost, under } from "./shadow-tree.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { hasObligationSource } from "./obligations/source.js";
@@ -337,19 +338,23 @@ export function createAnnotationInventory({
   // holding many quoted passages costs its words and its passages, not their product.
   //
   // A passage's key is kept, under where it starts and what it says, for as long as the
-  // target's words are unchanged (passages.js, `keptAnswer`). So a collection reads a
+  // target's words are unchanged (passages.js, `readsElement`). So a collection reads a
   // target again only where its words changed or a passage in it is new. Every change to
   // the page starts a collection, a closed tab's document drawing included, and a change
   // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
   // collection, one comment on a large text document would read that document again
   // each time another document drew.
+  const passageKeys = keptEach((/** @type {Element} */ target) => {
+    readsElement(target);
+    return /** @type {Map<Text, Map<string, string>>} */ (new Map());
+  });
   /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
    * @returns {string[]} */
   function passageRows(target, quoted) {
     // Each key by the passage's first text node, then by where it starts there and what
     // it says.
     /** @type {Map<Text, Map<string, string>>} */
-    const kept = keptAnswer(target, "passage rows", () => new Map());
+    const kept = passageKeys(target);
     const asked = quoted.map((passage) => ({
       passage,
       node: passage[0].node,

@@ -1,5 +1,6 @@
 """CLI, plugin payload, layer, and customization tests."""
 
+import gc
 import json
 import os
 import re
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import threading
 import tomllib
+import weakref
 from datetime import datetime
 from pathlib import Path
 
@@ -60,6 +62,7 @@ from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import page_memory
+from leaf import revision_artifact as artifact_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
@@ -3081,7 +3084,7 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
     and sharing the CPU with every request behind them."""
     record = registry_storage.layer_record(page_dir)
     assert record is not None
-    layer_model._vocabularies.clear()
+    layer_model.forget_layers()
     requests: list[threading.Thread] = []
     composed = []
     compose = layer_model.compose_vocabulary
@@ -3122,6 +3125,119 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
 
     assert len(composed) == 1
     assert len(read) == 8 and all(vocabulary is read[0] for vocabulary in read)
+
+
+def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
+    tmp_path, monkeypatch
+):
+    """A layer that reads a page's own copy of a package is kept in the page's memory
+    beside the copy's stamp (`layer._held`). Each `page init` that replaces the copy
+    replaces that layer rather than keeping another beside it, so a process holds one
+    layer for the page however often its package is edited, and none once it drops
+    the page's memory. Forgetting the shared layers forgets it too."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "notes"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    page = tmp_path / "page"
+    kept = weakref.WeakSet()
+    for edit in range(3):
+        sheet = f".note {{ --edit: {edit}; }}"
+        (package / "defaults.css").write_text(sheet + "\n")
+        made = CliRunner().invoke(
+            cli_model.cli, ["page", "init", "--package", "./notes", str(page)]
+        )
+        assert made.exit_code == 0, made.output
+        record = registry_storage.layer_record(page)
+        assert record is not None
+        layer = registry_storage.selected(record, page)
+        assert sheet in layer.files["/theme.css"].decode()
+        kept.add(layer)
+    del layer
+    gc.collect()
+    assert len(kept) == 1
+
+    # A process that forgets the tree it read, as a preview does between servers
+    # (`layer.forget_layers`), composes the page's layer again.
+    [before] = kept
+    layer_model.forget_layers()
+    after = registry_storage.selected(record, page)
+    assert after is not before
+    kept.add(after)
+    del before, after
+    gc.collect()
+    assert len(kept) == 1
+
+    for n in range(page_memory.PageMemories.LIMIT):
+        page_memory.memory_of(tmp_path / f"other-{n}")
+    gc.collect()
+    assert len(kept) == 0
+
+
+def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
+    tmp_path, monkeypatch
+):
+    """Pages that select the same packages read one layer vocabulary, held for the
+    process (`layer._held`). The vocabulary a page's revision is read in names the
+    page's generation, so it is the page's reading, kept in the page's memory
+    (`registry.storage._Revisions`): the page's revisions that declare the same share
+    one, a vocabulary composed over a replaced layer replaces the one before it, and
+    the shared layer keeps none of them once their pages' memories go."""
+    monkeypatch.chdir(tmp_path)
+    composed: list[weakref.ref] = []
+    compose = registry_storage._compose_revision
+
+    class Composition(list):
+        """A revision's composed vocabulary and its inputs, held weakly here, as a
+        tuple can't be."""
+
+    def watched(*args):
+        composition = Composition(compose(*args))
+        composed.append(weakref.ref(composition))
+        return composition
+
+    def kept() -> int:
+        gc.collect()
+        return sum(held() is not None for held in composed)
+
+    monkeypatch.setattr(registry_storage, "_compose_revision", watched)
+    pages = [tmp_path / f"page-{n}" for n in range(3)]
+    for page in pages:
+        page.mkdir()
+        made = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+        assert made.exit_code == 0, made.output
+        for version in ("first", "second"):
+            (page / "index.html").write_text(
+                "<!doctype html><html><head><title>t</title></head>"
+                f"<body><main><p>The {version} version.</p></main></body></html>"
+            )
+            activation = activate_source(page)
+            assert activation.error is None, activation.error
+    vocabularies = set()
+    for page in pages:
+        record = registry_storage.layer_record(page)
+        assert record is not None
+        vocabularies.add(registry_storage.selected_vocabulary(record, page))
+    assert len(vocabularies) == 1
+
+    def vocabulary(page, revision):
+        manifest = artifact_model.read_revision(page, revision).manifest
+        return registry_storage.revision_vocabulary(manifest, None, page)
+
+    for page in pages:
+        assert vocabulary(page, 1) is vocabulary(page, 2)
+    assert kept() == len(pages)
+
+    # A process that forgets the tree it read (`layer.forget_layers`) reads the
+    # page's revisions over the layer it composes again.
+    before = vocabulary(pages[0], 1)
+    layer_model.forget_layers()
+    assert vocabulary(pages[0], 1) is not before
+    assert kept() == len(pages)
+
+    for n in range(page_memory.PageMemories.LIMIT):
+        page_memory.memory_of(tmp_path / f"other-{n}")
+    assert kept() == 0
 
 
 @pytest.mark.parametrize(

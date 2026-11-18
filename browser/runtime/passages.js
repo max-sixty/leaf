@@ -93,7 +93,7 @@
    Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
-   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow.js),
+   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow-tree.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
@@ -111,23 +111,26 @@
    silently discover nested widget families inside shadow roots as new top-level
    content. */
 
-import { isNode, closestAcross } from "./shadow-tree.js";
+import {
+  isNode,
+  closestAcross,
+  SAID,
+  UI_MARKS,
+  inUi,
+  overIn,
+  shadowHost,
+  uiInside,
+  under,
+  upFrom,
+} from "./shadow-tree.js";
 import { version } from "./kept.js";
 import { liveStages } from "./arrivals.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
-  SAID,
   declaredRoot,
-  UI_MARKS,
-  inUi,
-  overIn,
   refuseShadowRoot,
   queryAllUnder,
-  shadowHost,
   shadowRootsIn,
-  uiInside,
-  under,
-  upFrom,
 } from "./shadow.js";
 import {
   alongClimb,
@@ -515,7 +518,7 @@ const NO_CONTEXT = Object.freeze({
   cells: null,
 });
 // The markers are the selectors the point readings climb with — `UI_MARKS` and `SAID`
-// (shadow.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
+// (shadow-tree.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
 // the walk asks each of one element with `matches`, so a marker added to a selector
 // reaches both. `MARKS` joins the attribute markers, so an element whose attributes are
 // only a class or an id is settled by one match.

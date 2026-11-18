@@ -71,7 +71,7 @@ import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { anchorBox, anchorElement, anchorFor, anchorName } from "../css-anchors.js";
 import { shownBand } from "../geometry.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
-import { upFrom, renderedParent } from "../shadow.js";
+import { upFrom, renderedParent } from "../shadow-tree.js";
 
 /** @typedef {import("@floating-ui/dom").MiddlewareState} MiddlewareState */
 /** @typedef {import("@floating-ui/dom").ComputePositionReturn} Position */

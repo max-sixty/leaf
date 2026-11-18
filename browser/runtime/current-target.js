@@ -73,12 +73,12 @@ import { obligationPlace, obligationsIn } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import {
   byRenderedOrder,
+  isElement,
   composedParentNode,
   renderedOrder,
   renderedUnder,
   under,
-} from "./shadow.js";
-import { isElement } from "./shadow-tree.js";
+} from "./shadow-tree.js";
 import { eventSource } from "./pointer.js";
 import { pageReadingBlock, seenWhereRead } from "./reading-place.js";
 

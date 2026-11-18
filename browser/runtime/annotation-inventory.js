@@ -294,7 +294,7 @@ export function createAnnotationInventory({
   // for each part of a picture threads are about (visual-parts.js): those threads stand
   // there together, by what they are about, and everything else about the target (its
   // other threads, an obligation's marker, a widget's actions) keeps the target's own
-  // row. `pointed` is `{ key, element, passage, name, part }`: the row's key (a pointed
+  // row. `pointed` is `{ key, element, passage, name, surface }`: the row's key (a pointed
   // row's its first comment gave it, a passage's from its words, `passageRows`, a part's
   // its id), the element it stands by or the passage (a resolved anchor), the words
   // that name it, and, where that element is the part the row is about, the part's
@@ -605,10 +605,9 @@ export function createAnnotationInventory({
     // What stands on the page, each where anchor placement placed it: a thread with the
     // drafts written in it, a thread's drafts alone where the thread shows no entry of
     // its own, as a resolved one doesn't, and a comment's draft (`savedAt`). Each takes
-    // the row its passage,
-    // pointed row or part gives it, so a draft about the passage a thread quotes joins
-    // that thread's row, and drafts about two passages of one paragraph, or two points
-    // of one chart, stand apart.
+    // the row its passage, pointed row or part gives it, so a draft about the passage a
+    // thread quotes joins that thread's row, and drafts about two passages of one
+    // paragraph, or two points of one chart, stand apart.
     /** @type {{thread: ThreadRecord | null, drafts: LiveItem[], placement: Placement, target: Element, point: Element | null, passage: readonly [Segment, ...Segment[]] | null, anchor: import("../types/domain.js").Anchor}[]} */
     const standing = [];
     /** @type {Map<Element, (readonly [Segment, ...Segment[]])[]>} */

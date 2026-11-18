@@ -71,9 +71,9 @@ def _watch(port: int, serving: int, record: Callable[..., None]) -> None:
         # Each tick is due a tick after the last one woke, so a stall anywhere in the
         # loop, the health check's connection included, makes the next one late.
         time.sleep(max(0.0, tick - time.monotonic()))
+        after = counters()
         late = time.monotonic() - tick
         tick = time.monotonic() + TICK_SECONDS
-        after = counters()
         if late >= TICK_SECONDS:
             record("container_stalled", stalledMs=_ms(late), **spent(before, after))
             check = _drop(check)
@@ -161,14 +161,17 @@ def counters() -> dict[str, float]:
 
 
 def spent(before: dict[str, float], after: dict[str, float]) -> dict:
-    """The record fields for what the machine did between two readings."""
+    """The record fields for what the machine did between two readings, for the
+    counters both readings hold."""
+    both = before.keys() & after.keys()
     fields: dict = {}
-    if "cpu" in after:
+    if "cpu" in both:
         fields["cpuMs"] = round(after["cpu"] - before["cpu"])
+    if "steal" in both:
         fields["stealMs"] = round(after["steal"] - before["steal"])
     pressure = {
         key.removeprefix("pressure."): round(after[key] - before[key])
-        for key in after
+        for key in sorted(both)
         if key.startswith("pressure.")
     }
     if pressure:

@@ -221,6 +221,9 @@ export const scrollChoices = () => choices;
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 /** @param {Element} box */
 const chooseScroll = (box) => chosen.set(box, ++choices);
+// How many moves Leaf has started in `box` (`startScroll`).
+/** @param {Element} box */
+export const scrollStarts = (box) => starts.get(box) ?? 0;
 // Record an explicit landing or a glide before native scroll events: an instant move
 // can coincide with layout, and a new gesture can interrupt a glide before its first
 // frame.
@@ -399,10 +402,10 @@ watchScrollEnds((box) => {
   kept.delete(box);
 });
 
-// Boxes whose content is drawn away from where its layout stands it. A send's stream
-// (box-motion.js) draws a scroller's content where it stood, below where its layout now
-// stands it, and the browser counts that drawing in the box's scroll height while the
-// content rides (`contentRides`, false when the ride ends). Meanwhile the box's height
+// Boxes whose content is drawn away from where its layout stands it. A stream a send
+// or news joins (box-motion.js) draws a scroller's content where it stood, below where
+// its layout now stands it, and the browser counts that drawing in the box's scroll
+// height while the content rides (`contentRides`, false when the ride ends). Meanwhile the box's height
 // is read from its layout each time it is asked, so its end stays where its layout puts
 // it, content arriving mid-ride included, and a landing at the end doesn't chase the
 // ride.

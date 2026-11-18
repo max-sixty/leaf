@@ -229,7 +229,7 @@
     // both of the ways that comment names — asking only about overflow, so paint
     // containment and content-visibility clip a ring away with nothing said, and
     // measuring the padding box with the scrollbar's gutter still in it.
-    const { shownBand, ringBox } = await window.__lfCheckApi();
+    const { shownBand, ringBox, fitsWhole } = await window.__lfCheckApi();
     const holds = (a, b) => {
       for (let n = b; n; n = flatParent(n)) if (n === a) return true;
       return false;
@@ -313,6 +313,11 @@
           if (getComputedStyle(a).position === "fixed") return true;
         return false;
       };
+      // A decision's ring while Tab is inside it follows the landing's rule
+      // (landing-scroll.js): the runtime reveals that ring only if the decision fits its
+      // room, so a decision taller than its room is held only through the control's own
+      // ring, not the edge rule below.
+      const unlanded = !own && el.matches("[data-lf-obligation]") && !fitsWhole(el);
       const pastFoot =
         !own &&
         b.bottom >= innerHeight - 0.5 &&
@@ -326,7 +331,8 @@
         clip.left = Math.max(clip.left, band.left);
         clip.bottom = Math.min(clip.bottom, band.bottom);
         clip.right = Math.min(clip.right, band.right);
-        // Only the sides where this box is showing the control's own edge, which is the
+        // Only the sides where this box is showing the control's own edge (and, for a
+        // decision's ring, only where the decision fits, `unlanded`), which is the
         // claim a box can be held to: where the control can be seen, so can the ring
         // around it. Asked of the edge rather than of the size, because the two answers
         // differ for everything not focused — a code block taller than the window hangs
@@ -360,6 +366,7 @@
             !taken[side] &&
             by > 0.5 &&
             shows[side] &&
+            !unlanded &&
             !(side === "bottom" && pastFoot && band.bottom >= innerHeight - 0.5)
           )
             taken[side] =

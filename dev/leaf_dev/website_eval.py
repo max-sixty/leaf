@@ -31,6 +31,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     scratch,
     serving,
+    terminated,
 )
 from leaf_dev.eval_cases import definition
 
@@ -168,7 +169,6 @@ def run_hosted() -> None:
     from leaf.event_log import read_events
     from leaf.interaction_log import read_interactions
     from leaf.thread import successful_replies
-    from leaf_dev.commands.preview import terminated
     from leaf_dev.review_scenario import post
 
     try:

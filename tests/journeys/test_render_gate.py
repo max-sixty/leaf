@@ -1654,7 +1654,7 @@ def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
         wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
     assert unready.value.stage == "log"
     assert str(unready.value) == (
-        f"the runtime never finished replaying the log within {EXPECTED_STALL_MS}ms"
+        f"the runtime never finished replaying the log: no progress in {EXPECTED_STALL_MS}ms"
     )
 
     for route in held:

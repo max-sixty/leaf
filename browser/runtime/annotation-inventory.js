@@ -559,7 +559,7 @@ export function createAnnotationInventory({
   // them all, though a gesture changes few of them, a cost that grows with the page
   // (`leaf-dev bench` measures it), and sending a comment runs two. Not
   // yet built: keep each group between collections while its records are the same
-  // objects and the page's reading stands (`pageReadingVersion`, passages.js), build
+  // objects and the page's reading stands (kept.js, `kept`), build
   // again only the groups that changed, and sort again only when that reading moves,
   // placing a new group into the kept order. A collection would then cost what the
   // gesture changed.

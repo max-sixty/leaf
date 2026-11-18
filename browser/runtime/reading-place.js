@@ -78,7 +78,7 @@ import {
   stickyHolder,
 } from "./geometry.js";
 import { scrollAxes } from "./element-axes.js";
-import { LAYOUT } from "./widget-upgrade.js";
+import { layoutsChanged } from "./widget-upgrade.js";
 import {
   composedParentNode,
   drawn,
@@ -285,10 +285,6 @@ const kept = () =>
     shown: null,
     index: null,
   }));
-let layouts = 0;
-document.addEventListener(LAYOUT, () => {
-  layouts += 1;
-});
 /** @type {WeakMap<object, number>} */
 const ids = new WeakMap();
 let lastId = 0;
@@ -484,7 +480,7 @@ function runsIn(box, band, range) {
   }
   /** @type {Member[]} */
   const found = [];
-  const page = [key, layouts, innerWidth, innerHeight].join(" ");
+  const page = [key, layoutsChanged(), innerWidth, innerHeight].join(" ");
   const across = {
     top: band.top,
     bottom: band.bottom,

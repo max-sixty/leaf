@@ -29,12 +29,11 @@
  * Rejected: a layer a scroll-driven animation translates, which Chrome can paint a frame
  * before or after the content it carries, so a pin can land off its mark, and Firefox
  * cannot run; and a script that measures and places the box again after each scroll,
- * which paints a frame behind it. Two browser gaps are accepted rather than answered by
- * either (notes/browser-support.md, "A stuck sticky anchor in Firefox" and "An anchor
- * under a fixed box in WebKit"): Firefox ignores a sticky anchor's stuck offset, and
- * WebKit adds the root scroll to a box anchored under a fixed ancestor. A third is
- * answered where every inset is measured (`anchorBox`): Firefox leaves an anchor's
- * transforms out. A fourth gets the measuring script rejected above, once per scroll:
+ * which paints a frame behind it. One browser gap is accepted rather than answered by
+ * either (notes/browser-support.md, "A stuck sticky anchor in Firefox"): Firefox
+ * ignores a sticky anchor's stuck offset. A second is answered where every inset is
+ * measured (`anchorBox`): Firefox leaves an anchor's transforms out. A third gets the
+ * measuring script rejected above, once per scroll:
  * inside a scaled box, Firefox 157 and WebKit 27.2 carry an anchored box by the
  * scroll's layout pixels, not the smaller or larger distance the words move on screen
  * (Firefox bug 2055371, which its own transform support still has). So the margin

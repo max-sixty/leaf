@@ -29,9 +29,10 @@ import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf_dev.browser import Window, headless_shell, load, screenshot, tab
-from leaf_dev.commands.site import build as site_build
+from leaf_dev.commands.site import _build as site_build
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
+from leaf_dev.website import SITE
 
 WINDOW = Window((1120, 700))
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
@@ -143,11 +144,7 @@ def refresh_previews() -> None:
 
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = stage("examples", captures, Path(raw))
-        site_build.build(
-            site_build.OUT,
-            site_build.prepared_leaf(site_build.OUT),
-            assets=checkout,
-        )
+        site_build.build_site(SITE, assets=checkout)
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")
     click.echo(f"✓ {len(catalog_sources())} previews")

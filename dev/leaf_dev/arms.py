@@ -363,6 +363,29 @@ def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
         yield copies
 
 
+def preview_lease(page: Path) -> Path:
+    """The lock a running `leaf-dev preview` holds on its slot `page`: beside the
+    page, not in it, since a discard removes the page and a lock on a removed inode
+    excludes nobody."""
+    page.parent.mkdir(parents=True, exist_ok=True)
+    return page.with_name(f"{page.name}.lock")
+
+
+# The signals that stop a process serving Leaf in the foreground, such as a preview.
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
+
+def terminated(signum, _frame) -> None:
+    """Begin shutdown once and let its cleanup finish despite later stop signals.
+
+    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
+    interrupt the watcher or service cleanup.
+    """
+    for stop_signal in STOP_SIGNALS:
+        signal.signal(stop_signal, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
+
+
 def merge_base() -> str:
     """The commit `HEAD` branched from the local `main`: the base a command compares
     this working tree with unless it is handed another."""

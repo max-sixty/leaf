@@ -24,13 +24,13 @@ import {
   inPage,
   leafSurface,
   pageDocument,
-  pageReadingVersion,
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, overIn, upFrom } from "../shadow.js";
 import { threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
+import { kept } from "../kept.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -89,9 +89,6 @@ export const inPageOrder = (threads, placedAt) =>
 // (`documentOutline`).
 /** @param {Node} node */
 const outlineOf = (node) => documentOutline(authoredScope(node));
-/** @param {readonly unknown[] | undefined} kept @param {readonly unknown[]} key */
-const current = (kept, key) =>
-  kept?.every((part, index) => part === key[index]) ?? false;
 /** The heading after `heading` in its document's outline, or null.
  * @param {Element} heading */
 export function headingAfter(heading) {
@@ -204,20 +201,14 @@ export function partTrail(node) {
 // question in the part around it, so a thread about a whole question counts under the
 // heading before the question, and the question's own heading previews none.
 //
-// Kept against exactly what it reads: the threads as the thread reading publishes them,
-// a new value whenever any thread's contents change, its turns included; the agent's
-// name the turns are said in; and the page's reading, since an anchor names an element
-// of the page.
-/** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations
- * @typedef {{key: readonly unknown[], inside: Map<Element, Conversations>, headed: Map<Element, Conversations>}} Gathered */
-/** @type {Gathered | null} */
-let gathered = null;
-/** @returns {Gathered} */
-function gatherConversations() {
+// Kept until something it read changes (kept.js, `kept`): the threads, a new value
+// whenever any thread's contents change, its turns included; the agent's name the
+// turns are said in; and the page's reading, since an anchor names an element of the
+// page.
+/** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations */
+const gatherConversations = kept(() => {
   const { all, bySection } = threadState();
   const agent = agentName();
-  const key = [all, agent, pageReadingVersion()];
-  if (gathered && current(gathered.key, key)) return gathered;
   /** @type {Map<Element, Conversations>} */
   const inside = new Map();
   /** @type {Map<Element, Conversations>} */
@@ -250,9 +241,8 @@ function gatherConversations() {
     for (let at = headingOf(element); at; at = parentHeading(at, parents))
       add(headed, at, these);
   }
-  gathered = { key, inside, headed };
-  return gathered;
-}
+  return { inside, headed };
+});
 /** The open conversations about `place`: for a heading, about the part it heads; for
  * any other element, about it or anything it holds. Null where there are none.
  * @param {Element} place */

@@ -66,6 +66,7 @@ import { threadKey, threadNames } from "./thread/model.js";
 import { messageHolding } from "./thread/messages.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "./version-signal.js";
+import { reads } from "./kept.js";
 
 /** @typedef {import("../types/domain.js").Anchor} Anchor */
 /** @typedef {ReturnType<typeof import("./thread/state.js").allThreads>[number]} Thread */
@@ -181,10 +182,19 @@ export function createAnchorPlacement() {
   let stale = false;
   // The version of the page's index of quotes placement last read changes up to.
   let seen = 0;
-  // A count of changes to the threads' placements, moved as soon as one changes. The
-  // version signal moves only when those who hear are told, which for a read inside a
-  // script waits until after it (`settle`).
+  // A count of changes to the threads' placements and the draft's, moved as soon as one
+  // changes. The version signal moves only when those who hear are told, which for a
+  // read inside a script waits until after it (`settle`).
   let placements = 0;
+  // Which placement of the threads and the draft stands, which a reading of either says
+  // it reads (kept.js, `reads`), so a reading kept from placement is made again once one
+  // moves, and a view reading it while drawing draws again as one reading `placedAt`
+  // does.
+  const placement = () => {
+    settle(false);
+    version.value;
+    return placements;
+  };
   /** @type {Set<string>} */
   const renamedIds = new Set();
   /** @type {Set<Element>} */
@@ -318,6 +328,8 @@ export function createAnchorPlacement() {
       note(id, placement, true);
     }
     const resolvedDraft = placePending(pendingPlaced);
+    if (!samePlacement(pendingPlaced ?? undefined, resolvedDraft ?? undefined))
+      placements += 1;
     pendingPlaced = resolvedDraft;
     note(DRAFT, resolvedDraft, true);
     const active = draft.open ? null : actionAnchor;
@@ -370,8 +382,10 @@ export function createAnchorPlacement() {
           note(DRAFT, was, false);
           pendingPlaced = placePending(was);
           note(DRAFT, pendingPlaced, true);
-          if (!samePlacement(was ?? undefined, pendingPlaced ?? undefined))
+          if (!samePlacement(was ?? undefined, pendingPlaced ?? undefined)) {
             unheard.add(DRAFT);
+            placements += 1;
+          }
           continue;
         }
         const anchor = byId.get(id)?.anchor ?? savedAnchors.get(id);
@@ -410,27 +424,19 @@ export function createAnchorPlacement() {
       return () => void hearers.delete(hear);
     },
     placedAt: (/** @type {string | null | undefined} */ id) => {
-      settle(false);
-      version.value;
+      placement();
+      reads(placement);
       return id == null ? undefined : placed.get(names.get(id)?.id ?? id);
     },
     // Where the saved comment draft with this context stands, placed as a thread is.
     savedAt: (/** @type {string} */ context) => {
-      settle(false);
-      version.value;
+      placement();
+      reads(placement);
       return placed.get(SAVED + context);
-    },
-    // Which placement of the threads stands, for a reading derived from it to keep until
-    // this changes, as readings of the page keep theirs against `pageReadingVersion`
-    // (passages.js). A view that reads it while drawing draws again when placement
-    // changes, as one reading `placedAt` does.
-    placementVersion: () => {
-      settle(false);
-      version.value;
-      return placements;
     },
     pendingAt: () => {
       settle(false);
+      reads(placement);
       return pendingPlaced;
     },
   });

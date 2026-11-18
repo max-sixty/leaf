@@ -672,6 +672,61 @@ def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
     )
 
 
+PARTS_PAGE = leaf_page(
+    "two parts",
+    '<h1 id="title">Two parts</h1>'
+    '<section><h2 id="first-h">First part</h2>'
+    '<lf-group id="ask-a" label="Question A"><h3 id="ask-a-h">Question A</h3>'
+    '<lf-options id="a"><lf-option id="a-yes">Yes</lf-option>'
+    '<lf-option id="a-no">No</lf-option></lf-options></lf-group></section>'
+    '<section><h2 id="second-h">Second part</h2>'
+    '<lf-group id="ask-b" label="Question B"><h3 id="ask-b-h">Question B</h3>'
+    '<lf-options id="b"><lf-option id="b-yes">Yes</lf-option>'
+    '<lf-option id="b-no">No</lf-option></lf-options></lf-group>'
+    '<div id="inner"><lf-group id="ask-c" label="Question C"><h3 id="ask-c-h">Question C</h3>'
+    '<lf-options id="c"><lf-option id="c-yes">Yes</lf-option>'
+    '<lf-option id="c-no">No</lf-option></lf-options></lf-group></div></section>',
+)
+
+
+def test_on_me_follows_a_name_or_an_id_the_page_changes(browser, serve):
+    """On Me reads where its items stand again whenever the page changes what names a
+    part or which element an id names, though neither changes the page's words: a box
+    that gains an `aria-label` heads a group of its own, and two questions whose groups
+    swap ids swap places in the list."""
+    page = open_page(browser, serve(PARTS_PAGE))
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    heads = view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head .lf-row-main")
+    cards = view.locator(".lf-fp-on-item")
+    expect(heads).to_have_text(["First part", "Second part"])
+
+    page.evaluate(
+        """async () => {
+          document.querySelector('#inner').setAttribute('aria-label', 'Third part');
+          await (await window.__lfCheckApi()).presentDocument();
+        }"""
+    )
+    expect(heads).to_have_text(["First part", "Second part", "Third part"])
+
+    page.evaluate(
+        """async () => {
+          const first = document.querySelector('#ask-a');
+          const last = document.querySelector('#ask-c');
+          first.id = 'ask-swap';
+          last.id = 'ask-a';
+          first.id = 'ask-c';
+          await (await window.__lfCheckApi()).presentDocument();
+        }"""
+    )
+    expect(cards).to_have_count(3)
+    page.wait_for_function(
+        """() => [...document.querySelectorAll(
+          '.lf-fp-view[data-lf-route="queue"] .lf-fp-on-item')].map(card => card.dataset.lfKey)
+          .join() === '["widget","widget:c"],["widget","widget:b"],["widget","widget:a"]'"""
+    )
+
+
 def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     browser, serve
 ):

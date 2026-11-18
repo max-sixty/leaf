@@ -764,6 +764,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
 | Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
+| Which ids and part names the page's elements bear, for what is derived from them                      | `passages.js` `pageNamesVersion`                                                   |
 | Which placement of the threads stands, for what is derived from it (its `placementVersion`)           | `anchor-placement.js` `createAnchorPlacement`                                      |
 
 ### Facts both runtimes know

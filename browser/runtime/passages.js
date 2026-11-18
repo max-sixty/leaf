@@ -1791,7 +1791,10 @@ const isPair = (raw, i) =>
 // assignment, and `name` assigns only on a `<slot>`: a chrome that rewrites the
 // `name` of its `<details>` rows on every paint says nothing about any words. `id` says
 // nothing about them either, but an anchor's section is found by it, so its changes
-// are heard and reported apart from the reading (`hear`).
+// are heard and reported apart from the reading (`hear`). The attributes a part of the
+// page is named by (addressable-names.js, `ownNaming`) say nothing about the words
+// either, and are heard only for which names the page bears (`pageNamesVersion`).
+const NAMING_ATTRIBUTES = ["label", "aria-label"];
 const READING_MARKERS = [
   "class",
   "data-lf-said",
@@ -1802,6 +1805,7 @@ const READING_MARKERS = [
   "name",
   "contenteditable",
   "id",
+  ...NAMING_ATTRIBUTES,
 ];
 const WATCH_READING = {
   subtree: true,
@@ -1865,7 +1869,7 @@ const changesTheReading = (record, reads) => {
   if (record.type === "characterData") return reads(target.parentNode);
   // A marker moved on `target` itself, so its own markers are what is changing and only
   // its place and its labels answer — including a label it has just stopped being.
-  if (!isElement(target) || record.attributeName === "id") return false;
+  if (!isElement(target) || renames(record)) return false;
   if (record.attributeName === "class") {
     const was = /(^|\s)lf-ui(\s|$)/.test(record.oldValue ?? "");
     if (was === target.classList.contains("lf-ui")) return false;
@@ -2036,6 +2040,25 @@ export function pageReadingVersion() {
   catchUpReading();
   return documentReading(pageDocument()).token;
 }
+// Whether a record changes an element's id or an attribute a part is named by.
+/** @param {MutationRecord} record */
+const renames = (record) =>
+  record.attributeName === "id" ||
+  NAMING_ATTRIBUTES.includes(record.attributeName ?? "");
+/** @type {object} */
+let names = {};
+/** Which ids and names the page's elements bear: a new value each time an element's id,
+ * or an attribute a part of the page is named by (addressable-names.js, `ownNaming`),
+ * changes, or an element
+ * bearing an id comes or goes, none of which moves the page's reading. A reading derived
+ * from where an id stands or from what names a part, as On Me's places and the parts
+ * conversations stand in are, keeps what it derived while this and the page's reading
+ * (`pageReadingVersion`) stand.
+ * @returns {object} */
+export function pageNamesVersion() {
+  catchUpReading();
+  return names;
+}
 /** What a reader derives from the reading of the document `scope` (`authoredScope`) and
  * keeps while that reading stands, under the reader's own `owner`: made by `make` for
  * each new reading and dropped with the old one, so an answer holding the document's
@@ -2077,8 +2100,10 @@ function hear(records) {
     if (node.id) ids.add(node.id);
     for (const named of queryAllUnder(node, "[id]")) ids.add(named.id);
   };
+  let renaming = false;
   for (const record of records) {
     const { target } = record;
+    if (renames(record) && !leafSurface(target)) renaming = true;
     if (hearers.size && !leafSurface(target)) {
       if (record.attributeName === "id" && isElement(target)) {
         if (record.oldValue) ids.add(record.oldValue);
@@ -2110,6 +2135,7 @@ function hear(records) {
   }
   forgetPartsBeneath(beneath);
   for (const scope of moved) forget(scope);
+  if (renaming || ids.size) names = {};
   if (moved.has(page) || ids.size) tellHearers({ written, ids, renamed });
 }
 // A change no record reports, to what the walk reads at `node` and under it: the reading

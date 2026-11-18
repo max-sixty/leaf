@@ -40,6 +40,7 @@ import {
   elementById,
   inChrome,
   pageDocument,
+  pageNamesVersion,
   pageQueryAll,
   pageReadingVersion,
   readingElements,
@@ -246,17 +247,23 @@ export function createAnchorControls({
 
   // The plan is a reading of the page's own pictures, their labels and the parts their
   // widgets register, none of which a thread changes. It is planned again when the page
-  // might have: its words moved (passages.js, `pageReadingVersion`), a caller said the
+  // might have: its words moved (passages.js, `pageReadingVersion`), an id or a name its
+  // labels are read from changed (`pageNamesVersion`), a caller said the
   // document changed (`presentDocument`), the shown document was replaced, or a visual
   // signalled new parts (`onLayoutInvalidated`). A thread pass over an unchanged page keeps
   // the responses it published. The pictures are found in each piece of the page's
   // reading, kept until that piece changes (passages.js, `readingElements`), so planning
   // again after one part of the page changed searches that part alone.
-  /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>, ReturnType<typeof shownDocument>] | null} */
+  /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof pageNamesVersion>, ReturnType<typeof documentChanged>, ReturnType<typeof shownDocument>] | null} */
   let plannedFor = null;
   function prepareVisualActions() {
     /** @type {NonNullable<typeof plannedFor>} */
-    const key = [pageReadingVersion(), documentChanged(), shownDocument()];
+    const key = [
+      pageReadingVersion(),
+      pageNamesVersion(),
+      documentChanged(),
+      shownDocument(),
+    ];
     if (
       plannedFor?.every((part, index) => part === key[index]) &&
       !pendingVisualActions.size

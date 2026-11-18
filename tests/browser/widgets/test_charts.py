@@ -2172,7 +2172,10 @@ def test_a_comment_on_a_chart_s_point_stays_on_its_datum(browser, serve):
     )
     assert stands_on_its_datum()["at"] != before["at"], "the chart drew afresh"
 
-    page.locator('[data-lf-margin-for="p-dots"] .lf-margin-marker').click()
+    # Each point's comment has a margin entry of its own, named by its point.
+    page.locator(
+        '[data-lf-margin-for="p-dots"] .lf-margin-marker[aria-label$="week 3, sessions 8,412"]'
+    ).click()
     expect(
         page.locator("#p-dots .lf-chart-marks > :not(.lf-chart-aim)")
     ).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))

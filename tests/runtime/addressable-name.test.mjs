@@ -27,7 +27,6 @@ import {
   titledElement,
   titlingHeading,
 } from "/runtime/addressable-names.js";
-import { renderSaid } from "/runtime/declared-words.js";
 import { registry } from "/runtime/registry.js";
 
 // The cases the server's `gesture_words.element_name` answers too.
@@ -42,7 +41,6 @@ const declare = (vocabulary = {}) => {
 
 const named = (markup) => {
   document.body.innerHTML = `<main>${markup}</main>`;
-  renderSaid(document.body);
   return addressableName(document.querySelector("#it"));
 };
 

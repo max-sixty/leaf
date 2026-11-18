@@ -28,8 +28,7 @@ import {
   GENERATED,
   inChrome,
   keptAnswer,
-  keptWithReading,
-  pageDocument,
+  pageReadingVersion,
   quoteFrom,
   textNodesUnder,
 } from "./passages.js";
@@ -73,8 +72,10 @@ import { versionProvenance } from "./change-provenance.js";
 // finds each row's words unchanged by identity rather than by reading them
 // (`captureItem`).
 const WAITING_ON_ME = leafSays("Waiting on me");
-// The owner under which a reading of the page keeps where each draft stands.
-const DRAFT_PLACES = Object.freeze({});
+// Where each draft stands, by its context, kept for one reading of the page
+// (`pageReadingVersion`), which moves with the ids an anchor's section is found by.
+/** @type {{version: object, places: Map<string, {anchor: object, resolved: ReturnType<typeof resolveAnchor>}>} | null} */
+let draftPlacesKept = null;
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -542,8 +543,10 @@ export function createAnnotationInventory({
     // A draft's place is resolved once for each reading of the page, since a quote's is
     // a search of the page's words, which a collection made on every reading would
     // repeat for each draft (`passageRows` says what that cost a large page).
-    /** @type {Map<string, {anchor: object, resolved: ReturnType<typeof resolveAnchor>}>} */
-    const draftPlaces = keptWithReading(pageDocument(), DRAFT_PLACES, () => new Map());
+    const reading = pageReadingVersion();
+    if (draftPlacesKept?.version !== reading)
+      draftPlacesKept = { version: reading, places: new Map() };
+    const draftPlaces = draftPlacesKept.places;
     /** @param {import("./drafts.js").ListedDraft} draft @param {object} anchor */
     const draftPlacement = (draft, anchor) => {
       let kept = draftPlaces.get(draft.context);

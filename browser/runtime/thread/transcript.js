@@ -21,7 +21,9 @@
      Each pending progress run stands behind a dim line showing its latest step
      (`workingView`). The face of the run the agent's work in hand
      speaks through is the working message; work whose words no run holds stands as a
-     face of its own where those words were said (`workingPlace`). A thread reads in
+     face of its own where those words were said (`workingPlace`). A face arriving in a
+     thread already drawn wears a message's arrival tint (messages.js, `arrivalTint`), as
+     the user asked; a new step in a face it stands in is no arrival. A thread reads in
      the order it was said, so a message the user sends after a face stands below it,
      and a face whose run the work leaves stays where it stood, still.
    - The transcript is flat: a fold's checkpoint stands before the messages it covers,
@@ -51,7 +53,7 @@
 import { counted } from "../words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
-import { MessageView, saidTime } from "./messages.js";
+import { MessageView, arrivalTint, saidTime } from "./messages.js";
 import { offeredAction } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
@@ -135,6 +137,9 @@ export class Transcript {
   // of its run, whose words the face shows.
   /** @type {Map<string, Element | null>} */
   #facing = new Map();
+  // Every face this transcript has drawn, so one new to it is told apart.
+  /** @type {WeakSet<Element>} */
+  #faces = new WeakSet();
   /** @type {(() => void) | null} */
   #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
@@ -503,6 +508,12 @@ export class Transcript {
         `:scope > [data-lf-face="${CSS.escape(row.key.slice(5))}"]`,
       );
     this.#facing = new Map([...facing].map(([key, row]) => [key, faceNode(row)]));
+    // A face arriving in a thread already drawn wears a message's arrival tint.
+    for (const node of this.node.querySelectorAll(":scope > .lf-thread-working")) {
+      if (this.#faces.has(node)) continue;
+      this.#faces.add(node);
+      if (arrived) arrivalTint(node);
+    }
     for (const [key, fold] of this.#folding) {
       if (fold.played) continue;
       fold.played = foldBlock(fold.node);

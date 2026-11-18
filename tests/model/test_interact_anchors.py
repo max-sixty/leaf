@@ -1442,15 +1442,14 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     assert gone.exit_code != 0 and "doesn't say" in gone.output
 
 
-def test_a_widgets_said_attribute_is_quotable_like_any_other_passage(page_dir):
-    """renderSaid puts these words in the DOM, so the anchor pass can find them and this
-    has to offer them — otherwise an attribute's own words are the one thing on the page
-    Claude can't point at. Both edges the registry can give one are here: the option's
-    chip band opens the element, and the gloss's tip closes it."""
+def test_words_a_widget_shows_apart_are_quotable_like_any_other_passage(page_dir):
+    """Words a widget shows apart from the sentence are still the page's, so the anchor
+    pass can find them and this has to offer them: the option's chip band opens the
+    element, and the gloss's explanation, a popover until opened, closes it."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</section>",
-            '  <lf-gloss id="k-visits" tip="312 daily visits">Traffic</lf-gloss>\n'
+            '  <lf-gloss id="k-visits">Traffic<span popover>312 daily visits</span></lf-gloss>\n'
             "</section>",
         )
     )

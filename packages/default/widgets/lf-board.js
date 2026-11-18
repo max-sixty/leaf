@@ -132,16 +132,11 @@ customElements.define(
     // describe rather than afford, so this holds for a quoted board too: an
     // exhibit is read like anything else, it just takes no input.
     //
-    // The heading is written here too, rather than declared `says` and left to
-    // the runtime's pass, because it is two things at once: the words a user
-    // selects to comment on the column, and the list's accessible name. The pass
-    // renders one run of words at an edge and knows nothing about names, so it
-    // would put these into the tree a second time under a list already carrying
-    // them. Same marker (the theme styles [data-lf-said]) and same contract
-    // (generated, so the diff looks away; not .lf-ui, so the anchor pass doesn't)
-    // — a widget with a module of its own does the part only it can, which is
-    // the line the layer's AGENTS.md draws and a widget's authored labels are the
-    // other case of.
+    // The heading is written here too, because it is two things at once: the words a
+    // user selects to comment on the column, and the list's accessible name, so the
+    // tree hears them once, as the name. The page's words (data-lf-said, which the
+    // theme styles by the attribute it names), generated, so the diff looks away, and
+    // not .lf-ui, so the anchor pass doesn't.
     #structure() {
       for (const col of this.#columns()) {
         col.setAttribute("role", "list");

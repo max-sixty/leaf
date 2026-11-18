@@ -1327,6 +1327,68 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     assert hook("PostToolBatch") == ""
 
 
+def test_a_busy_turn_is_reminded_of_a_missing_line_only_where_it_owes_an_answer(
+    claimed, capsys
+):
+    """Claude Code says busy of a session for the whole of its turn, and every page
+    the session holds reads working by it. A page the agent owes no answer is not
+    asking for a line, so its tool boundaries stay quiet however long the turn
+    runs, even with an open to-do the agent may have left for later while it works
+    elsewhere. Once the page holds an update the agent owes, a boundary asks the
+    agent to say what it is doing."""
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        return capsys.readouterr().out
+
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+    cleanup_model.write_json(
+        registry / f"{os.getpid()}.json",
+        {
+            "pid": os.getpid(),
+            "sessionId": "s1",
+            "status": "busy",
+            "statusUpdatedAt": int(time.time() * 1000),
+        },
+    )
+    mark = cleanup_model.session_file("s1", cleanup_model.STATUS_CHECKED_SUFFIX)
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+
+    def check_due():
+        os.utime(mark, (stood.timestamp(), stood.timestamp()))
+
+    hook("UserPromptSubmit")
+    assert hook("PostToolBatch") == ""
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    record_claim(
+        claimed, **{**claim, "turn_opened": stood.isoformat(timespec="seconds")}
+    )
+    assert activity_reading(claimed)["kind"] == "working"
+    check_due()
+    assert hook("PostToolBatch") == ""
+
+    opened = CliRunner().invoke(
+        cli_model.cli, ["task", "create", str(claimed), "page", "--title", "Fit S"]
+    )
+    assert opened.exit_code == 0, opened.output
+    check_due()
+    assert hook("PostToolBatch") == ""
+
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Fit S too."}
+    )
+    check_due()
+    context = json.loads(hook("PostToolBatch"))["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert f"Leaf: {claimed} has shown no status line from you for 3 min" in context
+
+
 def test_a_tool_boundary_with_nothing_new_answers_from_the_log(
     claimed, monkeypatch, capsys
 ):

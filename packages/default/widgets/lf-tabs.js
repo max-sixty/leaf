@@ -65,7 +65,7 @@
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
  * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
- * server's next actor, the reading an `lf-tally` and its Next On Me use: the mark alone while one
+ * server's next actor, counted as an `lf-tally` counts them (`tally`): the mark alone while one
  * waits on the user, since the mark and the tally already say so (its description says "To
  * answer"), else "On Claude" (`agentName`) while one is the agent's, as after the user
  * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
@@ -91,6 +91,7 @@ import {
   obligationsByRegion,
   regionsAwaiting,
   answerWords,
+  tally,
   under,
   backgroundFlash,
   flashDuration,
@@ -451,22 +452,17 @@ export class TabSet extends LeafElement {
     const changed = comparisonChanges(panel).length;
     const hasAnswer = asking.has(panel);
     const items = hasAnswer ? held(panel) : [];
-    // Withdrawn items are already left out.
-    const done = items.filter((item) => item.status !== "open");
-    const answered = items.length > 0 && done.length === items.length;
-    const only = items.length === 1 ? items[0] : null;
-    const open = items.filter((item) => item.status === "open");
-    const onUser = open.some((item) => item.next_actor === "user");
-    const turn = onUser
-      ? "To answer"
-      : open.some((item) => item.next_actor === "agent")
-        ? `On ${agentName()}`
-        : "Open";
+    // Counted as an `lf-tally` of the panel would count them (`tally`). Withdrawn items
+    // are already left out, so every item that isn't open is answered.
+    const { onUser, onAgent, open, total } = tally(items);
+    const answered = total > 0 && open === 0;
+    const only = total === 1 ? items[0] : null;
+    const turn = onUser ? "To answer" : onAgent ? `On ${agentName()}` : "Open";
     const answer = answered
       ? only
         ? answerWords(only)
         : ""
-      : items.length && !onUser
+      : total && !onUser
         ? turn
         : "";
     const group = this.#side && panel.getAttribute("group");
@@ -474,17 +470,17 @@ export class TabSet extends LeafElement {
       group && `${group} group`,
       panel.getAttribute("summary"),
       changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-      !items.length
+      !total
         ? ""
         : !answered
           ? only
             ? turn
-            : `${turn}, ${done.length} of ${items.length} answered`
+            : `${turn}, ${total - open} of ${total} answered`
           : only
             ? answer
               ? `Answered: ${answer}`
               : "Answered"
-            : `All ${items.length} answered`,
+            : `All ${total} answered`,
     ]
       .filter(Boolean)
       .join(". ");
@@ -514,9 +510,7 @@ export class TabSet extends LeafElement {
           ? html`<span
               class="lf-tab-answer"
               aria-hidden="true"
-              data-lf-obligations=${
-                answered ? "answered" : items.length ? "open" : nothing
-              }
+              data-lf-obligations=${answered ? "answered" : total ? "open" : nothing}
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing

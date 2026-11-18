@@ -62,10 +62,14 @@ def revisions_on_disk(page_dir: Path) -> RevisionReader:
     return lambda revision: read_revision(page_dir, revision)
 
 
-def _text(node) -> str:
+def _text(node, root: bool = True) -> str:
+    """A node's words as a name reads them: a popover's below it, such as a gloss's
+    explanation, stand apart until shown and name nothing (passages.js, `named`)."""
     if isinstance(node, str):
         return node
-    return "".join(_text(child) for child in node["content"])
+    if not root and "popover" in node["attrs"]:
+        return ""
+    return "".join(_text(child, root=False) for child in node["content"])
 
 
 def _registered(node: dict, registry: dict) -> bool:

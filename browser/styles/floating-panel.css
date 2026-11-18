@@ -234,10 +234,15 @@
   .lf-fp-error-dot[data-lf-shown] {
     display: inline-block;
   }
-  .lf-fp-leaf > .lf-fp-error-dot {
+  /* The leaf's badges (`.lf-badges`, controls.css): the error dot alone inside its
+     corner while the panel stands as a row, and folded, the count, news and error over
+     its top edge. */
+  .lf-fp-leaf > .lf-badges {
     position: absolute;
-    top: 3px;
-    inset-inline-end: 3px;
+    inset: 3px 3px auto;
+    pointer-events: none;
+  }
+  .lf-badges > .lf-fp-error-dot {
     box-shadow: 0 0 0 2px var(--lf-fp-surface);
   }
   /* Set at the text's top, so the whole dot stands inside the label's clipped line and
@@ -851,16 +856,16 @@
   }
   /* What waits on the user, on the folded leaf: a count, and a dot for news, grey for
      a put-away draft where nothing has news (controls.css). */
+  .lf-floating-panel[data-lf-rest="mark"] .lf-fp-leaf > .lf-badges {
+    inset: -3px -3px auto;
+    --lf-badge-reach: 3px;
+  }
   .lf-fp-badge,
   .lf-fp-news-dot {
-    position: absolute;
     display: none;
-    pointer-events: none;
-    box-shadow: 0 0 0 2px var(--lf-paper);
   }
   .lf-fp-badge {
-    top: -6px;
-    right: -6px;
+    box-shadow: 0 0 0 2px var(--lf-paper);
     min-width: 17px;
     height: 17px;
     padding: 0 5px;
@@ -870,15 +875,6 @@
     color: var(--lf-badge-ink);
     place-items: center;
     font: var(--lf-font-count);
-  }
-  .lf-fp-news-dot {
-    top: -3px;
-    left: -3px;
-  }
-  /* With no count beside it, the dot takes the count's corner. */
-  .lf-fp-badge:not([data-lf-shown]) ~ .lf-fp-news-dot {
-    left: auto;
-    right: -3px;
   }
   /* The folded leaf's dot is a size up, to read beside its count. */
   .lf-fp-news-dot {

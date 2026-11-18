@@ -172,7 +172,7 @@ function declaredName(element) {
 // Where a name comes from: an attribute's words, or an element whose words are the name,
 // read by the reading the rule names. A reader that reads names as something else draws
 // them, as a preview reads them as the page draws them, reads the same source.
-/** @typedef {{words: string} | {by: Element, reading: "wrote" | "says"}} Naming */
+/** @typedef {{words: string} | {by: Element, reading: "named" | "says"}} Naming */
 /** @param {Naming | null} naming @returns {string} */
 const namingWords = (naming) =>
   !naming
@@ -187,8 +187,8 @@ function addressableNaming(element) {
   const declared = declaredName(element);
   if (declared) return { words: declared };
   const title = leadingTitle(element);
-  return title && elementReading(title, "wrote")
-    ? { by: title, reading: "wrote" }
+  return title && elementReading(title, "named")
+    ? { by: title, reading: "named" }
     : null;
 }
 /** @param {Element | null | undefined} element */

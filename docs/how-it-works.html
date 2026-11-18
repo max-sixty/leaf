@@ -2462,8 +2462,8 @@ flowchart TD
               </li>
               <li id="progress-done">
                 <time>2m</time> <small>observation</small> <strong>Answered</strong> The
-                revision goes live, the agent's reply reports it, and the status returns
-                to <em>Claude awaits</em>.
+                revision goes live, the agent's reply reports it, and once its turn ends
+                the status returns to <em>Claude awaits</em>.
               </li>
             </ol>
           </section>
@@ -2600,9 +2600,9 @@ flowchart TD
                 <strong>The turn.</strong> The harness integration records when a turn
                 starts and ends. Leaf treats it as active while its opening, a start, a
                 status declaration, or a reported step is less than 15 minutes old.
-                Claude Code also reports the session's activity directly, including
-                permission dialogs and interrupted turns. An interruption can therefore
-                mark the turn ended as soon as the user presses Escape.
+                Claude Code also reports the session's activity directly: whether it is
+                busy, a permission dialog, and an interrupted turn. An interruption can
+                therefore mark the turn ended as soon as the user presses Escape.
               </li>
               <li id="updates-fact-watcher">
                 <strong>The watcher.</strong> Claude Code's watch hook,
@@ -2645,13 +2645,16 @@ flowchart TD
             </figure>
             <p id="updates-believed">
               Leaf shows work as active when a start is still current, when the harness
-              reports a step in an active turn, or when that turn has received input
-              requiring an answer. The freshness rules above determine when a start or
-              turn stops counting as active. Input is stalled if it remains queued for
-              two minutes, or if the turn that received it ends without answering. The
-              status doesn't date the agent's line: its hooks remind it to restate a
-              line that has stood two minutes, and the menu's full status says when the
-              line was written.
+              reports a step in an active turn or that the session is busy, or when that
+              turn has received input requiring an answer. Claude Code reports a running
+              turn as busy outside its permission and input dialogs, so an open page
+              reads <em>Working</em> for as long as the turn runs, whatever the agent
+              has started or still owes. The freshness rules above determine when a
+              start or turn stops counting as active. Input is stalled if it remains
+              queued for two minutes, or if the turn that received it ends without
+              answering. The status doesn't date the agent's line: its hooks remind it
+              to restate a line that has stood two minutes, and the menu's full status
+              says when the line was written.
             </p>
             <table id="updates-readings">
               <thead>
@@ -2682,8 +2685,9 @@ flowchart TD
                 <tr id="updates-reading-awaits">
                   <td>Claude awaits</td>
                   <td>
-                    The agent is taking input. An update still on its way to the agent
-                    says so on its own label, and the menu's full status counts it.
+                    The agent is taking input, and nothing says it is working. An update
+                    still on its way to the agent says so on its own label, and the
+                    menu's full status counts it.
                   </td>
                 </tr>
                 <tr id="updates-reading-ended">

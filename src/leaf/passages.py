@@ -27,8 +27,6 @@ if TYPE_CHECKING:
 # where that is declared rather than guessed at per widget. These facts carry what can
 # be declared, and a fence carries the rest:
 #
-#   `says`  attribute values the user sees. renderSaid puts them in the DOM, so
-#               they go in here too, at the edge the registry names.
 #   `verbatim`  an upgraded element that preserves its own words around nested
 #               upgraded widget boundaries. The source and document-order occurrence
 #               identify every owner, including one with no authored id. Those
@@ -361,7 +359,7 @@ class _PassageParser:
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "key", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "block", "tb", "tail"}]
+        self.stack = []  # [{"tag", "key", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "block", "tb"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
@@ -439,12 +437,6 @@ class _PassageParser:
         and no quote can be built out of one."""
         self.fences.add(len(self.chars))
 
-    def _said(self, frame: dict, values: list) -> None:
-        # renderSaid puts each value in a <span> of its own, among its element's words,
-        # so each holds its text under a key of its own.
-        for value in values:
-            self._write(value, frame["block"], frame["ids"], self._fresh(), frame["tb"])
-
     def _close(self, frame: dict) -> None:
         """Everything an element's end does, whether it was written or inferred — an
         omitted </p> inside a widget still ends what the element was saying."""
@@ -459,10 +451,6 @@ class _PassageParser:
                 )
                 self.handle_data(child["text"])
                 self.handle_endtag(child["tag"])
-            self.stack.pop()
-        if not frame["skip"]:
-            self.stack.append(frame)
-            self._said(frame, frame["tail"])
             self.stack.pop()
         if frame["fenced"]:
             self._fence()
@@ -597,27 +585,15 @@ class _PassageParser:
             # under a <p>, `<div>a</div><div>b</div>` as two, and a <button>'s label
             # apart from the words beside it.
             "block": block,
-            "tail": [],
         }
         if frame["verbatim"]:
             self.verbatim[frame["verbatim"]] = _OwnedWords(frame["verbatim"])
-        # Each `says` value at the edge of the element's own words, in registry
-        # order, which is where renderSaid puts it and where a pseudo-element stood
-        # before it.
-        head = []
-        for attr, edge in entry.get("says", {}).items():
-            value = attrs_d.get(attr)
-            if value is None:
-                continue
-            (head if edge == "before" else frame["tail"]).append(value)
         if frame["fenced"]:
             self._fence()
         if retired_by and frame["id"]:
             self.retired[frame["id"]] = retired_by
         self.stack.append(frame)
-        if not frame["skip"]:
-            self._said(frame, head)
-        elif sub is not None:
+        if sub is not None:
             # The body's own write path, so a quote across the element's edge sees
             # the same adjacency the screen shows — no fence, nothing withheld.
             _verb, their_text = sub
@@ -807,10 +783,8 @@ class SourceReading:
         """id → Spoken, for every element the version carries.
 
         This is the version's own reading of itself, so it is `page_passages`
-        sliced by id rather than a second walk: chrome skipped, `says` attributes
-        counted (a picked option's `effort` is a word on the page now, so changing
-        it changes what the user decided about), whitespace collapsed the way a
-        captured quote is. Asking whether two versions still say the same thing has
+        sliced by id rather than a second walk: chrome skipped, whitespace collapsed
+        the way a captured quote is. Asking whether two versions still say the same thing has
         to mean the same text a user could have selected, or the question is about
         something else.
 

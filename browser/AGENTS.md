@@ -693,7 +693,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                    |
-| What the user sees of a node where the glides under way leave it                                      | `scroll-containers.js` `seenGlided`, `seenAhead`                                   |
+| What the user sees of a node where the glides under way leave it, or as they carry it toward the view | `scroll-containers.js` `seenGlided`, `seenLanded`, `seenAhead`                     |
 | Land the glides under way for a key whose work reads the page where it stands                         | `scrolling.js` `landGlides`                                                        |
 | Whether a size change there would move what is seen                                                   | `geometry.js` `growthIsSeen`, `growthAfterIsSeen`                                  |
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
@@ -763,7 +763,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
-| Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
+| Which reading of the page stands, its words, ids and part names, for what is derived from it          | `passages.js` `pageReadingVersion`                                                 |
+| Which placement of the threads stands, for what is derived from it (its `placementVersion`)           | `anchor-placement.js` `createAnchorPlacement`                                      |
 
 ### Facts both runtimes know
 
@@ -822,9 +823,10 @@ layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
 
 Python models only the text changes the registry declares. A module that changes text
-in a way the file can't reproduce is fenced, and browser capture stops at the fence, so
-a selection across it never becomes a quote the file can't confirm. Declare words Python
-can model with `says` or `content`.
+in a way the file can't reproduce is fenced, and words a module generates are a passage
+cell of their own, so browser capture stops at the fence and a selection across it
+never becomes a quote the file can't confirm. Words Python should model belong in the
+markup, where the file reads them (`content`).
 
 ## Render gates
 

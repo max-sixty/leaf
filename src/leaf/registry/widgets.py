@@ -92,14 +92,14 @@ def validate_widget_relations(
 def _validate_widget_relations(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> None:
-    properties, said = _validate_widget_structure(
+    properties = _validate_widget_structure(
         tag, entry, registry, declarations, data, path
     )
     awaits = _validate_widget_predicates(tag, entry, properties, path)
     _validate_widget_interactions(tag, entry, registry, properties, awaits, path)
     validate_widget_state_relations(tag, entry, declarations, path)
     validate_widget_record_contracts(
-        tag, entry, properties, said, registry, declarations, path
+        tag, entry, properties, registry, declarations, path
     )
     validate_deciding_verb(tag, entry, path)
     validate_widget_retirement(tag, entry, declarations, path)
@@ -117,7 +117,7 @@ def _typed(properties: dict, attr: str, kind: str) -> bool:
 
 def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
-) -> tuple[dict, set]:
+) -> dict:
     for key, named in (
         ("owners", entry.get("owners", [])),
         ("unique", entry.get("unique", {}).values()),
@@ -195,7 +195,6 @@ def _validate_widget_structure(
             raise registry_error(
                 "measured-run", path, tag, input=input_name, attr=run_attr
             )
-    said = set(entry.get("says", {}))
     if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
         raise registry_error("addressable-id", path, tag, key="awaits")
     for key in ATTRIBUTE_FACTS:
@@ -221,7 +220,7 @@ def _validate_widget_structure(
                 key="visual.parts",
                 names=[part_attribute],
             )
-    return properties, said
+    return properties
 
 
 def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> None:

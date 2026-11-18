@@ -97,10 +97,10 @@ const SETTLE_MS = 250;
 const LEAVE = "cubic-bezier(0.3, 0, 0.8, 0.15)";
 const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 
-// Whether a card's obligations, by the reading, wait on the user.
+// Whether a card's obligations, by the reading, wait on the user, as the tally counts
+// them.
 /** @param {ReturnType<typeof obligationsIn>} held */
-const waitsOn = (held) =>
-  held.some((item) => item.status === "open" && item.next_actor === "user");
+const waitsOn = (held) => tally(held).onUser > 0;
 
 /** @typedef {(card: HTMLElement) => ReturnType<typeof obligationsIn>} DeckReadings */
 
@@ -451,9 +451,9 @@ customElements.define(
         keepsHidden(this.#end, false);
         return void focusDestination(this.#again, "move");
       }
-      const waiting = this.#readings()?.(card).find(
-        (item) => item.status === "open" && item.next_actor === "user",
-      );
+      const items = readObligations();
+      const waiting =
+        items.phase === "ready" ? obligationsIn(card, items.user)[0] : undefined;
       if (waiting) obligationActions.open(waiting.id);
       else focusDestination(card, "move");
     }
@@ -556,18 +556,15 @@ customElements.define(
       const items = readObligations();
       const readings = this.#readings();
       const card = this.#open.value;
-      const waits = (/** @type {HTMLElement} */ each) =>
-        Boolean(readings && waitsOn(readings(each)));
       const count = readings
         ? tallyWords(tally(obligationsIn(this, items.all)), agentName())
         : "";
       // A card's mark: open, waiting on the user, open with the agent, or answered.
       const mark = (/** @type {HTMLElement} */ each) => {
         if (each === card) return "open";
-        const held = readings?.(each);
-        if (!held?.length) return "";
-        if (waits(each)) return "waiting";
-        return held.some((item) => item.status === "open") ? "agent" : "done";
+        if (!readings) return "";
+        const { onUser, open, total } = tally(readings(each));
+        return !total ? "" : onUser ? "waiting" : open ? "agent" : "done";
       };
       return html`
         <span class="lf-deck-pips" aria-hidden="true"
@@ -624,10 +621,10 @@ customElements.define(
       // on nothing else. A comment leaves an obligation open with the agent, the agent
       // ending one closes it without an answer, and an answer from another window
       // arrives here while this one lacks focus, so none of them moves the card.
-      const held = readings(card);
-      const closed =
-        held.some((item) => item.status === "answered") &&
-        !held.some((item) => item.status === "open");
+      // A card's obligations leave out withdrawn ones, so every one that isn't open is
+      // answered.
+      const { open, total } = tally(readings(card));
+      const closed = total > 0 && open === 0;
       const here = focused();
       const place = here && placeOf(here);
       const onCard =

@@ -162,12 +162,16 @@ leaf thread reply <answer.ref> --todo "<what you owe>" --text "<what is under wa
 ```
 
 The reply answers the message and opens a to-do on the thread, under the reply's id.
-The to-do keeps the thread on your list and in the panel's status until you end it,
+The to-do keeps the thread on your list until you end it,
 even after the user resolves the thread or your session ends. A turn's own message cannot
 open one. Handing the work to another session, a background job, or a later turn is
 such a promise too; a `--done` reply would tell the user nothing more is coming. So is
 holding a decision the user put off until other work lands: while the to-do stays open,
 the decision their thread is about stays off On Me, and ending the to-do puts it back.
+
+The panel's status says what you are doing only for an item you have started, so while
+the to-do's work runs in your turn, such as a worker you wait on, start the to-do under
+the reply's id.
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done --text "<where>"`,
 or `failed`/`dropped` with the reason. If another session will finish it, put the page

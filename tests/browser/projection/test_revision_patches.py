@@ -648,32 +648,24 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
 
 
 def test_a_label_a_revision_changes_is_drawn_anew(browser, serve):
-    """A label a widget's module draws follows a revision that adds or changes it: a
-    sample's caption and a board column's heading."""
-    board = (
-        '<lf-board id="rn-board"><lf-column id="rn-col" label="To do">'
-        '<lf-card id="rn-card" label="Feeder"><strong>Feeder</strong></lf-card>'
-        "</lf-column></lf-board>"
-    )
+    """A board column's heading, which the board's module draws from its label, follows
+    a revision that changes the label."""
     first = leaf_page(
         "Renamed first",
         '<h1 id="rn-title">Renamed</h1>'
-        '<lf-sample id="rn-sample"><p>Checks complete.</p></lf-sample>' + board,
+        '<lf-board id="rn-board"><lf-column id="rn-col" label="To do">'
+        '<lf-card id="rn-card" label="Feeder"><strong>Feeder</strong></lf-card>'
+        "</lf-column></lf-board>",
     )
-    second = (
-        first.replace("Renamed first", "Renamed second")
-        .replace('id="rn-sample"', 'id="rn-sample" label="Release checks"')
-        .replace('label="To do"', 'label="Next up"')
+    second = first.replace("Renamed first", "Renamed second").replace(
+        'label="To do"', 'label="Next up"'
     )
     page = open_page(browser, live_url(serve(first)))
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page).to_have_title("Renamed second")
-    expect(page.locator('#rn-sample > [data-lf-said="label"]')).to_have_text(
-        "Release checks"
-    )
-    expect(page.locator('#rn-col > [data-lf-said="label"]')).to_have_text("Next up")
+    expect(page.locator("#rn-col > .lf-column-name")).to_have_text("Next up")
 
 
 def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(

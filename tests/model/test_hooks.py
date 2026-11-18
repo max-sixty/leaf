@@ -1327,14 +1327,15 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     assert hook("PostToolBatch") == ""
 
 
-def test_a_busy_turn_is_reminded_of_a_missing_line_only_where_it_owes_work(
+def test_a_busy_turn_is_reminded_of_a_missing_line_only_where_it_owes_an_answer(
     claimed, capsys
 ):
     """Claude Code says busy of a session for the whole of its turn, and every page
-    the session holds reads working by it. A page with nothing the agent owes is
-    not asking for a line, so its tool boundaries stay quiet however long the turn
-    runs; once the page holds a to-do the agent has not started, a boundary asks
-    the agent to say what it is doing."""
+    the session holds reads working by it. A page the agent owes no answer is not
+    asking for a line, so its tool boundaries stay quiet however long the turn
+    runs, even with an open to-do the agent may have left for later while it works
+    elsewhere. Once the page holds an update the agent owes, a boundary asks the
+    agent to say what it is doing."""
 
     def hook(event: str) -> str:
         hooks_model.cmd_hook(
@@ -1375,6 +1376,12 @@ def test_a_busy_turn_is_reminded_of_a_missing_line_only_where_it_owes_work(
         cli_model.cli, ["task", "create", str(claimed), "page", "--title", "Fit S"]
     )
     assert opened.exit_code == 0, opened.output
+    check_due()
+    assert hook("PostToolBatch") == ""
+
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Fit S too."}
+    )
     check_due()
     context = json.loads(hook("PostToolBatch"))["hookSpecificOutput"][
         "additionalContext"

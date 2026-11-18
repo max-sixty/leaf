@@ -180,10 +180,10 @@ from .state import (
 def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
     """A line for each page whose working status has stood `STATUS_RENEWAL`,
     recording the check (`state.status_check_due`). A page working with no line
-    from the agent is reminded only while it holds an update the agent owes or an
-    open to-do, the items a start names: the harness's word that the session is
-    busy reaches every page the session holds, including those it has no work
-    on."""
+    from the agent is reminded only while the agent owes it an update: the
+    harness's word that the session is busy reaches every page the session holds,
+    and an open to-do may be one the agent left for later while it works
+    elsewhere."""
     session_file(session_id, STATUS_CHECKED_SUFFIX).touch()
     now = datetime.now().astimezone()
     lines = []
@@ -203,12 +203,12 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
                 f'`leaf task start {plan.page} {source["item"]} --text "<what you '
                 'are doing now>"`, in new words if your work has moved on.'
             )
-        elif activity["obligations"] or activity["todos"]:
+        elif activity["obligations"]:
             lines.append(
                 f"Leaf: {plan.page} has shown no status line from you for {minutes} "
-                f"min while you work on its updates or to-dos. Say what you are "
-                f"doing with `leaf task start {plan.page} <update or to-do id> "
-                '--text "<what you are doing>"`.'
+                f"min while you work on its updates. Say what you are doing with "
+                f'`leaf task start {plan.page} <update id> --text "<what you are '
+                'doing>"`.'
             )
     return lines
 

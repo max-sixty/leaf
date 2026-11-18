@@ -359,7 +359,7 @@ export class Sample extends HTMLElement {
       else {
         // The frame never moves in the DOM: reparenting it destroys its browsing
         // context. Native modality supplies focus containment and parent isolation.
-        // The label stays in flow; reserve only the controls and frame leaving it.
+        // Reserve the height of the controls and frame leaving the flow.
         const height =
           this.#frame.getBoundingClientRect().bottom -
           controls.getBoundingClientRect().top;

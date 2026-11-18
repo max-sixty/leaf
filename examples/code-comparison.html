@@ -74,8 +74,11 @@
         font-weight: 600;
       }
 
+      /* Each card's one column is the card's width, so a candidate the viewport
+         slider sizes wider than the card is held to it by its max-width. */
       .treatment {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         min-width: 0;
         font: var(--lf-font-ui);
         border: 1px solid var(--lf-rule);

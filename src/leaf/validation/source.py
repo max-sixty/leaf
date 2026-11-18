@@ -39,12 +39,14 @@ from leaf.validation.instances import (
     question_errors,
     reference_errors,
     suggestion_errors,
+    unnamed_card_advice,
 )
 from leaf.validation.markup import (
     authored_allocation_errors,
     document_declaration_errors,
     id_errors,
     language_advice,
+    markdown_advice,
     page_boundary_errors,
     structure_errors,
     unanswered_media,
@@ -123,6 +125,7 @@ def _instance_errors(
     errors.extend(question_errors(parser, registry))
     errors.extend(inert_allocation_advice(parser, registry))
     errors.extend(pane_advice(parser, registry))
+    errors.extend(unnamed_card_advice(parser, registry))
     errors.extend(
         reference_errors(
             parser.lf_elements,
@@ -314,6 +317,7 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
         ),
         *unpointable_blocks(parser),
         *language_advice(parser),
+        *markdown_advice(parser),
         *another_leaf_serving(page_dir),
     ]
 

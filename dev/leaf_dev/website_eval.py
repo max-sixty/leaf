@@ -23,6 +23,7 @@ from pathlib import Path
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     TURN_LIMIT,
+    arm_python,
     build_source,
     codex_home,
     codex_program,
@@ -81,15 +82,7 @@ def execute_scenario(
             (work / "adapter.log").open("w") as log,
             subprocess.Popen(
                 [
-                    "uv",
-                    "run",
-                    "-q",
-                    "--no-dev",
-                    "--project",
-                    str(payload),
-                    "--with-editable",
-                    str(ROOT / "dev"),
-                    "python",
+                    *arm_python(payload, dev=ROOT / "dev"),
                     "-m",
                     "leaf_dev.website_eval",
                 ],

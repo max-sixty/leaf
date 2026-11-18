@@ -210,16 +210,12 @@ _THREAD_DIGEST = object_schema(
                             "hides the messages.",
                             STRING,
                         ),
-                        "label": described(
-                            "What the folded run reads as in the thread.", STRING
-                        ),
                     },
                     {
-                        "trigger": described(
-                            "The agent reply whose arrival folded earlier progress "
-                            "messages.",
+                        "label": described(
+                            "The name the agent gave the range, leading the summary.",
                             STRING,
-                        )
+                        ),
                     },
                 ),
             },
@@ -454,7 +450,7 @@ DELIVERY = Record(
             },
         ),
     ),
-    since=46,
+    since=51,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 

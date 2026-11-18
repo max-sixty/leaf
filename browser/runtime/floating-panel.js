@@ -97,6 +97,13 @@
  *   count in the accent's ink leaves unclear. A draft takes precedence over passing notices,
  *   which still reach the live region. A selected passage is named by the field's
  *   mode chip when a draft hides its placeholder. No transient message adds a row.
+ *   Keys pressed while the page loads, which wait for it, the field says in place of
+ *   all of these but an error, which says why the page may not get ready; the mode
+ *   chip says them where an error or a draft takes the field's words, and the field's
+ *   end offers no press while they wait, where a key would only join them; before the
+ *   panel stands, a stand-in for this row says them (`heldWords`; panel-stand-in.js).
+ *   The user chose this over a notice of their own
+ *   beside the panel.
  *   The keys that send are Send's hover name, where Return sends with
  *   Shift+Return's new line beside it (composing/input.js).
  * - **Opened**: a view above the same row (On, whose tabs are the menu, On Me,
@@ -328,7 +335,12 @@ import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { comparisonBase, comparisonChanges, versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
-import { gestureReading, noticeReading, noticeWords } from "./notifications.js";
+import {
+  announce,
+  gestureReading,
+  noticeReading,
+  noticeWords,
+} from "./notifications.js";
 import {
   dismissError,
   dismissErrors,
@@ -398,13 +410,14 @@ import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
 // The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
-// takes (queue-walk.js).
-/** @type {import("./notifications.js").NoticePress} */
+// takes (queue-walk.js). No notice carries it, so it has no `stands`; `pageOffer`
+// decides when it stands.
+/** @typedef {Omit<import("./notifications.js").NoticePress, "stands">} FieldPress */
+/** @type {FieldPress} */
 const NEXT_ON_ME = {
   action: "next-on-me",
   command: "queue.next",
   run: () => pressCommand("queue.next"),
-  stands: () => onUserCount() > 0,
 };
 
 // What the field's own search box asks for, in each list it searches, in Leaf's words
@@ -686,6 +699,12 @@ export function createFloatingPanel({
     const reading = initial ? null : fieldReading(top?.thread ?? null, input);
     const selection =
       !search && reading?.says === "selection" && Boolean(draftOf(input));
+    // Held keys the field's words don't say, under an error or a draft, stand in the
+    // mode chip, as selected words do.
+    const held =
+      reading && !search && (reading.says !== "held" || draftOf(input))
+        ? heldWords.value
+        : null;
     const folded = !initial && prefs().rest === "mark" && !top && !search;
     const statusModel = initial ? { summary: "Connecting…", tone: "" } : status();
     const onUser = initial ? 0 : onUserCount();
@@ -712,9 +731,11 @@ export function createFloatingPanel({
             "search",
             "lf-fp-mode-icon",
           )}<span>${searchMode}</span>`
-      : selection
-        ? "Selection"
-        : nothing;
+      : held
+        ? heldParts(held)
+        : selection
+          ? "Selection"
+          : nothing;
     const newsName = news
       ? `${counted(news, "thread")} with news`
       : kept
@@ -877,9 +898,11 @@ export function createFloatingPanel({
                 .lfPreview=${() => {
                   const words = search
                     ? searchLabel
-                    : selection
-                      ? wordsText(reading.words)
-                      : null;
+                    : held
+                      ? heldText(held)
+                      : selection
+                        ? wordsText(reading.words)
+                        : null;
                   return words ? { name: words } : null;
                 }}
                 >${mode}</span
@@ -1145,6 +1168,27 @@ export function createFloatingPanel({
   /** @typedef {{quote: string, comment: () => unknown}} SelectedWords */
   /** @type {SelectedWords | null} */
   let selectedWords = null;
+  // What the keys the bootstrap holds while the page loads say, until the runtime takes
+  // them (bootstrap.js, `holdEarlyKeys`), or null while none are shown. They are the
+  // user's latest keys and say what became of them, so the field says them in place of
+  // whatever else it would but an error, which says why the page may not get ready, and
+  // offers no press at its end while they wait, where a key would only join them. The
+  // mode chip says them where an error or a draft takes the field's words, and the
+  // folded leaf's peek as it says a notice.
+  // Before the panel stands a stand-in for its row shows them (panel-stand-in.js),
+  // which goes as the panel offers its field (`mount`).
+  /** @type {import("@preact/signals-core").Signal<HeldWords | null>} */
+  const heldWords = signal(null);
+  /** @param {HeldWords} words */
+  const heldText = (words) =>
+    words.map((part) => (typeof part === "string" ? part : part.key)).join("");
+  /** @param {HeldWords} words */
+  const heldParts = (words) =>
+    words.map((part) =>
+      typeof part === "string"
+        ? voiced(leafSays(part))
+        : html`<kbd class="lf-key-badge lf-held-key">${part.key}</kbd>`,
+    );
   // What the empty field says, and whose reading it is (`says`): the newest error it
   // can say; once the caret is in a field that takes words, where they go; on the page,
   // the selected words a press there comments on; a passing notice while one stands;
@@ -1168,7 +1212,7 @@ export function createFloatingPanel({
   // Leaf, each in its face (voice.js), and read dim (floating-panel.css). The field
   // carries the agent's words, so nothing in it is nobody's: Leaf says a stance's name,
   // where the user stands and the words quoted, since the interface's upright face would
-  // read as the agent's (the user's choice, 16 November 2026).
+  // read as the agent's (the user's choice).
   const HIDDEN = "Annotations hidden";
   // A notice offering a press after the user's own gesture is newer than any error the
   // field says, so while it passes it says its words over that error,
@@ -1239,6 +1283,8 @@ export function createFloatingPanel({
     const [error] = sayable();
     if (error && !noticePressing(input))
       return { says: "error", words: leafSays(error.message) };
+    const held = heldWords.value;
+    if (held) return { says: "held", words: leafSays(heldText(held)) };
     const thread = key ? threadByKey(key) : null;
     // A retained field can repaint between a thread leaving the reading and its
     // route being retired. Its native row survives that interval, not its turn.
@@ -1318,7 +1364,7 @@ export function createFloatingPanel({
   // once the pointer leaves: a press arriving there would stand where the user was
   // about to press another (browser/AGENTS.md, "The page holds still under the user's
   // aim").
-  /** @returns {import("./notifications.js").NoticePress | "latest" | null} */
+  /** @returns {FieldPress | "latest" | null} */
   const pageOffer = () =>
     latestPress() ? "latest" : onUserCount() ? NEXT_ON_ME : null;
   /** @type {ReturnType<typeof pageOffer>} */
@@ -1389,7 +1435,9 @@ export function createFloatingPanel({
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldHint(key, input, drawn = null) {
-    const { words, lead = [] } = fieldReading(key, input, drawn);
+    const { says, words, lead = [] } = fieldReading(key, input, drawn);
+    const held = heldWords.value;
+    if (says === "held" && held) return heldParts(held);
     const parts = [words].flat();
     // Where the user stands, before the status, is drawn apart from it, so the ink a
     // status that asks wears stays the status's (floating-panel.css).
@@ -1423,8 +1471,10 @@ export function createFloatingPanel({
       // The agent's or Leaf's words at rest say nothing about the press, so the key
       // that enters the field stands with its word (composing/input.js, `enters`),
       // unless the moment offers a press of its own there: a passing notice's, the
-      // next On Me item after an answer, or a stance's Close (`fieldReading`).
+      // next On Me item after an answer, or a stance's Close (`fieldReading`). Held
+      // keys leave it nothing, since its key would only join them (`heldWords`).
       enters: () => {
+        if (heldWords.value) return null;
         const { says, words, offer } = fieldReading(null, input);
         return offer ?? (SAYS_ELSE.has(says) && wordsText(words) ? COMMENT_HINT : "");
       },
@@ -5108,7 +5158,7 @@ export function createFloatingPanel({
   // Its key stands beside it only while that key would make the same press now, as the
   // dispatcher reads it (`activeCommandLabel`): with the caret in a box, `m` is a letter
   // typed, and the press alone still acts.
-  /** @param {import("./notifications.js").NoticePress} press
+  /** @param {FieldPress} press
    * @returns {import("./composing/input.js").BoxPress} */
   function noticePress(press) {
     return {
@@ -5201,11 +5251,16 @@ export function createFloatingPanel({
   // the page's status under that, which the row and the menu already show unfolded; the
   // words keep still while they show, even as the live status ages.
   function peekPresentation() {
+    const held = heldWords.value;
     const notice = passing();
-    const telling = notice.visible && host.dataset.lfRest === "mark";
+    const telling = (held || notice.visible) && host.dataset.lfRest === "mark";
     return {
-      content: telling ? voiced(noticeWords(notice.message)) : nothing,
-      shown: telling,
+      content: !telling
+        ? nothing
+        : held
+          ? heldParts(held)
+          : voiced(noticeWords(notice.message)),
+      shown: Boolean(telling),
     };
   }
   // The leaf's label carries the status's summary for a screen reader, which its
@@ -5683,6 +5738,19 @@ export function createFloatingPanel({
     document.addEventListener(UPGRADE, () => paint(), { once: true });
     document.addEventListener("lf-chrome-preference", () => paint());
     paint();
+    // The field takes over the held keys' words from the stand-in for this row, in the
+    // frame the panel first draws (`heldWords`).
+    document.dispatchEvent(
+      new CustomEvent("lf-held-keys-seat", {
+        detail: {
+          /** @param {HeldWords | null} words */
+          show(words) {
+            heldWords.value = words;
+            if (words) announce(heldText(words));
+          },
+        },
+      }),
+    );
   }
 
   return {

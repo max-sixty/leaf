@@ -169,8 +169,8 @@ export function createDataProjection({ invalidateDom }) {
     const who = `<${root.localName} id=${root.id}>`;
     /** @param {Element} node */
     const stampBasis = (node) => {
-      keeps(node, "data-lf-source", snapshot?.source ?? null);
-      keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
+      keeps(node, PAGE_PAINT_ATTRIBUTE.source, snapshot?.source ?? null);
+      keeps(node, PAGE_PAINT_ATTRIBUTE.sourceRevision, snapshot?.revision ?? null);
     };
     stampBasis(root);
     keeps(root, PAGE_PAINT_ATTRIBUTE.drawReported, "");
@@ -221,8 +221,8 @@ export function createDataProjection({ invalidateDom }) {
       if (!nodes.has(node)) {
         node.removeAttribute("data-lf-gen");
         node.removeAttribute("data-lf-projection");
-        node.removeAttribute("data-lf-source");
-        node.removeAttribute("data-lf-source-revision");
+        node.removeAttribute(PAGE_PAINT_ATTRIBUTE.source);
+        node.removeAttribute(PAGE_PAINT_ATTRIBUTE.sourceRevision);
         node.removeAttribute("data-lf-origin");
         unmirror(node);
       }

@@ -41,8 +41,9 @@ from leaf.files import revision_path
 from leaf.render_checks import OUTSTANDING
 from leaf.state import session_record
 from leaf_dev import ROOT, startup
+from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.commands.journey import chart as journey_chart
-from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.journey import run as journey_run
 from leaf_dev.commands.site import previews as refresh_previews
 from leaf_dev.commands.site import verify as verify_site
 from leaf_dev.reply_phases import turn_phases
@@ -515,10 +516,10 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         session = SimpleNamespace(context=Context(), url=origin, pause=time.sleep)
         return session, release or "served"
 
-    monkeypatch.setattr(journey, "local_adapter", local)
-    monkeypatch.setattr(journey, "local_worker", worker)
-    monkeypatch.setattr(journey, "headless_shell", browser)
-    monkeypatch.setattr(journey, "website_session", session)
+    monkeypatch.setattr(journey_run, "local_adapter", local)
+    monkeypatch.setattr(journey_run, "local_worker", worker)
+    monkeypatch.setattr(journey_run, "headless_shell", browser)
+    monkeypatch.setattr(journey_run, "website_session", session)
     monkeypatch.setattr(
         journey,
         "run_journey",
@@ -528,7 +529,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         },
     )
     runner = CliRunner()
-    local_result = runner.invoke(journey.journey, ["website-adapter"])
+    local_result = runner.invoke(journey_run.journey, ["website-adapter"])
     assert local_result.exit_code == 0, local_result.output
     sample = json.loads(local_result.stdout)
     [step] = sample.pop("steps")
@@ -543,15 +544,15 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     }
     assert (step["step"], step["comments"]) == ("release", {})
     # A harness's options belong to its harness alone.
-    refused = runner.invoke(journey.journey, ["website-adapter", "--http"])
+    refused = runner.invoke(journey_run.journey, ["website-adapter", "--http"])
     assert refused.exit_code == 2
     assert "a website's journey is its page in a browser" in refused.output
     for target in ("website-adapter", "claude-code", "pi"):
-        refused = runner.invoke(journey.journey, [target, "--preview"])
+        refused = runner.invoke(journey_run.journey, [target, "--preview"])
         assert refused.exit_code == 2
         assert "--preview is an option of the codex targets" in refused.output
     # A remote journey needs no local build: the origin names its release.
-    remote_result = runner.invoke(journey.journey, ["https://leaf-dev.example/"])
+    remote_result = runner.invoke(journey_run.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
     assert {
         key: value
@@ -564,7 +565,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         "version": "served",
     }
     # Through the local Worker the journey holds the container to the built release.
-    worker_result = runner.invoke(journey.journey, ["website-worker"])
+    worker_result = runner.invoke(journey_run.journey, ["website-worker"])
     assert worker_result.exit_code == 0, worker_result.output
     assert lifecycle == ["start", "stop", "worker"]
     # Each journey closes the browser context its session opened.
@@ -1410,7 +1411,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             SimpleNamespace(monotonic=iter([39.0, 39.5, 40.0, 42.5]).__next__),
         )
         benchmark = run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(container),
                 None,
                 origin="https://leaf.page",
@@ -1506,7 +1507,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     refused = _DeployedPage(recorded, revision=2, presented_at=28444.0, reload_ok=False)
     with pytest.raises(RuntimeError, match="did not reload after its agent turn"):
         run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(_DeployedContainer(release, refused)),
                 release,
                 origin="https://leaf.page",
@@ -1521,7 +1522,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     )
     with pytest.raises(RuntimeError, match="did not finish presenting it"):
         run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(_DeployedContainer(release, pending)),
                 release,
                 origin="https://leaf.page",
@@ -1589,7 +1590,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     )
     with pytest.raises(RuntimeError) as reported:
         run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(_DeployedContainer(release, offline)),
                 release,
                 origin="https://leaf.page",
@@ -1613,7 +1614,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     )
     with pytest.raises(RuntimeError) as named:
         run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(_DeployedContainer(release, told)),
                 release,
                 origin="https://leaf.page",

@@ -636,9 +636,16 @@ LAYER_TOP_FILES = (
     "registry.json",
     "icon.svg",
 )
-# The kernel's sheets, each composed into its own cascade tier
-# (`layer.composed_sheets`), and every file of the kernel's a layer reads.
-KERNEL_STYLES = ("shadow.css", "base.css", "layouts.css", "state.css")
+# The kernel's sheets that `layer.composed_sheets` reads, and every file of the
+# kernel's a layer names (`layer.input_paths`).
+KERNEL_STYLES = (
+    "shadow.css",
+    "base.css",
+    "layouts.css",
+    "state.css",
+    "styles/control-face.css",
+    "styles/shadow-leading.css",
+)
 KERNEL_FILES = (*KERNEL_STYLES, "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.

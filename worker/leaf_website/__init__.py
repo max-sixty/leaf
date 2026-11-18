@@ -109,7 +109,7 @@ if TYPE_CHECKING:
 
 PORT = 8080
 # The model every hosted task runs on. Its threads are titled on Codex's title
-# model (`thread_titles.CODEX_TITLE_MODEL`).
+# model (`inference.CODEX_MODEL`).
 HOSTED_MODEL = "gpt-6-luna"
 WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
@@ -900,8 +900,7 @@ class WebsiteCodexHarness:
                         log_agent(
                             "turn_correction_start_failed",
                             **agent_event_fields(turn.event_ids),
-                            error=type(error).__name__,
-                            detail=str(error),
+                            **fault_fields(error),
                         )
                 if not restarted:
                     if turn.correction is not None:
@@ -1670,6 +1669,7 @@ def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     os.environ["LEAF_SITE_ROOT"] = str(site_root)
+    from leaf_website.stalls import watch_stalls
     from leaf_website.storage import PUBLISHER, restore
 
     if restore(site_root):
@@ -1678,6 +1678,7 @@ def main(port: int) -> None:
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])
     close_on_signal(httpd, agent_harness)
+    watch_stalls(httpd.server_address[1], log_agent)
     agent_harness.prewarm()
     try:
         httpd.serve_forever()

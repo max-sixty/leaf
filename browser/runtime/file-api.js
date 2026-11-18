@@ -2,8 +2,9 @@
    This transport keeps their addresses within the current page, including samples,
    and applies the same delivery-generation gate as Leaf's other HTTP consumers.
    A captured document or export never gains write access to a live file. The state
-   answer stamps each binding (`file_bindings.binding_stamps`), so `watch` hears a
-   file move on the page's own news rather than by reading it on a timer. */
+   answer names and stamps each binding (`file_bindings.bound_files`), so `label`
+   names a file before it is read and `watch` hears a file move on the page's own
+   news rather than by reading it on a timer. */
 import { offlineInteractive, pageUrl } from "./context.js";
 import { LayerRefused, RequestError, requestJson } from "./layer-client.js";
 import { applicationState, readPart } from "./semantic-state.js";
@@ -13,6 +14,7 @@ const live = readPart((root) => root.document.live);
 /** @param {string} binding */
 export function boundFile(binding) {
   const writable = () => !offlineInteractive && Boolean(live());
+  const label = readPart((root) => root.authoritative?.files[binding]?.label ?? null);
   /** @template T @param {RequestInit} [options] @returns {Promise<T>} */
   async function request(options = {}) {
     if (!writable()) throw new Error("File editing is available in live pages.");
@@ -45,6 +47,12 @@ export function boundFile(binding) {
     get writable() {
       return writable();
     },
+    // The name the page shows for the file, a path below the folder holding every
+    // file the page binds, or null before the server has named it or where the page
+    // binds none.
+    get label() {
+      return label();
+    },
     // The server answers a binding the page lacks as no file, keeping the console
     // clean for a designed state; the editor still shows it as unavailable.
     read: async () => {
@@ -61,10 +69,10 @@ export function boundFile(binding) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(snapshot),
       }),
-    // Calls back each time an adopted state answer carries a different stamp for this
-    // binding, the tab's first answer included, until the returned function stops it.
-    // A stamp says only that the file may have moved; `read()`'s revision says whether
-    // it did.
+    // Calls back each time an adopted state answer carries a different label or stamp
+    // for this binding, the tab's first answer included, until the returned function
+    // stops it. A stamp says only that the file may have moved; `read()`'s revision
+    // says whether it did.
     /** @param {() => void} callback */
     watch(callback) {
       let subscribing = true;

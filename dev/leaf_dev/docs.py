@@ -180,7 +180,7 @@ KEY_SECTIONS = {
         "Where the element may stand and what it names, which `page check` and message "
         "markup hold markup to without running a module.",
     ),
-    "says": (
+    "verbatim": (
         "Words",
         "How the element's words read to the passage reader, the render check and a "
         "browser that hasn't run its module.",

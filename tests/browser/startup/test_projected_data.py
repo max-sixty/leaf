@@ -68,8 +68,8 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
       const lede = document.querySelector('#lede');
       const datum = document.querySelector('[data-lf-datum="api"]');
       return {
-        prose: [leaf.says(lede), leaf.wrote(lede)],
-        datum: [leaf.says(datum), leaf.wrote(datum), datum.textContent],
+        prose: [leaf.says(lede), leaf.named(lede)],
+        datum: [leaf.says(datum), leaf.named(datum), datum.textContent],
       };
     })""")
     assert readings == {

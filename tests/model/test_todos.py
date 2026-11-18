@@ -1720,7 +1720,7 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     version.write_text(
         PAGE.replace(
             '<small class="tag">effort: low</small>',
-            '<lf-gloss id="effort" tip="A short task.">effort: low</lf-gloss>',
+            '<lf-gloss id="effort">effort: low<span popover>A short task.</span></lf-gloss>',
         )
     )
     publish(page_dir)

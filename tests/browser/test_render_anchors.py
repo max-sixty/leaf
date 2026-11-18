@@ -2100,7 +2100,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
-      const { says, wrote } = await window.__lfWidgetApi();
+      const { says, named } = await window.__lfWidgetApi();
       const { textNodesUnder } = await window.__lfCheckApi();
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
@@ -2121,9 +2121,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         segmentCount: segments.length,
         saysPath: says(document).includes('gateway/limits.py'),
-        wrotePath: wrote(document).includes('gateway/limits.py'),
+        namedPath: named(document).includes('gateway/limits.py'),
         saysStat: says(document).includes(statText),
-        wroteStat: wrote(document).includes(statText),
+        namedStat: named(document).includes(statText),
         lineNumberWords: segments
           .filter(({node}) => node.parentElement?.closest('.lf-diff-line-comment'))
           .map(({node}) => node.data),
@@ -2144,8 +2144,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
     # The parser supplies the visible file path; it was not written into the page.
-    assert reading["saysPath"] and not reading["wrotePath"], reading
-    assert reading["saysStat"] and not reading["wroteStat"], reading
+    assert reading["saysPath"] and not reading["namedPath"], reading
+    assert reading["saysStat"] and not reading["namedStat"], reading
     assert reading["lineNumberWords"] == [], (
         f"line number chrome entered the page reading: {reading}"
     )
@@ -4793,7 +4793,7 @@ new file mode 120000
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, wrote } = await window.__lfWidgetApi();
+      const { says, named } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
@@ -4819,7 +4819,7 @@ new file mode 120000
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
-        wroteRename: wrote(document).includes('old-name.js → new-name.js'),
+        namedRename: named(document).includes('old-name.js → new-name.js'),
       };
     }""")
     assert result == {
@@ -4869,7 +4869,7 @@ new file mode 120000
             "binary-target",
         ],
         "saysRename": True,
-        "wroteRename": False,
+        "namedRename": False,
     }
 
     for path, side, text in [
@@ -6049,41 +6049,20 @@ def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_page_search_reads_a_said_label_apart_from_its_elements_words(
-    engine, request, serve
-):
-    """A declared `says` label, drawn as its element's caption, reads apart from the
-    words the element holds, as the file's reading reads it: page search finds the two
-    with a space between them."""
+def test_page_search_finds_a_label_a_widget_draws(engine, request, serve):
+    """A label a widget's module draws, as a sample's caption, is the page's words, so
+    page search finds it."""
     url = serve(
         leaf_page(
             "Said label",
-            '<div id="pair"><lf-said-label id="said" label="Head">body words'
-            "</lf-said-label></div>" + "<p>More.</p>" * 4,
-        ),
-        layer_registry={
-            "lf-said-label": {
-                "description": "Words with a label the runtime says before them.",
-                "attributes": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "label": {"type": "string"},
-                    },
-                    "required": ["id"],
-                    "additionalProperties": False,
-                },
-                "content": "markup",
-                "says": {"label": "before"},
-                "example": '<lf-said-label id="example" label="Head">Words.'
-                "</lf-said-label>",
-            }
-        },
+            '<div id="pair"><lf-sample id="said" label="Head"><p>body words</p>'
+            "</lf-sample></div>" + "<p>More.</p>" * 4,
+        )
     )
     page = open_page(request.getfixturevalue(engine), url)
     page.wait_for_function("() => document.querySelector('#said > [data-lf-said]')")
     page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill("Head body")
+    page.get_by_role("searchbox", name="Search page text").fill("Head")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 

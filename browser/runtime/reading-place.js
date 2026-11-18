@@ -132,7 +132,13 @@ import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusPlace, readingAt } from "./user-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { heldTravel, holderOf, seenAhead, seenGlided } from "./scroll-containers.js";
+import {
+  heldTravel,
+  holderOf,
+  seenAhead,
+  seenGlided,
+  seenLanded,
+} from "./scroll-containers.js";
 import { shifted, union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 
@@ -830,7 +836,10 @@ export const pageReadingBlock = () => pageReading({ bodies: false });
 // one, as it does where every block on screen rides a fixed shell, and across the
 // reader's column wherever the block stands across it. A walk asks it of its stops,
 // which need hold no words (current-target.js, `stepFrom`). The block's own readings
-// are taken once, for every node asked.
+// are taken once, for every node asked. The block is on screen, so a node a window's
+// height or more above or below it is off screen however the glides under way move the
+// region holding both. Such a node is judged by its box alone, without measuring what
+// clips it, since a walk asks this of every stop the page holds.
 /** @param {Element} block @returns {(node: Element) => boolean} */
 export function seenWhereRead(block) {
   const region = readingRegionFor(block) ?? null;
@@ -839,13 +848,22 @@ export function seenWhereRead(block) {
   const bounds = readingBounds(region);
   const body = box ?? pageDocument();
   const reader = bounds && body ? readerColumn(bounds, body) : null;
-  const column =
-    reader !== null && spans(block, shownBox(block), reader) ? reader : null;
-  return (node) =>
-    readingRegionFor(node)?.id === region?.id &&
-    seenAhead(node) &&
-    (stuck || !stuckBox(node, box)) &&
-    (column === null || spans(node, shownBox(node), column));
+  const read = shownBox(block);
+  const column = reader !== null && spans(block, read, reader) ? reader : null;
+  /** @param {DOMRect} shown */
+  const afar = (shown) =>
+    (shown.width > 0 || shown.height > 0) &&
+    (shown.bottom <= read.top - innerHeight || shown.top >= read.bottom + innerHeight);
+  return (node) => {
+    if (readingRegionFor(node)?.id !== region?.id) return false;
+    const shown = shownBox(node);
+    return (
+      !afar(shown) &&
+      seenLanded(node) &&
+      (stuck || !stuckBox(node, box)) &&
+      (column === null || spans(node, shown, column))
+    );
+  };
 }
 
 // The sections whose words or pictures the user sees, by id in page order: the

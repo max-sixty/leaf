@@ -71,7 +71,7 @@ import {
   workflowWord,
 } from "./workflow.js";
 import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
-import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
+import { markDeclared, renderQuiet } from "../declared-words.js";
 import { dressCode } from "../code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../presence.js";
 import { elementById, says } from "../passages.js";
@@ -515,12 +515,9 @@ export function prepareAuthoredMessage(message, thread) {
     rememberPassageParts(template.content, ["event", message.id]);
     // The message's words as the page reading says them (`says`). `says` refuses text
     // with no element over it, and a message may open with bare text, so it reads a
-    // copy inside a <div> of the template's inert document, where nothing upgrades; the
-    // copy writes its declared labels as the drawn message does (`renderSaid`), so a
-    // sample's label is among its words.
+    // copy inside a <div> of the template's inert document, where nothing upgrades.
     const body = template.content.ownerDocument.createElement("div");
     body.append(template.content.cloneNode(true));
-    renderSaid(body);
     const text = says(body);
     const nodes = Object.freeze([...template.content.childNodes]);
     prepared = {
@@ -730,6 +727,15 @@ export function messageReading(
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "edit">},
  * reaction: ConstructorParameters<typeof ReactionStripView>[0],
  * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"]}} MessageCommands */
+
+// The tint a turn arrives in, a message or a progress run's face (transcript.js):
+// one phase drives its ground and its sticky head (surfaces.css, `--lf-msg-arrival`).
+// CSS resolves the tint and resting colour at the node after insertion; Firefox's Web
+// Animations interpolates a var() colour keyframe discretely. The shared motion gate
+// answers for restoration and reduced motion.
+/** @param {Element} node */
+export const arrivalTint = (node) =>
+  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], flashDuration());
 
 export class MessageView {
   #commands;
@@ -995,7 +1001,6 @@ export class MessageView {
     );
     if (model.body.authored && this.#dressed !== authored) {
       markDeclared(this.node);
-      renderSaid(this.node);
       renderQuiet(this.node);
       this.#dressed = authored;
     }
@@ -1004,18 +1009,9 @@ export class MessageView {
     dressCode(this.node);
     // The drawing these widgets left draws the way here instead.
     displaced?.present(displaced.model);
-    if (!prior && (model.pending || arrived)) {
-      // One phase drives the message's ground and its sticky header. CSS resolves
-      // the tint and resting colour at this message after insertion; Firefox's
-      // Web Animations interpolates a var() colour keyframe discretely.
-      // The shared motion gate answers for restoration and reduced motion; the
-      // delivery receipt and busy cursor remain independent of the arrival tint.
-      this.#arrivalMotion = motion(
-        this.node,
-        [{ "--lf-msg-arrival": 1, offset: 0 }],
-        flashDuration(),
-      );
-    }
+    // The delivery receipt and busy cursor remain independent of the arrival tint.
+    if (!prior && (model.pending || arrived))
+      this.#arrivalMotion = arrivalTint(this.node);
     // Whether this message can be rewritten may have moved, which the reply box's ↑
     // reads (`threadRewrites`).
     messageDrawn();

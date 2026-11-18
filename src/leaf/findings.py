@@ -668,9 +668,6 @@ _TEXT = {
         )
     ),
     "verbatim": _verbatim,
-    "silent-word": lambda at, v: (
-        f'{at} declares {v["attr"]} as `says` and never says "{v["value"]}"'
-    ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
         " declare it as a verb's record form (`verbs`) if a version is meant to carry"
@@ -1539,13 +1536,6 @@ _TEXT = {
     "record-undeclared": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records undeclared attribute `{v['attr']}`"
-        )
-    ),
-    "record-says": _declared(
-        lambda v: (
-            f"verb `{v['verb']}` (`verbs`) records `says` attribute"
-            f" `{v['attr']}`, whose value is words the user sees — declared state may not"
-            " move the page's words"
         )
     ),
     "record-type": _declared(

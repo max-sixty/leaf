@@ -886,6 +886,43 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     assert settled() == 0
 
 
+def test_m_pressed_while_a_glide_carries_asks_past_steps_on_from_where_it_lands(
+    browser, serve
+):
+    """`m` pressed while the page still glides steps on from where the glide lands, as
+    it does pressed once the glide has landed: an ask the glide carries through the
+    window to end above it is not one the reader sees there."""
+    asks = "".join(
+        f'<lf-group id="ask-{index}" label="Question {index}">'
+        f'<h2 id="ask-{index}-h">Question {index}: which route?</h2>'
+        f"<p>Premise {index}, long enough to read as a line of the page.</p>"
+        f'<lf-options id="routes-{index}"><lf-option id="left-{index}">Left</lf-option>'
+        f'<lf-option id="right-{index}">Right</lf-option></lf-options></lf-group>'
+        for index in range(80)
+    )
+    page = open_page(
+        browser, serve(leaf_page("Many asks", f"<h1>Many asks</h1>{asks}"))
+    )
+    reached = []
+    for landed in (False, True):
+        page.evaluate(RELEASE_FOCUS)
+        page.evaluate(
+            "() => document.querySelector('#ask-40-h')"
+            ".scrollIntoView({block: 'start', behavior: 'instant'})"
+        )
+        scroll_settled(page)
+        for _ in range(12):
+            page.keyboard.press("d")
+        if landed:
+            scroll_settled(page)
+        page.keyboard.press("m")
+        scroll_settled(page)
+        reached.append(
+            page.evaluate("() => document.activeElement?.closest('lf-group')?.id")
+        )
+    assert reached[0] == reached[1]
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):

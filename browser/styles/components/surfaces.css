@@ -847,8 +847,9 @@ summary {
   inherits: false;
   initial-value: 0;
 }
-.lf-msg {
-  margin: var(--lf-msg-gap) 0 0;
+/* A message and a progress run's face arrive in one tint (messages.js, `arrivalTint`). */
+.lf-msg,
+.lf-thread-working {
   --lf-msg-rest-ground: transparent;
   --lf-msg-ground: color-mix(
     in srgb,
@@ -856,6 +857,9 @@ summary {
     var(--lf-msg-rest-ground)
   );
   background-color: var(--lf-msg-ground);
+}
+.lf-msg {
+  margin: var(--lf-msg-gap) 0 0;
 }
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
   margin-top: 0;

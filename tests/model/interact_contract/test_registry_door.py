@@ -13,7 +13,6 @@ from interact_support import (
     _report_body_record,
     _report_no_record,
     _report_position_record,
-    _report_says_attr,
     _report_undeclared_attr,
     _report_without_module,
     _report_without_overruled,
@@ -172,7 +171,6 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
         # Each of these names attributes, so an empty one declares nothing while
         # reading as a declaration.
         ("refers", {}),
-        ("says", []),
         ("verbs", []),
         ("verbatim", "false"),
         ("work", []),
@@ -239,9 +237,6 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, code, at, va
         # nothing a version could be checked against.
         (_report_no_record, "invalid-declaration", {}),
         (_report_undeclared_attr, "record-undeclared", {"attr": "phase"}),
-        # A `says` value is the page's words: replay writing one would change
-        # what the page says while the file's reading held still.
-        (_report_says_attr, "record-says", {"attr": "owner"}),
         # The destination owns the payload schema; a report cannot author another.
         (_report_authored_detail, "invalid-declaration", {}),
         # `overruled` is how a version keeps its state over a report; without it
@@ -784,12 +779,6 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
 @pytest.mark.parametrize(
     ("tag", "key", "value", "missing"),
     [
-        (
-            "lf-gloss",
-            "says",
-            {"tip": "after", "colour": "after"},
-            "colour",
-        ),
         ("lf-option", "refers", {"for": {}, "about": {}}, "about"),
         ("lf-option", "unique", {"tone": "lf-options"}, "tone"),
     ],
@@ -797,18 +786,17 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
-    """These keys point at attributes rather than declaring them — the words a widget
-    shows, the ones that name another element, and the ones no two members of an owner
-    share —
-    and each is read by a pass that finds the attribute absent and does nothing. That
-    is the never-closed vocabulary's own failure mode: no error anywhere, the widget
-    simply missing from the pass, and a page that looks authored correctly because it
-    was. The door is the only place the mistake is visible, so it refuses here.
+    """These keys point at attributes rather than declaring them — the ones that name
+    another element, and the ones no two members of an owner share — and each is read
+    by a pass that finds the attribute absent and does nothing. That is the
+    never-closed vocabulary's own failure mode: no error anywhere, the widget simply
+    missing from the pass, and a page that looks authored correctly because it was. The
+    door is the only place the mistake is visible, so it refuses here.
 
-    Every one of them parametrized rather than three, because it is one rule
+    Parametrized rather than written one by one, because it is one rule
     (ATTRIBUTE_KEYS) and the case that would go wrong is a key left off the tuple —
-    which three tests written by hand could never see. The shapes
-    differ and the rule does not: a mapping keyed by the names, or one name."""
+    which tests written by hand could never see. The shapes differ and the rule does
+    not: a mapping keyed by the names, or one name."""
     registry = vocabulary(page_dir)
     registry[tag][key] = value
     declare_vocabulary(page_dir, registry)

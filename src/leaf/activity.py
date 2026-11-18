@@ -42,7 +42,7 @@ WORK_KINDS = frozenset(
 # say.
 AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
 # The step a Working status shows while the claimant's session works on after its
-# turn ended (`Turn.background`).
+# turn ended (`Turn.busy`).
 BACKGROUND_DETAIL = "in the background"
 
 
@@ -426,14 +426,15 @@ class Turn(NamedTuple):
     fold takes: whether it is running; when it was seen to end, where something saw
     that; until when a running turn is believed on its stamps alone; an observed
     step while it waits on the user in its own window, with when that wait began;
-    and whether the session still works in the background after its turn ended."""
+    and whether the harness's own record says the session works, in its open turn
+    or, after the turn ended, in the background."""
 
     running: bool
     ended: datetime | None = None
     until: datetime | None = None
     step: str | None = None
     step_since: datetime | None = None
-    background: bool = False
+    busy: bool = False
 
 
 def claimant_turn(
@@ -460,10 +461,11 @@ def claimant_turn(
     every renewal ends the open turn at that moment (an interrupt), and a
     `waiting` newer than the stamps is a dialog open now, a step shown whether or
     not the stamps say a turn is open. Its `busy` never says a turn runs, since
-    the harness keeps it across turn endings while background work runs; after a
-    turn the stamps closed, it says the session works on in the background
-    (`Turn.background`), for as long as the record keeps it, which keeps the
-    session's last start standing (`_start_age`). `awaiting` says the claimant's observer
+    the harness keeps it across turn endings while background work runs, so it
+    keeps no delivery in a turn past the grace. It says the session works
+    (`Turn.busy`): in the open turn, past the grace too, and after a turn the
+    stamps closed, in the background for as long as the record keeps it, which
+    keeps the session's last start standing (`_start_age`). `awaiting` says the claimant's observer
     reports a wait on the user right now, which holds the turn open for as long as
     that observer lives."""
     opened = _moment(present.get("turn_opened"))
@@ -476,10 +478,14 @@ def claimant_turn(
     dialog = live.get("state") == "waiting" and since and since >= (stamped or since)
     step = "awaiting_user" if dialog else None
     step_since = since if dialog else None
+    busy = live.get("state") == "busy"
     if not turn_open(present) or opened is None:
-        background = closed is not None and live.get("state") == "busy"
         return Turn(
-            False, ended=closed, background=background, step=step, step_since=step_since
+            False,
+            ended=closed,
+            busy=busy and closed is not None,
+            step=step,
+            step_since=step_since,
         )
     if awaiting or dialog:
         return Turn(True, step=step, step_since=step_since)
@@ -490,7 +496,7 @@ def claimant_turn(
     if live.get("state") == "idle" and since and since >= renewed:
         return Turn(False, ended=since)
     until = renewed + WORKING_GRACE
-    return Turn(now < until, until=until)
+    return Turn(now < until, until=until, busy=busy)
 
 
 def declared_at(present: dict, events: list) -> str | None:
@@ -564,7 +570,7 @@ def _start_age(
     Whether the agent works is the harness's to say, and what it works on the
     agent's: so a start stands while its turn runs, and past the turn's end only
     while the harness says the session still works in the background
-    (`Turn.background`), as a coordinator's workers do. Without that word the page
+    (`Turn.busy`), as a coordinator's workers do. Without that word the page
     stops reading as working once the turn is seen to end, rather than holding the
     agent's last line under a grace in case a later turn takes it up.
 
@@ -578,7 +584,7 @@ def _start_age(
         return _quiet(start["ts"], now, WORKING_GRACE) or start[
             "turn"
         ] not in agents, False
-    dropped = same_session and not turn.background and _dropped(start["ts"], turn.ended)
+    dropped = same_session and not turn.busy and _dropped(start["ts"], turn.ended)
     return _quiet(start["ts"], now, WORKING_GRACE) or dropped, dropped
 
 
@@ -702,20 +708,25 @@ def canonical_activity(
     turn, stream_live = current_turn(present, declared, stream, now)
     # What the harness observed the agent doing now: a live stream step while its turn
     # runs, the harness's own word that the turn waits on the user in its window, or
-    # that work the ended turn left, such as a coordinator's workers, still runs.
+    # its word that the session is busy. Claude Code says busy while a turn runs,
+    # outside its dialogs, whatever the agent has started or still owes, and after a
+    # turn ends while work it left, such as a coordinator's workers, still runs.
     observed = None
     if stream_live and turn.running:
         observed = stream
     elif turn.step is not None and status["state"] != "idle":
         assert turn.step_since is not None
         observed = {"kind": turn.step, "detail": "", "ts": turn.step_since.isoformat()}
-    elif turn.background and status["state"] != "idle":
-        assert turn.ended is not None
-        observed = {
-            "kind": "working",
-            "detail": BACKGROUND_DETAIL,
-            "ts": turn.ended.isoformat(),
-        }
+    elif turn.busy and status["state"] != "idle":
+        observed = (
+            {"kind": "working", "detail": "", "ts": present["turn_opened"]}
+            if turn.ended is None
+            else {
+                "kind": "working",
+                "detail": BACKGROUND_DETAIL,
+                "ts": turn.ended.isoformat(),
+            }
+        )
     status_dropped = _dropped(status.get("ts"), turn.ended)
     declared_quiet = _quiet(declared, now, WORKING_GRACE) or _dropped(
         declared, turn.ended

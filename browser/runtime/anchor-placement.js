@@ -173,6 +173,10 @@ export function createAnchorPlacement() {
   let stale = false;
   // The version of the page's index of quotes placement last read changes up to.
   let seen = 0;
+  // A count of changes to the threads' placements, moved as soon as one changes. The
+  // version signal moves only when those who hear are told, which for a read inside a
+  // script waits until after it (`settle`).
+  let placements = 0;
   /** @type {Set<string>} */
   const renamedIds = new Set();
   /** @type {Set<Element>} */
@@ -305,8 +309,10 @@ export function createAnchorPlacement() {
     if (
       before.size !== placed.size ||
       [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))
-    )
+    ) {
+      placements += 1;
       tick(version);
+    }
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
   // Bring placement to the page as it is now, the changes the watcher hasn't delivered
@@ -359,7 +365,9 @@ export function createAnchorPlacement() {
         if (placement) placed.set(id, placement);
         else placed.delete(id);
         note(id, placement, true);
-        if (!samePlacement(was, placement)) unheard.add(id);
+        if (samePlacement(was, placement)) continue;
+        unheard.add(id);
+        placements += 1;
       }
       if (unheard.size && !heardNow) afterScript(tell);
     }
@@ -385,6 +393,15 @@ export function createAnchorPlacement() {
       settle(false);
       version.value;
       return id == null ? undefined : placed.get(names.get(id)?.id ?? id);
+    },
+    // Which placement of the threads stands, for a reading derived from it to keep until
+    // this changes, as readings of the page keep theirs against `pageReadingVersion`
+    // (passages.js). A view that reads it while drawing draws again when placement
+    // changes, as one reading `placedAt` does.
+    placementVersion: () => {
+      settle(false);
+      version.value;
+      return placements;
     },
     pendingAt: () => {
       settle(false);

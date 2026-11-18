@@ -178,10 +178,11 @@ def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
         '<lf-group id="cache-q" label="Which cache should the importer use?">'
         "<h2>Which cache should the importer use?</h2>"
         '<p id="words">Both hold a day of results.</p>'
-        '<p>Only a <lf-gloss id="durable" tip="It survives a restart.">durable store'
-        "</lf-gloss> keeps them.</p>"
+        '<p>Only a <lf-gloss id="durable">durable store<span popover>It survives a '
+        "restart.</span></lf-gloss> keeps them.</p>"
         '<p><label><input type="checkbox" id="wal-on"> Turn on the '
-        '<lf-gloss id="wal" tip="A log of each write before it lands.">WAL</lf-gloss>'
+        '<lf-gloss id="wal">WAL<span popover>A log of each write before it lands.'
+        "</span></lf-gloss>"
         "</label></p>"
         '<lf-options id="cache">'
         '<lf-option id="cache-memory" label="In memory"><strong>In memory</strong>'

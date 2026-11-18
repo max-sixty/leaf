@@ -142,27 +142,6 @@ test("a message's words part its blocks, as the page reading does", async () => 
   assert.equal(prepared.body.text, "Pick one: Open it now Hold it");
 });
 
-// A label a widget draws, as a sample does, is among its words wherever it draws, so
-// the message's words hold it too.
-test("a message's words hold the labels its widgets draw", async () => {
-  adoptRegistry({
-    $layer: { generation: "message-labels" },
-    "lf-sample": { says: { label: "before" } },
-  });
-  assert.equal(await loadMarkdown(), true);
-  const prepared = await prepareAuthoredMessage(
-    {
-      id: "labelled-message",
-      text:
-        "See:\n\n" +
-        '<lf-sample id="labelled-sample" label="Next season">' +
-        "<p>Paper maps.</p></lf-sample>",
-    },
-    "labelled-thread",
-  );
-  assert.equal(prepared.body.text, "See: Next season Paper maps.");
-});
-
 // A drawing that doesn't hold the message's widgets, such as a margin card while the
 // panel holds them, draws the message less its widgets. The named group round a widget
 // that asks is that widget's question and goes with it; an element round a widget that

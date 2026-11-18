@@ -24,6 +24,7 @@ from render_harness import (
 from browser.startup import (
     HELD_KEYS_PAGE,
     _hold_startup,
+    first_frame,
 )
 from leaf import event_log as events_model
 from leaf.render_checks import asked_again, rendered, wait_until_ready
@@ -403,6 +404,7 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     else:
         holding(page, state, 1, "the state request")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    first_frame(page)
     expect(page.locator("#said")).to_be_visible()
 
     panel = page.locator(".lf-floating-panel")
@@ -462,6 +464,7 @@ def test_a_folded_panel_stands_folded_from_the_first_paint_with_held_keys_in_its
     module, release = _hold_startup(page, "module")
     page.reload(wait_until="commit")
     holding(page, module, 1, "the module request")
+    first_frame(page)
     served = page.locator(".lf-floating-panel[data-lf-served]")
     expect(served).to_have_attribute("data-lf-rest", "mark")
     leaf = page.locator(".lf-floating-panel .lf-fp-leaf")
@@ -489,10 +492,7 @@ def test_keys_typed_after_a_press_on_the_served_row_run_nothing(browser, serve):
     page.goto(url, wait_until="commit")
     holding(page, module, 1, "the module request")
     served = page.locator(".lf-floating-panel[data-lf-served]")
-    # The page draws its first frame before the click: Playwright's checks before a
-    # press read the page from a world of their own, and the leaf's mask fetched while
-    # one of them styles the row first misses its preload (http.py, `page_delivery`).
-    page.evaluate("() => new Promise((drawn) => requestAnimationFrame(() => drawn()))")
+    first_frame(page)
     served.locator(".lf-fp-field").click()
     page.keyboard.type("fix it")
     expect(served.locator(".lf-fp-words")).to_have_text("Connecting…")

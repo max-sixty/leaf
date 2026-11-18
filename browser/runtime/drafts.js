@@ -14,9 +14,10 @@
    user moving to another tab or device. This document holds its copy of each
    (`draftCache`), which every box here reads and writes at once, and the copy goes on
    to the server behind the keystroke (`writeDraft`); a page going away sends what is
-   still waiting. Words typed while the server is out of reach stay in this document
-   until a look reaches it again; a tab closed before then takes them with it. A server
-   that comes back holding less than this document heard from it gets its words back.
+   still waiting, and a reload of its tab starts from its copy of it. Words typed while
+   the server is out of reach stay in the tab until a look reaches it again; a tab
+   closed before then takes them with it. A server that comes back holding less than
+   this document heard from it gets its words back.
    On leaf.page the first write starts the visitor's private page. An exported page
    has no server, so its drafts last as long as its tab. No failed write disables the
    live Send or Save action.
@@ -56,14 +57,14 @@
 
    Each write names the generation it replaces: the one this document last knew the
    server held (`stored`), or none, and a page going away also names its own writes
-   still unanswered. The server takes it only over one it names, and answers with what
-   it holds (`drafts.py`), so words another tab or device wrote in the
-   meantime come back in its place, and they own the draft: this document's words since
-   then retire. Words written over a generation another tab sent start the draft again,
-   since they are newer than anything sent. The log answers which generations were
-   sent, so the server settles one at its first reading after the event, which every
-   tab hears at its next look, and turns a write of it that arrives later into its
-   settlement (`drafts.py`).
+   still unanswered, which its reload counts as its own. The server takes it only over
+   one it names or over none, and answers with what it holds (`drafts.py`), so words
+   another tab or device wrote in the meantime come back in its place, and they own the
+   draft: this document's words since then retire. Words written over a generation
+   another tab sent start the draft again, since they are newer than anything sent. The
+   log answers which generations were sent, so the server settles one at its first
+   reading after the event, which every tab hears at its next look, and turns a write
+   of it that arrives later into its settlement (`drafts.py`).
 
    Every send draws its result in this document before the log answers. So the send
    masks its generation here at the gesture (`standGesture`) and the box the words were
@@ -95,6 +96,7 @@ import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { admitResponse, layerHeaders } from "./layer-client.js";
 import { PENDING } from "./thread/identity.js";
 import { writingStore } from "./storage.js";
+import { tabStore } from "./tab-store.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -112,6 +114,7 @@ import { signal } from "./framework.js";
  * @typedef {import("../types/contract.js").ServedDraftsAnswer} DraftsReading
  * @typedef {import("../types/contract.js").ServedDraftWriteAnswer} DraftWriteAnswer
  * @typedef {{record: DraftRecord, stored: string | null, version: number, durable: boolean, ours: ReadonlySet<string>}} DraftCopy
+ * @typedef {{attempts: string[], copy: Pick<DraftCopy, "record" | "stored" | "version"> | null}} WaitingDraft
  * @typedef {{ctx: string, value: string | null, payload?: DraftPayload}} DraftNews
  * @typedef {import('./composing/text-field.js').LeafTextElement | HTMLTextAreaElement} DraftField
  * @typedef {import('./composing/input.js').InputSync} InputSync
@@ -172,6 +175,20 @@ class ListingMap extends Map {
 // this document's own words (`ours`).
 /** @type {ListingMap<DraftCopy>} */
 const draftCache = new ListingMap();
+// The generations the writes of the pages this tab reloaded carry or name, by context
+// (`takeWaitingDrafts`). Any of those writes may still land, but only over a
+// generation in its context's set, or where the server holds none, as any late write
+// can (`drafts.py`). So once this document hears the server take a write of a
+// generation outside the set, the set goes (`heardWrite`).
+/** @type {Map<string, ReadonlySet<string>>} */
+const inherited = new Map();
+// Whether the words still waiting here go over a generation the server holds rather
+// than give way to it. They go over this document's writes still unanswered, and over
+// the generations the pages this tab reloaded wrote or wrote over, since the user went
+// on from those pages to this one.
+/** @param {string} ctx @param {DraftCopy} copy @param {string} attempt */
+const superseded = (ctx, copy, attempt) =>
+  copy.ours.has(attempt) || Boolean(inherited.get(ctx)?.has(attempt));
 /** @param {string} ctx @param {string | null} value @param {DraftPayload} [payload] */
 export const tellDraft = (ctx, value, payload = undefined) =>
   document.dispatchEvent(
@@ -243,8 +260,8 @@ let reading = null;
 // reading's version or later keeps what it has, as the reading may have been taken
 // before a write this document's answer already told it of. A draft whose words still
 // wait to reach the server keeps them over the generation they replace, none, or one
-// of its own writes, and gives them up to anything else, which another tab or device
-// wrote later.
+// they supersede (`superseded`), and gives them up to anything else, which another
+// tab or device wrote later.
 /** @param {DraftsReading} drafts @param {boolean} restored */
 function hearReading({ version, drafts }, restored) {
   if (restored) {
@@ -270,7 +287,7 @@ function hearReading({ version, drafts }, restored) {
       continue;
     if (copy && !copy.durable) {
       if (incoming === null || incoming.attempt === copy.stored) continue;
-      if (copy.ours.has(incoming.attempt)) {
+      if (superseded(ctx, copy, incoming.attempt)) {
         draftCache.set(ctx, { ...copy, stored: incoming.attempt });
         continue;
       }
@@ -362,17 +379,67 @@ const writeWaiting = () => {
 // resend names every generation this document wrote since it last heard an answer
 // (`ours`) beside the one it knew the server held: whichever the server holds, the
 // newest words replace it.
+//
+// A reload can be served its drafts before those writes land, and the words typed on
+// arrival would then go over an older generation than the resend's and lose to it. So
+// the page also leaves in the tab, for each draft, the generations its writes that
+// may still land carry or name (`inherited` included), and its copy of a draft still
+// waiting (`WAITING_DRAFTS`), and its reload starts from them (`takeWaitingDrafts`).
+// The reload shows the newest words at once, and the words it has yet to send go over
+// any of those writes, whichever lands and when (`superseded`), so the words typed
+// after the reload stand. A generation this document is sending leaves its
+// generations but not its copy, since only the server's answer says whether the log
+// took those words.
+const WAITING_DRAFTS = "lf-drafts-waiting";
 addEventListener("pagehide", () => {
   if (offlineInteractive) return;
-  for (const [ctx, copy] of draftCache) {
-    if (copy.durable) continue;
-    draftCache.set(ctx, {
-      ...copy,
-      ours: new Set([...copy.ours, copy.record.attempt]),
-    });
-    void postDraft(ctx, [copy.stored, ...copy.ours], copy.record, true).catch(() => {});
+  /** @type {[string, WaitingDraft][]} */
+  const waiting = [];
+  for (const ctx of new Set([...draftCache.keys(), ...inherited.keys()])) {
+    const copy = draftCache.get(ctx);
+    const earlier = [...(inherited.get(ctx) ?? [])];
+    if (!copy || copy.durable) {
+      if (earlier.length) waiting.push([ctx, { attempts: earlier, copy: null }]);
+      continue;
+    }
+    const { record, stored, version } = copy;
+    draftCache.set(ctx, { ...copy, ours: new Set([...copy.ours, record.attempt]) });
+    const unanswered = [...copy.ours, ...earlier];
+    void postDraft(ctx, [stored, ...unanswered], record, true).catch(() => {});
+    const sending = sentAttempts.get(ctx) === record.attempt;
+    waiting.push([
+      ctx,
+      {
+        attempts: [...unanswered, record.attempt, ...(stored ? [stored] : [])],
+        copy: sending ? null : { record, stored, version },
+      },
+    ]);
   }
+  tabStore.set(WAITING_DRAFTS, waiting.length ? JSON.stringify(waiting) : null);
 });
+// What the page this tab reloaded left waiting, taken once. Any other arrival in the
+// tab, such as a return through history, can come long after its writes landed, and
+// the server keeps no record of words put away since, so a replay then would stand
+// them up again.
+function takeWaitingDrafts() {
+  const left = tabStore.get(WAITING_DRAFTS);
+  tabStore.set(WAITING_DRAFTS, null);
+  const reloaded =
+    /** @type {PerformanceNavigationTiming | undefined} */ (
+      performance.getEntriesByType("navigation")[0]
+    )?.type === "reload";
+  if (!left || !reloaded) return;
+  try {
+    for (const [ctx, { attempts, copy }] of /** @type {[string, WaitingDraft][]} */ (
+      JSON.parse(left)
+    )) {
+      inherited.set(ctx, new Set(attempts));
+      if (copy) draftCache.set(ctx, { ...copy, durable: false, ours: new Set() });
+    }
+  } catch {
+    // Unreadable copies leave the drafts the document was served with.
+  }
+}
 // How many drafts hold words the server hasn't taken yet, for a check that reads what
 // another tab or device would find.
 export const draftsWaiting = () =>
@@ -384,16 +451,17 @@ export const draftsWaiting = () =>
 // were.
 /** @type {Map<string, {from: string, attempt: string, carrying: WeakSet<DraftRecord>}>} */
 const moving = new Map();
-// The server's answer to a write: the draft as it now holds it. One of this document's
-// own generations leaves its words standing; any other is later words of another tab's
-// or device's, which own the draft.
+// The server's answer to a write: the draft as it now holds it. A generation this
+// document's words supersede (`superseded`) leaves them standing; any other is later
+// words of another tab's or device's, which own the draft.
 /** @param {string} ctx @param {DraftRecord} sent @param {DraftWriteAnswer} answer */
 function heardWrite(ctx, sent, { written, version, record }) {
+  if (written && !inherited.get(ctx)?.has(sent.attempt)) inherited.delete(ctx);
   const copy = draftCache.get(ctx);
   // A reading taken since may already have said more than this answer does.
   if (!copy || copy.version > version) return;
   const held = recordOf(record);
-  const own = written || Boolean(held && copy.ours.has(held.attempt));
+  const own = written || Boolean(held && superseded(ctx, copy, held.attempt));
   const move = moving.get(ctx);
   if (move && written && move.carrying.has(sent)) {
     moving.delete(ctx);
@@ -1286,8 +1354,11 @@ export function mirrorDraft(
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 
-// The drafts start from those the document was served with (`lf-drafts`); every later
-// change reaches the list through the maps. A document served without them, as a
-// release's or an export's, hears them at its first look, or has none.
+// The drafts start from the copies the page this tab reloaded left waiting
+// (`takeWaitingDrafts`), then those the document was served with (`lf-drafts`), heard
+// as any reading is (`hearReading`); every later change reaches the list through the
+// maps. A document served without them, as a release's or an export's, hears them at
+// its first look, or has none.
+takeWaitingDrafts();
 const served = document.getElementById("lf-drafts")?.textContent;
 if (served) hearReading(/** @type {DraftsReading} */ (JSON.parse(served)), false);

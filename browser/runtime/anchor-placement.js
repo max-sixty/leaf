@@ -64,7 +64,7 @@ import { threadKey, threadNames } from "./thread/model.js";
 import { messageHolding } from "./thread/messages.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "./version-signal.js";
-import { reads } from "./kept.js";
+import { version as keptVersion } from "./kept.js";
 
 /** @typedef {import("../types/domain.js").Anchor} Anchor */
 /** @typedef {ReturnType<typeof import("./thread/state.js").allThreads>[number]} Thread */
@@ -174,19 +174,13 @@ export function createAnchorPlacement() {
   let stale = false;
   // The version of the page's index of quotes placement last read changes up to.
   let seen = 0;
-  // A count of changes to the threads' placements and the draft's, moved as soon as one
-  // changes. The version signal moves only when those who hear are told, which for a
-  // read inside a script waits until after it (`settle`).
-  let placements = 0;
-  // Which placement of the threads and the draft stands, which a reading of either says
-  // it reads (kept.js, `reads`), so a reading kept from placement is made again once one
-  // moves, and a view reading it while drawing draws again as one reading `placedAt`
-  // does.
-  const placement = () => {
-    settle(false);
-    version.value;
-    return placements;
-  };
+  // Which placement of the threads and the draft stands, moved as soon as one changes,
+  // which a reading of either reads (kept.js, `version`), so a reading kept from
+  // placement is made again once one moves. Placement settles only when asked, so the
+  // version names settling as its catch-up. The version signal, which a view reading
+  // placement while drawing hears as one reading `placedAt` does, moves only when those
+  // who hear are told, which for a read inside a script waits until after it (`settle`).
+  const placements = keptVersion(() => settle(false));
   /** @type {Set<string>} */
   const renamedIds = new Set();
   /** @type {Set<Element>} */
@@ -308,7 +302,7 @@ export function createAnchorPlacement() {
     }
     const resolvedDraft = placePending(pendingPlaced);
     if (!samePlacement(pendingPlaced ?? undefined, resolvedDraft ?? undefined))
-      placements += 1;
+      placements.move();
     pendingPlaced = resolvedDraft;
     note(DRAFT, resolvedDraft, true);
     const active = draft.open ? null : actionAnchor;
@@ -322,7 +316,7 @@ export function createAnchorPlacement() {
       before.size !== placed.size ||
       [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))
     ) {
-      placements += 1;
+      placements.move();
       tick(version);
     }
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
@@ -363,7 +357,7 @@ export function createAnchorPlacement() {
           note(DRAFT, pendingPlaced, true);
           if (!samePlacement(was ?? undefined, pendingPlaced ?? undefined)) {
             unheard.add(DRAFT);
-            placements += 1;
+            placements.move();
           }
           continue;
         }
@@ -381,7 +375,7 @@ export function createAnchorPlacement() {
         note(id, placement, true);
         if (samePlacement(was, placement)) continue;
         unheard.add(id);
-        placements += 1;
+        placements.move();
       }
       if (unheard.size && !heardNow) afterScript(tell);
     }
@@ -404,13 +398,14 @@ export function createAnchorPlacement() {
       return () => void hearers.delete(hear);
     },
     placedAt: (/** @type {string | null | undefined} */ id) => {
-      placement();
-      reads(placement);
+      settle(false);
+      version.value;
+      placements.read();
       return id == null ? undefined : placed.get(names.get(id)?.id ?? id);
     },
     pendingAt: () => {
       settle(false);
-      reads(placement);
+      placements.read();
       return pendingPlaced;
     },
   });

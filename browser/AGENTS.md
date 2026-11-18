@@ -768,7 +768,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
-| A reading derived from the page, placement or the application state, kept until what it read moves    | `kept.js` `kept`, `keptEach`; a reader of a fact outside signals calls `reads`     |
+| A reading derived from the page, placement or the application state, kept until what it read moves    | `kept.js` `kept`, `keptEach`; a fact outside signals has a `version`               |
 | Which reading of the page stands, its words, ids and part names, for work that spans tasks            | `passages.js` `pageReadingVersion`                                                 |
 
 ### Facts both runtimes know

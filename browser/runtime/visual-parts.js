@@ -38,14 +38,14 @@
  * visual draws it, rather than detaching. A label reader can name an absent part in
  * Threads without changing the visual's state.
  *
- * A reading of a visual's inventory says it reads it (kept.js, `reads`), so a reading
- * kept from it is made again after the visual's `update()`, which a reveal that draws
- * calls too, or a registration for a source it found none for. */
+ * A reading of a visual's inventory reads its version (kept.js, `version`), so a
+ * reading kept from it is made again after the visual's `update()`, which a reveal that
+ * draws calls too, or a registration for a source it found none for. */
 
 import { labelWords } from "./words.js";
 import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
-import { reads } from "./kept.js";
+import { version } from "./kept.js";
 
 /** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
  * @typedef
@@ -55,15 +55,14 @@ import { reads } from "./kept.js";
  * label: ((id: string) => string | null | undefined) | null,
  * find: ((id: string) => VisualPart | null | undefined) | null,
  * at: ((node: Element) => VisualPart | null | undefined) | null,
- * focus: ((id: string) => void) | null, drawn: () => number}} Registration
+ * focus: ((id: string) => void) | null, drawn: import("./kept.js").Version}} Registration
  * @typedef {{reveal?: Registration["reveal"], label?: Registration["label"],
  * find?: Registration["find"], at?: Registration["at"],
  * focus?: Registration["focus"]}} RegistrationOptions */
 /** @type {WeakMap<Element, Registration>} */
 const registrations = new WeakMap();
 // How many sources have registered, which a reading of a source with none reads.
-let registered = 0;
-const registeredCount = () => registered;
+const registered = version();
 
 /** Register the current visual-part inventory for one rendered source.
  *
@@ -89,7 +88,7 @@ export function registerVisualParts(
   if (registrations.has(source))
     throw new TypeError("A visual source may register its parts only once");
   // How many times the source has said its inventory may have changed.
-  let draws = 0;
+  const drawn = version();
   registrations.set(source, {
     read,
     reveal,
@@ -97,12 +96,12 @@ export function registerVisualParts(
     find,
     at,
     focus,
-    drawn: () => draws,
+    drawn,
   });
-  registered += 1;
+  registered.move();
   return {
     update: () => {
-      draws += 1;
+      drawn.move();
       layoutChanged(source);
     },
   };
@@ -170,7 +169,7 @@ function checkedPart(source, part, number) {
 /** @param {Element} source */
 export function registeredVisualParts(source) {
   const registration = registrations.get(source);
-  reads(registration?.drawn ?? registeredCount);
+  (registration?.drawn ?? registered).read();
   if (!registration) return [];
   const { read } = registration;
   const seenIds = new Set();
@@ -198,7 +197,7 @@ export function registeredVisualPart(source, id) {
   const find = registration?.find;
   if (!find)
     return registeredVisualParts(source).find((part) => part.id === id) ?? null;
-  reads(registration.drawn);
+  registration.drawn.read();
   const found = find(id);
   if (!found) return null;
   const part = checkedPart(source, found, id);

@@ -859,9 +859,10 @@ export const register: Register = (on) => {
   // handler beneath it; a queue record is no row of the conversation (read at
   // 2.1.322, whose doors `tsc -p tsconfig.json` checks this list against). The
   // model reads `tool-message` rows too, but on a machine with managed settings
-  // `cc-plugin-sec-default` sends a Skill call's body on that door past a person's
-  // plugins, which drew the notice at each session's first Skill call (read at
-  // 2.1.327). So `row` stays on a tool's result until the model next answers.
+  // `cc-plugin-sec-default` sends the body a Skill call loads on that door past a
+  // person's plugins, so a handler there drew that notice at each session's first
+  // Skill call (read and measured at 2.1.327). `row` stays on a tool's result until
+  // the model next answers.
   for (const door of [
     "prompt",
     "command",

@@ -33,20 +33,35 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_the_document_is_readable_before_runtime_at_its_authored_position(
     browser, serve, width, has_touch
 ):
+    """The page and the floating panel's row both stand from the first paint, before
+    the runtime loads, and the runtime moves neither: the panel takes the row over
+    with its leaf, field and On Me mark where the row's stood."""
     boot = []
     context = browser.new_context(
         viewport={"width": width, "height": 900}, has_touch=has_touch
     )
     page = context.new_page()
     watched(page)
+    # Whether the row stood in the first frame the page drew.
+    page.add_init_script("""requestAnimationFrame(() => {
+      window.__rowAtFirstFrame = Boolean(
+        document.querySelector('.lf-floating-panel[data-lf-served]'));
+    })""")
     page.route("**/leaf.js", lambda route: boot.append(route))
+    row = {
+        part: f"{PANEL} .lf-fp-{part}" for part in ("card", "leaf", "field", "on-user")
+    }
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(
                 serve(leaf_page("Startup", "<h1>Startup</h1>")), wait_until="commit"
             )
         expect(page.locator("h1")).to_be_visible()
+        expect(page.locator(f"{PANEL}[data-lf-served]")).to_be_visible()
+        page.wait_for_function("() => window.__rowAtFirstFrame !== undefined")
+        assert page.evaluate("() => window.__rowAtFirstFrame"), "the row came late"
         initial = page.locator("body > main").bounding_box()
+        served = {part: page.locator(at).bounding_box() for part, at in row.items()}
         assert boot, "the positive control did not hold the boot module"
         boot.pop().continue_()
         wait_until_ready(page)
@@ -54,6 +69,10 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         ), "runtime startup moved the shell"
+        expect(page.locator(PANEL)).to_have_count(1)
+        assert {part: page.locator(at).bounding_box() for part, at in row.items()} == {
+            part: pytest.approx(box, abs=1) for part, box in served.items()
+        }, "the panel took the row over somewhere else"
         expect(page.locator("h1")).to_be_visible()
         assert page.locator("body > main").bounding_box()["y"] == pytest.approx(
             0, abs=1

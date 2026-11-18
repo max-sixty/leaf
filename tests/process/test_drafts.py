@@ -10,6 +10,7 @@ from interact_support import fetch, publish, server  # noqa: F401 (fixture)
 
 from leaf import cli as cli_model
 from leaf import drafts as drafts_model
+from leaf import page_memory as page_memory_model
 from leaf.event_log import append_event, start_log
 
 
@@ -138,7 +139,8 @@ def test_a_draft_of_the_wrong_shape_is_refused(server, page_dir):  # noqa: F811
 def test_the_log_settles_every_generation_it_admitted(tmp_path):
     """The log answers whether words were sent, so they never come back as a draft: not
     from a tab's write that lands after its send, however many sends came between, nor
-    from a store whose last reading came before the send."""
+    from a store whose last reading came before the send, nor once the process has
+    dropped the page's memory (`page_memory`)."""
     start_log(tmp_path)
     assert _write(tmp_path, [], "a1", "Words")["written"]
     for n in range(100):
@@ -153,3 +155,9 @@ def test_the_log_settles_every_generation_it_admitted(tmp_path):
     reading = drafts_model.read_drafts(tmp_path)
     assert reading == {"version": sending["version"] + 1, "drafts": {}}
     assert _write(tmp_path, [], "a3", "A new thought")["written"]
+
+    for n in range(page_memory_model.PageMemories.LIMIT):
+        page_memory_model.memory_of(tmp_path / f"other-{n}")
+    long_sent = _write(tmp_path, ["a3"], "s99", "Words sent long ago")
+    assert long_sent["written"]
+    assert long_sent["record"] is None

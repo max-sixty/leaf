@@ -4,18 +4,18 @@ each card stands and how it is shaped.
     uv run leaf-dev placement cards [--case NAME]... [--base [REF]] [--browser ENGINE]
 
 A case is one configuration a reader meets: the subject the thread is on (words quoted
-in a block, or a whole block), the messages the thread holds, the route that opens its
-card (`m` from the page's top or with the subject in view, a press on its margin
-marker or its words, by a finger in a touch window, or a comment the reader sends),
-what follows the opening, such as the agent's answer arriving or a scroll, the windows
-it opens in, the 1728×999, 1440×900 and 1000×700 ones unless it names others, and the
-Layout its page uses, the reading column unless it names another. Every case opens on
-`fixture(layout)`, whose blocks span the
-subjects pages hold: a one-line, a three-line and a sixteen-line paragraph, a heading, a
-list, a choice widget, and a section holding a table wider than the column. Add a case
-for a shape someone meets: a line in `CASES`, and a block in `fixture()` and `SUBJECTS`
-if its subject isn't there yet. A quote is the first run of its words in its block's
-text (`browser.QUOTE_RANGE`).
+in a block, a whole block, or one part of a picture, such as a chart's point), the
+messages the thread holds, the route that opens its card (`m` from the page's top or
+with the subject in view, a press on its margin marker or its words, by a finger in a
+touch window, or a comment the reader sends), what follows the opening, such as the
+agent's answer arriving or a scroll, the windows it opens in, the 1728×999, 1440×900
+and 1000×700 ones unless it names others, and the Layout its page uses, the reading
+column unless it names another. Every case opens on `fixture(layout)`, whose blocks
+span the subjects pages hold: a one-line, a three-line and a sixteen-line paragraph, a
+heading, a list, a choice widget, a chart of dots, and a section holding a table wider
+than the column. Add a case for a shape someone meets: a line in `CASES`, and a block
+in `fixture()` and `SUBJECTS` if its subject isn't there yet. A quote is the first run
+of its words in its block's text (`browser.QUOTE_RANGE`).
 
 A page matters to placement only through its Layout, which sets the room around the
 words, so the page's content is the same on every layout and `LAYOUTS` holds each
@@ -37,9 +37,9 @@ the gallery, with its captures in `media/` under the names a page's media take
 (`leaf page media` adds them to another page under the same names); `gallery.html`,
 its sections alone, for a page that shows them among its own with `STYLE`;
 `readings.jsonl`, one line per case, window and arm; and each failure's traceback.
-Each capture outlines in orange the block Leaf resolves the thread to, which its card
-keeps clear of, and fills the quoted words, drawn after the capture so the outline
-shows where a card covers them. What the gallery reports beside each capture is
+Each capture outlines in orange what Leaf resolves the thread to and its card keeps
+clear of, the block or the picture's part, and fills the quoted words, drawn after the
+capture so the outline shows where a card covers them. What the gallery reports beside each capture is
 measured in the tab:
 
 - the card's side and size, or the floating panel where the thread opens there;
@@ -126,6 +126,7 @@ SUBJECTS = {
     "h-steps": "a heading",
     "step-1": "a list item",
     "choice": "a choice widget",
+    "moved": "a chart of dots",
     "wide": "a section holding a table wider than the column",
     "wide-table": "a table wider than the column",
 }
@@ -159,8 +160,9 @@ LAYOUT_SHAPES = ("words", "words-long", "heading")
 @dataclass(frozen=True)
 class Case:
     """One configuration: `subject` is the id of the block the thread is on, `quote`
-    the words it quotes there, or None for the whole block. `thread` holds its
-    messages before the page opens, the agent's question first and then the reader's
+    the words it quotes there, or `visual` the part of the picture it is on, as an
+    anchor names it, or neither for the whole block. `thread` holds its messages
+    before the page opens, the agent's question first and then the reader's
     and the agent's in turn, ending with the agent's; a thread the reader starts by
     `route` "comment" holds none, and opens with `typed`, which `arrives` answers once
     the card is open. `scroll` is the pixels a wheel then scrolls the page, and
@@ -171,6 +173,7 @@ class Case:
     subject: str
     quote: str | None = None
     thread: tuple[str, ...] = (QUESTION,)
+    visual: str | None = None
     route: str = "m"
     typed: str = "Why a week?"
     arrives: str | None = None
@@ -182,6 +185,10 @@ class Case:
         assert self.subject in SUBJECTS, f"{self.name}: add {self.subject} to SUBJECTS"
         assert self.route in ROUTE_WORDS, f"{self.name}: no route {self.route}"
         assert self.layout in LAYOUTS, f"{self.name}: no layout {self.layout}"
+        assert not (self.quote and self.visual), f"{self.name}: words or a part"
+        assert not self.visual or self.route not in ("tap", "comment"), (
+            f"{self.name}: {self.route} aims at words or a block, not a part"
+        )
         commented = self.route == "comment"
         assert commented == (not self.thread), (
             f"{self.name}: a thread holds messages unless the reader starts it"
@@ -231,6 +238,13 @@ CASES = (
     Case("heading", "A question on a heading", "h-steps", None, (MEDIUM,)),
     Case("list-item", "A question on words in a list item", "step-1", STEP, (MEDIUM,)),
     Case("widget", "A question on a choice widget", "choice", None, (MEDIUM,)),
+    Case(
+        "chart-point",
+        "A question on one point of a chart",
+        "moved",
+        thread=(MEDIUM,),
+        visual="point:0;x=3;y=30",
+    ),
     Case(
         "words-long-near",
         "A long question on a few words already in view",
@@ -353,7 +367,7 @@ needed.</p>
 </ul>
 <lf-group id="choice-q" label="How long should the old cluster stay warm?">
 <lf-options id="choice">
-<lf-option id="choice-week" label="Keep the old cluster for a week"><strong>Keep the old cluster for a week</strong> Covers the
+<lf-option id="choice-week" label="Keep the old cluster for a week" selected><strong>Keep the old cluster for a week</strong> Covers the
 Sunday batch jobs.</lf-option>
 <lf-option id="choice-days" label="Keep it for three days"><strong>Keep it for three days</strong> Saves most of the
 cost.</lf-option>
@@ -368,6 +382,19 @@ cost.</lf-option>
 {rows}</tbody>
 </table>
 </section>
+<lf-chart id="moved" data-height="220"><pre>
+{{
+  ariaLabel: "Share of traffic on the new cluster by week, rising from 3% to 80%",
+  x: {{label: "week"}},
+  y: {{label: "% of traffic"}},
+  marks: [
+    Plot.dot(
+      [3, 12, 30, 55, 80].map((share, i) => ({{week: i + 1, share}})),
+      {{x: "week", y: "share"}},
+    ),
+  ],
+}}
+</pre></lf-chart>
 {after}""",
     )
     return gallery.page(
@@ -383,7 +410,11 @@ def log_lines(case: Case) -> list[dict]:
     it; `converse` adds the turns after it."""
     if not case.thread:
         return []
-    anchor = {"section": case.subject, **({"quote": case.quote} if case.quote else {})}
+    anchor = {
+        "section": case.subject,
+        **({"quote": case.quote} if case.quote else {}),
+        **({"visual": case.visual} if case.visual else {}),
+    }
     return [
         {
             "kind": "comment",
@@ -405,9 +436,10 @@ AIM = f"""([subject, quote]) => {{
   return {{block, range}};
 }}"""
 
-# What the tab shows once the card has opened, read with Leaf's own modules: the block
-# Leaf resolves the thread to and the rectangles of its quoted words, the card, and
-# the placement boundary and measure the card stands by.
+# What the tab shows once the card has opened, read with Leaf's own modules: what Leaf
+# resolves the thread to, the element where it names one and else the block, and the
+# rectangles of its quoted words, the card, and the placement boundary and measure the
+# card stands by.
 READ = """async () => {
   const box = (r) => r && {left: Math.round(r.left), top: Math.round(r.top),
     right: Math.round(r.right), bottom: Math.round(r.bottom)};
@@ -446,7 +478,7 @@ READ = """async () => {
     natural: shown(card) && natural(card),
     side: shown(card)?.getAttribute('data-lf-thread-placement') ?? null,
     panel: box(shown(panel)?.getBoundingClientRect()),
-    block: box(target.place.getBoundingClientRect()),
+    block: box((target.element ?? target.place).getBoundingClientRect()),
     quote,
   };
 }"""
@@ -736,6 +768,8 @@ def described(case: Case, window: Window) -> str:
         *([LAYOUTS[case.layout]] if case.layout != "column" else []),
         f"on “{case.quote}” in {SUBJECTS[case.subject]}"
         if case.quote
+        else f"on {case.visual} of {SUBJECTS[case.subject]}"
+        if case.visual
         else f"on {SUBJECTS[case.subject]}",
         thread,
         ROUTE_WORDS[case.route],

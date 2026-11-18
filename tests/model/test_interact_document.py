@@ -1056,14 +1056,12 @@ def test_the_position_fold_matches_the_browser_cases(case):
         ("board", move["card"], "move"): (
             {
                 "seq": seq,
+                "id": f"move-{seq}",
                 "detail": {
                     "unit": move["card"],
                     "value": move["to"],
                     "rank": move["rank"],
                 },
-                # A move is absorbed where the markup authors its container unlike
-                # the units it was made among.
-                "meaning": {"among": []} if move.get("absorbed") else {},
                 "widget": "board",
             },
             spec,
@@ -1076,8 +1074,14 @@ def test_the_position_fold_matches_the_browser_cases(case):
         desired=desired,
         report_settlements={},
         classified={},
-        absorbed=frozenset(),
         in_force=frozenset(),
+        # A move is absorbed where the markup authors its container unlike the
+        # revision it was made on.
+        absorption=lambda: frozenset(
+            f"move-{seq}"
+            for seq, move in enumerate(case["moves"], start=1)
+            if move.get("absorbed")
+        ),
     )
     order = projection_model.folded_positions(
         "board",

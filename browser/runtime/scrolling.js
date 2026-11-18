@@ -221,6 +221,9 @@ export const scrollChoices = () => choices;
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 /** @param {Element} box */
 const chooseScroll = (box) => chosen.set(box, ++choices);
+// How many moves Leaf has started in `box` (`startScroll`).
+/** @param {Element} box */
+export const scrollStarts = (box) => starts.get(box) ?? 0;
 // Record an explicit landing or a glide before native scroll events: an instant move
 // can coincide with layout, and a new gesture can interrupt a glide before its first
 // frame.

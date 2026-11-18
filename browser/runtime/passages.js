@@ -112,6 +112,7 @@
    content. */
 
 import { isNode, closestAcross } from "./shadow-tree.js";
+import { reads } from "./kept.js";
 import { liveStages } from "./arrivals.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
@@ -947,6 +948,7 @@ export function textNodesUnder(
 // declared inside it.
 /** @param {string | null | undefined} id @param {Document | Element | null} [root] */
 export const elementById = (id, root = document) => {
+  reads(pageReadingVersion);
   if (id == null || root === null) return null;
   const page = root === root.ownerDocument?.body;
   /** @param {Element | null | undefined} node */
@@ -2046,9 +2048,11 @@ const renames = (record) =>
 /** @type {WeakMap<object, {names: object, token: object}>} */
 const versions = new WeakMap();
 /** Which reading of the page stands: a new value each time the page's is forgotten, or
- * an id or a part's name changes (`names`), so a reading derived from the page's own
- * nodes, as the visual responses, On Me's places and the parts conversations stand in
- * are, keeps what it derived while this stands. It holds nothing of the reading itself.
+ * an id or a part's name changes (`names`). Each reader of the page says it reads this
+ * (kept.js, `reads`), the readers of its words as they catch up (`catchUpReading`) and
+ * `elementById`, so a reading derived from the page, as On Me's places are, is kept
+ * while this stands (kept.js, `kept`); work that spans tasks, as a search does, compares
+ * it to hear that the page changed under it. It holds nothing of the reading itself.
  * @returns {object} */
 export function pageReadingVersion() {
   catchUpReading();
@@ -2062,8 +2066,8 @@ export function pageReadingVersion() {
  * each new reading and dropped with the old one, so an answer holding the document's
  * nodes keeps none past a change that removes them. It lasts as long as the reading of
  * the words, as the layout of the words on screen does (reading-place.js), so it
- * outlives an id or a part's name changing; a reading of the page's nodes keys on
- * `pageReadingVersion`, which moves with those too. A document the watcher doesn't
+ * outlives an id or a part's name changing, where a reading `kept` (kept.js) moves
+ * with those too. A document the watcher doesn't
  * hear, such as a message body
  * no longer in this document, detached or in another, is answered afresh each time.
  * @template T @param {Element} scope @param {object} owner @param {() => T} make
@@ -2307,6 +2311,7 @@ export function readingParts() {
   return frameCollected().marks.map(({ root }) => root);
 }
 function catchUpReading() {
+  reads(pageReadingVersion);
   hear(watchReading().takeRecords());
   const vocabulary = registry.$layer?.generation;
   settlements();

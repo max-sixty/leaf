@@ -82,9 +82,10 @@ and picks nothing.
 
 ## Tests
 
-Developer-tool tests live in `dev/tests/` and run only when explicitly requested.
-They are outside PR CI, main-push CI, the daily suite and landing gates, even when a
-branch changes them. Keep product guarantees in `tests/`, even when a fixture uses a
+Developer-tool tests live in `dev/tests/`. CI's daily scheduled run runs all of them,
+and a failure there reaches Tend like any other on main (`tests/AGENTS.md`, "Selecting
+checks"). No pull request, push to main or landing gate runs them, even when a branch
+changes them. Keep product guarantees in `tests/`, even when a fixture uses a
 developer helper.
 
 A benchmark needs only a couple of broad smoke tests showing that a task reaches the

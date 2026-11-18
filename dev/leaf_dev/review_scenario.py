@@ -4,7 +4,7 @@ Every harness starts with the same request and one stamped, undecided document. 
 scenario uses only the current triage source on the default layer: the catalog's
 packages, companion history and prior versions are outside the delivery experiment.
 The runners own transport, timing and assertions. The journey's harness steps
-(`journey.Terminal` and each harness's own) also share the comments a step sends,
+(`_journey.Terminal` and each harness's own) also share the comments a step sends,
 and the readings of the page they check: its claim, the turns that picked up a
 comment, its status, and what holds between steps.
 """

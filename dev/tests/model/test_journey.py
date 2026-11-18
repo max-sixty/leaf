@@ -22,9 +22,12 @@ from leaf import harness
 from leaf.harness import NUDGE_WORDS
 from leaf.hook_transport import INLINE_OPENING
 from leaf.interaction_log import read_interactions
-from leaf_dev import ROOT, journey_claude_code, journey_pi
+from leaf_dev import ROOT
+from leaf_dev.commands.journey import _claude_code as journey_claude_code
+from leaf_dev.commands.journey import _journey as journey
+from leaf_dev.commands.journey import _pi as journey_pi
 from leaf_dev.commands.journey import chart as journey_chart
-from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.journey import run as journey_run
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.reply_phases import (
     LEAF_WAKE,
@@ -1124,15 +1127,15 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
         monkeypatch.setattr(end, "close", lambda: None)
         yield journey.User(end, "v"), {"target": target}, lambda: None
 
-    monkeypatch.setattr(journey, "headless_shell", headless_shell)
-    monkeypatch.setattr(journey, "target_session", target_session)
-    monkeypatch.setattr(journey, "samples_path", lambda: Path(os.devnull))
+    monkeypatch.setattr(journey_run, "headless_shell", headless_shell)
+    monkeypatch.setattr(journey_run, "target_session", target_session)
+    monkeypatch.setattr(journey_run, "samples_path", lambda: Path(os.devnull))
     runner = CliRunner()
-    result = runner.invoke(journey.journey, ["claude-code"])
+    result = runner.invoke(journey_run.journey, ["claude-code"])
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([], [None])
     assert json.loads(result.stdout)["userEnd"] == "http"
-    result = runner.invoke(journey.journey, ["claude-code", "--browser"])
+    result = runner.invoke(journey_run.journey, ["claude-code", "--browser"])
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"

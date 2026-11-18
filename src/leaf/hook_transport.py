@@ -510,6 +510,19 @@ INLINE_OPENING = (
 )
 
 
+def inline_delivery(context: str) -> dict | None:
+    """The delivery a hook's `context` handed over inline, its opening line
+    (`INLINE_OPENING`) followed by the delivery's JSON, or None where it handed none
+    over: a pointer, a reminder, or a context cut short."""
+    opening, _, rest = context.partition("\n")
+    if opening != INLINE_OPENING:
+        return None
+    try:
+        return json.loads(rest.partition("\n")[0])
+    except ValueError:
+        return None
+
+
 def pointer_opening(delivery: dict) -> str:
     """The line that opens a pointer delivery. It says what the inline opening says,
     with how many updates the pointer holds and from which pages, since a pointer

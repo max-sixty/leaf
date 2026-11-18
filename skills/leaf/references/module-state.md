@@ -204,13 +204,14 @@ changes.
 ## Editing a bound file
 
 `boundFile(binding)` reads and writes a file the agent granted this page with
-`leaf file bind`. `read()` returns `{label, text, revision}`, with `text` in LF line
-endings. `save({revision, text})` writes only if the file is still at `revision`, and
+`leaf file bind`. `label` is the file's path below the deepest folder holding every
+file the page binds, or `null` until the page's state names it. `read()` returns
+`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})` writes only if the file is still at `revision`, and
 otherwise throws a `RequestError` whose `current` holds the newer file.
 `RequestError` also carries the HTTP `status` and response `body`; distinguish it
 with `instanceof` when handling a server refusal. `watch(callback)` calls
-back whenever the file may have changed on disk, the widget's own save included, so read
-it again then. `writable` is false in captured documents and exports. Editing the file
+back whenever the file may have changed on disk or its label changed, the widget's own
+save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
 package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
 travel with the page.

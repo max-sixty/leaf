@@ -11,7 +11,9 @@ page is opened at each of `VIEWPORTS`, each case scrolled into view, and its pin
 against what they may not cover (`faults`).
 
 The command builds that page from this working tree, and with `--base` from the merge
-base with `main` (or REF) too (`leaf_dev.arms.choose_arms`), and writes a Leaf page at
+base with `main` (or REF) too (`leaf_dev.arms.choose_arms`), opens it on each arm in
+each window through `leaf_dev.visits`, the loop `placement cards`, `stills` and
+`probe` share, and writes a Leaf page at
 `.tmp/pins/report/pins.html` that shows each case's crop at every viewport, its targets
 outlined in blue, beside the faults read there. With `--base` each crop is an `lf-shot`
 pair whose Pixels view marks where the base drew a pin in red and this tree in blue. Both
@@ -38,16 +40,16 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT, gallery
-from leaf_dev.arms import base_option, choose_arms, run_directory, serving_source
+from leaf_dev.arms import Arm, base_option, choose_arms, run_directory
 from leaf_dev.browser import (
     QUOTE_RANGE,
     WINDOWS,
     headless_shell,
     linux_font_environment,
-    load,
     screenshot,
-    tab,
 )
+from leaf_dev.states import State
+from leaf_dev.visits import Visit, visits
 
 OUT = ROOT / ".tmp" / "pins"
 # The report every run rewrites, so a preview of it follows each run as a revision of
@@ -595,23 +597,46 @@ def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
     return out
 
 
-def capture(browser, address: str, out: Path) -> dict:
-    """Open `address` at each viewport, screenshot each case under `out`, and return
+def capture(
+    browser, arms: dict[str, Arm], fixture: Path, scratch: Path, out: Path
+) -> dict[str, tuple[str, dict]]:
+    """Open `fixture` on each arm at each viewport (`leaf_dev.visits`), screenshot
+    each case under `out`, and return each arm's commit and
     `{case: {viewport: {"faults", "unaccepted", "reading", "shot"}}}`."""
-    result = {case.name: {} for case in CASES}
+    result = {
+        arm: (version.commit, {case.name: {} for case in CASES})
+        for arm, version in arms.items()
+    }
     for viewport in VIEWPORTS:
-        with tab(browser, WINDOWS[viewport], scale=SCALE) as page:
-            load(page, address)
+        window = WINDOWS[viewport]
+
+        def seen(arm: str, visit: Visit, viewport: str = viewport) -> None:
+            visit.doing = "read"
             for case in CASES:
-                reading = read(page, case)
-                shot = out / f"{case.name}-{viewport}-full.png"
-                shot.write_bytes(screenshot(page))
-                result[case.name][viewport] = {
+                reading = read(visit.page, case)
+                shot = out / arm / f"{case.name}-{viewport}-full.png"
+                shot.write_bytes(screenshot(visit.page))
+                result[arm][1][case.name][viewport] = {
                     "faults": faults(reading),
                     "unaccepted": unaccepted(case, reading, viewport),
                     "reading": reading,
                     "shot": shot,
                 }
+
+        with visits(
+            browser,
+            arms,
+            State("pins", str(fixture), window=window),
+            fixture,
+            scratch / viewport,
+            window=window,
+            scheme="light",
+            scale=SCALE,
+            read=seen,
+        ) as each:
+            for _, visit in each:
+                if visit.error:
+                    raise visit.error
     return result
 
 
@@ -729,13 +754,10 @@ def pins(base) -> None:
             encoding="utf-8",
         )
         arms = choose_arms(base, scratch)
-        readings = {}
+        for arm in arms:
+            (out / arm).mkdir()
         with headless_shell() as browser:
-            for arm, version in arms.items():
-                shots = out / arm
-                shots.mkdir()
-                with serving_source(version.directory, fixture, scratch / arm) as at:
-                    readings[arm] = (version.commit, capture(browser, at, shots))
+            readings = capture(browser, arms, fixture, scratch, out)
     page = report(readings, out)
     click.echo(page)
     click.echo(f"uv run leaf-dev preview --source {page} --slot pins --user")

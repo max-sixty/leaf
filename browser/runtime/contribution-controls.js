@@ -472,11 +472,7 @@ export function presentContributionEntry(control, offered, options = {}) {
       counted || options.unread
         ? html`<span class="lf-badges" aria-hidden="true"
             >${options.unread ? html`<span class="lf-unread-dot"></span>` : null}${
-              counted
-                ? html`<span class="lf-margin-count lf-badge-count"
-                    >${record.count}</span
-                  >`
-                : null
+              counted ? html`<span class="lf-badge-count">${record.count}</span>` : null
             }</span
           >`
         : null

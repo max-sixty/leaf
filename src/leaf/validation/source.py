@@ -39,6 +39,7 @@ from leaf.validation.instances import (
     question_errors,
     reference_errors,
     suggestion_errors,
+    unnamed_card_advice,
 )
 from leaf.validation.markup import (
     authored_allocation_errors,
@@ -123,6 +124,7 @@ def _instance_errors(
     errors.extend(question_errors(parser, registry))
     errors.extend(inert_allocation_advice(parser, registry))
     errors.extend(pane_advice(parser, registry))
+    errors.extend(unnamed_card_advice(parser, registry))
     errors.extend(
         reference_errors(
             parser.lf_elements,

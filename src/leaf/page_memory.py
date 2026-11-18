@@ -2,9 +2,9 @@
 
 Some readings of a page are dear to repeat: a revision's parse, a candidate's capture
 and check, the page's vocabulary, the activation answer, the presence token, the
-attempts its log admitted, the readings its server last sent. They are kept in a
-`PageMemory`, each under one of these rules, so a kept reading is never stale, only
-dropped:
+attempts its log admitted. Others are what a later answer is built from, such as the
+readings the page's server last sent. Each is kept in the page's `PageMemory` under
+one of these rules, so a kept reading is never stale, only dropped:
 
 - A reading of files is kept beside their stamps and made again once one moves
   (`revision_artifact.read_revision`, `revisioning.held_activation`). A reading of the

@@ -5,8 +5,12 @@
  * and a rendered hit resolves to the nearest registered part. `surface` is the native
  * element whose paint Leaf should follow; it defaults to the semantic element, while a
  * package may name one descendant to exclude decorative paint from a compound part.
- * Invalid inventories throw at the read that consumes them; live readers do not
- * replace a package error with an empty inventory.
+ * `focus` is the element Leaf puts the user on for the part, as it travels to it or
+ * hands them back from a comment on it; it defaults to the part's element too, and a
+ * visual whose parts are no places to stand, as a chart's marks round its points are
+ * not, names itself. Leaf asks `reveal(id)` first (below), so the visual takes focus
+ * settled on the part. Invalid inventories throw at the read that consumes them; live
+ * readers do not replace a package error with an empty inventory.
  *
  * A visual whose parts are too many to list, such as a chart's points, answers both
  * directions itself, so neither takes longer as the visual holds more. `find(id)`
@@ -35,7 +39,7 @@ import { labelWords } from "./words.js";
 import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
 
-/** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
+/** @typedef {{id: string, element: Element, label: string, surface?: Element | null, focus?: Element | null}} VisualPart
  * @typedef
  * {import("../types/contract.js").WidgetDeclaration["visual"]}
  * VisualDeclaration
@@ -123,6 +127,7 @@ function checkedPart(source, part, number) {
   const element = part.element;
   const label = labelWords(part.label);
   const surface = part.surface ?? element;
+  const focus = part.focus ?? element;
   if (typeof id !== "string" || !id || /\s/.test(id))
     throw new TypeError(`Visual part ${number} has no single-token id`);
   if (!(element instanceof Element) || element === source || !under(element, source))
@@ -130,7 +135,9 @@ function checkedPart(source, part, number) {
   if (!label) throw new TypeError(`Visual part ${id} has no label`);
   if (!(surface instanceof Element) || !under(surface, element))
     throw new TypeError(`Visual part ${id} has no descendant Element surface`);
-  return { id, element, label, surface };
+  if (!(focus instanceof Element) || !under(focus, source))
+    throw new TypeError(`Visual part ${id} has no Element of its visual to focus`);
+  return { id, element, label, surface, focus };
 }
 
 /** @param {Element} source */

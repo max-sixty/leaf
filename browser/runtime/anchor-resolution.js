@@ -167,6 +167,13 @@ export function addressedElements(source, key) {
   return datum ? [datum] : [];
 }
 
+// Where focus goes for what a key addresses under a widget: the element a visual part
+// names for it, as a chart names itself for a point, which its `reveal` settled on the
+// point (`revealAddressed`), else the first element the key addresses.
+/** @param {Element} source @param {string} key */
+export const addressedFocus = (source, key) =>
+  visualPart(source, key)?.focus ?? addressedElements(source, key)[0] ?? null;
+
 // Travel's half of that key space: ask the widget to draw what a key addresses before
 // anything reads it. A visual part drawn only in another state is drawn now, as
 // `registerVisualParts` promises; a lazy datum answers with its hydration promise. Every

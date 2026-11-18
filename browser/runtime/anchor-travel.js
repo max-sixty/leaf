@@ -45,6 +45,7 @@ import { referencedProjection, requireReference } from "./references.js";
 import { fragmentUrl } from "./anchor-coordinate.js";
 import {
   addressedElements,
+  addressedFocus,
   fragmentAddress,
   fragmentTarget,
   resolveAnchor,
@@ -367,10 +368,15 @@ export function createAnchorTravel({
       return arrive(
         () => {
           const where = fragmentTarget(url.hash);
+          const keyed = fragmentAddress(url.hash);
+          const focusing =
+            keyed?.key != null && keyed.place
+              ? addressedFocus(keyed.element, keyed.key)
+              : where;
           return (
             where && {
               where,
-              focus: focus ? where : null,
+              focus: focus ? focusing : null,
               scroll: [{ at: where, block: "fragment" }],
             }
           );
@@ -427,7 +433,7 @@ export function createAnchorTravel({
         return (
           where && {
             where,
-            focus: focus ? where : null,
+            focus: focus ? addressedFocus(source, key) : null,
             scroll: [
               {
                 at: where,
@@ -592,18 +598,21 @@ export function createAnchorTravel({
     // press left it.
     // A route naming no part of the thread lands on the place it is about, where the
     // page shows that place but no view of the thread (thread/destination.js,
-    // `reader: "page"`). A part lands on the page's drawing of it, since this is travel
+    // `reader: "page"`), and on a part of a drawing where the drawing names for it
+    // (`addressedFocus`). A part lands on the page's drawing of it, since this is travel
     // on the page (thread/destination.js, `threadFocusTarget`'s `page`).
     return arrive(
       () => {
         const where = threadDestination(id);
         if (!where) return null;
         const placement = anchors.placedAt(id);
+        const source = hydrationTarget && sectionOf(hydrationTarget.anchor);
         const target = !focus
           ? null
           : part
             ? threadFocusTarget(id, { part, page: true })
-            : (targetElement(placement) ?? targetPlace(placement));
+            : (anchor?.visual && source && addressedFocus(source, anchor.visual)) ||
+              (targetElement(placement) ?? targetPlace(placement));
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });

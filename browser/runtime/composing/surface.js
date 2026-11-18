@@ -75,9 +75,11 @@ import { html, render, signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
 import { COMMENT_HINT } from "../words.js";
 import {
+  addressedFocus,
   anchoringIsReady,
   lightSeat,
   resolveAnchor,
+  revealAddressed,
   sectionOf,
   visualAt,
 } from "../anchor-resolution.js";
@@ -464,18 +466,19 @@ export function createResponseSurface({
   // and closing returns to the obligation itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: it is a hidden stand-in for the drawing
   // (control-faces.js, `proxy`), so the drawing, which the user sees, is where they
-  // return. A part of a drawing that takes no focus, as a chart's mark round a point
-  // takes none (focus.js, `lendable`), returns them to the drawing ahead of its proxy.
-  // A quoted selection clears to the page; a removed subject has no parent to land on.
+  // return. A part of a drawing is returned to as travel reaches it: the drawing
+  // settles on the part, and the user lands where the drawing names for it, as a chart
+  // takes focus standing on its point (`addressedFocus`). A quoted selection clears to
+  // the page; a removed subject has no parent to land on.
   /** @param {Anchor | null} anchor */
-  const returnPlaces = (anchor) =>
-    anchor && !anchor.quote
-      ? [
-          anchorTargetAt(anchor),
-          anchor.visual ? sectionOf(anchor) : null,
-          visualActionAnchor(anchor),
-        ]
-      : [];
+  const returnPlaces = (anchor) => {
+    if (!anchor || anchor.quote) return [];
+    const drawing = anchor.visual ? sectionOf(anchor) : null;
+    if (drawing && anchor.visual) revealAddressed(drawing, anchor.visual);
+    const part =
+      drawing && anchor.visual ? addressedFocus(drawing, anchor.visual) : null;
+    return [part ?? anchorTargetAt(anchor), visualActionAnchor(anchor)];
+  };
   // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
   // moves no focus, and the closer names where a user who was in the bar lands, read
   // before it goes. `putAwayFab` hands them back to the bar's subject; `letGoOfFab` lets

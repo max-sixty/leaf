@@ -85,8 +85,10 @@ const SQUASH = 0.01;
  * @typedef {{values: Values, scales: Scales, fx: unknown, fy: unknown, left: number, bottom: number, number: (value: number) => string | undefined, sources: Sources, format: Format, authored: Format, rows: (this: {format: Format}, i: number, index: {fx?: unknown, fy?: unknown}, sources: Sources, scales: Scales, values: Values) => Iterable<Row>}} Drawn
  * @typedef {{tx: number, ty: number, kx: number, ky: number, reach: number, frame: Dimensions, points: Point[]}} Frame
  * @typedef {{x: number, y: number, px: number, py: number, ax: number, ay: number, i: number, order: number, drawn: Drawn, series: number, n: number, said?: string, datum?: string, same?: Point}} Point
- * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y", named?: Map<string, Point>}} Reading
- * @typedef {import("@observablehq/plot").Mark & {data?: any, tip?: unknown, facet?: unknown, facetAnchor?: unknown, format: Format, frameAnchor?: string, dx?: number, dy?: number}} Drawable */
+ * @typedef {{index: ArrayLike<number>, node: Element | null, at?: Map<number, number>}} Rendered
+ * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y", named?: Map<string, Point>, rendered: Rendered[][]}} Reading
+ * @typedef {(this: Drawable, index: ArrayLike<number>, ...rest: unknown[]) => Element | null} Render
+ * @typedef {import("@observablehq/plot").Mark & {data?: any, tip?: unknown, facet?: unknown, facetAnchor?: unknown, format: Format, frameAnchor?: string, dx?: number, dy?: number, render: Render}} Drawable */
 
 /** @param {Scale | undefined} scale */
 const placed = (scale) => Boolean(scale?.type && PLACES.has(scale.type));
@@ -172,6 +174,18 @@ export function readPoints({ Plot, tipSources, tipRows }, marks) {
   const standing = new Map();
   /** @type {Scales | null} */
   let chart = null;
+  // What each mark drew for each facet it drew, the index it drew and its group, for
+  // the shape a datum's bar or cell is (`shapeOf`).
+  /** @type {Rendered[][]} */
+  const rendered = tipped.map(() => []);
+  tipped.forEach((mark, order) => {
+    const render = mark.render;
+    mark.render = function (/** @type {ArrayLike<number>} */ index, ...rest) {
+      const node = render.call(this, index, ...rest);
+      rendered[order]?.push({ index, node });
+      return node;
+    };
+  });
   // Each mark's tip as Plot builds it from the mark's `tip` option (`inferTips`): the
   // mark's data and, through an initializer, its channels; Plot's pointer's `px` and
   // `py` channels, without the pointer itself; and in place of its drawing, a reading.
@@ -305,7 +319,7 @@ export function readPoints({ Plot, tipSources, tipRows }, marks) {
         run.sort(order);
         run.forEach((point, n) => Object.assign(point, { series: s, n }));
       });
-      return { points, series: runs, frames, axis };
+      return { points, series: runs, frames, axis, rendered };
     },
   };
 }
@@ -406,30 +420,19 @@ function* entries({ i, drawn }) {
     yield `${written(key)}=${written(channels[key]?.value[i])}`;
 }
 
-/** The box a point's shape fills where it fills one along both axes, as a bar, a bin or
- * a cell does, in the drawing's coordinates: on each axis, between the two ends the mark
- * draws it at (`x1` and `x2`), or across its band. A dot or a line's vertex fills none.
- * @param {Point} point @returns {{left: number, top: number, right: number, bottom: number} | null} */
-export function extentOf(point) {
-  const { i, drawn } = point;
-  const { values, scales } = drawn;
-  /** @param {"x" | "y"} axis @param {number} at @param {number} local
-   * @returns {{from: number, to: number} | null} */
-  const span = (axis, at, local) => {
-    const [one, two] = [values[`${axis}1`]?.[i], values[`${axis}2`]?.[i]];
-    if (one !== undefined && two !== undefined)
-      return {
-        from: Math.min(one, two) + at - local,
-        to: Math.max(one, two) + at - local,
-      };
-    const band = values[axis] ? (scales[axis]?.bandwidth?.() ?? 0) : 0;
-    return band > 0 ? { from: at - band / 2, to: at + band / 2 } : null;
-  };
-  const across = span("x", point.x, point.px);
-  const down = span("y", point.y, point.py);
-  return across && down
-    ? { left: across.from, right: across.to, top: down.from, bottom: down.to }
-    : null;
+/** The shape Plot drew for a point's datum where it drew one shape for each datum it
+ * fills a box with, a `<rect>`, as a bar, a bin or a cell is, insets and facet
+ * included, or null for a dot, a line's vertex or an area's. Each mark draws its
+ * shapes in the order of the index it drew, which the first ask of a drawing reads.
+ * @param {Reading} reading @param {Point} point @returns {Element | null} */
+export function shapeOf({ rendered }, { order, i }) {
+  for (const drawn of rendered[order] ?? []) {
+    if (drawn.node?.firstElementChild?.localName !== "rect") continue;
+    drawn.at ??= new Map(Array.from(drawn.index, (datum, at) => [datum, at]));
+    const at = drawn.at.get(i);
+    if (at !== undefined) return drawn.node.children[at] ?? null;
+  }
+  return null;
 }
 
 /** The token naming a point's datum, kept on it once read.

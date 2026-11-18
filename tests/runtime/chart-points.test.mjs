@@ -6,10 +6,10 @@ import {
   datumOf,
   datumPoint,
   datumWords,
-  extentOf,
   nearest,
   readPoints,
   sayPoint,
+  shapeOf,
   step,
 } from "../../packages/default/widgets/chart-points.js";
 
@@ -570,51 +570,51 @@ test("a datum's name is one token of its values that finds it in the next drawin
   assert.equal(datumPoint(bins, `${datumOf(first)};z=1`), null);
 });
 
-test("a bar and a bin fill the box their shape draws, and a dot fills none", () => {
-  // The box a comment's mark outlines (lf-chart.js), read from the shape Plot drew.
-  const round = (/** @type {number} */ n) => Math.round(n * 1e6) / 1e6;
-  /** @param {any} options @param {string} shapes */
-  const boxes = (options, shapes) => {
-    const { reading, svg } = drawn(options);
-    const drawnBoxes = [...svg.querySelectorAll(shapes)].map((shape) =>
-      ["x", "y", "width", "height"].map((key) =>
-        round(Number(shape.getAttribute(key))),
-      ),
-    );
-    return { filled: reading.points.map(extentOf), drawnBoxes };
+test("a bar, a bin and a cell are the shape Plot drew for them, and a dot or vertex none", () => {
+  // The shape a comment's mark and Leaf's aim stand on (lf-chart.js), insets and all.
+  /** @param {any} marks @param {string} drawnAs */
+  const shapes = (marks, drawnAs) => {
+    const { reading, svg } = drawn({ marks: [marks] });
+    const shown = [...svg.querySelectorAll(`[aria-label="${drawnAs}"] > *`)];
+    return { found: reading.points.map((point) => shapeOf(reading, point)), shown };
   };
-  const bins = boxes(
-    {
-      marks: [
-        Plot.rectY(
-          [1, 2, 12, 13, 14].map((v) => ({ v })),
-          Plot.binX({ y: "count" }, { x: "v", thresholds: [0, 10, 20], inset: 0 }),
-        ),
-      ],
-    },
+  const binned = shapes(
+    Plot.rectY(
+      [1, 2, 12, 13, 14, 25].map((v) => ({ v })),
+      Plot.binX({ y: "count" }, { x: "v", thresholds: [0, 10, 20, 30], inset: 8 }),
+    ),
     "rect",
   );
-  assert.deepEqual(
-    bins.filled.map(
-      (box) =>
-        box &&
-        [box.left, box.top, box.right - box.left, box.bottom - box.top].map(round),
+  assert.equal(binned.shown.length, 3);
+  assert.deepEqual(binned.found, binned.shown);
+  // A bar on no categorical axis, which spans the frame.
+  const spanning = shapes(Plot.barX([{ v: 2 }, { v: 5 }], { x: "v" }), "bar");
+  assert.deepEqual(spanning.found, spanning.shown);
+  const cells = shapes(
+    Plot.cell(
+      [
+        { a: "p", b: "q" },
+        { a: "r", b: "s" },
+      ],
+      { x: "a", y: "b" },
     ),
-    bins.drawnBoxes,
+    "cell",
   );
-  const bars = read({
-    marks: [Plot.barY(HOURS, { x: "week", y: "hours", fill: "kind" })],
-  });
-  for (const point of bars.points) {
-    const box = extentOf(point);
-    assert.ok(box && box.left < point.x && point.x < box.right, "a bar spans its band");
-    assert.ok(box.top < point.y && point.y < box.bottom, "and its stack");
-  }
-  const dots = read({ marks: [Plot.dot(HOURS, { x: "week", y: "hours" })] });
-  assert.deepEqual(
-    dots.points.map(extentOf),
-    dots.points.map(() => null),
+  assert.deepEqual(cells.found, cells.shown);
+  // A dot on two categorical axes, and a line's vertex, are no box.
+  const dots = shapes(
+    Plot.dot(
+      [
+        { a: "p", b: "q" },
+        { a: "r", b: "s" },
+      ],
+      { x: "a", y: "b" },
+    ),
+    "dot",
   );
+  assert.deepEqual(dots.found, [null, null]);
+  const line = shapes(Plot.lineY([1, 3, 2]), "line");
+  assert.deepEqual(line.found, [null, null, null]);
 });
 
 test("a time reads to the second or millisecond its datum has", () => {

@@ -18,9 +18,9 @@
         each scenario listed below the deck.
       </p>
       <lf-deck id="deck-catch-up">
-        <lf-ask id="deck-store-ask">
+        <lf-group id="deck-store-ask" label="Which session store ships in 2.4?">
           <hgroup>
-            <p class="eyebrow">a single choice</p>
+            <p>a single choice</p>
             <h3>Which session store ships in 2.4?</h3>
           </hgroup>
           <p>
@@ -28,23 +28,22 @@
             two days before the release. I'd keep Redis for 2.4 and move in 2.5: 12 ms
             at p99 isn't worth a migration this close to Friday.
           </p>
-          <lf-options id="deck-store-choice" choose>
-            <lf-option id="deck-store-redis">
+          <lf-options id="deck-store-choice">
+            <lf-option id="deck-store-redis" label="Keep Redis for 2.4" recommended>
               <small class="tag">p99 41 ms</small>
               <small class="tag">no migration</small>
-              <small class="tag ok">recommended</small>
               <strong>Keep Redis for 2.4</strong>
             </lf-option>
-            <lf-option id="deck-store-pg">
+            <lf-option id="deck-store-pg" label="Move sessions to Postgres">
               <small class="tag">p99 29 ms</small>
               <small class="tag">migrate Thursday</small>
               <strong>Move sessions to Postgres</strong>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
         <section id="deck-notes-card">
           <hgroup>
-            <p class="eyebrow">a suggestion</p>
+            <p>a suggestion</p>
             <h3>Tighten the upgrade note?</h3>
           </hgroup>
           <p id="deck-notes-why">
@@ -65,35 +64,33 @@
             >
           </lf-suggestion>
         </section>
-        <lf-ask id="deck-beta-ask">
+        <lf-group id="deck-beta-ask" label="Which platforms get the 2.4 beta?">
           <hgroup>
-            <p class="eyebrow">a multiple choice</p>
+            <p>a multiple choice</p>
             <h3>Which platforms get the 2.4 beta?</h3>
           </hgroup>
           <p>
             Two days remain for smoke testing, and each platform takes one, so pick up
             to two. I'd take macOS and Linux, which carry nine in ten active users.
           </p>
-          <lf-options id="deck-beta-choice" choose multiple>
-            <lf-option id="deck-beta-mac">
+          <lf-options id="deck-beta-choice" multiple>
+            <lf-option id="deck-beta-mac" label="macOS" recommended>
               <small class="tag">58% of users</small>
-              <small class="tag ok">recommended</small>
               <strong>macOS</strong>
             </lf-option>
-            <lf-option id="deck-beta-linux">
+            <lf-option id="deck-beta-linux" label="Linux" recommended>
               <small class="tag">31% of users</small>
-              <small class="tag ok">recommended</small>
               <strong>Linux</strong>
             </lf-option>
-            <lf-option id="deck-beta-win">
+            <lf-option id="deck-beta-win" label="Windows">
               <small class="tag">11% of users</small>
               <strong>Windows</strong>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
         <section id="deck-freeze-card">
           <hgroup>
-            <p class="eyebrow">a card that asks nothing</p>
+            <p>a card that asks nothing</p>
             <h3>Code freeze starts Thursday at 18:00</h3>
           </hgroup>
           <p id="deck-freeze-note">
@@ -101,9 +98,12 @@
             exception.
           </p>
         </section>
-        <lf-ask id="deck-support-ask">
+        <lf-group
+          id="deck-support-ask"
+          label="Send this reply to the support thread about slow sign-ins?"
+        >
           <hgroup>
-            <p class="eyebrow">a reply to send</p>
+            <p>a reply to send</p>
             <h3>Send this reply to the support thread about slow sign-ins?</h3>
           </hgroup>
           <p>
@@ -116,21 +116,23 @@
             <pre>
 Thanks for your patience. 2.4 caches the lookups that slowed sign-in down; in our tests it went from about two seconds to well under one. It ships on Friday.</pre>
           </lf-draft>
-          <lf-options id="deck-support-choice" choose>
-            <lf-option id="deck-support-hold">
+          <lf-options id="deck-support-choice">
+            <lf-option id="deck-support-hold" label="Keep the reply unsent">
               <small class="tag">customer waits</small>
               <strong>Keep the reply unsent</strong>
             </lf-option>
-            <lf-option id="deck-support-send">
+            <lf-option id="deck-support-send" label="Send the reply" recommended>
               <small class="tag">names Friday</small>
-              <small class="tag ok">recommended</small>
               <strong>Send the reply</strong>
             </lf-option>
           </lf-options>
-        </lf-ask>
-        <lf-ask id="deck-publish-ask">
+        </lf-group>
+        <lf-group
+          id="deck-publish-ask"
+          label="Post the release notes to #eng when 2.4 is tagged?"
+        >
           <hgroup>
-            <p class="eyebrow">a permission</p>
+            <p>a permission</p>
             <h3>Post the release notes to #eng when 2.4 is tagged?</h3>
           </hgroup>
           <p>
@@ -138,18 +140,21 @@ Thanks for your patience. 2.4 caches the lookups that slowed sign-in down; in ou
             is pushed. I'd let it post: a release that slips posts nothing, and nobody
             has to remember Friday's announcement.
           </p>
-          <lf-options id="deck-publish-choice" choose>
-            <lf-option id="deck-publish-hold">
+          <lf-options id="deck-publish-choice">
+            <lf-option id="deck-publish-hold" label="Keep the notes as a draft">
               <small class="tag">post by hand</small>
               <strong>Keep the notes as a draft</strong>
             </lf-option>
-            <lf-option id="deck-publish-post">
+            <lf-option
+              id="deck-publish-post"
+              label="Post the notes when 2.4 is tagged"
+              recommended
+            >
               <small class="tag">posts at the tag</small>
-              <small class="tag ok">recommended</small>
               <strong>Post the notes when 2.4 is tagged</strong>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
       </lf-deck>
       <section id="deck-scenarios" class="layout-flow">
         <h2>What to try</h2>

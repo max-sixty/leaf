@@ -6,9 +6,10 @@
  * Layouts, so a Layout and the page's sheet outrank them as they outrank Leaf's. It sets
  * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
  * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
- * disclosures, definitions, rules and pictures, browser/styles/components/reading.css),
- * and the root's colour scheme, which lets
- * the tokens' light-dark() pairs follow the reader's preference.
+ * disclosures, definitions, rules and pictures, browser/styles/components/reading.css)
+ * and its own buttons, fields and labelled choices the faces of Leaf's controls
+ * (controls.css, "The faces of Leaf's control roles"), and the root's colour scheme,
+ * which lets the tokens' light-dark() pairs follow the reader's preference.
  *
  * Three faces, because the page already has three kinds of words and the norms
  * turn on telling them apart. What the page *says* is set in a text serif: prose
@@ -25,7 +26,7 @@
  * would have to arrive as a base64 blob in both — and referenced by URL instead
  * it silently falls back in exactly the medium (an exported file, mailed on) that
  * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
- * else; each is a screen serif with a large x-height, which is the property that
+ * else; each is a screen serif with a large `height`, which is the property that
  * matters at 17px. */
 
 /* The document is warm paper under near-black ink, in either scheme. Leaf steps its
@@ -85,9 +86,8 @@ dl.facts dt {
 }
 
 /* The compact face a small label rides in, set in the chip tokens (base.css) that every
- * layer's chips read, so a band of chips and an inline .tag stand the same height —
- * they drifted four pixels apart once, when the inline label padded itself and
- * nobody had decided that. A wearer keeps only where it sits, and a tint of its
+ * layer's chips read, so a band of chips and an inline .tag stand the same height. A
+ * wearer keeps only where it sits, and a tint of its
  * own where the tint is the point. A long word breaks only where it would overflow
  * (break-word): `anywhere` also made each letter a place the chip could shrink to, so
  * a table's automatic layout squeezed a status column down to "pas" over "sed". */
@@ -107,7 +107,7 @@ dl.facts dt {
 /* An eyebrow is the short label above a heading, which HTML writes as a `<p>` before
    the heading in its `<hgroup>`; a `<p>` after the heading is a subtitle and keeps the
    body's face. Rejected: an `.eyebrow` class, a name of Leaf's for what the group
-   already says (the user's decision, 2026-11-15). An eyebrow and its heading are one
+   already says (the user's decision). An eyebrow and its heading are one
    title: the heading level's large top margin belongs before the group, while the
    eyebrow's bottom margin owns the small gap inside it. Each rule ends at the group or
    at a heading's place in it, not at a sibling combinator over every heading, which
@@ -205,13 +205,6 @@ section.panel > :is(h2, h3):first-child {
 .callout:is(.ok, .warn, .danger) > strong:first-child {
   color: var(--lf-tone-ink);
 }
-/* A sidenote is a small indented block where it was written, and on paper; where it hangs
-   in the column's margin is the column Layout's (layouts.css). */
-aside.note {
-  font-size: var(--lf-t-5);
-  line-height: 1.45;
-  color: var(--lf-muted);
-}
 /* A list of facts, each label beside its value, laid out as Leaf lays out its own
    (`dl.lf-facts`, browser/styles/components/reading.css), so a reader learns where a
    value stands once. The labels take a column as wide as the longest of them, up to
@@ -291,12 +284,7 @@ td.num {
    figure follows the palette as the prose does, which an SVG loaded as an image cannot.
    Its words take the two drawing sizes (tokens.css, `--lf-drawing-size`), which are in the
    drawing's own units and scale with its viewBox. One without a width of its own fills
-   its figure; a thumbnail states one.
-
-   TODO: revisit whether this set is too specific. It ships as taken from one page's
-   drawings of Leaf's own layout, less the marks only that subject used (its rail, pins
-   and suggestion tints). If later pages leave most of it unused, or keep adding local
-   classes beside it, trim it to the text defaults and let each page draw its own. */
+   its figure; a thumbnail states one. */
 svg.drawing {
   display: block;
   height: auto;

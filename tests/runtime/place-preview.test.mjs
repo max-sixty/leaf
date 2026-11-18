@@ -54,9 +54,9 @@ function previewed(markup, { message = false } = {}) {
   };
 }
 
-test("a section previews its heading and first lines, past what stands above the heading", () => {
+test("a section previews its heading and first lines, past an eyebrow above the heading", () => {
   assert.deepEqual(
-    previewed(`<section id="it"><p>mobile</p><h2>The stall</h2>
+    previewed(`<section id="it"><hgroup><p>mobile</p><h2>The stall</h2></hgroup>
       <p id="p1">One in <a href="#x">forty</a> stalls.</p><p>It recovers.</p>
       <p>Third.</p><p>Fourth.</p></section>`),
     {
@@ -192,7 +192,9 @@ test("a message's markup previews by its own document: its words, names and outl
 
 test("a heading's section is walked through declared shadow trees and their slots", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "place-preview-shadow" },
   });
   // Two sections a widget draws in its declared tree, in a reply's markup.
@@ -264,14 +266,15 @@ test("a heading's section is walked through declared shadow trees and their slot
     placePreview(document.getElementById("slotted-words")).name,
     "Slotted topic",
   );
-  // A host's title and body, assigned to a slot inside a wrapper of its tree, preview
-  // as the tree draws them: the title names it, and the body follows.
-  document.body.innerHTML = `<main><lf-staged id="titled-host"></lf-staged></main>`;
+  // A host's label names it, and its body, assigned to a slot inside a wrapper of its
+  // tree, previews as the tree draws it.
+  document.body.innerHTML = `<main><lf-staged id="titled-host" label="Slotted title">
+    </lf-staged></main>`;
   const wrapper = document.createElement("template");
   wrapper.innerHTML = `<div><slot></slot></div>`;
   const titled = document.getElementById("titled-host");
   shadowStage(titled, [...wrapper.content.childNodes]);
-  titled.innerHTML = `<strong>Slotted title</strong><p>Body words.</p>`;
+  titled.innerHTML = `<p>Body words.</p>`;
   const card = placePreview(titled);
   const shown = document.createElement("div");
   render(card.detail, shown);
@@ -296,7 +299,9 @@ test("a heading's section is walked through declared shadow trees and their slot
 // them there (passages.js, `walk`), so a preview of what holds it shows the same words.
 test("a preview reads an empty slot's fallback as the page's reading does", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "place-preview-fallback" },
   });
   document.querySelector(".lf-chrome")?.remove();
@@ -365,11 +370,12 @@ test("a place with no name of its own is named by the part it stands in, as On M
     "Deployment",
     "section",
   );
-  // A section the author wrote names what stands in it before its heading.
+  // Words before a section's heading stand under the heading before the section,
+  // since the section doesn't open with its heading.
   named(
     `<h2>Earlier</h2><section><p id="it">Context first.</p><h2>Later</h2>
     <p>After.</p></section>`,
-    "Later",
+    "Earlier",
     "heading",
   );
   // A sub-heading inside a titled section heads what follows it.
@@ -393,70 +399,30 @@ test("a place with no name of its own is named by the part it stands in, as On M
     "Deployment",
     "heading",
   );
-  // A line's leading <strong> names the line itself, and makes no part.
-  named(
-    `<h2>Suggestions</h2><p><span><strong>Replace.</strong> The meeting starts
-    at <em id="it">ten</em>.</span></p>`,
-    "Suggestions",
-    "heading",
-  );
-  assert.equal(
-    previewed(`<p><span id="it"><strong>Replace.</strong> The meeting starts
-    at ten.</span></p>`).parts[0]?.join(":"),
-    "name:Replace.",
-  );
-  // Whatever inline element carries the words the title runs into.
-  for (const follower of ["em", "a", "code", "span"])
-    named(
-      `<h2>Outer</h2><p><strong>Label</strong> <${follower} id="it">Following
-      words</${follower}></p>`,
-      "Outer",
-      "heading",
-    );
-  // A title alone on its line heads what follows it: a break ends the line.
-  named(
-    `<h2>Outer</h2><p><strong>Group</strong><br><span id="it">Target</span></p>`,
-    "Group",
-    "p",
-  );
-  // A widget set among the words around it (x-inline) runs on from the title; any other
-  // widget starts a block of its own.
+  // A bold line in prose names nothing, whether words follow it on its line or blocks
+  // stand under it, so the heading over it is the part.
+  for (const markup of [
+    `<p><span><strong>Replace.</strong> The meeting starts at <em id="it">ten</em>.</span></p>`,
+    `<ul><li><strong>Group</strong><ul><li id="it">Member.</li></ul></li></ul>`,
+    `<section><strong>Bold container</strong><p id="it">Text inside it.</p></section>`,
+  ])
+    named(`<h2>Outer</h2>${markup}`, "Outer", "heading");
+  // A widget's leading <strong> names nothing, so the heading over it is the part, and
+  // a widget its label names is the part, as a tab is.
   Object.assign(registry, {
-    "lf-word": { "x-inline": true },
     "lf-block": {},
-    $layer: { generation: "place-preview-run-in-widgets" },
+    $layer: { generation: "place-preview-titled-widget" },
   });
   named(
-    `<h2>Outer</h2><p><strong>Label</strong> <lf-word id="it">term</lf-word></p>`,
+    `<h2>Outer</h2><lf-block><strong>Bold</strong><p id="it">Asked.</p></lf-block>`,
     "Outer",
     "heading",
   );
+  assert.equal(addressableLabel(document.querySelector("lf-block")), "");
   named(
-    `<h2>Outer</h2><div><strong>Group</strong><lf-block><p id="it">Asked.</p></lf-block></div>`,
-    "Group",
-    "div",
-  );
-  // The line is the markup's, whatever styles draw: a span drawn as a block still runs
-  // on from the title.
-  named(
-    `<h2>Outer</h2><p><strong>Group</strong><span style="display: contents"><span
-    style="display: block" id="it">Target</span></span></p>`,
-    "Outer",
-    "heading",
-  );
-  // A title over a nested list heads the list: no words share its line.
-  named(
-    `<h2>Outer</h2><ul><li><strong>Group</strong>
-    <ul><li id="it">Member.</li></ul></li></ul>`,
-    "Group",
-    "li",
-  );
-  // A <strong> that titles a container of blocks names the container as a part.
-  named(
-    `<h2>Earlier</h2><section><strong>Bold container</strong><p id="it">Text
-    inside it.</p></section>`,
-    "Bold container",
-    "section",
+    `<h2>Outer</h2><lf-block label="Titled"><p id="it">Asked.</p></lf-block>`,
+    "Titled",
+    "lf-block",
   );
   // What Leaf generates in the page names nothing, whatever it is labelled.
   named(
@@ -470,15 +436,16 @@ test("a place with no name of its own is named by the part it stands in, as On M
 test("a heading counts the conversations about what it titles, as about its own part", () => {
   // On a page of decisions, each a question titled by its own heading, a thread about a
   // whole decision counts under that decision's heading and the page's title over it,
-  // and not under the decision before it.
+  // and not under the decision before it. A section wrapping a question doesn't open
+  // with the question's heading, so a thread about it counts under the page's title.
   applicationState.identify(1);
   document.body.innerHTML = `<main><h1>Plan</h1>
-    <lf-ask id="first"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
-      <p>Two stores fit.</p></lf-ask>
-    <lf-ask id="second"><hgroup><p>Decision 2</p><h2>Which region?</h2></hgroup>
-      <p>One region fits.</p></lf-ask>
-    <section id="third"><lf-ask><hgroup><p>Decision 3</p><h2>Which size?</h2></hgroup>
-      <p>Two sizes fit.</p></lf-ask></section></main>`;
+    <section id="first"><hgroup><p>Decision 1</p><h2>Which store?</h2>
+      </hgroup><p>Two stores fit.</p></section>
+    <section id="second"><hgroup><p>Decision 2</p><h2>Which region?</h2>
+      </hgroup><p>One region fits.</p></section>
+    <section id="third"><section><hgroup><p>Decision 3</p>
+      <h2>Which size?</h2></hgroup><p>Two sizes fit.</p></section></section></main>`;
   const comment = {
     id: "c1",
     seq: 1,
@@ -491,7 +458,7 @@ test("a heading counts the conversations about what it titles, as about its own 
     content_version: "c1",
   };
   const thread = servedThread([comment], { anchor: { section: "second" } });
-  // A thread about the section wrapping a question is the question's too.
+  // A thread about the section wrapping a question.
   const wrapped = servedThread([{ ...comment, id: "c2", content_version: "c2" }], {
     anchor: { section: "third" },
   });
@@ -510,7 +477,7 @@ test("a heading counts the conversations about what it titles, as about its own 
         ["Plan", 2],
         ["Which store?", 0],
         ["Which region?", 1],
-        ["Which size?", 1],
+        ["Which size?", 0],
       ],
     );
   } finally {
@@ -520,7 +487,9 @@ test("a heading counts the conversations about what it titles, as about its own 
 
 test("a slotted section reads its slot's run once, and only as far as its preview shows", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "place-preview-run" },
   });
   document.querySelector(".lf-chrome")?.remove();

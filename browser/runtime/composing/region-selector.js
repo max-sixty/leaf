@@ -44,6 +44,7 @@ import { layoutWindow } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { pageImage } from "./page-image.js";
 import { raiseError } from "../errors.js";
+import { captured } from "../anchor-resolution.js";
 
 const MIN_SIZE = 8;
 const STEP = 10;
@@ -176,8 +177,7 @@ export function createRegionSelector({
           a.distance - b.distance ||
           a.rect.width * a.rect.height - b.rect.width * b.rect.height,
       )[0];
-    const target = winner?.capture ? winner.capture() : winner;
-    return target?.anchor ?? null;
+    return captured(winner)?.anchor ?? null;
   }
 
   async function capture() {

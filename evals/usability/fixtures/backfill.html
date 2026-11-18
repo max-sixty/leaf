@@ -27,27 +27,25 @@
         </p>
       </section>
 
-      <section id="approach">
-        <lf-ask id="approach-decision">
-          <h2>How should the copy run?</h2>
-          <lf-options id="copy-mode" choose>
-            <lf-option id="opt-online"
-              ><strong>Online, throttled</strong> Copy in batches during business hours
-              at 20% of the replica's capacity. No maintenance window; about nine
-              days.</lf-option
-            >
-            <lf-option id="opt-window"
-              ><strong>Nightly window</strong> Copy at full speed in the 01:00–03:00 UTC
-              maintenance window. Eleven nights.</lf-option
-            >
-            <lf-option id="opt-snapshot"
-              ><strong>Snapshot restore</strong> Restore last night's snapshot into the
-              warehouse in one step. Needs a 40-minute write freeze on the
-              primary.</lf-option
-            >
-          </lf-options>
-        </lf-ask>
-      </section>
+      <lf-group id="approach" label="How should the copy run?">
+        <h2 id="approach-h">How should the copy run?</h2>
+        <lf-options id="copy-mode">
+          <lf-option id="opt-online" label="Online, throttled"
+            ><strong>Online, throttled</strong> Copy in batches during business hours at
+            20% of the replica's capacity. No maintenance window; about nine
+            days.</lf-option
+          >
+          <lf-option id="opt-window" label="Nightly window"
+            ><strong>Nightly window</strong> Copy at full speed in the 01:00–03:00 UTC
+            maintenance window. Eleven nights.</lf-option
+          >
+          <lf-option id="opt-snapshot" label="Snapshot restore"
+            ><strong>Snapshot restore</strong> Restore last night's snapshot into the
+            warehouse in one step. Needs a 40-minute write freeze on the
+            primary.</lf-option
+          >
+        </lf-options>
+      </lf-group>
     </main>
   </body>
 </html>

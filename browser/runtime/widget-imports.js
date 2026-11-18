@@ -31,9 +31,9 @@ export function widgetImports(scope, registry) {
   const modules = tags.filter((tag) => Object.hasOwn(held, tag));
   const shadow = tags.some(
     (tag) =>
-      registry[tag]?.["x-shadow"] ||
-      Object.values(registry[tag]?.["x-state"] ?? {}).some(
-        (state) => state.creates && registry[state.creates.child]?.["x-shadow"],
+      registry[tag]?.shadow ||
+      Object.values(registry[tag]?.verbs ?? {}).some(
+        (state) => state.creates && registry[state.creates.child]?.shadow,
       ),
   );
   return { modules, shadow };

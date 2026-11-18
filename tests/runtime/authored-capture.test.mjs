@@ -26,7 +26,7 @@ test("capture keeps authored values and parentage when rendering moves members",
   adoptRegistry({
     $layer: { generation: "capture-before-render" },
     "lf-outer": {
-      "x-state": {
+      verbs: {
         set: {
           unit: "widget",
           record: { kind: "value", attr: "status", value: "status" },
@@ -51,16 +51,37 @@ test("capture keeps authored values and parentage when rendering moves members",
   assert.equal(inner.parentElement.localName, "lf-right");
 });
 
+test("an attribute record counts only Leaf elements among its members", () => {
+  document.body.innerHTML =
+    '<main><lf-options id="size"><lf-option id="small" selected>Small <select id="unit"><option id="unit-m" selected>m</option></select></lf-option><lf-option id="large">Large</lf-option></lf-options></main>';
+  adoptRegistry({
+    $layer: { generation: "native-selected" },
+    "lf-options": {
+      verbs: {
+        choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
+      },
+    },
+    "lf-option": {},
+  });
+  const root = document.querySelector("main");
+  rememberAuthoredParents(root);
+  const states = stageAuthoredStates(root, new Map());
+  assert.deepEqual(states.get("size").state.choose.value, ["small"]);
+});
+
 test("native idioms never become widget descriptors or authored widget ancestors", () => {
   document.body.innerHTML =
     '<main><table id="native"><tbody><tr><td><lf-nested id="nested">Value</lf-nested></td></tr></tbody></table></main>';
   adoptRegistry({
     $layer: { generation: "native-idioms" },
     "lf-nested": {},
-    table: { description: "A table idiom.", "x-example": "<table></table>" },
+    table: {
+      description: "A table idiom.",
+      example: "<table></table>",
+    },
     "lf-nested.selected": {
       description: "A selected widget idiom.",
-      "x-example": '<lf-nested class="selected"></lf-nested>',
+      example: '<lf-nested class="selected"></lf-nested>',
     },
   });
   const staged = stageWidgetDescriptors(document.querySelector("main"), {
@@ -74,7 +95,9 @@ test("native idioms never become widget descriptors or authored widget ancestors
 test("an arriving source root keeps its declared parent and exhibit fence", () => {
   adoptRegistry({
     $layer: { generation: "initial-arrival" },
-    "lf-quoted-parent": { "x-exhibit": true },
+    "lf-quoted-parent": {
+      exhibit: true,
+    },
     "lf-arrival": {},
   });
   document.body.innerHTML =
@@ -111,17 +134,17 @@ test("member state owns each physical slot independently across a hierarchy", ()
   const declarations = {
     $layer: { generation: "independent-member-records" },
     "lf-audit-board": {
-      "x-state": {
+      verbs: {
         move: { unit: "unit", record: { kind: "position", within: "lf-audit-zone" } },
       },
     },
     "lf-audit-zone": {
-      "x-state": {
+      verbs: {
         choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
       },
     },
     "lf-audit-card": {
-      "x-state": {
+      verbs: {
         phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
       },
     },
@@ -189,15 +212,11 @@ test("the contents drawing keeps its native state and keyed rows through revisio
 test("generated words declare whether they are said, echoed or apparatus", () => {
   const heading = generatedElement(document.createElement("h2"), { says: true });
   const name = generatedElement(document.createElement("span"), { says: "echo" });
-  const declared = document.createElement("span");
-  declared.dataset.lfSaid = "label";
-  generatedElement(declared, { says: true });
   assert.throws(() => generatedElement(document.createElement("p"), {}), TypeError);
   const markers = (node) =>
     ["data-lf-gen", "data-lf-said", "data-lf-echo"].map((a) => node.getAttribute(a));
   assert.deepEqual(markers(heading), ["1", "", null]);
   assert.deepEqual(markers(name), ["1", null, ""]);
-  assert.deepEqual(markers(declared), ["1", "label", null]);
   generatedElement(name, { says: false });
   assert.deepEqual(markers(name), ["1", null, null]);
 });

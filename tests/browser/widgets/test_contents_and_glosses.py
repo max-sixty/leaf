@@ -9,6 +9,7 @@ from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    CHROME_ROOT,
     RELEASE_FOCUS,
     clocked,
     dwelt,
@@ -51,7 +52,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         """
 <h1>Migration plan</h1>
 <lf-toc id="contents"></lf-toc>
-<section><h2 id="prepare">Prepare <lf-gloss tip="One cohort at a time.">gradually</lf-gloss></h2><p>Take a snapshot.</p></section>
+<section><h2 id="prepare">Prepare <lf-gloss>gradually<span popover>One cohort at a time.</span></lf-gloss></h2><p>Take a snapshot.</p></section>
 <details style="margin-top: 110vh">
   <summary>Implementation detail</summary>
   <h3>Move the readers</h3>
@@ -1311,7 +1312,7 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
 ):
     """The runbook fixture holds open threads on its lede and under four headings, a
     resolved one under a fifth, a question waiting on the user in two sections, and an
-    earlier version. Each row of its contents wears one mark for its section, an On me
+    earlier version. Each row of its contents wears one mark for its section, an On Me
     item outranking a thread: a halo round its marker on the map's spine, a haloed dot
     on the column outline's rule. Its link previews how many of each, which a screen
     reader hears where Tab lands on it; what stands before the first section is the map's title row's, and in the column,
@@ -1388,6 +1389,19 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     assert preview_parts(toc.get_by_role("link", name="Switch the services")) == [
         "1 thread · 1 waiting on me · 1 change"
     ]
+    # A changed stretch is a change mark, so hiding annotations hides it, as it hides
+    # the change's bar in the margin (toc.css).
+    page.evaluate(RELEASE_FOCUS)
+    chrome = page.locator(CHROME_ROOT)
+    face = "(row) => getComputedStyle(row, '::after').backgroundColor"
+    drawn = verify.evaluate(face)
+    assert drawn != "rgba(0, 0, 0, 0)"
+    page.keyboard.press("o")
+    expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
+    assert verify.evaluate(face) == "rgba(0, 0, 0, 0)"
+    page.keyboard.press("o")
+    expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", re.compile(".*"))
+    assert verify.evaluate(face) == drawn
 
     # Where the track stacks over the body, the outline the reader opens marks the same
     # sections in the gutter beside its rule, the changed ones on the rule.
@@ -1473,8 +1487,8 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
 <h1>Rollout</h1>
 <p style="margin-top: 110vh; text-align: right">
   Start with a
-  <lf-gloss id="gloss-path" tip="A thin, end-to-end path through the real system."
-    >walking skeleton</lf-gloss
+  <lf-gloss id="gloss-path"
+    >walking skeleton<span popover>A thin, end-to-end path through the real system.</span></lf-gloss
   >.
 </p>
 """,
@@ -1583,9 +1597,9 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
         serve(
             leaf_page(
                 "gloss control",
-                '<h1>Term</h1><p><lf-gloss tip="An explanation.">'
+                "<h1>Term</h1><p><lf-gloss>"
                 'term <span role="button" tabindex="0">work it</span>'
-                "</lf-gloss></p>",
+                "<span popover>An explanation.</span></lf-gloss></p>",
             )
         ),
     )
@@ -1603,16 +1617,16 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
 
 
 def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
-    """The tip is x-says page text, so a comment can rest on it like a tab's rendered
-    label. Following that comment from its thread (Show on page) must reveal the
-    otherwise hidden popover before the anchor scrolls; a durable thread cannot point to
-    words the page then keeps closed."""
+    """The explanation is the author's words in a popover, so a comment can rest on
+    it like any passage. Following that comment from its thread (Show on page) must
+    reveal the otherwise hidden popover before the anchor scrolls; a durable thread
+    cannot point to words the page then keeps closed."""
     tip = "A thin, end-to-end path through the real system."
     source = leaf_page(
         "gloss comment",
         f"""
 <h1>Rollout</h1>
-<p>Start with a <lf-gloss id="gloss-path" tip="{tip}">walking skeleton</lf-gloss>.</p>
+<p>Start with a <lf-gloss id="gloss-path">walking skeleton<span popover>{tip}</span></lf-gloss>.</p>
 """,
     )
     page = open_page(browser, serve(source, anchored=[("gloss-path", tip)]))

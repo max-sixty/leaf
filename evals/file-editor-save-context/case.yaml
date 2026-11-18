@@ -1,5 +1,5 @@
-# Source probe for the file-editor guidance's blanket silence about saving.
-# Codex passed 1/1 on both versions in the removal survey; this guards retained facts.
+# Source probe for the file-editor guidance's blanket silence about saving; this
+# guards retained facts.
 description: file-editor-save-context
 metadata:
   purpose: Explain relevant autosave and conflict behavior when the reader asks about sharing a bound file.

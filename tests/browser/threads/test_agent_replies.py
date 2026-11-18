@@ -210,12 +210,10 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
 ):
     """The answer the log holds is what the panel draws, not the draft it replaced.
 
-    `publish-site` failed on a deployed turn that published its revision and replied:
-    the container held the answer, every server reading returned it, and the user's
-    panel showed one agent bubble with no words in it. The provisional reply was
-    retired only by the response address it was sent to, so an answer that named only
-    the attempt it was reserved under stood beside its own placeholder and the draft
-    is what got drawn. A logged event naming either identity retires the draft.
+    A provisional reply retired only by the response address it was sent to would let
+    an answer that named only the attempt it was reserved under stand beside its own
+    placeholder, and the draft would be what got drawn: its stale words in place of the
+    answer. A logged event naming either identity retires the draft.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
@@ -264,9 +262,10 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     The stream placeholder exists before the final event, so its owner must not freeze
     the absence of markup at construction. The answer completes the reply the open
-    thread was already streaming, so it shows as it lands. A later prose edit keeps both
-    that owner and the island the durable reply introduced. The panel's view reads it:
-    a passage's margin card draws no reply markup, which opens in the panel.
+    thread was already streaming, so it shows as it lands. A later edit keeps that
+    owner and draws the island its new words hold, in place of the one before. The
+    panel's view reads it: a passage's margin card draws no reply markup, which opens
+    in the panel.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Answer me here")
@@ -285,14 +284,19 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         STREAM_ATTEMPT,
     )
 
+    def ask(choice, label):
+        return (
+            '<lf-group id="stream-reply-ask" label="Use this answer?">\n'
+            '<h3 id="stream-reply-ask-h">Use this answer?</h3>'
+            f'<lf-options id="{choice}">'
+            f'<lf-option id="{choice}-now">{label}</lf-option>'
+            "</lf-options></lf-group>"
+        )
+
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "The complete answer.",
-        '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
-        '<lf-options id="stream-reply-choice" choose>'
-        '<lf-option id="stream-reply-now">Use it now</lf-option>'
-        "</lf-options></lf-ask>",
+        "The complete answer.\n\n" + ask("stream-reply-choice", "Use it now"),
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -301,13 +305,9 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     told(page)
     expect(message).to_have_attribute("data-lf-event", reply["id"])
-    expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
+    expect(message.locator(".lf-msg-text")).to_contain_text("The complete answer.")
     expect(message.locator("#stream-reply-choice")).to_have_count(1)
     expect(page.locator(PANEL_NEWS)).to_be_hidden()
-    page.evaluate(
-        "() => { window.__streamWidget = document.querySelector("
-        "'#stream-reply-choice'); }"
-    )
 
     append_carried_log_record(
         serve.page_dir,
@@ -317,7 +317,8 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
             "agent": "Codex",
             "session": "codex-thread",
             "message": reply["id"],
-            "text": "The complete edited answer.",
+            "text": "The complete edited answer.\n\n"
+            + ask("stream-reply-later", "Use it later"),
         },
     )
     told(page)
@@ -329,12 +330,33 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
     ).to_be_visible()
     if edited.count():
         edited.click()
-    expect(message.locator(".lf-msg-text")).to_have_text("The complete edited answer.")
+    expect(message.locator(".lf-msg-text")).to_contain_text(
+        "The complete edited answer."
+    )
+    expect(message.locator("#stream-reply-later")).to_contain_text("Use it later")
+    expect(page.locator("#stream-reply-choice")).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__streamMessage === document.querySelector(
-          '.lf-fp-view .lf-msg[data-lf-event="{reply["id"]}"]')
-          && window.__streamWidget === document.querySelector('#stream-reply-choice')"""
-    ), "the durable reply or its authored island was replaced after the edit"
+          '.lf-fp-view .lf-msg[data-lf-event="{reply["id"]}"]')"""
+    ), "the durable reply was replaced after the edit"
+
+    # Words alone draw as prose, the island gone with the HTML.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "codex-thread",
+            "message": reply["id"],
+            "text": "Withdrawn: the plan changed.",
+        },
+    )
+    told(page)
+    if page.locator(f"{PANEL_NEWS}:not([hidden])").count():
+        page.locator(PANEL_NEWS).click()
+    expect(message.locator(".lf-msg-text")).to_have_text("Withdrawn: the plan changed.")
+    expect(page.locator("#stream-reply-later")).to_have_count(0)
 
 
 def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
@@ -343,12 +365,11 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
     """The agent's opening streams into the open card the user is reading, and the
     explicit answer completes that same message.
 
-    On a real Codex App Server turn the card drew an empty agent bubble as the turn
-    started, held the opening's first words as an edit of it behind "1 new reply", and
-    the answer, written by `leaf thread reply` under a retry key of its own, took the
-    bubble away and appended itself. The provisional reply now joins the thread with
-    its first words, its words join it as they come, and the answer to the same input
-    is the same message.
+    The card must not draw an empty agent bubble as the turn starts, hold the opening's
+    first words as an edit of it behind "1 new reply", and let the answer, written by
+    `leaf thread reply` under a retry key of its own, take the bubble away and append
+    itself. The provisional reply joins the thread with its first words, its words join
+    it as they come, and the answer to the same input is the same message.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
@@ -760,9 +781,9 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     """A seat's notice says one count of what waits, "1 new" and then "2 new", at the
     width it first stood at, while the user reads beside the thread. Its name is the
     count it shows, so a voice user saying it finds it, and its description says each
-    fact. It said the facts and, past its room, dropped the later ones behind a "+1", so
-    one piece of news read three ways on three surfaces; then its name said only the
-    facts, which the words shown never said."""
+    fact. Saying the facts and, past its room, dropping the later ones behind a "+1"
+    would read one piece of news three ways on three surfaces, and a name saying only
+    the facts would say what the words shown never say."""
     url = serve(SEATED_OBLIGATION_PAGE)
     # An agent's opening message has no delivery receipt competing with the news.
     root = panel_comment(
@@ -900,9 +921,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             "author": "agent",
             "parent": root,
             "responds": root,
-            "text": "Here is the board.",
-            "markup": '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
-            '<lf-card id="fb-cache"><strong>Cache</strong></lf-card></lf-column>'
+            "text": "Here is the board.\n\n"
+            '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
+            '<lf-card id="fb-cache" label="Cache"><strong>Cache</strong></lf-card></lf-column>'
             '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
         },
     )
@@ -959,10 +980,11 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
 
     Nothing else in the message says it: a harness receipt is a reply event, written
     under the thread's own agent name, in the same bubble as a real answer, and its
-    prose is the only other difference. So a user skimming a thread reads an
-    apology from the agent rather than a notice that their message went nowhere, and
-    the page's own record of the failure — `failure` — went unread. The mark belongs
-    in the head because that is the part of a message a user takes on trust.
+    prose is the only other difference. Without the mark, a user skimming a thread
+    would read an apology from the agent rather than a notice that their message went
+    nowhere, and the page's own record of the failure — `failure` — would go unread.
+    The mark belongs in the head because that is the part of a message a user takes on
+    trust.
     """
     url = serve(THREAD_DIFF_PAGE)
     answered, unanswered = (
@@ -1066,8 +1088,9 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     browser, serve
 ):
     """A reply's markup is painted where the thread draws it, not by the page's install,
-    so a log bounded at its end in a reply was neither held at its end nor the box
-    scrolling its lines until some later revision swept the page."""
+    so a log bounded at its end in a reply, left to the install, would be neither held
+    at its end nor the box scrolling its lines until some later revision swept the
+    page."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What did the deploy do?")
     markup = (
@@ -1088,9 +1111,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
             "--done",
             response_reference(serve.page_dir, root),
             "--text",
-            "Here is its log.",
-            "--markup",
-            markup,
+            "Here is its log." + "\n\n" + (markup),
         ],
     )
     assert reply.exit_code == 0, reply.output
@@ -1179,7 +1200,7 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
     the step it shows draws at once while the user stands on its toggle in the thread,
     as news in the thread the user is in does: the toggle stays where it stood, the
     page scrolling away what grows above it, and the user's message below moves by the
-    run's growth alone. It once waited behind the thread's notice ("1 message
+    run's growth alone. It doesn't wait behind the thread's notice ("1 message
     edited")."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})

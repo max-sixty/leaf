@@ -10,7 +10,7 @@
   <body>
     <main class="layout-column">
       <hgroup id="cu-title">
-        <p class="eyebrow">marram · notifications since Nov 7</p>
+        <p>marram · notifications since Nov 7</p>
         <h1>Seven notifications need your call</h1>
       </hgroup>
       <p class="lede" id="cu-lede">
@@ -19,9 +19,12 @@
       </p>
 
       <lf-deck id="cu-deck">
-        <lf-ask id="cu-windows">
+        <lf-group
+          id="cu-windows"
+          label="Close the Windows config report as a duplicate?"
+        >
           <hgroup>
-            <p class="eyebrow">issue #423 · Rhea</p>
+            <p>issue #423 · Rhea</p>
             <h2>Close the Windows config report as a duplicate?</h2>
           </hgroup>
           <p>
@@ -34,22 +37,25 @@
 Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\marram\marram.toml` on Windows. Until then, pass that path with `--config`.</pre>
           </lf-draft>
           <p>I'd close it: #397 tracks the fix, and the reply names the release.</p>
-          <lf-options id="cu-windows-choice" choose>
-            <lf-option id="cu-windows-open">
+          <lf-options id="cu-windows-choice">
+            <lf-option id="cu-windows-open" label="Leave #423 open until 1.7.3 ships">
               <small class="tag">Rhea hears at 1.7.3</small>
               <strong>Leave #423 open until 1.7.3 ships</strong>
             </lf-option>
-            <lf-option id="cu-windows-close">
+            <lf-option
+              id="cu-windows-close"
+              label="Close #423 as a duplicate of #397"
+              recommended
+            >
               <small class="tag">Rhea follows #397</small>
-              <small class="tag ok">recommended</small>
               <strong>Close #423 as a duplicate of #397</strong>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
 
-        <lf-ask id="cu-reqwest">
+        <lf-group id="cu-reqwest" label="Fix and merge the reqwest 0.13 update?">
           <hgroup>
-            <p class="eyebrow">Dependabot · #421</p>
+            <p>Dependabot · #421</p>
             <h2>Fix and merge the reqwest 0.13 update?</h2>
           </hgroup>
           <p>
@@ -68,23 +74,26 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
             bundled list, and all 1,212 links in the HTTPS fixture resolve the same
             under it.
           </p>
-          <lf-options id="cu-reqwest-choice" choose>
-            <lf-option id="cu-reqwest-close">
+          <lf-options id="cu-reqwest-choice">
+            <lf-option id="cu-reqwest-close" label="Close #421 and stay on 0.12">
               <small class="tag">reopens at 0.13.2</small>
               <strong>Close #421 and stay on 0.12</strong>
             </lf-option>
-            <lf-option id="cu-reqwest-merge">
+            <lf-option
+              id="cu-reqwest-merge"
+              label="Push the rename to #421 and merge it"
+              recommended
+            >
               <small class="tag">1 line</small>
               <small class="tag">OS cert store</small>
-              <small class="tag ok">recommended</small>
               <strong>Push the rename to #421 and merge it</strong>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
 
-        <lf-ask id="cu-nextest">
+        <lf-group id="cu-nextest" label="Approve moving CI to cargo-nextest?">
           <hgroup>
-            <p class="eyebrow">review requested · Tomasz's #419</p>
+            <p>review requested · Tomasz's #419</p>
             <h2>Approve moving CI to cargo-nextest?</h2>
           </hgroup>
           <p>
@@ -109,25 +118,27 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
             and running one test serially costs about a second. Giving each test its own
             port is the real fix for the flake, and it can follow on its own.
           </p>
-          <lf-options id="cu-nextest-choice" choose>
-            <lf-option id="cu-nextest-port">
+          <lf-options id="cu-nextest-choice">
+            <lf-option
+              id="cu-nextest-port"
+              label="Ask Tomasz to give each test a free port first"
+            >
               <small class="tag">CI 6m 40s</small>
               <small class="tag">no workaround</small>
               <strong>Ask Tomasz to give each test a free port first</strong> #419 waits
               for that change.
             </lf-option>
-            <lf-option id="cu-nextest-approve">
+            <lf-option id="cu-nextest-approve" label="Approve #419" recommended>
               <small class="tag">CI 3m 10s</small>
               <small class="tag">1 serial test</small>
-              <small class="tag ok">recommended</small>
               <strong>Approve #419</strong> I'll open an issue for the free ports.
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
 
-        <lf-ask id="cu-roadmap">
+        <lf-group id="cu-roadmap" label="Tell Ade's team when 2.0 lands?">
           <hgroup>
-            <p class="eyebrow">discussion #415 · mentions you</p>
+            <p>discussion #415 · mentions you</p>
             <h2>Tell Ade's team when 2.0 lands?</h2>
           </hgroup>
           <p>
@@ -144,22 +155,25 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
             settled; the roadmap marks the quarter tentative, and a team planning 30
             repositories around it would hold you to it.
           </p>
-          <lf-options id="cu-roadmap-choice" choose>
-            <lf-option id="cu-roadmap-undated">
+          <lf-options id="cu-roadmap-choice">
+            <lf-option
+              id="cu-roadmap-undated"
+              label="Post it without the date"
+              recommended
+            >
               <small class="tag">promises the format</small>
-              <small class="tag ok">recommended</small>
               <strong>Post it without the date</strong> I'll drop the first sentence.
             </lf-option>
-            <lf-option id="cu-roadmap-dated">
+            <lf-option id="cu-roadmap-dated" label="Post it as written">
               <small class="tag">promises Q1 too</small>
               <strong>Post it as written</strong>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
 
-        <lf-ask id="cu-stdin">
+        <lf-group id="cu-stdin" label="Merge --stdin as it is?">
           <hgroup>
-            <p class="eyebrow">pull request #418 · Jaana's first contribution</p>
+            <p>pull request #418 · Jaana's first contribution</p>
             <h2>Merge <code>--stdin</code> as it is?</h2>
           </hgroup>
           <p>
@@ -182,25 +196,28 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
             <pre>
 Thanks, this is a clean change and the tests cover it well. Before I merge, could you add `-0` so `--stdin` can also read NUL-separated paths, as `git ls-files -z` writes them? Without it, git quotes a name like `docs/ja/入門.md`, which then doesn't open. Happy to point you at where the parser would take it.</pre>
           </lf-draft>
-          <lf-options id="cu-stdin-choice" choose>
-            <lf-option id="cu-stdin-ask">
+          <lf-options id="cu-stdin-choice">
+            <lf-option
+              id="cu-stdin-ask"
+              label="Post the review asking for -0"
+              recommended
+            >
               <small class="tag">1 more round</small>
               <small class="tag">any name</small>
-              <small class="tag ok">recommended</small>
               <strong>Post the review asking for <code>-0</code></strong>
             </lf-option>
-            <lf-option id="cu-stdin-merge">
+            <lf-option id="cu-stdin-merge" label="Approve and merge #418">
               <small class="tag">merged today</small>
               <small class="tag">ASCII only</small>
               <strong>Approve and merge #418</strong> I'll open an issue for
               NUL-separated input.
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
 
-        <lf-ask id="cu-anchors">
+        <lf-group id="cu-anchors" label="Where does anchor checking go?">
           <hgroup>
-            <p class="eyebrow">issue #424 · 14 upvotes</p>
+            <p>issue #424 · 14 upvotes</p>
             <h2>Where does anchor checking go?</h2>
           </hgroup>
           <p>
@@ -214,31 +231,37 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
             slowdown reaches only those who pass the flag. It costs me three days after
             1.7.3.
           </p>
-          <lf-options id="cu-anchors-choice" choose>
-            <lf-option id="cu-anchors-decline">
+          <lf-options id="cu-anchors-choice">
+            <lf-option id="cu-anchors-decline" label="Decline it as out of scope">
               <small class="tag">0 days</small>
               <small class="tag">never ships</small>
               <strong>Decline it as out of scope</strong> Close #424 and point to anchor
               checking in a site generator's build.
             </lf-option>
-            <lf-option id="cu-anchors-help">
+            <lf-option id="cu-anchors-help" label="Label it help wanted">
               <small class="tag">0 days</small>
               <small class="tag">if contributed</small>
               <strong>Label it help wanted</strong> With a note on where the parser
               would hook in.
             </lf-option>
-            <lf-option id="cu-anchors-milestone">
+            <lf-option
+              id="cu-anchors-milestone"
+              label="Put it on the 1.8 milestone"
+              recommended
+            >
               <small class="tag">3 days</small>
               <small class="tag">ships in 1.8</small>
-              <small class="tag ok">recommended</small>
               <strong>Put it on the 1.8 milestone</strong>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
 
-        <lf-ask id="cu-ssrf">
+        <lf-group
+          id="cu-ssrf"
+          label="Open an advisory for redirects into internal networks?"
+        >
           <hgroup>
-            <p class="eyebrow">private security report · Nadia, Nov 9</p>
+            <p>private security report · Nadia, Nov 9</p>
             <h2>Open an advisory for redirects into internal networks?</h2>
           </hgroup>
           <p>
@@ -263,22 +286,28 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
             links redirect into its own network, such as a sign-on page, would need the
             flag.
           </p>
-          <lf-options id="cu-ssrf-choice" choose>
-            <lf-option id="cu-ssrf-expected">
+          <lf-options id="cu-ssrf-choice">
+            <lf-option
+              id="cu-ssrf-expected"
+              label="Reply that this is expected behavior"
+            >
               <small class="tag">0 days</small>
               <small class="tag">still probeable</small>
               <strong>Reply that this is expected behavior</strong> Document that marram
               follows redirects, and leave CI runners to restrict their network.
             </lf-option>
-            <lf-option id="cu-ssrf-advisory">
+            <lf-option
+              id="cu-ssrf-advisory"
+              label="Open a private advisory and fix it in 1.7.3"
+              recommended
+            >
               <small class="tag">1 day</small>
               <small class="tag">SSO needs flag</small>
-              <small class="tag ok">recommended</small>
               <strong>Open a private advisory and fix it in 1.7.3</strong> Request a
               CVE, credit Nadia, and publish the advisory with the release.
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
       </lf-deck>
 
       <details id="cu-handled">

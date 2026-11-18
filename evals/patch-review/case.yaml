@@ -1,8 +1,6 @@
-# Added during the 2026-10-15 authoring UX loop to cover executable patch evidence,
-# distinct from prose, dashboard, queue and threshold-tuning tasks. First pilot
-# passed both workflows and split paired quality; it exposed live diff-reply sizing friction.
-# Extended after the file navigator review to exercise hierarchy, selected-file
-# reading, scroll and mixed mouse/keyboard use across a realistic patch bundle.
+# Covers executable patch evidence, distinct from prose, dashboard, queue and
+# threshold-tuning tasks, and exercises hierarchy, selected-file reading, scroll and
+# mixed mouse/keyboard use across a realistic patch bundle.
 description: Patch review
 metadata:
   purpose: Review a retry patch, incorporate a corrected key-scope fact, and record

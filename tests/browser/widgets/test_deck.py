@@ -14,11 +14,11 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def card(name, question):
-    return f"""<lf-ask id="{name}-ask"><h3>{question}</h3>
-      <lf-options id="{name}-choice" choose>
-        <lf-option id="{name}-yes"><strong>Yes</strong></lf-option>
-        <lf-option id="{name}-no"><strong>No</strong></lf-option>
-      </lf-options></lf-ask>"""
+    return f"""<lf-group id="{name}-ask" label="{question}"><h3 id="{name}-ask-h">{question}</h3>
+      <lf-options id="{name}-choice">
+        <lf-option id="{name}-yes" label="Yes"><strong>Yes</strong></lf-option>
+        <lf-option id="{name}-no" label="No"><strong>No</strong></lf-option>
+      </lf-options></lf-group>"""
 
 
 DECK_PAGE = leaf_page(
@@ -159,8 +159,8 @@ SUGGESTION_DECK_PAGE = leaf_page(
 
 
 def test_a_recap_row_names_a_question_with_no_words_as_on_me_does(browser, serve):
-    """A suggestion asks outside an `lf-ask`, so its question has no words of its own;
-    its row in the end frame names it as On Me does, by the words it suggests."""
+    """A suggestion is set among words, in no group, so its question has no words of
+    its own; its row in the end frame names it as On Me does, by the words it suggests."""
     page = open_page(browser, serve(SUGGESTION_DECK_PAGE))
     open_card(page, "note-card")
     page.get_by_role(
@@ -206,12 +206,12 @@ def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
 DRAFT_DECK_PAGE = leaf_page(
     "Deck with a draft",
     '<h1>Before the release</h1><lf-deck id="deck">'
-    '<lf-ask id="reply-ask"><h3>Send this reply?</h3>'
+    '<lf-group id="reply-ask" label="Send this reply?"><h3 id="reply-ask-h">Send this reply?</h3>'
     '<lf-draft id="reply-draft"><pre>\nThanks for the report.</pre></lf-draft>'
-    '<lf-options id="reply-choice" choose>'
-    '<lf-option id="reply-send"><strong>Send it</strong></lf-option>'
-    '<lf-option id="reply-hold"><strong>Hold it</strong></lf-option>'
-    "</lf-options></lf-ask>" + card("notes", "Post the notes?") + "</lf-deck>",
+    '<lf-options id="reply-choice">'
+    '<lf-option id="reply-send" label="Send it"><strong>Send it</strong></lf-option>'
+    '<lf-option id="reply-hold" label="Hold it"><strong>Hold it</strong></lf-option>'
+    "</lf-options></lf-group>" + card("notes", "Post the notes?") + "</lf-deck>",
 )
 
 
@@ -242,12 +242,13 @@ TALL_DECK_PAGE = leaf_page(
     + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
     + '<lf-deck id="deck">'
     + card("store", "Keep Redis?")
-    + '<lf-ask id="tall-ask"><h3>Ship the beta on every platform?</h3>'
+    + '<lf-group id="tall-ask" label="Ship the beta on every platform?">'
+    '<h3 id="tall-ask-h">Ship the beta on every platform?</h3>'
     + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
-    + '<lf-options id="tall-choice" choose>'
-    '<lf-option id="tall-yes"><strong>Yes</strong></lf-option>'
-    '<lf-option id="tall-no"><strong>No</strong></lf-option>'
-    "</lf-options></lf-ask></lf-deck><p>After the deck.</p>",
+    + '<lf-options id="tall-choice">'
+    '<lf-option id="tall-yes" label="Yes"><strong>Yes</strong></lf-option>'
+    '<lf-option id="tall-no" label="No"><strong>No</strong></lf-option>'
+    "</lf-options></lf-group></lf-deck><p>After the deck.</p>",
 )
 
 # Whether the open card, landed, stands whole in the room above the panel's top, with

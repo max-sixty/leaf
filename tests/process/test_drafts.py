@@ -10,6 +10,7 @@ from interact_support import fetch, publish, server  # noqa: F401 (fixture)
 
 from leaf import cli as cli_model
 from leaf import drafts as drafts_model
+from leaf.event_log import append_event, start_log
 
 
 def _write(page_dir, expect, attempt, text="Words", **record):
@@ -24,32 +25,34 @@ def _write(page_dir, expect, attempt, text="Words", **record):
 
 
 def test_a_draft_write_takes_only_the_generation_it_names(tmp_path):
-    """A tab replaces the generation it last knew the server held, so words another tab
+    """A tab replaces a generation it knows the server may hold, so words another tab
     wrote or sent meanwhile come back to it rather than being overwritten."""
-    assert _write(tmp_path, None, "a1")["written"]
-    refused = _write(tmp_path, None, "a2")
+    assert _write(tmp_path, [], "a1")["written"]
+    refused = _write(tmp_path, [], "a2")
     assert not refused["written"]
     assert refused["record"]["attempt"] == "a1"
-    assert _write(tmp_path, "a1", "a2", "Newer words")["written"]
+    assert _write(tmp_path, ["a1"], "a2", "Newer words")["written"]
     settled = drafts_model.write_draft(
         tmp_path,
         {
             "context": "general",
-            "expect": "a2",
+            "expect": ["a2"],
             "record": {"attempt": "a2", "settled": True},
         },
     )
     assert settled["written"]
     assert drafts_model.read_drafts(tmp_path)["drafts"] == {}
     # A tab that never heard of the settled generation starts the next one.
-    assert _write(tmp_path, None, "a3", "A new thought")["written"]
+    assert _write(tmp_path, [], "a3", "A new thought")["written"]
     # A tab still holding the settled generation's predecessor hears the new one back.
-    stale = _write(tmp_path, "a1", "a4")
+    stale = _write(tmp_path, ["a1"], "a4")
     assert not stale["written"]
     assert stale["record"]["text"] == "A new thought"
     reading = drafts_model.read_drafts(tmp_path)
     assert reading["drafts"]["general"]["attempt"] == "a3"
     assert reading["version"] == reading["drafts"]["general"]["version"] == 4
+    # A write that can't know which of two generations the store holds names both.
+    assert _write(tmp_path, ["a2", "a3"], "a5")["written"]
 
 
 def test_admitting_a_send_settles_the_generation_it_carries(server, page_dir):  # noqa: F811
@@ -64,7 +67,7 @@ def test_admitting_a_send_settles_the_generation_it_carries(server, page_dir):  
             data=json.dumps(
                 {
                     "context": context,
-                    "expect": None,
+                    "expect": [],
                     "record": {"attempt": attempt, "text": f"Words {attempt}"},
                 }
             ).encode(),
@@ -76,8 +79,11 @@ def test_admitting_a_send_settles_the_generation_it_carries(server, page_dir):  
         "text": "Words",
         "attempt": "sent-attempt-00001",
     }
+    before = json.loads(fetch(f"{server}/api/news")[1])["drafts"]
     status, body = fetch(f"{server}/api/event", data=json.dumps(comment).encode())
     assert status == 200, body
+    # Every tab hears the send settle its draft at its next look.
+    assert json.loads(fetch(f"{server}/api/news")[1])["drafts"] > before
 
     status, body = fetch(f"{server}/api/drafts")
     assert status == 200, body
@@ -98,7 +104,7 @@ def test_a_draft_moves_the_tabs_news_and_nothing_the_page_or_agent_reads(
         data=json.dumps(
             {
                 "context": "general",
-                "expect": None,
+                "expect": [],
                 "record": {"attempt": "a1", "text": words},
             }
         ).encode(),
@@ -129,12 +135,21 @@ def test_a_draft_of_the_wrong_shape_is_refused(server, page_dir):  # noqa: F811
     assert "invalid draft" in json.loads(body)["error"]
 
 
-def test_a_write_that_reaches_the_store_after_its_send_settles_it(tmp_path):
-    """A tab's write of words it then sent can land after the send is admitted, and
-    the tab may close before settling them; the store settles them itself."""
-    assert _write(tmp_path, None, "a1", "Words")["written"]
-    drafts_model.settle_sent(tmp_path, "a2")
-    late = _write(tmp_path, "a1", "a2", "Words, sent")
+def test_the_log_settles_every_generation_it_admitted(tmp_path):
+    """The log answers whether words were sent, so they never come back as a draft: not
+    from a tab's write that lands after its send, however many sends came between, nor
+    from a store whose last reading came before the send."""
+    start_log(tmp_path)
+    assert _write(tmp_path, [], "a1", "Words")["written"]
+    for n in range(100):
+        append_event(tmp_path, {"kind": "comment", "text": "Sent", "attempt": f"s{n}"})
+    late = _write(tmp_path, ["a1"], "s0", "Words, sent")
     assert late["written"]
     assert late["record"] is None
     assert drafts_model.read_drafts(tmp_path)["drafts"] == {}
+
+    sending = _write(tmp_path, [], "a2", "Words a tab in another window shows")
+    append_event(tmp_path, {"kind": "comment", "text": "Sent", "attempt": "a2"})
+    reading = drafts_model.read_drafts(tmp_path)
+    assert reading == {"version": sending["version"] + 1, "drafts": {}}
+    assert _write(tmp_path, [], "a3", "A new thought")["written"]

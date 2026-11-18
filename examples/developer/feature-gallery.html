@@ -349,7 +349,7 @@
     </script>
   </head>
   <body>
-    <main class="layout-column layout-notes">
+    <main class="layout-column">
       <hgroup id="bg-title">
         <p>Leaf core product</p>
         <h1>Leaf core product gallery</h1>
@@ -365,18 +365,19 @@
         eyebrow names the <code>lf-*</code> elements it exercises.
       </p>
 
-      <lf-tabs id="bg-gallery-tabs" class="layout-flow">
-        <lf-tab id="bg-view-decisions" label="Decisions" class="layout-flow">
-          <section id="bg-core-surfaces" class="layout-flow">
+      <lf-tabs id="bg-gallery-tabs" flow="page">
+        <lf-tab id="bg-view-decisions" label="Decisions">
+          <section id="bg-core-surfaces">
             <hgroup>
-              <p class="bg-feature-elements">lf-ask · lf-options · lf-option</p>
+              <p class="bg-feature-elements">lf-group · lf-options · lf-option</p>
               <h2>
                 <strong>On Me</strong
                 ><span class="bg-feature-detail">: decisions and answers</span>
               </h2>
             </hgroup>
             <p id="bg-core-surfaces-guide">
-              An <code>lf-ask</code> puts a heading and context around the choice below.
+              A named group, an <code>lf-group</code> whose <code>label</code> asks the
+              question, puts the question and its context around the choice below.
               <strong>On Me</strong> lists everything waiting on you: open obligations,
               a question in a thread among them (such as the gallery thread about a
               pasted image), and updates whose reply failed and need sending again. Each
@@ -415,27 +416,30 @@
                 it. Answer the question and come back to it: its controls stay clear.
               </li>
             </ul>
-            <lf-ask id="bg-choice-ask">
-              <h3>Which map should the sample team carry?</h3>
-              <lf-options id="bg-choice" choose>
+            <lf-group
+              id="bg-choice-ask"
+              label="Which map should the sample team carry?"
+            >
+              <h3 id="bg-choice-ask-h">Which map should the sample team carry?</h3>
+              <lf-options id="bg-choice">
                 <lf-option id="bg-choice-street">Street map</lf-option>
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
-            </lf-ask>
+            </lf-group>
             <details id="bg-question-api">
               <summary>Inspect the obligation record</summary>
               <p>
                 The map's obligation is <code>widget:bg-choice</code> whether or not it
-                has an <code>lf-ask</code> wrapper. Choose a map, then read its current
-                record: <code>answer.value</code> contains option ids, and
+                stands in a section. Choose a map, then read its current record:
+                <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
-              <button id="bg-read-question" class="lf-btn" type="button">
+              <button id="bg-read-question" type="button">
                 Read current obligation
               </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
-            <section id="bg-widget-shortcut-hints" class="layout-flow">
+            <section id="bg-widget-shortcut-hints">
               <h3>Inline hints outside a question</h3>
               <p>
                 Tab into this sample: <kbd>1</kbd> appears beside its button. Press
@@ -443,16 +447,16 @@
                 normally. Leave the sample: <kbd>1</kbd> no longer focuses the note.
               </p>
               <div id="bg-local-shortcuts" tabindex="0">
-                <button id="bg-shortcut-focus-note" class="lf-btn" type="button">
+                <button id="bg-shortcut-focus-note" type="button">
                   Write sample note
                 </button>
                 <label>
                   Sample note
-                  <input id="bg-shortcut-note" class="lf-field" type="text" />
+                  <input id="bg-shortcut-note" type="text" />
                 </label>
               </div>
             </section>
-            <section id="bg-keyboard-preference" class="layout-flow">
+            <section id="bg-keyboard-preference">
               <h3>Quick keyboard shortcuts</h3>
               <p>
                 Open <strong>Keyboard shortcuts</strong> in the leaf's menu and turn off
@@ -463,7 +467,7 @@
                 preference stays off, then turn it on to restore the hints and keys.
               </p>
             </section>
-            <section id="bg-floating-panel" class="layout-flow">
+            <section id="bg-floating-panel">
               <h3>The floating panel</h3>
               <p>
                 Leaf's controls stand in one panel hovering over the foot of the page.
@@ -504,7 +508,7 @@
             </p>
           </section>
 
-          <section id="bg-link-previews" class="layout-flow">
+          <section id="bg-link-previews">
             <h2>
               <strong>Links into the page</strong
               ><span class="bg-feature-detail">: a preview of where each points</span>
@@ -533,16 +537,18 @@
               <a id="bg-link-site" href="https://leaf.page/">Leaf's site</a>
               is another document, so it keeps only the browser's status bar.
             </p>
-            <lf-ask id="bg-link-settled-ask">
+            <section id="bg-link-settled-ask">
               <h3>Which trailhead does the sample walk start from?</h3>
-              <lf-options id="bg-link-settled" choose settled>
+              <lf-options id="bg-link-settled" settled>
                 <lf-option id="bg-link-settled-north">The north car park</lf-option>
-                <lf-option id="bg-link-settled-south" chosen>The south gate</lf-option>
+                <lf-option id="bg-link-settled-south" selected
+                  >The south gate</lf-option
+                >
               </lf-options>
-            </lf-ask>
+            </section>
           </section>
 
-          <section id="bg-changes" class="layout-flow">
+          <section id="bg-changes">
             <hgroup>
               <p class="bg-feature-elements">lf-suggestion · lf-old · lf-new</p>
               <h2>
@@ -586,18 +592,18 @@
               <lf-old><p>Keep the practice walk indoors.</p></lf-old>
               <lf-new>
                 <p>Take the practice walk outside.</p>
-                <lf-ask id="bg-route-ask">
-                  <h4>Which route should the walk follow?</h4>
-                  <lf-options id="bg-route" choose closed>
+                <lf-group id="bg-route-ask" label="Which route should the walk follow?">
+                  <h4 id="bg-route-ask-h">Which route should the walk follow?</h4>
+                  <lf-options id="bg-route" closed>
                     <lf-option id="bg-route-garden">Through the garden</lf-option>
                     <lf-option id="bg-route-river">Along the river</lf-option>
                   </lf-options>
-                </lf-ask>
+                </lf-group>
               </lf-new>
             </lf-suggestion>
           </section>
 
-          <section id="bg-editing" class="layout-flow">
+          <section id="bg-editing">
             <hgroup>
               <p class="bg-feature-elements">lf-draft</p>
               <h2>
@@ -628,7 +634,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-draft>
           </section>
 
-          <section id="bg-reactions" class="layout-flow">
+          <section id="bg-reactions">
             <h2>
               <strong>Reactions</strong
               ><span class="bg-feature-detail">: short verdicts on a passage</span>
@@ -676,9 +682,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
           </section>
 
-          <section id="bg-readings" class="layout-flow">
+          <section id="bg-readings">
             <hgroup>
-              <p class="bg-feature-elements">lf-ask · lf-options · lf-option</p>
+              <p class="bg-feature-elements">lf-group · lf-options · lf-option</p>
               <h2>
                 <strong>Decisions</strong
                 ><span class="bg-feature-detail">: settled answers in context</span>
@@ -690,20 +696,20 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               to inspect the alternatives, then close it. The spacious cards return to
               one disclosure line, leaving no empty card space before Permission.
             </p>
-            <lf-ask id="bg-outcome-ask">
+            <section id="bg-outcome-ask">
               <h3>Where should the sample group meet?</h3>
-              <lf-options id="bg-outcome" choose settled>
-                <lf-option id="bg-outcome-door">
+              <lf-options id="bg-outcome" settled>
+                <lf-option id="bg-outcome-door" label="At the door">
                   <strong>At the door</strong> Wait outside the building.
                 </lf-option>
-                <lf-option id="bg-outcome-desk" chosen>
+                <lf-option id="bg-outcome-desk" label="At reception" selected>
                   <strong>At reception</strong> Meet inside, beside the welcome desk.
                 </lf-option>
               </lf-options>
-            </lf-ask>
+            </section>
           </section>
 
-          <section id="bg-user-workflows" class="layout-flow">
+          <section id="bg-user-workflows">
             <h2>
               <strong>User workflows</strong
               ><span class="bg-feature-detail"
@@ -711,9 +717,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
             </h2>
 
-            <section id="bg-signoff" class="layout-flow">
+            <section id="bg-signoff">
               <hgroup>
-                <p class="bg-feature-elements">lf-ask · lf-options</p>
+                <p class="bg-feature-elements">lf-group · lf-options</p>
                 <h3>Permission for a stated action</h3>
               </hgroup>
               <p id="bg-signoff-guide">
@@ -721,24 +727,27 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Other questions can stay unanswered. The pick stays through unrelated
                 page edits until its author explicitly restates the request.
               </p>
-              <lf-ask id="bg-picnic-decision">
-                <h4>Book the covered picnic shelter?</h4>
+              <lf-group
+                id="bg-picnic-decision"
+                label="Book the covered picnic shelter?"
+              >
+                <h4 id="bg-picnic-decision-h">Book the covered picnic shelter?</h4>
                 <p>
                   Reserve the park's covered shelter for the sample group's Saturday
                   lunch.
                 </p>
-                <lf-options id="bg-picnic" choose>
-                  <lf-option id="bg-picnic-skip"
+                <lf-options id="bg-picnic">
+                  <lf-option id="bg-picnic-skip" label="Leave it unbooked"
                     ><strong>Leave it unbooked</strong></lf-option
                   >
-                  <lf-option id="bg-picnic-book"
+                  <lf-option id="bg-picnic-book" label="Book the shelter"
                     ><strong>Book the shelter</strong></lf-option
                   >
                 </lf-options>
-              </lf-ask>
+              </lf-group>
             </section>
 
-            <section id="bg-page-comment-card" class="layout-flow">
+            <section id="bg-page-comment-card">
               <h3>
                 <strong>Comment on the page</strong
                 ><span class="bg-feature-detail"
@@ -770,7 +779,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </ul>
             </section>
 
-            <section id="bg-comment-dictation" class="layout-flow">
+            <section id="bg-comment-dictation">
               <h3>Dictate a comment</h3>
               <p id="bg-comment-dictation-guide">
                 In a browser with speech recognition, every empty comment or reply box
@@ -797,7 +806,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </ul>
             </section>
 
-            <section id="bg-design-comments" class="layout-flow">
+            <section id="bg-design-comments">
               <h3>
                 <strong>Design mode</strong
                 ><span class="bg-feature-detail">: comment on the interface</span>
@@ -811,7 +820,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
-            <section id="bg-drawing-comments" class="layout-flow">
+            <section id="bg-drawing-comments">
               <h3>
                 <strong>Draw mode</strong
                 ><span class="bg-feature-detail">: point with freehand strokes</span>
@@ -862,7 +871,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </ul>
             </section>
 
-            <section id="bg-area-capture" class="layout-flow">
+            <section id="bg-area-capture">
               <h3>
                 <strong>Capture area</strong
                 ><span class="bg-feature-detail">: attach part of the page</span>
@@ -897,7 +906,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </ul>
             </section>
 
-            <section id="bg-align-current-item" class="layout-flow">
+            <section id="bg-align-current-item">
               <h3 id="bg-align-current-item-heading" tabindex="0">
                 <strong>Align current item at top</strong
                 ><span class="bg-feature-detail"
@@ -929,7 +938,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </ul>
             </section>
 
-            <section id="bg-restored-selection" class="layout-flow">
+            <section id="bg-restored-selection">
               <h3>
                 <strong>Restore selection</strong
                 ><span class="bg-feature-detail"
@@ -947,7 +956,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
-            <section id="bg-kept-draft" class="layout-flow">
+            <section id="bg-kept-draft">
               <h3>
                 <strong>Resume writing</strong
                 ><span class="bg-feature-detail"
@@ -1006,7 +1015,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
-            <section id="bg-carried-comment" class="layout-flow">
+            <section id="bg-carried-comment">
               <h3>
                 <strong>Move a comment</strong
                 ><span class="bg-feature-detail"
@@ -1040,7 +1049,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </section>
           </section>
 
-          <section id="bg-ask-board" class="layout-flow">
+          <section id="bg-ask-board">
             <hgroup>
               <p class="bg-feature-elements">lf-options · lf-board · lf-card</p>
               <h2>
@@ -1056,37 +1065,43 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the stove's card to Drop, or grab it and press the arrows, and its
               section's pick follows. Undo takes either gesture back in both places.
             </p>
-            <section id="bg-board-stove" class="layout-flow">
-              <h3>Replace the sample camp stove</h3>
+            <lf-group id="bg-board-stove" label="Replace the sample camp stove">
+              <h3 id="bg-board-stove-h">Replace the sample camp stove</h3>
               <p id="bg-board-stove-case">
                 The old stove takes ten minutes to boil a litre.
               </p>
-              <lf-options id="bg-board-stove-choice" choose>
+              <lf-options id="bg-board-stove-choice">
                 <lf-option id="bg-board-stove-next" value="next">Next</lf-option>
-                <lf-option id="bg-board-stove-later" value="later" chosen
+                <lf-option id="bg-board-stove-later" value="later" selected
                   >Later</lf-option
                 >
                 <lf-option id="bg-board-stove-drop" value="drop">Drop</lf-option>
               </lf-options>
-            </section>
-            <section id="bg-board-flask" class="layout-flow">
-              <h3>Pack a second sample flask</h3>
+            </lf-group>
+            <lf-group id="bg-board-flask" label="Pack a second sample flask">
+              <h3 id="bg-board-flask-h">Pack a second sample flask</h3>
               <p id="bg-board-flask-case">One flask ran dry on the last long walk.</p>
-              <lf-options id="bg-board-flask-choice" choose>
+              <lf-options id="bg-board-flask-choice">
                 <lf-option id="bg-board-flask-next" value="next">Next</lf-option>
                 <lf-option id="bg-board-flask-later" value="later">Later</lf-option>
                 <lf-option id="bg-board-flask-drop" value="drop">Drop</lf-option>
               </lf-options>
-            </section>
+            </lf-group>
             <lf-board id="bg-board-plan">
               <lf-column id="bg-board-open" label="Undecided">
-                <lf-card id="bg-board-flask-card" shows="bg-board-flask-choice"
+                <lf-card
+                  id="bg-board-flask-card"
+                  label="Second flask"
+                  shows="bg-board-flask-choice"
                   ><strong>Second flask</strong></lf-card
                 >
               </lf-column>
               <lf-column id="bg-board-next" label="Next" value="next"></lf-column>
               <lf-column id="bg-board-later" label="Later" value="later">
-                <lf-card id="bg-board-stove-card" shows="bg-board-stove-choice"
+                <lf-card
+                  id="bg-board-stove-card"
+                  label="New stove"
+                  shows="bg-board-stove-choice"
                   ><strong>New stove</strong></lf-card
                 >
               </lf-column>
@@ -1095,8 +1110,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           </section>
         </lf-tab>
 
-        <lf-tab id="bg-view-threads" label="Threads" class="layout-flow">
-          <section id="bg-panel-views" class="layout-flow">
+        <lf-tab id="bg-view-threads" label="Threads">
+          <section id="bg-panel-views">
             <h2><strong>Threads in the panel</strong></h2>
             <p id="bg-panel-views-guide">
               Choose a view to open its thread in this practice page's Leaf panel. The
@@ -1104,39 +1119,17 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               seeded discussion after trying a reply or changing a thread.
             </p>
             <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
-              <button
-                type="button"
-                class="lf-btn"
-                data-view="overview"
-                aria-pressed="false"
-              >
+              <button type="button" data-view="overview" aria-pressed="false">
                 Open threads
               </button>
-              <button type="button" class="lf-btn" data-view="you" aria-pressed="false">
-                On Me
-              </button>
-              <button
-                type="button"
-                class="lf-btn"
-                data-view="resolved"
-                aria-pressed="false"
-              >
+              <button type="button" data-view="you" aria-pressed="false">On Me</button>
+              <button type="button" data-view="resolved" aria-pressed="false">
                 Resolved
               </button>
-              <button
-                type="button"
-                class="lf-btn"
-                data-view="summary"
-                aria-pressed="false"
-              >
+              <button type="button" data-view="summary" aria-pressed="false">
                 Long discussion
               </button>
-              <button
-                type="button"
-                class="lf-btn"
-                data-view="progress"
-                aria-pressed="false"
-              >
+              <button type="button" data-view="progress" aria-pressed="false">
                 Progress messages
               </button>
               <span id="bg-panel-width-label">Sample width</span>
@@ -1145,7 +1138,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 role="radiogroup"
                 aria-labelledby="bg-panel-width-label"
               >
-                <label class="lf-choice"
+                <label
                   ><input
                     type="radio"
                     name="panel-width"
@@ -1153,7 +1146,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     checked
                   />Wide</label
                 >
-                <label class="lf-choice"
+                <label
                   ><input type="radio" name="panel-width" value="20rem" />Narrow</label
                 >
               </div>
@@ -1194,7 +1187,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-sample>
           </section>
 
-          <section id="bg-threads" class="layout-flow">
+          <section id="bg-threads">
             <h2>
               <strong>Threads</strong
               ><span class="bg-feature-detail">: anchored threads</span>
@@ -1264,7 +1257,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 notice.
               </li>
             </ul>
-            <section id="bg-thread-api" class="layout-flow">
+            <section id="bg-thread-api">
               <hgroup>
                 <p class="bg-feature-elements">lf-conversation-workspace</p>
                 <h3>Package conversation readers</h3>
@@ -1297,8 +1290,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     "id": "api-question",
                     "kind": "comment",
                     "author": "agent",
-                    "text": "Which channel should the announcement use?",
-                    "markup": "<lf-ask id=\"channel-ask\"><h3>Announcement channel</h3><lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options></lf-ask>"
+                    "text": "Which channel should the announcement use?\n\n<lf-group id=\"channel-ask\" label=\"Announcement channel\">\n<h3 id=\"channel-ask-h\">Announcement channel</h3>\n<lf-options id=\"channel-options\"><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options>\n</lf-group>"
                   },
                   {
                     "id": "api-opening",
@@ -1332,7 +1324,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </template>
               </lf-sample>
             </section>
-            <section id="bg-native-replies" class="layout-flow">
+            <section id="bg-native-replies">
               <h3>Native HTML in replies</h3>
               <p>
                 Open Threads in the sample. Read the checks table, then open Deploy log
@@ -1352,8 +1344,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     "kind": "reply",
                     "author": "agent",
                     "parent": "deploy-question",
-                    "text": "The deploy passed both checks.",
-                    "markup": "<table><caption>Deploy checks</caption><thead><tr><th scope=\"col\">Check</th><th scope=\"col\">Result</th></tr></thead><tbody><tr><td>Build</td><td>Passed</td></tr><tr><td>Smoke test</td><td>Passed</td></tr></tbody></table><details><summary>Deploy log</summary><pre>Build complete&#10;Smoke test passed&#10;Ready</pre></details>"
+                    "text": "The deploy passed both checks.\n\n<table><caption>Deploy checks</caption><thead><tr><th scope=\"col\">Check</th><th scope=\"col\">Result</th></tr></thead><tbody><tr><td>Build</td><td>Passed</td></tr><tr><td>Smoke test</td><td>Passed</td></tr></tbody></table><details><summary>Deploy log</summary><pre>Build complete&#10;Smoke test passed&#10;Ready</pre></details>"
                   }
                 ]
               </script>
@@ -1401,7 +1392,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 under Resolved: the editor stays closed until Reopen recovers the words.
               </li>
             </ul>
-            <section id="bg-message-obligations" class="layout-flow">
+            <section id="bg-message-obligations">
               <h3>A message waiting on me</h3>
               <p>
                 Open Full view, then On Me, and reply to the environment question: the
@@ -1521,7 +1512,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
           </section>
 
-          <section id="bg-thread-states" class="layout-flow">
+          <section id="bg-thread-states">
             <h2>
               <strong>Thread states</strong
               ><span class="bg-feature-detail">: live before and after examples</span>
@@ -1532,15 +1523,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               inspect its messages. The title remains in the header when the card opens.
               The first pair shows a title before and after naming.
             </p>
-            <section id="bg-thread-state-titles" class="layout-flow">
+            <section id="bg-thread-state-titles">
               <h3>Thread title</h3>
-              <section id="bg-title-sheen" class="layout-flow">
+              <section id="bg-title-sheen">
                 <p id="bg-title-sheen-guide">
                   Open the sample thread to see a pending title highlighted across its
                   lettering. Reset starts a fresh untitled thread. Reduced motion shows
                   solid muted text.
                 </p>
-                <button id="bg-title-sheen-show" class="lf-btn" type="button">
+                <button id="bg-title-sheen-show" type="button">
                   Open sample thread
                 </button>
                 <lf-sample
@@ -1608,7 +1599,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </section>
               </div>
             </section>
-            <section id="bg-thread-state-resolved" class="layout-flow">
+            <section id="bg-thread-state-resolved">
               <h3>Resolved</h3>
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
@@ -1617,7 +1608,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 its Thread control back to the page.
               </p>
             </section>
-            <section id="bg-retained-quote" class="layout-flow">
+            <section id="bg-retained-quote">
               <h3>Quotations after a revision</h3>
               <p id="bg-retained-quote-guide">
                 Open “Old release plan” in Threads. Its quoted passage belonged to a
@@ -1642,7 +1633,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </template>
               </lf-sample>
             </section>
-            <section id="bg-thread-state-summary" class="layout-flow">
+            <section id="bg-thread-state-summary">
               <h3>Summarized and unread</h3>
               <p id="bg-thread-checkpoint">
                 <strong>A summarized discussion.</strong> The workshop planning thread
@@ -1690,8 +1681,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           </section>
         </lf-tab>
 
-        <lf-tab id="bg-view-page" label="Page & layout" class="layout-flow">
-          <section id="bg-theme-hierarchy" class="layout-flow">
+        <lf-tab id="bg-view-page" label="Page & layout">
+          <section id="bg-theme-hierarchy">
             <h2>
               <strong>Callouts carry emphasis; disclosures hold support</strong>
             </h2>
@@ -1715,7 +1706,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </div>
           </section>
 
-          <section id="bg-user-view" class="layout-flow">
+          <section id="bg-user-view">
             <h2><strong>The user's observed view</strong></h2>
             <p id="bg-user-view-guide">
               Resize this window, change its color scheme, or open another tab. The
@@ -1726,7 +1717,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
           </section>
 
-          <section id="bg-since-seen" class="layout-flow">
+          <section id="bg-since-seen">
             <h2><strong>Changes in place</strong></h2>
             <p id="bg-since-seen-guide">
               Coming back after the agent has revised the page, a notice says how much
@@ -1742,7 +1733,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
           </section>
 
-          <section id="bg-widths" class="layout-flow">
+          <section id="bg-widths">
             <hgroup>
               <p>data-width</p>
               <h2><strong>Responsive block widths</strong></h2>
@@ -1776,7 +1767,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </table>
           </section>
 
-          <section id="bg-own-scroll" class="layout-flow">
+          <section id="bg-own-scroll">
             <hgroup>
               <p>lf-scroll</p>
               <h2><strong>A box the page scrolls</strong></h2>
@@ -1805,9 +1796,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </div>
           </section>
 
-          <section id="bg-ask-across" class="layout-flow">
+          <section id="bg-ask-across">
             <hgroup>
-              <p class="bg-feature-elements">lf-ask · lf-chart · lf-options</p>
+              <p class="bg-feature-elements">lf-group · lf-chart · lf-options</p>
               <h2>
                 <strong>A question around its figure</strong
                 ><span class="bg-feature-detail">: options laid across</span>
@@ -1819,8 +1810,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               so the question, the chart and every option fit one window; narrow the
               window and the cards stack.
             </p>
-            <lf-ask id="bg-across-ask">
-              <h3>Which trail should the sample team hike on Saturday?</h3>
+            <lf-group
+              id="bg-across-ask"
+              label="Which trail should the sample team hike on Saturday?"
+            >
+              <h3 id="bg-across-ask-h">
+                Which trail should the sample team hike on Saturday?
+              </h3>
               <p id="bg-across-premise">
                 The team walks at a sample pace of 300 m of climb an hour, and the last
                 bus leaves the trailhead at 17:00.
@@ -1850,24 +1846,24 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 The traverse's climb takes a little over four hours on its own, which
                 leaves no margin before the bus.
               </p>
-              <lf-options id="bg-across-choice" choose across data-width="wide">
-                <lf-option id="bg-across-ridge">
+              <lf-options id="bg-across-choice" across data-width="wide">
+                <lf-option id="bg-across-ridge" label="Ridge loop">
                   <strong>Ridge loop</strong> Three hours of climbing with views the
                   whole way.
                 </lf-option>
-                <lf-option id="bg-across-lake">
+                <lf-option id="bg-across-lake" label="Lake path">
                   <strong>Lake path</strong> An easy morning, back long before the bus.
                 </lf-option>
-                <lf-option id="bg-across-pass">
+                <lf-option id="bg-across-pass" label="Pass traverse">
                   <strong>Pass traverse</strong> The longest day, and a tight finish.
                 </lf-option>
               </lf-options>
-            </lf-ask>
+            </lf-group>
           </section>
 
-          <section id="bg-ask-pictured" class="layout-flow">
+          <section id="bg-ask-pictured">
             <hgroup>
-              <p class="bg-feature-elements">lf-ask · lf-options · lf-option</p>
+              <p class="bg-feature-elements">lf-group · lf-options · lf-option</p>
               <h2>
                 <strong>Options that hold their pictures</strong
                 ><span class="bg-feature-detail">: each drawing over its own pick</span>
@@ -1879,10 +1875,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               size it was drawn at, and stand apart, so no drawing runs into the next
               option's title.
             </p>
-            <lf-ask id="bg-pictured-ask">
-              <h3>Should the sample queue group its tickets by owner?</h3>
-              <lf-options id="bg-pictured-choice" choose data-width="wide">
-                <lf-option id="bg-pictured-group">
+            <lf-group
+              id="bg-pictured-ask"
+              label="Should the sample queue group its tickets by owner?"
+            >
+              <h3 id="bg-pictured-ask-h">
+                Should the sample queue group its tickets by owner?
+              </h3>
+              <lf-options id="bg-pictured-choice" data-width="wide">
+                <lf-option id="bg-pictured-group" label="Group by owner">
                   <strong>Group by owner</strong> A heading over each owner's tickets.
                   <figure id="bg-pictured-group-figure">
                     <svg
@@ -1901,7 +1902,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     </svg>
                   </figure>
                 </lf-option>
-                <lf-option id="bg-pictured-flat">
+                <lf-option id="bg-pictured-flat" label="Keep one list">
                   <strong>Keep one list</strong> Tickets in arrival order, as today.
                   <figure id="bg-pictured-flat-figure">
                     <svg
@@ -1919,10 +1920,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   </figure>
                 </lf-option>
               </lf-options>
-            </lf-ask>
+            </lf-group>
           </section>
 
-          <section id="bg-side-list" class="layout-flow">
+          <section id="bg-side-list">
             <hgroup>
               <p class="bg-feature-elements">lf-tabs · lf-tally</p>
               <h2><strong>A queue beside the item it opens</strong></h2>
@@ -1963,25 +1964,27 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
-                <lf-ask id="bg-side-4107-ask">
+                <lf-group id="bg-side-4107-ask" label="What happens to ESC-4107?">
                   <h3 id="bg-side-4107-question">What happens to ESC-4107?</h3>
                   <p id="bg-side-4107-what">
                     SSO fails for every Northwind user since their IdP certificate
                     rotated.
                   </p>
-                  <lf-options id="bg-side-4107-outcome" choose>
-                    <lf-option id="bg-side-4107-fix"
+                  <lf-options id="bg-side-4107-outcome">
+                    <lf-option id="bg-side-4107-fix" label="Fix"
                       ><strong>Fix</strong> Upload the new certificate.</lf-option
                     >
-                    <lf-option id="bg-side-4107-close"
+                    <lf-option id="bg-side-4107-close" label="Close"
                       ><strong>Close</strong> Ask them to roll it back.</lf-option
                     >
-                    <lf-option id="bg-side-4107-escalate"
+                    <lf-option
+                      id="bg-side-4107-escalate"
+                      label="Escalate to engineering"
                       ><strong>Escalate to engineering</strong> Send the certificate
                       failure and logs.</lf-option
                     >
                   </lf-options>
-                </lf-ask>
+                </lf-group>
               </lf-tab>
               <lf-tab
                 id="bg-side-4114"
@@ -2006,7 +2009,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-tabs>
           </section>
 
-          <section id="bg-margin-controls" class="layout-flow">
+          <section id="bg-margin-controls">
             <hgroup>
               <p class="bg-feature-elements">lf-margin-entry</p>
               <h2>
@@ -2185,10 +2188,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
                 <lf-board id="bg-margin-layer-packing">
                   <lf-column id="bg-margin-layer-ready" label="Ready">
-                    <lf-card id="bg-margin-layer-map"
+                    <lf-card id="bg-margin-layer-map" label="Print the workshop map"
                       ><strong>Print the workshop map</strong></lf-card
                     >
-                    <lf-card id="bg-margin-layer-signs"
+                    <lf-card id="bg-margin-layer-signs" label="Pack the direction signs"
                       ><strong>Pack the direction signs</strong></lf-card
                     >
                   </lf-column>
@@ -2239,8 +2242,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </figure>
           </section>
 
-          <section id="bg-default-presentation" class="layout-flow">
-            <h2>
+          <lf-group
+            id="bg-default-presentation"
+            label="Evidence widgets: charts and structured views"
+          >
+            <h2 id="bg-default-presentation-h">
               <strong>Evidence widgets</strong
               ><span class="bg-feature-detail">: charts and structured views</span>
             </h2>
@@ -2249,7 +2255,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               has a focused example.
             </p>
 
-            <section id="bg-metrics-and-chart" class="layout-flow">
+            <section id="bg-metrics-and-chart">
               <hgroup>
                 <p class="bg-feature-elements">dl · lf-chart</p>
                 <h3>
@@ -2399,7 +2405,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </div>
             </section>
 
-            <section id="bg-code-and-tree" class="layout-flow">
+            <section id="bg-code-and-tree">
               <hgroup>
                 <p class="bg-feature-elements">lf-code · lf-gloss · lf-note · pre</p>
                 <h3>
@@ -2410,10 +2416,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </hgroup>
               <p id="bg-gloss-line">
                 Gloss explains a marked term such as
-                <lf-gloss
-                  id="bg-gloss"
-                  tip="A narrow end-to-end path through the real system."
-                  >walking skeleton</lf-gloss
+                <lf-gloss id="bg-gloss"
+                  >walking skeleton<span popover
+                    >A narrow end-to-end path through the real system.</span
+                  ></lf-gloss
                 >. Hover the term, then move into its explanation; the card stays open
                 while you read it. Code adds line numbers and Notes, and quotes an
                 excerpt under its file's own numbers with an elided row where it skips;
@@ -2445,15 +2451,15 @@ const ids = api.read().state.choose.value;</code></pre>
               ><code class="language-python"><span id="bg-code-target"></span><span class="line">def load(path):</span>
 <span class="line">    data = read(path)</span>
 <span class="line">    return <mark>data</mark></span></code></pre>
-              <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
-                <pre>
+              <lf-code id="bg-code" lines="40-43,58-59" hi="41-42">
+                <pre><code class="language-python">
 def route(weather):
     if weather == "rain":
         return "covered terrace"
     return "courtyard"
 def seat(guest):
     return guest.table
-</pre>
+</code></pre>
                 <lf-note id="bg-code-note" at="41">
                   The branch exists only to make the highlighted walkthrough visible.
                 </lf-note>
@@ -2479,7 +2485,34 @@ gallery/
               </p>
             </section>
 
-            <section id="bg-neutral-comparison" class="layout-flow">
+            <section id="bg-formulas">
+              <hgroup>
+                <p class="bg-feature-elements">code · pre</p>
+                <h3>
+                  <strong>Formulas</strong
+                  ><span class="bg-feature-detail"
+                    >: written in LaTeX, typeset in place</span
+                  >
+                </h3>
+              </hgroup>
+              <p id="bg-formula-line">
+                A request with context <code class="language-math">x</code> costs
+                <code class="language-math">c(x) = h x + c_0</code> cached reads, so a
+                run compacted at <code class="language-math">X</code> pays, for each
+                unit of progress,
+              </p>
+              <pre
+                id="bg-formula-cost"
+              ><code class="language-math">J(X) = \frac{g\,F(X) + \int_K^X c(x)\,dx}{\int_K^X \eta(x)\,dx}</code></pre>
+              <p id="bg-formula-guide">
+                Each formula takes the size and ink of the words around it, in either
+                colour scheme, and the display formula stands centred on its own line.
+                Select from “costs” to “reads” and press <kbd>c</kbd>: the comment
+                quotes each formula by its LaTeX.
+              </p>
+            </section>
+
+            <section id="bg-neutral-comparison">
               <hgroup>
                 <p class="bg-feature-elements">section · small</p>
                 <h3>
@@ -2488,16 +2521,10 @@ gallery/
                   ><span class="bg-feature-detail">: parallel alternatives</span>
                 </h3>
               </hgroup>
-              <div class="layout-note">
-                <p id="bg-compare-guide">
-                  Ordinary sections compare alternatives. Small labels carry their
-                  attributes.
-                </p>
-                <aside class="note" id="bg-compare-note">
-                  The page puts short alternatives in a row and longer explanations
-                  below. Narrow the window to see this note return to the text flow.
-                </aside>
-              </div>
+              <p id="bg-compare-guide">
+                Ordinary sections compare alternatives. Small labels carry their
+                attributes.
+              </p>
               <div id="bg-compare" class="layout-tiles">
                 <section id="bg-variant-paper" class="panel">
                   <small id="bg-chip-power" class="tag">power: none</small>
@@ -2549,7 +2576,7 @@ gallery/
               </div>
             </section>
 
-            <section id="bg-plans-and-history" class="layout-flow">
+            <section id="bg-plans-and-history">
               <hgroup>
                 <p class="bg-feature-elements">ol · small · time</p>
                 <h3>
@@ -2597,7 +2624,7 @@ gallery/
               </ol>
             </section>
 
-            <section id="bg-activity-feed" class="layout-flow">
+            <section id="bg-activity-feed">
               <hgroup>
                 <p class="bg-feature-elements">lf-activity</p>
                 <h3>
@@ -2618,7 +2645,7 @@ gallery/
               <lf-activity id="bg-activity"></lf-activity>
             </section>
 
-            <section id="bg-tab-set" class="layout-flow">
+            <section id="bg-tab-set">
               <hgroup>
                 <p class="bg-feature-elements">lf-tabs · lf-tab · lf-toc</p>
                 <h3>
@@ -2800,7 +2827,7 @@ gallery/
               </lf-tabs>
             </section>
 
-            <section id="bg-parts" class="layout-flow">
+            <section id="bg-parts">
               <hgroup>
                 <p class="bg-feature-elements">lf-parts · lf-part</p>
                 <h3>
@@ -2856,7 +2883,7 @@ gallery/
               </lf-sample>
             </section>
 
-            <section id="bg-drawing" class="layout-flow">
+            <section id="bg-drawing">
               <hgroup>
                 <p>svg.drawing</p>
                 <h3>
@@ -2961,7 +2988,7 @@ gallery/
               </figure>
             </section>
 
-            <section id="bg-quoted-and-visual" class="layout-flow">
+            <section id="bg-quoted-and-visual">
               <hgroup>
                 <p class="bg-feature-elements">
                   lf-sample · lf-shot · lf-options · lf-option
@@ -2974,16 +3001,16 @@ gallery/
                 </h3>
               </hgroup>
               <lf-sample id="bg-sample" label="an inert multiple-pick decision">
-                <lf-options id="bg-sample-options" choose multiple>
-                  <lf-option id="bg-sample-paper">
+                <lf-options id="bg-sample-options" multiple>
+                  <lf-option id="bg-sample-paper" label="Paper signs">
                     <strong>Paper signs</strong> Nothing to charge.
                   </lf-option>
-                  <lf-option id="bg-sample-screen">
+                  <lf-option id="bg-sample-screen" label="Display signs">
                     <strong>Display signs</strong> Easy to update.
                   </lf-option>
                 </lf-options>
               </lf-sample>
-              <section id="bg-live-practice" class="layout-flow">
+              <section id="bg-live-practice">
                 <h3>Live sample</h3>
                 <p id="bg-live-sample-guide">
                   Enter the practice page, accept its suggestion, and add a comment. Its
@@ -3009,7 +3036,7 @@ gallery/
                   </template>
                 </lf-sample>
               </section>
-              <section id="bg-durable-embedding" hidden class="layout-flow">
+              <section id="bg-durable-embedding" hidden>
                 <h3>Stamped page in a frame</h3>
                 <p id="bg-durable-frame-guide">
                   Open the earlier map decision, then open its Threads. This is the
@@ -3019,7 +3046,7 @@ gallery/
                   origin cannot frame it.
                 </p>
                 <div id="bg-durable-frame-host">
-                  <button id="bg-durable-frame-open" class="lf-btn" type="button">
+                  <button id="bg-durable-frame-open" type="button">
                     Open the earlier map decision
                   </button>
                   <iframe
@@ -3036,7 +3063,7 @@ gallery/
                   ></iframe>
                 </div>
               </section>
-              <section id="bg-window-practice" class="layout-flow">
+              <section id="bg-window-practice">
                 <h3>Window sample</h3>
                 <p id="bg-window-sample-guide">
                   A practice page as a whole window: its Leaf panel floats at the
@@ -3069,7 +3096,7 @@ gallery/
                   </template>
                 </lf-sample>
               </section>
-              <section id="bg-recorded-media" class="layout-flow">
+              <section id="bg-recorded-media">
                 <h3>Recorded video and audio</h3>
                 <p>
                   Play the eight-second test pattern, then drag its timeline to a later
@@ -3183,9 +3210,9 @@ gallery/
                 </tbody>
               </table>
             </section>
-          </section>
+          </lf-group>
 
-          <section id="bg-frame-edges" class="layout-flow">
+          <section id="bg-frame-edges">
             <h2>Framed rows</h2>
             <p>
               This row draws its own frame and declares that its items keep their
@@ -3199,7 +3226,7 @@ gallery/
             </div>
           </section>
 
-          <section id="bg-layout-family" class="layout-flow">
+          <section id="bg-layout-family">
             <hgroup>
               <p class="bg-feature-elements">lf-pane</p>
               <h2>
@@ -3296,13 +3323,15 @@ switch --readers checkout-api,orders-api</code></pre>
                     <header><h2>Follow-ups</h2></header>
                     <lf-board id="bg-layout-board">
                       <lf-column id="bg-layout-ready" label="Ready">
-                        <lf-card id="bg-layout-cache-card"
+                        <lf-card id="bg-layout-cache-card" label="Verify cache expiry"
                           ><strong>Verify cache expiry</strong> Confirm old keys leave
                           after the rollback window.</lf-card
                         >
                       </lf-column>
                       <lf-column id="bg-layout-running" label="Running">
-                        <lf-card id="bg-layout-receipt-card"
+                        <lf-card
+                          id="bg-layout-receipt-card"
+                          label="Sample refund receipts"
                           ><strong>Sample refund receipts</strong> Compare three
                           settlement currencies.</lf-card
                         >
@@ -3310,15 +3339,15 @@ switch --readers checkout-api,orders-api</code></pre>
                       <lf-column id="bg-layout-done" label="Done"></lf-column>
                     </lf-board>
                     <footer>
-                      <lf-ask id="bg-layout-ask">
-                        <h3>Is this candidate ready?</h3>
-                        <lf-options id="bg-layout-decision" choose>
+                      <lf-group id="bg-layout-ask" label="Is this candidate ready?">
+                        <h3 id="bg-layout-ask-h">Is this candidate ready?</h3>
+                        <lf-options id="bg-layout-decision">
                           <lf-option id="bg-layout-ship">Ship this candidate</lf-option>
                           <lf-option id="bg-layout-hold"
                             >Hold for another rehearsal</lf-option
                           >
                         </lf-options>
-                      </lf-ask>
+                      </lf-group>
                     </footer>
                   </lf-pane>
                 </div>
@@ -3327,8 +3356,8 @@ switch --readers checkout-api,orders-api</code></pre>
           </section>
         </lf-tab>
 
-        <lf-tab id="bg-view-data" label="Data & work" class="layout-flow">
-          <section id="bg-http" class="layout-flow">
+        <lf-tab id="bg-view-data" label="Data & work">
+          <section id="bg-http">
             <h2>Authenticated HTTP</h2>
             <p>
               Read /items from the host's example connection. A host grants its HTTPS
@@ -3337,7 +3366,7 @@ switch --readers checkout-api,orders-api</code></pre>
               status and text once connected. Each read consumes one request from its
               allowance; the result is not saved.
             </p>
-            <button id="bg-http-read" class="lf-btn" type="button">Read</button>
+            <button id="bg-http-read" type="button">Read</button>
             <p id="bg-http-result" role="status">No HTTP read requested.</p>
             <p>
               The <a href="/examples/github-discoveries/">GitHub discoveries page</a>
@@ -3345,7 +3374,7 @@ switch --readers checkout-api,orders-api</code></pre>
               logic belong to the page; its saved stories work without a connection.
             </p>
           </section>
-          <section id="bg-llm" class="layout-flow">
+          <section id="bg-llm">
             <h2>LLM generation</h2>
             <p id="bg-llm-guide">
               Press Generate to ask the host's model for a five-word headline about a
@@ -3354,10 +3383,10 @@ switch --readers checkout-api,orders-api</code></pre>
               a claim is required. Each press can incur model usage; the result is not
               saved.
             </p>
-            <button id="bg-llm-generate" class="lf-btn" type="button">Generate</button>
+            <button id="bg-llm-generate" type="button">Generate</button>
             <p id="bg-llm-result" role="status">No generation requested.</p>
           </section>
-          <section id="bg-external-data" class="layout-flow">
+          <section id="bg-external-data">
             <hgroup>
               <p class="bg-feature-elements">lf-text-document · lf-num</p>
               <h2>
@@ -3366,7 +3395,7 @@ switch --readers checkout-api,orders-api</code></pre>
               </h2>
             </hgroup>
 
-            <section id="bg-source-captures" class="layout-flow">
+            <section id="bg-source-captures">
               <hgroup>
                 <p class="bg-feature-elements">lf-text-document</p>
                 <h3>
@@ -3383,11 +3412,11 @@ switch --readers checkout-api,orders-api</code></pre>
                 id="bg-source-live"
                 source="gallery-source"
                 label="feature-gallery-source.toml · lines 1–4"
-                language="toml"
+                class="language-toml"
               ></lf-text-document>
             </section>
 
-            <section id="bg-document-previews" class="layout-flow">
+            <section id="bg-document-previews">
               <hgroup>
                 <p class="bg-feature-elements">lf-text-document</p>
                 <h3>Rendered documents</h3>
@@ -3412,7 +3441,7 @@ switch --readers checkout-api,orders-api</code></pre>
               ></lf-text-document>
             </section>
 
-            <section id="bg-written-document" class="layout-flow">
+            <section id="bg-written-document">
               <hgroup>
                 <p class="bg-feature-elements">lf-text-document</p>
                 <h3>A quoted passage</h3>
@@ -3434,7 +3463,7 @@ flag or command it touches, such as `--config`.
               </lf-text-document>
             </section>
 
-            <section id="bg-widget-document" class="layout-flow">
+            <section id="bg-widget-document">
               <hgroup>
                 <p class="bg-feature-elements">lf-text-document</p>
                 <h3>A document from a widget</h3>
@@ -3452,7 +3481,7 @@ flag or command it touches, such as `--config`.
               ></lf-text-document>
             </section>
 
-            <section id="bg-measurement-lag" class="layout-flow">
+            <section id="bg-measurement-lag">
               <hgroup>
                 <p class="bg-feature-elements">lf-num</p>
                 <h3>
@@ -3475,7 +3504,7 @@ flag or command it touches, such as `--config`.
             </section>
           </section>
 
-          <section id="bg-version-changes" class="layout-flow">
+          <section id="bg-version-changes">
             <h2>
               <strong>Version changes</strong
               ><span class="bg-feature-detail">: comparison evidence</span>
@@ -3488,7 +3517,7 @@ flag or command it touches, such as `--config`.
             <p id="bg-change">The sample walk follows the river to the footbridge.</p>
           </section>
 
-          <section id="bg-delivery" class="layout-flow">
+          <section id="bg-delivery">
             <hgroup>
               <p class="bg-feature-elements">lf-board · lf-column · lf-card</p>
               <h2>
@@ -3511,20 +3540,19 @@ flag or command it touches, such as `--config`.
             </p>
             <lf-board id="bg-work-board">
               <lf-column id="bg-work-ready" label="Ready">
-                <lf-card id="bg-work"
-                  ><strong>Check the sample route</strong>
-                  An open to-do on this card puts a Working indicator here because the
-                  card has no other margin control to carry it.
+                <lf-card id="bg-work" label="Check the sample route">
+                  <strong>Check the sample route</strong> An open to-do on this card
+                  puts a Working indicator here because the card has no other margin
+                  control to carry it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-tried" label="Tried"></lf-column>
               <lf-column id="bg-work-reviewing" label="Reviewing"></lf-column>
               <lf-column id="bg-work-waiting" label="Waiting on a person"></lf-column>
               <lf-column id="bg-work-handed" label="Handed back">
-                <lf-card id="bg-work-handed-card"
-                  ><strong>Redraw the sample legend</strong>
-                  One of the cards the edge fade stands for: scroll the board across to
-                  reach it.
+                <lf-card id="bg-work-handed-card" label="Redraw the sample legend">
+                  <strong>Redraw the sample legend</strong> One of the cards the edge
+                  fade stands for: scroll the board across to reach it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-done" label="Done" tone="ok"></lf-column>
@@ -3542,19 +3570,14 @@ flag or command it touches, such as `--config`.
                 source locations and edit routes distinguish authored content from user
                 decisions and captured data. Change unrelated source wording and inspect
                 again: those user choices survive without copying them into HTML. Add a
-                thread id, <code>leaf page state PAGE ID</code>, to inspect a frozen
-                thread.
+                thread id, <code>leaf page state PAGE ID</code>, to inspect a thread.
               </p>
             </details>
           </section>
         </lf-tab>
 
-        <lf-tab id="bg-view-interactions" label="Interactions" class="layout-flow">
-          <section
-            id="bg-interactions"
-            aria-labelledby="bg-interactions-title"
-            class="layout-flow"
-          >
+        <lf-tab id="bg-view-interactions" label="Interactions">
+          <section id="bg-interactions" aria-labelledby="bg-interactions-title">
             <hgroup>
               <p class="bg-feature-elements">
                 lf-sample · lf-suggestion · lf-old · lf-new
@@ -3572,7 +3595,7 @@ flag or command it touches, such as `--config`.
               <a id="bg-interactions-board" href="#bg-delivery">the delivery board</a>.
             </p>
 
-            <section id="bg-interaction-accept" class="layout-flow">
+            <section id="bg-interaction-accept">
               <h3>Accept a suggestion</h3>
               <p id="bg-interaction-accept-guide">
                 Press the suggestion's Accept check (✓) above the changed words. Leaf
@@ -3594,7 +3617,7 @@ flag or command it touches, such as `--config`.
               </lf-sample>
             </section>
 
-            <section id="bg-interaction-comment" class="layout-flow">
+            <section id="bg-interaction-comment">
               <h3>Send a comment</h3>
               <p id="bg-interaction-comment-guide">
                 Select the sentence about the agenda, then press <kbd>c</kbd> or click
@@ -3615,7 +3638,7 @@ flag or command it touches, such as `--config`.
               </lf-sample>
             </section>
 
-            <section id="bg-interaction-threads" class="layout-flow">
+            <section id="bg-interaction-threads">
               <h3>Open and close Threads</h3>
               <p id="bg-interaction-threads-guide">
                 Press <strong>Threads</strong> in the sample's panel to open the list,
@@ -3645,16 +3668,16 @@ flag or command it touches, such as `--config`.
           </section>
         </lf-tab>
       </lf-tabs>
-      <section id="bg-inline-sample-section" class="layout-flow">
-        <h2>Interactive sample on this page</h2>
+      <lf-group id="bg-inline-sample-section" label="Interactive sample on this page">
+        <h2 id="bg-inline-sample-section-h">Interactive sample on this page</h2>
         <p>These choices use this page's state and Undo.</p>
         <lf-sample id="bg-inline-sample" interactive label="Delivery choices">
-          <lf-options id="bg-delivery-choice" choose>
+          <lf-options id="bg-delivery-choice">
             <lf-option id="bg-delivery-standard">Standard delivery</lf-option>
             <lf-option id="bg-delivery-express">Express delivery</lf-option>
           </lf-options>
         </lf-sample>
-      </section>
+      </lf-group>
       <section id="bg-generated-sample-section">
         <h2>A sample created by a page module</h2>
         <p>

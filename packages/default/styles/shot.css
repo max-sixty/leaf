@@ -33,17 +33,35 @@ lf-shot {
    `data-lf-media-height`), and a frame takes the stage's width at the captures'
    ratio, but never enlarges them nor stands taller than the screen below the toolbar.
    A page whose runtime won't run draws no shot, nor does paper, so neither holds room,
-   and a browser without typed `attr()` holds only the toolbar and padding. */
+   and a browser without typed `attr()` holds only the toolbar and padding. The frame
+   stands in a row beside an empty box holding only the stage's scrollbar gutter, so it
+   takes its ratio from the width Slider fits, a classic scrollbar's gutter narrower than
+   the shot. Neither the shot nor the frame holds the gutter itself: a box's `width`
+   includes its own gutter, so the frame would take its ratio from the wider width, and
+   the shot's container would be narrower than the drawn shot's, choosing the narrow
+   toolbar's height just above its breakpoint. Firefox gives a pseudo-element's gutter a
+   classic scrollbar's width even where its scrollbars overlay, so there the frame holds
+   a little less than it draws. */
 @media screen {
   @scope (html[data-lf-interactive]) {
+    lf-shot[data-lf-media-width][data-lf-media-height]:not(:defined) {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+    lf-shot[data-lf-media-width][data-lf-media-height]:not(:defined)::after {
+      content: "";
+      flex: none;
+      overflow: hidden;
+      scrollbar-gutter: stable both-edges;
+    }
     lf-shot[data-lf-media-width][data-lf-media-height]:not(:defined)::before {
       content: "";
       display: block;
+      flex: 1 1 0;
+      min-inline-size: 0;
       margin-block-start: var(--lf-shot-toolbar);
       box-sizing: content-box;
       padding: calc(var(--lf-shot-frame-room) + 1px);
-      overflow: hidden;
-      scrollbar-gutter: stable both-edges;
       aspect-ratio: attr(data-lf-media-width type(<number>)) /
         attr(data-lf-media-height type(<number>));
       max-block-size: min(

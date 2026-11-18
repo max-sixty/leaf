@@ -1,7 +1,6 @@
 # Contrasts settled earlier topics with the compact exchange above.
 # Scores proposed commands and summary meaning, not actual page writes.
-# Initial A/B: each harness summarized the settled range under both wordings.
-# This guards range selection and summary meaning; it did not separate the arms.
+# This guards range selection and summary meaning.
 description: thread-summary-after-topic-drift
 metadata:
   purpose: Summarize settled earlier topics while answering the current exchange and preserving its visibility.

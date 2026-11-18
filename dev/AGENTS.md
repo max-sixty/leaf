@@ -99,7 +99,7 @@ pnpm run test:evals
 
 ## Commands with consequences outside `.tmp/`
 
-- `leaf-dev site previews` (as `wt refresh-previews`), `site demo` and
+- `leaf-dev site previews`, `site demo` and
   `site media` publish images to `max-sixty/leaf-assets`; in the tree they change
   only the pin in `leaf-assets.json` and the README's image URLs.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout to the

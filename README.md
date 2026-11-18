@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/486a77d9e3592d2f93695c057539be52bd490bba/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/486a77d9e3592d2f93695c057539be52bd490bba/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/410ecca7ffc06ac1b7005b105097c5ac9f789809/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/410ecca7ffc06ac1b7005b105097c5ac9f789809/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/486a77d9e3592d2f93695c057539be52bd490bba/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/410ecca7ffc06ac1b7005b105097c5ac9f789809/demo/demo.gif)
 
 </details>
 
@@ -72,7 +72,8 @@ The first run syncs the plugin's uv environment through your configured package
 index. Render checks and exports use the executable named by
 `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
-`chromium`, or `chromium-browser` on `PATH`.
+`chromium`, or `chromium-browser` on `PATH`. A render check of a page last shown in
+Firefox uses the installed Firefox instead, where there is one.
 
 Leaf needs Claude Code 2.1.196 or later, the first release whose hooks name the
 turn they run in. On an earlier one, an update handed into a prompt you interrupt

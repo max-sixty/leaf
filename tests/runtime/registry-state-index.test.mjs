@@ -1,4 +1,4 @@
-/* The one traversal of `x-state`, and the generation it belongs to.
+/* The one traversal of `verbs`, and the generation it belongs to.
 
    Derived state declarations belong to one complete registry generation. Warming the
    index must not make a later generation inherit the declarations of the one before it,
@@ -35,13 +35,20 @@ test("a vocabulary that has not loaded has no state index to give", () => {
 });
 
 test("authoring selectors and shared facts never enter widget state", () => {
-  const idiom = { description: "An authored shape.", "x-example": "<table></table>" };
+  const idiom = {
+    description: "An authored shape.",
+    example: "<table></table>",
+  };
   load("mixed-vocabulary", {
-    "lf-index-owner": { "x-state": { set: {} } },
+    "lf-index-owner": {
+      verbs: { set: {} },
+    },
     "lf-index-owner.selected": idiom,
     table: idiom,
     ".lede": idiom,
-    $keys: { "x-state": "State meanings." },
+    $keys: {
+      verbs: "State meanings.",
+    },
   });
   assert.deepEqual(
     elementDeclarations().map(([name]) => name),
@@ -58,14 +65,16 @@ test("authoring selectors and shared facts never enter widget state", () => {
 test("both writers contribute, and only recorded declarations own a selector", () => {
   load("writers", {
     "lf-index-action": {
-      "x-state": { set: { record: { kind: "value", attr: "phase" } } },
+      verbs: { set: { record: { kind: "value", attr: "phase" } } },
     },
     "lf-index-report": {
-      "x-state": {
+      verbs: {
         measure: { writer: "agent", record: { kind: "value", attr: "phase" } },
       },
     },
-    "lf-index-recordless": { "x-state": { settle: {} } },
+    "lf-index-recordless": {
+      verbs: { settle: {} },
+    },
   });
 
   assert.deepEqual(
@@ -83,13 +92,21 @@ test("both writers contribute, and only recorded declarations own a selector", (
 });
 
 test("a later generation inherits nothing from the index warmed before it", () => {
-  load("warmed", { "lf-index-gone": { "x-state": { set: { record: {} } } } });
+  load("warmed", {
+    "lf-index-gone": {
+      verbs: { set: { record: {} } },
+    },
+  });
   assert.deepEqual(
     stateSpecs().map(({ tag }) => tag),
     ["lf-index-gone"],
   );
 
-  load("later", { "lf-index-fresh": { "x-state": { measure: {} } } });
+  load("later", {
+    "lf-index-fresh": {
+      verbs: { measure: {} },
+    },
+  });
   assert.deepEqual(
     stateSpecs().map(({ tag }) => tag),
     ["lf-index-fresh"],

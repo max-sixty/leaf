@@ -15,7 +15,7 @@ def validate_registry_examples(registry: dict, source) -> dict:
     refusing with the first problem in each (`registry.contract.gathering`)."""
     with gathering() as unit:
         for tag, entry in registry.items():
-            if tag.startswith("$") or (example := entry.get("x-example")) is None:
+            if tag.startswith("$") or (example := entry.get("example")) is None:
                 continue
             with unit():
                 _validate_example(tag, example, registry, source)

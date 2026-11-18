@@ -1,6 +1,5 @@
-# Internal maintainer diagnostics from the 2026-10-10 recording-viewer review.
-# Timing distinguished Sol from Opus/Fable in static calibration; image movement
-# was the easier sensitivity control. Candidate tasks never state the diagnosis.
+# Internal maintainer diagnostics from a recording-viewer review. Candidate tasks
+# never state the diagnosis.
 # Candidate requests are frozen independently of the private scoring targets.
 # A sample is a fresh review, not a continuation of the historical authoring session.
 cases:
@@ -32,7 +31,7 @@ cases:
       the supplied evidence. For each finding, explain the observation,
       its effect on that task, and any uncertainty. Do not assume there is
       a defect, and do not invent interactions you did not observe.
-  # 2026-10-27 message Copy work: three misses the user found after the author's
+  # Message Copy work: three misses the user found after the author's
   # own checks and cold reviews. One request and task covers all three.
   message-copy-placement:
     family: edge

@@ -19,6 +19,7 @@ import json
 import re
 from pathlib import Path
 
+from leaf.thread_context import logged_fragment
 from leaf_dev.authoring_eval import leaf_command
 
 # The findings that say something failed to run or draw, as opposed to the geometry
@@ -77,8 +78,8 @@ def placed(page: Path) -> dict:
     if log.is_file():
         for line in log.read_text().splitlines():
             event = json.loads(line)
-            if event.get("markup"):
-                messages.append(sorted(set(TAG.findall(event["markup"]))))
+            if logged_fragment(event):
+                messages.append(sorted(set(TAG.findall(event["text"]))))
     return {"page": sorted(set(TAG.findall(html))), "messages": messages}
 
 

@@ -1,4 +1,4 @@
-/* Where the page's open threads, its On me items and, while the changes view is on, its
+/* Where the page's open threads, its On Me items and, while the changes view is on, its
  * changes stand along the contents: how many of each the section each row leads holds.
  *
  * A row's section is its stretch of the page, as the map draws it: from its destination
@@ -13,7 +13,7 @@
  * inside a widget's shadow tree stands where its host does.
  *
  * Threads are the open ones, each at the element its anchor names, as a heading's link
- * preview counts them. On me items are the obligations waiting on the user that the
+ * preview counts them. On Me items are the obligations waiting on the user that the
  * outline's document holds, by the rule every count of a region's obligations reads
  * (`obligationsIn`), each at the widget that asks it; a question answered in words
  * stands nowhere on the page, so it counts here only as its thread. A change counts once
@@ -22,7 +22,7 @@
  * before the next section's heading, counts in the section that held it.
  *
  * Rejected: counting each item under the first row met climbing the parts over it
- * (`partOver`), the rule On me groups by, which puts a question in the part around it,
+ * (`partOver`), the rule On Me groups by, which puts a question in the part around it,
  * so a thread about a whole question counted in the row above, and a paragraph after a
  * question in a different row from the map's.
  *

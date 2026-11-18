@@ -26,6 +26,7 @@ import { announce, gesture, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
   loadMessageMarkdown,
+  islandChange,
   prepareAuthoredMessage,
   messageText,
 } from "./thread/messages.js";
@@ -124,34 +125,31 @@ export function createStateApplication({
     if (!activeView)
       throw new Error(`State has no view for active revision ${state.active.revision}`);
     const threads = activeView.thread.threads;
+    // An agent's message holding HTML renders once, from the loaded renderer.
+    const markdown = threads.length ? loadMessageMarkdown() : null;
     const messages = threads.flatMap((thread) =>
       thread.msgs.map((message) => ({
         message,
         preparation:
-          "markup" in message && message.markup
-            ? prepareAuthoredMessage(message, thread.id)
+          "html" in message && message.html
+            ? markdown?.then(() => prepareAuthoredMessage(message, thread.id))
             : null,
       })),
     );
-    const [activation, , frozenDocuments] = await Promise.all([
+    const [activation, , preparedMessages] = await Promise.all([
       prepareActivation(state),
-      threads.length ? loadMessageMarkdown() : null,
+      markdown,
       Promise.all(
         messages.map(async ({ message, preparation }) => ({
           message,
-          frozen: await preparation,
+          prepared: await preparation,
         })),
       ),
     ]);
     const bodies = new Map(
-      frozenDocuments.map(({ message, frozen }) => [
+      preparedMessages.map(({ message, prepared }) => [
         message.id,
-        frozen
-          ? {
-              ...frozen.body,
-              text: [messageText(message), frozen.body.text].filter(Boolean).join("\n"),
-            }
-          : { text: messageText(message) },
+        prepared ? prepared.body : { text: messageText(message) },
       ]),
     );
 
@@ -177,17 +175,28 @@ export function createStateApplication({
       const installed =
         following !== null && activation ? await activation.install() : null;
       const prior = installed?.document ?? readApplication().document;
+      // Each message's widgets as this reading's wording authors them: an edit's
+      // island replaces what the wording before it captured, and the ids that wording
+      // held and this one doesn't leave (messages.js, `islandChange`).
+      const islands = islandChange(preparedMessages);
       let authored = prior.authored;
       let descriptors = prior.descriptors;
-      for (const { frozen } of frozenDocuments) {
-        if (!frozen) continue;
-        for (const [id, baseline] of frozen.authored) {
-          if (authored.has(id)) continue;
+      for (const id of islands.retired) {
+        if (!authored.has(id) && !descriptors.has(id)) continue;
+        if (authored === prior.authored) authored = new Map(authored);
+        if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
+        authored.delete(id);
+        descriptors.delete(id);
+      }
+      for (const { prepared } of preparedMessages) {
+        if (!prepared) continue;
+        for (const [id, baseline] of prepared.authored) {
+          if (authored.get(id) === baseline) continue;
           if (authored === prior.authored) authored = new Map(authored);
           authored.set(id, baseline);
         }
-        for (const [id, descriptor] of frozen.descriptors.descriptors) {
-          if (descriptors.has(id)) continue;
+        for (const [id, descriptor] of prepared.descriptors.descriptors) {
+          if (descriptors.get(id) === descriptor) continue;
           if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
           descriptors.set(id, descriptor);
         }
@@ -198,8 +207,8 @@ export function createStateApplication({
         descriptors,
         messageBodies: bodies,
       };
-      for (const { frozen } of frozenDocuments)
-        if (frozen) commitWidgetDescriptors(frozen.descriptors);
+      for (const { prepared } of preparedMessages)
+        if (prepared) commitWidgetDescriptors(prepared.descriptors);
       // The user's place across the change this reading brings, kept once the page
       // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
       // own landing instead (version.js).
@@ -208,15 +217,17 @@ export function createStateApplication({
         await notifyChangedData();
         return;
       }
+      islands.commit();
+      commitWidgetDescriptors({ bindings: [] }, islands.retired);
       observeServerNow(state.now);
       observeWorkingGrace(state.working_grace_ms);
       stateApplying = true;
       try {
         // Optional interface preparation joins imports and installation, without
         // pretending to be a semantic renderer. Adoption already claimed every document
-        // region for this epoch, and frozen
-        // thread widgets joining the document reopen the ones they change. Waiting for
-        // that proof is what replaces naming the renderers and the order they run in.
+        // region for this epoch, and thread widgets joining the document reopen the
+        // ones they change. Waiting for that proof is what replaces naming the renderers
+        // and the order they run in.
         if (installed) await settlePageInterface();
         await whenDocumentPresented();
         // Version-owned mechanical landing follows proof and reports its own failures;
@@ -244,7 +255,7 @@ export function createStateApplication({
         } else presentedNews = { reading: newsReading, observed: reading.observed };
         // The agent's new words are heard, not shown: the On Me mark's dot and each
         // margin marker's already show unread news, so the seat keeps the agent's status.
-        // The user chose this on 25 October over a line counting the messages.
+        // The user chose this over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
         // The leaf answers news as it arrives, with the badge and dots, rather than when
         // a notice held behind the user's own command shows it.

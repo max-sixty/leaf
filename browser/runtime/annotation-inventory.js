@@ -28,8 +28,7 @@ import {
   GENERATED,
   inChrome,
   keptAnswer,
-  keptWithReading,
-  pageDocument,
+  pageReadingVersion,
   quoteFrom,
   textNodesUnder,
 } from "./passages.js";
@@ -58,6 +57,7 @@ import { agentSays, leafSays } from "./voice.js";
 import { renderedOrdering, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
+import { hasObligationSource } from "./obligations/source.js";
 import { scrollBehavior } from "./motion.js";
 import {
   changeAccount,
@@ -72,8 +72,10 @@ import { versionProvenance } from "./change-provenance.js";
 // finds each row's words unchanged by identity rather than by reading them
 // (`captureItem`).
 const WAITING_ON_ME = leafSays("Waiting on me");
-// The owner under which a reading of the page keeps where each draft stands.
-const DRAFT_PLACES = Object.freeze({});
+// Where each draft stands, by its context, kept for one reading of the page
+// (`pageReadingVersion`), which moves with the ids an anchor's section is found by.
+/** @type {{version: object, places: Map<string, {anchor: object, resolved: ReturnType<typeof resolveAnchor>}>} | null} */
+let draftPlacesKept = null;
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -120,7 +122,7 @@ export const annotationSelection = (root) => ({
   todos: root.authoritative?.browser.todos ?? null,
 });
 
-/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
+/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
@@ -135,6 +137,10 @@ export function createAnnotationInventory({
       .replace(/[-_]+/g, " ")
       .trim();
 
+  // A target is named from the nearest element with an id, itself or one around it, and
+  // below that by each element's place among its authored siblings. A name reads only
+  // the siblings between the target and that element, so naming every target costs the
+  // page once rather than its square, and a name survives content added above the id.
   /** @param {Element} target @returns {string} */
   function targetPath(target) {
     const host = shadowHost(target.getRootNode());
@@ -153,6 +159,10 @@ export function createAnnotationInventory({
       const projection = node.getAttribute("data-lf-projection");
       if (projection && node.hasAttribute("data-lf-datum")) {
         from = `datum:${projection}/${node.getAttribute("data-lf-datum")}:`;
+        break;
+      }
+      if (node.id) {
+        from = `id:${node.id}/`;
         break;
       }
       const parent =
@@ -297,8 +307,8 @@ export function createAnnotationInventory({
   // target again only where its words changed or a passage in it is new. Every change to
   // the page starts a collection, a closed tab's document drawing included, and a change
   // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
-  // collection, one comment on a 4 MB text document read that document again each time
-  // another of 30 drew, 200 ms each in Chromium.
+  // collection, one comment on a large text document would read that document again
+  // each time another document drew.
   /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
    * @returns {string[]} */
   function passageRows(target, quoted) {
@@ -484,8 +494,8 @@ export function createAnnotationInventory({
   }
 
   // Each collection builds every group on the page again from every record, and sorts
-  // them all, though a gesture changes few of them: about 10 ms a collection on the
-  // 1,024-section page `leaf-dev bench` generates, and sending a comment runs two. Not
+  // them all, though a gesture changes few of them, a cost that grows with the page
+  // (`leaf-dev bench` measures it), and sending a comment runs two. Not
   // yet built: keep each group between collections while its records are the same
   // objects and the page's reading stands (`pageReadingVersion`, passages.js), build
   // again only the groups that changed, and sort again only when that reading moves,
@@ -528,13 +538,15 @@ export function createAnnotationInventory({
             ...(threadDrafts.get(thread.id) ?? []),
             draftItem(draft),
           ]);
-      } else if (draft.part !== "page") placedDrafts.push(draft);
+      } else placedDrafts.push(draft);
     }
     // A draft's place is resolved once for each reading of the page, since a quote's is
     // a search of the page's words, which a collection made on every reading would
     // repeat for each draft (`passageRows` says what that cost a large page).
-    /** @type {Map<string, {anchor: object, resolved: ReturnType<typeof resolveAnchor>}>} */
-    const draftPlaces = keptWithReading(pageDocument(), DRAFT_PLACES, () => new Map());
+    const reading = pageReadingVersion();
+    if (draftPlacesKept?.version !== reading)
+      draftPlacesKept = { version: reading, places: new Map() };
+    const draftPlaces = draftPlacesKept.places;
     /** @param {import("./drafts.js").ListedDraft} draft @param {object} anchor */
     const draftPlacement = (draft, anchor) => {
       let kept = draftPlaces.get(draft.context);
@@ -645,10 +657,6 @@ export function createAnnotationInventory({
     }
     // A widget's obligation has a place on the page (obligations/place.js); the rest
     // have no node.
-    /** @param {import("./framework/application.js").ObligationRecord} item
-     * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
-    const hasPlace = (item) => Boolean(obligationPlace(item).node);
-    const placed = () => readObligations().user.filter(hasPlace);
     for (const item of readObligations().user) {
       const id = item.id;
       const target = obligationPlace(item).node;
@@ -664,9 +672,8 @@ export function createAnnotationInventory({
         // glyph already shows: the widget's name.
         label: labelOf(target) || null,
         activate: () => {
-          const items = placed();
-          const next = items.find((candidate) => candidate.id === id);
-          if (next) goToObligation(next, items);
+          const next = readObligations().byId.get(id);
+          if (hasObligationSource(next, "widget")) goToObligation(next);
         },
       });
     }

@@ -29,17 +29,17 @@
    would take its `position-anchor` from a document `::part()` rule, since no engine yet
    lets a shadow tree's own styles name a document `anchor-name` (interop#1351), and the
    chrome's sheets, selection, hit testing and document-state rules would have to be
-   carried across the boundary (spike e7745b70d, #2828). Giving this rule and the
+   carried across the boundary. Giving this rule and the
    chrome's own rules an id's weight stops those state faces, but a page rule would then
    need an id to restyle the chrome, and each shared rule that dresses a chrome element
    would need a branch of that weight too. The parts are named as a shadow root would
    expose them, so an engine that resolves higher-tree anchor names would reopen it with
    the same names (`::part(panel)`).
 
-   A pseudo-element inherits from its element, which the guard covers. The guard once
-   also covered `::before`, `::after` and `::placeholder` themselves, but no authored
+   A pseudo-element inherits from its element, which the guard covers. Rejected: also
+   covering `::before`, `::after` and `::placeholder` themselves, since no authored
    page had a rule for one that reached the chrome, and resetting every property on
-   them crashed Chrome 155's renderer at any zoom but 100% (#4536). */
+   them crashed Chrome 155's renderer at any zoom but 100%. */
 .lf-chrome,
 .lf-chrome * {
   all: revert-layer;

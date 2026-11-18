@@ -1,10 +1,8 @@
-# Added with the playground's `tune` verb (2026-10-31). A user commented on a
-# playground preview without submitting, and has changed the settings since, so
-# `leaf page state` shows newer ones than the comment is about. The delivered comment
-# carries the settings the preview showed as `unsent`, so the case measures whether
-# the agent takes them from the comment rather than from the state it read. Before
-# deliveries carried `unsent`, the case gave only the state, and agents read the log
-# for the comment's settings 4/4 with the playground's instruction and 3/4 without.
+# A user commented on a playground preview without submitting, and has changed the
+# settings since, so `leaf page state` shows newer ones than the comment is about.
+# The delivered comment carries the settings the preview showed as `unsent`, so the
+# case measures whether the agent takes them from the comment rather than from the
+# state it read.
 description: playground-comment-reads-its-settings
 metadata:
   purpose: "Playground: a comment about the preview is read against the settings
@@ -18,15 +16,17 @@ vars:
     over and open in the user's browser:
 
       <lf-playground id="notify" submit-label="Build this notification">
-        <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="calm">
-          <lf-playground-choice id="tone-calm" value="calm" label="Calm"></lf-playground-choice>
-          <lf-playground-choice id="tone-urgent" value="urgent" label="Urgent"></lf-playground-choice>
-        </lf-playground-control>
-        <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-          value="8" min="0" max="20" unit="px"></lf-playground-control>
-        <lf-playground-preview id="notify-preview">
+        <aside>
+          <fieldset id="tone"><legend>Tone</legend>
+            <label id="tone-calm"><input type="radio" name="tone" value="calm" checked> Calm</label>
+            <label id="tone-urgent"><input type="radio" name="tone" value="urgent"> Urgent</label>
+          </fieldset>
+          <label id="radius">Corner radius, px
+            <input type="range" name="radius" min="0" max="20" value="8"></label>
+        </aside>
+        <div id="notify-preview">
           <p class="notify-card">Checkout deployed.</p>
-        </lf-playground-preview>
+        </div>
       </lf-playground>
 
     A delivery arrived with one event, a comment on the preview:

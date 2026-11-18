@@ -25,9 +25,8 @@ variants:
       purpose: Answer mixed comments, choices, moves, undo and errors.
       conditions:
         - leaf
-  # From TODO.md, "Test the Layouts on agents": after its comment and decisions,
-  # the queue also carries a hand-off for a reader who did not work it, so a
-  # workspace and a document share one page.
+  # After its comment and decisions, the queue also carries a hand-off for a reader
+  # who did not work it, so a workspace and a document share one page.
   hand-off:
     metadata:
       scenario: queue-hand-off

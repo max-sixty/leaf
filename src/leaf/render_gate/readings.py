@@ -14,13 +14,17 @@ from itertools import pairwise
 from leaf.findings import Finding, element_at
 from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
-    frozen_thread_reading,
     logged_words,
     page_reading,
     retirement_holders,
     retirement_outcomes,
+    thread_markup_reading,
 )
-from leaf.registry.contract import MODULES, is_element_name, retirement_slots
+from leaf.registry.contract import (
+    MODULES,
+    is_element_name,
+    retirement_slots,
+)
 from leaf.render_checks import (
     evaluate_probe,
     one_frame,
@@ -61,11 +65,14 @@ class DevtoolsIssues:
     Listening starts before navigation; the reading is taken once the page settles,
     when the probe that locates a node has loaded. Each is advice: an issue's code
     names Chrome's lint, and a request that actually fails also reaches the console
-    as an error, which refuses the page."""
+    as an error, which refuses the page. Firefox keeps no such panel, so a page the
+    check draws in Firefox (`browser.launch_browser`) reads none."""
 
     def __init__(self, page):
-        self._cdp = page.context.new_cdp_session(page)
         self._raised = []
+        if page.context.browser.browser_type.name != "chromium":
+            return
+        self._cdp = page.context.new_cdp_session(page)
         self._cdp.on(
             "Audits.issueAdded", lambda event: self._raised.append(event["issue"])
         )
@@ -145,9 +152,9 @@ def _projected_verbatim(document, registry, projection, authored_ids, source):
 
 
 def _expected_verbatim(markup, events, registry, here):
-    """Expected preserving-owner readings in the page and frozen thread.
+    """Expected preserving-owner readings in the page and thread markup.
 
-    Page actions are bounded by the immutable revision being rendered. Frozen message
+    Page actions are bounded by the immutable revision being rendered. Message
     markup has no later authored revision and therefore uses the thread's whole
     action window. Both use the same passage projection as comment capture.
     """
@@ -159,7 +166,7 @@ def _expected_verbatim(markup, events, registry, here):
         page.document.ids,
         ("page", None),
     )
-    thread = frozen_thread_reading(events, registry)
+    thread = thread_markup_reading(events, registry)
     for event_id, fragment in thread.structure.fragments.items():
         expected.update(
             _projected_verbatim(
@@ -270,7 +277,12 @@ def _page_findings(context: _PageContext) -> list[Finding]:
 def _unreduced_motion(page) -> list[Finding]:
     """Advice naming page content that keeps animating once the reader asks for less
     motion, which Leaf leaves to the page (state.css). Read last, since setting the
-    preference stops Leaf's own motion for the readings after it."""
+    preference stops Leaf's own motion for the readings after it. Read in Chromium
+    only: Playwright 1.65 sets no reduced-motion preference in Firefox over WebDriver
+    BiDi, whose `matchMedia` goes on answering no, and refuses the call outright on a
+    page holding a frame ("invalid argument")."""
+    if page.context.browser.browser_type.name != "chromium":
+        return []
     page.emulate_media(reduced_motion="reduce")
     one_frame(page)
     found = [
@@ -294,23 +306,19 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
-    # x-verbatim promises the words the page renders. Source provenance was
-    # captured before upgrade, so anonymous page and frozen-message owners have the
+    # `verbatim` promises the words the page renders. Source provenance was
+    # captured before upgrade, so anonymous page and message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
     # side is the settled projection, so a page that never applied that projection is
     # already reported by the readiness wait and supplies no comparison.
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
-    silent = []
     undeclared_attrs = []
     relative = []
-    # Behind the caught-up wait: a report moves a declared attribute, so a reading
-    # taken any earlier asks after a word the page has not been asked to say yet. A
-    # page that never caught up is already reported there and read no further.
+    # Behind the caught-up wait, because reconciliation is one of the two writers: a
+    # widget's render states one declared fact whole, and a record form is exactly the
+    # attribute it may state that fact in. A page that never caught up is already
+    # reported there and read no further.
     if replayed:
-        silent = evaluate_probe(page, "silentWords", declarations)
-        # Behind the same wait, because reconciliation is one of the two writers: a
-        # widget's render states one declared fact whole, and a record form is
-        # exactly the attribute it may state that fact in.
         undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
         # Last: render the complete state again to prove idempotence, against the
         # same settled projection the read-only probes before it observed.
@@ -326,7 +334,6 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
     found += map(Finding.read, unreachable)
     found += dishonest_verbatim
-    found += map(Finding.read, silent)
     # One mistake is on every instance, so one finding per tag and attribute.
     found += {(u["tag"], u["attr"]): Finding.read(u) for u in undeclared_attrs}.values()
     found += map(Finding.read, relative)
@@ -334,7 +341,7 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
 
 
 def thread_findings(context: _PageContext, known: list[Finding]) -> list[Finding]:
-    """The widget readings of each thread whose messages carry markup, read with that
+    """The widget readings of each thread whose messages hold HTML, read with that
     thread open, less what `known` already reports.
 
     A message's widgets render only where its thread is drawn, and the page draws one
@@ -421,7 +428,7 @@ def open_widgets(registry: dict) -> list[str]:
     return [
         tag
         for tag, entry in registry.items()
-        if is_element_name(tag) and entry.get("x-content") in ("markup", "members")
+        if is_element_name(tag) and entry.get("content") in ("markup", "members")
     ]
 
 
@@ -538,8 +545,9 @@ def swept_faults(samples) -> list[Finding]:
 
 
 def squeezed_advice(readings) -> list[Finding]:
-    """Advice naming each table that scrolls sideways with a cell wrapped, and each code
-    block that scrolls its lines in too little width to read them.
+    """Advice naming each table that scrolls sideways with a cell wrapped, each table
+    that breaks a short name inside itself (`brokenNames`), and each code block that
+    scrolls its lines in too little width to read them.
 
     The sweep is the reading's only home, and it takes in the desktop's width.
     Advice rather than a failure because the box still scrolls and every word in it
@@ -558,7 +566,7 @@ def squeezed_advice(readings) -> list[Finding]:
             (json.dumps(table["place"], sort_keys=True), table["code"]): Finding.read(
                 table, severity="advice"
             )
-            for table in reading["squeezed"]
+            for table in [*reading["squeezed"], *reading["broken"]]
         },
     )
 

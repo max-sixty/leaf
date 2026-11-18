@@ -1,0 +1,339 @@
+# A thread asked "which line?" of a page paragraph that said "Leaf's instructions
+# tell authors not to write that line" without quoting them. The agent reworded the
+# paragraph, then replied with an eight-word fragment of the guidance and
+# `[The paragraph](#mark-guidance)`, a link to the passage the thread was on, whose
+# preview showed the thread itself. The user asked why the reply didn't quote the
+# section, collapsed if need be. A handling that asks for "what changed, in a
+# sentence or two, linking the section that shows it" can lead agent replies that
+# link a section to link their own thread's.
+# `earlier-decision` rebuilds a reply that paraphrased the record of a user's choice
+# and linked its own section; `page-paragraph` is the paragraph's first draft;
+# `result-elsewhere` guards the link a reply owes to a result in another section.
+# page-paragraph guards the page rule rather than reproducing the failure, which
+# came late in a long session. The envelopes carry the handling at the commit that
+# adds this case; a handling change is scored by regenerating them with each
+# wording.
+description: answer-quotes-what-it-cites
+metadata:
+  purpose: A reply resting on a source quotes the source's words in the thread, and links a page section only where the result shows away from the thread's own passage.
+  tags:
+    - threads
+vars:
+  prompt: |
+    You are a Claude Code session using Leaf, working in a checkout of Leaf at
+    ~/workspace/leaf.table-column-widths on pull request #6096, which changes how Leaf's
+    reading theme keeps a code name in a table's row heading whole. Your page
+    /Users/max/.local/state/leaf/pages/table-column-widths explains the change to the
+    user. Load the Leaf skill if it isn't in your context.
+
+    Leaf's prompt hook has just handed you this complete delivery:
+
+    {"format": "leaf-delivery/46", "id": "3710e4d1", "created_at": 1794814489.3594618, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/table-column-widths", "claim": "d52b0343-abcc-4f1b-97ba-812d07f64a40", "through_seq": 77, "threads": [{"id": "4271192f", "title": null, "anchor": {"section": "mark-guidance", "quote": "that line", "prefix": "ell authors not to write", "suffix": ", and I'm leaving them a"}, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."}, "events": [{"text": "which line?", "anchor": {"section": "mark-guidance", "quote": "that line", "prefix": "ell authors not to write", "suffix": ", and I'm leaving them a"}, "kind": "comment", "revision": 17, "author": "user", "id": "4271192f", "attention": true, "ts": "2026-11-15T23:34:46.783-08:00", "seq": 77, "subject": {"kind": "thread", "id": "4271192f"}, "threads": ["4271192f"], "handling": ["h1", "h2", "h3"], "answer": {"kind": "reply", "parent": "4271192f", "responds": "4271192f", "ref": "3710e4d1:0:4271192f", "writer": "agent"}}]}]}
+
+    This is the section the comment is in, as revision 17 has it:
+
+    ```html
+    <section id="mark">
+      <h2>The author already says which cell names the row</h2>
+      <p id="mark-body">
+        The agent that wrote your table wrote each key as
+        <code>&lt;th scope="row"&gt;</code>, HTML's element for a row's name. Leaf's
+        instructions have asked for that since 25 October, and authors follow it: in
+        pages begun since, 659 of the 663 rows that open on a code name are written
+        that way, up from 41 of 207 before. So the Key column needs no logic of
+        Leaf's. A rule on that element keeps its name whole, and the server's mark was
+        reading each cell's text to learn what the author had already said.
+      </p>
+      <p id="mark-other">
+        That leaves a name in any other column, such as Declared by: 307 of the 970
+        names in those pages. HTML has no element for it, so it breaks as before, in
+        every browser. Chrome draws <code>lf-options</code> on two lines there today.
+        Its author can keep it whole with one line of CSS, and your table then draws
+        exactly as it did with the mark.
+      </p>
+      <figure id="mark-author">
+        <figcaption>
+          With <code>white-space: nowrap</code> from the author on Declared by
+        </figcaption>
+        <img src="/media/cdfddc6fdc6180cb.png" width="352" height="244"
+          alt="The same table with lf-options and lf-ask each on one line in Declared by, and the heading Declared by on one line." />
+      </figure>
+      <p id="mark-guidance">
+        Leaf's instructions tell authors not to write that line, and I'm leaving them
+        as they are. The wording dates from
+        <a href="https://github.com/max-sixty/leaf/pull/4110">25 October</a>, when an
+        author's <code>white-space: nowrap</code>, written for cells of issue numbers
+        and reused on a column of prose, held that column 559px wide and left the
+        status beside it a word to the line. Of the 182 pages with a table then, 23
+        styled their cells' widths or wrapping. A row heading is different because the
+        theme caps what it keeps whole, and an author's line has no cap.
+      </p>
+      <p id="mark-cost">
+        So a name outside a row heading is the one place where neither the author nor
+        Leaf acts. Of the 213 tables that have row headings, 3 keep a short name
+        broken there in Firefox, and the mark left none. A rule in CSS that guesses
+        those columns from structure does worse than leaving them: it pushed a column
+        off <a href="/media/c2f3c4953302e4fb.png">one of your tables</a>, which is
+        <a href="/media/868f2e6a1ac184fc.png">whole without it</a>.
+      </p>
+    </section>
+    ```
+
+    "That line" is the one line of CSS that `#mark-other` says an author can write and
+    the figure shows: `td:nth-child(2) { white-space: nowrap; }` on the Declared by
+    column. The guidance the paragraph means is in the checkout's copy of the Leaf skill;
+    you read it earlier:
+
+    ```
+    $ sed -n 320,328p skills/leaf/references/page-authoring.md
+    scroll in the box needs `max-width: none`. For a box that scrolls vertically, see
+    `page-layout.md`, "Bounds and widths".
+
+    Leaf fits an image or SVG to its container on every page. On a page that wears the
+    reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
+    also scrolls a `<pre>` wider than its container, and a table's columns size to their
+    content, so leave its cells' widths and wrapping to Leaf too. A `<pre>` asks its
+    container for no width, so a box that takes its width from its content can leave it
+    ```
+
+    The page and services are unreachable in this exercise. Write out the commands you
+    would run, with the full text of the reply and of any page edit, then end your answer.
+assert:
+  - type: llm-rubric
+    metric: quotes-its-source
+    value: |
+      Read only the reply that answers the user's comment: the text given to `leaf thread
+      reply` for it, HTML included. Pass only if that reply quotes, word for
+      word, the whole sentence of Leaf's authoring guidance it relies on, the one that
+      ends "so leave its cells' widths and wrapping to Leaf too", as a quotation the user
+      reads in the thread: a Markdown blockquote, a sentence in quotation marks, or a
+      `<details>` block in the reply. A longer quotation that contains that sentence
+      passes. Fail if the reply gives only a paraphrase, a shorter fragment, the file's
+      name or a link to it, or leaves the quotation to the page.
+  - type: not-regex
+    metric: no-link-to-its-own-passage
+    value: \]\(#mark-guidance[\s)]|href=[\"']#mark-guidance[\"']
+variants:
+  earlier-decision:
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, working in a checkout of Leaf on copying a
+        thread message as Markdown. Your page
+        /Users/max/.local/state/leaf/pages/message-copy-markdown puts the work's open
+        questions to the user. Load the Leaf skill if it isn't in your context.
+
+        Leaf's prompt hook has just handed you this complete delivery:
+
+        {"format": "leaf-delivery/46", "id": "a81f2c07", "created_at": 1794814489.3594618, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/message-copy-markdown", "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53", "through_seq": 41, "threads": [{"id": "5c0e91a2", "title": null, "anchor": {"section": "sample-clipboard-decision"}, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."}, "events": [{"text": "when did this come up? did I raise this?", "anchor": {"section": "sample-clipboard-decision"}, "kind": "comment", "revision": 9, "author": "user", "id": "5c0e91a2", "attention": true, "ts": "2026-10-27T22:48:51.102-07:00", "seq": 41, "subject": {"kind": "thread", "id": "5c0e91a2"}, "threads": ["5c0e91a2"], "handling": ["h1", "h2", "h3"], "answer": {"kind": "reply", "parent": "5c0e91a2", "responds": "5c0e91a2", "ref": "a81f2c07:0:5c0e91a2", "writer": "agent"}}]}]}
+
+        The comment is on this section of revision 9:
+
+        ```html
+        <lf-group id="sample-clipboard-decision" label="Should Copy inside a live sample write your clipboard?">
+          <h2 id="sample-clipboard-decision-h">Should Copy inside a live sample write your clipboard?</h2>
+          <p>A live sample's frame delegates no clipboard permission, so a message's Copy
+          inside a sample falls back to selectable text.</p>
+          <lf-options id="sample-clipboard">
+            <lf-option id="sample-clipboard-keep" label="Keep it as it is"><strong>Keep it as it is</strong> Copy in a
+            sample stays selectable text.</lf-option>
+            <lf-option id="sample-clipboard-allow" label="Delegate clipboard-write"><strong>Delegate clipboard-write</strong> Copy
+            works in samples, and so does any sample script's write.</lf-option>
+          </lf-options>
+        </lf-group>
+        ```
+
+        You looked it up. The header of `browser/runtime/sample.js` says, at lines 45-49:
+
+        ```
+         * `_sample_headers`). The frame delegates no permission policy, so the browser refuses
+         * the child's clipboard writes and its copy controls fall back as on any page whose
+         * clipboard refuses. The user chose this on 21 October 2026 over delegating
+         * `clipboard-write`, which would let any script an author puts in a sample write the
+         * user's clipboard on a press. A failed allocation or admission retires the
+        ```
+
+        `git log -S` shows pull request #3579 wrote that sentence. Its source was the user's pick
+        on 21 October on another page, /Users/max/.local/state/leaf/pages/todo-decisions, whose
+        question "Let pages inside live samples copy to the clipboard?" said "Delegating it is
+        one attribute on the frame, but it lets any script an author puts in a sample write your
+        clipboard on a press." The user picked its option "Leave samples without the clipboard:
+        Copy inside a sample keeps falling back to selectable text."
+
+        Nothing in this work changes the reason for that choice, so you shouldn't have asked
+        again. You have saved a page edit that replaces the question in
+        `#sample-clipboard-decision` with a line saying the user's choice stands.
+
+        The page and services are unreachable in this exercise. Write out the commands you
+        would run, with the full text of the reply, then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: quotes-its-source
+        value: |
+          Read only the reply that answers the user's comment: the text given to `leaf thread
+          reply` for it, HTML included. Pass only if it quotes, word for word, at
+          least one whole sentence of the record it relies on, as a quotation the user reads
+          in the thread: the sentence in `sample.js`'s header that begins "The user chose this
+          on 21 October 2026", or the words of the option the user picked, "Leave samples
+          without the clipboard" with its explanation. Fail if it only paraphrases the
+          record, names the file or the pull request, or links to them.
+      - type: not-regex
+        metric: no-link-to-its-own-passage
+        value: \]\(#sample-clipboard-decision[\s)]|href=[\"']#sample-clipboard-decision[\"']
+  page-paragraph:
+    metadata:
+      purpose: A page passage resting on a rule in a doc quotes the rule's words, conditions included.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, working in a checkout of Leaf at
+        ~/workspace/leaf.table-column-widths on pull request #6096, which changes how Leaf's
+        reading theme keeps a code name in a table's row heading whole. Your page
+        /Users/max/.local/state/leaf/pages/table-column-widths explains the change to the
+        user. Load the Leaf skill if it isn't in your context.
+
+        The user asked why an agent writing a table can't just write HTML that keeps its
+        names whole. You found that it can for a row's name, and the page's `#mark` section
+        says so. For a name in any other column an author could write
+        `td:nth-child(2) { white-space: nowrap; }`, which the figure `#mark-author` shows, but
+        Leaf's authoring guidance steers authors away from styling a cell's wrapping. You've
+        decided to leave that guidance as it is, and the page's `#calls` section puts that call
+        to the user as "Authors' instructions stay as they are".
+
+        What you found:
+
+        ```
+        $ sed -n 320,328p skills/leaf/references/page-authoring.md
+        scroll in the box needs `max-width: none`. For a box that scrolls vertically, see
+        `page-layout.md`, "Bounds and widths".
+
+        Leaf fits an image or SVG to its container on every page. On a page that wears the
+        reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
+        also scrolls a `<pre>` wider than its container, and a table's columns size to their
+        content, so leave its cells' widths and wrapping to Leaf too. A `<pre>` asks its
+        container for no width, so a box that takes its width from its content can leave it
+        ```
+
+        `git log -S` shows pull request #4110 wrote that wording on 25 October, after an
+        author's `white-space: nowrap`, written for cells of issue numbers and reused on a
+        column of prose, held that column 559px wide and left the status beside it a word to
+        the line. Of the 182 pages with a table then, 23 styled their cells' widths or
+        wrapping. A row heading is different because the theme caps what it keeps whole, and
+        an author's `nowrap` has no cap.
+
+        This is the section up to the figure:
+
+        ```html
+        <section id="mark">
+          <h2>The author already says which cell names the row</h2>
+          <p id="mark-body">
+            The agent that wrote your table wrote each key as
+            <code>&lt;th scope="row"&gt;</code>, HTML's element for a row's name. Leaf's
+            instructions have asked for that since 25 October, and authors follow it: in
+            pages begun since, 659 of the 663 rows that open on a code name are written
+            that way, up from 41 of 207 before. So the Key column needs no logic of
+            Leaf's. A rule on that element keeps its name whole, and the server's mark was
+            reading each cell's text to learn what the author had already said.
+          </p>
+          <p id="mark-other">
+            That leaves a name in any other column, such as Declared by: 307 of the 970
+            names in those pages. HTML has no element for it, so it breaks as before, in
+            every browser. Chrome draws <code>lf-options</code> on two lines there today.
+            Its author can keep it whole with one line of CSS, and your table then draws
+            exactly as it did with the mark.
+          </p>
+          <figure id="mark-author">
+            <figcaption>
+              With <code>white-space: nowrap</code> from the author on Declared by
+            </figcaption>
+            <img src="/media/cdfddc6fdc6180cb.png" width="352" height="244"
+              alt="The same table with lf-options and lf-ask each on one line in Declared by, and the heading Declared by on one line." />
+          </figure>
+        ```
+
+        Write the HTML that follows the figure, `#mark-guidance`: what Leaf's instructions say
+        about that line and why you're leaving them as they are. Reply with that HTML and
+        nothing else of the page.
+    assert:
+      - type: llm-rubric
+        metric: quotes-its-source
+        value: |
+          Read the HTML the answer gives for what follows the figure. Pass only if it shows the
+          guidance's own words, word for word and at least as the whole sentence that ends "so
+          leave its cells' widths and wrapping to Leaf too", where the user reads the page:
+          in the paragraph, a `<blockquote>`, or a `<details>` beside it. A longer quotation
+          that contains that sentence passes. Fail if it paraphrases the guidance, quotes a
+          shorter fragment, or only names or links the file or the pull request.
+  result-elsewhere:
+    metadata:
+      purpose: A reply whose result shows in another section links that section, and leaves the captures on the page.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, working in a checkout of Leaf at
+        ~/workspace/leaf.table-column-widths on pull request #6096, which changes how Leaf's
+        reading theme keeps a code name in a table's row heading whole. Your page
+        /Users/max/.local/state/leaf/pages/table-column-widths explains the change to the
+        user. Load the Leaf skill if it isn't in your context.
+
+        Leaf's prompt hook has just handed you this complete delivery:
+
+        {"format": "leaf-delivery/46", "id": "4be02c19", "created_at": 1794814489.3594618, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/table-column-widths", "claim": "d52b0343-abcc-4f1b-97ba-812d07f64a40", "through_seq": 79, "threads": [{"id": "9d3e7b10", "title": null, "anchor": {"section": "mark-cost", "quote": "3 keep a short name broken there in Firefox", "prefix": "s that have row headings, ", "suffix": ", and the mark left none."}, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."}, "events": [{"text": "which 3? show me", "anchor": {"section": "mark-cost", "quote": "3 keep a short name broken there in Firefox", "prefix": "s that have row headings, ", "suffix": ", and the mark left none."}, "kind": "comment", "revision": 17, "author": "user", "id": "9d3e7b10", "attention": true, "ts": "2026-11-15T23:36:12.415-08:00", "seq": 79, "subject": {"kind": "thread", "id": "9d3e7b10"}, "threads": ["9d3e7b10"], "handling": ["h1", "h2", "h3"], "answer": {"kind": "reply", "parent": "9d3e7b10", "responds": "9d3e7b10", "ref": "4be02c19:0:9d3e7b10", "writer": "agent"}}]}]}
+
+        This is the section the comment is in, as revision 17 has it:
+
+        ```html
+        <section id="mark">
+          <h2>The author already says which cell names the row</h2>
+          <p id="mark-body">
+            The agent that wrote your table wrote each key as
+            <code>&lt;th scope="row"&gt;</code>, HTML's element for a row's name. Leaf's
+            instructions have asked for that since 25 October, and authors follow it: in
+            pages begun since, 659 of the 663 rows that open on a code name are written
+            that way, up from 41 of 207 before. So the Key column needs no logic of
+            Leaf's. A rule on that element keeps its name whole, and the server's mark was
+            reading each cell's text to learn what the author had already said.
+          </p>
+          <p id="mark-other">
+            That leaves a name in any other column, such as Declared by: 307 of the 970
+            names in those pages. HTML has no element for it, so it breaks as before, in
+            every browser. Chrome draws <code>lf-options</code> on two lines there today.
+            Its author can keep it whole with one line of CSS, and your table then draws
+            exactly as it did with the mark.
+          </p>
+          <figure id="mark-author">
+            <figcaption>
+              With <code>white-space: nowrap</code> from the author on Declared by
+            </figcaption>
+            <img src="/media/cdfddc6fdc6180cb.png" width="352" height="244"
+              alt="The same table with lf-options and lf-ask each on one line in Declared by, and the heading Declared by on one line." />
+          </figure>
+          <p id="mark-guidance">
+            Leaf's instructions tell authors not to write that line, and I'm leaving them
+            as they are. The wording dates from
+            <a href="https://github.com/max-sixty/leaf/pull/4110">25 October</a>, when an
+            author's <code>white-space: nowrap</code>, written for cells of issue numbers
+            and reused on a column of prose, held that column 559px wide and left the
+            status beside it a word to the line. Of the 182 pages with a table then, 23
+            styled their cells' widths or wrapping. A row heading is different because the
+            theme caps what it keeps whole, and an author's line has no cap.
+          </p>
+          <p id="mark-cost">
+            So a name outside a row heading is the one place where neither the author nor
+            Leaf acts. Of the 213 tables that have row headings, 3 keep a short name
+            broken there in Firefox, and the mark left none. A rule in CSS that guesses
+            those columns from structure does worse than leaving them: it pushed a column
+            off <a href="/media/c2f3c4953302e4fb.png">one of your tables</a>, which is
+            <a href="/media/868f2e6a1ac184fc.png">whole without it</a>.
+          </p>
+        </section>
+        ```
+
+        You posted your progress line and did the work. Further down the page, the section
+        `#checked` ("What was checked") now ends with a new figure, `#checked-broken`: a table
+        with a row for each of the three tables, naming its page and holding a Firefox
+        capture of its broken name, registered with `leaf page media`. The page edit is saved.
+
+        The page and services are unreachable in this exercise. Write out the commands you
+        would run, with the full text of the reply and of any page edit, then end your answer.
+    assert:
+      - type: regex
+        metric: links-the-result
+        value: \]\(#checked(-broken)?[\s)]

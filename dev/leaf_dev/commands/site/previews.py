@@ -8,7 +8,7 @@ assets, whose catalog then names the new stills (`leaf_dev.docs`), then publishe
 asset commit and moves Leaf's exact pin. Host pages are not part of the captured
 scene.
 
-    uv run leaf-dev site previews    (or `wt refresh-previews`)
+    uv run leaf-dev site previews
 """
 
 import io

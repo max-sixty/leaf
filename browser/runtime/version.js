@@ -37,8 +37,9 @@
  * or change a selected passage/comment's complete authored anchor scope. Runtime
  * chrome stays outside the authored patch and follows its own editor continuation.
  * Unresolved delivery and an open version menu defer either install.
- * Ending composition releases its hold on the next heartbeat; pressing the newest-version
- * chip explicitly releases that hold. The chip remains available while activation waits.
+ * Ending composition releases its hold on the next heartbeat; Open latest, which the
+ * floating panel's field offers at its end while it says the page is an older version,
+ * and the leaf's menu's row for the latest, explicitly release that hold.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
  * contract, and the obligation view restores the selected obligation by id. Both installs restore these
@@ -218,8 +219,8 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // onto those same two elements. Most arrive after this module, but the server's prepaint
 // bootstrap deliberately runs before the module graph and has already written sample
 // presentation facts. Authored markup cannot use the `data-lf-` or `lf-` namespaces,
-// but for the kernel idioms' classes, which a page writes on a control or a scroll box
-// and never on a root, so that boundary identifies the authored share without mistaking
+// but for the kernel idioms' classes, which a page writes on a scroll box and never on
+// a root, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 /** @param {Element} root */
@@ -353,18 +354,18 @@ const stamped = (version) =>
 export const revisionBase = ({ revision, version, url }) =>
   Object.freeze({ revision, url, name: `v${version}` });
 // The version picker: a press that says which version this is, and a menu that says
-// what each one was and what it changed. It was a <select>, and the two things that
-// cost were both the control's rather than the styling's. A select takes its inner
-// height from Chrome's own metrics and refuses line-height, so it could never stand
+// what each one was and what it changed. Rejected: a <select>, whose two costs are
+// both the control's rather than the styling's. A select takes its inner
+// height from Chrome's own metrics and refuses line-height, so it can never stand
 // level with the buttons beside it; and its closed label is its selected option's whole
-// text, so the note had to be in both places or neither — 190px of bar, the widest
-// control on the row, for about nine characters of a note that then ellipsized. A press
+// text, so the note has to be in both places or neither, which makes it the widest
+// control on the row for a note it then cuts short. A press
 // states the version alone, and the menu is the only place the notes are, where a row
 // can wrap and carry one whole.
 //
-// The diff was a second press beside it, and everything the two shared was in the
-// menu already. It named the previous version because a control with one label can
-// offer one base, and the previous version is the least useful of them on a page that
+// Rejected: the diff as a second press beside it, since everything the two share is in
+// the menu already. A control with one label can offer one base, such as the previous
+// version, and the previous version is the least useful of them on a page that
 // ships a version whenever the work moves: what the user wants marked is what has
 // changed since they last looked, which is as far back as they were away. The base is
 // the menu's to say, so every version older than this one offers itself as one.
@@ -392,8 +393,8 @@ const versionCount = () => runtime.versions.length + draftRevisions().size;
 const versionsOffered = () => versionCount() > 0;
 const behindCurrent = () =>
   runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
-// Which version a page behind the latest shows, in the few words a notice beside the
-// floating panel's marks has room for: the version and the latest one's number, as in
+// Which version a page behind the latest shows, in the few words the floating panel's
+// field says before the status: the version and the latest one's number, as in
 // "v2 of 3", or a draft the agent has since revised.
 /** @param {NonNullable<typeof runtime.active>} active */
 const shownBehind = (active) =>
@@ -448,40 +449,17 @@ function menuRows(state, notes, active) {
 /** @param {import("../types/contract.js").ServedState | null} state */
 function pickerModel(state) {
   const active = runtime.active;
-  const base = diffOn.value ? diffBase.value : null;
   const offered = state !== null && versionsOffered();
   const behind = active !== null && behindCurrent();
   const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
-  const currentLabel = runtime.currentLabel ?? "Draft";
-  const newer = behind ? `; ${active.label} available` : "";
   return Object.freeze({
-    picker: Object.freeze({
-      offered,
-      token: currentVersionToken(),
-      compared: diffOn.value || diffPendingBase.value !== null,
-      news: behind,
-      keyTitle: offered
-        ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading a comparison with ${diffPendingBase.value.name}${newer}`
-          : base
-            ? `${currentLabel}: showing what changed since ${base.name} — pick a version, or press Compare again to stop${newer}`
-            : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
-        : currentLabel,
-      ariaLabel: offered
-        ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading comparison with ${diffPendingBase.value.name}; open versions${newer}`
-          : base
-            ? `${currentLabel}: comparing with ${base.name}; open versions${newer}`
-            : `${currentLabel}: open versions${newer}`
-        : currentLabel,
-    }),
+    picker: Object.freeze({ offered, token: currentVersionToken() }),
     latest: Object.freeze({
       // The agent's latest save failed its check, so the page shows the last one that
       // passed; `error` is what the check said.
       failed: sourceFailed,
       error: state && sourceFailed ? state.source_error : null,
       disabled: sourceFailed,
-      keyTitle: state && sourceFailed ? state.source_error : "Open the current page",
       label: latestVersionLabel({
         failed: sourceFailed,
         activeLabel: behind ? active.label : null,
@@ -498,10 +476,7 @@ function pickerModel(state) {
       base:
         (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ??
         null,
-      currentRevision: runtime.currentRevision,
       on: diffOn.value,
-      pendingBase: diffPendingBase.value,
-      baseRevision: diffBase.value?.revision ?? null,
     }),
   });
 }
@@ -568,26 +543,24 @@ const diffBlockSel = () =>
   [
     TEXT_BLOCK,
     "aside",
-    ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
-    // Preserving widgets contribute their own prose. The leaf-blocks-only rule
-    // below avoids counting nested blocks twice. One set among the words around it
-    // (x-inline), such as a gloss, is part of its paragraph's words instead, or that
-    // rule would skip the paragraph and miss a change to the words around it. A
+    ...tagsDeclaring((e) => e.owners && (e.content ?? "markup") === "markup"),
+    // Preserving widgets contribute their own prose. The leaf-blocks-only rule below
+    // avoids counting nested blocks twice. One set among the words around it
+    // (`inline`), such as a gloss, is part of its paragraph's words instead, or
+    // that rule would skip the paragraph and miss a change to the words around it. A
     // suggestion's slots stay blocks: the decision retiring one makes the suggestion
     // opaque, and its paragraph's words would run across it.
-    ...tagsDeclaring((e) => !e["x-inline"] && e["x-verbatim"]),
+    ...tagsDeclaring((e) => !e.inline && e.verbatim),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two
 // versions of one passage and is already its own mark. Plus svg, drawn by either.
 const diffOpaqueSel = () =>
   [
-    ...tagsDeclaring(
-      (e, tag) => upgrades(tag) && !e["x-verbatim"] && e["x-content"] === "data",
-    ),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && e.content === "data"),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e, tag) => upgrades(tag) && e["x-data"]),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && e.inputs),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
@@ -679,17 +652,7 @@ function diffBlocks(root) {
     if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
     if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
       continue; // leaf blocks only, excluding opaque children on both sides
-    let key = comparisonWords(b, opaque);
-    // An x-says value is the page's words at the element's edge (renderSaid), so it
-    // belongs to what this block says: folded into the key at its declared edge, a
-    // version that moves a metric's number or an event's time marks though no prose
-    // changed. Both sources hold the attribute, so the key reads it on both sides.
-    for (const [attr, edge] of Object.entries(
-      registry[b.localName]?.["x-says"] ?? {},
-    )) {
-      const said = b.getAttribute(attr);
-      if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
-    }
+    const key = comparisonWords(b, opaque);
     if (key) pairs.push([b, key]);
   }
   // Opaque widgets key by identity, not body, since the user reads their module's
@@ -702,7 +665,7 @@ function diffBlocks(root) {
     // opaque to comparison.
     /** @type {Set<string>} */
     const bindingAttrs = new Set();
-    for (const input of Object.values(entry["x-data"] ?? {})) {
+    for (const input of Object.values(entry.inputs ?? {})) {
       if (input.source) bindingAttrs.add(input.source);
       if (input.reference) bindingAttrs.add(input.reference);
     }
@@ -1051,7 +1014,7 @@ function changedSince(base, current = currentSource()) {
   };
 }
 // The view a block stands in, which shows and hides as one: the nearest `details`
-// holding it, member of a widget's declared views (`x-views`), such as a tab, or
+// holding it, member of a widget's declared views (`views`), such as a tab, or
 // element a disclosure control names (ARIA's `aria-expanded` with `aria-controls`),
 // such as a settled options group's options, which share their one control's view.
 // Each is structure, so a change's extent doesn't depend on which views were open when
@@ -1060,7 +1023,7 @@ function changedSince(base, current = currentSource()) {
 function viewOf(block, controls) {
   for (let at = /** @type {Element | null} */ (block); at; at = at.parentElement) {
     if (at.localName === "details") return at;
-    const members = registry[at.parentElement?.localName ?? ""]?.["x-views"]?.members;
+    const members = registry[at.parentElement?.localName ?? ""]?.views?.members;
     if (members && at.matches(members)) return at;
     const control = at.id ? controls.get(at.id) : undefined;
     if (control) return control;
@@ -1313,9 +1276,9 @@ function commitDiff({ marked, paired, words, changes }) {
 // The change's card (margin-bars.js draws it) answers what a change replaced without
 // travel to the other version and back, and without moving the page under the reader:
 // it stands over the change, in the chrome, and reads text from the two sources taken
-// at the comparison (`diffWordsOf`, a change's `removed`). The user chose it on 3
-// November over splicing the old words into the live blocks, which moved the text under
-// a press and could not show a block the hunk took out, and over two columns.
+// at the comparison (`diffWordsOf`, a change's `removed`). The user chose it
+// over splicing the old words into the live blocks, which moves the text under
+// a press and cannot show a block the hunk took out, and over two columns.
 
 // A marked block's two readings, where its live words are its source's: a block a module
 // writes into shows what the page shows and compares nothing.
@@ -1853,7 +1816,7 @@ export function createVersionController({
   ) => unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
   /** @param {Element} before @param {Element} after @param {string | null} arrivingRoot */
   function sameAuthoredMarkup(before, after, arrivingRoot) {
-    if (before.isEqualNode(after)) return true;
+    if (before.isEqualNode(after) && sameTemplates(before, after)) return true;
     const strip = (
       /** @type {Element} */ element,
       /** @type {string | null} */ root,
@@ -1868,23 +1831,57 @@ export function createVersionController({
       }
       return copy;
     };
-    return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
+    const held = strip(before, authoredRoot);
+    const arriving = strip(after, arrivingRoot);
+    return held.isEqualNode(arriving) && sameTemplates(held, arriving);
+  }
+  // A <template>'s markup is its content, which isn't among its children, so
+  // isEqualNode passes two templates whose content differs, and a revision that
+  // rewrites only that content would leave the page holding the old one.
+  /** @param {Element | DocumentFragment} before @param {Element | DocumentFragment} after @returns {boolean} */
+  function sameTemplates(before, after) {
+    /** @param {Element | DocumentFragment} node */
+    const templates = (node) =>
+      [node, ...node.querySelectorAll("template")].filter(
+        (each) => each instanceof HTMLTemplateElement,
+      );
+    const held = templates(before);
+    const arriving = templates(after);
+    return (
+      held.length === arriving.length &&
+      held.every((template, at) => {
+        const other = /** @type {HTMLTemplateElement} */ (arriving[at]);
+        return (
+          template.content.isEqualNode(other.content) &&
+          sameTemplates(template.content, other.content)
+        );
+      })
+    );
   }
   // A widget's module says how a revision reaches it, as its class's static `lfPatch`
   // (module-authoring.md, "Revisions"). The module of every widget standing in the
   // page has run by the time a patch asks: startup awaits each import before the state
   // feed starts, and an activation awaits the arriving revision's (`prepareActivation`).
   // A `members` container retains authored markup while the inputs its renderer
-  // consumes stay the same. A structured member list, or a declared x-views list,
-  // consumes its direct members' identities and attributes. A markup container
+  // consumes stay the same. A structured member list, or a declared `views` list,
+  // consumes its direct members' identities and attributes, and the face a member
+  // opens with: a leading <template>, whose markup the list draws in place of the
+  // member's label (lf-tabs.js). A template's markup is its content, which isn't
+  // among its children, so the shell carries that content. A markup container
   // without views consumes only its own attributes: the patch owns its evidence,
   // including native attributes. A widget that draws its content itself
-  // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
+  // (`content` `data` or `empty`) reads the text a revision would edit, so a
   // revision that changes it replaces it whatever its class declares.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
     if (members)
-      for (const child of element.childNodes) copy.append(child.cloneNode(false));
+      for (const child of element.childNodes) {
+        const face = child instanceof Element ? child.firstElementChild : null;
+        const member = child.cloneNode(false);
+        if (face instanceof HTMLTemplateElement && member instanceof Element)
+          member.append(face.content.cloneNode(true));
+        copy.append(member);
+      }
     return copy;
   };
   const reachesMembers = (
@@ -1893,14 +1890,14 @@ export function createVersionController({
     /** @type {string | null} */ arrivingRoot,
   ) => {
     const entry = registry[before.localName];
-    const content = entry?.["x-content"];
+    const content = entry?.content;
     if (
       !entry ||
       customElements.get(before.localName)?.lfPatch !== "members" ||
       (content !== "members" && content !== "markup")
     )
       return false;
-    const members = content === "members" || entry["x-views"] !== undefined;
+    const members = content === "members" || entry.views !== undefined;
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1923,8 +1920,8 @@ export function createVersionController({
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
       // `main` holds nearly all of a page's content, so a page module that moves or
-      // replaces one of its children is patched around, as it was when `main` was the
-      // patch root, rather than rebuilding the page beneath the user.
+      // replaces one of its children is patched around rather than rebuilding the page
+      // beneath the user.
       traversed: (element) =>
         element.localName === "main" && element.parentElement === pageDocument(),
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
@@ -2131,7 +2128,7 @@ export function createVersionController({
     for (const [id, value] of sourceAuthored) nextAuthored.set(id, value);
     // The incoming source owns page order. Retained controllers keep the descriptor
     // identity captured with their live node; new or rewritten nodes use the incoming
-    // source's capture. Frozen thread documents follow the page in log order.
+    // source's capture. Thread documents follow the page in log order.
     const descriptors = new Map();
     for (const [id, incoming] of sourceDescriptors.descriptors)
       descriptors.set(

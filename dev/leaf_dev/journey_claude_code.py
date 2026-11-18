@@ -194,15 +194,17 @@ DEFERRING_TURN = USER_TURN.replace(
 def claude_code_environment(place: Isolation, **extra: str) -> dict[str, str]:
     """The environment of an interactive Claude Code session in `place`, `extra`
     added: a home holding only the host's login (`arms.claude_home`), whose own
-    record says onboarding is done and trusts the session's cwd, so the session
-    opens at its prompt."""
+    record says onboarding is done and trusts the session's cwd and the plugin it
+    adds (`--add-dir`), which Claude Code 2.1.326 asks about before the prompt, so
+    the session opens at its prompt."""
     home = claude_home(place.root / "home")
+    trusted = {"hasTrustDialogAccepted": True}
     (home / ".claude.json").write_text(
         json.dumps(
             {
                 "hasCompletedOnboarding": True,
                 "theme": "dark",
-                "projects": {str(place.work): {"hasTrustDialogAccepted": True}},
+                "projects": {str(place.work): trusted, str(place.payload): trusted},
             }
         )
     )

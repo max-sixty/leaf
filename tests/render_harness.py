@@ -5,17 +5,16 @@ downstream of that (a widget's upgrade, the theme's CSS, the runtime's injected
 chrome) meets for the first time in the browser, and the failures that live
 there are invisible to a linter. This suite drives the shipped examples and
 developer feature gallery through Playwright's pinned Chromium headless shell and
-asserts the handful of things that were each, at some point, wrong:
+asserts such failures as:
 
-  - a widget that upgrades into a box of no size (lf-tabs marked itself with a
-    class the runtime's chrome had already claimed for its visually-hidden live
-    region, so every tabbed page rendered blank below the lede);
+  - a widget that upgrades into a box of no size, as one does that marks itself
+    with a class the runtime's chrome claims for its visually-hidden live region;
   - the document and the thread panel scrolling in one region, which stacks two
     scrollbars in the same few pixels at the window's right edge;
-  - a text box sized by script, which had to shrink itself to re-measure and so
-    flashed a scrollbar on every keystroke;
+  - a text box sized by script that shrinks itself to re-measure, and so flashes a
+    scrollbar on every keystroke;
   - the passage under the open composer going unmarked, because focusing the box
-    drops the browser's own selection and nothing drew it back.
+    drops the browser's own selection and nothing draws it back.
 
 One journey test walks the loop the product is — select a passage, comment on
 it, drag a card, follow the next version, and find the comment still anchored —
@@ -87,6 +86,7 @@ from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.findings import Finding, placed
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
@@ -293,13 +293,13 @@ INLINE_PAGE = leaf_page(
     "inline",
     """
 <h1 id="t">Inline</h1>
-<lf-ask id="opts-decision"><h2>How should sessions work?</h2>
-<lf-options id="opts" choose>
-  <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-options id="opts">
+  <lf-option id="opt-a" label="Keep the store"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
-  <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
+  <lf-option id="opt-b" label="Signed tokens"><strong>Signed tokens</strong> No store at all, until revocation
   quietly puts one back.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 <p id="p">A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,
 so that a selection across the middle of it lands in more than one text node.</p>
 <p id="p2">A neighbouring block, so a selection reaching across the boundary between
@@ -329,34 +329,37 @@ SETTLED_PAGE = leaf_page(
     """
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
-<lf-ask id="transport-decision"><h2>How should sessions travel?</h2>
-<lf-options id="transport" choose settled>
-  <lf-option id="opt-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
+<section id="transport-decision"><h2>How should sessions travel?</h2>
+<lf-options id="transport" settled>
+  <lf-option id="opt-lax" label="Lax cookie" selected><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
-  <lf-option id="opt-strict"><strong>Strict cookie</strong> Tighter, but a session
+  <lf-option id="opt-strict" label="Strict cookie"><strong>Strict cookie</strong> Tighter, but a session
   started from an emailed link arrives logged out.</lf-option>
-  <lf-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
+  <lf-option id="opt-bearer" label="Bearer header"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 )
 
 
-# A decision the page reports rather than offers: no `choose`, so there is nothing to
-# press, and the mark the upgrade puts on the carried option is the page saying which
-# one the document holds. The paragraph above it is the control — a passage nobody has
-# ever doubted was quotable.
-CARRIED_PAGE = leaf_page(
-    "carried",
-    """
-<h1 id="h">Session transport</h1>
-<p id="lede">Where the decision stands, for the record.</p>
+# A decision the page reports rather than offers: quoted in a sample, so there is
+# nothing to press, and the mark the upgrade puts on the carried option is the page
+# saying which one the document holds. The paragraph above it is the control — a
+# passage nobody has ever doubted was quotable.
+CARRIED_DECISION = """<lf-sample id="carried-record" label="the decision on record">
 <lf-options id="carried">
-  <lf-option id="c-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
+  <lf-option id="c-lax" label="Lax cookie" selected><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
-  <lf-option id="c-bearer"><strong>Bearer header</strong> Suits the mobile client;
+  <lf-option id="c-bearer" label="Bearer header"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options>
+</lf-sample>"""
+CARRIED_PAGE = leaf_page(
+    "carried",
+    f"""
+<h1 id="h">Session transport</h1>
+<p id="lede">Where the decision stands, for the record.</p>
+{CARRIED_DECISION}
 """,
 )
 
@@ -373,10 +376,10 @@ SAID_PAGE = leaf_page(
 </div>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">
-    <lf-card id="c-importer"><strong>Wire the importer</strong> Half done.</lf-card>
+    <lf-card id="c-importer" label="Wire the importer"><strong>Wire the importer</strong> Half done.</lf-card>
   </lf-column>
   <lf-column id="col-next" label="Queued">
-    <lf-card id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</lf-card>
+    <lf-card id="c-backfill" label="Backfill the index"><strong>Backfill the index</strong> Waiting on the importer.</lf-card>
   </lf-column>
 </lf-board>
 """,
@@ -392,8 +395,8 @@ BOARD_PAGE = leaf_page(
 <h1 id="h">Sprint</h1>
 <lf-board id="sprint">
   <lf-column id="col-todo" label="Todo">
-    <lf-card id="card-heater"><strong>Heated perch</strong></lf-card>
-    <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
+    <lf-card id="card-heater" label="Heated perch"><strong>Heated perch</strong></lf-card>
+    <lf-card id="card-baffle" label="Squirrel baffle"><strong>Squirrel baffle</strong></lf-card>
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
@@ -411,29 +414,29 @@ SAMPLE_PAGE = leaf_page(
     """
 <h1 id="h">What a decision looks like</h1>
 <lf-sample id="spec" label="a decision">
-  <lf-options id="quoted-group" choose>
-    <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
-    <lf-option id="q-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
+  <lf-options id="quoted-group">
+    <lf-option id="q-shim" label="Shim the old schema"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+    <lf-option id="q-stage" label="Migrate in stages" ><strong>Migrate in stages</strong> Table by table.</lf-option>
   </lf-options>
   <lf-board id="quoted-board">
     <lf-column id="q-col" label="Doing">
-      <lf-card id="q-card"><strong>Wire the importer</strong></lf-card>
+      <lf-card id="q-card" label="Wire the importer"><strong>Wire the importer</strong></lf-card>
     </lf-column>
     <lf-column id="q-col-next" label="Next">
-      <lf-card id="q-card-backfill"><strong>Backfill last month</strong></lf-card>
+      <lf-card id="q-card-backfill" label="Backfill last month"><strong>Backfill last month</strong></lf-card>
     </lf-column>
     <lf-column id="q-col-done" label="Done">
-      <lf-card id="q-card-tokens"><strong>Tokenize the palette</strong></lf-card>
+      <lf-card id="q-card-tokens" label="Tokenize the palette"><strong>Tokenize the palette</strong></lf-card>
     </lf-column>
   </lf-board>
-  <lf-options id="quoted-rows" choose>
+  <lf-options id="quoted-rows">
     <lf-option id="q-row-keep">Keep the nightly job</lf-option>
     <lf-option id="q-row-drop">Drop it and poll on demand</lf-option>
   </lf-options>
-  <lf-options id="quoted-settled" choose settled>
-    <lf-option id="q-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
-    <lf-option id="q-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
-    <lf-option id="q-signed" ><strong>Signed token</strong> No store.</lf-option>
+  <lf-options id="quoted-settled" settled>
+    <lf-option id="q-lax" label="Lax cookie" selected><strong>Lax cookie</strong> Host-only.</lf-option>
+    <lf-option id="q-bearer" label="Bearer header"><strong>Bearer header</strong> Suits mobile.</lf-option>
+    <lf-option id="q-signed" label="Signed token" ><strong>Signed token</strong> No store.</lf-option>
   </lf-options>
   <p id="q-prose">Refill rules:
     <lf-suggestion id="quoted-suggestion">
@@ -441,25 +444,25 @@ SAMPLE_PAGE = leaf_page(
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
 </lf-sample>
-<lf-ask id="live-group-decision"><h2>How should the schema migrate?</h2>
-<lf-options id="live-group" choose>
-  <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
-  <lf-option id="l-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="live-rows-decision"><h2>What should happen to the nightly job?</h2>
-<lf-options id="live-rows" choose>
+<lf-group id="live-group-decision" label="How should the schema migrate?"><h2 id="live-group-decision-h">How should the schema migrate?</h2>
+<lf-options id="live-group">
+  <lf-option id="l-shim" label="Shim the old schema"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+  <lf-option id="l-stage" label="Migrate in stages" ><strong>Migrate in stages</strong> Table by table.</lf-option>
+</lf-options></lf-group>
+<lf-group id="live-rows-decision" label="What should happen to the nightly job?"><h2 id="live-rows-decision-h">What should happen to the nightly job?</h2>
+<lf-options id="live-rows">
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="live-settled-decision"><h2>How should sessions travel?</h2>
-<lf-options id="live-settled" choose settled>
-  <lf-option id="l-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
-  <lf-option id="l-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
-  <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
+<section id="live-settled-decision"><h2>How should sessions travel?</h2>
+<lf-options id="live-settled" settled>
+  <lf-option id="l-lax" label="Lax cookie" selected><strong>Lax cookie</strong> Host-only.</lf-option>
+  <lf-option id="l-bearer" label="Bearer header"><strong>Bearer header</strong> Suits mobile.</lf-option>
+  <lf-option id="l-signed" label="Signed token" ><strong>Signed token</strong> No store.</lf-option>
+</lf-options></section>
 <lf-board id="live-board">
   <lf-column id="l-col" label="Doing">
-    <lf-card id="l-card"><strong>Wire the importer</strong></lf-card>
+    <lf-card id="l-card" label="Wire the importer"><strong>Wire the importer</strong></lf-card>
   </lf-column>
 </lf-board>
 <p id="l-prose">Refill rules:
@@ -482,42 +485,41 @@ REPLY_HOST_PAGE = leaf_page(
 )
 
 # Claude answering with a question to put and, beside it, the framing that question
-# replaced — quoted, so the reply asks one thing rather than two. The words ride
-# `text` and the widgets ride `markup`, as `leaf thread reply` writes them.
+# replaced — quoted, so the reply asks one thing rather than two. The words come
+# first and the widgets follow as one block of HTML.
 SAMPLE_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SAMPLE_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migrate?</h3>
-<lf-options id="rp-live" choose>
-  <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
-  <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
+SAMPLE_MARKUP = """<lf-group id="rp-live-decision" label="How should the schema migrate?">
+<h3 id="rp-live-decision-h">How should the schema migrate?</h3>
+<lf-options id="rp-live">
+  <lf-option id="rp-shim" label="Shim the old schema"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+  <lf-option id="rp-stage" label="Migrate in stages" ><strong>Migrate in stages</strong> Table by table.</lf-option>
+</lf-options></lf-group>
 <lf-sample id="rp-spec" label="the April thread">
-  <lf-options id="rp-quoted" choose>
-    <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
-    <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
+  <lf-options id="rp-quoted">
+    <lf-option id="rp-memory" label="App memory"><strong>App memory</strong> Nothing to build.</lf-option>
+    <lf-option id="rp-sticky" label="Sticky sessions"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
   </lf-options>
 </lf-sample>
 """
 
 # Two decisions for a user to take and a later version to honor, carry, or
 # contradict: a pick and a move.
-IMPORTER_CARD = (
-    '<lf-card id="card-importer"><strong>Wire the importer</strong></lf-card>'
-)
+IMPORTER_CARD = '<lf-card id="card-importer" label="Wire the importer"><strong>Wire the importer</strong></lf-card>'
 REPLAYED_PAGE = leaf_page(
     "replayed",
     f"""
 <h1 id="t">Rollout</h1>
-<lf-ask id="approach-decision"><h2>How should the schema migrate?</h2>
-<lf-options id="approach" choose>
-  <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
-  <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
+<lf-group id="approach-decision" label="How should the schema migrate?"><h2 id="approach-decision-h">How should the schema migrate?</h2>
+<lf-options id="approach">
+  <lf-option id="opt-shim" label="Shim the old schema"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+  <lf-option id="opt-stage" label="Migrate in stages"><strong>Migrate in stages</strong> Table by table.</lf-option>
+</lf-options></lf-group>
 <lf-board id="work">
   <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
-  <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
+  <lf-column id="col-done" label="Done"><lf-card id="card-notes" label="Draft the notes"><strong>Draft the notes</strong></lf-card></lf-column>
 </lf-board>
 """,
 )
@@ -735,6 +737,14 @@ def page_registry(page):
     return render_gate_model.served(page, page.url, "/registry.json").json()
 
 
+def page_declarations(page):
+    """The element declarations of this page's registry, which is what the render gate
+    hands every reading that takes declarations (`scheme._render_page`). The registry
+    also describes HTML elements and selectors, such as `button`, which no reading asks
+    after as a widget."""
+    return element_declarations(page_registry(page))
+
+
 def post_event(page, url, **kwargs):
     """An event arriving from another tab running this page's current layer."""
     generation = page_registry(page)["$layer"]["generation"]
@@ -742,14 +752,14 @@ def post_event(page, url, **kwargs):
 
 
 # What the page has sent and how much of it has come back, read off the ledger the
-# runtime paints for exactly this user. The suite once counted the same numbers from
-# outside, on the browser's own request and response events, so that nothing was put
-# inside the thing under test; that watcher was a second representation of the outbox's
-# lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
-# that no event reported, a waiter woken before the listeners that counted, a body read
-# with no deadline. The runtime already states its readiness for this user
-# (`lfReadiness`); delivery is one more fact it states rather than one the harness
-# infers, and nothing is injected to obtain it.
+# runtime paints for exactly this user. Counting the same numbers from outside, on the
+# browser's own request and response events, so that nothing is put inside the thing
+# under test, would make a second representation of the outbox's lifecycle, needing a
+# protocol of its own to keep step — a post a reload killed that no event reported, a
+# waiter woken before the listeners that counted, a body read with no deadline. The
+# runtime already states its readiness for this user (`lfReadiness`); delivery is one
+# more fact it states rather than one the harness infers, and nothing is injected to
+# obtain it.
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
@@ -947,6 +957,24 @@ def long_press(page, point):
     )
 
 
+# Design mode's legend, a box on each item the page names while the mode stands
+# (design.js): the mode as the page shows it.
+DESIGN_LEGEND = ".lf-legend-box"
+# The chrome's root, after `body` (chrome.js), which holds what the runtime states for
+# its own stylesheets, such as the annotation layer hidden (`o`, annotation-layer.js).
+CHROME_ROOT = "html > .lf-chrome"
+
+
+def expect_design_mode(page, on=True):
+    """Wait until Design mode stands, as its legend shows, or with `on` false until it
+    has ended."""
+    legend = page.locator(DESIGN_LEGEND)
+    if on:
+        expect(legend.first).to_be_attached()
+    else:
+        expect(legend).to_have_count(0)
+
+
 def cursor_at(page, x, y):
     """The cursor the user sees at a point of the viewport: the computed cursor of the
     element a press there lands on, through every open shadow tree it crosses, since
@@ -991,10 +1019,11 @@ def held_frames(page):
 
     The page's frame clock, each frame's timestamp and `performance.now()`, stands still
     while held, so a motion a press sets off stands where it started however long the
-    hold lasts. The hold yields `step`, which runs the frames held so far in one real
-    frame, a frame's length (1/60 s) on, so a press after it meets the motion that far
-    along on a fast machine or a slow one. Leaving the hold rejoins real time and runs
-    the frames still held."""
+    hold lasts. The hold yields `step(frames=1)`. Each of its `frames` real frames runs
+    the callbacks held so far with the clock a frame's length (1/60 s) on, so a press
+    after it meets the motion that far along on a fast machine or a slow one, and a
+    reader sampling each frame sees the same frames of the motion on any host. Leaving
+    the hold rejoins real time and runs the frames still held."""
     page.evaluate(
         """() => {
           const frame = requestAnimationFrame.bind(window);
@@ -1027,7 +1056,10 @@ def held_frames(page):
         }"""
     )
     try:
-        yield lambda: page.evaluate("leafStepFrame()")
+        yield lambda frames=1: page.evaluate(
+            "async frames => { for (let i = 0; i < frames; i++) await leafStepFrame(); }",
+            frames,
+        )
     finally:
         page.evaluate("leafReleaseFrames()")
 
@@ -1147,8 +1179,8 @@ def plant_quiet_word(page, selector, holding):
 #
 # So ask the page whether it has caught up with what the server holds: its readiness
 # reading answers that against an `/api/state` answer, and names no transport.
-# Counting answered requests said the same thing only while a fixed interval made them
-# the same thing: the page now asks when its freshness reading says the page has moved, so a
+# Counting answered requests would say the same thing only if a fixed interval made them
+# the same thing: the page asks when its freshness reading says the page has moved, so a
 # count of obligations started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page):
@@ -1181,7 +1213,7 @@ def nudge(page_dir):
 
     The page asks for state when its freshness reading says the page has moved, and the
     reading names file stamps. A test that wants the page's next obligation — to park it, or to
-    watch it refused — used to wait for the poll's timer; now it moves the revisions
+    watch it refused — doesn't wait for the poll's timer; it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
     os.utime(page_dir / "revisions")
@@ -1252,10 +1284,9 @@ def available_commands(page):
     """What the dispatcher would run from the current location now, read once after
     every repaint the input so far queued: `{command id: [keys]}`.
 
-    The bottom key line used to say this as hints; the panel says it nowhere but in a
-    command's effect, so prefer pressing the key and asserting what it did. Read this
-    where the subject is that a command is withheld, such as Undo while a gesture is
-    unaccounted for."""
+    The panel says this nowhere but in a command's effect, so prefer pressing the key
+    and asserting what it did. Read this where the subject is that a command is
+    withheld, such as Undo while a gesture is unaccounted for."""
     rendered(page)
     return page.evaluate(AVAILABLE_COMMANDS)
 
@@ -1411,6 +1442,16 @@ def heard_draft(page, ctx: str, text: str | None) -> None:
     )
 
 
+def heard_draft_settled(page, ctx: str) -> None:
+    """Wait until this tab holds no unsettled words for the draft at `ctx`, including
+    words it is sending, which `heard_draft` can't see: until it has heard another
+    tab's send there settle the generation (`draftHasContent`)."""
+    has = page.evaluate_handle(
+        "async () => (await window.__lfCheckApi()).draftHasContent"
+    )
+    page.wait_for_function("([has, ctx]) => !has(ctx)", arg=[has, ctx])
+
+
 def write_draft_elsewhere(page, ctx: str, text: str) -> str:
     """Write a new generation of the draft at `ctx` to the page's server, as another
     tab or device would, over the one the server holds; return its attempt."""
@@ -1421,7 +1462,7 @@ def write_draft_elsewhere(page, ctx: str, text: str) -> str:
         f"{origin.scheme}://{origin.netloc}/api/draft",
         data={
             "context": ctx,
-            "expect": current["attempt"] if current else None,
+            "expect": [current["attempt"]] if current else [],
             "record": {"attempt": attempt, "text": text},
         },
     )
@@ -1988,10 +2029,27 @@ def panel_field(page):
 def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
     (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
-    Resolve's Next thread, the next On Me item after an answer, or a stance's Close
-    (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
+    Resolve's Next thread, a stance's Close, or the page's own, Open latest or Next On
+    Me (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
     key that makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
+
+
+def latest_press(page):
+    """Open latest, which the panel field's end offers while the page shows an older version
+    than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
+    return field_press(page).filter(has_text="Open latest")
+
+
+def open_latest_by_keys(page):
+    """Open the latest version from Versions by keyboard, the route that stands while
+    the field offers something else at its end, such as commenting on words selected
+    on the page, which the keys leave selected."""
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    panel_settled(page, view="versions")
+    page.keyboard.press("Home")
+    page.keyboard.press("Enter")
 
 
 def panel_settled(page, open=True, view=None):
@@ -2039,7 +2097,7 @@ def fresh_taps():
     back to back near one spot are a double tap wherever the page answers fast
     enough, and the floating panel presses nothing for a run's later press on a
     control its first press drew there (floating-panel.js, `runOfClicks`): a test that
-    tapped the menu open and then the row that opened under the finger passed only on
+    taps the menu open and then the row that opened under the finger would pass only on
     a host slow enough to space them. So each tap through `Locator.tap` or
     `Touchscreen.tap`, the suite's Playwright tap routes, waits until `TAP_RUN_S` has
     passed since the page's previous tap, however far apart they land: Playwright
@@ -2299,7 +2357,7 @@ def expect_error_waits_in_menu(page, message):
     That is where an error waits that the panel's field cannot say (errors.js): one
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
-    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
     panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
     errors = page.locator(panel_view("errors"))
     expect(errors.locator(".lf-fp-error-words b").first).to_have_text(message)
@@ -2545,14 +2603,13 @@ def opened_tab(page, destination, press):
 # unintercepted, and Playwright reports no request for it either. A test holding a
 # gesture's POST then watches the send land and the answer settle the draft while
 # its own counters read nothing — the trip it is waiting for never happened on this
-# side. It is the escape `held_events` was written around, and why that fixture
+# side. It is the escape `held_events` guards against, and why that fixture
 # routes from navigation onward.
 #
 # Interception is not free, though. While any route is set, Playwright pauses every
 # request the page makes until its driver lets it go, and turns Chromium's HTTP cache
-# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). Measured on a plain test
-# page in October 2026, the arm added about 30 ms of CPU to each opening's 550, in the
-# browser process and the driver. Most pages are never routed.
+# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). The arm adds CPU to each
+# opening, in the browser process and the driver. Most pages are never routed.
 #
 # So a page the suite makes arms itself when something first routes it or its
 # context, on a pattern nothing else asks for, ahead of that first route. Before the
@@ -2680,9 +2737,9 @@ class WatchedContext:
 
     Every page here is one this asks for. A page the browser opens by itself — a
     popup, a `target=_blank` — arrives on the context's `page` event instead, and
-    that is not a place these readings can be installed from: measured, a
-    `page.route` inside that handler leaves the `add_init_script` after it without
-    effect and says nothing, which is a page whose listeners are installed and whose
+    that is not a place these readings can be installed from: a `page.route` inside
+    that handler can leave the `add_init_script` after it without effect and say
+    nothing, which is a page whose listeners are installed and whose
     init scripts are missing. `opened_tab` is how the suite meets a tab Chromium
     opened.
     """
@@ -2800,7 +2857,7 @@ def one_user(browser):
     """A browser context two pages can share, which is what makes them tabs.
 
     `Browser.new_page` opens each page in a context of its own, so two of them are two
-    users with no storage between them — and a draft lives in the user's store now,
+    users with no storage between them — and a draft lives in the user's store,
     which is the whole of what these tests are about."""
     return browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
@@ -3307,8 +3364,7 @@ def hold_selection(page, start, end, steps=8, frame_the_press=False):
     lands, and `getSelection()` comes back empty. It reads as the widget under the
     pointer refusing the gesture, and it is neither that nor Playwright's
     interpolation — plain prose in a bare document does it, and ten separate moves do
-    it identically. Sixty start points along one line came back empty at exactly the
-    points where the two disagree, and correct at every other.
+    it identically.
 
     So the press is floored. Where the two agree, which is everywhere a drag works at
     all, that changes nothing; where they disagree it is the whole of the fix. The end

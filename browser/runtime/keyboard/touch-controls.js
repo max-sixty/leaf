@@ -50,8 +50,8 @@ function place(press) {
     // Undo's does, follows the page's clock (presence.js, `clockValue`) rather than
     // standing as the repaint frame last read it. The row previews no description: its
     // words say what pressing it does, and the command reference explains the command.
-    // The user chose that on 15 November 2026, after the rows for Select mode and Design
-    // mode explained the mode over the page on every hover.
+    // The user chose that over the rows for Select mode and Design
+    // mode explaining the mode over the page on every hover.
     value: () => (face() ? (word(record.press.row.touchValue) ?? "") : ""),
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).

@@ -7,8 +7,9 @@ directly:
   ([events.md, "Admission"](events.md#admission));
 - a page's authored source at `check_source` (`validation/source.py`), which `page
 check`, activation, `page stamp` and `page init` all run ("Static validation");
-- message markup an agent hands in at `admission.check_markup`, which applies the same
-  structure and vocabulary checks to an HTML fragment;
+- the HTML in an agent's message at `admission.check_markup`, which applies the same
+  structure and vocabulary checks to the markup the message draws
+  (`passages.message_markup`);
 - a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
   `page init`, `page check`, serving and export, but not reading the page
   ([layer-registry.md](layer-registry.md));
@@ -32,9 +33,9 @@ them:
   them at the start of `<head>`, so source may not author them. Message markup may not
   author the last three either, since it renders in every revision.
 - The runtime's `lf-` and `data-lf-` namespaces are reserved, for names it uses now
-  and later, but for the classes the kernel's idioms name (`lf-btn`, `lf-choice` and
-  the others `structure.AUTHORED_CLASSES` reads), which a page writes to take Leaf's
-  face. No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
+  and later, but for the classes the kernel's idioms name
+  (`structure.AUTHORED_CLASSES`), which a page writes to take what the idiom offers.
+  No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
   command's ID names a widget or a message in one address space.
 - Historical references never veto a revision: wording, placement, subjects and
   vocabulary may all change. The check reports the threads that move (events.md,
@@ -62,7 +63,7 @@ A reference to a thread, such as a widget's `resolves`, is checked against the t
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
 comment the log lost. A live sample template's child is checked as a page against its
 initial history wherever the template is declared, in the page or in a message's
-frozen markup (`validation.source.sample_errors`; `sample_content.py` builds that
+markup (`validation.source.sample_errors`; `sample_content.py` builds that
 history). A `data-sample-threads` thread the parent's log does not hold yet leaves the
 child without it, so a first version may name threads whose seed log is unwritten.
 Corpus generation composes from the shipped log, so there a missing thread is a
@@ -122,9 +123,11 @@ the one implementation the command and the `tests/*/test_render_*.py` modules ca
 over the shipped examples, and `_render_version_attempt`'s docstring lists what it
 reads. Its desktop is the window of the browser that last reported viewing the page,
 or a fixed laptop window (`render_gate.command.desktop_viewport`), and the sweep and
-screens use that window's height.
-The suite uses Chromium's headless shell; the end-to-end render-check tests cover the
-launches the command uses.
+screens use that window's height. It draws in that browser's engine where the host has
+it, Firefox, and in Chromium otherwise (`render_gate.command.user_engine`).
+The suite uses Chromium's headless shell, and for the Firefox launch, Playwright's own
+Firefox driven as an installed one; the end-to-end render-check tests cover the launches
+the command uses.
 
 The page's server runs the same check on a version the agent hands over, and tells the
 agent what is new in a `render` event (`render_gate/handover_pass.py`).
@@ -153,26 +156,26 @@ written for.
 
 The browser resolves an anchor and records it in the log, so `leaf thread create` reads
 the active revision's file the way the anchor pass reads the DOM. `passages.py`'s
-header comment owns that reading: what the registry's `x-says`, `x-verbatim` and
-`x-retired-when` contribute, and where a fence stops a quote. Both runtimes take
+header comment owns that reading: what the registry's `verbatim` and `retired-when`
+contribute, and where a fence stops a quote. Both runtimes take
 whitespace collapse from the kernel's `$passages`.
 
 A quote never spans a fence, so a passage the file cannot read is refused when the
 comment is written rather than detaching later in the user's browser; anchor on the
 widget's element (`--section`) instead. A file-side quote must also be unique in its
 declared section, and widget source, retired text and repeated passages are refused.
-Direct members declared by `x-owners` with `x-content: markup` retain their own prose
+Direct members declared by `owners` with `content: markup` retain their own prose
 reading inside a data widget; the rest of its source body remains withheld. A widget
 preserves those authored member nodes independently of its source rendering.
 Runtime anchors were resolved against rendered words, so admission does not recapture
 them.
 
-The render gate holds each `x-verbatim` owner to the file reading
+The render gate holds each `verbatim` owner to the file reading
 (`readings._verbatim_findings`). It pairs each owner with its source by document-order
 occurrence, so no authored id is needed, and compares the rendered words with the
 passage a user can point at: user body rewrites in force replace authored words,
 retired slots contribute none, and declared generated children join their owner. Page
-markup is read at the rendered revision, and frozen thread markup over its thread's
+markup is read at the rendered revision, and thread markup over its thread's
 whole action window.
 
 ## Parsed source
@@ -186,6 +189,6 @@ question asked.
 Immutable inputs are read once for as long as the process keeps the page's memory
 (`page_memory`): a stored revision through `revision_artifact.read_revision`, a
 candidate through the one `SourceReading` its check takes, which the revision it
-activates adopts, and each logged markup fragment through
+activates adopts, and each logged wording's markup through
 `thread_context.logged_fragment`. Markup a writer hands in is parsed afresh at its
 gate.

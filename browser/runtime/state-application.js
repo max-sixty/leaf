@@ -30,7 +30,6 @@ import {
   prepareAuthoredMessage,
   messageText,
 } from "./thread/messages.js";
-import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
   combineSemanticNews,
   currentSemanticNews,
@@ -207,8 +206,6 @@ export function createStateApplication({
         descriptors,
         messageBodies: bodies,
       };
-      for (const { prepared } of preparedMessages)
-        if (prepared) commitWidgetDescriptors(prepared.descriptors);
       // The user's place across the change this reading brings, kept once the page
       // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
       // own landing instead (version.js).
@@ -218,7 +215,6 @@ export function createStateApplication({
         return;
       }
       islands.commit();
-      commitWidgetDescriptors({ bindings: [] }, islands.retired);
       observeServerNow(state.now);
       observeWorkingGrace(state.working_grace_ms);
       stateApplying = true;

@@ -4,25 +4,26 @@
    authored owner, its declared ancestors, and exhibit fence while the revision's
    markup is still intact. Later physical reparenting is layout;
    semantic commands keep using this captured document coordinate. A data renderer may
-   replace a widget node while preserving its authored id; that replacement reuses the
-   same revision-bound descriptor.
+   replace a widget node while preserving its authored id; that replacement takes the
+   descriptor the adopted reading holds under the id.
 
-   The binding also answers the other way, id to element, for the layer's own paint:
-   a message's markup is bound when each wording is prepared, before the thread
-   mounts it, so what the projection paints on it arrives with the node. */
+   Each id's descriptor has one home, the application state's `document.descriptors`,
+   which a reading changes only as the page adopts it, so one the page refuses leaves
+   no descriptor behind. What this module keeps is each captured element's own
+   descriptor, beside the element and gone with it. A message's markup is bound when
+   each wording is prepared, before the thread mounts it, so a module connecting
+   there finds its widget at once. */
+import { untracked } from "/runtime/framework.js";
 import { runtime } from "./context.js";
 import { declaredElements, exhibits } from "./registry.js";
 import { isElementName } from "./registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
-import { elementById } from "./passages.js";
+import { readPart } from "./semantic-state.js";
 
 /** @typedef {import("./framework/application.js").WidgetDescriptor} WidgetDescriptor */
 /** @type {WeakMap<Element, WidgetDescriptor>} */
 const byElement = new WeakMap();
-/** @type {Map<string, WidgetDescriptor>} */
-const byId = new Map();
-/** @type {Map<string, Element>} */
-const elements = new Map();
+const adoptedDescriptors = readPart((root) => root.document.descriptors);
 
 /** @param {Element} element @returns {Element | null} */
 const parentOf = (element) =>
@@ -97,34 +98,20 @@ export function stageWidgetDescriptors(
   });
 }
 
-/** @param {Pick<ReturnType<typeof stageWidgetDescriptors>, "bindings">} stage @param {Iterable<string>} [retired] */
-export function commitWidgetDescriptors(stage, retired = []) {
-  // A revision or an edit of a message that rewrites a widget's authored markup
-  // retires the descriptor taken from the markup it replaced. The id survives the
-  // rewrite and the element does not, so the id-keyed readings are the ones that would
-  // otherwise answer for a document nobody is reading; the element-keyed ones leave
-  // with their elements.
-  for (const id of retired) {
-    byId.delete(id);
-    elements.delete(id);
-  }
-  for (const { element, descriptor } of stage.bindings) {
-    byElement.set(element, descriptor);
-    byId.set(descriptor.id, descriptor);
-    elements.set(descriptor.id, element);
-  }
+// Each staged descriptor on the element it stands for, before insertion can connect
+// the element's custom element.
+/** @param {ReturnType<typeof stageWidgetDescriptors>["bindings"]} bindings */
+export function bindWidgetDescriptors(bindings) {
+  for (const { element, descriptor } of bindings) byElement.set(element, descriptor);
 }
-
-// The element standing for a widget id: the one the document holds under it, else the
-// bound node not yet mounted (a message's markup before the thread places it).
-/** @param {string} id */
-export const widgetElement = (id) => elementById(id) ?? elements.get(id) ?? null;
 
 /** @param {Element} owner */
 export function widgetDescriptor(owner) {
   const captured = byElement.get(owner);
   if (captured) return captured;
-  const replacement = byId.get(owner.id);
+  // An element's descriptor is bound for its life, so a reader's paint doesn't follow
+  // the adopted descriptors through this read.
+  const replacement = untracked(adoptedDescriptors).get(owner.id);
   if (!replacement || !descriptorStillMatches(owner, replacement)) return null;
   byElement.set(owner, replacement);
   return replacement;

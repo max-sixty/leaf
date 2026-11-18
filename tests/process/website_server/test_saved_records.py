@@ -39,6 +39,7 @@ def durable_page_store():
     stored: dict = {
         "publications": [],
         "records": {},
+        "drafts": {},
         "staged": {},
         "blobs": {},
         "uploads": [],
@@ -62,7 +63,12 @@ def durable_page_store():
                     member.size = len(data)
                     archive.addfile(member, io.BytesIO(data))
 
-                add("records.json", json.dumps(stored["records"]).encode())
+                add(
+                    "records.json",
+                    json.dumps(
+                        {"records": stored["records"], "drafts": stored["drafts"]}
+                    ).encode(),
+                )
                 names = dict.fromkeys(
                     digest
                     for record in stored["records"].values()
@@ -82,6 +88,9 @@ def durable_page_store():
                 assert hashlib.sha256(body).hexdigest() == digest
                 stored["blobs"][digest] = body
                 stored["uploads"].append(digest)
+            elif self.path == "/drafts":
+                drafts = json.loads(body)
+                stored["drafts"][drafts["root"]] = drafts["drafts"]
             elif self.path == "/prepare":
                 stored["inventories"] += 1
                 publication = json.loads(body)
@@ -370,13 +379,14 @@ def test_a_session_that_swaps_an_image_goes_on_saving(page_dir, tmp_path, monkey
     assert {shot["path"].lstrip("/") for shot in shots} <= set(publication["responses"])
 
 
-def test_a_stopping_container_saves_the_drafts_typed_since_the_last_commit(
+def test_a_draft_write_is_answered_only_once_the_page_store_holds_it(
     page_dir, tmp_path, monkeypatch
 ):
-    """Drafts move no page reading, so a commit saves them only beside a change of its
-    own. A container that stops saves those typed since, so the next container restores
-    them and a tab opened while the session sleeps shows them."""
-    from leaf_website.storage import PUBLISHER, restore, save_drafts
+    """A container answers a draft write once the page store holds it, with no commit
+    of the page, so one that dies without stopping loses no words a tab was told were
+    saved: the next container restores them, under the store and at the version the
+    answer named."""
+    from leaf_website.storage import PUBLISHER, restore
 
     publish(page_dir)
     site = tmp_path / "site"
@@ -389,31 +399,22 @@ def test_a_stopping_container_saves_the_drafts_typed_since_the_last_commit(
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
         assert restore(site)
         monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        answer = drafts_model.write_draft(
+            private,
+            {
+                "context": "general",
+                "expect": [],
+                "record": {"attempt": "a1", "text": words},
+            },
+        )
+        assert answer["written"]
+        assert not stored["publications"]
 
-        def commit():
-            with PageTransaction(private):
-                pass
-
-        # Playwright's session fixture may already own this thread's event loop.
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            executor.submit(commit).result()
-            drafts_model.write_draft(
-                private,
-                {
-                    "context": "general",
-                    "expect": [],
-                    "record": {"attempt": "a1", "text": words},
-                },
-            )
-            executor.submit(commit).result()
-            assert len(stored["publications"]) == 1
-            executor.submit(save_drafts).result()
-            executor.submit(save_drafts).result()
-        assert len(stored["publications"]) == 2
-        saved = stored["publications"][-1]["responses"]["api/drafts"]["chunks"]
-        assert words in b"".join(stored["blobs"][digest] for digest in saved).decode()
-
+        # The container dies where it stands: the next starts from the release's image.
         shutil.rmtree(private)
         shutil.copytree(page_dir, private)
         assert restore(site)
-    assert drafts_model.read_drafts(private)["drafts"]["general"]["text"] == words
+    restored = drafts_model.read_drafts(private)
+    assert restored["store"] == answer["store"]
+    assert restored["version"] == answer["version"]
+    assert restored["drafts"]["general"]["text"] == words

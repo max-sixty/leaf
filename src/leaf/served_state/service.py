@@ -71,8 +71,9 @@ class PageSource(Protocol):
         """The page's own reading, which a visible tab polls (`PageEndpoint._news`)."""
 
     def drafts(self) -> dict:
-        """The user's unsent drafts with the store's version (`drafts.py`), which a
-        tab reads once the news names a version it hasn't heard."""
+        """The user's unsent drafts with the store's identity and version
+        (`drafts.py`), which a tab reads once the news names a store or version it
+        hasn't heard."""
 
     def other_pages(self) -> list[dict]:
         """The machine's other live pages, which `/api/pages` answers apart from the

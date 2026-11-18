@@ -4,9 +4,10 @@ The transaction holds the page's append lease; what may be appended under it is
 `event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
 opens a transaction after every tool call, so process inspection and page-event
 semantics are imported only by their callers. A transaction finishes interrupted
-publications before admitting a reader. Hosts may declare LEAF_PAGE_COMMIT as a
-module:function provider; successful completion calls it under the same append
-lease, and provider failure prevents the caller from acknowledging success.
+publications before admitting a reader. A host that keeps pages outside this machine
+declares the module that commits them there (`commit_provider`); successful
+completion calls its `publish` under the same append lease, and provider failure
+prevents the caller from acknowledging success.
 
 The agent's `waiting` or `idle` declaration is a `status` event in the log
 (`set_status`, read by `activity.declaration`). What the harness observes of the
@@ -25,6 +26,7 @@ import sys
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING
 
 from leaf.event_log import (
@@ -293,6 +295,17 @@ def claim_records(session_id: str | None = None) -> list:
     return claims
 
 
+def commit_provider() -> ModuleType | None:
+    """The module a host names in `LEAF_PAGE_COMMIT` to keep each page outside this
+    machine, as leaf.page's container keeps its pages in the session's Durable
+    Object, or None where it names none. Leaf acknowledges a page transaction only once
+    the module's `publish(transaction)` returns, and a drafts write only once its
+    `publish_drafts(page_dir, drafts)` does (`drafts.py`); either raising fails what it
+    commits."""
+    provider = os.environ.get("LEAF_PAGE_COMMIT")
+    return importlib.import_module(provider) if provider else None
+
+
 class PageTransaction:
     """One page transition serialized by its append-only log. A `deadline`
     bounds the wait for the log's lock (`flocked`)."""
@@ -320,9 +333,8 @@ class PageTransaction:
 
     def __exit__(self, exc_type, exc, traceback):
         try:
-            if exc_type is None and (provider := os.environ.get("LEAF_PAGE_COMMIT")):
-                module, name = provider.split(":", 1)
-                getattr(importlib.import_module(module), name)(self)
+            if exc_type is None and (provider := commit_provider()) is not None:
+                provider.publish(self)
         finally:
             assert self._lock is not None
             self._lock.__exit__(exc_type, exc, traceback)

@@ -638,11 +638,12 @@ class PageEndpoint:
         explains.
         """
         self.housekeeping = True
+        drafts = self.source.drafts()
         return self._json_body(
             {
                 "reading": self.source.news(),
                 "pages": pages_reading(self.source.other_pages()),
-                "drafts": self.source.drafts()["version"],
+                "drafts": {"store": drafts["store"], "version": drafts["version"]},
             }
         )
 

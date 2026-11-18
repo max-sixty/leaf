@@ -8,10 +8,16 @@
  * complete set of chunk owners. Replacing or committing a stage reclaims unused
  * bytes; an interrupted upload retains at most one successor until that page retries.
  * This owner never interprets the log, computes widget state or infers activity.
+ * A page's drafts store is a record of its own, which Python replaces whole with each
+ * write, before it answers the write (`saveDrafts`, `publish_drafts` in
+ * `worker/leaf_website/storage.py`). No page commit carries it, so no commit puts an
+ * older store back, and a saved `api/drafts` or `api/news` answer is served with the
+ * stored drafts in place of those it was captured with.
  * GET /records is one uncompressed TAR snapshot: records.json first contains the
- * committed file descriptors; each referenced chunk follows once as a regular file
- * named by its hex digest. Capture and stream retention share one synchronous
- * reading. The container consumes the snapshot before replacing any local inputs.
+ * committed file descriptors and each page's drafts store; each referenced chunk
+ * follows once as a regular file named by its hex digest. Capture and stream
+ * retention share one synchronous reading. The container consumes the snapshot
+ * before replacing any local inputs.
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be
@@ -20,7 +26,11 @@
 
 import * as z from "zod/mini";
 import { createTarPacker } from "modern-tar";
-import type { ServedState } from "../../browser/types/contract.js";
+import type {
+  ServedDraftsAnswer,
+  ServedNewsAnswer,
+  ServedState,
+} from "../../browser/types/contract.js";
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -40,6 +50,19 @@ const publicationSchema = z.strictObject({
 });
 
 export type PagePublication = z.infer<typeof publicationSchema>;
+const draftsSchema = z.strictObject({
+  root: z.string(),
+  release: z.string(),
+  drafts: z.strictObject({
+    store: z.string(),
+    version: z.number(),
+    drafts: z.record(z.string(), z.record(z.string(), z.unknown())),
+  }),
+});
+type PageDrafts = z.infer<typeof draftsSchema>;
+export function readPageDrafts(value: unknown): PageDrafts {
+  return draftsSchema.parse(value);
+}
 type WebsiteRelease = { release: string; pages: Record<string, unknown> };
 const commitSchema = z.strictObject({ root: z.string(), identity: digest });
 type PublicationCommit = z.infer<typeof commitSchema>;
@@ -92,6 +115,8 @@ export class PageStore {
       PRIMARY KEY(root, staged, path)
     ); CREATE TABLE IF NOT EXISTS leaf_blobs (
       digest TEXT PRIMARY KEY, bytes BLOB
+    ); CREATE TABLE IF NOT EXISTS leaf_drafts (
+      root TEXT PRIMARY KEY, drafts TEXT
     )`);
   }
 
@@ -219,10 +244,9 @@ export class PageStore {
   blob(name: string): ArrayBuffer | null {
     digest.parse(name);
     const rows = this.storage.sql
-      .exec<{ bytes: ArrayBuffer }>(
-        "SELECT bytes FROM leaf_blobs WHERE digest = ?",
-        name,
-      )
+      .exec<{
+        bytes: ArrayBuffer;
+      }>("SELECT bytes FROM leaf_blobs WHERE digest = ?", name)
       .toArray();
     return rows[0]?.bytes ?? null;
   }
@@ -240,7 +264,10 @@ export class PageStore {
     this.storage.transactionSync(() => {
       const root = commit.root;
       const pages = this.storage.sql
-        .exec<{ release: string; identity: string }>(
+        .exec<{
+          release: string;
+          identity: string;
+        }>(
           "SELECT release, identity FROM leaf_pages WHERE root = ? AND staged = 1",
           root,
         )
@@ -259,6 +286,22 @@ export class PageStore {
       }
       this.collect();
     });
+  }
+
+  saveDrafts(value: PageDrafts, manifest: WebsiteRelease): void {
+    this.checkRelease(value.root, value.release, manifest);
+    this.storage.sql.exec(
+      "INSERT OR REPLACE INTO leaf_drafts VALUES (?, ?)",
+      value.root,
+      JSON.stringify(value.drafts),
+    );
+  }
+
+  private drafts(root: string): ServedDraftsAnswer | null {
+    const rows = this.storage.sql
+      .exec<{ drafts: string }>("SELECT drafts FROM leaf_drafts WHERE root = ?", root)
+      .toArray();
+    return rows.length ? (JSON.parse(rows[0].drafts) as ServedDraftsAnswer) : null;
   }
 
   records(): Response {
@@ -282,6 +325,14 @@ export class PageStore {
       .toArray()) {
       records[root][path] = { chunks: JSON.parse(chunks), modified };
     }
+    const drafts = Object.fromEntries(
+      this.storage.sql
+        .exec<{ root: string; drafts: string }>(
+          "SELECT root, drafts FROM leaf_drafts ORDER BY root",
+        )
+        .toArray()
+        .map(({ root, drafts }) => [root, JSON.parse(drafts)]),
+    );
     const names = [
       ...new Set(
         Object.values(records).flatMap((record) =>
@@ -300,7 +351,10 @@ export class PageStore {
         await writer.write(bytes);
         await writer.close();
       };
-      await add("records.json", new TextEncoder().encode(JSON.stringify(records)));
+      await add(
+        "records.json",
+        new TextEncoder().encode(JSON.stringify({ records, drafts })),
+      );
       for (const name of names) {
         const bytes = this.blob(name);
         if (bytes === null) throw new Error("published page storage chunk disappeared");
@@ -366,8 +420,18 @@ export class PageStore {
     // Served while the container is stopped, so the tab reads that its next write
     // waits for the container to launch (`writeLaunchesAgent` in `layer-client.js`).
     headers.set("Leaf-State-Source", "durable");
+    const drafts =
+      path === "api/drafts" || path === "api/news" ? this.drafts(root) : null;
+    if (drafts !== null) headers.delete("Content-Length");
     if (request.method === "HEAD") return new Response(null, { headers });
+    if (drafts !== null && path === "api/drafts")
+      return Response.json(drafts, { headers });
     const body = this.body(JSON.parse(response.chunks));
+    if (drafts !== null) {
+      const news = (await new Response(body).json()) as ServedNewsAnswer;
+      news.drafts = { store: drafts.store, version: drafts.version };
+      return Response.json(news, { headers });
+    }
     if (path === "api/state" || path.startsWith("api/state?")) {
       const state = (await new Response(body).json()) as ServedState;
       prepareStateDelivery(state, request);

@@ -1,4 +1,8 @@
-import type { ServedState } from "../../browser/types/contract.js";
+import type {
+  ServedDraftsAnswer,
+  ServedNewsAnswer,
+  ServedState,
+} from "../../browser/types/contract.js";
 import { describe, expect, it } from "vitest";
 import { unpackTar } from "modern-tar";
 import { CHUNK_BYTES, PageStore, type PagePublication } from "../src/storage";
@@ -31,11 +35,18 @@ async function stage(
   return { root: publication.root, identity };
 }
 
+async function snapshot(store: PageStore): Promise<{
+  records: Record<string, PagePublication["record"]>;
+  drafts: Record<string, ServedDraftsAnswer>;
+}> {
+  const entries = await unpackTar(store.records().body!);
+  return JSON.parse(new TextDecoder().decode(entries[0].data!));
+}
+
 async function records(
   store: PageStore,
 ): Promise<Record<string, PagePublication["record"]>> {
-  const entries = await unpackTar(store.records().body!);
-  return JSON.parse(new TextDecoder().decode(entries[0].data!));
+  return (await snapshot(store)).records;
 }
 
 function page(root: string, chunks: string[]): PagePublication {
@@ -293,6 +304,76 @@ describe("durable website page records", () => {
     }
   });
 
+  it("serves and restores a page's drafts store, which no later commit puts back", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const store = new PageStore(storage);
+      const blobs = new Map<string, Uint8Array>();
+      const reading = (version: number, text: string): ServedDraftsAnswer => ({
+        store: "store-1",
+        version,
+        drafts: { general: { attempt: `a${version}`, text, version } },
+      });
+      const captured = reading(1, "Words the commit captured");
+      const headers = {
+        "Content-Type": "application/json",
+        "Content-Length": "1",
+        "Leaf-Release": "release",
+      };
+      const commit = async () => {
+        const publication = page("/", []);
+        for (const [path, body] of [
+          ["api/drafts", captured],
+          [
+            "api/news",
+            { reading: "r1", pages: null, drafts: { store: "store-1", version: 1 } },
+          ],
+        ] as const)
+          publication.responses[path] = {
+            headers,
+            chunks: await capture(
+              new TextEncoder().encode(JSON.stringify(body)),
+              blobs,
+            ),
+          };
+        store.publish(await stage(store, publication, blobs), manifest);
+      };
+      await commit();
+      const latest = reading(3, "Words typed since");
+      store.saveDrafts({ root: "/", release: "release", drafts: latest }, manifest);
+      // A commit that captured its drafts before the latest write lands after it.
+      await commit();
+      const get = (path: string) =>
+        store.response("/", path, new Request("https://leaf.page/"));
+      const drafts = (await get("api/drafts"))!;
+      expect(await drafts.json()).toEqual(latest);
+      expect(drafts.headers.has("Content-Length")).toBe(false);
+      expect(drafts.headers.get("Leaf-Release")).toBe("release");
+      expect(await (await get("api/news"))!.json<ServedNewsAnswer>()).toEqual({
+        reading: "r1",
+        pages: null,
+        drafts: { store: "store-1", version: 3 },
+      });
+      // A page whose only write is a draft has no saved document to serve, and its
+      // store still restores.
+      const other = reading(1, "Typed on a page never sent to");
+      store.saveDrafts({ root: "/other", release: "release", drafts: other }, manifest);
+      expect(
+        await store.response("/other", "api/drafts", new Request("https://leaf.page/")),
+      ).toBeNull();
+      expect((await snapshot(new PageStore(storage))).drafts).toEqual({
+        "/": latest,
+        "/other": other,
+      });
+      expect(() =>
+        store.saveDrafts({ root: "/", release: "previous", drafts: latest }, manifest),
+      ).toThrow("not name a page in this website release");
+    } finally {
+      await new Promise((resolve) => setImmediate(resolve));
+      close();
+    }
+  });
+
   it("reclaims old log tails and interrupted successors while protecting another page's upload", async () => {
     const { storage, close } = sqliteStorage();
     try {
@@ -387,8 +468,8 @@ describe("durable website page records", () => {
         ...chunks,
       ]);
       expect(JSON.parse(new TextDecoder().decode(archive[0].data!))).toEqual({
-        "/": first.record,
-        "/other": neighbor.record,
+        records: { "/": first.record, "/other": neighbor.record },
+        drafts: {},
       });
       expect(
         Buffer.concat(archive.slice(1).map(({ data }) => Buffer.from(data!))).equals(

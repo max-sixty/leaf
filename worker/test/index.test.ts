@@ -2430,6 +2430,16 @@ describe("website page agent", () => {
         context as never,
       );
       expect(committed.status).toBe(204);
+      const drafts = { store: "store-1", version: 1, drafts: {} };
+      const saved = await handler(
+        new Request("https://leaf-state.internal/drafts", {
+          method: "PUT",
+          body: JSON.stringify({ root: publication.root, release: RELEASE, drafts }),
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(saved.status).toBe(204);
       const answer = await handler(
         new Request("https://leaf-state.internal/records") as never,
         env as never,
@@ -2442,7 +2452,8 @@ describe("website page agent", () => {
         digest,
       ]);
       expect(JSON.parse(new TextDecoder().decode(entries[0].data!))).toEqual({
-        "/examples/triage-board": publication.record,
+        records: { "/examples/triage-board": publication.record },
+        drafts: { "/examples/triage-board": drafts },
       });
       expect(new TextDecoder().decode(entries[1].data!)).toBe("private saved bytes");
       expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(

@@ -141,7 +141,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         lo, hi = file_reading.spans["goal"]
         file_words = file_reading.text[lo:hi]
         assert status not in file_words, file_words
-        line = page.locator('#goal > [data-lf-said="status"]')
+        line = page.locator("#goal > :is(.work-state, .atlas-task-state)")
         expect(line).to_have_count(1)
         expect(line).to_have_text(status)
         assert page.locator("#goal").aria_snapshot().count(status) == 1
@@ -165,7 +165,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         }
 
     def comment_on_status(status):
-        page.locator('#goal > [data-lf-said="status"]').evaluate("""el => {
+        page.locator("#goal > :is(.work-state, .atlas-task-state)").evaluate("""el => {
           const range = document.createRange(); range.selectNodeContents(el);
           const selection = getSelection(); selection.removeAllRanges();
           selection.addRange(range);

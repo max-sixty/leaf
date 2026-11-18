@@ -578,6 +578,9 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
 
 def fragment_errors(parser: SourceDocument, registry: dict) -> list[Finding]:
-    """Structural + registry validation of an HTML fragment:
-    the discussion-side analog of `page check`."""
-    return structure_errors(parser) + instance_errors(parser, registry)
+    """Structural, then registry, validation of an HTML fragment: the discussion-side
+    analog of `page check`. A fragment the HTML parser had to repair gets only the
+    repair's findings, since the widget checks would read the repaired tree: a
+    `<pre>` that closes the paragraph Markdown drew around a one-line `<lf-code>`
+    leaves that widget with no body."""
+    return structure_errors(parser) or instance_errors(parser, registry)

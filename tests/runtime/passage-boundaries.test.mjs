@@ -281,7 +281,9 @@ test("a label declared inside the chrome is the page's, arriving and leaving", (
     '<main><p>Alpha</p></main><div class="lf-ui" id="panel"></div>';
   pageText();
   const panel = document.querySelector("#panel");
-  panel.insertAdjacentHTML("beforeend", '<span data-lf-said="label">Tab</span>');
+  // The marker carries a value because happy-dom reports an empty attribute's old value
+  // as null (its MutationRecord takes `oldValue || null`), where a browser reports "".
+  panel.insertAdjacentHTML("beforeend", '<span data-lf-said="1">Tab</span>');
   assert.match(pageText().raw, /Tab/, "a label is read wherever it stands");
   panel.querySelector("span").removeAttribute("data-lf-said");
   assert.doesNotMatch(
@@ -741,7 +743,7 @@ test("a selection's words are found from its ends, not by asking every word", ()
 
 test("a declared label inside chrome is read down to its last word", () => {
   document.body.innerHTML =
-    '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said="tab"><b>Tab</b> label</span></div>';
+    '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said><b>Tab</b> label</span></div>';
   assert.match(pageText().raw, /Tab.*label/s);
 });
 

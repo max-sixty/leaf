@@ -66,10 +66,7 @@ export const isPagePaint = (name) =>
 // .lf-quiet (the shared clip), and data-lf-gen (no author wrote it). One writer per
 // element, and the empty word removes what stands: a fact the page has stopped
 // painting must stop being said too, so a caller states the whole of what this element
-// says quietly and never appends to it. Content widgets once hand-copied this idiom
-// before it was one, and the copies had already diverged on whether a stale word was
-// removed first — which is now renderQuiet's to state for every widget that declares
-// it.
+// says quietly and never appends to it.
 //
 // Which writer an element gets follows from what paints it, and the two sets do not
 // meet: renderQuiet has the elements the runtime paints a provenance on, and a module

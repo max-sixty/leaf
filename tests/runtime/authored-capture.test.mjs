@@ -16,7 +16,7 @@ import {
 } from "/runtime/projection/authored.js";
 import {
   stageWidgetDescriptors,
-  commitWidgetDescriptors,
+  bindWidgetDescriptors,
   widgetDescriptor,
 } from "/runtime/widget-descriptors.js";
 
@@ -45,7 +45,7 @@ test("capture keeps authored values and parentage when rendering moves members",
   const descriptors = stageWidgetDescriptors(root, { kind: "page", revision: 1 });
   outer.setAttribute("status", "drawing");
   document.getElementById("right").append(inner);
-  commitWidgetDescriptors(descriptors);
+  bindWidgetDescriptors(descriptors.bindings);
   assert.equal(states.get("outer").state.set.value, "idle");
   assert.deepEqual(widgetDescriptor(inner).parent, { id: "left", tag: "lf-left" });
   assert.equal(inner.parentElement.localName, "lf-right");

@@ -8,4 +8,6 @@ over, reached only by Back.
 
 The deck moves on by itself once the user answers a card, and offers Back and Later, so
 don't add navigation of your own. Later leaves a card waiting and records nothing; the
-deck comes back to it at the end of the pass.
+deck comes back to it at the end of the pass. There the deck lists every card's
+question, in the words On Me gives it, beside the answer given, so add no summary of the
+answers yourself.

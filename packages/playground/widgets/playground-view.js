@@ -184,21 +184,22 @@ export function createPlayground(host) {
   const asides = own(host, "aside");
   // A control that belongs to a form of its own, one inside the playground or one its
   // `form` attribute names, is that form's; one in no form, or in a form around the
-  // whole playground, joins the playground's form (render). A control a widget in the
-  // preview generated, such as a motion study's scrubber, is that widget's inspection
-  // and no field, though it stands in the playground's form.
+  // whole playground, joins the playground's form (render).
   /** @param {FieldControl | HTMLOutputElement | HTMLButtonElement} control */
   const member = (control) =>
     belongsTo(host, control) &&
     !control.hasAttribute("form") &&
-    !(control.form && host.contains(control.form)) &&
-    !host.contains(control.closest("[data-lf-gen]"));
+    !(control.form && host.contains(control.form));
   /** @type {Map<string, FieldControl[]>} */
   const named = new Map();
   /** @type {NodeListOf<FieldControl>} */
   const controls = host.querySelectorAll("input[name], select[name], textarea[name]");
   for (const control of controls) {
-    if (!member(control)) continue;
+    // A field control a widget in the preview generated, such as a motion study's
+    // scrubber, is that widget's inspection and no field, though it stands in the
+    // playground's form. A page's own submit or reset button, or an output, stays the
+    // page's wherever a script moves it, so the mark excludes only fields.
+    if (!member(control) || host.contains(control.closest("[data-lf-gen]"))) continue;
     if (control instanceof HTMLInputElement && UNHELD.has(control.type)) continue;
     if (!NAME.test(control.name))
       throw new Error(

@@ -4,7 +4,7 @@
  * title ("In Draw mode"; dispatch.js, `innermostStance`).
  * The floating panel reads this signal for its empty field, where a stance leads the
  * page status, and the Go-to words, or a walk's position for its step's moment, take
- * the status's place (floating-panel.js, `fieldReading`). Painted in the repaint
+ * the status's place (field-readings.js). Painted in the repaint
  * frame (repaint.js), since these readings follow focus, the sequence's state and the
  * register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows

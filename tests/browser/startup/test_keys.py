@@ -18,6 +18,7 @@ from render_harness import (
     refuse,
     round_trip,
     select_words,
+    stored_draft_text,
     watched,
 )
 
@@ -450,6 +451,9 @@ def test_held_keys_stand_beside_a_saved_draft(browser, serve):
     page.keyboard.type("Half a thought")
     page.keyboard.press("Escape")
     expect(panel_field(page)).not_to_be_focused()
+    # The reload serves the drafts the server holds as it asks, before the page going
+    # away resends the words still waiting behind a slow write.
+    assert stored_draft_text(page, "general") == "Half a thought"
     held, release = _hold_startup(page, "state")
     page.reload(wait_until="commit")
     holding(page, held, 1, "the state request")

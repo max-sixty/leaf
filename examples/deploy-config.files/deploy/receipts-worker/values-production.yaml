@@ -1,0 +1,36 @@
+# Production overrides for receipts-worker.
+# Each TODO(you) is a call the deploy waits on; the page beside this file
+# says what staging measured for each.
+
+# TODO(you): pods at the 09:00 peak of 130 receipts a minute. One pod
+# renders 46 a minute at concurrency 4, so 3 pods leave 6% headroom
+# and 4 leave 41%.
+replicas: 3
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 8
+  # Scale on queue depth, not CPU: a render waits on Chromium more than
+  # it computes.
+  queueDepthPerPod: 40
+
+worker:
+  concurrency: 4
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 1Gi
+  limits:
+    # TODO(you): staging peaked at 1.35Gi with concurrency 4. 1536Mi
+    # leaves 11% above that peak; a pod over its limit is killed mid-render
+    # and its receipts retried.
+    memory: 1536Mi
+
+mail:
+  stream: receipts
+
+# Keep two pods rendering while nodes drain during the month-end run.
+podDisruptionBudget:
+  minAvailable: 2

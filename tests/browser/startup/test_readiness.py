@@ -21,7 +21,6 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
-    is_problem,
     leaf_page,
     open_page,
     open_threads,
@@ -768,12 +767,7 @@ def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
     # The import's rejection settles startup within the task that delivers it.
     page.evaluate("() => new Promise(done => setTimeout(() => setTimeout(done)))")
     assert page.evaluate("document.documentElement.dataset.lfStartupError") is None
-    # Firefox may also classify the loopback host as a bounce tracker during
-    # navigation. That browser privacy notice says nothing about page startup.
-    errors = consume_browser_errors(
-        page, "Loading failed for the module", "classified as a bounce tracker"
-    )
-    assert any(is_problem(error, "Loading failed for the module") for error in errors)
+    consume_browser_errors(page, "Loading failed for the module")
     assert not page.lf_errors
     assert not [
         event

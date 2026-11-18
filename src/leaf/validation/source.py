@@ -45,6 +45,7 @@ from leaf.validation.markup import (
     document_declaration_errors,
     id_errors,
     language_advice,
+    markdown_advice,
     page_boundary_errors,
     structure_errors,
     unanswered_media,
@@ -314,6 +315,7 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
         ),
         *unpointable_blocks(parser),
         *language_advice(parser),
+        *markdown_advice(parser),
         *another_leaf_serving(page_dir),
     ]
 

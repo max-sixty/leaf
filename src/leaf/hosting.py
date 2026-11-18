@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
-from .findings import Finding, note
+from .findings import Finding, note, with_held
 from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import (
     end_if_terminated,
@@ -437,7 +437,10 @@ def cmd_serve_temporary(page_dir: Path, host: str | None = None) -> None:
         raise Refused("a temporary server is loopback-only; omit --host")
     exited = caller_exited()
     server = TemporaryPageServer(page_dir)
-    print(json.dumps({"url": server.url, "lifetime": "temporary"}), flush=True)
+    print(
+        json.dumps(with_held({"url": server.url, "lifetime": "temporary"})),
+        flush=True,
+    )
 
     def stop_with_caller() -> None:
         while not exited():
@@ -502,11 +505,12 @@ def _serve_claim(
 
 
 def _announce_server(page_dir: Path, url: str) -> bool:
-    """Print a committed foreground server's reading (`started_server`) before it
-    serves, since the command returns only when the server stops."""
+    """Print a committed foreground server's reading (`started_server`), with what
+    the command noted (`findings.with_held`), before it serves, since the command
+    returns only when the server stops."""
     from .event_log import jsonl_line
 
-    print(jsonl_line(started_server(page_dir, url)), flush=True)
+    print(jsonl_line(with_held(started_server(page_dir, url))), flush=True)
     return True
 
 
@@ -598,6 +602,7 @@ def cmd_serve(
     private preparation cannot advertise a retained service or neighbor row.
     A revival takes no acquisition.
     """
+    from .delivery import retire_gone_deliveries
     from .http import page_endpoint
     from .layer import payload_provenance
     from .render_gate.handover_pass import HandoverPass
@@ -695,6 +700,7 @@ def cmd_serve(
             return
         threading.Thread(target=rows.run, daemon=True).start()
         threading.Thread(target=HandoverPass(page_dir).run, daemon=True).start()
+        threading.Thread(target=retire_gone_deliveries, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),
@@ -832,6 +838,52 @@ def claim_and_start(
             if claim is not None:
                 cmd_stop(page_dir, owner=claim)
             raise
+
+
+def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
+    """`leaf server start`: take and serve the page (`claim_and_start`) with this
+    Leaf, restarting at its address a running server another Leaf started.
+
+    A server keeps the Leaf it started under, and markup and layout contracts move
+    between commits with no protocol change, so the agent asking to serve a page
+    must get the Leaf whose `page check` it read, not one an older session or a
+    deleted checkout left running. Another Leaf is another install or checkout, or
+    this one at another commit (`layer.payload_provenance`). Uncommitted edits don't
+    count, since the record can't say whether they changed after the server started.
+
+    Whether this Leaf can serve the page is decided first, as a fresh bind decides
+    it (`http.page_endpoint`), so a refusal leaves the page with its owner and the
+    other Leaf serving it. The restart is `page init`'s (`restarting_server`), made
+    once the page is taken, since a session service comes back only for the
+    session holding it; one that can't start again leaves the service enabled and
+    down, for a revival to bring back. Only this command restarts: a hook or watch
+    reviving a page may run an older Leaf than the server it finds."""
+    from .http import page_endpoint
+
+    replacing = _served_by_another_leaf(page_dir)
+    if replacing:
+        with page_locked(page_dir):
+            page_endpoint(page_dir, host_key())
+    with claim_and_start(page_dir, host, persistent) as started:
+        pass
+    if replacing:
+        with restarting_server(page_dir, session_harness()):
+            pass
+    return started
+
+
+def _served_by_another_leaf(page_dir: Path) -> bool:
+    """Whether the page's running server records a Leaf other than this one, by
+    path or commit (`start_page`)."""
+    from .layer import payload_provenance
+
+    existing = running_server(page_dir)
+    if not existing:
+        return False
+    here = payload_provenance(include_path=True)
+    return any(
+        existing["runtime"].get(key) != here.get(key) for key in ("path", "commit")
+    )
 
 
 class _StopScope(Enum):

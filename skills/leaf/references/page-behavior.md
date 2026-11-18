@@ -49,10 +49,14 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   asked for less motion. Leaf stops only its own CSS motion for that user, so stop or
   shorten the page's under `@media (prefers-reduced-motion: reduce)`.
 
+Leaf writes attributes of its own on the page's elements, such as on each element
+holding commented words. A script that reads, copies or observes attributes meets them,
+so don't make page CSS or scripts depend on them.
+
 A page script may define custom elements with shadow DOM of their own. Comments can't
 quote the words only such a shadow root shows, and Leaf reads the element's own children
 in its place, so put words the user should quote in the light DOM and slot them, or
-write the element as a widget declaring `x-shadow` (`module-authoring.md`, "Shadow
+write the element as a widget declaring `shadow` (`module-authoring.md`, "Shadow
 stages and styles").
 
 Reach a widget's methods with `whileInterfaceConnected` (`module-authoring.md`,
@@ -72,12 +76,6 @@ Operate those paths through their final result before handover. Compare the posi
 and sizes of the controls and content the reader is using through those states,
 including at a narrow width; a settled screenshot cannot show whether changing
 feedback moved them.
-
-`leaf page check --render` also leaves the presented desktop page alone for three
-seconds and reports the browser's `layout-shift` entries affecting page content as
-advice, naming the nodes that moved and their before/after boxes. Those nodes show
-what moved, not necessarily what caused it. This finite observation does not exercise
-gestures, later timers, offscreen content or embedded documents.
 
 `page/registry.json` adds declarations in the package registry format; an element entry
 there replaces the layer's entry for that tag. `page/widgets/<tag>.js` replaces a

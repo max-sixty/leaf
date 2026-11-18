@@ -1,19 +1,15 @@
-# From Codex session 01a0fb4e-e32b-7eb2-9099-0fd0b49ecc8f: the thread
-# comparison put conversation fixtures and design settings in the same value map.
-# Replays its pre-review draft to measure whether the author separates those roles.
-# On 015b1b9c2: 0/2 baseline outputs separated the case; the configuration/case
-# paragraph passed 2/2. Both arms read the package instructions.
-# Extended after a Codex playground used browser-default case controls: exercise
-# the control idioms too, while preserving independent case and design state.
-# On 1ec38894f: the shared-control grade failed 2/2 baseline runs and passed the
-# head run that read all required references; its other run skipped the package
-# instructions and measured nothing about that routing change.
-# The grade passes a face the page styles itself since Leaf stopped preferring its own
-# control classes over a page's design; the scar it keeps is the browser default.
+# A Codex session's thread comparison put conversation fixtures and design settings
+# in the same value map. Replays its pre-review draft to measure whether the author
+# separates those roles. A Codex playground used browser-default case controls, so
+# the case exercises the control idioms too, while preserving independent case and
+# design state. The grade passes a face the page styles itself, since Leaf doesn't
+# prefer its own control classes over a page's design; the scar it keeps is the
+# browser default.
 description: playground-case-is-independent
 metadata:
   purpose: "Playground: switch test cases independently of the configuration being
     chosen."
+  page: [playground]
   tags:
     - playground
 vars:
@@ -26,22 +22,17 @@ vars:
     playground compares today's panel with a proposed panel. Both show the same
     conversation, selected from short, long, resolved, and exchange fixtures.
     The proposed panel can use a shared-conversation frame or a card frame.
-    The first draft declares these controls:
-      <lf-playground-control id="face" name="face" label="Conversation frame" kind="choice"
-        value="shared">...shared and card choices...</lf-playground-control>
-      <lf-playground-control id="scenario" name="scenario" label="Conversation" kind="choice"
-        value="exchange">...short, long, resolved, exchange choices...</lf-playground-control>
+    The first draft declares these fields in the playground's aside:
+      <fieldset id="face"><legend>Conversation frame</legend>
+        ...shared (checked) and card radios named face...</fieldset>
+      <fieldset id="scenario"><legend>Conversation</legend>
+        ...short, long, resolved, exchange (checked) radios named scenario...</fieldset>
     Its Shared conversation and Card in panel presets set only face. Its output
     asks to build the selected frame and demonstrate it on representative threads.
     The sample renderer takes showConversation(caseId) and setFrame(frame).
 
-    Finish the playground for handoff using the installed leaf:leaf skill.
-    Read the playground package's instructions
-    at ../../packages/playground/instructions/author.md, references/page-authoring.md,
-    references/live-samples.md,
-    and the ../../browser/registry.json idiom catalog relative to the leaf skill's base
-    directory. Reply with the HTML and page module; the page directory is not
-    reachable here. You can use placeholders for the live sample bodies.
+    Write the playground page for handoff from that draft.
+    Placeholders can stand for the live sample bodies.
 assert:
   - type: llm-rubric
     metric: independent-case
@@ -52,14 +43,15 @@ assert:
       current case. Both candidates receive the same selected conversation.
       The selected conversation is absent from the configuration's submitted values
       and build instruction. A labeled native selector with page-local state is fine.
-      Fail if the conversation remains an lf-playground-control or a registered
+      Fail if the conversation remains a playground field or a registered
       contributor in the submitted configuration, if only prose promises separation,
       or if fixture selection is removed altogether.
   - type: llm-rubric
     metric: shared-control-face
     value: |
       Pass only if page-local case and inspection controls wear a deliberate face:
-      Leaf's shared control classes (.lf-field on a native select or text field,
-      .lf-btn on native buttons, .lf-choice on a radio or checkbox label), or page CSS
-      that styles them for the page's design from the theme's tokens. Fail if native
-      controls are left with the browser's default face beside Leaf's themed ones.
+      native controls written as plain HTML on a themed page, which its theme draws
+      as Leaf's (a radio or checkbox inside its label), or page CSS that styles them
+      for the page's design from the theme's tokens. Fail if native controls are left
+      with the browser's default face beside Leaf's themed ones, as on a page without
+      a theme or where page CSS resets them.

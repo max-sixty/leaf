@@ -9,15 +9,17 @@
   </head>
   <body>
     <main class="layout-column">
-      <p class="eyebrow" id="fix-eyebrow">fix review · page comments</p>
-      <h1 id="fix-title">A comment now survives opening its screenshot</h1>
+      <hgroup>
+        <p id="fix-eyebrow">fix review · page comments</p>
+        <h1 id="fix-title">A comment now survives opening its screenshot</h1>
+      </hgroup>
       <p class="lede" id="fix-lede">
         Pressing Escape on a screenshot's preview used to close the page comment it was
         attached to. I recorded one journey before and after the fix. Choose a moment,
         then switch recordings to see the same step in the other.
       </p>
 
-      <section id="fix-recordings" class="layout-flow">
+      <section id="fix-recordings">
         <lf-trace-compare id="fix-compare"
           ><figure id="fix-before-figure">
             <lf-trace id="fix-before" label="Before the fix" source="draft-image-before"
@@ -62,8 +64,8 @@
         >
       </section>
 
-      <lf-ask id="fix-ship-ask">
-        <h2>Ship the fix?</h2>
+      <lf-group id="fix-ship-ask" label="Ship the fix?">
+        <h2 id="fix-ship-ask-h">Ship the fix?</h2>
         <p id="fix-ship-basis">
           The recordings part at Back from the preview. Before the fix the comment is
           gone and focus is on the page; after it the comment is back with its words and
@@ -75,13 +77,12 @@
           and in a thread reply in the floating panel, and fails on each without the
           fix.
         </p>
-        <lf-options id="fix-ship" choose>
-          <lf-option id="fix-ship-now">
-            <small class="tag ok">recommended</small>
+        <lf-options id="fix-ship">
+          <lf-option id="fix-ship-now" label="Ship it" recommended>
             <strong>Ship it</strong>
             <p>The comment and its focus come back however the preview closes.</p>
           </lf-option>
-          <lf-option id="fix-ship-hold">
+          <lf-option id="fix-ship-hold" label="Record the floating panel first">
             <strong>Record the floating panel first</strong>
             <p>
               Add a pair of recordings of a thread reply, whose view closed for a
@@ -89,7 +90,7 @@
             </p>
           </lf-option>
         </lf-options>
-      </lf-ask>
+      </lf-group>
 
       <details id="fix-cause">
         <summary>Why the comment closed</summary>

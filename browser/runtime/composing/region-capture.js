@@ -13,14 +13,16 @@ import { paintKeys } from "../keyboard/scopes.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { offlineInteractive } from "../context.js";
 import { retainUserIntent } from "../user-intent.js";
-import { leafSurface, closestAcross } from "../passages.js";
+import { leafSurface, closestAcross, elementFromPointAcross } from "../passages.js";
 import { pressIsKeyboardActivation } from "../pointer.js";
 import { onCurrentLocation, pressHolds, pressRecords } from "../focus.js";
 import { raiseError } from "../errors.js";
 
 /** @param {Omit<import("./region-selector.js").RegionSelectorOptions, "returnTo"> & {
- * closeTargetPicker: () => void, closeReactionMode: () => void}} options */
+ * refreshCrosshair: () => void, closeTargetPicker: () => void,
+ * closeReactionMode: () => void}} options */
 export function createRegionCapture({
+  refreshCrosshair,
   parent,
   visibleTargets,
   openComposerWithMedia,
@@ -65,10 +67,18 @@ export function createRegionCapture({
         if (type === "pointerdown") {
           if (!event.isPrimary || event.button !== 0) return;
           claimed.keep(event, true);
-          document.documentElement.setPointerCapture(event.pointerId);
+          // The browser shows the cursor of the element holding the pointer, so the
+          // drag goes to the one wearing the crosshair (page-geometry.js), which stays
+          // where the press landed until the release.
+          (
+            elementFromPointAcross(event.clientX, event.clientY) ??
+            document.documentElement
+          ).setPointerCapture(event.pointerId);
         }
         claim(event);
         selector?.pointer(event);
+        // The claim keeps a move from the aim, which moves the crosshair.
+        if (type === "pointermove" && !held) refreshCrosshair();
       },
       { capture: true },
     );
@@ -139,6 +149,7 @@ export function createRegionCapture({
           passive: false,
         });
         document.documentElement.setAttribute("data-lf-region-capture", "");
+        refreshCrosshair();
         removeScope = pageScope("region capture", {
           title: "Drag an area to capture",
           escape: "inner",
@@ -155,6 +166,7 @@ export function createRegionCapture({
         selector = null;
         opening = false;
         document.documentElement.removeAttribute("data-lf-region-capture");
+        refreshCrosshair();
         removeScope?.();
         paintKeys();
       }

@@ -1,16 +1,16 @@
 /* A chart is Plot's drawing, and the page dresses it the way it dresses its own text.
  * Plot writes its axes, ticks and legends in `currentColor`, and its series take the
- * author's `var(--series-N)`, so the whole chart is painted by the page's cascade and a
+ * author's `var(--lf-series-N)`, so the whole chart is painted by the page's cascade and a
  * scheme flipped mid-read repaints it. The face is the fine font (base.css), whose 10px
  * is the size Plot lays its axes out for: at the theme's 11.5px an axis label lands
  * on the tick beside it. Plot writes its face as attributes, which any rule here
  * outranks; the same adapter below supplies the legend face. */
 lf-chart .lf-chart-drawing {
   display: block;
-  font: var(--font-fine);
-  color: var(--muted);
+  font: var(--lf-font-fine);
+  color: var(--lf-muted);
 }
-/* Where the runtime runs, the chart's box is laid out before it draws (x-height), and the source
+/* Where the runtime runs, the chart's box is laid out before it draws (`height`), and the source
  * waiting in it is code for the drawing rather than words for the reader. */
 @scope (html[data-lf-interactive] lf-chart) {
   :scope:is(lf-chart):not(.lf-rendered) > pre {
@@ -27,7 +27,7 @@ lf-chart .lf-chart-drawing svg {
   height: attr(height px, auto);
 }
 lf-chart .lf-chart-drawing svg[role="img"] {
-  --plot-background: var(--paper);
+  --plot-background: var(--lf-paper);
 }
 lf-chart .lf-chart-drawing [class*="-swatches"] {
   font-family: inherit;
@@ -42,11 +42,11 @@ lf-chart .lf-chart-at {
   pointer-events: none;
 }
 lf-chart .lf-chart-at circle {
-  fill: var(--paper);
-  stroke: var(--ink);
+  fill: var(--lf-paper);
+  stroke: var(--lf-ink);
   stroke-width: 1.5px;
 }
 lf-chart .lf-chart-at line {
-  stroke: var(--muted);
+  stroke: var(--lf-muted);
   stroke-dasharray: 2 3;
 }

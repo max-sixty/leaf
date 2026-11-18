@@ -1,8 +1,9 @@
-# Added with `leaf task`: work a background worker carries past the turn is held as a
-# task on the user's thread, since the reply settles the comment and a `working` claim
-# lapses with the turn. Scores conversation-loop.md, "Long-running work". Base at
-# 5984ca1c9, which has no task, passed 0 of 2 runs on Claude Code; the change 2 of 2.
-# Reworded by #2506 (`--task` to `--todo`); at 3fe3eb0af it passed 1/1 on Claude Code.
+# Work a background worker carries past the turn is held as a task on the user's
+# thread, since the reply settles the comment and a `working` claim lapses with the
+# turn. Scores conversation-loop.md, "Long-running work". In `waits-in-turn` the
+# turn stays open while the worker runs, and the panel's status shows the to-do's
+# work only once the agent starts the to-do; the reply's text, which says what is
+# under way, pulls toward treating the status as already written.
 description: todo-outlasts-the-turn
 metadata:
   purpose:
@@ -21,7 +22,7 @@ vars:
     and will end your turn while it runs. Its result will wake a later turn, in which
     you will stamp version 4 with the quieter banner.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page in this turn, and then each one
     you would run in the later turn after stamping version 4.
 assert:
@@ -33,3 +34,44 @@ assert:
       they include `leaf task end` naming that to-do (the reply's id) with outcome
       `done` and a detail pointing at version 4. Starting the comment or the to-do alongside is fine. Fail if no to-do is
       opened, if the to-do is opened only in the later turn, or if it is never ended.
+variants:
+  waits-in-turn:
+    metadata:
+      purpose:
+        "Conversation loop: while a worker carries a to-do's work and the turn waits
+        on it, the panel's status shows the agent's line for that work."
+    vars:
+      prompt: |
+        You are a Claude Code session driving a live Leaf page at
+        ~/.local/state/leaf/pages/model, served with `leaf server start`. A delivery
+        just brought one user comment, id 4be0c1d2, opening thread 4be0c1d2 on the
+        parameter table: "S is assumed at 4k. Fit it from my sessions instead." Its
+        answer is `{kind: reply, writer: agent, ref: "9b4c55e1:0:4be0c1d2"}`.
+
+        The fit takes about twenty minutes, so you start a background subagent on it
+        and reply to the comment. You stay in this turn while it runs, checking for
+        its commit about once a minute with `bash wait_commit.sh`, which waits up to a
+        minute. Six minutes in, Leaf's hook delivers another comment, id 7a19e3f0, on
+        the chart's caption: "Why 3.3k here?" Its answer is
+        `{kind: reply, writer: agent, ref: "9b4c55e1:0:7a19e3f0"}`, and you can answer
+        it from the page. The subagent commits twelve minutes after that.
+
+        Only Skill and Read run here, so write out, in order, each command you would
+        run in this turn, from answering 4be0c1d2 until the subagent commits, the
+        polls included.
+    assert:
+      - type: llm-rubric
+        metric: status-shows-the-work
+        value: |
+          Pass only if, from the reply on 4be0c1d2 until the first poll, the
+          commands leave the fit in hand on the page under the agent's own line for
+          it. Where 4be0c1d2 is answered with a `--todo` reply (or a to-do is opened
+          for the fit another way), a `leaf task start` naming that to-do (for a
+          `--todo` reply, the reply's id) with a line saying what is running comes
+          before the first poll. Where 4be0c1d2 instead stays unanswered until the
+          commit, a progress line on it (`--ephemeral`, or `leaf task start` on
+          4be0c1d2) before the first poll does the same. Starting again later, such
+          as after answering 7a19e3f0, is fine. Fail if 4be0c1d2 is answered before
+          the first poll and no start on the fit's to-do follows, so the only words on
+          the page about the fit are the reply's text, or if 4be0c1d2 is answered
+          `--done` before the subagent commits.

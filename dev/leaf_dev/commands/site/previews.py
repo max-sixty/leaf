@@ -8,7 +8,7 @@ assets, whose catalog then names the new stills (`leaf_dev.docs`), then publishe
 asset commit and moves Leaf's exact pin. Host pages are not part of the captured
 scene.
 
-    uv run leaf-dev site previews    (or `wt refresh-previews`)
+    uv run leaf-dev site previews
 """
 
 import io
@@ -146,7 +146,7 @@ def refresh_previews() -> None:
         site_build.build(
             site_build.OUT,
             site_build.prepared_leaf(site_build.OUT),
-            assets=checkout.path,
+            assets=checkout,
         )
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")

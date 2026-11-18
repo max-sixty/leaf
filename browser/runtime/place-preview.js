@@ -12,7 +12,7 @@
    The preview is a short rendering of the place, in the face's excerpt room:
 
    - its name, the way the authoring contract names an element (addressable-names.js,
-     `ownNaming`): a heading's words, a section's leading heading, a tab's label, a
+     `ownNaming`): a heading's words, the heading a section opens with, a tab's label, a
      table's or figure's caption, an `aria-label`; and for a place with no name of its
      own, or one the page draws nothing of, the name of the part it stands in, by the
      rule On Me groups its items by (thread/placement.js, `partOver`): the heading over
@@ -402,13 +402,14 @@ function membersPart(element, parts) {
 
 const widgetStates = readPart((root) => root.effective.widgets);
 // The members a widget's answer picks, as the widget reads its own state: the value of
-// its `x-awaits` verb where that verb records a pick on the members it names (`x-state`),
-// folded from the authored initial values and every action in force since, so a group
-// authored settled with its pick `chosen` marks that pick as the widget does.
+// its `awaits` verb where that verb records a pick on the members it names
+// (`verbs`), folded from the authored initial values and every action in force
+// since, so a group authored settled with its pick `selected` marks that pick as the
+// widget does.
 /** @param {Element} widget @returns {ReadonlySet<unknown>} */
 function picked(widget) {
-  const verb = declarationFor(widget, "x-awaits")?.value;
-  const record = verb ? declarationFor(widget, "x-state")?.[verb]?.record : null;
+  const verb = declarationFor(widget)?.awaits?.value;
+  const record = verb ? declarationFor(widget)?.verbs?.[verb]?.record : null;
   const value =
     verb && record?.kind === "attribute"
       ? widgetStates().get(widget.id)?.state[verb]?.value

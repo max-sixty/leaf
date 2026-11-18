@@ -20,19 +20,19 @@ import {
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
 import { widgetElement } from "../widget-descriptors.js";
-import {
-  authored,
-  elementById,
-  inChrome,
-  pageQueryAll,
-  renderRetired,
-} from "../passages.js";
-import { isPagePaint, renderQuiet } from "../declared-words.js";
+import { authored, elementById, inChrome, renderRetired } from "../passages.js";
+import { isPagePaint, sayQuietFacts } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { keeps } from "../keeps.js";
 
-/** @param {import("../../types/domain.js").Projection} projection */
-function paintStateOrigins(projection) {
+// Paint each unit's origin mark, and return every element that wears one or just lost
+// one. `marked` holds the elements the last paint marked with each origin attribute.
+// This region is the attribute's only writer, so a paint takes the mark off the
+// elements it no longer wants from there rather than finding them by a query of the
+// whole page.
+/** @param {import("../../types/domain.js").Projection} projection
+ * @param {Map<string, Set<Element>>} marked */
+function paintStateOrigins(projection, marked) {
   /** @type {Set<Element>} */
   const userOverride = new Set();
   /** @type {Set<Element>} */
@@ -49,14 +49,15 @@ function paintStateOrigins(projection) {
   }
   const touched = new Set();
   for (const [attr, wanted] of marks) {
-    for (const target of pageQueryAll(`[${attr}]`)) {
+    for (const target of marked.get(attr) ?? []) {
       touched.add(target);
-      if (!wanted.has(target)) target.removeAttribute(attr);
+      if (!wanted.has(target)) keeps(target, attr, null);
     }
     for (const target of wanted) {
       touched.add(target);
       keeps(target, attr, "1");
     }
+    marked.set(attr, wanted);
   }
   return touched;
 }
@@ -65,7 +66,7 @@ function paintStateOrigins(projection) {
 // current outcome is one the registry says retires it. This marks every such widget,
 // whether or not its module renders anything. A module that animates its own settling,
 // as lf-suggestion does, has already run it in the publication before this writes the
-// same mark. A widget in a message's frozen markup is marked before the thread mounts
+// same mark. A widget in a message's markup is marked before the thread mounts
 // it, so it joins the panel settled and the thread's passages skip what it retired.
 /** @param {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").foldWidgetStates>>} widgets */
 function paintSettlements(widgets) {
@@ -89,7 +90,7 @@ const widgetStates = readPart((root) => root.effective.widgets);
 export function createProjectionPresentation() {
   // The region claims a paint synchronously as each publication is made, before the
   // coordinator seals which regions the pass must paint. So its previous paint cannot
-  // stand for a new reading while frozen widget markup is still joining the document;
+  // stand for a new reading while thread widget markup is still joining the document;
   // the pass paints it afterwards. Before the server's first answer `reading` returns
   // null, and there is nothing to paint. The coverage stamp below follows presentation
   // (`watchPresentation`) rather than this region.
@@ -139,6 +140,8 @@ export function createProjectionPresentation() {
   };
   watchPresentation(updateCoverage);
 
+  /** @type {Map<string, Set<Element>>} */
+  const originMarked = new Map();
   function presentCurrent() {
     const projection = currentProjection();
     // Until the server's first state or the offline fallback arrives, the page cannot
@@ -150,12 +153,20 @@ export function createProjectionPresentation() {
       // widget's paint counts as current.
       return projection;
     }
+    // Every element this paint marks, or takes a mark off, says its marks again quietly.
+    /** @type {Set<Element>} */
+    const marked = new Set();
     for (const entry of projection.classified.values())
-      for (const id of entry.restated ?? [])
-        keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
+      for (const id of entry.restated ?? []) {
+        const target = elementById(id);
+        if (!target) continue;
+        keeps(target, PAGE_PAINT_ATTRIBUTE.restated, "1");
+        marked.add(target);
+      }
     paintSettlements(widgetStates());
-    const originTargets = paintStateOrigins(projection);
-    renderQuiet(document.body, originTargets);
+    for (const target of paintStateOrigins(projection, originMarked))
+      marked.add(target);
+    sayQuietFacts(marked);
     return projection;
   }
 
@@ -167,8 +178,8 @@ export function createProjectionPresentation() {
 
   // `present` is not returned. The region repaints from its own subscription above, or
   // from `presentDocument` when a caller has changed the document. Handing one caller
-  // a third way in is how the obligation inventory once got left out of a document-wide
-  // repaint.
+  // a third way in can leave an owner, such as the obligation inventory, out of a
+  // document-wide repaint.
 }
 
 /** @param {Element} root */

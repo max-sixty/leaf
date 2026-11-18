@@ -3,7 +3,8 @@
    runtime test accepts data in the same process. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { html, LeafElement } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
 import { applicationState } from "/runtime/semantic-state.js";
@@ -16,10 +17,10 @@ const settled = async (element) => {
 test("a bound element draws its source only once the page has read it", async () => {
   adoptRegistry({
     "lf-listing": {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     "lf-unbound": {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });

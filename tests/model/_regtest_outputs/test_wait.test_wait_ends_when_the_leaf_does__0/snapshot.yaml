@@ -2,22 +2,22 @@
 
 still served:
   exit: 2
-  stdout: ''
-  stderr:
-    - code: pages-idle
-      severity: advice
-      values:
-        pages: [<page>]
-      text: >-
-        the page closed; <page> is idle
+  stdout:
+    findings:
+      - code: pages-idle
+        severity: advice
+        values:
+          pages: [<page>]
+        text: >-
+          the page closed; <page> is idle
 
 server stopped:
   exit: 2
-  stdout: ''
-  stderr:
-    - code: pages-idle
-      severity: advice
-      values:
-        pages: [<page>]
-      text: >-
-        the page closed; <page> is idle
+  stdout:
+    findings:
+      - code: pages-idle
+        severity: advice
+        values:
+          pages: [<page>]
+        text: >-
+          the page closed; <page> is idle

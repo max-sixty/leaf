@@ -140,10 +140,6 @@ def admit(run: Run, page: Path, event: dict) -> None:
     arm_fixture(run, "admit", str(page), json.dumps(event))
 
 
-def page_events(page: Path) -> list[dict]:
-    return read_events(page)
-
-
 def build_reading(run: Run, page: Path, surface: str | None) -> None:
     html = (FIXTURES / "reading.html").read_text()
     if surface is not None:
@@ -176,7 +172,7 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
     if 'id="cutover-mode"' in html:
         for move in READING_FIXTURE["moves"]:
             if move.get("undoes") == "previous":
-                move = {**move, "undoes": page_events(page)[-1]["id"]}
+                move = {**move, "undoes": read_events(page)[-1]["id"]}
             admit(run, page, move)
 
 
@@ -210,8 +206,8 @@ def build_remaining_review(run: Run, page: Path) -> None:
     )  # fmt: skip
     run.leaf(
         "thread", "create", str(page), "--section", "remaining-next",
-        "--title", "#59: next extraction scope", "--text", "My recommended next scope is #59.",
-        "--markup", seed["question"], check=True,
+        "--title", "#59: next extraction scope",
+        "--text", f"My recommended next scope is #59.\n\n{seed['question']}", check=True,
     )  # fmt: skip
     state = read_page_state(run.payload, run.state, page)
     assert [item["id"] for item in state["queues"]["on_user"]] == ["widget:next-touch"]
@@ -245,7 +241,7 @@ def build_resume(run: Run, page: Path) -> None:
         "text": inputs["rerun_comment"],
         "anchor": anchor(v1, "rehearsal-result", inputs["rerun_quote"]),
     })  # fmt: skip
-    rerun = page_events(page)[-1]["id"]
+    rerun = read_events(page)[-1]["id"]
     (page / "index.html").write_text(v2)
     run.leaf(
         "page", "stamp", str(page), "--text",
@@ -272,8 +268,8 @@ def build_resume(run: Run, page: Path) -> None:
     # inside the options that makes the save invalid, so the live page stays at v2.
     candidate = v2.replace(inputs["original_date"], inputs["unsaved_date"])
     candidate = candidate.replace(
-        '<lf-options id="rollout" choose>',
-        '<lf-options id="rollout" choose>\n' + inputs["invalid_child"],
+        '<lf-options id="rollout">',
+        '<lf-options id="rollout">\n' + inputs["invalid_child"],
     )
     assert candidate.count("3 November") == 1 and "approach-deadline" in candidate
     (page / "index.html").write_text(candidate)
@@ -324,7 +320,7 @@ def build_board(run: Run, page: Path) -> None:
             "kind": "action", "revision": 1, "widget": "work-board",
             "action": "move", "detail": detail,
         })  # fmt: skip
-    admit(run, page, {"kind": "undo", "undoes": page_events(page)[-1]["id"]})
+    admit(run, page, {"kind": "undo", "undoes": read_events(page)[-1]["id"]})
 
 
 def build_package(run: Run, page: Path) -> None:
@@ -439,7 +435,7 @@ def await_render_pass(run: Run, page: Path) -> set[str]:
                 time.sleep(2)
                 return {
                     event["id"]
-                    for event in page_events(page)
+                    for event in read_events(page)
                     if event["kind"] == "render" and requires_agent_attention(event)
                 }
         time.sleep(1)
@@ -663,7 +659,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 attention. Inline context or a pointer read only presents them."""
                 nonlocal delivered
                 if delivered < posted and pending_events <= opened_input_ids(
-                    page_events(page)
+                    read_events(page)
                 ):
                     delivered = posted
                     live.note(
@@ -789,7 +785,7 @@ def post_round(
             event["undoes"] = admitted[-1]["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
-                e for e in page_events(page) if e["kind"] in kinds_declaring("message")
+                e for e in read_events(page) if e["kind"] in kinds_declaring("message")
             ][-1]["id"]
         if "text" in move:
             event["text"] = move["text"].format(
@@ -895,7 +891,7 @@ def evidence(run: Run, traces: list[list[dict]]) -> dict:
                     str(path.relative_to(page)): json.loads(path.read_text())
                     for path in sorted((page / "data").rglob("*.json"))
                 },
-                "events": page_events(page),
+                "events": read_events(page),
             }
         )
     fixture = run.dir / "fixture"

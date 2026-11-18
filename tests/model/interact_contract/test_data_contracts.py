@@ -111,17 +111,26 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
     ("change", "code"),
     [
         (
-            lambda entry: entry["x-data"]["data"].update(
+            lambda entry: entry["inputs"]["data"].update(
                 {"contract": "missing-contract"}
             ),
             "data-contract",
         ),
-        (lambda entry: entry["properties"].pop("source"), "data-source"),
+        (lambda entry: entry["attributes"]["properties"].pop("source"), "data-source"),
         (
-            lambda entry: entry["properties"].update({"source": {"type": "number"}}),
+            lambda entry: entry["attributes"]["properties"].update(
+                {"source": {"type": "number"}}
+            ),
             "data-source",
         ),
-        (lambda entry: entry.update({"x-instructions": ""}), "invalid-extensions"),
+        (
+            lambda entry: entry.update(
+                {
+                    "instructions": "",
+                }
+            ),
+            "invalid-declaration",
+        ),
     ],
 )
 def test_a_widget_data_input_is_one_complete_contract(page_dir, change, code):
@@ -136,15 +145,15 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, code):
 
 
 def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
-    """x-data requires the source attribute to be a string, not one byte-for-byte
+    """`inputs` requires the source attribute to be a string, not one byte-for-byte
     schema: a package may describe it or make it optional, and Leaf supplies its
     grammar."""
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = vocabulary(page_dir)
-    registry["lf-test-data"]["properties"]["source"]["description"] = (
+    registry["lf-test-data"]["attributes"]["properties"]["source"]["description"] = (
         "The page-owned feed id."
     )
-    registry["lf-test-data"]["required"].remove("source")
+    registry["lf-test-data"]["attributes"]["required"].remove("source")
 
     assert registry_validation.validate_registry(registry, "test registry") is registry
 
@@ -153,33 +162,28 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     ("change", "code", "values"),
     [
         (
-            lambda entry: entry["x-measured"].update({"input": "missing"}),
-            "measured-input",
-            {"input": "missing"},
-        ),
-        (
-            lambda entry: entry["required"].remove("source"),
+            lambda entry: entry["attributes"]["required"].remove("source"),
             "measured-source",
-            {"attr": "source"},
+            {"input": "measurement", "attr": "source"},
         ),
         (
-            lambda entry: entry["required"].remove("run"),
+            lambda entry: entry["attributes"]["required"].remove("run"),
             "measured-run",
-            {"attr": "run"},
+            {"input": "measurement", "attr": "run"},
         ),
         (
-            lambda entry: entry["properties"]["run"].pop("minLength"),
+            lambda entry: entry["attributes"]["properties"]["run"].pop("minLength"),
             "measured-run",
-            {"attr": "run"},
+            {"input": "measurement", "attr": "run"},
         ),
     ],
 )
-def test_a_measured_widget_joins_one_data_input_to_one_run_receipt(
+def test_a_measured_input_joins_its_source_to_one_run_receipt(
     page_dir, change, code, values
 ):
-    """The generic check cannot infer a widget's source or write receipt. Its registry
-    declaration names both, and the registry door refuses a half-readable join before
-    an authored value can silently miss the freshness advisory."""
+    """The generic check cannot infer a widget's source or write receipt. Its measured
+    input names both, and the registry door refuses a half-readable join before an
+    authored value can silently miss the freshness advisory."""
     registry = vocabulary(page_dir)
     change(registry["lf-num"])
 
@@ -195,9 +199,9 @@ def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):
     read from the immutable document."""
     registry = vocabulary(page_dir)
     widget = registry["lf-num"]
-    widget["x-upgrade"] = True
-    widget["properties"]["restated"] = {"type": "boolean"}
-    widget["x-state"] = {
+    registry["$modules"]["lf-num"] = "widgets/lf-num.js"
+    widget["attributes"]["properties"]["restated"] = {"type": "boolean"}
+    widget["verbs"] = {
         "repin": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "run"},
@@ -217,7 +221,7 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = vocabulary(page_dir)
     widget = registry["lf-test-data"]
-    widget["x-state"] = {
+    widget["verbs"] = {
         "rebind": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "source"},
@@ -311,10 +315,10 @@ def _page_owned_files_source(page_dir):
         "records": {"items": "files", "key": "key"},
     }
     widget = element_declaration("lf-local-data")
-    widget["properties"]["source"] = {"type": "string"}
-    widget["required"].append("source")
-    widget["x-data"] = {"document": {"contract": "local-files", "source": "source"}}
-    widget["x-example"] = (
+    widget["attributes"]["properties"]["source"] = {"type": "string"}
+    widget["attributes"]["required"].append("source")
+    widget["inputs"] = {"document": {"contract": "local-files", "source": "source"}}
+    widget["example"] = (
         '<lf-local-data id="example-local-data" source="example"></lf-local-data>'
     )
     authored = page_dir / "page" / "registry.json"
@@ -384,7 +388,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
 ):
     authored = _page_owned_files_source(page_dir)
     declarations = json.loads(authored.read_text())
-    inputs = declarations["lf-local-data"]["x-data"]
+    inputs = declarations["lf-local-data"]["inputs"]
     inputs["renamed"] = inputs.pop("document")
     authored.write_text(json.dumps(declarations))
     source = page_dir / "index.html"
@@ -396,9 +400,11 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     registry = registry_storage.require_registry(page_dir)
     events = [
         {
-            "id": "frozen-feed",
+            "id": "feed-reply",
+            "kind": "reply",
+            "author": "agent",
             "revision": 1,
-            "markup": '<lf-local-data id="reply-data" source="reply-feed"></lf-local-data>',
+            "text": '<lf-local-data id="reply-data" source="reply-feed"></lf-local-data>',
         }
     ]
 
@@ -409,7 +415,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
         {
             "widget": "reply-data",
             "input": "document",
-            "document": "event 'frozen-feed' markup",
+            "document": "event 'feed-reply' markup",
         }
     ]
     bootstrap = data_contracts_model.page_data_binding_inventory(
@@ -422,7 +428,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
                 {
                     "widget": "reply-data",
                     "input": "renamed",
-                    "document": "event 'frozen-feed' markup",
+                    "document": "event 'feed-reply' markup",
                 }
             ],
         }
@@ -455,7 +461,7 @@ def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
     (page_dir / "index.html").write_text(PAGE)
     assert revisioning_model.activate_source(page_dir).error is None
     # The saved edit moves one widget type to another contract and uses neither.
-    registry["lf-test-other"]["x-data"]["data"]["contract"] = "other-rows"
+    registry["lf-test-other"]["inputs"]["data"]["contract"] = "other-rows"
     declare_vocabulary(page_dir, registry)
     opened = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Show both."}
@@ -465,8 +471,8 @@ def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
         thread_model.post_reply(
             page_dir,
             {"parent": opened["id"], "responds": opened["id"]},
-            "Both views of one feed.",
-            '<lf-test-data id="rows-view" source="shared"></lf-test-data>'
+            "Both views of one feed.\n\n"
+            '<lf-test-data id="rows-view" source="shared"></lf-test-data>\n'
             '<lf-test-other id="other-view" source="shared"></lf-test-other>',
             **publishing,
         )
@@ -499,18 +505,22 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
 
     registry = {
         "lf-producer": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
-            "x-content": "empty",
-            "x-output": {"rows": {"contract": "rows"}},
+            "attributes": {
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+            },
+            "content": "empty",
+            "outputs": {"rows": {"contract": "rows"}},
         },
         "lf-consumer": {
-            "type": "object",
-            "properties": {
-                name: {"type": "string"} for name in ("id", "source", "for")
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    name: {"type": "string"} for name in ("id", "source", "for")
+                },
             },
-            "x-content": "empty",
-            "x-data": {
+            "content": "empty",
+            "inputs": {
                 "rows": {
                     "contract": "rows",
                     "source": "source",
@@ -518,7 +528,7 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
                     "output": "rows",
                 }
             },
-            "x-refers": {"for": {}},
+            "refers": {"for": {}},
         },
     }
 
@@ -537,10 +547,10 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     assert [finding.code for finding in errors('for="feed" source="external"')] == [
         "ambiguous-data-binding"
     ]
-    registry["lf-consumer"]["x-data"]["rows"].pop("source")
-    registry["lf-consumer"]["properties"].pop("source")
+    registry["lf-consumer"]["inputs"]["rows"].pop("source")
+    registry["lf-consumer"]["attributes"]["properties"].pop("source")
     assert errors('for="feed"') == []
-    registry["lf-producer"]["x-output"]["rows"]["contract"] = "other"
+    registry["lf-producer"]["outputs"]["rows"]["contract"] = "other"
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
-    registry["lf-producer"].pop("x-output")
+    registry["lf-producer"].pop("outputs")
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]

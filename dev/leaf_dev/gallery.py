@@ -21,10 +21,10 @@ from leaf.media import write_media
 from leaf.schema import MEDIA_DIR
 
 
-def media(directory: Path, data: bytes, suffix: str = ".png") -> str:
-    """Write `data` into a page's media `directory` under its content name, and return
-    the path the page reads it by."""
-    return f"/{MEDIA_DIR}/{write_media(directory, data, suffix)}"
+def media(directory: Path, data: bytes) -> str:
+    """Write the PNG `data` into a page's media `directory` under its content name, and
+    return the path the page reads it by."""
+    return f"/{MEDIA_DIR}/{write_media(directory, data, '.png')}"
 
 
 def shot(id: str, alt: str, before: str | None, after: str) -> str:

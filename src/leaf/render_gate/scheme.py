@@ -1,4 +1,4 @@
-"""Lifecycle and trusted inputs for one browser color scheme."""
+"""Lifecycle and trusted inputs for the page the render gate reads."""
 
 import re
 import time
@@ -17,18 +17,21 @@ from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
+    asked_again,
     close_render_page,
     evaluate_probe,
     install_window_errors,
     observe_output_documents,
+    open_render_page,
     output_values,
+    rendered,
     start_near_work,
     wait_for_probe,
     wait_until_ready,
 )
 from leaf.server import page_origin
 
-from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext, thread_findings
+from .readings import DevtoolsIssues, _page_findings, _PageContext, thread_findings
 
 # What a frame of another live Leaf page shows during a check (`stand_in_other_leaves`).
 OTHER_LEAF = "<!doctype html><p>Another Leaf page, checked on its own.</p>"
@@ -81,27 +84,32 @@ def served(page, url: str, path: str, timeout_ms: int | None = None):
     return page.request.get(urljoin(url, path), timeout=timeout_ms)
 
 
-def answer_reports(page, heard) -> None:
+def answer_reports(page) -> None:
     """Answer here the events the runtime sends on its own, an error report and a
     bookkeeping event, so a reading neither writes to the page's log nor draws the
-    refusal a read-only server gives the post.
+    refusal a read-only server gives the post. The reading takes a report's words from
+    the console instead (`page_code.PageCode`).
 
-    An error the page reports to its agent hands its text to `heard`. A bookkeeping
-    event, such as the `read` a page sends once it has shown an agent message whole,
-    is refused as final, so the page doesn't send it again. It is refused under a 200,
-    because Chrome reports a failed fetch as a console error, which the gate counts
-    against the page. Every other event goes through, so a page that writes without
-    a gesture still draws the server's refusal."""
+    An error report is answered with no content. A bookkeeping event, such as the
+    `read` a page sends once it has shown an agent message whole, is refused as final,
+    so the page doesn't send it again. It is refused under a 200, because Chrome
+    reports a failed fetch as a console error, which the gate counts against the page.
+    Every other event goes through, so a page that writes without a gesture still
+    draws the server's refusal. Firefox hands the route no post's body over WebDriver
+    BiDi, so there every post is refused here, under a 200 as well, since a refusal
+    from the server would read as a failed request beside the page's real reports.
+    Firefox puts no failed fetch in its console, so a page there that writes without
+    a gesture goes unreported either way."""
     bookkeeping = kinds_declaring("bookkeeping")
+
+    refused = Refused("a render check records no reading")
 
     def report(route):
         event = route.request.post_data_json
-        if event["kind"] == "error":
-            heard(event["text"])
+        if event is None or event["kind"] in bookkeeping:
+            route.fulfill(status=200, json=event_rejection(event or {}, refused)[1])
+        elif event["kind"] == "error":
             route.fulfill(status=204)
-        elif event["kind"] in bookkeeping:
-            refused = Refused("a render check records no reading")
-            route.fulfill(status=200, json=event_rejection(event, refused)[1])
         else:
             route.continue_()
 
@@ -214,27 +222,31 @@ def collect_page_errors(page, errors: list[Finding], *, warnings: bool = False) 
     collect_page_exceptions(page, errors)
 
 
-def _render_scheme(
+def _render_page(
     browser,
     url,
-    scheme,
     viewport,
     served_timeout_ms,
     opened_pages,
     then=None,
     implementations=None,
     declaration_sources=None,
+    page_code=None,
 ):
-    """Read and report the browser gate for one color scheme and viewport: the
-    findings that refuse the version, the ResizeObserver loop notices its retry
+    """Read and report the browser gate on one page at `viewport` in the light scheme:
+    the findings that refuse the version, the ResizeObserver loop notices its retry
     policy judges (`version.render_version`), and whether every reading completed.
 
     `then`, when given, is handed the settled page and its registry after every reading
-    here, for additional version-level readings before the page closes."""
+    here, for additional version-level readings before the page closes. `page_code`,
+    when given, is a list this page's page-code reading (`page_code.PageCode`) fills
+    once the page is ready; where it fails the page, nothing more is read."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    page = browser.new_page(viewport=viewport, color_scheme=scheme)
+    from .page_code import PageCode
+
+    page = open_render_page(browser, viewport=viewport, color_scheme="light")
     stand_in_other_leaves(page)
     opened_pages.append(page)
     page._leaf_probe_timeout_ms = served_timeout_ms
@@ -254,11 +266,7 @@ def _render_scheme(
 
     def ended(found, notices=(), complete=False):
         close_render_page(page)
-        return (
-            [finding.but(scheme=scheme) for finding in found],
-            [notice.but(scheme=scheme) for notice in notices],
-            complete,
-        )
+        return list(found), list(notices), complete
 
     def explained(code, **values):
         # The named wait says what never arrived; the console diagnostics collected
@@ -269,17 +277,29 @@ def _render_scheme(
     def probe_failure(error):
         return explained("probe-failed", error=str(error).strip())
 
+    def never_ready(error, finding):
+        # Where this page takes the page-code reading, a page that never got ready
+        # fails it, and the version is read no further.
+        if code is not None and page_code is not None:
+            page_code.extend(code.findings(page, error))
+            return ended([], complete=True)
+        return explained(finding)
+
     page.on("console", console_message)
     collect_page_exceptions(page, errors)
     # The runtime writes each report to the console too, which is where this reading
-    # takes it.
-    answer_reports(page, lambda text: None)
+    # takes it, unless it is the page-code reading's too.
+    code = PageCode(page) if page_code is not None else None
+    if code is None:
+        answer_reports(page)
     devtools = DevtoolsIssues(page)
     install_window_errors(page, window_error)
     try:
         observe_output_documents(page)
-        page.goto(url)
-        wait_for_probe(page, "runtimeStarted")
+        page.goto(asked_again(url))
+        wait_for_probe(page, "runtimeStarted", fixed_server=True)
+    except PageNotReady as error:
+        return never_ready(error, "no-runtime")
     except PlaywrightTimeout:
         return explained("no-runtime")
     except PlaywrightError as error:
@@ -295,10 +315,15 @@ def _render_scheme(
         # At least 1ms: Playwright reads a zero timeout as none.
         return max(1, round((handover_ends - time.monotonic()) * 1000))
 
+    # A page that declares it cannot start, as one whose widget module failed to load
+    # does, upgrades nothing more, and nothing replaces the preview server that would
+    # reload it, so the declaration ends each wait as well.
     try:
-        wait_for_probe(page, "upgraded", timeout_ms=handover_left())
-    except PlaywrightTimeout:
-        return explained("never-upgraded")
+        wait_until_ready(
+            page, through="upgraded", timeout_ms=handover_left(), fixed_server=True
+        )
+    except PageNotReady as error:
+        return never_ready(error, "never-upgraded")
     except PlaywrightError as error:
         return probe_failure(error)
     # The served documents every reading below is asked against, read once each
@@ -309,7 +334,7 @@ def _render_scheme(
         registry = served_here("/registry.json").json()
         # The readings in the page consume element declarations, so they are handed
         # only those:
-        # $keys spells its members in the x- keys' own names, and a sweep over
+        # $keys spells its members in a declaration's own keys, and a sweep over
         # every declaration took it for a widget called $keys.
         declarations = element_declarations(registry)
         visual_provider_problems = evaluate_probe(
@@ -344,18 +369,29 @@ def _render_scheme(
     # nobody is shown. The page's readiness against the reading taken above is the
     # answer to that, and the frame the log lands in is the first frame of whatever
     # the replay set moving, a replay past the presentation boundary moving rather than
-    # teleporting, which `pageSettled` then waits out. Both waits are taken in both
-    # schemes, because every reading below has boxes or words in it. The windows open
+    # teleporting, which `pageSettled` then waits out. Every reading below has boxes
+    # or words in it. The windows open
     # under load alone, which is how one page passed at a desk and reported words
     # drawn over words under a full suite. The readings take in every document the
     # page can show, so work it holds until the reader nears it starts first.
+    unready = None
     try:
-        wait_until_ready(page, state, timeout_ms=handover_left())
-        start_near_work(page, state, timeout_ms=handover_left())
+        wait_until_ready(page, state, timeout_ms=handover_left(), fixed_server=True)
+        start_near_work(page, state, timeout_ms=handover_left(), fixed_server=True)
     except PageNotReady as error:
-        failed_stage = error.stage
+        unready = error
+    if code is not None and page_code is not None:
+        if unready is None:
+            # As `run_page_code` reads it: a widget that paints from a rendering
+            # callback throws there, so every callback it queued has run first.
+            rendered(page)
+        page_code.extend(code.findings(page, unready))
+        if page_code:
+            return ended([], complete=True)
+    if unready is not None:
+        failed_stage = unready.stage
         unsettled = [
-            Finding("not-ready", values={"stage": error.stage, "error": str(error)})
+            Finding("not-ready", values={"stage": unready.stage, "error": str(unready)})
         ]
     else:
         try:
@@ -365,14 +401,9 @@ def _render_scheme(
             failed_stage = "pageSettled"
             moving = evaluate_probe(page, "moving")
             unsettled = [Finding("never-settled", values={"moving": moving})]
-    errors.extend(
-        Finding.read(finding, severity="advice")
-        for finding in evaluate_probe(page, "startupLayoutShifts")
-    )
     replayed = _projection_was_applied(failed_stage)
-    context = _SchemeContext(
+    context = _PageContext(
         page=page,
-        light=scheme == "light",
         errors=errors,
         registry=registry,
         declarations=declarations,
@@ -383,7 +414,7 @@ def _render_scheme(
         unsettled=unsettled,
         devtools=devtools,
     )
-    found = _scheme_findings(context)
+    found = _page_findings(context)
     if then is not None:
         then(page, registry)
     # Last, because opening a thread changes what the page shows `then`.

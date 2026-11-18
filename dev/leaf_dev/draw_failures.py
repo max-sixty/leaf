@@ -20,6 +20,7 @@ import re
 from pathlib import Path
 
 from leaf.event_log import read_events
+from leaf.thread_context import logged_fragment
 from leaf_dev.authoring_eval import leaf_command
 
 # The findings that say something failed to run or draw, as opposed to the geometry
@@ -74,9 +75,9 @@ def placed(page: Path) -> dict:
     """The widget tags in the final page and in each message's markup."""
     html = (page / "index.html").read_text() if (page / "index.html").is_file() else ""
     messages = [
-        sorted(set(TAG.findall(event["markup"])))
+        sorted(set(TAG.findall(event["text"])))
         for event in read_events(page)
-        if event.get("markup")
+        if logged_fragment(event)
     ]
     return {"page": sorted(set(TAG.findall(html))), "messages": messages}
 

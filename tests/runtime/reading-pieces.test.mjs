@@ -30,7 +30,9 @@ let generation = 0;
 // A vocabulary no reading has been read against, which forgets every kept piece.
 const freshVocabulary = () =>
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: `reading-pieces-${(generation += 1)}` },
   });
 

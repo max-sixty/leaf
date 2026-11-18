@@ -74,9 +74,11 @@ def floors(rows: list[dict]) -> dict[str, float]:
 
 def build(collection: Collection, sizes: list[int], directory: Path) -> dict[int, Path]:
     """Make `collection`'s page at each of `sizes` under `directory`: each version
-    activated in turn, then the log. Where a page's versions begin with a smaller
-    page's, they are activated once, on a page each size copies before its log is
-    written, so the pages of every size together activate each version once."""
+    activated in turn, then its sources' values, then the log. Where a page's versions
+    begin with a smaller page's, they are activated once, on a page each size copies
+    before its values and log are written, so the pages of every size together
+    activate each version once."""
+    from leaf.data import cmd_data_set
     from leaf.revisioning import activate_source
     from leaf.vendoring import cmd_init
     from leaf_dev.page_fixtures import DEFAULT_PACKAGES
@@ -100,6 +102,8 @@ def build(collection: Collection, sizes: list[int], directory: Path) -> dict[int
             assert activation.error is None, activation.error
             built.append(source)
         pages[n] = shutil.copytree(versions, directory / str(n), symlinks=True)
+        for source, value in collection.data(n).items():
+            cmd_data_set(pages[n], source, value)
         write_log(pages[n], collection.log(n))
     return pages
 

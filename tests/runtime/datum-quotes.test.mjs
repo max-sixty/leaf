@@ -174,7 +174,9 @@ test("capturing a word a datum repeats reads the words beside only the copies th
 // so the datum's one copy is still the quote's.
 test("a datum's quote counts no copy among the words its slot shows from outside it", () => {
   Object.assign(registry, {
-    "lf-slotted-datum": { "x-shadow": true },
+    "lf-slotted-datum": {
+      shadow: true,
+    },
     $layer: { generation: "datum-quote-slot" },
   });
   document.body.innerHTML =

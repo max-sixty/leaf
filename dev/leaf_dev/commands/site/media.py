@@ -28,7 +28,7 @@ def publish_media(files: tuple[str, ...]) -> None:
         require_media_type(path)
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = clone(Path(raw))
-        target = checkout.path / directory
+        target = checkout / directory
         target.mkdir(parents=True, exist_ok=True)
         named = {
             write_media(target, path.read_bytes(), path.suffix): path for path in paths

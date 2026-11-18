@@ -14,7 +14,7 @@ it here from that owner as it reads the source (`page_fixtures.authored_markup`)
   `<meta name="description">`;
 - `.example-packages` inside a catalog link: each bundled package whose element the
   example's markup uses, in package order;
-- `table#all-verbs`'s body: every `x-state` verb the kernel and the bundled packages
+- `table#all-verbs`'s body: every verb (`verbs`) the kernel and the bundled packages
   declare, in registry order;
 - `nav.reference-index` and `div.reference-list`: the core layer's `$keys`
   (`browser/registry.json`);
@@ -34,7 +34,7 @@ from pathlib import Path
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
 from leaf.state import KERNEL_REGISTRY
-from leaf.structure import SourceDocument
+from leaf.structure import SourceDocument, splice
 from leaf_dev import ROOT, declared_records
 from leaf_dev.example_data import PRODUCT_DOCS, WORKED_EXAMPLES, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
@@ -128,7 +128,7 @@ def verb_rows() -> list[str]:
         for tag, element in json.loads(path.read_text(encoding="utf-8")).items():
             if not tag.startswith("lf-"):
                 continue
-            for verb, verb_state in element.get("x-state", {}).items():
+            for verb, verb_state in element.get("verbs", {}).items():
                 cells = (
                     f"<code>{tag}</code>",
                     f"<code>{verb}</code>",
@@ -157,8 +157,58 @@ def example_packages(source: Path) -> str:
 
 
 def registry_keys() -> dict[str, str]:
+    """Each documented key's text, in `$keys` order, which is the reference's."""
     keys = json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))["$keys"]
-    return {key: keys[key] for key in sorted(keys) if key != "description"}
+    return {key: text for key, text in keys.items() if key != "description"}
+
+
+# The reference's sections, each by the key it opens on and running to the next one's,
+# in `$keys` order, with the reader that needs its keys declared. The registry carries
+# no layout: these are the site's headings over the keys `$keys` documents.
+KEY_SECTIONS = {
+    "attributes": (
+        "Element",
+        "What every declaration holds beside its description.",
+    ),
+    "verbs": (
+        "State",
+        "What the server admits as actions and keeps on the On lists, which it can't "
+        "learn by running the widget's module.",
+    ),
+    "owners": (
+        "Structure",
+        "Where the element may stand and what it names, which `page check` and message "
+        "markup hold markup to without running a module.",
+    ),
+    "verbatim": (
+        "Words",
+        "How the element's words read to the passage reader, the render check and a "
+        "browser that hasn't run its module.",
+    ),
+    "views": (
+        "Paint",
+        "How the element's box is laid out at first paint, before any module runs.",
+    ),
+    "inputs": (
+        "Data",
+        "The typed values the server checks against `$data.contracts` and the browser "
+        "delivers.",
+    ),
+    "example": (
+        "Authoring",
+        "What an agent reads once it has chosen the element.",
+    ),
+}
+
+
+def key_sections() -> dict[str, tuple[str, str]]:
+    """`KEY_SECTIONS`, refusing a section that opens on a key `$keys` doesn't
+    document."""
+    if unknown := sorted(set(KEY_SECTIONS) - set(registry_keys())):
+        raise ValueError(
+            f"KEY_SECTIONS opens on keys $keys doesn't document: {unknown}"
+        )
+    return KEY_SECTIONS
 
 
 def key_prose(text: str) -> str:
@@ -178,24 +228,37 @@ def key_index() -> list[str]:
     return [f'<a href="#{key}"><code>{key}</code></a>' for key in registry_keys()]
 
 
+def key_entry(entry_id: str, heading: str, text: str, label: str) -> str:
+    lead, detail = key_summary(text)
+    contract = ""
+    if detail:
+        contract = (
+            '<details class="reference-more">'
+            f'<summary aria-label="Full {label} contract">Full contract</summary>'
+            f"<p>{key_prose(detail)}</p>"
+            "</details>"
+        )
+    return (
+        f'<section class="reference-entry" id="{entry_id}">'
+        f"<h4>{heading}</h4>"
+        f'<div class="reference-copy"><p>{key_prose(lead)}</p>{contract}</div>'
+        "</section>"
+    )
+
+
 def key_entries() -> list[str]:
+    """Each key's entry, in `$keys` order, with each section's heading before the key
+    it opens on."""
+    sections = key_sections()
     entries = []
     for key, text in registry_keys().items():
-        lead, detail = key_summary(text)
-        contract = ""
-        if detail:
-            contract = (
-                '<details class="reference-more">'
-                f'<summary aria-label="Full {key} contract">Full contract</summary>'
-                f"<p>{key_prose(detail)}</p>"
-                "</details>"
+        if section := sections.get(key):
+            title, intro = section
+            entries.append(
+                f'<h3 class="reference-section" id="keys-{title.lower()}">{title}</h3>'
+                f'<p class="reference-section-intro">{key_prose(intro)}</p>'
             )
-        entries.append(
-            f'<section class="reference-entry" id="{key}">'
-            f"<h3><code>{key}</code></h3>"
-            f'<div class="reference-copy"><p>{key_prose(lead)}</p>{contract}</div>'
-            "</section>"
-        )
+        entries.append(key_entry(key, f"<code>{key}</code>", text, key))
     return entries
 
 
@@ -205,7 +268,7 @@ def read_json(path: Path) -> dict:
 
 def schema_reference(ref: str) -> str:
     """A `$ref` as a link to the entry that declares its target: a served-state
-    definition, an event kind, or the registry's `x-state`."""
+    definition, an event kind, or the registry's `verbs`."""
     uri, _, pointer = ref.partition("#")
     if not uri:
         name = pointer.removeprefix("/$defs/")
@@ -217,7 +280,7 @@ def schema_reference(ref: str) -> str:
         label = f"{owner}'s <code>{field}</code>" if field else name or "served state"
         return f'<a href="#served-{target or "state"}">{label}</a>'
     if uri == "leaf:verb":
-        return '<a href="/extending/#x-state">x-state verb</a>'
+        return '<a href="/extending/#verbs">verb (<code>verbs</code>)</a>'
     if uri == "leaf:event":
         return '<a href="#events">event</a>'
     kind = uri.removeprefix("leaf:event/").removeprefix("leaf:message/")
@@ -456,7 +519,7 @@ def event_entries() -> list[str]:
             if contract.get(member):
                 notes.append(f"A <code>{member}</code> kind.")
         if writer := contract.get("verb_writer"):
-            notes.append(f"Carries an x-state verb the {writer} writes.")
+            notes.append(f"Carries a verb (<code>verbs</code>) the {writer} writes.")
         entries.append(
             schema_entry(
                 f"event-{kind}",
@@ -591,6 +654,4 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
         name = listing.attrs["data-schemas"]
         assert isinstance(name, str)
         fill(listing, SCHEMA_LISTS[name]())
-    for start, end, text in sorted(edits, reverse=True):
-        markup = markup[:start] + text + markup[end:]
-    return markup
+    return splice(markup, edits)

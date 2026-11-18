@@ -401,12 +401,18 @@ const owed = () => {};
     preparation begun since has landed. A preparation already waiting is someone
     else's. A gesture's rendering is the work its input sets going until then, its
     answers to that input included, such as a widget preparing what a disclosure the
-    reader opened shows.
+    reader opened shows. Returns a function that withdraws the wait, which a page whose
+    rendering never quiets would otherwise hold for as long as the page stays open.
  * @param {() => void} settled
+ * @returns {() => void}
  */
 export function afterSettling(settled) {
-  settling.push({ settled, since: begun });
+  const waiter = { settled, since: begun };
+  settling.push(waiter);
   nextFrame(owed);
+  return () => {
+    settling = settling.filter((each) => each !== waiter);
+  };
 }
 
 // Nothing has been heard yet: the page is unsettled until its first quiet update.

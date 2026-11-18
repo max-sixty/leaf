@@ -113,7 +113,7 @@ boundary keeps Codex's tool hook, which runs after every call, from reading its 
 each time (`state.status_check_due`). Only a working status, at a tool boundary, is reminded: a turn waiting
 on the user or between turns runs none, and a closed or listening page shows no
 line to renew. Whether the work has moved on is the agent's judgement; the hook only
-says how long the line has stood. This was the user's choice (28 October 2026) over
+says how long the line has stood. This was the user's choice over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
@@ -179,7 +179,11 @@ from .state import (
 
 def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
     """A line for each page whose working status has stood `STATUS_RENEWAL`,
-    recording the check (`state.status_check_due`)."""
+    recording the check (`state.status_check_due`). A page working with no line
+    from the agent is reminded only while the agent owes it an update: the
+    harness's word that the session is busy reaches every page the session holds,
+    and an open to-do may be one the agent left for later while it works
+    elsewhere."""
     session_file(session_id, STATUS_CHECKED_SUFFIX).touch()
     now = datetime.now().astimezone()
     lines = []
@@ -199,7 +203,7 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
                 f'`leaf task start {plan.page} {source["item"]} --text "<what you '
                 'are doing now>"`, in new words if your work has moved on.'
             )
-        else:
+        elif activity["obligations"]:
             lines.append(
                 f"Leaf: {plan.page} has shown no status line from you for {minutes} "
                 f"min while you work on its updates. Say what you are doing with "
@@ -447,8 +451,8 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
-    Debt an agent's running turn holds is that turn's, so the pickup leaves it out
-    (`holding.pickable`).
+    Debt the main thread doesn't owe, which a running fork or the line fork holds,
+    is theirs, so the pickup leaves it out (`holding.pickable`).
     """
     from .activity import acknowledged_obligations
     from .served_state.context import read_page

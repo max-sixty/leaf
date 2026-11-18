@@ -22,11 +22,11 @@ from leaf_dev.commands.journey._journey import CASES, HARNESS_TARGETS, samples_p
 # The milestones the chart draws (`leaf_dev.page_timings`), on the page
 # server's clock from the comment's admission.
 SIGNS = (
-    ("title", "titled", "var(--series-2)"),
-    ("picked up", "opened", "var(--series-5)"),
-    ("work started", "started", "var(--series-1)"),
-    ("progress", "progress", "var(--series-4)"),
-    ("reply", "answered", "var(--series-3)"),
+    ("title", "titled", "var(--lf-series-2)"),
+    ("picked up", "opened", "var(--lf-series-5)"),
+    ("work started", "started", "var(--lf-series-1)"),
+    ("progress", "progress", "var(--lf-series-4)"),
+    ("reply", "answered", "var(--lf-series-3)"),
 )
 TICKS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
 # Plot sizes no margin to its labels: about this many px a character at its font.

@@ -8,9 +8,6 @@ import pytest
 from interact_support import (
     append_carried_log_record,
     append_command,
-    declare,
-    declare_work,
-    end_work,
     record_claim,
     working,
 )
@@ -25,15 +22,12 @@ from render_cases_layout import (
     page_at_rest,
 )
 from render_harness import (
-    LONG_PAGE,
     consume_browser_errors,
     expect_open_threads,
-    expect_preview_words,
     http_error_console,
     nudge,
     open_page,
     panel_field,
-    panel_settled,
     panel_view,
     refuse,
     stamp_page,
@@ -53,9 +47,9 @@ LEAVES = panel_view("leaves")
 def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, serve):
     """The dot going red is not an announcement.
 
-    The chrome once flipped to the offline colour and rewrote its line while the live
-    region went on holding whatever it last said, so a user who is not watching the
-    chrome learned nothing. A kind changing — work starting, a turn ending, the server
+    A chrome that flips to the offline colour and rewrites its line while the live
+    region goes on holding whatever it last said tells a user who is not watching the
+    chrome nothing. A kind changing — work starting, a turn ending, the server
     going, then refusing this tab's key — is what is worth interrupting for, and what it says is the status's own
     sentence rather than a second account of it. The age moving and a count turning over
     are not kinds and stay out of the region."""
@@ -172,19 +166,18 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     the news rewrote may grow or shrink into free room, as the status press does when the
     sentence it carries changes; nothing else may move for it.
 
-    The panel's row is where all of it lands. On the banner `Threads: 9` becoming
-    `Threads: 10` — a comment posted from the terminal while the user reads — slid
-    the version picker 6px left, and the Accept all a second tab's decision put away
-    took the New-version chip with it; the row's notice for a new version takes its
-    room from the field, so the marks keep their seats.
+    The panel's row is where all of it lands. `Threads: 9` becoming `Threads: 10` — a
+    comment posted from the terminal while the user reads — would slide the version
+    picker left, and the Accept all a second tab's decision puts away would take the
+    New-version chip with it; a new version says itself in the field's words and offers
+    Open latest at its end, so the marks keep their seats.
 
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the
     press sweep above can make is one the user made, and none of these are."""
     # Three pending suggestions, so On Me's count has somewhere to go before they run
     # out; nine comments already, so the tenth crosses a digit; and pinned, so a v2
-    # landing leaves the page where it is and offers the row's notice rather than
-    # following it.
+    # landing leaves the page where it is and offers Open latest rather than following it.
     html = SUGGESTION_PAGE
     url = serve(html, comments=9)
     d = serve.page_dir
@@ -233,7 +226,8 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "a new version is published",
             publish_v2,
-            "() => document.querySelector('.lf-fp-row-notice')?.checkVisibility()",
+            "() => [...document.querySelectorAll('.lf-fp-field .lf-compose-press')]"
+            ".some((press) => press.textContent.includes('Open latest'))",
         ),
         (
             "another tab decides two of the three pending suggestions",
@@ -257,63 +251,3 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         page_at_rest(page)
         moved = displaced(before, page.evaluate("() => window.__lfBoxes()"), news=True)
         assert not moved, f"{what} and the panel moved:\n  " + "\n  ".join(moved)
-
-
-def test_a_panel_row_follows_its_pages_status_live(
-    browser, serve, other_leaf, tmp_path
-):
-    """All pages is a status surface, not a snapshot: a neighbour's declaration
-    changing on disk repaints its row at the next poll, in place, and the row's
-    hover follows it, being the same account written where there is room for it
-    whole."""
-    _, other_dir = other_leaf
-    page = open_page(browser, serve(LONG_PAGE))
-    told(page, until=lambda state: bool(state["others"]))
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    panel_settled(page, view="leaves")
-    row = page.locator(f"{LEAVES} a.lf-fp-page")
-    expect(row).to_contain_text("running the suite")
-    declare_work(other_dir, "recording the demo")
-    told(page)
-    expect(row).to_contain_text("recording the demo")
-    # A neighbour waiting on its own user says so in this seat's shorter words, and
-    # in the same term its own status uses: All pages is where a user picks which
-    # page to go to. The row's preview holds it whole, since the line ellipsizes at
-    # the panel's width, and no part of the row has a title of its own, whose
-    # tooltip the browser would show in its place.
-    end_work(other_dir)
-    declare(other_dir, "waiting")
-    told(page)
-    expect(row).to_contain_text("Ready")
-    expect_preview_words(row, f"The other leaf\n{tmp_path / 'other-work'}\nReady")
-    assert row.locator("[title]").count() == 0, (
-        "a part of the row carries a tooltip of its own, which wins under the pointer "
-        "over the row's whole account"
-    )
-
-
-def test_a_closed_leaf_clears_itself_off_all_pages(browser, serve, other_leaf):
-    """A closed leaf leaves All pages on the poll that says so. Its server stays
-    up — a persistent one for good — so the row would otherwise stand forever and the
-    list a user glances at to find who needs them would become a tally of
-    everything that has ever run here. This page's own row never drops — a user
-    looking at a closed page is still looking at it — so a list with nothing live left
-    on it still says where the user is."""
-    _, other_dir = other_leaf
-    page = open_page(browser, serve(LONG_PAGE))
-    told(page, until=lambda state: bool(state["others"]))
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    panel_settled(page, view="leaves")
-    view = page.locator(LEAVES)
-    rows = view.locator("a.lf-fp-page")
-    expect(rows).to_have_count(1)
-    rows.first.focus()
-    declare(other_dir, "idle")
-    told(page)
-    expect(rows).to_have_count(0)
-    expect(view.locator(".lf-fp-page")).to_contain_text("long")
-    assert view.evaluate("view => view.contains(document.activeElement)"), (
-        "the leaving row dropped the user out of All pages"
-    )

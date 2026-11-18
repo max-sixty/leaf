@@ -36,7 +36,7 @@ def browser_undo_candidates(
     the entries naming that widget, so the browser applies no rule of its own. Beyond
     what the append door refuses (`UndoReading`), an entry must paint something on
     this document. An action stands where its widget and verb are in this document's
-    projection or the frozen thread
+    projection or the thread
     markup's, and a page action no longer stands once a later revision restated what
     it rests on. A decision carried from an earlier revision is otherwise as
     undoable as one made on this one; where this revision's markup places its unit,

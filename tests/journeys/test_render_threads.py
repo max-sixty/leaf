@@ -7,14 +7,18 @@ from collections import Counter
 import pytest
 from browser.threads import (
     CHANGE_HEAD,
+    CHANGE_PAGE,
+    REPLY_CHANGE,
     capture_page,
     open_capture_area,
     open_panel_thread,
     paste_image,
     pressed_send_surface,
+    seed_reply,
 )
 from interact_support import (
     append_carried_log_record,
+    append_command,
 )
 from PIL import Image
 from playwright.sync_api import expect
@@ -26,6 +30,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     example_media,
+    expect_design_mode,
     expect_panel_says,
     expect_preview_words,
     http_error_console,
@@ -40,6 +45,7 @@ from render_harness import (
     write,
 )
 
+from journeys import detached_threads
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -183,7 +189,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     words = "Phone final review: image and greeting checked."
     page.keyboard.type(words)
     expect(field).to_have_js_property("value", words)
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     with sending(page, "the file comment after image inspection"):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -613,3 +619,76 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
         <= 3  # Native JPEG rounding of otherwise uniform ground.
         for reading in fading
     ), fading
+
+
+def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serve):
+    """A decided change keeps whatever of itself is still showing, wherever it stands.
+
+    `settledAway` asks whether a decision emptied an element: every child now a retired
+    slot or the runtime's own apparatus, with no words of its own left. Asked about the
+    page that test is right; asked about a change an agent sent in a reply it was asked
+    the wrong way round, because the panel holding it is itself the runtime's apparatus
+    and so every child of it answered yes. One accepted slot then emptied a change whose
+    other half was on screen: the anchor a user had put on it stopped resolving, the
+    outline came off, and the thread stood detached beside the words it was about.
+
+    The same change on the page is the control, and the two must agree."""
+    for where, markup, wid in (
+        ("the page", CHANGE_PAGE, "tv-doc-sug"),
+        ("a reply", BARE_PAGE, "tv-msg-sug"),
+    ):
+        url = serve(markup)
+        d = serve.page_dir
+        if wid.startswith("tv-msg"):
+            seed_reply(d, REPLY_CHANGE, wid)
+        else:
+            append_carried_log_record(
+                d,
+                {
+                    "kind": "comment",
+                    "id": "tv-on-it",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Why ninety?",
+                    "anchor": {"section": wid},
+                },
+            )
+        append_command(
+            d,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": wid,
+                "action": "decide",
+                "detail": {"outcome": "accept"},
+            },
+        )
+        page = open_page(browser, url)
+        resized(page, 1280, 900)
+        if wid.startswith("tv-msg"):
+            open_panel_thread(page, "tv-decisioned")
+            rendered(page)
+        settled = page.evaluate(
+            """(wid) => {
+                 const el = document.getElementById(wid);
+                 return { state: el?.dataset.lfState,
+                          retired: [...(el?.querySelectorAll('[data-lf-retired]') ?? [])].length,
+                          marked: Boolean(el?.classList.contains('lf-mark-el')) };
+               }""",
+            wid,
+        )
+        # The panel shows one thread at a time, so opening the anchored thread there
+        # to read its quote would take down the reply holding the change it is about:
+        # in a reply the outline (`marked`) is what says the anchor still resolves.
+        settled["detached"] = wid.startswith("tv-doc") and "tv-on-it" in (
+            detached_threads(page, ["tv-on-it"])
+        )
+        assert settled["state"] == "accept" and settled["retired"] == 1, (
+            f"{where}: the change did not settle, so nothing here is being read "
+            f"({settled})"
+        )
+        assert not settled["detached"] and settled["marked"], (
+            f"{where}: the accepted change took its own anchor off the page "
+            f"({settled}) — its other half is still showing"
+        )

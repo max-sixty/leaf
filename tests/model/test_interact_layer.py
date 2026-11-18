@@ -3083,9 +3083,7 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
     and sharing the CPU with every request behind them."""
     record = registry_storage.layer_record(page_dir)
     assert record is not None
-    # A process that has composed no layer yet, for any page.
-    monkeypatch.setattr(layer_model, "_shared", layer_model._Layers())
-    monkeypatch.setattr(page_memory, "_memories", page_memory.PageMemories())
+    layer_model.forget_layers()
     requests: list[threading.Thread] = []
     composed = []
     compose = layer_model.compose_vocabulary
@@ -3135,7 +3133,7 @@ def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
     beside the copy's stamp (`layer._held`). Each `page init` that replaces the copy
     replaces that layer rather than keeping another beside it, so a process holds one
     layer for the page however often its package is edited, and none once it drops
-    the page's memory."""
+    the page's memory. Forgetting the shared layers forgets it too."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "notes"
     package.mkdir()
@@ -3155,6 +3153,17 @@ def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
         assert sheet in layer.files["/theme.css"].decode()
         kept.add(layer)
     del layer
+    gc.collect()
+    assert len(kept) == 1
+
+    # A process that forgets the tree it read, as a preview does between servers
+    # (`layer.forget_layers`), composes the page's layer again.
+    [before] = kept
+    layer_model.forget_layers()
+    after = registry_storage.selected(record, page)
+    assert after is not before
+    kept.add(after)
+    del before, after
     gc.collect()
     assert len(kept) == 1
 

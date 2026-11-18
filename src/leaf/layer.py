@@ -710,20 +710,20 @@ def _vocabulary(inputs: tuple[Path, ...], held: dict) -> LayerVocabulary:
 
 
 class _Layers:
-    """Layers by the inputs they compose, each kept beside the stamps of the page's
-    own copies among those inputs and replaced whole once one of the stamps moves."""
+    """Layers by the inputs they compose, each kept beside the stamps of what else it
+    depends on and replaced whole once those move."""
 
     def __init__(self) -> None:
         self._held: dict[tuple[Path, ...], tuple[tuple, dict]] = {}
         self._lock = threading.Lock()
 
-    def of(self, inputs: tuple[Path, ...], copies: tuple) -> dict:
-        """What is kept of the layer `inputs` compose while the page's copies among
-        them stamp as `copies`, for `page_memory.once` to fill."""
+    def of(self, inputs: tuple[Path, ...], stamps: tuple) -> dict:
+        """What is kept of the layer `inputs` compose while what it depends on stamps
+        as `stamps`, for `page_memory.once` to fill."""
         with self._lock:
             held = self._held.get(inputs)
-            if held is None or held[0] != copies:
-                held = self._held[inputs] = (copies, {})
+            if held is None or held[0] != stamps:
+                held = self._held[inputs] = (stamps, {})
             return held[1]
 
 
@@ -737,15 +737,27 @@ def _held(packages: tuple[str, ...], page_dir: Path) -> tuple[tuple[Path, ...], 
     installed packages', is held for the process, since a plugin update may replace
     the tree under a running server, which keeps answering with the bytes it started
     with. A selection that includes a copy the page holds of a package it selects by
-    path is a reading of that page, held in the page's memory beside the copy's stamp
-    (`page_memory`), since the page's next `page init` replaces the copy in place. The
-    layer read under the copy's new stamp replaces the one before it, and goes when
-    the page's memory does; a page's server holds that memory for its life
+    path is a reading of that page, held in the page's memory (`page_memory`) beside
+    the copy's stamp, since the page's next `page init` replaces the copy in place, and
+    beside the shared layers, since `forget_layers` replaces those. The layer read
+    under either's new stamp replaces the one before it, and goes when the page's
+    memory does; a page's server holds that memory for its life
     (`server_rows.RowPublisher`)."""
     inputs = tuple(layer_inputs(packages, page_dir))
     copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
-    layers = memo(page_dir, _Layers) if copies else _shared
-    return inputs, layers.of(inputs, copies)
+    if not copies:
+        return inputs, _shared.of(inputs, ())
+    return inputs, memo(page_dir, _Layers).of(inputs, (_shared, copies))
+
+
+def forget_layers() -> None:
+    """Drop every layer and vocabulary this process holds (`selected_layer`), and the
+    Leaf it read itself to be (`running_leaf`), which a layer names as its producer
+    (`runtime_selection.forget_tree`). A layer kept in a page's memory was kept beside
+    the shared layers this drops (`_held`), so the page's next read composes it again."""
+    global _shared
+    _shared = _Layers()
+    running_leaf.cache_clear()
 
 
 def files_identity(files: dict[str, bytes]) -> str:

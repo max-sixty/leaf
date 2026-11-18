@@ -1933,26 +1933,29 @@ customElements.define(
       );
     }
 
+    // A file's hunks, and the diff's files, are lists on screen, which their first and
+    // last heads bound (walk-declaration.js, `beginWalk`).
     markHunkWalk() {
-      beginWalk("diff-hunk", "Hunk", () => {
+      const heads = () => {
         const entry = this.entryAroundFocus();
-        return entry
-          ? listWalkPosition(
-              hunkHeads(entry).map(({ node }) => node),
-              this.hereNode(),
-            )
-          : null;
-      });
+        return entry ? hunkHeads(entry).map(({ node }) => node) : [];
+      };
+      beginWalk(
+        "diff-hunk",
+        "Hunk",
+        () => (heads().length ? listWalkPosition(heads(), this.hereNode()) : null),
+        { list: () => [heads()[0], heads().at(-1)] },
+      );
     }
 
     markFileWalk() {
-      beginWalk("diff-file", "File", () => {
-        const entries = this.navigationEntries();
-        return listWalkPosition(
-          entries.map(({ node }) => node),
-          this.entryAroundFocus()?.node,
-        );
-      });
+      const files = () => this.navigationEntries().map(({ node }) => node);
+      beginWalk(
+        "diff-file",
+        "File",
+        () => listWalkPosition(files(), this.entryAroundFocus()?.node),
+        { list: () => [files()[0], files().at(-1)] },
+      );
     }
 
     /** @param {FileEntry} entry */

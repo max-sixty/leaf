@@ -17,6 +17,7 @@ import {
   offered,
   offeredAction,
   cycledRow,
+  announce,
   beginWalk,
   listWalkPosition,
   holdFocus,
@@ -277,17 +278,26 @@ customElements.define(
     }
     // n and Shift+n walk the cases, coming round at either end, and say where the
     // landing stands among them as every walk does. The queue beside the case lists them
-    // all, so it is the list the walk stands in.
+    // all, so its first and last rows bound the list the walk stands in, and a listener
+    // hears the place, which the case's own words don't say.
     /** @param {-1 | 1} delta */
     #step(delta) {
       const ids = () => this.#cases.map(({ record }) => record.id);
       this.#select(cycledRow(ids(), this.#selected?.record.id, delta), true);
-      beginWalk(
+      const said = beginWalk(
         "visual-case",
         "Case",
         () => listWalkPosition(ids(), this.#selected?.record.id),
-        { list: () => [this.#queue] },
+        {
+          list: () => {
+            const rows = [
+              ...(this.#queue?.querySelectorAll(".lf-vr-case-button") ?? []),
+            ];
+            return [rows[0], rows.at(-1)];
+          },
+        },
       );
+      if (said) announce(said);
     }
     /** @param {string | undefined} id @param {boolean} [land] */
     #select(id, land = false) {

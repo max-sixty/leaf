@@ -62,9 +62,9 @@ const currentChange = (list, origin = currentLocationOrigin()) =>
       ) ?? null)
     : null;
 
-// "Change 1 of 5 since v2". The panel's field says "5 changes since v2" while the
-// comparison stands (floating-panel.js, `standing`), which names the list, so the walk
-// declares it `named` and the field says its place alone there, "1 of 5".
+// "Change 1 of 5 since v2". The changes are the comparison's (`about`), which the
+// panel's field says while it stands, "5 changes since v2" (floating-panel.js,
+// `standing`), so the field says the walk's place alone, "1 of 5".
 const position = () => {
   const list = comparisonChanges();
   const base = comparisonBase();
@@ -87,7 +87,7 @@ function step(dir) {
   if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
-  const said = beginWalk("change", "Change", position, { named: true });
+  const said = beginWalk("change", "Change", position, { about: "comparison" });
   if (!said) return;
   // A listener hears what the version was saved after too, as the ⇄ entry's label says
   // it under what the change did (change-provenance.js).

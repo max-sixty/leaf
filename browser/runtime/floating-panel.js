@@ -491,20 +491,27 @@ const groupOf = (entry) =>
 // else the Go-to filter's word while its sequence waits for a key, or a walk's position
 // ("1 of 3 waiting on me") for a notice's moment after each step
 // (notifications.js, `answerStep`), in the words the screen lacks
-// (walk-position.js, `walkWords`): the page field says where the user stands first
-// (`standing`). The user asked that
-// whatever is not anchored to the page stand at the panel rather than against the
+// (walk-position.js, `walkWords`). `says` is what the surface's own words say of where
+// the user stands: the page field's say each fact `standing` does (`STANDING`), so a
+// notice about one of them is left to those words and a walk over its list says its
+// place alone; the folded leaf's peek and a thread's field say none. The user asked
+// that whatever is not anchored to the page stand at the panel rather than against the
 // window.
-function passing() {
+/** @type {ReadonlySet<string>} */
+const NO_STANDING = new Set();
+// The facts the page field's standing words say, each while it holds (`standing`).
+/** @type {ReadonlySet<string>} */
+const STANDING = new Set(["stance", "version", "comparison", "annotations"]);
+function passing(says = NO_STANDING) {
   const notice = noticeReading();
-  if (notice.visible)
+  if (notice.visible && !(notice.about && says.has(notice.about)))
     return { message: notice.message, visible: true, press: notice.press, news: true };
-  const message = navigationWords();
+  const message = navigationWords(says);
   return { message, visible: Boolean(message), press: null, news: false };
 }
-function navigationWords() {
+function navigationWords(says = NO_STANDING) {
   const { goTo, walk } = statusContextReading();
-  return goTo ?? (walk && answeringStep() ? walkWords(walk, true) : null) ?? "";
+  return goTo ?? (walk && answeringStep() ? walkWords(walk, says) : null) ?? "";
 }
 // An age the panel shows, which previews the clock time behind it as every age does
 // (presence.js, `agePreview`): short, in a room of its own (`.lf-fp-age`) at a line's
@@ -1332,7 +1339,7 @@ export function createFloatingPanel({
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldReading(key, input, drawn = null) {
-    const notice = passing();
+    const notice = passing(key ? NO_STANDING : STANDING);
     const [error] = sayable();
     if (error && !noticePressing(input))
       return { says: "error", words: leafSays(error.message) };
@@ -1358,7 +1365,7 @@ export function createFloatingPanel({
         words: [
           ...standing(stance, true),
           leafSays(
-            [navigationWords(), `“${excerptWords(selectedWords.quote, 60)}”`]
+            [navigationWords(STANDING), `“${excerptWords(selectedWords.quote, 60)}”`]
               .filter(Boolean)
               .join(" · "),
           ),
@@ -1444,7 +1451,7 @@ export function createFloatingPanel({
       ? ""
       : walk.kind === "thread" && walk.target === thread?.id
         ? walk.place
-        : walkWords(walk, false);
+        : walkWords(walk, NO_STANDING);
     // A walk gone on to the page, leaving the thread's view open above the stop it
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.

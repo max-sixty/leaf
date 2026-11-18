@@ -4,9 +4,10 @@
    another host can read the same position without importing page services.
 
    The owner declares facts, and the host decides what to show: what one stop is
-   (`noun`), where the walk stands (`read`), the elements a list on screen stands in
-   (`list`), and whether the words standing in the page's field name the list
-   (`named`). Leaf's panel then says only what the screen doesn't
+   (`noun`), where the walk stands (`read`), the stops that bound a list on screen
+   (`list`), and, for a list of Leaf's own, the fact where the user stands whose list it
+   walks (`about`), as a comparison's changes are the comparison's. Leaf's panel then
+   says only what the screen doesn't, each surface by the words it already shows
    (walk-position.js, `walkWords`), and a listener hears the whole position, which
    `beginWalk` returns for the owner to announce, since a listener sees no list. The
    user asked for this over each owner choosing what the panel shows, which no owner
@@ -14,9 +15,9 @@
 export const WALK = "lf-walk";
 
 /** @typedef {{target: unknown, position: number, total: number, qualifier: string}} WalkPosition
- * @typedef {{list?: (() => readonly (Element | null | undefined)[]) | null, named?: boolean}} WalkFacts
+ * @typedef {{list?: (() => readonly (Element | null | undefined)[]) | null, about?: string | null}} WalkFacts
  * @typedef {{key: string, noun: string | null, read: () => WalkPosition | null,
- *   target: unknown, list: WalkFacts["list"], named: boolean}} Walking */
+ *   target: unknown, list: WalkFacts["list"], about: string | null}} Walking */
 /** @type {Walking | null} */
 let walking = null; // never a list snapshot
 
@@ -64,7 +65,7 @@ export function walkPosition() {
     ),
     place: walkPositionLabel(null, position.position, position.total),
     list: Boolean(walking.list),
-    named: walking.named,
+    about: walking.about,
   };
 }
 
@@ -75,23 +76,24 @@ export function walkPosition() {
 // reading's qualifier names, as "2 of 5 waiting on me" does; such a walk never names
 // the kind of the stop the user stands on, which is in front of them. A walk within a
 // list on screen, such as a tab strip, a question's options or a chart's points, gives
-// `list`, the elements the list stands in: its first and last stops, or one element
-// holding it. `named` says the words standing in the page's field name the list, as a
-// comparison's "5 changes since v2" names its changes.
+// `list`, its first and last stops; a list whose stops all stand in view whenever it
+// can be walked, as Go-to's hints do, declares no walk. `about` names the fact where
+// the user stands whose list the walk is over (floating-panel.js, `standing`), as
+// "comparison" does for its changes.
 //
 // The host may decline to present a step, as Leaf does where the whole list stands in
 // view and the ring already shows the place (walk-position.js): the walk the user came
 // by, such as On Me's, then goes on standing.
 /** @param {string} key @param {string | null} noun @param {() => WalkPosition | null} read
  * @param {WalkFacts} [facts] */
-export function beginWalk(key, noun, read, { list = null, named = false } = {}) {
+export function beginWalk(key, noun, read, { list = null, about = null } = {}) {
   const position = read();
   if (!position) {
     walking = null;
     return null;
   }
   const before = walking;
-  walking = { key, noun, read, list, named, target: position.target };
+  walking = { key, noun, read, list, about, target: position.target };
   const words = walkPosition()?.text ?? null;
   if (!window.dispatchEvent(new CustomEvent(WALK, { cancelable: true, detail: list })))
     walking = before;

@@ -16,7 +16,11 @@
    acts for anything else. Any notice stands no longer than what its words say holds
    (`stands`), shown or waiting: news that a comparison would show changes goes once a
    comparison stands, and "No changes marked" once one marks some, rather than saying
-   for the rest of its moment what the screen beside it contradicts. The user chose a
+   for the rest of its moment what the screen beside it contradicts. A notice of a change
+   to where the user stands names that fact (`about`), as "Annotations hidden" names
+   the annotations, so a surface whose words already say where the user stands, as the
+   page field's do (floating-panel.js, `standing`), leaves it to them, while the folded
+   leaf's peek and a thread's field, which say none, show it. The user chose a
    notice's press, so a Resolve that moves the
    panel on leaves something there offering to take it back, over a notice of text
    alone, whose subject only the panel's own controls reach. There is no second surface
@@ -66,9 +70,9 @@ let userContext = false;
 // it is, the page command whose key makes the same press, what it does, and whether it
 // still can, as `{action, command, run, stands}`. Errors are no notices: they go
 // through errors.js, which keeps them until they are dealt with.
-/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null}>>} */
+/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null, about: string | null}>>} */
 const noticePresentation = signal(
-  Object.freeze({ message: "", visible: false, press: null }),
+  Object.freeze({ message: "", visible: false, press: null, about: null }),
 );
 
 export const noticeReading = () => noticePresentation.value;
@@ -93,9 +97,10 @@ export const noticeWords = (message) =>
 
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
-/** @param {Words} message @param {boolean} visible @param {NoticePress | null} [press] */
-const presentNotice = (message, visible, press = null) => {
-  noticePresentation.value = Object.freeze({ message, visible, press });
+/** @param {Words} message @param {boolean} visible @param {NoticePress | null} [press]
+ * @param {string | null} [about] */
+const presentNotice = (message, visible, press = null, about = null) => {
+  noticePresentation.value = Object.freeze({ message, visible, press, about });
 };
 
 /** @param {Words} msg */
@@ -118,20 +123,22 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 // `named`). A notice offering a press (`press`) has the field's end say that press's
 // word and key, where the page's own press stands at rest.
 /** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press]
- * @param {(() => boolean) | null} [stands] */
-function showNotice(msg, background = null, press = null, stands = null) {
-  presentNotice(msg, true, press);
+ * @param {(() => boolean) | null} [stands] @param {string | null} [about] */
+function showNotice(msg, background = null, press = null, stands = null, about = null) {
+  presentNotice(msg, true, press, about);
   if (!background) gesture("notice");
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatching();
   if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
-  const holds = stands ?? press?.stands;
-  if (!holds) return;
+  // What the words say, and that the press can still act.
+  const premises = [stands, press?.stands].filter((premise) => premise != null);
+  if (!premises.length) return;
   // A notice another has replaced is no longer this watch's to retire.
   const shown = noticePresentation.peek();
   stopWatching = effect(() => {
-    if (!holds() && noticePresentation.peek() === shown) untracked(retireNotice);
+    if (!premises.every((holds) => holds()) && noticePresentation.peek() === shown)
+      untracked(retireNotice);
   });
 }
 function retireNotice() {
@@ -208,9 +215,10 @@ function queueBackground(entry, front = false) {
 // while a command can interrupt an arrival and let it return after the acknowledgement.
 // A held status line coalesces each producer's news; the live region announces it now.
 // `stands` says whether what the words say still holds, by signals it reads; a notice
-// offering a press stands while its press does.
+// offering a press stands while its press does too. `about` names the fact where the
+// user stands that the notice reports a change to (the header).
 /** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null,
- * press?: NoticePress | null, stands?: (() => boolean) | null}} options */
+ * press?: NoticePress | null, stands?: (() => boolean) | null, about?: string | null}} options */
 export function notice(
   msg,
   {
@@ -219,6 +227,7 @@ export function notice(
     group = null,
     press = null,
     stands = null,
+    about = null,
   } = {},
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
@@ -230,8 +239,9 @@ export function notice(
       return queueBackground(entry);
     return showBackground(entry);
   }
+  if (stands && !stands()) return;
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg, null, press, stands);
+  showNotice(msg, null, press, stands, about);
 }
 
 // Take the notice down for something the user asked for, putting a background notice

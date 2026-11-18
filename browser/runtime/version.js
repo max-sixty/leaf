@@ -113,7 +113,7 @@ import { savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
-import { announce, gesture, notice } from "./notifications.js";
+import { gesture, notice } from "./notifications.js";
 import { counted } from "./words.js";
 import { backgroundFlash, flashDuration } from "./motion.js";
 import {
@@ -1486,13 +1486,15 @@ export async function showComparison(base) {
   commitDiff(diff);
   diffSavedAfter = loaded.savedAfter;
   setDiff(true, base);
-  // The field's standing words say the comparison as it starts ("5 changes since v2",
-  // floating-panel.js, `standing`), so a listener alone hears it.
+  // A notice about the comparison, which the page field's standing words say as it
+  // starts ("5 changes since v2", floating-panel.js, `standing`), so it shows where
+  // they don't, as on the folded leaf, and while this comparison stands.
   const n = diff.changes.length;
-  announce(
+  notice(
     n
       ? `${counted(n, "change")} since ${base.name}`
       : `No text changes since ${base.name}`,
+    { about: "comparison", stands: () => comparisonBase() === base },
   );
 }
 // A base's document and the server's projection of it at the log this tab has applied,
@@ -1533,12 +1535,12 @@ export async function changesSince(base) {
   if (!loaded || !wanted()) return null;
   return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
 }
-// A press that ends a comparison says so to a listener, as `o` does when it hides
-// annotations, so a screen reader hears the marks go rather than keeping the
-// comparison's count; the eye sees them go, and the field's standing words with them.
+// A press that ends a comparison says so, as `o` does when it hides annotations, so a
+// screen reader hears the marks go rather than keeping the comparison's count; the page
+// field's standing words go with it, so it shows where they don't.
 export const endComparison = () => {
   setDiff(false);
-  announce("Changes hidden");
+  notice("Changes hidden", { about: "comparison", stands: () => !comparisonBase() });
 };
 // A press names one stamped version, so pressing the current one again is the way off
 // it: Compare is a toggle where it is lit and a switch of base where it isn't. `v` is

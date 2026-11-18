@@ -42,15 +42,16 @@ window.addEventListener(WALK, (event) => {
   repaint();
 });
 
-// What the panel's seat says of a walk's step, which the walk's owner declared
+// What a surface of the panel says of a walk's step, which the walk's owner declared
 // (walk-declaration.js, `beginWalk`): its place alone where the screen names the list,
 // "2 of 14", since a list on screen shows which it is but perhaps not where it ends, and
-// so do the words standing in the page's field (`standing`), "5 changes since v2 · 1 of
-// 5"; else the whole position, "Thread 2 of 5", since the rest of a walk across the page
-// is out of view.
-/** @param {NonNullable<ReturnType<typeof import("./walk-declaration.js").walkPosition>>} walk @param {boolean} standing */
-export const walkWords = (walk, standing) =>
-  walk.list || (walk.named && standing) ? walk.place : walk.text;
+// where the surface's own words say the fact the list is about (`says`), as the page
+// field's "5 changes since v2 · 1 of 5" does; else the whole position, "Thread 2 of 5",
+// since the rest of a walk across the page is out of view.
+/** @param {NonNullable<ReturnType<typeof import("./walk-declaration.js").walkPosition>>} walk
+ * @param {ReadonlySet<string>} says */
+export const walkWords = (walk, says) =>
+  walk.list || (walk.about !== null && says.has(walk.about)) ? walk.place : walk.text;
 
 // The walk over a flat list of focusable rows, declared once for every list that has
 // one: ArrowUp and ArrowDown step and clamp, Home and End land on the ends, and a

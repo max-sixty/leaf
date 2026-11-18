@@ -39,8 +39,8 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     widget.locator('.lf-vr-case-button[aria-current="true"]').click()
     page.keyboard.press("n")
     expect(case).not_to_have_attribute("data-lf-datum", first)
-    # The queue beside the case lists every case in view and marks the one shown, so
-    # the step says no position of its own.
+    # The queue beside the case lists the cases, its first and last rows in view in
+    # this window, and marks the one shown, so the step says no position of its own.
     expect_walk_position(page, None)
     page.keyboard.press("Shift+n")
     expect(case).to_have_attribute("data-lf-datum", first)

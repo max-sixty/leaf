@@ -183,11 +183,10 @@ rows") rather than moving focus in its `run`.
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read, {list})` at each step and announces what it returns, such
 as `Hunk 3 of 7`. `noun` names one stop, and `read()` returns the position, usually
-from `listWalkPosition(items, current, {identity})`. A walk within something the user
-sees whole, such as a chart's points or a tab strip, gives `list()`, the elements it
-stands in, its first and last stops or one element holding them; Leaf's panel then
-shows the place alone, and nothing while all of it is in view, since the focus ring
-shows where the step landed. A walk that comes round at its ends steps with
+from `listWalkPosition(items, current, {identity})`. A walk within a list on screen,
+such as a chart's points or a tab strip, gives `list()`, its first and last stops;
+Leaf's panel then shows the place alone, and nothing while both stand in view, since
+the focus ring shows where the step landed. A walk that comes round at its ends steps with
 `cycledRow(items, current, direction)`, which returns the item it lands on.
 
 ### Go-to targets

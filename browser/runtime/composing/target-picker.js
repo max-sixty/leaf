@@ -49,7 +49,7 @@ import {
 } from "../keyboard/key-sequence.js";
 import { announce, notice } from "../notifications.js";
 import { keeps } from "../keeps.js";
-import { beginWalk, walkPosition } from "../walk-position.js";
+import { beginWalk, walkPosition, walkPositionLabel } from "../walk-position.js";
 
 import {
   allButCommandReference,
@@ -636,7 +636,8 @@ export function createTargetPicker({
     presentSearchStatus();
     showMatch();
     const query = searchQuery();
-    const said = beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    const said =
+      beginWalk("page-search", "Match", () => matchWalkPosition(query)) ?? matchPlace();
     announce(`${said}: ${matchDescription(selected)}.`);
     repaint();
   }
@@ -699,8 +700,13 @@ export function createTargetPicker({
     const last = segments.at(-1);
     if (first && last) selectEnds([first.node, first.start], [last.node, last.end]);
     updateFab();
-    return beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    return (
+      beginWalk("page-search", "Match", () => matchWalkPosition(query)) ?? matchPlace()
+    );
   }
+  // The active match's place, for a listener where the walk can't place the match it
+  // landed on, as where the selection that should hold it holds other words.
+  const matchPlace = () => walkPositionLabel("Match", active + 1, matches.value.length);
 
   /** @param {import("../keyboard/bindings.js").Step} direction */
   function repeatSearch(direction) {

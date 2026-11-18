@@ -3298,21 +3298,24 @@ def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
     file's rules stand where its import stood, in the layer it asks for, and each file
     keeps its own EOF recovery. So an edit to any of them reaches the next composition,
     and the page asks for no import."""
-    (tmp_path / "parts").mkdir()
-    (tmp_path / "base.css").write_text(
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    kernel.mkdir()
+    (kernel / "base.css").write_text("")
+    (package / "parts").mkdir(parents=True)
+    (package / "defaults.css").write_text(
         '@import "./parts/open.css";\n'
         "@import url(parts/layered.css) layer(extra);\n"
         ".after { color: blue; }\n"
     )
-    (tmp_path / "parts/open.css").write_text(".open { color: red;")
-    (tmp_path / "parts/layered.css").write_text(".layered { color: green; }")
+    (package / "parts/open.css").write_text(".open { color: red;")
+    (package / "parts/layered.css").write_text(".layered { color: green; }")
 
-    composed = layer_model.composed_sheets([tmp_path])["theme.css"].decode()
+    composed = layer_model.composed_sheets([kernel, package])["theme.css"].decode()
     assert "@import" not in composed
     # A reader that follows the layer's inputs, such as a live preview, follows them.
     assert {
-        (tmp_path / "parts" / name).resolve() for name in ("open.css", "layered.css")
-    } <= set(layer_model.input_paths([tmp_path]))
+        (package / "parts" / name).resolve() for name in ("open.css", "layered.css")
+    } <= set(layer_model.input_paths([package]))
 
     def shape(rule):
         """A style rule's selector, or an at-rule's prelude and the rules it holds."""
@@ -3351,13 +3354,17 @@ def test_a_sheet_imports_only_its_own_files_whole(tmp_path, imported):
 def test_sheets_that_import_each_other_are_refused_by_name(tmp_path):
     """A cycle of imports is refused naming its files, and a reader that follows the
     layer's inputs, as vendoring and a live preview do, still finishes and lists them."""
-    (tmp_path / "base.css").write_text('@import "a.css";\n')
-    (tmp_path / "a.css").write_text('@import "b.css";\n.a {}\n')
-    (tmp_path / "b.css").write_text('@import "a.css";\n.b {}\n')
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    kernel.mkdir()
+    package.mkdir()
+    (kernel / "base.css").write_text("")
+    (package / "defaults.css").write_text('@import "a.css";\n')
+    (package / "a.css").write_text('@import "b.css";\n.a {}\n')
+    (package / "b.css").write_text('@import "a.css";\n.b {}\n')
     with pytest.raises(Refused, match=r"a\.css -> .*b\.css -> .*a\.css"):
-        layer_model.composed_sheets([tmp_path])
-    assert {(tmp_path / name).resolve() for name in ("a.css", "b.css")} <= set(
-        layer_model.input_paths([tmp_path])
+        layer_model.composed_sheets([kernel, package])
+    assert {(package / name).resolve() for name in ("a.css", "b.css")} <= set(
+        layer_model.input_paths([package])
     )
 
 
@@ -3408,6 +3415,31 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
     assert layer_model.composed_sheets([schema_model.ASSETS, staged]) == (
         layer_model.composed_sheets([schema_model.ASSETS, package])
     )
+
+
+def test_a_reader_of_the_layer_inputs_lists_every_sheet_the_layer_reads(
+    tmp_path, monkeypatch
+):
+    """`input_paths` lists every sheet composing the layer reads, the kernel's own
+    included, so a guard on where the inputs stand and a live preview's watch see
+    each one."""
+    package = tmp_path / "split"
+    (package / "styles").mkdir(parents=True)
+    (package / "defaults.css").write_text('@import "./styles/part.css";\n')
+    (package / "styles/part.css").write_text(".split-part { color: green; }\n")
+    inputs = [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, package]
+    read = set()
+    real = layer_model._stylesheet
+
+    def reading(source, root, opened):
+        read.add(source.resolve())
+        return real(source, root, opened)
+
+    monkeypatch.setattr(layer_model, "_stylesheet", reading)
+    layer_model.composed_sheets(inputs)
+    layer_model.portable_sheet(inputs, ["lf-reader"])
+    assert (package / "styles/part.css").resolve() in read
+    assert read - set(layer_model.input_paths(inputs)) == set()
 
 
 def test_a_copy_of_a_package_keeps_the_sheets_its_sheets_import(tmp_path, monkeypatch):

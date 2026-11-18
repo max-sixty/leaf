@@ -1,6 +1,6 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
- * through unread conversations. Each authored child is a card, an `lf-ask` or a
- * decision widget the user answers there with its own controls. A card waits while it
+ * through unread conversations. Each authored child is a card, the named group of a
+ * question or a decision widget the user answers there with its own controls. A card waits while it
  * holds an obligation open on the user (`obligationsIn`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
@@ -17,15 +17,15 @@
  * first reading is in, as offline, Later and Next step to the next card in order.
  *
  * Which card is open is view state for this user, as a tab set's open panel is
- * (`x-views`): the runtime names the opening card (`openingView`), the module records
- * each card it shows (`keepView`), so a reload comes back to it, and no event carries
- * it. Where neither the address nor the tab names a card, the deck opens on the first
- * that waits once the first reading is in. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
- * walk (`m`, `obligationActions.next`) open the card holding what they reach
- * (`beforematch`); `m` is therefore the keyboard's Later, and a card the
- * walk leaves behind stays waiting for the end of the pass. Leaf's Undo travels to the
- * answer it takes back before taking it, which opens its card the same way, so the deck
- * has no Undo of its own.
+ * (`views`): the runtime names the opening card (`openingView`), the module
+ * records each card it shows (`keepView`), so a reload comes back to it, and no event
+ * carries it. Where neither the address nor the tab names a card, the deck opens on the
+ * first that waits once the first reading is in. Inactive cards are
+ * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
+ * `obligationActions.next`) open the card holding what they reach (`beforematch`); `m`
+ * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
+ * for the end of the pass. Leaf's Undo travels to the answer it takes back before
+ * taking it, which opens its card the same way, so the deck has no Undo of its own.
  *
  * The bar above the cards holds Back, the tally's count of the deck's obligations
  * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,
@@ -48,7 +48,7 @@
  *
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
- * around the questions it is waiting on, chosen by the user on 2026-10-24. */
+ * around the questions it is waiting on, chosen by the user. */
 import { html, nothing } from "/vendor/lit.js";
 import {
   agentName,
@@ -66,6 +66,7 @@ import {
   LeafElement,
   motion,
   obligationActions,
+  obligationsByRegion,
   obligationsIn,
   offer,
   offerAction,
@@ -96,10 +97,10 @@ const SETTLE_MS = 250;
 const LEAVE = "cubic-bezier(0.3, 0, 0.8, 0.15)";
 const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 
-// Whether a card's obligations, by the reading, wait on the user.
+// Whether a card's obligations, by the reading, wait on the user, as the tally counts
+// them.
 /** @param {ReturnType<typeof obligationsIn>} held */
-const waitsOn = (held) =>
-  held.some((item) => item.status === "open" && item.next_actor === "user");
+const waitsOn = (held) => tally(held).onUser > 0;
 
 /** @typedef {(card: HTMLElement) => ReturnType<typeof obligationsIn>} DeckReadings */
 
@@ -206,7 +207,8 @@ customElements.define(
     #readings() {
       const items = readObligations();
       if (items.phase !== "ready") return null;
-      return (/** @type {HTMLElement} */ card) => obligationsIn(card, items.all);
+      const held = obligationsByRegion(this.#cards, items.all);
+      return (/** @type {HTMLElement} */ card) => held.get(card) ?? [];
     }
 
     // Show one card, or none once the pass is over, without motion.
@@ -449,9 +451,9 @@ customElements.define(
         keepsHidden(this.#end, false);
         return void focusDestination(this.#again, "move");
       }
-      const waiting = this.#readings()?.(card).find(
-        (item) => item.status === "open" && item.next_actor === "user",
-      );
+      const items = readObligations();
+      const waiting =
+        items.phase === "ready" ? obligationsIn(card, items.user)[0] : undefined;
       if (waiting) obligationActions.open(waiting.id);
       else focusDestination(card, "move");
     }
@@ -554,18 +556,15 @@ customElements.define(
       const items = readObligations();
       const readings = this.#readings();
       const card = this.#open.value;
-      const waits = (/** @type {HTMLElement} */ each) =>
-        Boolean(readings && waitsOn(readings(each)));
       const count = readings
         ? tallyWords(tally(obligationsIn(this, items.all)), agentName())
         : "";
       // A card's mark: open, waiting on the user, open with the agent, or answered.
       const mark = (/** @type {HTMLElement} */ each) => {
         if (each === card) return "open";
-        const held = readings?.(each);
-        if (!held?.length) return "";
-        if (waits(each)) return "waiting";
-        return held.some((item) => item.status === "open") ? "agent" : "done";
+        if (!readings) return "";
+        const { onUser, open, total } = tally(readings(each));
+        return !total ? "" : onUser ? "waiting" : open ? "agent" : "done";
       };
       return html`
         <span class="lf-deck-pips" aria-hidden="true"
@@ -622,10 +621,10 @@ customElements.define(
       // on nothing else. A comment leaves an obligation open with the agent, the agent
       // ending one closes it without an answer, and an answer from another window
       // arrives here while this one lacks focus, so none of them moves the card.
-      const held = readings(card);
-      const closed =
-        held.some((item) => item.status === "answered") &&
-        !held.some((item) => item.status === "open");
+      // A card's obligations leave out withdrawn ones, so every one that isn't open is
+      // answered.
+      const { open, total } = tally(readings(card));
+      const closed = total > 0 && open === 0;
       const here = focused();
       const place = here && placeOf(here);
       const onCard =

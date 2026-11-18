@@ -63,7 +63,7 @@ BINDINGS = Record(
             }
         ),
     ),
-    since=45,
+    since=50,
 )
 
 MAX_FILE_BYTES = 256 * 1024

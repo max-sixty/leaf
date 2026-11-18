@@ -144,10 +144,10 @@ interface Element {
     | null
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
-  lfCopy?: () => string;
+  lfCopy?: (() => string) | undefined;
   /** The toolbar a widget draws over a block marked `data-lf-copy`, where Leaf stands
    * the block's Copy as the last mark (`code-copy.js`). */
-  lfBar?: HTMLElement;
+  lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;
@@ -195,7 +195,6 @@ interface WindowEventMap {
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
-    incomplete: boolean;
     page: boolean;
   }>;
 }
@@ -285,7 +284,8 @@ interface ShadowRoot {
 }
 
 interface Element {
-  /** Package-provided words when the registry declares x-word: module. */
+  /** The word a widget's module names its kind by where it depends on the element
+   * (`addressable-names.widgetWord`); a fixed word is the declaration's `word`. */
   lfWord?(): string;
   lfSays?(): string;
 }

@@ -97,7 +97,7 @@ def board_markup(board: dict[str, list[str]]) -> str:
     return "\n".join(
         f'  <lf-column id="{column}" label="{label}">\n'
         + "".join(
-            f'    <lf-card id="{card}"><strong>{CARDS[card]}</strong></lf-card>\n'
+            f'    <lf-card id="{card}" label="{CARDS[card]}"><strong>{CARDS[card]}</strong></lf-card>\n'
             for card in board[column]
         )
         + "  </lf-column>"
@@ -118,7 +118,7 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
         order = folded_positions(
             "punch-list",
             "move",
-            registry["lf-board"]["x-state"]["move"]["record"],
+            registry["lf-board"]["verbs"]["move"]["record"],
             AuthoredOrders(document.document.by_id, registry),
             document.projection,
         )
@@ -155,8 +155,10 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <body>
 <main class="layout-column">
 <header id="top">
-<p class="eyebrow">demo · migration rehearsal</p>
+<hgroup>
+<p>demo · migration rehearsal</p>
 <h1>Migrating billing to the new service</h1>
+</hgroup>
 <p class="lede" id="demo-lede">The rehearsal is running now. This page follows each
 new version as the checks finish.</p>
 </header>
@@ -169,7 +171,7 @@ new version as the checks finish.</p>
 
 <section id="phases">
 <h2>Phases</h2>
-<ol class="steps">
+<ol>
   <li id="p1">Dual-write to old and new stores behind a flag.</li>
   <li id="p2">{phase_two}</li>
   <li id="p3">Use an online traffic swap, then retire the old store.</li>
@@ -201,14 +203,14 @@ new version as the checks finish.</p>
 {board_markup(board or BOARD)}
 </lf-board>
 </section>
-<lf-ask id="migration-approval-decision">
-<h2>Approve the migration plan?</h2>
+<lf-group id="migration-approval-decision" label="Approve the migration plan?">
+<h2 id="migration-approval-decision-h">Approve the migration plan?</h2>
 <p>The rollout sequence and acceptance criteria described above.</p>
-<lf-options id="migration-approval" choose>
-<lf-option id="migration-hold"><strong>Hold the rollout</strong></lf-option>
-<lf-option id="migration-approve"><strong>Approve the plan</strong></lf-option>
+<lf-options id="migration-approval">
+<lf-option id="migration-hold" label="Hold the rollout"><strong>Hold the rollout</strong></lf-option>
+<lf-option id="migration-approve" label="Approve the plan"><strong>Approve the plan</strong></lf-option>
 </lf-options>
-</lf-ask>
+</lf-group>
 </main>
 </body>
 </html>

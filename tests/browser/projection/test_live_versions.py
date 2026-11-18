@@ -19,6 +19,7 @@ from render_harness import (
     expect_panel_says,
     holding,
     is_problem,
+    latest_press,
     leaf_page,
     open_page,
     open_threads,
@@ -373,7 +374,7 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
     """A refusal is an answer the beat has to be able to read.
 
     A page can adopt a newer revision without installing it. The fetch for its document
-    can fail, which is reported and left for the version chip to retry, so the user
+    can fail, which is reported and left for Open latest to retry, so the user
     stands on the older revision with the newer one named in the state the page applied.
     Every beat from then on asks the same preparation whether it would activate now. When
     a later fetch answers from a layer re-vendored under the page, the preparation refuses
@@ -452,8 +453,8 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
 def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_comment(
     browser, serve
 ):
-    """Latest installs the newer revision over an unfinished comment. When that
-    revision fails to load, the chip stays lit for another press and the first one is
+    """Open latest installs the newer revision over an unfinished comment. When that
+    revision fails to load, the press stays for another and the first one is
     spent: once the revision loads, it waits for the comment as any revision does."""
     first = leaf_page(
         "Waiting first",
@@ -475,7 +476,7 @@ def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_com
         (serve.page_dir / "index.html").write_text(
             first.replace("has not started yet", "finished on Tuesday")
         )
-        latest = page.locator(".lf-fp-row-notice-press").filter(has_text="Latest")
+        latest = latest_press(page)
         expect(latest).to_be_visible()
         before = len(failed)
         latest.click()

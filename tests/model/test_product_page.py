@@ -142,10 +142,12 @@ EVENT_LOG = named_source("how-it-works")
 
 
 def code_block(page: SourceDocument, block_id: str) -> str:
-    """The text of one authored `lf-code`'s `<pre>`."""
+    """The text of one authored `lf-code`'s `<pre>`, as the widget reads it
+    (widget-upgrade.js, `bodyText`): leading blank lines, such as the one after the
+    `<code>` naming its language, are the block's layout."""
     select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
     assert select_one_result_2 is not None
-    return select_one_result_2.text
+    return select_one_result_2.text.lstrip("\n")
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -350,20 +352,20 @@ def test_the_event_log_page_quotes_the_registry():
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
     shown = json.loads("{" + code_block(source, "options-verbs") + "}")
     assert shown == {
-        "x-state": entry["x-state"],
-        "x-awaits": {
-            "value": entry["x-awaits"]["value"],
-            "answered": entry["x-awaits"]["answered"],
+        "verbs": entry["verbs"],
+        "awaits": {
+            "value": entry["awaits"]["value"],
+            "answered": entry["awaits"]["answered"],
         },
     }
 
 
-def test_the_forks_guide_lists_the_judgments_and_endings_forks_keeps():
-    """The guide's sorting table names each judgment the line fork can answer
-    (`forks.ANSWER`), and its endings table each outcome `forks.ended` gives a
-    thread, so a judgment or outcome added to the code fails here until the guide,
-    the design's reference, says what it means."""
-    tree = SourceDocument(named_source("forks").read_text()).tree
+def test_how_it_works_lists_the_judgments_and_endings_forks_keeps():
+    """How it works' Forks tab names each judgment the line fork can answer
+    (`forks.ANSWER`) in its sorting table, and each outcome `forks.ended` gives a
+    thread in its endings table, so a judgment or outcome added to the code fails
+    here until the tab says what it means."""
+    tree = SourceDocument(named_source("how-it-works").read_text()).tree
     answer: dict = forks_model.ANSWER
     judgments = {code.text for code in tree.select("table#sorting-table td code")}
     assert judgments == set(answer["properties"]["work"]["enum"])

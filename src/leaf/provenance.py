@@ -36,9 +36,9 @@ containment gives: which action wins a coordinate, and so which threads stand
 closed there. The line can then name a message too many or too few, or quote one in
 the words it had at another of the version's places. That takes a restated element
 moving between owners within one version, beside an action naming it. Judging each
-revision under its own containment kept every action a version took back, to judge
-again where another containment took hold, at a cost every reader of the log paid
-(`events.InForce`), for a line that claims an order, not a cause.
+revision under its own containment would keep every action a version took back, to
+judge again where another containment took hold, at a cost every reader of the log
+would pay (`events.InForce`), for a line that claims an order, not a cause.
 
 Each message is sent as its thread held it at the latest of the version's revisions
 it waited at (`EventFacts.message_at`): with its latest rewrite before that place not
@@ -55,24 +55,8 @@ or served otherwise.
 That is an order, not a cause, and the words say it as one (change-provenance.js).
 Nothing reliably knows which revision wrote a given paragraph, so a comparison across
 several versions says nothing, and no change names its own revisions: placing each
-changed block by the nearest element with an id credited the wrong revision to 28.5%
-of changed blocks across the versions compared one by one on the pages measured
-below, and changed what a first-to-newest comparison would say for 46.3% of them.
-
-**How far the order holds.** The page logs under `~/.tmp` written in the 30 days to
-5 November 2026 predate the activation event, so the rule was measured there with
-each revision placed at the event naming its bundle, else just before the first event
-written against it, the latest it can have gone live, and each comment's anchor read
-from the log before the version went live, as the threads stood then. On the 39
-pages with pickups, 169 of 568 versions compared with the one before had a revision
-no event names and were left out. Of the other 399, 18.5% were saved while one
-message waited, 8.3% while several did and 73.2% with none waiting. Of the 28 saved
-while one anchored comment waited and that changed words, 18 (64%) changed the
-commented element, one inside it or one around it; on those same 28 versions, 42% of
-the 79 pairs of the version and an anchored comment sent before it went live did,
-and 42% weighting each version equally. That is an association in this sample, not
-an effect: the 28 come from 9 pages, the positions are inferred, and a version that
-changed the element a comment stands on need not have answered it.
+changed block by the nearest element with an id can credit the wrong revision to a
+changed block, and change what a first-to-newest comparison would say.
 """
 
 from bisect import bisect_left, bisect_right

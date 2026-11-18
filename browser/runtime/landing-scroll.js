@@ -324,11 +324,16 @@ function seesWhole(seen, box, want, room) {
 const ringed = (where) =>
   where instanceof Element && where.matches(":focus-within, [data-lf-focus-within]");
 
-/** @param {Destination} where @param {{block?: ScrollLogicalPosition}} [options] */
-export function alreadyShown(where, { block = "nearest" } = {}) {
+// `ringed` measures it out to its ring's room before the user is on it, for a choice of
+// where focus will land made before it arrives (margin-projection.js, `seenRows`).
+/** @param {Destination} where @param {{block?: ScrollLogicalPosition, ringed?: boolean}} [options] */
+export function alreadyShown(
+  where,
+  { block = "nearest", ringed: on = ringed(where) } = {},
+) {
   const shown = shownFor(where);
   const box = destinationBox(where);
-  const out = ringed(where) ? marginBox(where, box) : box;
+  const out = on ? marginBox(where, box) : box;
   const seen = seenRect(shown, new Map(), out);
   if (!seen) return false;
   const room = landingRoom(where);

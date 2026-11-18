@@ -11,7 +11,7 @@ const delivery = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
 );
 if (!delivery) throw new Error("The document has no runtime stylesheets");
-/** @type {{chrome: string, marks: string, annotations?: {chrome: string, marks: string}}} */
+/** @type {{chrome: string, marks: string, annotations?: string}} */
 const sheets = JSON.parse(delivery.textContent);
 
 /** @param {string} text */
@@ -31,9 +31,6 @@ export const chromeSheet = constructSheet(sheets.chrome);
 // (test_a_coined_class_cannot_reach_the_chromes_rules) holds the sheet to it both ways.
 export const chromeSharedClasses = Object.freeze(["lf-ui"]);
 export const marksSheet = constructSheet(sheets.marks);
-export const annotationMarkSheets = sheets.annotations
-  ? [constructSheet(sheets.annotations.marks)]
-  : [];
 export const annotationSheets = sheets.annotations
-  ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets]
+  ? [constructSheet(sheets.annotations)]
   : [];

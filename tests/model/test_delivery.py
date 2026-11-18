@@ -9,6 +9,7 @@ from click.testing import CliRunner
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
+    PAGE_GROUP,
     PICKS_PAGE,
     ROOT,
     SKILL_ROOT,
@@ -298,9 +299,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
 def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_hand(
     page_dir,
 ):
-    source = PAGE.replace(
-        "<lf-options>", '<lf-options id="choice" choose multiple>'
-    ).replace(
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>').replace(
         "</section>", '<lf-draft id="draft"><pre>Blue room.</pre></lf-draft></section>'
     )
     (page_dir / "index.html").write_text(source)
@@ -380,7 +379,7 @@ def test_recordless_requests_wake_without_user_obligations(
         "unit": "widget",
         "detail": {"type": "object", "properties": {}, "additionalProperties": False},
     }
-    declaration["x-state"] = {
+    declaration["verbs"] = {
         "archive": {**verb, "attention": True},
         "edit": verb,
     }
@@ -446,20 +445,20 @@ def test_recordless_requests_wake_without_user_obligations(
         events_model.read_events(page_dir), first["seq"]
     ) == [repeated, undone, fresh]
 
-    # The same declaration belongs to a widget frozen into a thread message.
+    # The same declaration belongs to a widget in a thread message.
     thread = append_command(
         page_dir,
         {
             "kind": "comment",
             "author": "agent",
             "revision": latest_revision(page_dir),
-            "text": "An optional command:",
-            "markup": '<lf-archive id="thread-row">Archive this</lf-archive>',
+            "text": "An optional command:\n\n"
+            + '<lf-archive id="thread-row">Archive this</lf-archive>',
         },
     )
-    frozen = action("archive", "thread-row")
-    assert frozen["attention"]
-    assert "answer" not in frozen["meaning"]
+    thread_move = action("archive", "thread-row")
+    assert thread_move["attention"]
+    assert "answer" not in thread_move["meaning"]
     assert owed_answers(page_dir) == []
     append_command(
         page_dir,
@@ -470,14 +469,14 @@ def test_recordless_requests_wake_without_user_obligations(
             "text": "Archived.",
         },
     )
-    assert not any(item["input"] == frozen["id"] for item in work().workflows)
+    assert not any(item["input"] == thread_move["id"] for item in work().workflows)
     assert action("archive", "thread-row")["attention"]
 
 
 def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
         "</section>",
-        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-options id="permit"><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options></section>',
     )
     source = source.replace(
@@ -660,7 +659,7 @@ def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
 
 
 def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsys):
-    """An action names a widget, and a widget an agent sent lives in frozen
+    """An action names a widget, and a widget an agent sent lives in
     thread markup rather than in any version. Neither the id nor the option it
     chose means anything without the message that asked, so the envelope
     resolves the widget to its thread and brings the markup along. An undo
@@ -682,9 +681,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "And which region first?",
-            "markup": '<lf-options id="rg" choose>'
-            '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
+            "text": "And which region first?\n\n" + '<lf-options id="rg">'
+            '<lf-option id="r-eu" label="EU"><strong>EU</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -694,11 +692,11 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which mitigations should I carry into the patch?",
-            "markup": '<lf-options id="gm" choose>'
-            '<lf-option id="m-cap"><small class="tag">recommended</small>'
-            "<strong>Cap retries</strong> Bound retry load.</lf-option>"
-            '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
+            "text": "Which mitigations should I carry into the patch?\n\n"
+            + '<lf-options id="gm">\n'
+            '<lf-option id="m-cap" label="Cap retries" recommended><strong>Cap retries</strong> '
+            "Bound retry load.</lf-option>"
+            '<lf-option id="m-alert" label="Alert"><strong>Alert</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -720,11 +718,11 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert [e["id"] for e in shown] == [chose["id"]]
     [thread] = header["threads"]
     assert thread["id"] == asked["id"]
-    # The markup, because `m-cap` is a word only the question spells out.
-    assert 'id="m-cap"' in thread["messages"][0]["markup"]
-    # And the pick in words, read from that frozen message: the group is left
+    # The HTML, because `m-cap` is a word only the question spells out.
+    assert 'id="m-cap"' in thread["messages"][0]["text"]
+    # And the pick in words, read from that message: the group is left
     # out because it only encloses the option chosen in it.
-    assert shown[0]["says"] == {"m-cap": "recommended Cap retries Bound retry load."}
+    assert shown[0]["says"] == {"m-cap": "Cap retries Bound retry load."}
     assert shown[0]["names"] == {"m-cap": "Cap retries"}
 
     # In force, so a later delivery in this thread carries what the user
@@ -768,11 +766,9 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     envelope spells out the elements the gesture names, from the revision the
     user pressed on, so a later version that rewords an option does not
     change what they chose. Done on a group whose pick another verb records
-    says that pick, as the choice worded it, not every word of the group (#5620),
+    says that pick, as the choice worded it, not every word of the group,
     and an undo says what it takes back."""
-    asked = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-    )
+    asked = PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     (page_dir / "index.html").write_text(asked)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -841,9 +837,9 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
 
 def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
     """Done with nothing picked completes the answer with no option, so it quotes
-    none of the group's words (#5620)."""
+    none of the group's words."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     serving(page_dir, 1)
@@ -891,8 +887,8 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Here is the proposed answer.",
-            "markup": '<lf-suggestion id="thread-answer" resolves="c-target">'
+            "text": "Here is the proposed answer.\n\n"
+            + '<lf-suggestion id="thread-answer" resolves="c-target">\n'
             "<lf-old><p>Old words.</p></lf-old>"
             "<lf-new><p>New words.</p></lf-new>"
             "</lf-suggestion>",
@@ -973,10 +969,11 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             "text": f"Recovery context {index}.",
         }
         if index == 2:
-            message["markup"] = (
-                '<lf-options id="thread-commands" choose>'
-                '<lf-option id="restart"><strong>Restart</strong></lf-option>'
-                '<lf-option id="park"><strong>Park</strong></lf-option>'
+            message["revision"] = 1
+            message["text"] += (
+                '\n\n<lf-options id="thread-commands">'
+                '<lf-option id="restart" label="Restart"><strong>Restart</strong></lf-option>'
+                '<lf-option id="park" label="Park"><strong>Park</strong></lf-option>'
                 "</lf-options>"
             )
         sent = append_carried_log_record(page_dir, message)
@@ -1007,7 +1004,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
         for message in thread["messages"]
         if message["id"] == asking_message["id"]
     )
-    assert 'id="thread-commands"' in carried["markup"]
+    assert 'id="thread-commands"' in carried["text"]
 
 
 @pytest.mark.parametrize("rewritten", [True, False])
@@ -1110,9 +1107,8 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "kind": "reply",
             "author": "agent",
             "parent": root["id"],
-            "text": "Which mitigations?",
-            "markup": '<lf-options id="gm" choose multiple>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            "text": "Which mitigations?\n\n" + '<lf-options id="gm" multiple>'
+            '<lf-option id="m-cap" label="Cap retries"><strong>Cap retries</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -1152,9 +1148,9 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     assert thread["elided"]["messages"] > 0, "the bound did not engage"
     assert [a["widget"] for a in thread["actions"]] == ["gm"]
     # The question survives the elision that took its neighbours.
-    carrying = [m for m in thread["messages"] if m.get("markup")]
+    carrying = [m for m in thread["messages"] if "<lf-options" in m["text"]]
     assert [m["id"] for m in carrying] == [asked["id"]], json.dumps(thread["messages"])
-    assert 'id="m-cap"' in carrying[0]["markup"]
+    assert 'id="m-cap"' in carrying[0]["text"]
     assert chose["id"] == thread["actions"][0]["id"]
 
 
@@ -1164,9 +1160,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     serving(page_dir, 1)
     publish(page_dir)
     session_model.cmd_waiting(page_dir)
-    question = thread_model.cmd_comment(
-        page_dir, "", "", "", "Forty?", "", obligation=True
-    )
+    question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
     quiet = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
@@ -1287,9 +1281,9 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
     pick settles; a question in a thread elsewhere stays out."""
     source = PAGE.replace(
         "</section>",
-        '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
-        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
-        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
+        '</section><lf-group id="ship-ask" label="Ship on Friday?"><h2 id="ship-ask-h">Ship on Friday?</h2>'
+        '<lf-options id="permit"><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></lf-group>'
         '<p id="aside">An aside.</p>',
     )
     (page_dir / "index.html").write_text(source)
@@ -1356,12 +1350,13 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
 
     def playground(ident, card):
         return (
+            f'<lf-group id="{ident}-q" label="Which radius?">'
             f'<lf-playground id="{ident}">'
-            f'<lf-playground-control id="{ident}-radius" name="radius" label="Radius" kind="range" '
-            'value="8" max="20"></lf-playground-control>'
-            f'<lf-playground-preview><p id="{card}">Deployed.</p>'
-            "</lf-playground-preview>"
+            f'<aside><label id="{ident}-radius">Radius <input type="range" name="radius" '
+            'value="8" max="20" /></label></aside>'
+            f'<p id="{card}">Deployed.</p>'
             "<lf-playground-output>Build it.</lf-playground-output></lf-playground>"
+            "</lf-group>"
         )
 
     (page_dir / "index.html").write_text(
@@ -1417,8 +1412,7 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
             **agent,
             "kind": "comment",
             "revision": 1,
-            "text": "Try this one.",
-            "markup": playground("sent", "sent-card"),
+            "text": "Try this one.\n\n" + playground("sent", "sent-card"),
         },
     )
     sent = tune("sent", 2)
@@ -1463,7 +1457,7 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     # redeclaring the verb leaves what the earlier messages were about.
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-playground"]["x-state"]["tune"].pop("unsent"),
+        lambda registry: registry["lf-playground"]["verbs"]["tune"].pop("unsent"),
     )
     publish(page_dir)
     assert shown([opened, reply, edit, aside]) == on_page

@@ -20,7 +20,6 @@ import tempfile
 from pathlib import Path
 
 import click
-import turbohtml
 
 from leaf.event_log import read_events
 from leaf.registry.contract import is_element_name
@@ -101,8 +100,10 @@ HEAD = """\
 </head>
 <body>
 <main class="layout-column">
-<p class="eyebrow">internal page corpus</p>
+<hgroup>
+<p>internal page corpus</p>
 <h1>Every Leaf page fixture, composed</h1>
+</hgroup>
 <p class="lede" id="corpus-lede">This internal stress surface puts every
 authored page in one document so the browser suite can exercise their combined
 weight and distributed controls. It is a test fixture, not the public examples
@@ -158,12 +159,8 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
 
     A page's own Layout (the class on its `<main>`) is its document's to declare; a tab
     in the corpus is part of the corpus's column page, so only the body carries over.
-    The tab's label is the page's title, so its opening eyebrow repeats the page's
-    context. On screen the strip carries it; wherever there is no
-    strip (unupgraded, in print, in a copy) the theme paints the label back onto the
-    panel. The eyebrow is the copy that has nowhere to be. Contents outlines stay:
-    the enclosing corpus tab supplies their reading scope, and outlines inside a
-    live sample keep that sample's own document.
+    Contents outlines stay: the enclosing corpus tab supplies their reading scope, and
+    outlines inside a live sample keep that sample's own document.
     """
     mains = parsed.tree.select("main")
     if len(mains) != 1:
@@ -183,20 +180,6 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     assert main.source_location is not None
     _, start = parsed.offsets(main.source_location.start_tag)
     end, _ = parsed.offsets(main.source_location.end_tag)
-
-    first = next(
-        (child for child in main.children if isinstance(child, turbohtml.Element)),
-        None,
-    )
-    if (
-        first is not None
-        and first.tag == "p"
-        and first.attrs.get("class") == ["eyebrow"]
-    ):
-        assert first.source_location is not None
-        cut_start = parsed.offsets(first.source_location.start_tag)[0]
-        if not text[start:cut_start].strip():
-            start = parsed.offsets(first.source_location.end_tag)[1]
     return text[start:end].strip()
 
 

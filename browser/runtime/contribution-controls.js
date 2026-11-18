@@ -331,13 +331,6 @@ function syncContributionTurn(control, awaitsUser) {
   keeps(control, "data-lf-turn", awaitsUser ? "user" : null);
 }
 
-// Whether a reading carries agent content the user has not taken in: the same
-// Thread `unread` the panel and the margin paint, as one attribute both surfaces share.
-/** @param {Element} control @param {number} count */
-export function syncContributionUnread(control, count) {
-  control.toggleAttribute("data-lf-unread", Boolean(count));
-}
-
 /** @param {Element} control @param {EntryInput | PresentedEntry} offered @param {HostOptions} [options] */
 export function presentContributionHost(
   control,
@@ -454,8 +447,11 @@ export const contributionReceipts = elementDirective(
   presentContributionReceipts,
 );
 
+// An entry's badges stand in one row on its top edge (`.lf-badges`, controls.css): the
+// unread dot, for agent content the user has not taken in (the same Thread `unread`
+// the panel paints), and its count where it stands for more than one.
 /** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
- * @param {HostOptions & {preview?: import("./preview.js").Read | null}} [options] */
+ * @param {HostOptions & {preview?: import("./preview.js").Read | null, unread?: boolean}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
@@ -470,10 +466,19 @@ export function presentContributionEntry(control, offered, options = {}) {
     : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
         >${record.glyph}</span
       >`;
+  const counted = record.count > 1;
   render(
     html`${glyph}${
-      record.count > 1
-        ? html`<span class="lf-margin-count" aria-hidden="true">${record.count}</span>`
+      counted || options.unread
+        ? html`<span class="lf-badges" aria-hidden="true"
+            >${options.unread ? html`<span class="lf-unread-dot"></span>` : null}${
+              counted
+                ? html`<span class="lf-margin-count lf-badge-count"
+                    >${record.count}</span
+                  >`
+                : null
+            }</span
+          >`
         : null
     }`,
     control,

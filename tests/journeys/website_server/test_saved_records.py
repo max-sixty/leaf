@@ -11,6 +11,7 @@ import urllib.request
 import pytest
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     append_command,
     publish,
     revision_root,
@@ -24,6 +25,7 @@ from process.website_server.test_saved_records import durable_page_store
 
 import leaf_website as website_server
 from leaf.delivery import receive_batch
+from leaf.drafts import read_drafts, write_draft
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -40,7 +42,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "obsolete.txt").write_text("Remove this input")
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+        PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     )
     publish(page_dir)
     site = tmp_path / "site"
@@ -95,6 +97,9 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             receive_batch(page, {"events": [chosen, comment, reply]}, session_id=None),
         ):
             pass
+        # A draft the visitor is writing is saved with the next commit.
+        draft = {"attempt": "saved-draft-0001", "text": "Keep these words"}
+        write_draft(private, {"context": "general", "expect": [], "record": draft})
         # One private revision drops a page input and revises the document. Each
         # commit activates the source, so the two edits land before the same one.
         (private / "page" / "obsolete.txt").unlink()
@@ -160,9 +165,14 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         assert state["active"]["revision"] == 2
         assert state["session_alive"] is None and state["listening"] is False
         assert state["activity"].get("next_transition_at") is None
+        # A tab opened while the container sleeps reads the drafts the replacement
+        # restores, without waking it.
+        drafts = json.loads(body("api/drafts"))
+        assert drafts["drafts"] == {"general": {**draft, "version": 1}}
         assert json.loads(body("api/news")) == {
             "reading": state["reading"],
             "pages": None,
+            "drafts": drafts["version"],
         }
         assert b"Revised plan" in body("")
         private_entry = revision_root(private, 2).lstrip("/") + "/leaf.js"
@@ -182,6 +192,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             private / "index.html"
         ).read_bytes()
         assert revision_path(recovered, 2).is_file()
+        assert read_drafts(recovered) == drafts
         assert (recovered / media_path.lstrip("/")).read_bytes() == media
         assert not (recovered / "page" / "obsolete.txt").exists()
         recovered_state = website_server.initial_state(

@@ -1,5 +1,5 @@
-# Added for the 2026-10-02 actual-view context capability. This case asks about
-# the shipped reading, without supplying its fields or a preferred layout.
+# Covers the actual-view context capability. This case asks about the shipped
+# reading, without supplying its fields or a preferred layout.
 description: user-view-context
 metadata:
   purpose: "Handoff: explains the available actual browser context while leaving composition to its author."

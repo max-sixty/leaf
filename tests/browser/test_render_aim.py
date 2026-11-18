@@ -9,7 +9,6 @@ from itertools import pairwise
 
 import pytest
 from interact_support import (
-    SHIPPED_PACKAGES,
     append_carried_log_record,
     append_command,
     declare_idle,
@@ -54,6 +53,7 @@ from render_cases_widgets import (
     prefixed_visual_layer,
 )
 from render_harness import (
+    DESIGN_LEGEND,
     EDITOR_ROOTS,
     FOLLOWER_MARK,
     LONG_PAGE,
@@ -63,8 +63,8 @@ from render_harness import (
     REPLAYED_PAGE,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
-    draft_key,
     expect_comment_notes,
+    expect_design_mode,
     field_press,
     gesture_writes,
     judge_watches,
@@ -101,7 +101,6 @@ from leaf import structure as structure_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
-from leaf.validation import composition as validation_model
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
@@ -166,46 +165,6 @@ def open_compact_comment(page, text=None):
 # The top of the window the page shows (geometry.js, `shownWindow`): what a float the
 # page places stands below.
 SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
-
-
-def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
-    """The sidenote authors copy carries the identity its advertised aim needs.
-
-    A handwritten fixture would prove the runtime and leave the catalog free to
-    regress to an id-less note that renders normally but gives Alt nothing to outline.
-    Drive that example itself through the whole gesture, from outline to anchored
-    composer."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    sidenote = registry["aside.note"]["x-example"]
-    html = LONG_PAGE.replace(
-        '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
-    )
-    page = open_page(browser, serve(html))
-    note = page.locator("#logout-frequency")
-
-    note.hover()
-    page.keyboard.down("Alt")
-    expect(page.locator("[data-lf-aimed]")).to_have_id("logout-frequency")
-    note.click()
-    page.keyboard.up("Alt")
-
-    # The sequence already names Comment, so the durable composer is the focused field
-    # beside the note. It grows in place, Shift+Enter adds a line, and Enter submits it.
-    field = open_compact_comment(page, "why here")
-    assert page.evaluate(DRAFT_MARK) == "logout-frequency"
-    one_line = field.bounding_box()["height"]
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("because every active session must end before support continues")
-    assert field.bounding_box()["height"] > one_line
-    expect(page.locator(".lf-composer")).to_have_attribute("data-lf-open", "")
-    with sending(page, "the compact comment"):
-        page.keyboard.press("Enter")
-    sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["kind"] == "comment"
-    assert sent["text"] == (
-        "why here\nbecause every active session must end before support continues"
-    )
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
@@ -282,7 +241,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     )
     page = open_page(browser, serve(source))
     # 900 leaves the composer no side lane, so it takes the vertical route; at 1200 the
-    # root's margin once put it 40px left of its lane, over the item.
+    # root's margin can put it 40px left of its lane, over the item.
     resized(page, width, 900)
 
     target = page.locator("#lq-keep")
@@ -556,10 +515,10 @@ def test_a_comment_on_a_scrolled_away_paragraph_returns_with_resume(browser, ser
 def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     """Margin controls may be overlaid; they are not placement obstacles.
 
-    This is the reported release-notes geometry: the comment begins beside Console,
-    with its target's margin actions immediately below it. Treating those actions as
-    hard obstacles first moved a growing draft above its text, then capped it at one
-    line. Removing the peers must have no effect on the response rectangle at all.
+    On the release-notes geometry, the comment begins beside Console, with its target's
+    margin actions immediately below it. Treating those actions as hard obstacles would
+    move a growing draft above its text, or cap it at one line. Removing the peers must
+    have no effect on the response rectangle at all.
     """
     page = open_page(
         browser,
@@ -775,8 +734,8 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     """A line the comment box gains at the window's foot shifts it up in the frame the
     key lands, its words and Send with its edges, as a textarea's would; a line
     removed carries the words back down with the top edge over the floating boxes'
-    tween while Send rides the foot (box-motion.js, "Whose change it is"). The new line
-    used to travel too, hiding the word being typed until the edge reached it."""
+    tween while Send rides the foot (box-motion.js, "Whose change it is"). A new line
+    that travelled too would hide the word being typed until the edge reached it."""
     page = open_page(
         browser,
         serve(
@@ -873,8 +832,8 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
 def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
     """A comment box keeps its width as it takes its first lines and grows downward, so
     a key that takes it a new line stands it at its new height in the frame the key lands, as a
-    textarea sized to its words does (box-motion.js, "Whose change it is"). Each key
-    used to start a tween that trailed the caret, and the field's cut hid what was
+    textarea sized to its words does (box-motion.js, "Whose change it is"). A tween
+    each key started would trail the caret, and the field's cut would hide what was
     just typed until the tween caught up. A line taken at the window's foot is
     `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
     page = open_page(
@@ -1143,12 +1102,12 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
 
 TALL_OBLIGATION_PAGE = leaf_page(
     "A tall Ask",
-    '<h1>Route</h1><lf-ask id="way"><h2>Which way?</h2>'
+    '<h1>Route</h1><lf-group id="way" label="Which way?"><h2 id="way-h">Which way?</h2>'
     + "".join(
         f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
     )
-    + '<lf-options id="route" choose><lf-option id="north">North</lf-option>'
-    '<lf-option id="south">South</lf-option></lf-options></lf-ask><p>After.</p>',
+    + '<lf-options id="route"><lf-option id="north">North</lf-option>'
+    '<lf-option id="south">South</lf-option></lf-options></lf-group><p>After.</p>',
 )
 # Every margin row by what it stands for: the rows about `target`, each as its top
 # measured from the target's, and whether it holds a comment. Rows are read by their
@@ -1296,7 +1255,7 @@ def point_a_comment(page, text, x=60):
 def test_a_pointed_cards_reply_brings_the_pointed_row_back(browser, serve):
     """Typing in a card scrolled away brings it back, and for a pointed comment what it
     stands by is its row: the section around it still overlaps the window, so bringing
-    the section into view moved nothing and left the reply below the window."""
+    the section into view would move nothing and leave the reply below the window."""
     page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
     expect(page.locator("#whole p")).to_have_count(80)
@@ -1431,11 +1390,13 @@ POINTED_WITHIN = {
     ),
     # A target's first line: its own row stands there already, so a comment pointed at
     # it joins that row, an obligation's marker's, rather than standing pushed below it.
+    # The group is named by `aria-label`, so its heading carries no id and points at the
+    # group rather than being a target of its own.
     "first line": (
         (
-            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" choose>'
+            '<lf-group id="within" label="Which way?"><h2>Which way?</h2><lf-options id="route">'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
-            "</lf-option></lf-options></lf-ask>"
+            "</lf-option></lf-options></lf-group>"
         ),
         ["#within h2"],
         0,
@@ -1757,7 +1718,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     target.evaluate("node => node.scrollIntoView({block: 'center'})")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     legend = page.locator('.lf-legend-box[data-lf-for="p30"]')
     expect(legend).to_be_visible()
 
@@ -1806,7 +1767,7 @@ def test_a_margin_preview_stands_clear_of_the_target_trace(browser, serve, monke
     """A margin marker's preview is about its target, so it stands clear of the target
     and of the trace it summons around it, rather than painting over that trace."""
     single = OBLIGATION_PAGE.replace(
-        '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
+        '<lf-options id="jobs" multiple>', '<lf-options id="jobs">'
     )
     page = open_page(browser, live_url(serve(single)))
     page_dir = serve.page_dir
@@ -1856,7 +1817,7 @@ def test_an_aim_at_a_seam_promises_the_element_its_press_takes(
     The outline hit-tests the pointer record the runtime keeps, and the press takes the
     target the browser resolved for it. `mousemove` carries the pointer's place rounded to
     a whole pixel, so a record kept from one is an answer about a place the pointer is
-    not, and within a pixel of a seam that place is a different item: ⌥ over a choose
+    not, and within a pixel of a seam that place is a different item: ⌥ over an option
     group outlined the option above the seam and the press commented on the one below it.
     So the aim is put within a quarter pixel of a seam, where the true point and its
     rounded twin name different items, and the item it is held to is read off the point,
@@ -1953,7 +1914,7 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
         expect(page.locator(".lf-fab-bar")).to_be_hidden()
         page.evaluate(RELEASE_FOCUS)
 
-    # Holding ⌥ used to draw a plain arrow over the whole page, which leaves the one
+    # Drawing a plain arrow over the whole page while ⌥ is held leaves the one
     # question the outline can't answer for a user who hasn't looked yet: would this click
     # do anything at all? An armed press takes the addressable element under it and acts
     # on nothing where there is none (claimPress), so the hand says it takes one, read
@@ -2084,7 +2045,7 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     page.locator("#opt-shim .lf-pick").focus()
     with sending(page, "the pick"):
         page.keyboard.press(" ")
-    expect(page.locator("#approach > lf-option[chosen]")).to_have_count(1)
+    expect(page.locator("#approach > lf-option[selected]")).to_have_count(1)
     assert [
         e["action"] for e in events_model.read_events(serve.page_dir) if "action" in e
     ] == ["choose"]
@@ -2136,9 +2097,10 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
 
     `aiming` is armed by an Alt keydown, and a page reloaded under a held key — the
     poll following a new version does exactly this — never hears one, while claimPress
-    reads live modifier state: every press on the new page was claimed and none could
-    be promised. Mouse events carry that same live state, so the first move re-derives
-    the arm; this drives that move rather than a keydown the reload already ate."""
+    reads live modifier state: every press on the new page would be claimed and none
+    could be promised. Mouse events carry that same live state, so the first move
+    re-derives the arm; this drives that move rather than a keydown the reload already
+    ate."""
     page = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
     heading.hover()
@@ -2165,7 +2127,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     option = page.locator("#opt-shim")
     before = page.evaluate(PAGE_MARKUP)
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
@@ -2174,7 +2136,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         reference.locator('[role=option][data-lf-command="aim.comment"]')
     ).to_have_count(0)
     page.keyboard.press("Escape")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
     # The mode shows what is on the page rather than waiting for the pointer: a legend
     # box on every item, and on every item but a widget's parts its name — the group
@@ -2207,7 +2169,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     )
     # The press did nothing to the page: not a pick, not a focus, nothing in the markup
     # but the composer's own outline on the element it is about.
-    expect(page.locator("#approach > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#approach > lf-option[selected]")).to_have_count(0)
     assert (
         page.evaluate(PAGE_MARKUP).replace(' class="lf-mark-el lf-pending"', "")
         == before
@@ -2240,9 +2202,9 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(panel).to_have_count(0)
     page.locator("body").focus()
     expect(page.locator("body")).to_be_focused()
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     expect(page.locator(".lf-inspect")).to_be_hidden()
     expect(page.locator(".lf-legend-box")).to_have_count(0)
 
@@ -2287,7 +2249,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
         ).to_be_hidden()
         page.keyboard.press("Escape")
         expect(hints).to_have_count(0)
-        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page)
         expect(
             page.locator('.lf-legend-box[data-lf-for="subject"] .lf-legend-tag')
         ).to_be_visible()
@@ -2309,7 +2271,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
         page.locator("#subject").click()
     expect(hints).to_have_count(0)
     if mode == "l":
-        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page)
     write(page.locator(".lf-fab-input"), "Keep this passage aligned.")
     with sending(page, "the selected element comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -2323,9 +2285,9 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
     if mode == "l":
         page.keyboard.press("Escape")
         expect(page.locator(PANEL_THREAD)).to_have_count(0)
-        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page)
         page.keyboard.press("Escape")
-        expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page, on=False)
 
 
 # Each route once, with each role taking at least one of them.
@@ -2407,6 +2369,40 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     )
 
 
+def test_a_design_part_is_a_repeat_only_among_its_own_owner_s_parts(browser, serve):
+    """A part's name is its owner's own: a control inside an item the owner holds is
+    that item's part, so a twin there leaves the owner's control unrepeated, and its
+    name says no more than a lone control's would. Naming a part reads only what its
+    owner holds as its own (anchor-resolution.js, `namedParts`): a side tab list's tabs
+    stand beside every document its panels hold, which the press and the picker's
+    announcement each read in full (#4781)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Own parts",
+                '<section id="lone"><h2>Lone</h2><p>Words, then <button>Open</button>'
+                ' and more.</p><p id="held">A held item with <button>Open</button> of'
+                " its own.</p></section>"
+                '<section id="twins"><h2>Twins</h2><p>Words, then <button>Open</button>'
+                " and more.</p><p>Other words, then <button>Open</button> again.</p>"
+                "</section>",
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    labels = page.evaluate("""async () => {
+      const {aimTargets, captured} = await window.__lfCheckApi();
+      return aimTargets({design: true})
+        .filter((t) => t.anchor.part === 'Open')
+        .map((t) => [t.anchor.section, captured(t).label]);
+    }""")
+    repeats = {section: [] for section, _ in labels}
+    for section, label in labels:
+        repeats[section].append("after …" in label or " before " in label)
+    assert repeats == {"lone": [False], "held": [False], "twins": [True, True]}, labels
+
+
 @pytest.mark.parametrize(
     ("generated", "route"), [(False, "keyboard"), (True, "pointer")]
 )
@@ -2441,8 +2437,8 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     page.keyboard.press("l")
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
-      const {aimTargets, resolveAnchor} = await window.__lfCheckApi();
-      return aimTargets({design: true}).filter(t => t.anchor.section === 'rows' && t.anchor.part).map(t => t.capture ? t.capture() : t).map(t => ({
+      const {aimTargets, captured, resolveAnchor} = await window.__lfCheckApi();
+      return aimTargets({design: true}).filter(t => t.anchor.section === 'rows' && t.anchor.part).map(captured).map(t => ({
         anchor: t.anchor, label: t.label, resolution: (() => { const resolved = resolveAnchor(t.anchor); return {exact: resolved?.exact, status: resolved?.status}; })()
       }));
     }""")
@@ -2697,17 +2693,17 @@ CONTROL_PRESSES = {
 # Each control a shape's selector names: the target a press on it reads, and that same
 # control's entry in the inventory the picker offers, before and after its capture.
 READ_CONTROL_SHAPES = """async (shapes) => {
-  const {aimTargets, aimTargetAt, resolveAnchor} = await window.__lfCheckApi();
+  const {aimTargets, aimTargetAt, captured, resolveAnchor} = await window.__lfCheckApi();
   const {anchorLabel} = await window.__lfWidgetApi();
   const inventory = aimTargets({design: true});
   const identity = (target) => target.controlElement ?? target.element;
   // A control with no target reads as null, for its own case to report.
   const read = (control) => {
-    const target = aimTargetAt(control, {design: true});
+    const target = captured(aimTargetAt(control, {design: true}));
     if (!target) return null;
     const resolved = resolveAnchor(target.anchor);
     const listed = inventory.find((offer) => identity(offer) === identity(target));
-    const chosen = listed?.capture ? listed.capture() : listed;
+    const chosen = captured(listed);
     return {
       anchor: target.anchor,
       label: target.label,
@@ -2753,9 +2749,9 @@ def _back_in_design_mode(page):
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
     page.evaluate(RELEASE_FOCUS)
-    if page.locator("body[data-lf-design-mode]").count() == 0:
+    if page.locator(DESIGN_LEGEND).count() == 0:
         page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
 
 def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carry(
@@ -2854,9 +2850,9 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
     with subtests.test(reading="a label and its input are one control"):
         assert reads["label-input"][0]["label"].startswith("A ·"), reads["label-input"]
         by_input = page.evaluate("""async () => {
-          const {aimTargetAt} = await window.__lfCheckApi();
-          return aimTargetAt(document.querySelector('#label-input input'),
-                             {design: true}).anchor;
+          const {aimTargetAt, captured} = await window.__lfCheckApi();
+          return captured(aimTargetAt(document.querySelector('#label-input input'),
+                                      {design: true})).anchor;
         }""")
         assert by_input == reads["label-input"][0]["anchor"], by_input
 
@@ -2931,7 +2927,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
     with subtests.test(route="out of the mode"):
         _back_in_design_mode(page)
         page.keyboard.press("Escape")
-        expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page, on=False)
         selector, position, _ = CONTROL_PRESSES["a label's words"]
         page.locator(selector).click(position=position)
         expect(page.locator("#label-input input").first).to_be_checked()
@@ -2969,7 +2965,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
 
     seeded = comments()
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     # The control: the same press on the page is a design comment.
     page.locator("#t").click()
     composer = page.locator(".lf-composer")
@@ -2991,10 +2987,10 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     assert comments() == seeded, "a press on the chrome posted a comment"
     exit_mode.click()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
+    expect_design_mode(page, on=False)
     open_threads(page)
     expect(panel).to_be_visible()
 
@@ -3046,7 +3042,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
     reply = thread.locator("leaf-text")
     expect(reply).to_be_visible()
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
     # The control: a press on the diff's own file control is the mode's.
     page.locator("#patch .lf-diff-file-comment").click()
@@ -3072,8 +3068,9 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
     """The legend follows the page's markup, not the runtime's own paint on it.
 
     A mark rewrites its element's classes on every repaint, and a legend that heard those
-    writes as the page moving started the repaint that wrote them again, so a page with a
-    reaction or a comment on an element never stopped rendering while the mode stood."""
+    writes as the page moving would start the repaint that wrote them again, so a page
+    with a reaction or a comment on an element would never stop rendering while the mode
+    stood."""
     url = serve(
         leaf_page(
             "marked elements",
@@ -3133,7 +3130,7 @@ def test_design_mode_leaves_prose_to_the_selection(browser, serve):
     )
     page.keyboard.press("Escape")  # the composer, draft kept; the mode still stands
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     heading.click(position={"x": 4, "y": 4})
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text("design · heading · t")
@@ -3146,11 +3143,11 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     box yet, and the boxes are drawn in document space), the panel opening (the column
     re-centred, every block reflowed, and no scroll or replay said so — each obligation's own
     resize does), and the name under the pointer, which is drawn beside the box in the
-    same space: it sat in viewport space once, with the scroll added on top, and stood a
+    same space: in viewport space, with the scroll added on top, it would stand a
     screen below its box on any page scrolled at all. The aim's name is one more of
     the chrome's promises over the same page, so the reflow doors repaint it too
-    (pageShifted): it once kept its old coordinates through the panel's column motion,
-    floating half a panel to the right of the element it named."""
+    (pageShifted): a name that kept its old coordinates through the panel's column
+    motion would float half a panel to the right of the element it named."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("l")
     page.wait_for_function(LEGEND_TRUE)
@@ -3180,8 +3177,8 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
 def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
     """A legend box takes the corners of what it names, read once the element shows.
     Chromium answers a style read inside a closed tab by styling everything the tab
-    holds, and on a page of thirty text documents in closed tabs entering Design mode
-    the first time took 38 s (design.js, `paintLegend`). The box of what the tab holds
+    holds, so on a page of text documents in closed tabs entering Design mode could
+    take seconds (design.js, `paintLegend`). The box of what the tab holds
     takes its corners once the tab opens."""
     page = open_page(
         browser,
@@ -3223,9 +3220,9 @@ def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
     each side of it, so a control far into a long paragraph is told apart by the words
     beside it, and a control's own words after its name, said once. A picture says none
     of its own words, since its name describes it: over a text document Design mode
-    aims at its view, a picture of the whole document, whose name once read all of it
-    twice at each move of the pointer, 0.3 to 1.7 s on a document of 50,000 lines
-    (anchor-resolution.js, `controlContext`)."""
+    aims at its view, a picture of the whole document, whose name would otherwise read
+    all of it twice at each move of the pointer (anchor-resolution.js,
+    `controlContext`)."""
     filler = " ".join(f"word{n}" for n in range(400))
     lines = "".join(f"line {n} of the document\n" for n in range(3000))
     page = open_page(
@@ -3245,9 +3242,9 @@ def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
     expect(page.locator("#doc .lf-text-document-run > div").first).to_be_visible()
     labels = page.evaluate(
         """async () => {
-          const {aimTargetAt} = await window.__lfCheckApi();
+          const {aimTargetAt, captured} = await window.__lfCheckApi();
           const label = (selector) =>
-            aimTargetAt(document.querySelector(selector), {design: true}).label;
+            captured(aimTargetAt(document.querySelector(selector), {design: true})).label;
           return {
             button: label('#prose button'),
             count: label('#checks button'),
@@ -3310,7 +3307,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
 ):
     """A generated SVG node still names the authored widget when no parts are declared.
 
-    The registry's x-visual contract makes the drawing one item rather than exposing
+    The registry's `visual` contract makes the drawing one item rather than exposing
     renderer internals, so both the aim and the legend stop at the widget.
     """
     page = open_page(browser, serve(PICTURE_PAGE))
@@ -3335,7 +3332,11 @@ def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve
 
     Only a registered visual keeps the ids inside it to itself; a figure the author drew
     is ordinary markup, so a named group takes the aim and the comment, and a shape
-    without an id still reaches the figure around it."""
+    without an id still reaches the figure around it. The aim marks a part that draws a
+    shape along the shape, and a part that draws only words, as a chart's key entry
+    does, or a marker it draws by `<use>`, by an outline round its box; the words keep
+    their own paint either way. The
+    comment names the part as a figure by its `aria-label`, not by SVG's `g`."""
     page = open_page(
         browser,
         serve(
@@ -3343,19 +3344,41 @@ def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve
                 "drawing",
                 """
 <h1 id="t">Drawing</h1>
-<figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
-aria-label="A drawer beside a page"><g id="fig-drawer"><rect x="2" y="2" width="100"
-height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</text></g>
-<rect x="130" y="2" width="100" height="56" fill="#ddd"></rect></svg></figure>
+<figure id="fig"><svg viewBox="0 0 250 80" width="250" height="80" role="img"
+aria-label="A drawer beside a page"><g id="fig-drawer" aria-label="The drawer"><rect
+x="2" y="2" width="100" height="56" fill="#ddd"></rect><text x="52" y="34"
+text-anchor="middle" fill="#333">Drawer</text></g>
+<rect x="130" y="2" width="100" height="56" fill="#ddd"></rect>
+<g id="fig-key"><text x="130" y="76" fill="#333">page, 600px</text></g>
+<g id="fig-dot"><defs><circle id="fig-mark" r="3" fill="#333"></circle></defs><use
+href="#fig-mark" x="236" y="70"></use></g></svg></figure>
 """,
             )
         ),
     )
+    accent = token_colour(page, "--lf-accent")
+    fill = "(text) => getComputedStyle(text).fill"
+    outline = "(part) => [getComputedStyle(part).outlineStyle, getComputedStyle(part).outlineColor]"
     drawer = page.locator("#fig-drawer rect")
     corner = {"x": 8, "y": 8}
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("fig-drawer")
+    assert_drawn_in(page.locator("#fig-drawer"), accent, 2)
+    assert page.locator("#fig-drawer text").evaluate(fill) == "rgb(51, 51, 51)"
+    page.keyboard.up("Alt")
+    page.locator("#fig-key text").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("fig-key")
+    assert page.locator("#fig-key").evaluate(outline) == ["solid", accent]
+    assert page.locator("#fig-key text").evaluate(fill) == "rgb(51, 51, 51)"
+    page.keyboard.up("Alt")
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
+    assert page.locator("#fig-key").evaluate(outline)[0] == "none"
+    page.locator("#fig-dot use").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("fig-dot")
+    assert page.locator("#fig-dot").evaluate(outline) == ["solid", accent]
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
@@ -3363,6 +3386,7 @@ height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</
     page.keyboard.up("Alt")
 
     drawer.click(modifiers=["Alt"], position=corner)
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ figure · The drawer")
     open_compact_comment(page, "wider")
     with sending(page, "the comment on the drawer"):
         page.keyboard.press("Enter")
@@ -3470,16 +3494,14 @@ def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
     page = open_page(browser, url)
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
-    expect(page.locator("#inner")).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    expect(page.locator("#outer")).not_to_have_class(
-        re.compile(r"\blf-projected-mark\b")
-    )
+    expect(page.locator("#inner")).to_have_attribute("data-lf-projected-mark", "")
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-projected-mark", "")
 
     page.keyboard.press("Escape")
     page.locator("#html-surface").click(modifiers=["Alt"])
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator('[data-lf-mark~="pending"]')).to_have_id("html-surface")
-    expect(page.locator("#html")).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(page.locator("#html")).to_have_attribute("data-lf-projected-mark", "")
 
 
 def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
@@ -3539,7 +3561,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
             '.lf-margin-preview .lf-page-thread[data-lf-thread="outer-comment"]'
         )
     ).to_be_visible()
-    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(outer).to_have_attribute("data-lf-projected-mark", "")
     expect(page.locator("[data-lf-mark]")).to_have_id("outer-surface")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -3577,7 +3599,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     surface = page.locator("#html-surface")
 
     surface.click()
-    expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(semantic).to_have_attribute("data-lf-projected-mark", "")
     expect(page.locator("[data-lf-mark]")).to_have_id("html-surface")
     marked = surface.evaluate(MARK)
     assert marked and marked["style"] == "solid", marked
@@ -3817,25 +3839,26 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
 
 def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests):
     """A field's ring replaces its border, so it stands on the field's edge, and the aim
-    the field draws stands there too. It stood a control's gap outside, because the
-    field's edge, 0, read as no place stated: 0 is also where the outline of a box that
-    states nothing stands.
+    the field draws stands there too. Reading the field's edge, 0, as no place stated
+    would stand the aim a control's gap outside: 0 is also where the outline of a box
+    that states nothing stands.
 
     A joined choice clips its cells, so a cell leaves no room for a mark outside it and
     states its marks one band inside its edge (options.css). The aim and the comment's
-    mark both stand there: the aim stood outside, across the frame and the next cell,
-    while the comment's stood inside, so going from one to the other moved the frame 7px."""
+    mark both stand there: an aim standing outside, across the frame and the next cell,
+    while the comment's stood inside, would move the frame going from one to the
+    other."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
-<p><label for="name">Name</label> <input id="name" class="lf-field" type="text" value="Ada"></p>
-<lf-options id="ship" choose>
-  <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
-  <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
-</lf-options>""",
+<p><label for="name">Name</label> <input id="name" type="text" value="Ada"></p>
+<lf-group id="ship-q" label="When to ship?"><lf-options id="ship">
+  <lf-option id="ship-monday" label="Ship Monday"><strong>Ship Monday</strong> soon</lf-option>
+  <lf-option id="ship-thursday" label="Ship Thursday"><strong>Ship Thursday</strong> later</lf-option>
+</lf-options></lf-group>""",
             )
         ),
     )
@@ -3884,7 +3907,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
                 "Focus paint ownership",
                 "<h1>Focus paint ownership</h1><button>Unnamed control</button>"
                 '<button id="named">Named control</button><span id="component"></span>'
-                '<label class="lf-choice"><input id="pick" type="checkbox">Keep this choice</label>'
+                '<label id="pick-face"><input id="pick" type="checkbox">Keep this choice</label>'
                 '<section><lf-tabs id="views">'
                 '<lf-tab id="view-a" label="First">First panel</lf-tab>'
                 '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
@@ -3924,14 +3947,14 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     expect(private).to_have_css("outline-width", "2px")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
-    expect(private).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(private).not_to_have_attribute("data-lf-projected-mark", "")
 
     page.keyboard.press("Tab")
     choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)
     expect(choice).to_be_focused()
     expect(choice).to_have_css("outline-style", "none")
-    expect(page.locator(".lf-choice")).to_have_css("outline-width", "2px")
-    expect(page.locator(".lf-choice")).to_have_css("outline-style", "solid")
+    expect(page.locator("#pick-face")).to_have_css("outline-width", "2px")
+    expect(page.locator("#pick-face")).to_have_css("outline-style", "solid")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
 
@@ -3967,9 +3990,9 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     """A pass that runs paints the truth, whatever ran it.
 
     A replay of another tab's action moves content and repaints the marks where they
-    now belong — and the aim used to ride that pass as an answer latched from the last
-    mouse event, so the pass itself painted a promise about a card no longer there.
-    The aimed element is derived inside the pass now, and the events only decide when a
+    now belong — and an aim that rode that pass as an answer latched from the last
+    mouse event would have the pass itself paint a promise about a card no longer there.
+    The aimed element is derived inside the pass, and the events only decide when a
     pass is worth running. Nothing here moves the mouse after the arm: the page moves
     instead, and the box must follow or clear."""
     url = serve(REPLAYED_PAGE)
@@ -4009,12 +4032,12 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
 def test_the_aim_shows_over_the_widgets_own_paint(browser, serve):
     """The promise is visible over the widget's own paint.
 
-    The aim used to wear the mark's rail, and that band sat at the border edge — the one
-    band of an element nobody else paints in, and exactly where a widget draws a border
-    of its own. Over an accented option, whose border is already the accent, arming
-    changed nothing a user could see. The aim's veil fills the box; the pixel diff
-    here is armed against unarmed with the pointer held still, so the widget's own
-    hover wash is in both frames and the difference is the promise alone."""
+    The aim doesn't wear the mark's rail, since that band sits at the border edge — the
+    one band of an element nobody else paints in, and exactly where a widget draws a
+    border of its own. Over an accented option, whose border is already the accent,
+    arming would change nothing a user could see. The aim's veil fills the box; the
+    pixel diff here is armed against unarmed with the pointer held still, so the
+    widget's own hover wash is in both frames and the difference is the promise alone."""
     from PIL import ImageChops  # a dev dependency already, for the demo recorder
 
     page = open_page(browser, serve(AIM_PAINT_PAGE))
@@ -4250,11 +4273,11 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
         browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
     )
     context = 'composer:[["section","bg-contents"]]'
-    saved = draft_key(page, context)
+    assert stored_draft_text(page, context) == words
     resized(page, 480, 900)
     rendered(page)
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
-    assert draft_key(page, context) == saved
+    assert stored_draft_text(page, context) == words
     resized(page, 1200, 900)
     rendered(page)
     page.keyboard.press("Escape")
@@ -4267,8 +4290,8 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     rendered(page)
     judge_watches()
     assert _draft_in_view(page, words)
-    assert draft_key(page, context) == saved
-    draft = page.evaluate("([read, ctx]) => read(ctx)", [stored_draft(page), context])
+    draft = stored_draft(page, context)
+    assert draft is not None
     assert draft["payload"]["anchor"] == {"section": "bg-contents"}
     assert draft["text"] == words
     page.keyboard.press("Escape")
@@ -4379,7 +4402,7 @@ DESIGN_PANE_PAGE = leaf_page(
 def _design_mode(page):
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
 
 # A long page whose paragraphs stand under a header stuck at the window's head, which cuts
@@ -4442,7 +4465,7 @@ def _paint_mode(page, mode, words):
         expect(page.locator(".lf-key-hint[data-lf-hint-code]").first).to_be_visible()
 
 
-# Every mode's paint in a pane, the frame each of them once trailed by a frame; the
+# Every mode's paint in a pane, the frame each of them can trail by a frame; the
 # legend in every frame, and chips under a header's cut and in the window's own plane.
 @pytest.mark.parametrize(
     ("mode", "scroller"),
@@ -4465,11 +4488,11 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     (target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
     it with the scroll and writes none of it on the scroll's frames. What the scroll
     changes, the map's members and a chip the window's head holds in, is read once it
-    settles, and a legend's tags step inside their boxes as they cross a cut. The
-    design legend, its boxes and tags placed and written on every scroll, trailed a
-    pane by a frame, and so did the picker's and Go-to's chips, the search's mark and
-    an obligation's binding digits, each written on every frame of the gesture. Saved ink
-    stands the same way."""
+    settles, and a legend's tags step inside their boxes as they cross a cut. A design
+    legend whose boxes and tags were placed and written on every scroll would trail a
+    pane by a frame, and so would the picker's and Go-to's chips, the search's mark and
+    an obligation's binding digits, were each written on every frame of the gesture.
+    Saved ink stands the same way."""
     source = {
         "window": LONG_PAGE,
         "header": HEADED_PAGE,
@@ -4536,8 +4559,8 @@ def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, ser
     """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
     (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
     window's edge or the chrome, holds a chip where the window does. Held because the
-    chrome at the foot shared its column, such a chip stood still mid-page through a
-    scroll and jumped once it settled."""
+    chrome at the foot shared its column, such a chip would stand still mid-page
+    through a scroll and jump once it settled."""
     source = LONG_PAGE.replace(
         "<p id='p10'>",
         "<section id='outer' style='padding-bottom: 12px'><p id='inner'>A nested"
@@ -4657,8 +4680,8 @@ OFF_FLOW_PAGE = leaf_page(
 def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, serve):
     """A paragraph's tag scrolls past the tag a sticky bar keeps still, and the two
     step apart as they meet, with no legend pass between (design.js, `placeTags`):
-    a scroll that left every tag on the same side of its box once kept the steps it
-    found, though the tags it had stepped apart now stood elsewhere."""
+    a scroll that left every tag on the same side of its box doesn't keep the steps it
+    found, though the tags it had stepped apart now stand elsewhere."""
     page = open_page(browser, serve(OFF_FLOW_PAGE))
     resized(page, 1280, 720)
     _design_mode(page)
@@ -4963,7 +4986,7 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
     control = page.get_by_role("radio", name="Choice B")
     target = page.evaluate("""async () => {
       const A=await window.__lfCheckApi();const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
-      const target=A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true});
+      const target=A.captured(A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true}));
       const resolved=A.resolveAnchor(target.anchor);
       return {anchor:target.anchor,label:target.label,exact:resolved.exact};
     }""")
@@ -5046,7 +5069,7 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(browser, 
       const A=await window.__lfCheckApi();
       const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       return [...document.querySelectorAll('#controls > *')].map(el=>{
-        const t=A.aimTargetAt(el,{design:true});
+        const t=A.captured(A.aimTargetAt(el,{design:true}));
         return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor).exact};
       });
     }""")
@@ -5291,12 +5314,12 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
           const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
           return {
             fields:[...document.querySelectorAll('textarea')].map(el=>{
-              const target=A.aimTargetAt(el,{design:true});
+              const target=A.captured(A.aimTargetAt(el,{design:true}));
               return {anchor:target.anchor,label:target.label,
                 exact:A.resolveAnchor(target.anchor).exact,
                 says:P.textNodesUnder(el).map(s=>s.node.data).join('')};
             }),
-            button:A.aimTargetAt(document.querySelector('#fields button'),{design:true}).anchor,
+            button:A.captured(A.aimTargetAt(document.querySelector('#fields button'),{design:true})).anchor,
             words:P.pageText().raw,
           };
         }""")
@@ -5365,8 +5388,8 @@ def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
 ):
     """Beside a passage, a draft that wraps keeps what the user has written where they
     wrote it: the field's top holds and its foot, with Send, moves down a line per wrap,
-    as in an editor. Enter sends, so a hand on the keys never chases Send. (#1159 held
-    the foot and raised the words above it; the user chose this instead.)"""
+    as in an editor. Enter sends, so a hand on the keys never chases Send. (The user
+    chose this over holding the foot and raising the words above it.)"""
     page = open_page(
         browser,
         serve(
@@ -5428,13 +5451,13 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     this tab's working state, kept the way the panel's open state is."""
     page = open_page(browser, serve(REPLAYED_PAGE))
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     page.reload()
     wait_until_ready(page)
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     expect(page.locator('.lf-legend-box[data-lf-for="approach"]')).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     page.reload()
     wait_until_ready(page)
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)

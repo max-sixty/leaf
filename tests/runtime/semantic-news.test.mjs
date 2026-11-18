@@ -236,7 +236,7 @@ test("current content versions and admitted messages determine arrivals", () => 
 
 test("a failed answer to a move in a thread's markup is news about that thread", () => {
   const baseline = observeSemanticNews(null, reading());
-  // The server stamps the thread the widget was frozen into.
+  // The server stamps the thread whose markup holds the widget.
   const move = {
     ...responseFailure({ attempt: "attempt" }),
     subject: { kind: "widget", id: "pick" },

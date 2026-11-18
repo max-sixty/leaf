@@ -38,6 +38,7 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     FLOW_PAGE,
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     TOKEN,
     acknowledged_through,
@@ -279,11 +280,14 @@ def test_interaction_trace_does_not_change_page_readings(page_dir):
     assert served_reading.source_readings(page_dir)[0] != sources[0]
 
 
-@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
+@pytest.mark.parametrize(
+    "name", [*schema_model.SESSION_FILES, schema_model.DRAFTS_FILE]
+)
 def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
-    """Declaring status or taking a wait writes a session file, and the next state read holds the activation it had rather than validating
-    the whole page again: on a large page that re-validation was most of the time a
-    status took to reach the panel."""
+    """Declaring status or taking a wait writes a session file, and a tab saving a
+    draft writes the drafts, and the next state read holds the activation it had rather
+    than validating the whole page again: on a large page that re-validation was most
+    of the time a status took to reach the panel, and a draft is saved as it is typed."""
     assert revisioning_model.activate_source(page_dir).error is None
 
     def revalidated(*_args, **_kwargs):
@@ -563,11 +567,10 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         page_dir,
         {
             "kind": "reply",
-            "author": "user",
+            "author": "agent",
             "parent": "aabb0011",
             "revision": 1,
-            "text": "Seeded reply",
-            "markup": '<lf-code id="seed-code" language="python"><pre>print("seed")</pre></lf-code>',
+            "text": 'Seeded reply\n\n<lf-code id="seed-code">\n<pre><code class="language-python">print("seed")</code></pre></lf-code>',
         },
     )
     before = event_model.read_events(page_dir)
@@ -581,7 +584,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         assert status == 200, raw
         assert [event["text"] for event in json.loads(raw)["events"]] == [
             "Selected thread",
-            "Seeded reply",
+            'Seeded reply\n\n<lf-code id="seed-code">\n<pre><code class="language-python">print("seed")</code></pre></lf-code>',
         ]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
@@ -590,8 +593,8 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert fetch(children[0] + "/api/state", token=None)[0] == 200
 
 
-def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
-    """A template in a message's frozen markup allocates like a page's, addressed by
+def test_a_message_sample_starts_from_its_message_html(server, page_dir):
+    """A template in a message's markup allocates like a page's, addressed by
     its message: a fixture script in that markup seeds one child, and a selection of
     the page's threads seeds another."""
     publish(page_dir)
@@ -623,9 +626,7 @@ def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
             "--done",
             response_reference(page_dir, "aabb0011"),
             "--text",
-            "Try it:",
-            "--markup",
-            markup,
+            f"Try it:\n\n{markup}",
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -648,7 +649,7 @@ def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
     status, body = allocate({"template": "fixture-practice"})
     assert status == 400 and "unknown sample template" in body["error"]
     status, body = allocate({"template": "fixture-practice", "message": "aabb0011"})
-    assert status == 400 and "carries markup" in body["error"]
+    assert status == 400 and "holds HTML" in body["error"]
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -1663,9 +1664,10 @@ def test_a_page_loads_from_other_servers_as_written(server, page_dir):
 def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_dir):
     """The live root, a stamped version and a revision are all this page.
 
-    The revision address used to fall through to the static file branch, which
-    returned the authored bytes. The module that source names still started a
-    runtime, but without the layer's bootstrap or the revision identity that tells the runtime which document it is showing. Each
+    The revision address doesn't fall through to the static file branch, which
+    returns the authored bytes: the module that source names would still start a
+    runtime, but without the layer's bootstrap or the revision identity that tells the
+    runtime which document it is showing. Each
     address names the page root as canonical, which is how a user sent to one of
     them, and a crawler that finds all three, arrive at one page.
     """
@@ -1992,10 +1994,10 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-group id="delivery-decision" label="When should this ship?"><h3 id="delivery-decision-h">When should this ship?</h3>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-group></section>",
         )
     )
     publish(page_dir)
@@ -2045,11 +2047,11 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-group id="delivery-decision" label="When should this ship?"><h3 id="delivery-decision-h">When should this ship?</h3>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-group></section>",
         )
     )
     publish(page_dir)
@@ -2100,11 +2102,11 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-group id="delivery-decision" label="When should this ship?"><h3 id="delivery-decision-h">When should this ship?</h3>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-group></section>",
         )
     )
     publish(page_dir)
@@ -2249,15 +2251,18 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     restated and one whose widget it dropped are
     offered only by the view that still paints them.
     """
-    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
+    old_page = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">').replace(
         "</section>",
-        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept" choose>'
-        '<lf-option id="kept-one">One</lf-option></lf-options></lf-ask>'
-        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone" choose>'
-        '<lf-option id="gone-one">One</lf-option></lf-options></lf-ask></section>',
+        '<lf-group id="kept-decision" label="Kept"><h3 id="kept-decision-h">Kept</h3><lf-options id="kept">'
+        '<lf-option id="kept-one">One</lf-option></lf-options></lf-group>'
+        '<lf-group id="gone-decision" label="Gone"><h3 id="gone-decision-h">Gone</h3><lf-options id="gone">'
+        '<lf-option id="gone-one">One</lf-option></lf-options></lf-group></section>',
     )
     new_page = re.sub(
-        r'<lf-ask id="gone-decision">.*?</lf-ask>', "", old_page, flags=re.DOTALL
+        r'<lf-group id="gone-decision" label="Gone"><h3 id="gone-decision-h">Gone</h3>.*?</lf-group>',
+        "",
+        old_page,
+        flags=re.DOTALL,
     )
     documents = {
         1: structure_model.SourceDocument(old_page),
@@ -2382,11 +2387,11 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-group id="delivery-decision" label="When should this ship?"><h3 id="delivery-decision-h">When should this ship?</h3>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-group></section>",
         )
     )
     publish(page_dir)
@@ -2561,7 +2566,7 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
-    board = registry_storage.load_registry(page_dir)["lf-board"]["x-example"]
+    board = registry_storage.load_registry(page_dir)["lf-board"]["example"]
     publish(page_dir)
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace("</section>", board + "\n</section>")
@@ -2634,7 +2639,18 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     ("declarations", "message"),
     [
         ("{broken", "invalid JSON"),
-        (json.dumps({"lf-board": {"type": "object"}}), "non-empty description"),
+        (
+            json.dumps(
+                {
+                    "lf-board": {
+                        "attributes": {
+                            "type": "object",
+                        },
+                    }
+                }
+            ),
+            "'description' is a required property",
+        ),
     ],
 )
 def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broken(
@@ -2685,16 +2701,15 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "Pick one:",
-            "--markup",
             (
-                '<lf-ask id="thread-pick-decision"><h3>Which option?</h3>'
-                '<lf-options id="thread-pick" choose>'
-                '<lf-option id="thread-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "Pick one:\n\n"
+                '<lf-group id="thread-pick-decision" label="Which option?">\n<h3 id="thread-pick-decision-h">Which option?</h3>'
+                '<lf-options id="thread-pick">'
+                '<lf-option id="thread-a" label="A"><strong>A</strong></lf-option>'
+                "</lf-options></lf-group>"
                 '<lf-sample id="sample">'
-                '<lf-options id="exhibited-pick" choose>'
-                '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
+                '<lf-options id="exhibited-pick">'
+                '<lf-option id="exhibited-a" label="A"><strong>A</strong></lf-option>'
                 "</lf-options></lf-sample>"
             ),
         ],
@@ -2707,7 +2722,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "author": "user",
             "parent": "c1",
             "revision": 1,
-            "text": '<lf-options id="text-pick" choose></lf-options>',
+            "text": '<lf-options id="text-pick"></lf-options>',
         },
     )
 
@@ -2753,11 +2768,11 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="worker-decision"><h3>What next?</h3>'
-            '<lf-options id="worker" choose>'
+            '<lf-group id="worker-decision" label="What next?"><h3 id="worker-decision-h">What next?</h3>'
+            '<lf-options id="worker">'
             '<lf-option id="worker-restart">Restart the worker</lf-option>'
             '<lf-option id="worker-park">Park it</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-group></section>",
         )
     )
     publish(page_dir)
@@ -3407,8 +3422,8 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
     """A connection that waits before speaking is a browser preconnecting, not a
     socket that will never speak.
 
-    The close was once bounded by a one-second read deadline every connection
-    carried, which cannot tell those two apart. Chromium opens sockets ahead of need
+    A one-second read deadline on every connection, bounding the close, cannot tell
+    those two apart. Chromium opens sockets ahead of need
     and writes real requests onto them later, and a request written onto a connection
     the server had already closed is dropped with no response, no console entry and no
     error: in a page that reads as a subresource which never arrives and a load event
@@ -3417,8 +3432,8 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
     server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
     client = socket.create_connection(("127.0.0.1", server.port))
     try:
-        # Longer than any per-connection read deadline of the order the close was
-        # once bounded by, so a server still carrying one has closed this already.
+        # Longer than a one-second per-connection read deadline, so a server still
+        # carrying one has closed this already.
         time.sleep(2)
         client.sendall(f"GET /?t={TOKEN} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".encode())
         client.settimeout(STATED_TIMEOUT)
@@ -3561,15 +3576,14 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     the user's whole explanation. Every one of these is deterministic, so the loop
     never ends.
 
-    The state-dependent refusals were written through `event_rejection` from the start
-    and the gates in front of them were not, which is the split this asserts away: the
-    read-only preview server and each shape gate answer in the door's own shape rather
-    than in the shape of whichever branch decided them, and each names the attempt it
-    read. The key gate is not among them: it reads no event and lasts only until the
-    printed link is opened (`test_a_user_without_the_key_reads_and_writes_nothing`). A
-    page's runtime is vendored at
-    `page init` and the layer around it moves, so the shape gates are reachable by an
-    older page's honest event, not only by a hand-written POST."""
+    The state-dependent refusals are written through `event_rejection`, and this asserts
+    the gates in front of them are too: the read-only preview server and each shape gate
+    answer in the door's own shape rather than in the shape of whichever branch decided
+    them, and each names the attempt it read. The key gate is not among them: it reads
+    no event and lasts only until the printed link is opened
+    (`test_a_user_without_the_key_reads_and_writes_nothing`). A page's runtime is
+    vendored at `page init` and the layer around it moves, so the shape gates are
+    reachable by an older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
     attempt = "attempt-for-the-door-x"
     comment = {"kind": "comment", "revision": 1, "text": "hello", "attempt": attempt}
@@ -3766,7 +3780,9 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
         return RenderReading([], [])
 
     monkeypatch.setattr(
-        browser_command, "run_in_browser", lambda read: (read(None), "held browser")
+        browser_command,
+        "run_in_browser",
+        lambda read, engine: (read(None), "held browser"),
     )
     monkeypatch.setattr(browser_command, "run_page_code", lambda *args: [])
     monkeypatch.setattr(browser_command, "render_version", held_browser)
@@ -3787,7 +3803,6 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
                 "",
                 "",
                 "Arrived during the check",
-                "",
             )
             updating.result(STATED_TIMEOUT)
             assert not checking.done()
@@ -3894,7 +3909,12 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             json.loads(fetch(f"{server.origin}/registry.json")[1])
             == snapshot.context.registry
         )
-        assert _news(server.origin) == {"reading": snapshot.reading, "pages": None}
+        # A capture is no reading of what the user is writing, so it holds no drafts.
+        assert _news(server.origin) == {
+            "reading": snapshot.reading,
+            "pages": None,
+            "drafts": 0,
+        }
 
 
 def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
@@ -3903,7 +3923,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     The shown document asks for history only after an older revision received a
     gesture. Reading just the shown/active documents is therefore insufficient.
     """
-    source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">')
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
     picked = append_command(
@@ -4804,8 +4824,8 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
 
     A persistent server under the machine's `~/.local/state/leaf/pages` looks to
     the sweep exactly like a page a test forgot: a held lease under an enabled
-    service. The sweep once took its root from the environment before
-    `isolated_session` had moved it, and stopped every such server on the
+    service. A sweep that took its root from the environment before
+    `isolated_session` had moved it would stop every such server on the
     machine after every test (tests/AGENTS.md, "Processes and servers").
 
     So a run is made against a home planted the way the developer's is, of the
@@ -5053,8 +5073,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
-            "text": "A sample answer",
-            "markup": '<lf-code id="answer-code" language="python"><pre>1</pre></lf-code>',
+            "text": 'A sample answer\n\n<lf-code id="answer-code">\n<pre><code class="language-python">1</code></pre></lf-code>',
         },
         {
             "kind": "action",
@@ -5064,7 +5083,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "revision": 27,
         },
     ]
-    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-ask id="route-ask"><h2>Route</h2><lf-options id="route" choose><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-ask>'
+    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-group id="route-ask" label="Route"><h2 id="route-ask-h">Route</h2><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-group>'
 
     def template(identity):
         return f'<template id="{identity}" data-sample data-sample-events="fixture">{child_content}</template>'
@@ -5109,7 +5128,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
     second = allocate("second")
     initial = events(first)
     assert initial[0]["text"] == "Review the room"
-    assert initial[1]["markup"].startswith('<lf-code id="answer-code"')
+    assert '<lf-code id="answer-code"' in initial[1]["text"]
     assert initial[2]["revision"] == 1
     assert initial[2]["meaning"]["scope"] == "page"
     assert events(second) == initial

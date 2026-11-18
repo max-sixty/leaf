@@ -1,16 +1,18 @@
 {
   "lf-review-summary": {
     "description": "A review checklist with a recorded pass or fail result, keeping authored evidence and nested widgets readable.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "restated": {
-        "type": "boolean"
-      }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "restated": {
+          "type": "boolean"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-state": {
+    "verbs": {
       "review": {
         "unit": "widget",
         "detail": {
@@ -21,6 +23,6 @@
         }
       }
     },
-    "x-example": "<lf-review-summary id=\"review-summary\"><h2>Retry policy review</h2><p>The retry budget permits one retry after the shared refresh completes.</p></lf-review-summary>"
+    "example": "<lf-review-summary id=\"review-summary\"><h2>Retry policy review</h2><p>The retry budget permits one retry after the shared refresh completes.</p></lf-review-summary>"
   }
 }

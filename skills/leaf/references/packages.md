@@ -160,8 +160,8 @@ declaration or module does not withdraw the selected package's stylesheet
 contribution. Inherited values cross every widget boundary. Adjust another widget's
 internals through its inputs or API; overrides are deliberately page-wide.
 
-Document selectors don't reach into a shadow root. A declared `x-shadow` root gets
-the composed shared stylesheet through `LeafElement` for `x-shadow`, or through
+Document selectors don't reach into a shadow root. A declared `shadow` root gets
+the composed shared stylesheet through `LeafElement` for `shadow`, or through
 `shadowStage` for an imperative renderer. Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.
@@ -215,7 +215,7 @@ Name each file directly under `instructions/` `<audience>.md`, matching
 `[a-z][a-z0-9-]*\.md`, and start it with its first rule: Leaf adds a heading naming the
 package. Packages define their own audiences, such as `author` or `worker`, and files
 for the same audience join in package order. A data contract's `instructions` map holds
-text per audience beside its schema, and a registry entry's `x-instructions` is one
+text per audience beside its schema, and a registry entry's `instructions` is one
 string for the page author.
 
 ```bash
@@ -224,10 +224,10 @@ leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 
 `leaf page instructions` returns a JSON map from audience to text. With no selection it
 returns the packages' shared instructions. Each `--use ENTRY` adds that entry's
-`x-instructions` to `author`, along with the entries its `x-example` uses and its
-`x-data` contracts, whose instructions join their own audiences. It reads the layer
-the page selects and any `page/registry.json`, so it works before the page has markup.
-`page-authoring.md`, "Read the registry", says when an author reads each part.
+`instructions` to `author`, along with the entries its `example` uses and
+its `inputs` contracts, whose instructions join their own audiences. It reads the
+layer the page selects and any `page/registry.json`, so it works before the page has
+markup. `page-authoring.md`, "Read the registry", says when an author reads each part.
 
 A replacement `icon.svg` must contain an element with `class="lf-tone"`, which Leaf
 colours with the page's status.
@@ -239,39 +239,58 @@ lowercase letters and digits, such as `lf-merge-film`. Leaf reads any other key 
 doesn't start with `$` as an idiom's CSS selector, so a widget declared as `merge-film`
 is refused as an idiom holding keys an idiom can't have.
 
-An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
-that say how Leaf treats the tag, such as its action verbs and whether it puts an
-obligation on On Me. The merged registry's `$keys` entry defines each
-key; `$state` defines the members of `x-state`, and `$awaits` an obligation's answer. Every
-declaration has a `description` saying what the widget is for and when to use it, and a
-valid `x-example`. The optional `x-instructions` gives the choices and obligations of
-using it; a package's shared author instructions own guidance spanning its widgets.
-General workflow guidance, such as how to word alternatives or when a decision becomes
-a record, goes in the reference that owns that workflow. Keep widget-specific markup
-and behavior in the widget or package instructions, with a pointer from the workflow
-where an author needs them. `page-authoring.md`, "Read the registry", owns loading both
-on each version.
+An element declaration holds the JSON Schema of the element's attributes under
+`attributes`, and beside it each fact that says how Leaf treats the tag, such as
+`content`, its action `verbs`, whether it `awaits` the user on On Me, its `owners`, and
+its typed `inputs`. Each is declared because some part of Leaf, such as the server or
+`page check`, needs it without running the widget's module:
+
+```json
+"lf-merge-film": {
+  "description": "A merge replayed frame by frame.",
+  "attributes": {
+    "type": "object",
+    "properties": { "id": { "type": "string" } },
+    "required": ["id"],
+    "additionalProperties": false
+  },
+  "content": "members",
+  "example": "<lf-merge-film id=\"film\">…</lf-merge-film>"
+}
+```
+
+The merged registry's `$keys` entry defines each fact by its name; `$verbs` defines the members of `verbs`, and `$awaits` an
+obligation's answer. What the module alone can answer stays in the module, as a word
+for its kind that depends on the element is its `lfWord()`. Every declaration has
+a `description` saying what the widget is for and when to use it, and a valid
+`example`. The optional `instructions` gives the choices and obligations
+of using it; a package's shared author instructions own guidance spanning its widgets.
+General workflow guidance, such as how to word alternatives or when a decision becomes a
+record, goes in the reference that owns that workflow. Keep widget-specific markup and
+behavior in the widget or package instructions, with a pointer from the workflow where
+an author needs them. `page-authoring.md`, "Read the registry", owns loading both on
+each version.
 
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
 absence the default, as in `lf-diff collapsed`.
 
-Leaf owns the grammar of each name it looks up: an element's `id`, an `x-data`
-input's source attribute and a verb's `contract` attribute. Declare each as
-`{"type": "string"}`; composition writes its `pattern` into the merged registry,
-replacing any the declaration gives. An `x-refers` attribute needs no pattern either,
-since `page check` requires its value to name an element the page holds.
+Leaf owns the grammar of each name it looks up: an element's `id`, an input's source
+attribute (`inputs`) and a verb's `contract` attribute. Declare each as `{"type":
+"string"}`; composition writes its `pattern` into the merged registry, replacing any the
+declaration gives. A `refers` attribute needs no pattern either, since `page
+check` requires its value to name an element the page holds.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 
-| Key              | Shipped example                                                |
-| ---------------- | -------------------------------------------------------------- |
-| `x-reading-role` | `lf-pane`                                                      |
-| `x-visual`       | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
-| `x-bound`        | `lf-activity`                                                  |
-| `x-height`       | `lf-chart`                                                     |
-| `x-history`      | `lf-activity`                                                  |
-| `x-views`        | `lf-tabs`                                                      |
+| Fact           | Shipped example                                                |
+| -------------- | -------------------------------------------------------------- |
+| `reading-role` | `lf-pane`                                                      |
+| `visual`       | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
+| `bound`        | `lf-activity`                                                  |
+| `height`       | `lf-chart`                                                     |
+| `history`      | `lf-activity`                                                  |
+| `views`        | `lf-tabs`                                                      |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's

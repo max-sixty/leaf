@@ -93,6 +93,7 @@
     "rolldown": "1.2.14",
     "smol-toml": "1.9.1",
     "sortablejs": "1.15.7",
+    "temml": "0.14.0",
     "typescript": "7.0.2",
     "viewerjs": "1.15.2",
     "vite": "8.3.5",

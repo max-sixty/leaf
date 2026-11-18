@@ -199,24 +199,27 @@
   },
   "lf-visual-review": {
     "description": "A visual review workspace with before-and-after captures, case approvals and anchored feedback.",
-    "x-word": "review",
-    "x-instructions": "Write it empty with a stable id, and bind `source` to the visual run. To open a case on its changed area, give it a `focus` rectangle in the run. Tie each case's id to the run, not to the user's inspection choices.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "source": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "required": ["id", "source"],
+      "additionalProperties": false
     },
-    "required": ["id", "source"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-data": {
+    "content": "empty",
+    "inputs": {
       "run": {
         "contract": "visual-run",
         "source": "source",
         "property": "value"
       }
     },
-    "x-awaits": {
+    "word": "review",
+    "space": "available",
+    "height": true,
+    "awaits": {
       "records": {
         "input": "run",
         "label": "title"
@@ -230,7 +233,7 @@
         }
       }
     },
-    "x-state": {
+    "verbs": {
       "review": {
         "detail": {
           "type": "object",
@@ -249,8 +252,7 @@
         "unit": "case"
       }
     },
-    "x-space": "available",
-    "x-height": true,
-    "x-example": "<lf-visual-review id=\"docs-review\" data-height=\"720\" source=\"docs-visual-run\"></lf-visual-review>"
+    "instructions": "Write it empty with a stable id, and bind `source` to the visual run. To open a case on its changed area, give it a `focus` rectangle in the run. Tie each case's id to the run, not to the user's inspection choices.",
+    "example": "<lf-visual-review id=\"docs-review\" data-height=\"720\" source=\"docs-visual-run\"></lf-visual-review>"
   }
 }

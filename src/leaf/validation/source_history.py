@@ -73,7 +73,7 @@ def revision_reanchors(
         if thread["resolved"] or not anchor:
             continue
         section = anchor.get("section")
-        # Frozen thread and generated widget identities are not authored section
+        # Thread markup and generated widget identities are not authored section
         # removals. Their own owners retain their coordinate and lifecycle.
         if section and section not in previous.document.ids:
             continue

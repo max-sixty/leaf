@@ -7,18 +7,23 @@
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
    - Every message and run's face says when it was said (presence.js, `saidAt`),
-     since each reply says what was true when it was sent ("I'm building it now"). The
-     user asked for that on 15 November 2026, over an age said only where it changed
-     from the message above (26 October 2026), which rounded replies hours apart into
-     one "1d ago" a day later and left the replies under it bare. That had replaced an
-     age after every author name, which repeated one age down a thread written at once
-     ("72d ago" four times); times differ where ages repeat.
+     since each reply says what was true when it was sent ("I'm building it now"):
+     how long ago within the hour ("just now", "12m ago") and its time of day after
+     that, as the user asked. Rejected: a time of day from the first minute, which
+     makes a reply seconds old read like any other ("15:24"); a fixed 24-hour clock,
+     which a reader whose own clock reads "3:24 PM" doesn't use (presence.js,
+     `timeOfDay`); an age said only where it changes from the message above, which
+     rounds replies hours apart into one "1d ago" a day later and leaves the replies
+     under it bare; and an age after every author name, which repeats one age down a
+     thread written at once ("72d ago" four times).
    - A summary the agent wrote folds the turns it covers behind its checkpoint.
      Completed progress disappears when its answer shows, including a streaming answer.
      Each pending progress run stands behind a dim line showing its latest step
      (`workingView`). The face of the run the agent's work in hand
      speaks through is the working message; work whose words no run holds stands as a
-     face of its own where those words were said (`workingPlace`). A thread reads in
+     face of its own where those words were said (`workingPlace`). A face arriving in a
+     thread already drawn wears a message's arrival tint (messages.js, `arrivalTint`), as
+     the user asked; a new step in a face it stands in is no arrival. A thread reads in
      the order it was said, so a message the user sends after a face stands below it,
      and a face whose run the work leaves stays where it stood, still.
    - The transcript is flat: a fold's checkpoint stands before the messages it covers,
@@ -33,11 +38,10 @@
      `aria-owns`, and draws the frame around the open fold from its own head to its
      last message's foot by anchors (`--lf-fold-head`, `--lf-fold-foot`, surfaces.css),
      since no box contains them. Rejected: moving the covered messages into a container
-     inside the checkpoint, which unloaded a frame among them in an engine without
-     `moveBefore` (WebKit reloaded it once as the summary arrived and twice as it was
-     retracted) and lost a selection inside them in every engine; and, before that,
+     inside the checkpoint, which unloads a frame among them in an engine without
+     `moveBefore` and loses a selection inside them in every engine; and
      nesting such a container in a `repeat` inside the transcript's `repeat`, which
-     rebuilt a gathered message's row.
+     rebuilds a gathered message's row.
    - An explicit summary that arrives over a message the user is on or reads stays
      open. Completed progress disappears even if the reader had opened it.
    - A message that leaves the thread while drawn, as a reply the log refuses does,
@@ -49,7 +53,7 @@
 import { counted } from "../words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
-import { MessageView, saidTime } from "./messages.js";
+import { MessageView, arrivalTint, saidTime } from "./messages.js";
 import { offeredAction } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
@@ -133,6 +137,9 @@ export class Transcript {
   // of its run, whose words the face shows.
   /** @type {Map<string, Element | null>} */
   #facing = new Map();
+  // Every face this transcript has drawn, so one new to it is told apart.
+  /** @type {WeakSet<Element>} */
+  #faces = new WeakSet();
   /** @type {(() => void) | null} */
   #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
@@ -501,6 +508,12 @@ export class Transcript {
         `:scope > [data-lf-face="${CSS.escape(row.key.slice(5))}"]`,
       );
     this.#facing = new Map([...facing].map(([key, row]) => [key, faceNode(row)]));
+    // A face arriving in a thread already drawn wears a message's arrival tint.
+    for (const node of this.node.querySelectorAll(":scope > .lf-thread-working")) {
+      if (this.#faces.has(node)) continue;
+      this.#faces.add(node);
+      if (arrived) arrivalTint(node);
+    }
     for (const [key, fold] of this.#folding) {
       if (fold.played) continue;
       fold.played = foldBlock(fold.node);

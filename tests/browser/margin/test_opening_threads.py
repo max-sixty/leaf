@@ -21,6 +21,7 @@ from render_harness import (
     PREVIEW,
     RELEASE_FOCUS,
     comment_note,
+    expect_design_mode,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -491,10 +492,10 @@ def test_a_card_open_across_a_revision_opens_where_its_passage_stands(
     """A revision keeps an open card's thread in front of the reader as any opening
     does: the card beside its passage where the revision still draws it, else the
     floating panel, leaving closed the tab the revision moved the passage into. A user
-    who stood in the card stands in the thread wherever it opens. Before,
-    an in-place revision left the card open and unseen, waiting for a passage nothing
-    would draw, and a fresh document reopened the card only for the margin to close
-    it."""
+    who stood in the card stands in the thread wherever it opens. Otherwise an
+    in-place revision would leave the card open and unseen, waiting for a passage
+    nothing would draw, and a fresh document would reopen the card only for the margin
+    to close it."""
     page = open_page(
         browser,
         live_url(serve(MOVED_PASSAGE_PAGE, events=[_comment_on("moved-words")])),
@@ -704,7 +705,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     # which is what this case is named for. So it starts at the first of them and steps
     # down, against the count the walk itself publishes, rather than pressing from
     # wherever the card left the user: from the last marker on screen the press
-    # clamps, and this case used to read that clamp as a walk that had failed to move.
+    # clamps, and a case pressing from there would read that clamp as a walk that had
+    # failed to move.
     # Home is the margin's own key, so the user has to be in the margin to press it —
     # the card handed them back to the page, which is not.
     marker.focus()
@@ -757,7 +759,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
 
     preview.get_by_role("button", name="Dismiss thread view").focus()
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     expect(preview).to_be_hidden()
     page.mouse.move(4, 200)
     page.evaluate(RELEASE_FOCUS)
@@ -768,7 +770,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(preview).to_be_hidden()
     page.keyboard.press("Enter")
     expect(preview).to_be_hidden()
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
 
 def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser, serve):
@@ -1289,8 +1291,8 @@ THREE_THREADS_PAGE = leaf_page(
 def test_a_card_open_on_one_thread_travels_to_another_the_user_clicks(browser, serve):
     """A click on another thread's margin entry while a card is open carries the card
     from where it stood to that thread, whether the thread is on another passage or on
-    the same one. A card the same size as the last was taken to have moved as the page
-    does, so it stood beside the other thread at once."""
+    the same one. A card the same size as the last, taken to have moved as the page
+    does, would stand beside the other thread at once."""
     page = open_page(
         browser,
         serve(

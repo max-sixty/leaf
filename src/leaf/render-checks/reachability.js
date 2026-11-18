@@ -30,14 +30,13 @@ export function sealedAxes(style) {
 // It is the failure with no witness. Nothing overflows the page, so the sideways-scroll
 // check is quiet; nothing is past the column, so that gate is quiet; the words are in a
 // text node and technically selectable, so the unreachable-words gate is quiet. What the
-// user gets is a question with no visible way to answer it — which is exactly what
-// shipped: a `choose` group in its row form states `width: 100%` on options that a
-// live-page rule gives a 30px keyboard-address rail, and under the default box-sizing
-// those are the row's width *plus* its padding, so every row ran 28px wider than the
-// group whose `overflow: hidden` keeps its cells' hairlines square. The last cell is the
-// pick mark, so all of it went over the edge: every row-form decision on every live page
-// drew no dot, no "chosen", nothing. Paper was right throughout, the rail being
-// screen-only, so no medium outside a browser could see it.
+// user gets is a question with no visible way to answer it — as when an option group
+// in its row form states `width: 100%` on options that a live-page rule gives a 30px
+// keyboard-address rail: under the default box-sizing those are the row's width *plus*
+// its padding, so every row runs 28px wider than the group whose `overflow: hidden`
+// keeps its cells' hairlines square, and the last cell, the pick mark, goes over the
+// edge. Paper is right throughout, the rail being screen-only, so no medium outside a
+// browser can see it.
 //
 // Only where the clip cannot be scrolled away. A board's columns run past the board and
 // are reached by scrolling, which is the arrangement rather than a fault, so an ancestor
@@ -66,12 +65,12 @@ export function clippedControls() {
     // control whose containing block is above the clipping ancestor is painted
     // outside it on purpose, exactly as `misplacedBoxes`' own margin content is.
     if (getComputedStyle(el).position === "absolute") continue;
-    // Up to the body and no further: the document's own scrolling arrangement is
-    // the page's, not a widget's. The runtime scrolls body rather than the
-    // viewport so the panel has room beside it, which leaves <html> clipping and
-    // with nothing of its own to scroll — so a walk that ran to the root reported
-    // every control below the fold as hidden by the page it is on.
-    // Leaf's chrome stands after the body (base.css), so its controls stop at the root.
+    // Up to the body and no further: the document's own scrolling arrangement is the
+    // page's, not a widget's. The runtime scrolls body rather than the viewport so the
+    // panel has room beside it, which leaves <html> clipping and with nothing of its
+    // own to scroll — so a walk that ran to the root would report every control below
+    // the fold as hidden by the page it is on. Leaf's chrome stands after the body
+    // (base.css), so its controls stop at the root.
     for (
       let a = el.parentElement;
       a && a !== document.body && a !== document.documentElement;
@@ -115,11 +114,11 @@ export function clippedControls() {
 }
 
 // A widget that upgraded into no room to be read in. The floor is two numbers, and
-// which of them a widget is held to is the widget's to declare (x-inline), because
-// the two kinds are laid out by different rules: one reserves a region and the other
-// is set among the words around it, where the box is the words and there is no width
-// it was supposed to reach. Held to the region's floor, an inline widget fails for
-// being short — a chip reading a price is 31px wide and correct, and the gate reported
+// which of them a widget is held to is the widget's to declare (`inline`), because
+// the two kinds are laid out by different rules: one reserves a region and the other is
+// set among the words around it, where the box is the words and there is no width it
+// was supposed to reach. Held to the region's floor, an inline widget fails for being
+// short — a chip reading a price is 31px wide and correct, and the gate would report
 // the author's own words as a collapse. The height floor is both kinds': a line of
 // words is a line tall wherever it is laid out, which leaves a flattened chip caught.
 //
@@ -136,7 +135,7 @@ export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
   const inline = new Set(
     Object.entries(declarations)
-      .filter(([tag, entry]) => entry["x-inline"])
+      .filter(([tag, entry]) => entry.inline)
       .map(([tag]) => tag),
   );
   return [...document.querySelectorAll("*")]
@@ -165,11 +164,10 @@ export function tinyBoxes(declarations) {
 // children out in its parent's flow and generates no box of its own, so its rect is the
 // empty one every rect starts as — zero-sized, at the document's origin, a real-looking
 // answer naming a place it is not. An outline drawn on it draws nothing, and a scroll
-// aimed at it lands at the top of the page: a page whose open decisions were all suggestions
-// answered `d` by appearing to do nothing at all, and that reached its user rather than
-// this gate. The runtime answers it by hanging a mark on the boxes an element shows
-// through (shownParts) — which leaves one case that answer cannot reach, an element whose
-// words are in no child element at all, where there is nothing to hang anything on.
+// aimed at it lands at the top of the page. The runtime answers it by hanging a mark on
+// the boxes an element shows through (shownParts) — which leaves one case that answer
+// cannot reach, an element whose words are in no child element at all, where there is
+// nothing to hang anything on.
 //
 // `tinyBoxes` is next door and cannot see this: `checkVisibility()` is false for an element
 // with no box, so the very elements at issue are the ones it filters out. Both readings are
@@ -180,11 +178,11 @@ export function unmarkableElements() {
   const HTML = "http://www.w3.org/1999/xhtml";
   const found = [];
   for (const el of document.querySelectorAll("[id]")) {
-    // The document's own elements, which is what an anchor can name and a walk can
-    // step to. A rendered diagram's insides are none of those — they are one
-    // picture, whose <lf-diagram> is the thing to point at and has a box of its
-    // own — and they are full of shapes with ids and no layout box: every <marker>
-    // in a diagram's <defs> read as an addressable element showing 11x11px of words.
+    // The document's own elements, which is what an anchor can name and a walk can step
+    // to. A rendered diagram's insides are none of those — they are one picture, whose
+    // <lf-diagram> is the thing to point at and has a box of its own — and they are
+    // full of shapes with ids and no layout box: a <marker> in a diagram's <defs> would
+    // read as an addressable element showing words.
     if (el.namespaceURI !== HTML) continue;
     if (el.closest(".lf-chrome")) continue;
     const box = shownBox(el);
@@ -212,7 +210,7 @@ export function unmarkableElements() {
 // many comments a block carries: that one is about the document rather than of it,
 // which is the same reason it wears .lf-ui at all, and it lands inside a widget
 // whenever a comment does. The thread chrome around a message is out of scope: a widget
-// in a reply is markup frozen in the event log, not the document; its own chrome is not.
+// in a reply is markup the event log holds, not the document; its own chrome is not.
 export function unreachableWords() {
   const found = [];
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own
@@ -229,11 +227,11 @@ export function unreachableWords() {
     Boolean(el.closest(".lf-ui, [data-lf-said]")?.matches("[data-lf-said]"));
   // Where a control's own words may sit: the control a widget declared (data-lf-offer,
   // asked instead of the role it wears, because lf-tabs overwrites `offer`'s
-  // role="button" with "tab" and a Δ badge in a tab then read as a heading somebody
-  // hid while the identical badge in a settled row read as chrome), or a native
-  // control. `label` is among those because a radio and a checkbox have nowhere else
-  // to put their words: a button holds its own, an input cannot, and HTML's answer is
-  // an element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
+  // role="button" with "tab", so a Δ badge in a tab would read as a heading somebody
+  // hid while the identical badge in a settled row reads as chrome), or a native
+  // control. `label` is among those because a radio and a checkbox have nowhere else to
+  // put their words: a button holds its own, an input cannot, and HTML's answer is an
+  // element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
   // whose script is gone. The line counting a passage's comments is one of these too —
   // the runtime builds it through `offer`, as a widget builds its own.
   const CONTROL = `button, ${TEXT_BOX}, input, select, label, a[href], [data-lf-offer]`;

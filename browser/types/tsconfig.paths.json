@@ -85,6 +85,9 @@
       "/vendor/syntax/yaml.js": [
         "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/yaml.d.mts"
       ],
+      "/vendor/temml.esm.js": [
+        "../../build/entries/temml/entry.mjs"
+      ],
       "/vendor/jsdiff.esm.js": [
         "../../build/entries/jsdiff/entry.mjs"
       ],

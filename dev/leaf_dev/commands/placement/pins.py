@@ -97,7 +97,7 @@ def _cards(prefix: str, count: int) -> str:
         f'<section id="{prefix}{i}" style="border:1px solid var(--lf-rule);'
         'background:var(--lf-card);margin:0;height:44px">'
         '<div style="background:var(--lf-chip);height:44px">'
-        f'<button class="lf-btn" style="float:right">Action</button></div></section>'
+        f'<button style="float:right">Action</button></div></section>'
         for i in range(count)
     )
 
@@ -249,7 +249,7 @@ CASES = (
         "A full-width row with its buttons at the right edge.",
         '<div id="toolbar-row" style="display:flex;gap:8px;align-items:center">'
         "<strong>Filters</strong><span style='flex:1'></span>"
-        '<button class="lf-btn">Reset</button><button class="lf-btn">Apply</button>'
+        "<button>Reset</button><button>Apply</button>"
         "</div>",
         ({"section": "toolbar-row"},),
     ),
@@ -275,7 +275,7 @@ CASES = (
         + "".join(
             f'<lf-column id="board-{column}" label="{label}">'
             + "".join(
-                f'<lf-card id="board-{column}-{i}"><strong>{title}</strong> Cosmetic'
+                f'<lf-card id="board-{column}-{i}" label="{title}"><strong>{title}</strong> Cosmetic'
                 " for most, wrong-day for UTC+13.</lf-card>"
                 for i, title in enumerate(titles)
             )
@@ -346,7 +346,7 @@ CASES = (
         "A target made wholly of buttons, edge to edge, right under a paragraph.",
         f'<p style="margin:0">{WORDS} {MORE}</p>'
         '<div id="keypad-d" style="display:grid;grid-template-columns:repeat(4,1fr)">'
-        + "".join(f'<button class="lf-btn">{key}</button>' for key in "123456789*0#")
+        + "".join(f"<button>{key}</button>" for key in "123456789*0#")
         + "</div>",
         ({"section": "keypad-d"},),
     ),

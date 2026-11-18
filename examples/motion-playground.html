@@ -17,8 +17,37 @@
       #motion-question > p {
         max-inline-size: 68ch;
       }
-      #panel-candidates {
-        --playground-choice-columns: repeat(2, minmax(0, 1fr));
+      /* The recordings stand two by two, each a card the user selects by pressing it,
+         the chosen one in the accent. */
+      #timing {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        font: var(--lf-font-ui);
+        gap: var(--lf-sp-3);
+        align-items: start;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+      #timing > legend {
+        padding: 0 0 var(--lf-sp-2);
+        font-weight: 600;
+      }
+      .timing-candidate {
+        min-width: 0;
+        padding: var(--lf-sp-3);
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-r);
+        background: var(--lf-card);
+      }
+      .timing-candidate:has(:checked) {
+        border-color: var(--lf-accent);
+        box-shadow: inset 0 0 0 1px var(--lf-accent);
+      }
+      .timing-candidate > label {
+        display: flex;
+        font: var(--lf-font-title);
       }
       #panel-candidates video {
         display: block;
@@ -50,162 +79,169 @@
         max-inline-size: 72ch;
       }
       @media (max-width: 760px) {
-        #panel-candidates {
-          --playground-choice-columns: minmax(0, 1fr);
+        #timing {
+          grid-template-columns: minmax(0, 1fr);
         }
       }
     </style>
   </head>
   <body>
     <main id="motion-page">
-      <lf-ask id="motion-question">
-        <p class="eyebrow">Panel motion</p>
-        <h1>How should the panel move?</h1>
+      <lf-group id="motion-question" label="How should the panel move?">
+        <hgroup>
+          <p>Panel motion</p>
+          <h1 id="motion-question-h">How should the panel move?</h1>
+        </hgroup>
         <p>
           Compare the same fold, unfold and interrupted reversal.
           <strong>Balanced</strong> is the suggested starting point: easier to follow,
           still quick. Select a recording’s card, then send the timing you want.
         </p>
         <lf-playground id="panel-motion" submit-label="Use this timing">
-          <lf-playground-preview>
-            <lf-motion
-              id="panel-recordings"
-              duration="2108"
-              aria-label="Compare panel recordings"
-            >
-              <div id="panel-candidates">
-                <lf-playground-control
-                  id="timing"
-                  name="timing"
-                  label="Panel timing"
-                  kind="choice"
-                  value="260 ms with cubic-bezier(.3, .7, .3, 1)"
-                >
-                  <lf-playground-choice
-                    id="timing-original"
-                    value="the original recorded 300 ms timing"
-                    label="Keep the original timing"
+          <lf-motion
+            id="panel-recordings"
+            duration="2108"
+            aria-label="Compare panel recordings"
+          >
+            <div id="panel-candidates">
+              <fieldset id="timing">
+                <legend>Panel timing</legend>
+                <article id="timing-original" class="timing-candidate">
+                  <label
+                    ><input
+                      type="radio"
+                      name="timing"
+                      value="the original recorded 300 ms timing"
+                    />
+                    Keep the original timing</label
                   >
-                    <small class="tag">Baseline · 300 ms</small>
-                    <p>Fast departure, long settling tail.</p>
-                    <figure>
-                      <video
-                        muted
-                        playsinline
-                        preload="metadata"
-                        src="/media/9ae71c04a6df16f3.mp4"
-                        poster="/media/4fa8d9faa76e696c.png"
-                        aria-label="Original panel animation"
-                      ></video>
-                    </figure>
-                    <div class="recording-actions">
-                      <button
-                        class="lf-btn"
-                        type="button"
-                        data-enlarge
-                        aria-label="Enlarge original recording"
-                      >
-                        Enlarge
-                      </button>
-                    </div>
-                  </lf-playground-choice>
-                  <lf-playground-choice
-                    id="timing-crisp"
-                    value="220 ms with cubic-bezier(.23, 1, .32, 1)"
-                    label="Make it crisp"
+                  <small class="tag">Baseline · 300 ms</small>
+                  <p>Fast departure, long settling tail.</p>
+                  <figure>
+                    <video
+                      muted
+                      playsinline
+                      preload="metadata"
+                      src="/media/9ae71c04a6df16f3.mp4"
+                      poster="/media/4fa8d9faa76e696c.png"
+                      aria-label="Original panel animation"
+                    ></video>
+                  </figure>
+                  <div class="recording-actions">
+                    <button
+                      type="button"
+                      data-enlarge
+                      aria-label="Enlarge original recording"
+                    >
+                      Enlarge
+                    </button>
+                  </div>
+                </article>
+                <article id="timing-crisp" class="timing-candidate">
+                  <label
+                    ><input
+                      type="radio"
+                      name="timing"
+                      value="220 ms with cubic-bezier(.23, 1, .32, 1)"
+                    />
+                    Make it crisp</label
                   >
-                    <small class="tag">A · 220 ms</small>
-                    <p>Quick departure, short settle.</p>
-                    <figure>
-                      <video
-                        muted
-                        playsinline
-                        preload="metadata"
-                        src="/media/5f2524db8f37534d.mp4"
-                        poster="/media/4fa8d9faa76e696c.png"
-                        aria-label="Crisp panel animation"
-                      ></video>
-                    </figure>
-                    <div class="recording-actions">
-                      <button
-                        class="lf-btn"
-                        type="button"
-                        data-enlarge
-                        aria-label="Enlarge crisp recording"
-                      >
-                        Enlarge
-                      </button>
-                    </div>
-                  </lf-playground-choice>
-                  <lf-playground-choice
-                    id="timing-balanced"
-                    value="260 ms with cubic-bezier(.3, .7, .3, 1)"
-                    label="Make it balanced"
+                  <small class="tag">A · 220 ms</small>
+                  <p>Quick departure, short settle.</p>
+                  <figure>
+                    <video
+                      muted
+                      playsinline
+                      preload="metadata"
+                      src="/media/5f2524db8f37534d.mp4"
+                      poster="/media/4fa8d9faa76e696c.png"
+                      aria-label="Crisp panel animation"
+                    ></video>
+                  </figure>
+                  <div class="recording-actions">
+                    <button
+                      type="button"
+                      data-enlarge
+                      aria-label="Enlarge crisp recording"
+                    >
+                      Enlarge
+                    </button>
+                  </div>
+                </article>
+                <article id="timing-balanced" class="timing-candidate">
+                  <label
+                    ><input
+                      type="radio"
+                      name="timing"
+                      value="260 ms with cubic-bezier(.3, .7, .3, 1)"
+                      checked
+                    />
+                    Make it balanced</label
                   >
-                    <small class="tag">B · 260 ms</small>
-                    <small class="tag ok">recommended</small>
-                    <p>Gentler departure, clean arrival.</p>
-                    <figure>
-                      <video
-                        muted
-                        playsinline
-                        preload="metadata"
-                        src="/media/5e6beef194d61daf.mp4"
-                        poster="/media/4fa8d9faa76e696c.png"
-                        aria-label="Balanced panel animation"
-                      ></video>
-                    </figure>
-                    <div class="recording-actions">
-                      <button
-                        class="lf-btn"
-                        type="button"
-                        data-enlarge
-                        aria-label="Enlarge balanced recording"
-                      >
-                        Enlarge
-                      </button>
-                    </div>
-                  </lf-playground-choice>
-                  <lf-playground-choice
-                    id="timing-glide"
-                    value="280 ms with cubic-bezier(.4, 0, .2, 1)"
-                    label="Give it a glide"
+                  <small class="tag">B · 260 ms</small>
+                  <small class="tag ok">recommended</small>
+                  <p>Gentler departure, clean arrival.</p>
+                  <figure>
+                    <video
+                      muted
+                      playsinline
+                      preload="metadata"
+                      src="/media/5e6beef194d61daf.mp4"
+                      poster="/media/4fa8d9faa76e696c.png"
+                      aria-label="Balanced panel animation"
+                    ></video>
+                  </figure>
+                  <div class="recording-actions">
+                    <button
+                      type="button"
+                      data-enlarge
+                      aria-label="Enlarge balanced recording"
+                    >
+                      Enlarge
+                    </button>
+                  </div>
+                </article>
+                <article id="timing-glide" class="timing-candidate">
+                  <label
+                    ><input
+                      type="radio"
+                      name="timing"
+                      value="280 ms with cubic-bezier(.4, 0, .2, 1)"
+                    />
+                    Give it a glide</label
                   >
-                    <small class="tag">C · 280 ms</small>
-                    <p>Build speed, then ease into place.</p>
-                    <figure>
-                      <video
-                        muted
-                        playsinline
-                        preload="metadata"
-                        src="/media/80d14095f2304815.mp4"
-                        poster="/media/4fa8d9faa76e696c.png"
-                        aria-label="Gliding panel animation"
-                      ></video>
-                    </figure>
-                    <div class="recording-actions">
-                      <button
-                        class="lf-btn"
-                        type="button"
-                        data-enlarge
-                        aria-label="Enlarge gliding recording"
-                      >
-                        Enlarge
-                      </button>
-                    </div>
-                  </lf-playground-choice>
-                </lf-playground-control>
-              </div>
-            </lf-motion>
-          </lf-playground-preview>
+                  <small class="tag">C · 280 ms</small>
+                  <p>Build speed, then ease into place.</p>
+                  <figure>
+                    <video
+                      muted
+                      playsinline
+                      preload="metadata"
+                      src="/media/80d14095f2304815.mp4"
+                      poster="/media/4fa8d9faa76e696c.png"
+                      aria-label="Gliding panel animation"
+                    ></video>
+                  </figure>
+                  <div class="recording-actions">
+                    <button
+                      type="button"
+                      data-enlarge
+                      aria-label="Enlarge gliding recording"
+                    >
+                      Enlarge
+                    </button>
+                  </div>
+                </article>
+              </fieldset>
+            </div>
+          </lf-motion>
           <lf-playground-output
             >Set the Leaf panel’s fold and unfold movement to
-            <lf-playground-value for="timing"></lf-playground-value>. Preserve its
-            geometry and verify that reversing the movement midway remains
-            continuous.</lf-playground-output
+            <output for="timing"></output>. Preserve its geometry and verify that
+            reversing the movement midway remains continuous.</lf-playground-output
           >
         </lf-playground>
-      </lf-ask>
+      </lf-group>
       <details id="motion-method">
         <summary>What the recordings establish</summary>
         <p>
@@ -238,9 +274,7 @@
             async (event) => {
               const button = event.target.closest("[data-enlarge]");
               if (!button) return;
-              const video = button
-                .closest("lf-playground-choice")
-                .querySelector("video");
+              const video = button.closest(".timing-candidate").querySelector("video");
               try {
                 await video.requestFullscreen();
               } catch {

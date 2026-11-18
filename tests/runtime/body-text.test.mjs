@@ -21,6 +21,34 @@ test("a data body's text drops its <pre>'s layout and the browser's whitespace a
   }
 });
 
+test("an agent's message holding HTML places each tag where Python checked it", async () => {
+  const { loadMarkdown, renderAuthoredMarkdown, renderedWords } =
+    await import("/runtime/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  const cases = JSON.parse(
+    readFileSync(new URL("../message_html_cases.json", import.meta.url)),
+  );
+  for (const { source, elements, words } of cases) {
+    const markup = renderAuthoredMarkdown(source);
+    const body = document.createElement("template");
+    body.innerHTML = markup;
+    assert.equal(renderedWords(markup).replace(/\s+/g, " ").trim(), words, source);
+    assert.deepEqual(
+      [...body.content.querySelectorAll("*")].map(
+        (element) =>
+          element.localName +
+          (element.id
+            ? `#${element.id}`
+            : element.classList[0]
+              ? `.${element.classList[0]}`
+              : ""),
+      ),
+      elements,
+      source,
+    );
+  }
+});
+
 test("a rendered Markdown caret keeps its exact source position in long and structured bodies", async () => {
   const { loadMarkdown, paintMarkdown, markdownSourceOffset } =
     await import("/runtime/markdown.js");
@@ -143,6 +171,17 @@ test("Markdown body readings share file dialect, safe destinations and native st
     "![A ![B &amp; `code`](https://example.com/b.svg) C](https://example.com/a.svg)",
   );
   assert.equal(body.querySelector("img").alt, "A B & code C");
+  // An option the user added draws its words so (lf-options-addition.js), and the file
+  // reads the same cases (`test_added_option_file_words_match_browser_cases`).
+  const added = JSON.parse(
+    readFileSync(new URL("../option_markdown_cases.json", import.meta.url)),
+  );
+  for (const { source, words } of added)
+    assert.equal(
+      renderedWords(renderInlineMarkdown(source)).replace(/\s+/g, " ").trim(),
+      words,
+      source,
+    );
   assert.equal(renderInlineMarkdown("first\nsecond", false), "first\nsecond");
   // Formatting whitespace must not add a second line in space-preserving messages;
   // excerpts still read the semantic break as separation between the words.
@@ -388,7 +427,9 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   const { preloadWidgets } = await import("/runtime/widget-loader.js");
   const { formatDeclaredMarkdown } = await import("/runtime/markdown.js");
   const { dataBody } = await import("/runtime/widget-upgrade.js");
-  registry["lf-source-contract"] = { "x-text-format": "markdown" };
+  registry["lf-source-contract"] = {
+    "text-format": "markdown",
+  };
   try {
     const source = new DOMParser()
       .parseFromString(
@@ -421,7 +462,9 @@ test("an arriving written Markdown file first paints its rendering beside its ex
   const { registry } = await import("/runtime/registry.js");
   const { importWidgets } = await import("/runtime/widget-loader.js");
   const { prepaintDeclaredFiles } = await import("/runtime/markdown.js");
-  registry["lf-file-contract"] = { "x-prepaint": "notation" };
+  registry["lf-file-contract"] = {
+    prepaint: "notation",
+  };
   try {
     const scope = new DOMParser()
       .parseFromString(
@@ -456,7 +499,9 @@ test("Markdown paragraphs keep reading grain while annotations retain the author
     await import("/runtime/markdown.js");
   const { annotationAt } = await import("/runtime/anchor-resolution.js");
   const { blockAt, elementReading } = await import("/runtime/passages.js");
-  registry["lf-seat-contract"] = { "x-text-format": "markdown" };
+  registry["lf-seat-contract"] = {
+    "text-format": "markdown",
+  };
   try {
     const host = document.createElement("lf-seat-contract");
     host.id = "authored-seat";

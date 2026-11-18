@@ -103,12 +103,12 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
         None,
         None,
         None,
-        "Choose the next step.",
-        '<lf-ask id="read-decision"><h3>Which way?</h3>'
-        '<lf-options id="read-choice" choose>'
+        "Choose the next step.\n\n"
+        '<lf-group id="read-decision" label="Which way?">\n<h3 id="read-decision-h">Which way?</h3>'
+        '<lf-options id="read-choice">'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )["id"]
     page = open_page(browser, url)
     with sending(page, "the shown body's read"):
@@ -147,11 +147,11 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         None,
         None,
         None,
-        "Choose this answer.",
-        '<lf-ask id="read-refusal"><h3>Choose</h3>'
-        '<lf-options id="read-refusal-options" choose>'
+        "Choose this answer.\n\n"
+        '<lf-group id="read-refusal" label="Choose">\n<h3 id="read-refusal-h">Choose</h3>'
+        '<lf-options id="read-refusal-options">'
         '<lf-option id="read-refusal-yes">Yes</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )["id"]
     page = open_page(browser, url)
     cut = CutOff().hold(page)
@@ -409,7 +409,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     url = serve(PANEL_PAGE)
     user = panel_comment(serve.page_dir, "The earlier user thread.")
     original = thread_model.cmd_comment(
-        serve.page_dir, None, None, None, "Original answer.", None
+        serve.page_dir, None, None, None, "Original answer."
     )
     root = original["id"]
     page = open_page(browser, url)
@@ -590,8 +590,8 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         stood = box.bounding_box()["y"]
         box.click()
         expect(thread.locator(".lf-msg")).to_have_count(3)
-        # Chrome hides a shift for half a second after a click, so the watch can't see
-        # the box leave the pointer.
+        # The click owns every move its rendering makes, so the watch would credit the
+        # box leaving the pointer.
         assert box.bounding_box()["y"] == pytest.approx(stood, abs=1)
         write(box, "Then the roof first.")
         with sending(page, "the user's reply"):

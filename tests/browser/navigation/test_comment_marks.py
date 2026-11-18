@@ -27,6 +27,7 @@ from render_cases_navigation import (
     wait_for_pending_mark,
 )
 from render_harness import (
+    CHROME_ROOT,
     INLINE_PAGE,
     PANEL,
     RELEASE_FOCUS,
@@ -450,7 +451,7 @@ OWN_COLOURS_PAGE = leaf_page(
 <h1 id="t">Own colours</h1>
 <p id="said">A line of prose with <a href="#t">a link someone commented on</a> in it.</p>
 <p id="kept">A line of prose someone reacted to with a token.</p>
-<lf-text-document id="doc" language="python" label="steps.py"><pre>{_STEPS}</pre></lf-text-document>
+<lf-text-document id="doc" label="steps.py"><pre><code class="language-python">{_STEPS}</code></pre></lf-text-document>
 """,
 )
 OWN_COLOURS = {
@@ -517,7 +518,9 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
             )
         page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("o")
-        expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+        expect(page.locator(CHROME_ROOT)).to_have_attribute(
+            "data-lf-annotations-hidden", ""
+        )
         hidden = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
         for name, (_, words, own) in hidden.items():
             assert _apart(words, owed.get(name, own)) < SEEN_APART, (
@@ -545,8 +548,8 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
         page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("o")
-        expect(page.locator("html")).not_to_have_attribute(
-            "data-lf-annotations", "hidden"
+        expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
+            "data-lf-annotations-hidden", re.compile(".*")
         )
         page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
         again = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}

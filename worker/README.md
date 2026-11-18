@@ -256,7 +256,7 @@ aggregate product events. Each record type below has a `component` field:
 | `leaf-agent`       | Worker and container | Step of a request or hosted turn, and each `500` the adapter answers |
 
 Workers Logs keeps records for at most seven days; a page directory's own `events.jsonl`
-lasts as long as its container. TODO(2026-09-25): Export interaction records to durable
+lasts as long as its container. TODO: Export interaction records to durable
 storage if they need to outlive [Workers Logs
 retention](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
 
@@ -594,12 +594,14 @@ interaction log reports the focus within a quarter second, and the Worker posts
 `worker/src/agent.ts`). That starts the container and has it compose the page's layer,
 so both overlap the visitor's typing. Opening a thread focuses its comment box, so it
 prewarms too. The existing session Durable Object
-serves saved documents, comments, choices and private resources while compute is
+serves saved documents, comments, choices, drafts and private resources while compute is
 stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
 canonical files and matching Python-produced responses atomically before a write
 is acknowledged; a failed publication fails the request and permits an idempotent
-retry. The Durable Object serves each saved response with the headers Python gave it,
+retry. Drafts change no page reading, so a write publishes them only beside a change of
+its own, and a container that stops publishes each page whose drafts moved since
+(`save_drafts`). The Durable Object serves each saved response with the headers Python gave it,
 so the browser caches it as it would the live answer, and Back restores a page the
 visitor has acted on from the back/forward cache, as it does a locally served page
 ([browser support](../notes/browser-support.md), "Page cache"). File modification

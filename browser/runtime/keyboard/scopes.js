@@ -26,7 +26,7 @@
    outward while the full reference groups the same scopes for reading.
 
    Scopes stand wherever their element does, but this module follows only the trees
-   arrivals.js observes: the document, open shadow trees, and stages (`x-shadow`,
+   arrivals.js observes: the document, open shadow trees, and stages (`shadow`,
    `shadowStage`). In a closed tree that isn't a stage, a scope still answers its keys,
    but `commandsWithin` doesn't find it, and once the tree's host leaves the page a
    button outside it that the scope names keeps showing that command's availability

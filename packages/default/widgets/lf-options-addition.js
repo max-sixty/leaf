@@ -4,6 +4,7 @@ import { guard, html, render, repeat } from "/vendor/lit.js";
 import {
   loadDraft,
   inlineMarkdownFragment,
+  loadMarkdown,
   markdownReady,
   move,
   offer,
@@ -31,7 +32,7 @@ export class OptionAddition {
   /** @type {Comment | null} */
   #end = null;
 
-  /** @param {HTMLElement} host
+  /** @param {import("/runtime/widget-api.js").LeafElement} host
    * @param {{offered: boolean, available: () => boolean, commit: (added: {option: string, text: string}, choice: {value: string[]}, attempt: string) => unknown}} options */
   constructor(host, { offered, available, commit }) {
     this.#host = host;
@@ -106,7 +107,7 @@ export class OptionAddition {
   }
 
   #picked() {
-    return new Set(this.#host.querySelectorAll(":scope > lf-option[chosen]"));
+    return new Set(this.#host.querySelectorAll(":scope > lf-option[selected]"));
   }
 
   /** @param {Iterable<Element>} picked */
@@ -173,10 +174,14 @@ export class OptionAddition {
   /* Lit owns only the generated option range. Its keyed rows stay direct children
    * of the group, before the persistent draft editor; authored options and their
    * evidence are outside that range. Guarding Markdown keeps its text nodes and the
-   * reader's selection when another option changes. */
+   * reader's selection when another option changes. An added option's words are the
+   * user's inline Markdown: until the renderer loads they show as typed, and once it
+   * has, the group draws again those whose Markdown changes them. */
   /** @param {Readonly<Record<string, string>>} [added] @param {Node | null} [fallbackBefore] */
   render(added = {}, fallbackBefore = null) {
     const options = Object.entries(added);
+    if (options.length && !markdownReady())
+      loadMarkdown().then((loaded) => loaded && this.#host.requestUpdate());
     this.#inForce = new Set(options.map(([id]) => id));
     if (!this.#end) {
       this.#end = document.createComment("added options");
@@ -186,14 +191,15 @@ export class OptionAddition {
       repeat(
         options,
         ([id]) => id,
-        ([id, text]) =>
-          html`<lf-option id=${id} data-lf-added>
+        ([id, text]) => {
+          const words = inlineMarkdownFragment(text);
+          const typed = !words.firstElementChild && words.textContent === text;
+          return html`<lf-option id=${id} data-lf-added>
             <span class="lf-option-words" data-lf-markdown-words
-              >${guard([text, markdownReady()], () =>
-                inlineMarkdownFragment(text),
-              )}</span
+              >${guard([text, typed], () => words)}</span
             >
-          </lf-option>`,
+          </lf-option>`;
+        },
       ),
       this.#host,
       { renderBefore: this.#end },

@@ -93,9 +93,8 @@ def test_a_settled_page_with_a_reaction_in_force_stops_rendering_its_margin(
     A margin render ends in `paintKeys`, which ends in the shared repaint, and that
     repaint runs chrome layout. Anything chrome layout did that restated a reaction
     seat's offer would close a cycle — chrome layout, margin render, paint, chrome
-    layout — and the gallery once ran a whole margin render every frame with nothing
-    dispatched and nothing on the page moving: ~350ms of main thread per frame, long
-    enough that every Playwright read of that page waited on it.
+    layout — that runs a whole margin render every frame with nothing dispatched and
+    nothing on the page moving, so every Playwright read of that page waits on it.
 
     The reaction seat is asserted first, because it is the ingredient that cycle needed:
     a page with no seat passes this without saying anything. The heartbeat is the one
@@ -299,8 +298,8 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
 def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster(
     browser, serve
 ):
-    """A walked thread on a crowded cluster keeps its measure by standing over the
-    cluster, clear of its words, rather than dropping under it."""
+    """A walked thread on a crowded cluster keeps room for its measure by standing
+    over the cluster, clear of its words, rather than dropping under it."""
     url = serve(THREAD_CARD_PAGE)
     text_thread, crowded_thread = _seed_card_threads(serve.page_dir)
     page = open_page(browser, url)
@@ -336,18 +335,19 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
                   controlsLeft: controls.left, controlsRight: controls.right,
                   wordsRight: words.right, cardLeft: card.left, cardRight: card.right,
                   cardWidth: card.width, viewport: innerWidth,
-                  preferred: parseFloat(getComputedStyle(cardNode)
-                    .getPropertyValue('--lf-thread-card')),
+                  minimum: parseFloat(getComputedStyle(cardNode)
+                    .getPropertyValue('--lf-thread-card-min')),
                   bottomChrome: bottomChrome.length,
                   coveredBottomChrome: bottomChrome.filter(box => overlaps(card, box)).length};
         }"""
     )
     # The rail beside this cluster is short of the card's minimum; the room right of the
-    # words is not, so the card takes its measure there, beside the words and across
-    # the cluster, where the comment box would stand (comment-placement.js).
+    # words is not, so the card stands there, beside the words and across the cluster,
+    # where the comment box would stand (comment-placement.js), at the least width its
+    # short messages keep.
     assert geometry["viewport"] - 8 - (geometry["controlsRight"] + 16) < 320, geometry
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
+    assert geometry["cardWidth"] == pytest.approx(geometry["minimum"], abs=0.5), (
         geometry
     )
     assert geometry["cardLeft"] == pytest.approx(
@@ -368,7 +368,8 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
 
 def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtests):
     """A readable free margin outranks an overlay and follows the selected cluster. A
-    middle-width margin gives marker clearance to the message's width. A rail short of
+    middle-width margin short of the measure stands the card beside the words, across
+    the marker, keeping room to widen there. A rail short of
     the card's minimum puts the card on the side of its words that holds it, here the
     left, as it would the comment box (comment-placement.js), at its full height and
     level with the words. The widest window's scrolling comes first, while nothing has
@@ -413,18 +414,19 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
                       controlsTop: controls.top, cardLeft: card.left,
                       cardTop: card.top, cardWidth: card.width, coveredControls,
                       targetTop: target.top, targetBottom: target.bottom,
-                      preferred: parseFloat(getComputedStyle(cardNode)
-                        .getPropertyValue('--lf-thread-card'))};
+                      minimum: parseFloat(getComputedStyle(cardNode)
+                        .getPropertyValue('--lf-thread-card-min'))};
             }"""
         )
         # With room for its whole measure, the card clears both its words and its cluster,
         # which here is a pin standing on the block the thread is about and reaching past it.
+        # Its short messages keep it at the least width.
         assert geometry["placement"] == "right", geometry
         assert (
             geometry["cardLeft"]
             >= max(geometry["controlsRight"], geometry["targetRight"]) + 16 - 0.5
         ), geometry
-        assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
+        assert geometry["cardWidth"] == pytest.approx(geometry["minimum"], abs=0.5), (
             geometry
         )
         assert geometry["coveredControls"] == 0, geometry
@@ -515,14 +517,12 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
         assert geometry["cardLeft"] == pytest.approx(
             geometry["wordsRight"] + 16, abs=0.5
         ), geometry
-        # A compact marker can end inside the gap beside the words, especially with
-        # Linux's narrower fonts. Width priority removes the marker's clearance; it
-        # need not cover that marker's painted pixels.
-        assert geometry["cardWidth"] > room_past_pin, geometry
-        assert geometry["cardRight"] == pytest.approx(
-            geometry["viewport"] - 8, abs=0.5
-        ), geometry
-        assert geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"], (
+        # The room past the pin is short of the measure the card may widen to, so it
+        # stands beside the words, across the marker, at the least width its short
+        # messages keep. A compact marker can end inside the gap beside the words,
+        # especially with Linux's narrower fonts; the card need not cover that marker's
+        # painted pixels.
+        assert geometry["cardWidth"] == pytest.approx(geometry["minimum"], abs=0.5), (
             geometry
         )
         assert geometry["clipped"] <= 0, geometry

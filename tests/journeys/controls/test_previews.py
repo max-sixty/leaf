@@ -273,8 +273,8 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
             " again.</p>"
             '<p id="titled-block"><button id="titled" type="button" '
             'title="Inspect the rollout">Inspect the small group</button></p>'
-            '<p id="glossed">Roll out behind <lf-gloss id="gloss" '
-            'tip="Check every gate before expanding.">a gate</lf-gloss> today.</p>'
+            '<p id="glossed">Roll out behind <lf-gloss id="gloss">a gate<span '
+            "popover>Check every gate before expanding.</span></lf-gloss> today.</p>"
             '<div id="info" tabindex="0"><p id="info-words">Informational marked '
             "words with facts.</p></div>"
             '<p id="prose">Plain prose with marked words in it.</p>'
@@ -350,7 +350,7 @@ def test_a_thread_s_words_in_a_widget_preview_it_unless_the_widget_draws_them(
     }
     # Code's entry stands for the line its words are on, which has no id.
     page.mouse.move(2, 2)
-    entry = page.locator('[data-lf-margin-for*="/lf-code:"] > .lf-margin-marker')
+    entry = page.locator('[data-lf-margin-for^="id:code/"] > .lf-margin-marker')
     entry.scroll_into_view_if_needed()
     entry.hover()
     expect(word).to_have_text("On code")
@@ -362,7 +362,8 @@ def test_a_walk_s_landing_previews_nothing_and_tab_reads_it(browser, serve):
     stands: neither landing previews, since the place a command lands on is what the
     user asked it for, and a preview would cover it. Tab, the keyboard's pointing,
     reads what it reaches. Every element focus reaches previews here, so a preview
-    either landing showed would show."""
+    either landing showed would show. The stand-in is set on the window's capture, which
+    runs before the document's, where the runtime reads the element focus reached."""
     url = serve(PANEL_PAGE)
     panel_comment(
         serve.page_dir,
@@ -373,7 +374,7 @@ def test_a_walk_s_landing_previews_nothing_and_tab_reads_it(browser, serve):
     )
     page = open_page(browser, url)
     page.evaluate(
-        """() => document.addEventListener('focusin', (event) => {
+        """() => window.addEventListener('focusin', (event) => {
           const el = event.composedPath()[0];
           if (el instanceof Element && !el.lfPreview)
             el.lfPreview = () => ({name: 'Placed here'});

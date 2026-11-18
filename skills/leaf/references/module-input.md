@@ -69,8 +69,8 @@ it, and `label` replaces the keycap. `description` is the command reference's to
 for it and the line under its title where a touch menu or an On Me card offers it. A
 `decision: true` row answers an obligation, `recommended: true` marks the answer
 the page advises, which an On Me card names, and `commits: true` marks the press that
-commits an answer the user composed, such as a group's Done, which an On Me card draws
-as that commit rather than as one more answer.
+commits an answer the user composed, such as an `lf-options`' Done, which an On Me
+card draws as that commit rather than as one more answer.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's
@@ -149,7 +149,7 @@ shows, as its `::before`, turning with its state; the widget's own rules place i
 ### Decisions and forwarded keys
 
 `keys` work inside the widget. `contextKeys` work there too, and Leaf also forwards them
-from the enclosing `lf-ask`'s question and from its margin controls and threads. Number
+from its margin controls and threads. Number
 a widget's choices by the choice, not by what is available: a classifier declares Pass
 as `1` and Keep as `2`, and disabling `1` must not turn `2` into something else. The
 page keeps `m` and `Shift+m` for moving through On Me.
@@ -233,8 +233,9 @@ obligation; a module asks it whether the user is on its content from either.
 `onPressAway(away, dismiss)` hears each primary press that begins and
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
-ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
-the user moves through with arrow keys offers one Tab stop with `rove(items, stop)`.
+ignores a touch scroll the browser cancels, and returns its unsubscribe function. A set
+of controls the user moves through with arrow keys offers one Tab stop with
+`rove(items, stop)`.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
 events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
@@ -384,7 +385,7 @@ declares the words in `lfPreview` and writes no `title`. Off Leaf nothing reads
 
 A thread's words preview the thread to a pointer or a finger only where nothing else
 there takes the pointer: a control, native or ARIA, an element with a `title` or an
-`lfPreview`, or a widget that draws its content itself (`x-content` `data` or
+`lfPreview`, or a widget that draws its content itself (`content` `data` or
 `empty`). There the element's own preview shows, or none, and the thread is reached
 by its margin entry. Words a widget holds of the author's markup, outside any control
 in it, preview their thread.
@@ -405,8 +406,12 @@ A control labelled with the page's own words skips a click where
 `reachedForWords(control)` is true, since the user was selecting the words, but lets a
 click made with Enter or Space through, checking `pressIsKeyboardActivation(event)`
 first. A container that takes a click anywhere on it, as an option card does, asks
-`worksInside(event.target, container)` for the control inside that the click was aimed
-at.
+`worksInside(event.target, container)` for the control the click was aimed at, inside
+the container or around it, and leaves the click to that control.
+
+A click on words a thread marks opens that thread, unless the click landed on a control
+or a handler took it. So a handler that acts on a click on anything but a control, such
+as a card, a mark or a phrase, calls `event.preventDefault()`.
 
 Call `dragging(this, true)` when the user starts dragging the widget and
 `dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;
@@ -446,18 +451,18 @@ before wiring it.
 included: `sync.value()` reads it, `sync.load(value)` replaces it, and `sync()` repaints
 after the box's state changes. `sync.button` is the generated send control.
 
-Drafts survive a reload, a new version and a closed tab, and every tab of the page
-shares them. Keep each under a context string unique on the page, such as `option:` and
-its id:
+Drafts survive a reload, a new version and a closed tab, and every tab and device
+showing the page shares them, since the page's server keeps them. Keep each under a
+context string unique on the page, such as `option:` and its id:
 
 - `loadDraft(ctx)` returns the stored draft record, or `null`. Seed the box with
   `loadDraft(ctx)?.text ?? ""`; its `payload` holds the saved send data.
 - `saveDraft(ctx, text, payload)` records an edit, from `save`, with any `payload` the
   send needs.
 - `watchDraft(ctx, callback, {input: box})` calls `callback(text, payload)` when the
-  draft changes other than by typing in this box: another tab, a send emptying it, or a
-  refusal returning the words. Put them in the box with `sync.load(text ?? "")`, and
-  register the watch in `whileConnected`.
+  draft changes other than by typing in this box: another tab or device, a send
+  emptying it, or a refusal returning the words. Put them in the box with
+  `sync.load(text ?? "")`, and register the watch in `whileConnected`.
 - `sendDraft(ctx, owns, send)`, called from `send`, calls your `send(attempt, payload)`
   if the box still shows the stored draft and `owns()` is true, and resolves to the
   delivery's result. One `attempt` stands for one version of the words, so a resend

@@ -1,10 +1,11 @@
 /* What names an element: the one reading of the name the authoring contract gives it.
 
-   A section is named by its heading, a disclosure by its summary, a titled compound
-   member by its leading <strong>, and a registered widget that takes a `label` by
-   that attribute. Anything else has no name, and the caller decides what
-   stands in for one. The words come through the passage reader, so
-   generated chrome inside an element names nothing.
+   A section or article is named by the heading it opens with, a disclosure by its
+   summary, a registered widget's titled member by its leading <strong>, and a
+   registered widget that takes a `label` by that attribute. Anything else, a bold line
+   in prose included, has no name, and the caller decides what stands in for one. The
+   words come through the passage reader, so generated chrome inside an element names
+   nothing.
 
    The chrome's label (`addressableLabel`) reads that name first and an element's words
    only where they are its own.
@@ -22,9 +23,10 @@ import { readFileSync } from "node:fs";
 import {
   addressableLabel,
   addressableName,
+  sectionLabel,
   titledElement,
+  titlingHeading,
 } from "/runtime/addressable-names.js";
-import { renderSaid } from "/runtime/declared-words.js";
 import { registry } from "/runtime/registry.js";
 
 // The cases the server's `gesture_words.element_name` answers too.
@@ -39,7 +41,6 @@ const declare = (vocabulary = {}) => {
 
 const named = (markup) => {
   document.body.innerHTML = `<main>${markup}</main>`;
-  renderSaid(document.body);
   return addressableName(document.querySelector("#it"));
 };
 
@@ -55,13 +56,15 @@ test("no element has no name", () => {
 });
 
 test("generated chrome names nothing, and does not hide the title behind it", () => {
+  declare({ "lf-card": {} });
   assert.equal(
     named('<lf-card id="it"><strong class="lf-ui">6 · 🎯</strong>Words.</lf-card>'),
     "",
   );
+  declare();
   assert.equal(
     named(
-      '<lf-card id="it"><strong class="lf-ui">6 · 🎯</strong><strong>Real title</strong> Words.</lf-card>',
+      '<section id="it"><strong class="lf-ui">6 · 🎯</strong><h2>Real title</h2></section>',
     ),
     "Real title",
   );
@@ -76,7 +79,7 @@ test("the chrome names an element by its name before its words", () => {
   // A question is its heading, not its heading run into its options and their chips.
   assert.equal(
     labelled(
-      '<lf-ask id="it"><h4>How should it page?</h4><lf-options><lf-option><small class="tag">last week: 0</small><strong>Require three</strong> probes.</lf-option></lf-options></lf-ask>',
+      '<section id="it"><h4>How should it page?</h4><lf-options><lf-option label="Require three"><small class="tag">last week: 0</small>probes.</lf-option></lf-options></section>',
     ),
     "How should it page?",
   );
@@ -92,6 +95,13 @@ test("the chrome names an element by its name before its words", () => {
   );
 });
 
+test("a drawing's part is a figure, named by its aria-label", () => {
+  // SVG's element names, such as `g`, mean nothing to the reader.
+  document.body.innerHTML =
+    '<main><figure id="fig"><svg viewBox="0 0 10 10"><g id="it" aria-label="Bar for K"><path d="M0 0L5 0"/></g></svg><figcaption>Sensitivity</figcaption></figure></main>';
+  assert.equal(sectionLabel(document.querySelector("#it")), "figure · Bar for K");
+});
+
 test("an element whose words are its own is named by them, cut short", () => {
   assert.equal(
     labelled('<p id="it">Some <em>plain</em> words.</p>'),
@@ -105,7 +115,7 @@ test("an element whose words are its members' takes the nearest enclosing name",
   // Options have no title of their own; the question holding them names them.
   assert.equal(
     labelled(
-      '<lf-ask><h4>Which rollout?</h4><lf-options id="it"><lf-option><strong>Now</strong></lf-option></lf-options></lf-ask>',
+      '<section><h4>Which rollout?</h4><lf-options id="it"><lf-option label="Now"></lf-option></lf-options></section>',
     ),
     "Which rollout?",
   );
@@ -121,8 +131,7 @@ test("past every name, plain markup is its words and a widget is its word", () =
   // word, which the caller has; plain markup has none worth saying, so its words.
   for (const tag of Object.keys(registry)) delete registry[tag];
   Object.assign(registry, { "lf-board": {} });
-  const members =
-    "<lf-column><lf-card><strong>Card</strong> words</lf-card></lf-column>";
+  const members = "<lf-column><lf-card>Card words</lf-card></lf-column>";
   assert.equal(labelled(`<lf-board id="it">${members}</lf-board>`), "");
   assert.equal(labelled(`<div id="it">${members}</div>`), "Card words");
   // The page's title leads the column; it still names nothing the column holds.
@@ -130,79 +139,66 @@ test("past every name, plain markup is its words and a widget is its word", () =
     labelled(`<h1>Page title</h1><div id="it">${members}</div>`),
     "Card words",
   );
-  // A picture's own name stands in for words it does not have.
-  assert.equal(
-    labelled('<figure id="it"><svg role="img" aria-label="Visual 0"></svg></figure>'),
-    "Visual 0",
-  );
   for (const tag of Object.keys(registry)) delete registry[tag];
 });
 
-test("a heading titles the outermost element it is the first heading of, short of a label", () => {
+test("a heading titles the section or article it opens, and otherwise itself", () => {
   declare({ "lf-tab": {} });
-  document.body.innerHTML = `<main><h1>Plan</h1>
-    <lf-ask id="ask"><header><hgroup id="group"><p>Decision 1</p>
-      <h2 id="question">Which store?</h2></hgroup></header><p>Two fit.</p></lf-ask>
-    <lf-tab id="tab" label="First route"><h3 id="step">Prepare</h3><p>Words.</p></lf-tab>
-    <section id="outer"><lf-ask id="inner"><h2 id="region">Which region?</h2></lf-ask>
-    </section>
-    <section id="notes-section"><lf-ask><h2 id="store">Which store?</h2></lf-ask>
-      <h3 id="notes">Notes</h3><p>Words.</p></section>
-    <div id="plan"><div><strong>Task one</strong> words</div>
-      <div><strong>Task two</strong> words <lf-ask id="restart">
-        <h3 id="restart-question">Restart it?</h3></lf-ask></div></div>
-    <div id="more"><details id="details"><summary>More</summary>
-      <h4 id="inside">Inside</h4></details></div>
-    <section id="kick"><lf-ask><p>Review record</p><h2 id="ship">Ship it?</h2>
-      </lf-ask></section>
-    <section id="job"><div><span>01</span><h2 id="job-heading">Job</h2></div>
-      <p>Its words.</p></section>
+  document.body.innerHTML = `<main><h1 id="title">Plan</h1>
+    <section id="costs"><h2 id="costs-heading">Costs</h2><p>Words.</p>
+      <h3 id="sub">Sub-heading</h3></section>
+    <article id="notes"><hgroup><p>Stage 2</p><h2 id="notes-heading">Notes</h2></hgroup>
+      </article>
     <section id="tools"><p>Developer tools</p><h2 id="inspect">Inspect</h2></section>
-    <section id="rollout"><h2 id="rollout-heading">Rollout</h2><p>Plan.</p>
-      <lf-ask><h2>Include runners?</h2></lf-ask></section>
-    <div id="body"><p>Lede.</p><section id="in"><h2 id="inputs">Inputs</h2></section>
-      <section><h2>Outputs</h2></section></div>
-    <div><h2>Before</h2><hgroup id="pair"><h2 id="first">First title</h2>
-      <h3 id="second">Second</h3></hgroup></div>
+    <div id="wrapper"><h2 id="wrapped">Wrapped</h2></div>
+    <aside id="aside"><h2 id="aside-heading">Aside</h2></aside>
+    <lf-tab id="tab" label="First route"><h3 id="step">Prepare</h3></lf-tab>
+    <details id="more"><summary>More</summary><h4 id="inside">Inside</h4></details>
+    <div><hgroup id="pair"><h2 id="first">First title</h2><p>Subtitle</p></hgroup></div>
+    <section id="outer"><section id="inner"><h2 id="inner-heading">Inner</h2></section>
+      </section>
+    <section id="chrome"><hgroup><h2 class="lf-ui" id="drawn">Drawn</h2>
+      <h2 id="authored">Authored</h2></hgroup></section>
   </main>`;
   const titled = (/** @type {string} */ id) =>
     titledElement(/** @type {Element} */ (document.getElementById(id))).id;
-  assert.equal(titled("question"), "ask");
-  // A tab is named by its label, so the heading opening it titles only itself.
+  assert.equal(titled("costs-heading"), "costs");
+  assert.equal(titled("notes-heading"), "notes");
+  // A heading after other content titles only itself, in a section or anywhere else.
+  assert.equal(titled("sub"), "sub");
+  assert.equal(titled("inspect"), "inspect");
+  assert.equal(titled("wrapped"), "wrapped");
+  assert.equal(titled("aside-heading"), "aside-heading");
   assert.equal(titled("step"), "step");
-  // A section wrapping a question is titled by the question's heading, its first.
-  assert.equal(titled("region"), "outer");
-  // A heading after the question titles only itself.
-  assert.equal(titled("store"), "notes-section");
-  assert.equal(titled("notes"), "notes");
-  // Words before a heading stop it titling anything but a section: a task's, a
-  // disclosure's summary; a section's eyebrow doesn't, in a wrapper or not.
-  assert.equal(titled("restart-question"), "restart");
   assert.equal(titled("inside"), "inside");
-  assert.equal(titled("inspect"), "tools");
-  assert.equal(titled("job-heading"), "job");
-  assert.equal(titled("ship"), "kick");
-  // A section takes its first heading past a question of the same rank inside it.
-  assert.equal(titled("rollout-heading"), "rollout");
-  // A wrapper holding sections of one rank is none's.
-  assert.equal(titled("inputs"), "in");
-  // Only an hgroup's leading heading titles it.
+  assert.equal(titled("title"), "title");
+  // An hgroup is its heading's, and a section only the one it opens.
   assert.equal(titled("first"), "pair");
-  assert.equal(titled("second"), "second");
+  assert.equal(titled("inner-heading"), "inner");
+  // Chrome in an hgroup titles nothing, and leaves the authored heading its section.
+  assert.equal(titled("authored"), "chrome");
   declare();
 });
 
-test("a heading titles what it opens as the page gains and loses headings", () => {
-  declare();
-  document.body.innerHTML = `<main><h1 id="title">Plan</h1>
-    <section id="part"><h2 id="first">First</h2><p id="words">Words.</p></section>
+test("a heading inside a widget titles only itself", () => {
+  // A widget's name is its `label`, so no heading it leads with titles it.
+  declare({ "lf-card": {} });
+  document.body.innerHTML = `<main><h2>Earlier</h2>
+    <lf-card id="card"><header><h3 id="ship">Ship</h3></header><p>Words.</p></lf-card>
   </main>`;
+  const ship = /** @type {Element} */ (document.getElementById("ship"));
+  const card = /** @type {Element} */ (document.getElementById("card"));
+  assert.equal(titledElement(ship), ship);
+  assert.equal(titlingHeading(card), null);
+  declare();
+});
+
+test("a heading put first in a section takes it from the one it displaces", () => {
+  declare();
+  document.body.innerHTML = `<main><section id="part"><h2 id="first">First</h2>
+    <p>Words.</p></section></main>`;
   const first = /** @type {Element} */ (document.getElementById("first"));
   assert.equal(titledElement(first).id, "part");
-  // Words the page gains change no heading's reach.
-  document.getElementById("words")?.append(" More words.");
-  assert.equal(titledElement(first).id, "part");
-  // A heading arriving before it in its section takes the section.
   const earlier = document.createElement("h2");
   earlier.textContent = "Earlier";
   first.before(earlier);
@@ -210,24 +206,4 @@ test("a heading titles what it opens as the page gains and loses headings", () =
   assert.equal(titledElement(earlier).id, "part");
   earlier.remove();
   assert.equal(titledElement(first).id, "part");
-  // A second page title stops the first titling the page's column.
-  const title = /** @type {Element} */ (document.getElementById("title"));
-  const main = /** @type {Element} */ (document.querySelector("main"));
-  assert.ok(titledElement(title).contains(main));
-  const second = document.createElement("h1");
-  second.textContent = "Appendix";
-  main.append(second);
-  assert.equal(titledElement(title), title);
-  // A heading a widget's data draws loses its section to a heading the page puts
-  // before it outside the data.
-  document.body.innerHTML = `<main><section id="stages">
-    <div data-lf-projection="stages" data-lf-datum="k1"><p>Data words.</p>
-      <h3 id="drawn">Drawn</h3></div><p>Stage words.</p></section></main>`;
-  const drawn = /** @type {Element} */ (document.getElementById("drawn"));
-  const section = /** @type {Element} */ (document.getElementById("stages"));
-  assert.ok(titledElement(drawn).contains(section));
-  const stages = document.createElement("h2");
-  stages.textContent = "Stages";
-  section.prepend(stages);
-  assert.equal(titledElement(drawn), drawn);
 });

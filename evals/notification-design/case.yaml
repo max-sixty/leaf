@@ -1,6 +1,6 @@
-# Pilot pending: immediate visual preview changes and final appearance fidelity.
+# Immediate visual preview changes and final appearance fidelity.
 # Near the shipped playground notification example; an integration task, not an
-# independent design-domain holdout. Selected before any pilot author results.
+# independent design-domain holdout.
 description: Notification design
 metadata:
   purpose: Tune a notification's appearance, correct its message, and retain the

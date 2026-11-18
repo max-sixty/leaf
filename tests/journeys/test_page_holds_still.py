@@ -166,9 +166,11 @@ def thread_page(serve):
     read = append_agent_reply(
         d, notes, "A short first paragraph.\n\nThe paragraph being read. " + WORDS * 2
     )["id"]
+    # The first two steps take a line each, so with `read` at the reading line the
+    # last message starts inside the window and the reply box below it.
     for n in range(4):
         user(notes, f"And then {n}?")
-        append_agent_reply(d, notes, f"Then step {n}. " + WORDS)
+        append_agent_reply(d, notes, f"Then step {n}. " + (WORDS if n > 1 else ""))
     long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
     user(long, "Show me the lines.")
     lines = append_agent_reply(d, long, LINES)["id"]
@@ -291,9 +293,9 @@ DECISIONS_PAGE = leaf_page(
     + "</section>"
     + "".join(
         f'<section id="ask-{n}"><h2>Part {n}</h2>{paragraphs(n * 3, 2)}'
-        f'<lf-ask id="decide-{n}"><h3>Ask {n}: which way should part {n} go?</h3>'
-        f'<lf-options id="ways-{n}" choose><lf-option id="north-{n}">North</lf-option>'
-        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-ask></section>'
+        f'<lf-group id="decide-{n}" label="Ask {n}: which way should part {n} go?"><h3 id="decide-{n}-h">Ask {n}: which way should part {n} go?</h3>'
+        f'<lf-options id="ways-{n}"><lf-option id="north-{n}">North</lf-option>'
+        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-group></section>'
         for n in range(1, ASKS + 1)
     ),
 )
@@ -1726,7 +1728,7 @@ DIFF_READING = (
 )
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
-    "the glide; Chromium held it before #5397"
+    "the glide"
 )
 
 # The cases the runtime fails today, with what each measured: a fix flips one to a
@@ -1761,12 +1763,12 @@ MOVES_ON_MAIN = {
 EMPTY_REPLY = (
     "a card grows down past the empty reply box a send or an opening left the caret "
     "in, 239px, so the answer shows under the words read (thread-preview.js, the "
-    "user's choices of 5 and 9 November 2026)"
+    "user's choices)"
 )
 # News that grows a thread's box may carry its secondary controls from under a resting
 # pointer, while the words the user is writing and their Send stay (browser/AGENTS.md,
 # "News moves what the reader reads only in the thread they are in").
-SECONDARY = " (browser/AGENTS.md, the user's choice of 14 November 2026)"
+SECONDARY = " (browser/AGENTS.md, the user's choice)"
 RESOLVE_IN_PANEL = (
     "the panel's view grows from its top edge for the answer the user waits for and "
     "carries Resolve 216px up from under the pointer resting on it, where a message's "

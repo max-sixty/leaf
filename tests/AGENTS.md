@@ -183,7 +183,7 @@ which calls the server's own `served_records.py`. A fixture carries every field 
 server sends and changes only the fields the
 case is about. `fixtures/pages/` holds full-page regressions under
 `examples/AGENTS.md`'s rules, and `fixtures/plain/` ordinary web pages
-(`browser/test_plain_pages.py`).
+(`journeys/test_plain_pages.py`).
 A result that depends on a primitive Node and Chrome implement differently, such as
 `Intl.Segmenter`, is tested in the browser.
 
@@ -195,8 +195,7 @@ such as DOM a script changes after load, puts the page in
 that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a question, use its answer: `root_overflow` for
-sideways scroll, `draft_key` and `stored_draft`
-for drafts, `event_log.read_events` for the log. Read the page through its public
+sideways scroll, `stored_draft` for drafts, `event_log.read_events` for the log. Read the page through its public
 entries (`window.__lfWidgetApi()`, `__lfCheckApi()`, `__lfClientApi()`, and
 `__lfOverlayApi()` for overlay geometry); tests can't import private source
 paths.
@@ -207,7 +206,8 @@ once. Test a reading made from declarations on a widget that declares them, pass
 `serve` as `layer_registry` and `layer_widgets`.
 
 A test over prose compares it with something the machine states: a shown command
-against the click tree, an `x-` key against the guide, a table against its registry.
+against the click tree, a declaration key against the guide, a table against its
+registry.
 Leave wording with no machine side to review.
 
 Current location and visible focus are separate (`focus.js` owns their contract):
@@ -287,10 +287,11 @@ check a new held process, make the test fail right after starting it, then confi
 
 ### Browser storage
 
-Panel state and drafts live in `localStorage` and reading position in `sessionStorage`,
-so a reload keeps them;
-clear both for a first visit. Each `Browser.new_page` is its own context, so two tabs of
-one user share `one_user`.
+Panel state lives in `localStorage` and reading position in `sessionStorage`, so a
+reload keeps them; clear both for a first visit. Each `Browser.new_page` is its own
+context, so two tabs of one user share `one_user`. Drafts are the page's server's,
+which every context reaches (`stored_drafts`); another tab's or device's write is
+`write_draft_elsewhere`.
 
 ## Driving the browser
 
@@ -340,11 +341,10 @@ allowance list.
   with `watch_shifts`. Playwright's clicks, keys, viewport resizes, and Back and
   Forward are input; a script's `click()`, a value set by script and server news are
   not. It ignores first
-  presentation, whose remaining defects `known_widget_findings.py` records. Chrome
-  hides a shift for half a second after a click, so a test of a news update's stability
-  delivers the news after that. An input also owns the first frame that reads its
-  rendering settled, which can paint after `rendered` returns, so a test that moves
-  the page itself after an input, to see the move reported, first waits for
+  presentation, whose remaining defects `known_widget_findings.py` records. An input
+  owns every move its rendering makes, up to the first frame that reads that rendering
+  settled, which can paint after `rendered` returns. So a test that delivers news after
+  an input, or moves the page itself, to see the move judged, first waits for
   `lfInputRenderingOpen()` to read false.
 - `words_watch.js` reports typed words leaving the screen without a key or press
   (`browser/AGENTS.md`, "Typed words survive"). A test that closes a box
@@ -384,9 +384,13 @@ its situation on a machine ten times slower than the one it was written on, sinc
 runner and a host running other sessions' suites are both slower than an idle
 development machine. So no test asserts a duration, and no test passes or fails on a
 benchmark's reading: a benchmark reports its readings (`leaf-dev bench`, charted
-daily), and a reader judges them. Check a test against the rule with
-`--cpu-throttle 10` ("Races"). It slows only Chromium's renderer, not the server, Python
-or the driver, and doesn't reach a page from `browser.unwatched`.
+daily), and a reader judges them. A slower machine also reorders work that runs on
+independent clocks, such as the page's timers, its rendering updates, the server and the
+test's own steps, so a test makes every order it relies on between them itself, by
+holding or stepping one clock or by waiting for the event that ends the other's work
+(below, and "Races"). Check a test against the rule by running it starved of CPU,
+which slows every process at once ("Races"). CI's daily macOS job runs the suite that
+way, with more workers than the runner has cores; no landing gate does.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
@@ -468,7 +472,8 @@ reproduced at rates from 6 to 20, and one rate can miss a finding another reprod
 so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
 server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
 copy: it reproduced ten of the nightly macOS
-job's failures that `--cpu-throttle 8` reproduced none of. Run the merge
+job's failures that `--cpu-throttle 8` reproduced none of. Busy loops started under
+`taskpolicy -b` beside the test, each ending itself, starve it further. Run the merge
 base under the same condition to learn whether the change caused it. A test whose subject
 is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 

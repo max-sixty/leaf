@@ -102,11 +102,7 @@ def enclosing_slot(rec: dict, registry: dict):
     for node in (rec, *enclosing_widgets(rec)):
         entry = registry.get(node["tag"]) or {}
         holder = node["holder"]
-        if (
-            entry.get("x-retired-when")
-            and holder
-            and holder["tag"] in entry["x-owners"]
-        ):
+        if entry.get("retired-when") and holder and holder["tag"] in entry["owners"]:
             return node, holder
     return None
 
@@ -139,7 +135,7 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
         slot, holder = pair
         held = holders.get(holder["attrs"].get("id"))
         if held is not None:
-            held["retires"][registry[slot["tag"]]["x-retired-when"]].add(wid)
+            held["retires"][registry[slot["tag"]]["retired-when"]].add(wid)
     return list(holders.values())
 
 
@@ -261,11 +257,12 @@ class PageReading(NamedTuple):
         return page_passages(self.document, self.registry, **self.logged_words)
 
 
-class FrozenThreadReading(NamedTuple):
-    """The panel's frozen markup and durable state as one document.
+class ThreadMarkupReading(NamedTuple):
+    """The panel's thread markup and durable state as one document.
 
     No revision window or retraction floor bounds this projection. The markup
-    was frozen into the log, so its actions read the whole thread window.
+    lives in the log rather than in a revision, so its actions read the whole
+    thread window.
     """
 
     structure: ThreadStructure
@@ -288,7 +285,7 @@ class FrozenThreadReading(NamedTuple):
 
     def subject_thread(self, subject: dict) -> str | None:
         """The thread a workflow or report subject stands in: a thread subject is
-        its own, a widget frozen into a message is its thread's, and a page widget
+        its own, a widget in a message is its thread's, and a page widget
         stands in none."""
         if subject["kind"] == "thread":
             return subject["id"]
@@ -436,17 +433,17 @@ def with_action(
     )
 
 
-def frozen_thread_reading(
+def thread_markup_reading(
     events: list, registry: dict, *, withdrawn: set | None = None
-) -> FrozenThreadReading:
-    """Project every frozen message fragment through one shared reading."""
+) -> ThreadMarkupReading:
+    """Project every message fragment through one shared reading."""
     structure = thread_structure(events)
     by_name = thread_names(events)
     spk = {}
     for fragment in structure.fragments.values():
         spk.update(SourceReading(fragment, registry).spoken)
     by_widget = thread_widgets(structure, by_name)
-    return FrozenThreadReading(
+    return ThreadMarkupReading(
         structure,
         spk,
         by_name,
@@ -472,7 +469,7 @@ def projected_action_holders(
             target = byid.get(event["detail"]["value"])
             if target:
                 holder = target if target["tag"] in registry else target.get("holder")
-                permitted = (registry.get(unit_rec["tag"]) or {}).get("x-owners", [])
+                permitted = (registry.get(unit_rec["tag"]) or {}).get("owners", [])
                 if holder and holder["tag"] in permitted:
                     holders[unit] = holder
     return holders
@@ -830,7 +827,7 @@ def page_reading(
 
 def rewritten_bodies(actions: dict) -> dict:
     """id → (verb, text): the user's current rewrite of each element whose
-    element declaration records a verb as the body (x-state record kind "body"), as
+    element declaration records a verb as the body (`verbs` record kind "body"), as
     replay leaves it. The action projection is read here for the one record kind
     whose state is words rather than markup, so the passage reading can hold
     those words where the authored body was."""
@@ -909,7 +906,7 @@ def retirement_outcomes(actions: dict) -> dict:
     """widget id → the outcome its deciding action in force names.
 
     The registry explicitly marks the deciding verb (`decides`), whose `outcome`
-    values a member's `x-retired-when` and the verb's own `withdraws` name, so
+    values a member's `retired-when` and the verb's own `withdraws` name, so
     nothing here knows a widget or verb by name."""
     return {
         widget: e["detail"]["outcome"]

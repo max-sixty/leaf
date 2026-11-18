@@ -52,31 +52,64 @@ def desktop_viewport(page_dir: Path) -> Desktop:
     takes its own room again. A day is how long the page keeps a report
     (`user_views.RETAIN_FOR`); a reader's window size changes rarely, so any report
     the page still keeps is a better guess than the fixed window."""
-    pin = os.environ.get(PIN_VARIABLE)
-    if pin not in (None, "", "fixed"):
-        raise ValueError(f"{PIN_VARIABLE} takes only 'fixed', not {pin!r}")
     fixed = RENDER_VIEWPORT["width"], RENDER_VIEWPORT["height"]
-    if pin == "fixed":
+    if _pinned():
         return Desktop(*fixed, f"fixed, pinned by {PIN_VARIABLE}")
-    views = read_user_views(page_dir, None)["sessions"]
-    if not views:
-        # Authors who knew the user's window but read only "fixed" went looking for a
-        # way to set it; the words say it follows the user once they open the page.
+    view = _reader_view(page_dir)
+    if view is None:
+        # An author who knows the user's window but reads only "fixed" can go looking
+        # for a way to set it, so the words say it follows the user once they open the
+        # page.
         return Desktop(
             *fixed,
             "fixed, since no browser has shown the page in a day; once the user"
             " opens it, the check reads their window",
         )
-    window = views[0]["viewport"]
+    window = view["viewport"]
     return Desktop(round(window["width"]), round(window["height"]), "the user's window")
+
+
+def user_engine(page_dir: Path) -> str:
+    """`firefox` where the browser that last reported viewing the page is Firefox,
+    so the check draws the page with the engine its reader does
+    (`browser.launch_browser`), and `chromium` otherwise: for a reader in Chrome or
+    Safari, for a page no browser has shown in the last day, and for a caller that
+    pins the check (`PIN_VARIABLE`). A Firefox names itself `Firefox/` after a
+    `Gecko/` token in its user agent; Firefox on iOS, a WebKit, names itself `FxiOS`."""
+    if _pinned():
+        return "chromium"
+    view = _reader_view(page_dir)
+    if view is None:
+        return "chromium"
+    agent = view["identity"]["browser"]["user_agent"]
+    return "firefox" if "Gecko/" in agent and "Firefox/" in agent else "chromium"
+
+
+def _reader_view(page_dir: Path) -> dict | None:
+    """The view of the browser that last reported showing the page to its reader, or
+    None where none has in the last day. A browser a script drives says so
+    (`navigator.webdriver`) and is passed over: an agent that opened the live page in
+    a headless Chromium while its reader's Firefox tab stood hidden, and so silent,
+    would otherwise have the check draw in Chromium at the agent's window."""
+    views = read_user_views(page_dir, None)["sessions"]
+    return next((v for v in views if not v["identity"]["browser"]["webdriver"]), None)
+
+
+def _pinned() -> bool:
+    """Whether the caller pins what the check reads to the fixed window in Chromium."""
+    pin = os.environ.get(PIN_VARIABLE)
+    if pin not in (None, "", "fixed"):
+        raise ValueError(f"{PIN_VARIABLE} takes only 'fixed', not {pin!r}")
+    return pin == "fixed"
 
 
 class NoBrowser(Exception):
     """No browser ran: the message says why."""
 
 
-def run_in_browser(read):
-    """Launch the host's browser and return what `read` finds with it, with the
+def run_in_browser(read, engine: str = "chromium"):
+    """Launch the host's browser, for `engine` where the host has it
+    (`browser.launch_browser`), and return what `read` finds with it, with the
     browser's name, or raise `NoBrowser`. Leaf runs without a browser, and a page
     reports its errors to its author whenever one draws it, so a host without one loses
     the early reading and not the command.
@@ -85,13 +118,13 @@ def run_in_browser(read):
     drives another instance or runs an event loop, and a command runs this from
     whatever process called it, such as a test harness driving its own browser."""
     with ThreadPoolExecutor(1) as pool:
-        found = pool.submit(_launch, read).result()
+        found = pool.submit(_launch, read, engine).result()
     if isinstance(found, str):
         raise NoBrowser(found)
     return found
 
 
-def _launch(read):
+def _launch(read, engine):
     """What `read` finds, with the browser's name, or why no browser ran it."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
@@ -103,7 +136,7 @@ def _launch(read):
             # Playwright raises bare Exception on driver EOF.
             return f"Playwright's driver did not start: {error}"
         try:
-            browser, browser_name = launch_browser(p)
+            browser, browser_name = launch_browser(p, engine)
         except PlaywrightError as error:
             return (
                 f"no browser launched: {str(error).strip().splitlines()[0]}. "
@@ -177,9 +210,10 @@ def browser_check(
     render: bool,
     screens: bool = True,
 ) -> BrowserCheck:
-    """Serve the candidate source once and, in one browser, run the page's own code
-    (`page_code` says which run and which errors fail it), then the render invariants
-    at the desktop window `desktop_viewport` chooses and a phone's, saving the screens
+    """Serve the candidate source once and, in one browser, the one `user_engine`
+    chooses, run the page's own code (`page_code` says which run and which errors fail
+    it), then the render invariants at the desktop window `desktop_viewport` chooses,
+    saving the screens
     the author reads where `screens` asks, including when there are findings. Page code
     that fails ends the check before the render reading."""
     artifact = snapshot.artifact(snapshot.active_revision())
@@ -194,8 +228,8 @@ def browser_check(
         if not render:
             return run_page_code(browser, url) if page_code else None, None, None
         assert desktop is not None
-        # The render's first page takes the page-code reading, so the page loads once
-        # for both.
+        # The render's page takes the page-code reading, so the page loads once for
+        # both.
         errors = [] if page_code else None
         reading = render_version(
             browser,
@@ -218,7 +252,7 @@ def browser_check(
     with preview_server(page_dir, snapshot) as url:
         try:
             (errors, reading, saved), browser_name = run_in_browser(
-                lambda browser: read(browser, url)
+                lambda browser: read(browser, url), user_engine(page_dir)
             )
         except NoBrowser as error:
             return BrowserCheck(gates, unavailable=str(error), desktop=desktop)
@@ -237,9 +271,17 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     from leaf.findings import Rejected
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import ArtifactError, capture_artifact
+    from leaf.structure import SourceDocument
+    from leaf.validation.markup import structure_errors
 
     from .page_code import message_page, places_judged_widget
 
+    if structure_errors(SourceDocument(markup, fragment=True)):
+        # Markup the HTML parser repairs, such as a widget a `<pre>` closed along
+        # with the paragraph Markdown drew around it, is the markup gate's to
+        # refuse, showing the HTML Markdown drew, where a run would report only
+        # the widget the repair emptied.
+        return
     layer = read_page_registry(page_dir)
     if layer is None:
         return
@@ -264,7 +306,7 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     )
     ran = browser_check(page_dir, snapshot, page_code=True, render=False)
     if ran.status:
-        raise Rejected(ran.findings(), f"{kind} markup doesn't draw")
+        raise Rejected(ran.findings(), f"the HTML in the {kind} doesn't draw")
 
 
 @dataclass(frozen=True, slots=True)

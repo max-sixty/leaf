@@ -466,9 +466,9 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
 ):
     """A document's Preview/Source strip stands directly under its caption, however
     many tab strips stand over the document. Each strip passes its height on as
-    `--lf-top`, where the document's strip sticks. While the frame was a scroll
-    container, the strip stuck at that height inside the frame, below the caption and
-    over the preview's first lines (issue #5017)."""
+    `--lf-top`, where the document's strip sticks. Were the frame a scroll
+    container, the strip would stick at that height inside the frame, below the caption
+    and over the preview's first lines."""
     url = serve(
         leaf_page(
             "Prompt and notes",
@@ -514,7 +514,7 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
     lines = [f"line {at}" for at in range(300)]
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
-        f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
+        f'source="text-{at}" class="language-python"></lf-text-document></lf-tab>'
         for at in range(3)
     )
     url = serve(
@@ -551,9 +551,9 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engine):
     """Opening a tab nobody opened draws only the runs of its document's lines that are
-    in view, in every frame from the press on. Firefox took the runs under the closed
-    tab for drawn and kept them so as it opened, drawing every line of a long document
-    for the first frames and reading and colouring every one of them
+    in view, in every frame from the press on. Firefox can take the runs under the
+    closed tab for drawn and keep them so as it opens, drawing every line of a long
+    document for the first frames and reading and colouring every one of them
     (notes/browser-support.md, "An `auto` box under a fold in Firefox")."""
     url = serve(
         leaf_page(
@@ -561,7 +561,7 @@ def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engin
             '<lf-tabs id="docs" list="side">'
             '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
             '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
-            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            'source="log-text" class="language-python"></lf-text-document></lf-tab>'
             "</lf-tabs>",
         )
     )
@@ -596,14 +596,15 @@ def test_a_closed_tab_gives_up_its_document_s_colour_and_wears_it_as_it_opens(
 ):
     """A document's syntax colour stands in highlights every document on the page
     shares, so a tab that closes takes its document's colour out of them. Kept, every
-    tab a reader had opened held its ranges there, and each scroll's uncolouring, and
-    in Chromium each change to the page, cost more for each tab opened. Opened again,
+    tab a reader had opened would hold its ranges there, and each scroll's uncolouring,
+    and in Chromium each change to the page, would cost more for each tab opened. Opened
+    again,
     the document's lines in view wear their colour in the frame that shows them, as
     when the closed tab kept it, also after a rewrite while it was closed moved those
-    lines into runs of their own: Firefox showed them uncoloured for a frame or two."""
+    lines into runs of their own: Firefox can show them uncoloured for a frame or two."""
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
-        f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
+        f'source="text-{at}" class="language-python"></lf-text-document></lf-tab>'
         for at in range(2)
     )
     url = serve(
@@ -694,7 +695,7 @@ def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
             '<lf-tabs id="docs" list="side">'
             '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
             '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
-            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            'source="log-text" class="language-python"></lf-text-document></lf-tab>'
             "</lf-tabs>",
         )
     )
@@ -729,8 +730,8 @@ def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
 def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, serve):
     """A document in a tab nobody opened draws once the page has presented, each in a
     task of its own, so presentation waits only for the document in view. Drawn first,
-    30 tabs of 50,000 lines held presentation for 22 s in Firefox, which then restyled
-    every row of every closed tab as the page presented, a 2.6 s frame. Each announces
+    many long documents in tabs would hold presentation for seconds in Firefox, which
+    can then restyle every row of every closed tab as the page presents. Each announces
     its draw (`drawn`, which stamps its data's provenance) as it draws, so a comment on
     its words stands on them without waiting for the documents after it."""
     tabs = "".join(
@@ -810,7 +811,7 @@ def test_a_comment_on_a_closed_tab_s_document_never_reads_as_earlier_data(
     """A comment on the text of a document in a closed tab stands on the document
     while the document has yet to report its draw, and says nothing about earlier
     data: the comment is on the data the document will draw. Read as a revision
-    mismatch, it said "Earlier data" for the seconds before the document drew."""
+    mismatch, it would say "Earlier data" for the seconds before the document drew."""
     url = closed_documents(serve, 3)
     comment = append_carried_log_record(
         serve.page_dir,
@@ -850,8 +851,8 @@ def test_a_listing_s_scroll_mark_changes_nothing_its_rows_inherit(browser, serve
     """The runtime marks a document's listing as a box that scrolls once it has drawn,
     and the mark restarts the sticky-header slot. The listing states that restart from
     the first paint, so the mark changes nothing its rows inherit: Firefox styles the
-    rows of runs it doesn't draw too, and a mark that changed three inherited values
-    took a 250 to 570 ms frame on a listing of 97,000 rows. The listing's `code`, which
+    rows of runs it doesn't draw too, and a mark that changed inherited values would
+    take a long frame on a long listing. The listing's `code`, which
     every row inherits from, computes the same style, custom properties included, with
     the mark and without it, whatever the mark's rule sets."""
     url = serve(
@@ -1124,7 +1125,7 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(browser, serv
     plain document and in one whose tokens split the text into coloured spans."""
     tags = (
         '<lf-text-document id="plain-document" source="plain-text"></lf-text-document>'
-        '<lf-text-document id="python-document" source="python-text" language="python">'
+        '<lf-text-document id="python-document" source="python-text" class="language-python">'
         "</lf-text-document>"
     )
     source = LONG_LINE_DIFF_PAGE.replace(
@@ -1178,12 +1179,12 @@ def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
 ):
     """Lines added above a selected row carry it from one run of rows into another, and
     it keeps its native selection: runs are a drawing boundary, not a row's identity.
-    Reconciled run by run, one line added above the last row of a run grew Chromium's
-    selection to take in the row before it and cleared Firefox's. The selected row
-    keeps it too when its own line is edited, in place or as it moves, where a walk
-    over the lines took the edit for a new row. The numbers still count every row, read
-    in Chromium off what it draws: a count started on each run's own box numbered every
-    run after the first from 1."""
+    Reconciled run by run, one line added above the last row of a run can grow
+    Chromium's selection to take in the row before it and clear Firefox's. The selected
+    row keeps it too when its own line is edited, in place or as it moves, where a walk
+    over the lines would take the edit for a new row. The numbers still count every
+    row, read in Chromium off what it draws: a count started on each run's own box would
+    number every run after the first from 1."""
     lines = [f"line {i}" for i in range(1, 279)]
     lines[127] = "selected passage"
     url = serve(
@@ -1257,13 +1258,14 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     keeps its node and takes the edit as its text's least change, and a line added or
     removed adds or removes its own row where it stands, leaving every other row in its
     run. The runs after it count their numbers on from where they now start. Reconciled
-    over every row, a one-line rewrite of 50,000 lines took 207 ms, and 200 lines added
-    near the top moved 200 rows across each later run's edge, 2.9 s. The numbers still
-    count every row, read in Chromium off what it draws, a line added at the head of a
-    run the browser skips included: where rows moved across runs' edges, a run after
-    them drew no number on its first row and counted on from 1. A rewrite past the line
-    walk's cap that moves and reindents every line keeps a selection on its words: each
-    row patched with the line at its place, the selected row took another line's."""
+    over every row, a one-line rewrite of a long document would be slow, and lines added
+    near the top would move as many rows across each later run's edge. The numbers
+    still count every row, read in Chromium off what it draws, a line added at the head
+    of a run the browser skips included: where rows move across runs' edges, a run after
+    them could draw no number on its first row and count on from 1. A rewrite past the
+    line walk's cap that moves and reindents every line keeps a selection on its words:
+    with each row patched with the line at its place, the selected row would take
+    another line's."""
     lines = [f"line {at}" for at in range(1, 1001)]
     url = serve(
         leaf_page(
@@ -1357,13 +1359,13 @@ def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
     """A run a rewrite splits is coloured from the grammar state its new parts start in,
     as a fresh load colours it: a triple-quoted string opened above the split and closed
     below it keeps its rows a string after an edit below the split. Kept by its place,
-    the state of the run that stood second before the rewrite coloured the second part,
-    which starts inside the string, as code."""
+    the state of the run that stood second before the rewrite would colour the second
+    part, which starts inside the string, as code."""
     lines = [f"value_{at} = {at}" for at in range(600)]
     url = serve(
         leaf_page(
             "Split colour",
-            '<lf-text-document id="log" source="log-text" language="python">'
+            '<lf-text-document id="log" source="log-text" class="language-python">'
             "</lf-text-document>",
         )
     )
@@ -1479,14 +1481,14 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
             """
 <h1 id="t">Runs</h1>
 <p id="lede">The loop that finds each run.</p>
-<lf-code id="walk" language="rust" lines="1505-1507,1550-1552" hi="1550"><pre>
+<lf-code id="walk" lines="1505-1507,1550-1552" hi="1550"><pre><code class="language-rust">
 fn merge_sort()
 {
     let len = v.len();
     while end &gt; 0 {
         let mut start = end - 1;
         start -= 1;
-</pre>
+</code></pre>
 <lf-note at="1551">One run per pass.</lf-note>
 <lf-note id="gap" at="1520">Setup, left out.</lf-note>
 </lf-code>
@@ -1619,11 +1621,11 @@ def test_a_code_line_longer_than_its_block_wraps_under_its_own_indent(browser, s
             "wrap",
             f"""
 <h1 id="t">Wrap</h1>
-<lf-code id="walk" language="python"><pre>
+<lf-code id="walk"><pre><code class="language-python">
 def ceiling(limit):
 {call}
 {digest}
-</pre></lf-code>
+</code></pre></lf-code>
 """,
         )
     )
@@ -1714,17 +1716,17 @@ def test_a_reader_hides_a_blocks_notes_to_read_its_code_whole(browser, serve):
             "notes",
             """
 <h1 id="t">Brackets</h1>
-<lf-code id="walk" language="python"><pre>
+<lf-code id="walk"><pre><code class="language-python">
 def bracket(temp):
     if temp &lt; 0:
         return "steel"
     return "cedar"
-</pre>
+</code></pre>
 <lf-note id="freeze" at="2">Freezing is the only threshold that matters.</lf-note>
 </lf-code>
-<lf-code id="plain" language="python"><pre>
+<lf-code id="plain"><pre><code class="language-python">
 print("no notes")
-</pre></lf-code>
+</code></pre></lf-code>
 """,
         ),
     )
@@ -1759,6 +1761,13 @@ print("no notes")
 
     page.keyboard.press("n")
     expect(note).to_be_hidden()
+    # Copy, the toolbar's last mark, copies the code without the note's words.
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.locator("#walk pre").hover()
+    bar.get_by_role("button", name="Copy").click()
+    assert page.evaluate("navigator.clipboard.readText()") == (
+        'def bracket(temp):\n    if temp < 0:\n        return "steel"\n    return "cedar"'
+    )
     page.reload()
     wait_until_ready(page)
     expect(page.locator("#walk .lf-code-notes-toggle")).to_have_attribute(

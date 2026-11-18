@@ -67,7 +67,6 @@ export const generatedElement = (node, { says } = {}) => {
         `true, false, or "echo" for a copy of words it says elsewhere`,
     );
   keeps(node, "data-lf-gen", "1");
-  // Toggling keeps an x-says span's attribute name (declared-words.js) where it stands.
   node.toggleAttribute("data-lf-said", says === true);
   node.toggleAttribute("data-lf-echo", says === "echo");
   return node;

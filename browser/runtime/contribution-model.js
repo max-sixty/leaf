@@ -95,8 +95,8 @@ const kinds = {
   },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   // Words the user wrote about a place and hasn't sent (drafts.js, the drafts list),
-  // its contour dashed as a draft's is (controls.css). It follows a thread on the same
-  // place, which stays the entry's face.
+  // in a draft's grey (controls.css). It follows a thread on the same place, which
+  // stays the entry's face.
   draft: { label: "Draft", icon: "comment", priority: 1.5 },
   "on-me": { label: "On Me", icon: "question", priority: 2 },
   sent: {

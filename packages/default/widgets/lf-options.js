@@ -3,9 +3,14 @@
  * and nothing here is load-bearing on the look.
  *
  * Which form a group takes is a fact about its options, decided in CSS and never here:
- * an option leading with a <strong> title argues its own case and is a card on a row of
- * its own, and a group whose options are bare labels is an obligation *about* the page,
- * drawn as compact rows.
+ * an option with a `label` argues its own case and is a card on a row of its own, and a
+ * group whose options are bare labels is an obligation *about* the page, drawn as
+ * compact rows. A card's `label` is its name and nothing draws it: the card shows the
+ * title its author writes in it, as a group shows the heading written in it. Max chose
+ * this over drawing the label as the card's title, since a name Leaf reads is data
+ * apart from the title the page shows; it costs the name written twice, and On Me
+ * shows a card's name alone, since no rule may pick a sentence out of the author's
+ * markup.
  * The difference this module sees is only what a row adds — `for`, the id of the block
  * the row names, rendered as a reference the user can follow where the group's rows
  * name different blocks. Rows that all name one block draw none, since that block
@@ -13,15 +18,18 @@
  * reader already has. It points and never speaks: the label stays written in the
  * markup, so the file's reading of the page holds every word the page shows.
  *
- * `choose` takes the user's pick. Every option carries one injected mark that is both
- * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
- * group takes one option or several. Once picked, the same mark becomes a check while
- * the option's cell takes a quiet tint. Cards and rows mark a pick alike, tint plus
- * check: on 2026-10-26 the user chose this over a "✓ selected" chip in a live titled
- * card's corner, a word only cards wore, crowding the author's own chips. The checkbox state carries the same fact for a user
- * listening. Outside a `choose` group
- * the mark renders as an image-like span, so authored state keeps the check and an
- * accessible name without pretending it can be pressed.
+ * A group takes the user's pick, with no attribute to say so; only an exhibit shows
+ * one that takes none (below). Rejected: an attribute that makes a group take picks
+ * (`required` or `choose`), since nearly every group would carry it, and one written
+ * without it draws cards nobody can press while `page check` passes. Every option
+ * carries one injected mark that is both the keyboard path and the state — a toggle
+ * reading "choose one" or "choose any" as the group takes one option or several. Once
+ * picked, the same mark becomes a check while the option's cell takes a quiet tint.
+ * Cards and rows mark a pick alike, tint plus check: the user chose this over a
+ * "✓ selected" chip in a live titled card's corner, a word only cards wore, crowding
+ * the author's own chips. The checkbox state carries the same fact for a user
+ * listening. In an exhibit the mark renders as an image-like span, so authored state
+ * keeps the check and an accessible name without pretending it can be pressed.
  *
  * The pick is a set, whatever the group allows. `multiple` lets it hold more than one
  * and clicking toggles each option in or out; without it a click makes that option the
@@ -32,7 +40,7 @@
  * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
  * to follow — belongs to what it landed on (`worksInside`).
  *
- * The last cell of a page choose group is the option the user writes. Submitting it
+ * The last cell of a page's group is the option the user writes. Submitting it
  * sends an `add` naming the new option and its words, then selects it through the same
  * `choose` action as every other pick. The option stands on the `add`'s own coordinate,
  * so a later pick leaves it in the group and only undoing the `add` takes it away. It is
@@ -50,15 +58,16 @@
  *
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
- * reaches the agent as it lands, so the press is the one statement that the set
- * is whole, posted as an `answer` action and held as the obligation's closing
- * condition (x-awaits.answered). Answered is paint on the press, never a wider word. A
- * second press withdraws that answer through the widget's exact undo, reopening the obligation;
- * the set can still change after either press, and each toggle reaches the agent.
+ * reaches the agent as it lands, so the press is the one statement that the set is
+ * whole, posted as an `answer` action and held as the obligation's closing condition
+ * (`awaits.answered`). Answered is paint on the press, never a wider word. A
+ * second press withdraws that answer through the widget's exact undo, reopening the
+ * obligation; the set can still change after either press, and each toggle reaches the
+ * agent.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
- * registry declares it as a verb's record form — `chosen` is one, so a version can
+ * registry declares it as a verb's record form — `selected` is one, so a version can
  * carry a pick and `page check` can hold the markup against the log's fold — and
  * the entry's `additionalProperties: false` is the whole of what else may stand
  * there. Neither the answered paint nor the disclosure's state is such a record: the
@@ -93,14 +102,13 @@
  * once opened — settling is a sweep, not a lock, and the summary line follows whatever is
  * chosen, including back to a bare "Settled" when the user clears it.
  *
- * Inside an exhibit the group is quoted — exhibited, not offered — so it takes the
- * same path as a group that never declared `choose`: the mark is a span, the click
- * handler is never wired, there is no cell for an option of the user's own, and an
- * example decision can't be answered. `settled` still collapses there, because quoting
- * gates the action channel and not presentation.
+ * Inside an exhibit the group is quoted — exhibited, not offered: the mark is a span,
+ * the click handler is never wired, there is no cell for an option of the user's own,
+ * and an example decision can't be answered. `settled` still collapses there, because
+ * quoting gates the action channel and not presentation.
  *
- * Authored element children stay in place. The layer formats declared Markdown
- * before this module upgrades the options; generated children use that parser too. */
+ * Authored children stay in place, as their author wrote them. An option the user
+ * adds shows its words as inline Markdown (`OptionAddition`). */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
@@ -124,55 +132,24 @@ import {
   reachedForWords,
   rowWalk,
   worksInside,
-  wrote,
+  named,
   focusDestination,
   scrollIntoView,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
-// What an option is called, in either form: its title where it leads with one, and its
-// own words where the label is all it has. `wrote` rather than `says`, because a picked
-// option's mark is the page speaking and belongs to what the user can point at — not
-// to the option's name, which is what every caller here wants. A settled title's answer
-// to an option with neither is to say "Settled" rather than name an id nobody wrote.
+// What an option is called, in either form: a card's `label`, and a compact option's
+// own words, which are all it has. `named` rather than `says`, because a picked option's
+// mark is the page speaking and belongs to what the user can point at — not to the
+// option's name, which is what every caller here wants. A settled title's answer to an
+// option with neither is to say "Settled" rather than name an id nobody wrote.
 /** @param {Element} option */
-const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
+const label = (option) => option.getAttribute("label")?.trim() || named(option);
 
-// What choosing an option gives the user: the sentence after a card's title, as the
-// registry's card shape lays it out, written inline or as the paragraph that follows the
-// title, up to any picture or other block below it. A label-only option says nothing
-// beyond its name. On Me shows these words under the option's name, where the user
-// answers away from the card. The command row reads them only when a surface shows
-// them: the computed display below forces a layout in Firefox, which taken between the
-// render's own insertions leaves a row of cards off their shared title baseline
-// (`notes/browser-support.md`, "Baseline content-alignment").
+// The option the page advises is `recommended`, and the group says so wherever the
+// option is answered away from its card.
 /** @param {Element} option */
-const consequence = (option) => {
-  const title = option.querySelector(":scope > strong");
-  let words = "";
-  for (let node = title?.nextSibling; node; node = node.nextSibling) {
-    if (node instanceof Text) words += node.data;
-    else if (!(node instanceof Element)) continue;
-    else if (getComputedStyle(node).display === "inline") {
-      // `wrote` trims the element's own edges, which may be the spaces between words,
-      // as where Markdown emphasis splits a sentence.
-      const text = node.textContent;
-      words += `${/^\s/.test(text) ? " " : ""}${wrote(node)}${/\s$/.test(text) ? " " : ""}`;
-    } else {
-      if (!words.trim() && node.localName === "p") words = wrote(node);
-      break;
-    }
-  }
-  return words.replace(/\s+/g, " ").trim();
-};
-
-// The option the page advises wears the `recommended` tag the registry's card shape
-// names, and the group says so wherever the option is answered away from its card.
-/** @param {Element} option */
-const recommended = (option) =>
-  [...option.querySelectorAll(":scope > small.tag")].some(
-    (tag) => wrote(tag).trim() === "recommended",
-  );
+const recommended = (option) => option.hasAttribute("recommended");
 
 // The offer, and how many of the group it takes. A group's prose stays deliberately silent,
 // while the control states arity in the two registers it has: corner shape for the eye and
@@ -279,9 +256,9 @@ customElements.define(
       }));
     }
 
-    // An exhibited or purely structural group has no semantic identity: it renders the
-    // authored alternatives, but owns no selection and therefore has no captured widget
-    // descriptor, so it has no reading. Only a live or settled decision has one.
+    // An exhibited group has no semantic identity: it renders the authored
+    // alternatives, but owns no selection, so it has no reading. Only a live or
+    // settled decision has one.
     setup() {
       this.#wire(quoted(this));
     }
@@ -300,10 +277,9 @@ customElements.define(
 
     /** @param {boolean} exhibited */
     #wire(exhibited) {
-      // Quoted material is exhibited, not offered, so a sample renders exactly like a
-      // group that was never choosable: it shows what a decision looks like without
-      // taking one.
-      this.#choosable = this.hasAttribute("choose") && !exhibited;
+      // Quoted material is exhibited, not offered: a sample shows what a decision
+      // looks like without taking one. Every other group takes the user's pick.
+      this.#choosable = !exhibited;
       // Bindings name identities, not the current visible order. Reserve the authored
       // choices and auxiliary actions before user-added options arrive, and retain a
       // removed option's number so undo never changes another action's binding.
@@ -316,10 +292,10 @@ customElements.define(
         [...this.#options()].map((option) => option.getAttribute("for")),
       );
       if (named.size > 1) for (const option of this.#options()) this.#reference(option);
-      // Without `choose` there is nothing to press: the mark still reports the
-      // document's state, as a span.
+      // An exhibit has nothing to press: the mark still reports the document's state,
+      // as a span.
       for (const option of this.#options())
-        if (this.#choosable || option.hasAttribute("chosen"))
+        if (this.#choosable || option.hasAttribute("selected"))
           this.#control(option, this.#choosable);
       void this.#addition;
       if (this.hasAttribute("settled")) {
@@ -342,6 +318,7 @@ customElements.define(
         const inner = worksInside(target, option);
         if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
         if (!this.#available("choose")) return;
+        e.preventDefault();
         const was = this.#picked();
         // Toggling is one gesture both ways, so a user who picked by mistake needn't
         // pick something else to get out of it. Without `multiple` the set the toggle
@@ -407,8 +384,8 @@ customElements.define(
 
     // The one statement a live channel can't derive: the set is whole. Done is a
     // reversible gesture; its pressed state is the answer action in force. It records
-    // the user's answer, so it wears the commit face, which the user chose on 26
-    // October over the quiet word face every other worded press wears. Its digit
+    // the user's answer, so it wears the commit face, which the user chose over the
+    // quiet word face every other worded press wears. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
@@ -505,7 +482,6 @@ customElements.define(
           decision: true,
           bindingBadge,
           title: label(option) || option.id,
-          description: () => consequence(option),
           recommended: recommended(option),
           when: () => this.#available("choose"),
           run: () => mark.click(),
@@ -621,9 +597,12 @@ customElements.define(
       mark.classList.toggle("lf-ui", pressable);
       keeps(mark, "role", pressable ? "checkbox" : "img");
       keeps(mark, "data-lf-offer", pressable ? "checkbox" : null);
-      // The option's words stand beside the mark and its position is a listener's, so
-      // pointing at the mark reads only the word its shape stands for.
-      mark.lfPreview = () => ({ name: mark.textContent });
+      // Pointing at the mark reads nothing: its round or square corner says whether the
+      // group takes one option or any, the option's words stand beside it, and the digit
+      // drawn on its option while focus is in the group says its key. Its name stays a
+      // listener's, rather than a preview of "choose one", the word its shape stands
+      // for.
+      mark.lfPreview = () => false;
       this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card
       // places its mark out of flow in the header and cannot see this, so one insertion
@@ -646,7 +625,7 @@ customElements.define(
         }
       for (const [index, option] of options.entries()) {
         const selected = picked.has(option.id);
-        option.toggleAttribute("chosen", selected);
+        option.toggleAttribute("selected", selected);
         if (!this.#choosable && !this.#controls.has(option) && !selected) continue;
         if (!this.#controls.has(option)) controlsChanged = true;
         const mark = this.#control(option, this.#choosable);
@@ -671,7 +650,7 @@ customElements.define(
     #authoredChoice() {
       return {
         value: [...this.#options()]
-          .filter((option) => option.hasAttribute("chosen"))
+          .filter((option) => option.hasAttribute("selected"))
           .map((option) => option.id),
       };
     }
@@ -695,10 +674,6 @@ customElements.define(
       this.#syncChoice(detail);
       this.#refreshAvailability();
       return nothing;
-    }
-
-    lfWord() {
-      return "options";
     }
   },
 );

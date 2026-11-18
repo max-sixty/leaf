@@ -2,6 +2,13 @@
  * share the frame scale and crop translation; neither package consumers nor the
  * pixel/outline renderers reinterpret that geometry. Shared Leaf controls own
  * button faces, targets, focus, disabled and pressed states. */
+/* The screen's height, which bounds a shot in flow, registered so that the module's fit
+   (`shotAllocation`, shot-view.js) reads the length the room below is held by. */
+@property --lf-shot-screen {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 lf-shot {
   display: flex;
   flex-direction: column;
@@ -9,8 +16,61 @@ lf-shot {
   min-block-size: 0;
   margin: var(--lf-sp-3) 0;
   container: lf-shot / inline-size;
+  --lf-shot-screen: 100svh;
   --lf-shot-gap: var(--lf-sp-2);
   --lf-shot-label-height: var(--lf-line);
+  --lf-shot-toolbar-pad: max(var(--lf-sp-1), var(--lf-reach-room));
+  /* The toolbar's height: the row the view chooser sets, inside its padding, and a
+     second row in a narrow shot (below). */
+  --lf-shot-toolbar: calc(var(--lf-chooser) + 2 * var(--lf-shot-toolbar-pad));
+  /* Keep the shared image frame's shadow inside the stage's scrollport. */
+  --lf-shot-frame-room: calc(var(--lf-raise-1-drop) + var(--lf-raise-1-blur));
+}
+/* Until its module draws, a shot holds the room its first drawing takes, so nothing
+   below it moves when the drawing lands: the toolbar, and the stage's padding and
+   gutter around the frame Slider fits (`fitShotGeometry`, shot-view.js). Delivery
+   paints the captures' size on the element (`data-lf-media-width`,
+   `data-lf-media-height`), and a frame takes the stage's width at the captures'
+   ratio, but never enlarges them nor stands taller than the screen below the toolbar.
+   A page whose runtime won't run draws no shot, nor does paper, so neither holds room,
+   and a browser without typed `attr()` holds only the toolbar and padding. The frame
+   stands in a row beside an empty box holding only the stage's scrollbar gutter, so it
+   takes its ratio from the width Slider fits, a classic scrollbar's gutter narrower than
+   the shot. Neither the shot nor the frame holds the gutter itself: a box's `width`
+   includes its own gutter, so the frame would take its ratio from the wider width, and
+   the shot's container would be narrower than the drawn shot's, choosing the narrow
+   toolbar's height just above its breakpoint. Firefox gives a pseudo-element's gutter a
+   classic scrollbar's width even where its scrollbars overlay, so there the frame holds
+   a little less than it draws. */
+@media screen {
+  @scope (html[data-lf-interactive]) {
+    lf-shot[data-lf-media-width][data-lf-media-height]:not(:defined) {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+    lf-shot[data-lf-media-width][data-lf-media-height]:not(:defined)::after {
+      content: "";
+      flex: none;
+      overflow: hidden;
+      scrollbar-gutter: stable both-edges;
+    }
+    lf-shot[data-lf-media-width][data-lf-media-height]:not(:defined)::before {
+      content: "";
+      display: block;
+      flex: 1 1 0;
+      min-inline-size: 0;
+      margin-block-start: var(--lf-shot-toolbar);
+      box-sizing: content-box;
+      padding: calc(var(--lf-shot-frame-room) + 1px);
+      aspect-ratio: attr(data-lf-media-width type(<number>)) /
+        attr(data-lf-media-height type(<number>));
+      max-block-size: min(
+        attr(data-lf-media-height px),
+        var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) -
+          2px
+      );
+    }
+  }
 }
 .lf-shot-toolbar {
   display: grid;
@@ -18,7 +78,7 @@ lf-shot {
   grid-template-areas: "before actions after";
   align-items: center;
   gap: var(--lf-sp-1);
-  padding-block: max(var(--lf-sp-1), var(--lf-reach-room));
+  padding-block: var(--lf-shot-toolbar-pad);
   flex: none;
   /* As wide as the frames it names, and centred over them as they are, however much
      spare room a capture narrower than its box leaves; its tools hold the axis as a
@@ -81,7 +141,7 @@ lf-shot {
   flex: 1;
 }
 .lf-shotchoice {
-  display: flex;
+  display: flow-root;
   font: inherit;
   /* Its mark stands on the scale choices' edge (controls.css, `--lf-choice-pad`). */
   margin-inline-start: calc(-1 * var(--lf-choice-pad));
@@ -116,7 +176,7 @@ lf-shot {
   padding-block-start: var(--lf-sp-2);
   display: flex;
   align-items: center;
-  gap: var(--lf-sp-1);
+  gap: var(--lf-choice-gap);
 }
 .lf-shot-pixel-key > * {
   font: inherit;
@@ -139,6 +199,12 @@ lf-shot {
     /* A stacked pair moves the words into its frames, without collapsing their
        toolbar row or moving the image viewport beneath the reader's pointer. */
     grid-template-rows: auto var(--lf-shot-label-height);
+  }
+  lf-shot::before {
+    --lf-shot-toolbar: calc(
+      var(--lf-chooser) + 2 * var(--lf-shot-toolbar-pad) + var(--lf-sp-1) +
+        var(--lf-shot-label-height)
+    );
   }
   .lf-shot-actions {
     justify-content: space-between;
@@ -170,8 +236,6 @@ lf-shot {
   box-sizing: border-box;
 }
 .lf-shotstage {
-  /* Keep the shared image frame's shadow inside the scrollport. */
-  --lf-shot-frame-room: calc(var(--lf-raise-1-drop) + var(--lf-raise-1-blur));
   padding: var(--lf-shot-frame-room);
   /* Bounded hosts fill their allocation; flow pairs take their fitted height. */
   flex: 1 1 auto;

@@ -10,20 +10,25 @@
    with a reload, and a new page opens with the layer shown: a lasting "never show
    markers" would hide every arrival on every page.
 
-   `setAnnotationsHidden` is the one writer. It states the fact on the root for the
-   stylesheets, keeps it for the tab, and tells each watcher, so the margin can take
-   focus and its card off what it hides and the passage paint can empty the durable
-   marks (anchor-paint.js, `paintDurable`). Readers ask
-   `annotationsHidden()` rather than the root attribute, which is a rendering; a
-   renderer that reads it repaints when it changes. */
+   `setAnnotationsHidden` is the one writer. It states the fact on the chrome's root
+   (`data-lf-annotations-hidden`) for the stylesheets, keeps it for the tab, and tells
+   each watcher, so the margin can take focus and its card off what it hides and the
+   passage paint can empty the durable marks (anchor-paint.js, `paintDurable`). Readers
+   ask `annotationsHidden()` rather than the attribute, which is a rendering; a renderer
+   that reads it repaints when it changes. The margin's pins and change bars stand in
+   the chrome and read the attribute through its root; the contents map's changed
+   stretch, in the page, reads it through `:root:has()` (toc.css). On `html`, a custom
+   property the attribute set restyled every element of the page each time the layer
+   changed, and a rule reading it through a descendant combinator made Firefox visit
+   every element: 2 to 3 s of Firefox's main thread on a page of 1.5 million. */
 import { signal } from "/runtime/framework.js";
-import { tabStore } from "../tab-store.js";
-import { setRuntimeRootAttribute } from "../root-state.js";
-import { pageCommand } from "../keyboard/register.js";
-import { notice } from "../notifications.js";
-import { coarsePointer } from "../pointer.js";
+import { tabStore } from "./tab-store.js";
+import { chromeRoot } from "./chrome.js";
+import { pageCommand } from "./keyboard/register.js";
+import { notice } from "./notifications.js";
+import { coarsePointer } from "./pointer.js";
 
-import { ANNOTATIONS_KEY } from "../restore-state.js";
+import { ANNOTATIONS_KEY } from "./restore-state.js";
 
 const hidden = signal(false);
 /** @type {Set<(hidden: boolean) => void>} */
@@ -43,7 +48,6 @@ export function mountAnnotationControls() {
     title: () => (hidden.value ? "show annotations" : "hide annotations"),
     touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",
-    when: () => watchers.size > 0,
     run: () => {
       setAnnotationsHidden(!hidden.value);
       notice(
@@ -61,11 +65,7 @@ export function mountAnnotationControls() {
 function setAnnotationsHidden(on) {
   if (on === hidden.value) return;
   hidden.value = on;
-  setRuntimeRootAttribute(
-    document.documentElement,
-    "data-lf-annotations",
-    on ? "hidden" : null,
-  );
+  chromeRoot.toggleAttribute("data-lf-annotations-hidden", on);
   tabStore.set(ANNOTATIONS_KEY, on ? "hidden" : null);
   for (const watcher of watchers) watcher(on);
 }

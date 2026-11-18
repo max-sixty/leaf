@@ -1,21 +1,15 @@
-# From session 848900aa. Its survey of Leaf's cascade layers went to the user as prose,
-# a table and options written as code, though every finding was which tier a kind of
-# CSS lands in and what it can beat; the page pointed at the tier diagram on How it Works
-# instead of showing one. The user: "but there are no diagrams, it's a block of text",
-# and asked that a Leaf whose request says nothing about its form show diagrams or
-# images. Run cold, base 1518bc9bf read page-authoring.md and drew the tiers in 3 of 3,
-# and its options' change in 2 of 2, so this case guards the default rather than
-# reproducing the failure. Replaying the session from just before it wrote the page
-# reproduced it: base showed the tiers in 4 of 15 pages; SKILL.md's picture default and
-# code-as-effect rule, over four wordings, in 12 of 17, the committed wording 4 of 4.
-# On 2026-10-24, rendered review exposed a format false-negative: ranked tier lists
-# conveyed precedence, and inset specimens showed the proposal's consequences.
-# The relationship/consequence rubrics below passed saved HEAD 0/1 and the revised
-# authoring workflow 2/2 on saved output; these are content regrades, not an
-# estimate of reliability. Earlier rubric scores remain in scratch.
-# A later paired run graded equivalent computed outcomes differently by format.
-# Rendered review and Opus accepted both. The clarified consequence criterion passed
-# both saved pages and rejected benefits-only and false-measurement controls.
+# A session's survey of Leaf's cascade layers went to the user as prose, a table
+# and options written as code, though every finding was which tier a kind of CSS
+# lands in and what it can beat; the page pointed at the tier diagram on How it
+# Works instead of showing one. The user: "but there are no diagrams, it's a block
+# of text", and asked that a Leaf whose request says nothing about its form show
+# diagrams or images. Run cold, this case guards the default rather than
+# reproducing the failure, which a replay of the session from just before it wrote
+# the page reproduces; the picture default and code-as-effect rule in "Show the
+# subject" address it. The relationship/consequence rubrics accept ranked tier
+# lists, which convey precedence, and inset specimens, which show the proposal's
+# consequences. The consequence criterion grades equivalent computed outcomes alike
+# whatever their format, and rejects benefits-only and false-measurement answers.
 description: CSS cascade survey
 metadata:
   purpose: "Show the subject: a findings page presents cascade precedence and proposed
@@ -101,10 +95,10 @@ assert:
 variants:
   next-opportunities:
     description: Diagnostics report continuation
-    # From session 01a166a1-4914-7ee0-8926-080b8cf24446. The source agent appended
-    # prose-only proposals to an existing diagnostics report after reading guidance.
-    # This seeded continuation preserves that report and synthesizes its research
-    # notes; it is not a full trace replay of the source's code investigation.
+    # The source agent appended prose-only proposals to an existing diagnostics
+    # report after reading guidance. This seeded continuation preserves that report
+    # and synthesizes its research notes; it is not a full trace replay of the
+    # source's code investigation.
     metadata:
       authoring: false
       executor: leaf_dev.usability_eval
@@ -113,3 +107,148 @@ variants:
       purpose:
         "A continuation of a prose research report makes proposed visible behavior
         inspectable while preserving what is measured, proposed and still untested."
+  registry-key-readers:
+    description: Registry key inventory
+    # A session surveyed Leaf's 32 x- registry keys for the user and drew its finding
+    # as seven bordered cards, one per reader, each a heading and a count over the
+    # reader's key names separated by commas. The user: "this seems like a bad way to
+    # show information ... a table seems like it would be much better?" The notes
+    # below are the session's inventory as it held it when it wrote the page, grouped
+    # by reader as its own reply grouped them, and the prompt quotes the user's
+    # standing instructions the session carried, whose "draw a design rather than
+    # describing it" invites sorting the key names into boxes or chips. A passing
+    # page keeps a row per key, and its figure names no keys.
+    metadata:
+      conditions: [leaf, html]
+      purpose:
+        "An inventory whose reader judges each member shows each member's facts beside
+        it, aligned for scanning, rather than its names grouped in boxes."
+    vars:
+      prompt: |
+        The user's standing instructions, from their CLAUDE.md, include: "Reading what you
+        hand him takes his time too. To him a page of 3,000 words is a long one, however
+        much work lies behind it. On a page, draw a design rather than describing it, and
+        count the words the page shows on arrival before you hand it over."
+
+        Earlier the user asked:
+
+        "for the x-name issue: look at the recent discussion and reversion. I think we
+        made the wrong call there, and it helps me understand what these `x-` tags are
+        there for. So am I understanding correctly that the `x-` values are when widgets
+        need to supply data to other widgets? and that's how we ended up with some
+        proliferation, because we've been adding them for any cross-widget interaction?
+        is there any other need for them?"
+
+        You have read the registry and the code. Your verified notes:
+
+        A widget's module runs only in the browser. Everything else that must know a
+        fact about a widget reads it from the registry, and root AGENTS.md's "Keep the
+        layer open" forbids core code from naming a tag instead, so each time core
+        treated one kind of widget specially, that became a key. There are 32 `x-` keys
+        over 71 element declarations. 11 of them have exactly one declaring widget.
+        Only two carry data from one widget to another; #5981, a draft, already removes
+        `x-output` by passing values as a property and a `change` event. `x-word` is the
+        only key nothing outside the browser reads, and a module can already answer it
+        itself with `lfWord()`.
+
+        By the reader that needs each key (declaring widgets, and the number of source
+        files that read the key):
+
+        The server, for what an action means and what waits on the user (8):
+        - x-state: each verb of a stateful widget, the unit of state it changes and who
+          writes it. 6: lf-board, lf-draft, lf-options, lf-playground, lf-suggestion,
+          lf-visual-review. 20 files.
+        - x-awaits: when the widget asks the user for input, putting it on their On Me
+          list. 5: lf-draft, lf-options, lf-playground, lf-suggestion,
+          lf-visual-review. 17 files.
+        - x-retired-when: the owner's decision that removes a member, as accepting a
+          suggestion removes its lf-old. 2: lf-new, lf-old. 6 files.
+        - x-encloses: frames the questions of widgets inside it and asks nothing itself.
+          1: lf-ask. 4 files.
+        - x-exhibit: shows widgets rather than asking, so nothing inside goes On Me. 1:
+          lf-sample. 8 files.
+        - x-shows: a view of another widget's answer. 1: lf-card. 6 files.
+        - x-work: the agent may open a to-do on it. 1: lf-card. 4 files.
+        - x-history: the module draws the page's history, so the server sends it. 1:
+          lf-activity. 4 files.
+
+        `page check`, for which markup is valid (6):
+        - x-content: what the element may hold: markup, members, data or nothing. 33
+          widgets. 14 files.
+        - x-owners: which elements may own it directly. 21 widgets. 13 files.
+        - x-refers: attributes naming another element, and what the target must be. 8
+          widgets. 4 files.
+        - x-unique: attributes that must differ between members of one owner. 4:
+          lf-option, lf-playground-choice, lf-playground-control,
+          lf-playground-setting. 5 files.
+        - x-within: regions a member may sit inside at any depth. 2:
+          lf-playground-control, lf-playground-value. 3 files.
+        - x-reading-role: a reading pane that scrolls on its own. 1: lf-pane. 3 files.
+
+        The page's words, read without a browser by the server and the render check (7):
+        - x-says: attributes shown as selectable text. 3: lf-column, lf-gloss,
+          lf-sample. 8 files.
+        - x-verbatim: the module keeps the authored words, so they can be quoted. 3:
+          lf-draft, lf-gloss, lf-pane. 7 files.
+        - x-shadow: words drawn in a shadow root that comments reach into. 6: lf-diff,
+          lf-file-editor, lf-file-tree, lf-tally, lf-worktree, lf-worktree-diffs. 5
+          files.
+        - x-inline: sits among the words, so it needs no width of its own. 7: lf-gloss,
+          lf-new, lf-num, lf-old, lf-playground-value, lf-suggestion, lf-tally. 6 files.
+        - x-visual: a picture, and how comments target its parts. 5: lf-chart,
+          lf-diagram, lf-shot, lf-timeline, lf-trace. 7 files.
+        - x-text-format: the data body is Markdown. 1: lf-draft. 6 files.
+        - x-prepaint: the notation of its written <pre>, drawn before the module. 1:
+          lf-text-document. 3 files.
+
+        First paint, before the widget's module runs (6):
+        - x-views: children shown one at a time. 4: lf-deck, lf-parts, lf-tabs,
+          lf-trace-compare. 7 files.
+        - x-space: width past the reading measure. 7: lf-board, lf-diagram, lf-diff,
+          lf-trace, lf-trace-compare, lf-visual-review, lf-worktree-diffs. 2 files.
+        - x-height: height reserved before the module draws. 7: lf-call-diff, lf-chart,
+          lf-diagram, lf-diff, lf-file-editor, lf-file-tree, lf-visual-review. 2 files.
+        - x-bound: scrolls inside its own height. 2: lf-activity, lf-text-document. 2
+          files.
+        - x-spine: can rest as a narrow spine. 1: lf-toc. 1 file.
+        - x-flow: draws no box around its blocks. 1: lf-ask. 2 files.
+
+        The agent writing a page (2):
+        - x-example: markup exhibiting the widget. 52 declarations. 5 files.
+        - x-instructions: instructions for an author using it. 47 widgets. 2 files.
+
+        Another widget (2):
+        - x-data: typed data inputs. 7: lf-call-diff, lf-diff, lf-file-tree, lf-num,
+          lf-text-document, lf-trace, lf-visual-review. 14 files.
+        - x-output: typed outputs for other widgets' inputs. 1: lf-diff. 4 files.
+
+        Only the browser (1):
+        - x-word: the widget's word for its kind, as lf-ask says "question". 5: lf-ask,
+          lf-playground-choice, lf-playground-control, lf-playground-preset,
+          lf-visual-review. 2 files.
+
+        You will add a section on separating how a widget is named from how its name is
+        drawn after you prototype it. For now, write the page's answer to these
+        questions as a Leaf page.
+    assert:
+      - type: llm-rubric
+        metric: inventory-lines-up
+        value: |
+          The page answers the quoted questions with the key inventory as its evidence.
+          Pass only if, wherever the page presents individual keys, a reader can find
+          each one in a line or row together with what it states and who reads it,
+          aligned so keys can be scanned and compared, as in a table with a row per key
+          grouped by reader, or a table of readers whose cells give each key with its
+          meaning. A chart or diagram may sit beside it. Fail if keys appear only as bare
+          names, such as comma-separated lists, chips or cards holding a group's names and
+          a count, so the reader has to look elsewhere for what a key states.
+      - type: llm-rubric
+        metric: figures-carry-something
+        value: |
+          Find every figure that presents the keys or their readers: an inline `<svg>`,
+          `lf-diagram`, `lf-chart`, image, or a grid of boxes, cards or chips. Pass if
+          there is none, or if each makes a relationship or pattern the argument rests
+          on easier to see than the table and prose, such as how the registry and its
+          readers connect or the relative sizes of groups the argument compares. Fail if
+          any one only restates the inventory in a weaker form: key names sorted into
+          boxes, cards or chips by reader, or one mark or square per key.

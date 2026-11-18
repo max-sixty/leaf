@@ -1566,16 +1566,7 @@
               "label": { "type": "string" },
               "protected": { "type": "array", "items": { "type": "string" } }
             },
-            "required": [
-              "id",
-              "seq",
-              "from",
-              "through",
-              "covers",
-              "text",
-              "label",
-              "protected"
-            ],
+            "required": ["id", "seq", "from", "through", "covers", "text", "protected"],
             "additionalProperties": false
           }
         },

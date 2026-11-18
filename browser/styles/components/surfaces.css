@@ -807,6 +807,9 @@ summary {
      the next message, a checkpoint, the working step or the reply box: far more than a
      head's gap to its words, so each head reads with the message under it. */
   --lf-msg-gap: 24px;
+  /* How far a summary's region stands inside the conversation's edges; its words
+     stand at the conversation's inset from its start and as far from its end. */
+  --lf-summary-edge: 3px;
   /* A message's controls, symbols as tall as the thread's own, one group at its
      head's end (controls.css). */
   --lf-msg-control-size: var(--lf-icon-action-face);
@@ -861,7 +864,7 @@ summary {
 .lf-msg {
   margin: var(--lf-msg-gap) 0 0;
 }
-.lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
+.lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
   margin-top: 0;
 }
 /* Every message header holds the same control-height row, including sticky margin
@@ -1002,8 +1005,8 @@ summary {
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
-   closed (thread/transcript.js). One disclosure beside that context controls the
-   entire range. Open, the covered messages follow it at their own inner gap. */
+   closed (thread/transcript.js). One disclosure at its head controls the entire
+   range. Open, the covered messages follow it at their own inner gap. */
 .lf-thread-checkpoint {
   margin-block: var(--lf-msg-gap);
   anchor-name: var(--lf-fold-head);
@@ -1025,7 +1028,8 @@ summary {
    so opening a group moves none of their words: an answer folding the progress a
    reader is on keeps it open in place (held-news.js). It spans siblings, from the
    checkpoint's head to the foot of its last message, so it is anchored to both, in the
-   thread content outside the scrolling transcript. Collapsed disclosures stay inline. */
+   thread content outside the scrolling transcript. Collapsed disclosures stay inline.
+   An open summary fills the same span with its region's tint instead (below). */
 .lf-thread-checkpoint[data-lf-expanded="true"]::before {
   content: "";
   position: absolute;
@@ -1038,22 +1042,51 @@ summary {
   pointer-events: none;
 }
 .lf-summary-checkpoint {
-  padding-block: 4px;
+  padding: 8px calc(var(--lf-thread-text-inset) - var(--lf-summary-edge));
+  margin-inline: calc(var(--lf-summary-edge) - var(--lf-thread-text-inset))
+    var(--lf-summary-edge);
+  border-radius: var(--lf-r);
+  background: var(--lf-settled-tint);
 }
-/* Keep the context label readable when the disclosure needs another line. */
+/* Open, the region takes in the messages the summary folds: the fill stands where the
+   border of an open progress fold does, under them, and each stands in the region's
+   box on its tint, so a head stuck at a card's top keeps both, and its words stand
+   where the summary's do. Under them, the fill needs the transcript to be the
+   stacking context it paints in. */
+.lf-thread-transcript:has(
+  > .lf-thread-checkpoint[data-lf-summarized][data-lf-expanded="true"]
+) {
+  isolation: isolate;
+}
+.lf-thread-checkpoint[data-lf-summarized][data-lf-expanded="true"]::before {
+  z-index: -1;
+  inset-block-start: anchor(var(--lf-fold-head) start);
+  inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 8px);
+  inset-inline-start: calc(
+    anchor(var(--lf-fold-head) start) + var(--lf-summary-edge) -
+      var(--lf-thread-text-inset)
+  );
+  inset-inline-end: calc(anchor(var(--lf-fold-head) end) + var(--lf-summary-edge));
+  border: 0;
+  background: var(--lf-settled-tint);
+}
+.lf-thread-transcript > .lf-msg[data-lf-summarized] {
+  --lf-msg-rest-ground: var(--lf-settled-tint);
+  padding-inline: calc(var(--lf-thread-text-inset) - var(--lf-summary-edge));
+  margin-inline: calc(var(--lf-summary-edge) - var(--lf-thread-text-inset))
+    var(--lf-summary-edge);
+}
+/* The press at the summary's head stands in a message time's quiet face, which it
+   takes as words among others do (controls.css, the inline face). */
 .lf-summary-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-}
-/* The label keeps the status face. The sender's face, or its weight at this size, wraps it
-   beside a margin card's actions, in the room Next unread's words leave. */
-.lf-summary-label {
-  min-width: 0;
-  overflow-wrap: anywhere;
   color: var(--lf-muted);
   font: var(--lf-font-status);
+}
+/* The name the agent gave the range, leading its words. */
+.lf-summary-label {
+  color: var(--lf-ink);
+  font-weight: 600;
 }
 .lf-summary-text {
   color: var(--lf-ink-2);

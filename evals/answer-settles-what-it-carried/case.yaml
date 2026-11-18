@@ -33,7 +33,7 @@ vars:
 
     Leaf''s prompt hook has now handed you this complete inline delivery:
 
-    {"format": "leaf-delivery/46", "id": "70f3afed", "created_at": 1792975809.950627, "acknowledge": null,
+    {"format": "leaf-delivery/50", "id": "70f3afed", "created_at": 1792975809.950627, "acknowledge": null,
     "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": null, "through_seq":
     4, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need
     clarification, ask in a thread on the picked option. To override the pick in a later version, mark
@@ -89,7 +89,7 @@ variants:
 
         Leaf''s prompt hook has now handed you this complete inline delivery:
 
-        {"format": "leaf-delivery/46", "id": "f3afc2a0", "created_at": 1792975809.919296, "acknowledge":
+        {"format": "leaf-delivery/50", "id": "f3afc2a0", "created_at": 1792975809.919296, "acknowledge":
         null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": null, "through_seq":
         4, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you
         need clarification, ask in a thread on the picked option. To override the pick in a later version,

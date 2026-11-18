@@ -635,7 +635,7 @@ def _thread_summaries(
             "through": event["through"],
             "covers": covers,
             "text": event["text"],
-            "label": event.get("label", "Earlier discussion"),
+            **({"label": event["label"]} if "label" in event else {}),
         }
         holder.update(dict.fromkeys(covers, event["id"]))
     return sorted(active.values(), key=lambda summary: positions[summary["from"]])

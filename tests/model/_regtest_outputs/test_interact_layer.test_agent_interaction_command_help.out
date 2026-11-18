@@ -89,7 +89,7 @@ Options:
   --text TEXT        the summary's Markdown
   --file PATH        read the summary's Markdown from PATH, - for stdin; with
                      neither option, from piped stdin
-  --label TEXT       disclosure label (default: Earlier discussion)
+  --label TEXT       a name for the folded range, leading the summary
   --help             Show this message and exit.
 
 ## leaf page open --help

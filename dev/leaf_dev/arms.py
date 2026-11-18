@@ -187,8 +187,11 @@ def run_leaf(
     check: bool = False,
     timeout: float | None = None,
     input_text: str | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run an arm's launcher under its state home, without personal configuration."""
+    """Run an arm's launcher under its state home, without personal configuration,
+    with `env` added, such as a session for a command only an agent's voice may
+    run."""
     proc = subprocess.run(
         [str(arm / "bin/leaf"), *args],
         input=input_text,
@@ -196,7 +199,7 @@ def run_leaf(
         text=True,
         check=False,
         timeout=timeout,
-        env=fixture_environment(environment(XDG_STATE_HOME=str(state))),
+        env=fixture_environment(environment(XDG_STATE_HOME=str(state), **(env or {}))),
     )
     if check and proc.returncode:
         raise click.ClickException(
@@ -262,10 +265,13 @@ class ServedPage(NamedTuple):
     state: Path
 
     def leaf(
-        self, *args: str, timeout: float | None = None
+        self, *args: str, timeout: float | None = None, **env: str
     ) -> subprocess.CompletedProcess:
-        """Run the arm's launcher under the state home, refusing a failed command."""
-        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
+        """Run the arm's launcher under the state home with `env` added, refusing a
+        failed command."""
+        return run_leaf(
+            self.arm, self.state, *args, check=True, timeout=timeout, env=env
+        )
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from

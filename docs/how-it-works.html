@@ -3333,10 +3333,10 @@ EOF</code></pre>
             <h2>Summaries</h2>
             <p id="summaries-fold">
               <code>leaf thread summarize</code> folds a run of consecutive messages in
-              one thread under a disclosure labelled “Earlier discussion” or a label the
-              agent chooses, with a summary of their decisions, reasoning, and open
-              questions. The original messages stay in the log and unfold from the
-              disclosure. A range may take in earlier summaries, which the new one
+              one thread under a summary of their decisions, reasoning, and open
+              questions, led by a name the agent may give the range. The original
+              messages stay in the log and unfold from the summary's “5 earlier
+              messages”. A range may take in earlier summaries, which the new one
               replaces. A summary answers nothing and closes nothing. Leaf refuses a
               range that would leave any message but the thread's first in full above a
               summary, and names a wider range it accepts.

@@ -135,7 +135,7 @@ import {
   pressRecords,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
-import { under, upFrom } from "../shadow.js";
+import { under, upFrom } from "../shadow-tree.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldObligation } from "../current-target.js";
 import { focusPlace } from "../user-place.js";

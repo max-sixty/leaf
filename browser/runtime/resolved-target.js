@@ -11,7 +11,7 @@
  * mark, margin row or page order, and travel to it opens the message. */
 
 import { shownParts } from "./geometry.js";
-import { renderedOrder } from "./shadow.js";
+import { renderedOrder } from "./shadow-tree.js";
 import { rangeOf, segmentLines, segmentsBox } from "./passages.js";
 
 /** @typedef {{exact: boolean, status: "exact" | "fallback" | "outdated", datumElement: Element | null}} Resolution

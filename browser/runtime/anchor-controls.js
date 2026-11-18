@@ -47,8 +47,7 @@ import {
 import { pageUpgraded } from "./page-paint.js";
 import { documentChanged, readPart } from "./semantic-state.js";
 import { tokenEntry } from "./registry.js";
-import { isElement } from "./shadow-tree.js";
-import { shadowHost, upFrom } from "./shadow.js";
+import { isElement, shadowHost, upFrom } from "./shadow-tree.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
 import { offer, offeredAction } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";

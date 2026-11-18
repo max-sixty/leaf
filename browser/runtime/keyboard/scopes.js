@@ -71,8 +71,12 @@ import {
   word,
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
-import { composedParentNode, renderedParent } from "../shadow.js";
-import { eachRenderedElement, isElement } from "../shadow-tree.js";
+import {
+  eachRenderedElement,
+  isElement,
+  composedParentNode,
+  renderedParent,
+} from "../shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";

@@ -40,9 +40,8 @@
 import { seenRect } from "./geometry.js";
 import { glideGap } from "./scroll-containers.js";
 import { scrollBehavior } from "./motion.js";
-import { under } from "./shadow.js";
 import { onCurrentLocation } from "./focus.js";
-import { isElement } from "./shadow-tree.js";
+import { isElement, under } from "./shadow-tree.js";
 
 /** @typedef {{surface: Element, floats: () => boolean, away: () => boolean,
  * bringBack: (behavior: ScrollBehavior) => unknown}} OffFlowSurface */

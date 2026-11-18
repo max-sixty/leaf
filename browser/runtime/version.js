@@ -196,7 +196,7 @@ import {
   reindexPassageOwners,
   rememberPassageParts,
 } from "./widget-loader.js";
-import { byRenderedOrder, under } from "./shadow.js";
+import { byRenderedOrder, under } from "./shadow-tree.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { replaceEntry } from "./history.js";
 import {

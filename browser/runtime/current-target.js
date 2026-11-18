@@ -65,8 +65,13 @@ import { THREAD } from "./thread/selectors.js";
 import { readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
-import { composedParentNode, renderedOrder, renderedUnder, under } from "./shadow.js";
-import { isElement } from "./shadow-tree.js";
+import {
+  isElement,
+  composedParentNode,
+  renderedOrder,
+  renderedUnder,
+  under,
+} from "./shadow-tree.js";
 import { eventSource } from "./pointer.js";
 import { pageReadingBlock, seenWhereRead } from "./reading-place.js";
 

@@ -111,22 +111,25 @@
    silently discover nested widget families inside shadow roots as new top-level
    content. */
 
-import { isNode, closestAcross } from "./shadow-tree.js";
-import { liveStages } from "./arrivals.js";
-export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
+  isNode,
+  closestAcross,
   SAID,
-  declaredRoot,
   UI_MARKS,
   inUi,
   overIn,
-  refuseShadowRoot,
-  queryAllUnder,
   shadowHost,
-  shadowRootsIn,
   uiInside,
   under,
   upFrom,
+} from "./shadow-tree.js";
+import { liveStages } from "./arrivals.js";
+export { closestAcross, inChrome } from "./shadow-tree.js";
+import {
+  declaredRoot,
+  refuseShadowRoot,
+  queryAllUnder,
+  shadowRootsIn,
 } from "./shadow.js";
 import {
   alongClimb,

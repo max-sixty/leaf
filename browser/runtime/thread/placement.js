@@ -28,7 +28,7 @@ import {
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, overIn, upFrom } from "../shadow.js";
+import { byRenderedOrder, overIn, upFrom } from "../shadow-tree.js";
 import { threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
 // ---------- where the panel puts a thread ----------

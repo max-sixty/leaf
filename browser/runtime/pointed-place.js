@@ -36,8 +36,7 @@ import { resolveAnchor } from "./anchor-resolution.js";
 import { inChrome, pageReadingVersion } from "./passages.js";
 import { clamp } from "./rect.js";
 import { targetSegments } from "./resolved-target.js";
-import { isElement, isText } from "./shadow-tree.js";
-import { upFrom, under } from "./shadow.js";
+import { isElement, isText, upFrom, under } from "./shadow-tree.js";
 
 // A sent comment's point by its thread's key: `{ element, passage, row, readFor }`.
 /** @typedef {{element: Element, passage: import("./anchor-resolution.js").Anchor | null, row: string, readFor: object | null}} HeldPoint */

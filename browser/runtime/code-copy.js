@@ -46,10 +46,9 @@ import {
 } from "./block-controls.js";
 import { headerLevels } from "./css-anchors.js";
 import { leafSurface } from "./passages.js";
-import { skipped } from "./shadow-tree.js";
+import { skipped, upFrom } from "./shadow-tree.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { focusDestination, onCurrentLocation } from "./focus.js";
-import { upFrom } from "./shadow.js";
 import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";

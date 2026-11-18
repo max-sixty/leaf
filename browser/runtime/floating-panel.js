@@ -385,7 +385,7 @@ import { registerReadingRegion } from "./reading-regions.js";
 import { sectionsInView } from "./reading-place.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
-import { byRenderedOrder, renderedUnder, under } from "./shadow.js";
+import { byRenderedOrder, renderedUnder, under } from "./shadow-tree.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import {

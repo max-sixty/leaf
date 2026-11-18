@@ -25,7 +25,7 @@ import { bareReaction } from "./thread/model.js";
 import { threadNamed } from "./thread/state.js";
 import { threadPreview } from "./thread/messages.js";
 import { declareRanges, pointRange } from "./preview.js";
-import { renderedParent, shadowHost, upFrom } from "./shadow.js";
+import { renderedParent, shadowHost, upFrom } from "./shadow-tree.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { keepsOnOne } from "./keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";

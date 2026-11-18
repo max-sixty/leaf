@@ -54,7 +54,7 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { renderedOrdering, shadowHost, under } from "./shadow.js";
+import { renderedOrdering, shadowHost, under } from "./shadow-tree.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { hasObligationSource } from "./obligations/source.js";

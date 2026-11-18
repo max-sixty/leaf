@@ -54,7 +54,7 @@ import {
   threadList,
 } from "./thread/state.js";
 import { inPageOrder } from "./thread/placement.js";
-import { renderedOrder, under } from "./shadow.js";
+import { renderedOrder, under } from "./shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";

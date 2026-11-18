@@ -90,17 +90,15 @@ import {
   stuckShift,
 } from "../geometry.js";
 import {
-  composedParentNode,
-  renderedParent,
-  renderedUnder,
-  upFrom,
-} from "../shadow.js";
-import {
   eachRenderedChild,
   eachRenderedElement,
   isText,
   skipped,
   skipper,
+  composedParentNode,
+  renderedParent,
+  renderedUnder,
+  upFrom,
 } from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";

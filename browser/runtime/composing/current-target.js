@@ -21,7 +21,7 @@ import { inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
 import { placeOf } from "../current-target.js";
 import { heldThread } from "../thread/focus.js";
-import { under } from "../shadow.js";
+import { under } from "../shadow-tree.js";
 import { readObligations } from "../obligations/model.js";
 import { obligationPlace } from "../obligations/place.js";
 import { OBLIGATION_CONTROL } from "../obligations/view-elements.js";

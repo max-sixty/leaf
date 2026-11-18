@@ -84,7 +84,7 @@ import {
 } from "./passages.js";
 import { declarationFor, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
-import { overIn } from "./shadow.js";
+import { overIn } from "./shadow-tree.js";
 import { conversationsAbout, headingAfter, partOver } from "./thread/placement.js";
 import { leafSays, voiced } from "./voice.js";
 import { capitalized, counted, excerptWords, labelWords } from "./words.js";

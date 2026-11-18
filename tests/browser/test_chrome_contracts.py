@@ -1,5 +1,6 @@
 """Everyday browser contracts for shared chrome."""
 
+import base64
 import io
 import json
 import re
@@ -1014,7 +1015,9 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
 
     Page mode carries and constructs no physical annotation sheet, while shared paint,
     the passage marks among it, still reaches both trees. The selected overlay adds its
-    actual annotation sheet.
+    actual annotation sheet. The chrome names the layer's mark inline, so the leaf it
+    masks draws with no fetch (`revision_delivery.delivery_sheets`): its rules read as
+    the file's but for where each URL points, and the mark is the layer's icon.svg.
     """
     page = open_page(
         browser, serve(LONG_PAGE.replace("<body>", f'<body data-annotations="{mode}">'))
@@ -1040,8 +1043,9 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         files[name] = answer.text()
 
     readings = page.evaluate(
-        """async (files) => {
-          const rules = (sheet) => [...sheet.cssRules].map((rule) => rule.cssText);
+        r"""async (files) => {
+          const rules = (sheet) =>
+            [...sheet.cssRules].map((rule) => rule.cssText.replace(/url\([^)]*\)/g, "url()"));
           const fromFile = (text) => {
             const sheet = new CSSStyleSheet();
             sheet.replaceSync(text);
@@ -1086,6 +1090,11 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert ".lf-inspect {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert ".lf-change-card {" in selected["chrome"]
+    mark = page.request.get(urljoin(layer, "icon.svg"))
+    assert mark.ok, mark.status
+    inline = f"data:image/svg+xml;base64,{base64.b64encode(mark.body()).decode()}"
+    assert inline in selected["chrome"]
+    assert "icon.svg" not in selected["chrome"]
 
 
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(

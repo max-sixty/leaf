@@ -239,22 +239,11 @@ def page_delivery(
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
     # The floating panel's row, which the bootstrap stands after `body` from the first
-    # paint until the panel takes it over (build/panel-row.mjs), inert in a template,
-    # and the mark its leaf masks with (chrome.css), fetched as the mask fetches it, by
-    # CORS, from the head on, so the leaf is drawn in the row's first frame rather than
-    # once the mask's rule first matches.
+    # paint until the panel takes it over (build/panel-row.mjs), inert in a template.
     row = runtime_element(
         "template",
         {"data-lf-panel-row": True},
         resources["/runtime/panel-row.html"].data.decode(),
-    ) + runtime_element(
-        "link",
-        {
-            "rel": "preload",
-            "as": "image",
-            "href": address("/icon.svg"),
-            "crossorigin": "anonymous",
-        },
     )
     runtime = row + runtime_settings(
         resources["/runtime/bootstrap.js"].data.decode(),

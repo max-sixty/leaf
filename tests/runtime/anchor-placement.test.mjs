@@ -7,7 +7,7 @@
    pages with threads and on pages holding only a draft, every thread's placement, and
    the draft's, stands
    where a resolution of its anchor read afresh puts it: no reader reads placement older
-   than the page (anchor-placement.js, `settle`). A fresh resolution names the quote
+   than the page (anchor-placement.js, `settle`), a reading kept from it included. A fresh resolution names the quote
    with a space before it, which the page's index of quotes doesn't keep, so it reads
    the page by a pass of its own (passages.js, `copiesOf`). */
 // Stages watched as the page's are, which the reading watcher hears inside.
@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createAnchorPlacement } from "/runtime/anchor-placement.js";
+import { kept } from "/runtime/kept.js";
 import { resolveAnchor, setAnchoringReady } from "/runtime/anchor-resolution.js";
 import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
@@ -52,14 +53,6 @@ const where = (found) =>
     : found?.kind === "element"
       ? found.element
       : null;
-// Whether two placements (`where`) stand on the same nodes, at the same offsets.
-/** @param {unknown} a @param {unknown} b */
-const samePlace = (a, b) =>
-  a === b ||
-  (Array.isArray(a) &&
-    Array.isArray(b) &&
-    a.length === b.length &&
-    a.every((segment, at) => segment.every((part, i) => part === b[at][i])));
 // The page, with its stage holding its words in a declared shadow tree.
 const load = () => {
   document.body.innerHTML = PAGE;
@@ -196,10 +189,14 @@ test("placement stands where a fresh resolution does, after every change", async
       },
     };
     const kinds = Object.keys(changes);
-    const placedNow = () =>
-      threads.map((thread) => where(placement.placedAt(thread.id)));
-    let placedBefore = placedNow();
-    let versionBefore = placement.placementVersion();
+    const placedNow = () => ({
+      threads: threads.map((thread) => where(placement.placedAt(thread.id))),
+      draft: where(placement.pendingAt()),
+    });
+    // A reading kept from placement (kept.js, `kept`), which no change leaves older
+    // than placement.
+    const keptPlaces = kept(placedNow);
+    keptPlaces();
     for (let step = 0; step < 400; step++) {
       const kind = /** @type {keyof typeof changes} */ (pick(kinds));
       changes[kind]();
@@ -211,14 +208,11 @@ test("placement stands where a fresh resolution does, after every change", async
           where(fresh(anchors[at] ?? thread.anchor)),
           `seed ${seed}, step ${step} (${kind}), thread ${at}`,
         );
-      // A reading derived from placement keeps what it derived while the version
-      // stands, so the version moves whenever a thread's placement does.
-      const placed = placedNow();
-      const version = placement.placementVersion();
-      if (placed.some((place, at) => !samePlace(place, placedBefore[at])))
-        assert.notEqual(version, versionBefore, `seed ${seed}, step ${step} (${kind})`);
-      placedBefore = placed;
-      versionBefore = version;
+      assert.deepEqual(
+        keptPlaces(),
+        placedNow(),
+        `seed ${seed}, step ${step} (${kind}), a reading kept from placement`,
+      );
       assert.deepEqual(
         where(placement.pendingAt()),
         where(fresh(drafted)),

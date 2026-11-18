@@ -22,11 +22,13 @@ import v8 from "node:v8";
 import vm from "node:vm";
 
 import { registry } from "/runtime/registry.js";
+import { kept } from "/runtime/kept.js";
 import {
   blockAt,
   closestAcross,
   contextAround,
   documentOutline,
+  elementById,
   elementReading,
   fencePassageParts,
   findEach,
@@ -381,31 +383,40 @@ test("a forgotten reading is held by no key or kept answer that outlives it", as
 });
 
 // A reading of the page's nodes finds an element by its id and names a part by its
-// label, though neither changes the page's words, so the version it keeps against moves
-// with both. What is kept with the words, as their layout on screen is, stays. A class
-// that isn't Leaf's moves neither.
-test("the page's reading version moves with an id or a part's name, though its words stay", () => {
+// label, though neither changes the page's words, so a reading kept from the page
+// (kept.js) is made again at either, in the task that made it. What is kept with the
+// words, as their layout on screen is, stays. A class that isn't Leaf's moves neither.
+test("a reading kept from the page is made again when an id or a part's name changes", () => {
   document.body.innerHTML =
     '<main><section id="part"><p id="words">Alpha</p></section></main>';
   const owner = {};
-  const kept = () => keptWithReading(document.body, owner, () => ({}));
-  let version = pageReadingVersion();
-  const answer = kept();
+  const withWords = () => keptWithReading(document.body, owner, () => ({}));
+  let made = 0;
+  const reading = kept(() => {
+    made += 1;
+    return elementById("words")?.textContent;
+  });
+  reading();
+  const answer = withWords();
   const part = /** @type {HTMLElement} */ (document.getElementById("part"));
   for (const change of [
     () => part.setAttribute("aria-label", "Pricing"),
     () => part.setAttribute("label", "Terms"),
     () => (part.id = "renamed"),
   ]) {
+    const before = made;
     change();
-    assert.notEqual(pageReadingVersion(), version, String(change));
-    assert.equal(kept(), answer, String(change));
-    version = pageReadingVersion();
+    reading();
+    assert.equal(made, before + 1, String(change));
+    assert.equal(withWords(), answer, String(change));
   }
+  const before = made;
   part.classList.add("plain");
-  assert.equal(pageReadingVersion(), version);
+  reading();
+  assert.equal(made, before);
   /** @type {HTMLElement} */ (document.getElementById("words")).textContent = "Beta";
-  assert.notEqual(kept(), answer);
+  assert.equal(reading(), "Beta");
+  assert.notEqual(withWords(), answer);
   document.body.replaceChildren();
 });
 

@@ -23,6 +23,83 @@ from leaf_dev.example_data import named_source
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
+def _apart(*marks):
+    """Whether no two of the marks' boxes overlap."""
+    boxes = [mark.bounding_box() for mark in marks]
+    return all(
+        a["x"] + a["width"] <= b["x"]
+        or b["x"] + b["width"] <= a["x"]
+        or a["y"] + a["height"] <= b["y"]
+        or b["y"] + b["height"] <= a["y"]
+        for i, a in enumerate(boxes)
+        for b in boxes[i + 1 :]
+    )
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction):
+    """Every badge on a control stays whole beside the others: a margin entry's unread
+    dot and count, in the rail and as a pin, and the folded leaf's count, news and
+    error, in either direction (`.lf-badges`, controls.css)."""
+    source = leaf_page(
+        "Badges",
+        '<p id="answered">Two answers wait here.</p><p id="asked">One question.</p>',
+    )
+    if direction == "rtl":
+        source = source.replace('<html lang="en">', '<html lang="en" dir="rtl">')
+    answer = {
+        "kind": "comment",
+        "author": "agent",
+        "agent": "Claude",
+        "revision": 1,
+        "text": "One answer.",
+        "anchor": {"section": "answered"},
+    }
+    asked = {**answer, "author": "user", "id": "q", "text": "Which first?"}
+    del asked["agent"]
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                answer,
+                {**answer, "text": "Another answer."},
+                {**asked, "anchor": {"section": "asked"}},
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "agent": "Claude",
+                    "revision": 1,
+                    "parent": "q",
+                    "responds": "q",
+                    "obligation": True,
+                    "text": "The hatch or the window?",
+                },
+            ],
+        ),
+    )
+    entry = page.locator('[data-lf-margin-for="answered"]')
+    for width, place in ((1440, "rail"), (700, "pin")):
+        resized(page, width, 900)
+        expect(entry).to_have_attribute("data-lf-place", place)
+        badges = entry.locator(".lf-margin-marker > .lf-badges")
+        expect(badges.locator(".lf-margin-count")).to_have_text("2")
+        expect(badges.locator(".lf-unread-dot")).to_be_visible()
+        assert _apart(
+            badges.locator(".lf-margin-count"), badges.locator(".lf-unread-dot")
+        )
+
+    resized(page, 1440, 900)
+    page.keyboard.press(".")
+    page.evaluate("async () => (await window.__lfWidgetApi()).raiseError('Not saved')")
+    leaf = page.locator(".lf-fp-leaf > .lf-badges")
+    marks = [leaf.locator(name) for name in (".lf-fp-badge", ".lf-fp-news-dot")]
+    marks.append(leaf.locator(".lf-fp-error-dot"))
+    for mark in marks:
+        expect(mark).to_be_visible()
+    assert _apart(*marks)
+
+
 @pytest.mark.parametrize("width", [390])
 def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, width):
     source = named_source("wt-merge")

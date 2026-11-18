@@ -410,7 +410,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     # first key or press there, and then waits in the leaf's menu.
     cover = form.locator(".lf-compose-error")
     expect(cover).to_have_text("Images can be added to comments, not options")
-    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_hidden()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_hidden()
     cover.click()
     expect(cover).to_be_hidden()
     expect(field).to_be_focused()

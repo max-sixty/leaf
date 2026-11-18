@@ -162,6 +162,7 @@ interface HTMLScriptElement {
   lfDocumentPort?: MessagePort;
   // The entry's scene readings, for render checks (`leaf.js`, `validationEntry`).
   lfReadiness?: typeof import("../runtime/presentation.js").pageReadiness;
+  lfArrivalsOutstanding?: typeof import("../runtime/presentation.js").arrivalsOutstanding;
   lfRenderingState?: typeof import("../runtime/rendering.js").renderingState;
   lfObserveQueuedWork?: typeof import("../runtime/queued-work.js").observeQueuedWork;
   lfObserveWidgetPreparations?: typeof import("../runtime/rendering.js").observePreparations;

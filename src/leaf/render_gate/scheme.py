@@ -1,7 +1,6 @@
 """Lifecycle and trusted inputs for the page the render gate reads."""
 
 import re
-import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
@@ -14,7 +13,6 @@ from leaf.refusals import Refused
 from leaf.registry.contract import element_declarations
 from leaf.registry.kernel import kinds_declaring
 from leaf.render_checks import (
-    HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
     asked_again,
@@ -307,21 +305,13 @@ def _render_page(
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `page export` waits on for the same reason.
-    # Upgrade and readiness below are one handover, so they share its deadline: the
-    # upgrade is most of a heavy page's handover, and a probe's patience is not.
-    handover_ends = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
-
-    def handover_left() -> int:
-        # At least 1ms: Playwright reads a zero timeout as none.
-        return max(1, round((handover_ends - time.monotonic()) * 1000))
-
-    # A page that declares it cannot start, as one whose widget module failed to load
-    # does, upgrades nothing more, and nothing replaces the preview server that would
-    # reload it, so the declaration ends each wait as well.
+    # Upgrade and readiness below are one handover, so each waits as a handover does
+    # (`wait_until_ready`): the upgrade is most of a heavy page's handover, and a
+    # probe's patience is not. A page that declares it cannot start, as one whose widget
+    # module failed to load does, upgrades nothing more, and nothing replaces the
+    # preview server that would reload it, so the declaration ends each wait as well.
     try:
-        wait_until_ready(
-            page, through="upgraded", timeout_ms=handover_left(), fixed_server=True
-        )
+        wait_until_ready(page, through="upgraded", fixed_server=True)
     except PageNotReady as error:
         return never_ready(error, "never-upgraded")
     except PlaywrightError as error:
@@ -376,8 +366,8 @@ def _render_page(
     # page can show, so work it holds until the reader nears it starts first.
     unready = None
     try:
-        wait_until_ready(page, state, timeout_ms=handover_left(), fixed_server=True)
-        start_near_work(page, state, timeout_ms=handover_left(), fixed_server=True)
+        wait_until_ready(page, state, fixed_server=True)
+        start_near_work(page, state, fixed_server=True)
     except PageNotReady as error:
         unready = error
     if code is not None and page_code is not None:

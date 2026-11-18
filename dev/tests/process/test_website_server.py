@@ -264,11 +264,11 @@ class _DeployedPage:
             return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
         if expression != "window.__leafVerifier.revisionAtLeast":
             # The readiness the verifier waits on (`wait_until_ready`).
-            assert arg == {"held": None, "through": "presented"}
+            assert arg["asked"] == {"held": None, "through": "presented"}
             self.presentation_waits.append(timeout)
             if self.reloaded and self.reload_stalls_at is not None:
                 raise PlaywrightTimeout("the page never got ready")
-            return None
+            return SimpleNamespace(json_value=lambda: "ready")
         self.revision_waits.append((arg, timeout))
         if self.revision >= arg and not self.presentation_pending:
             return

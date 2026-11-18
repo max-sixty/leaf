@@ -1,11 +1,13 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
+import itertools
 import json
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
-from leaf import user_views
+from leaf import render_checks, user_views
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
@@ -255,6 +257,27 @@ def test_the_render_check_draws_in_the_engine_of_the_last_reported_browser(
     assert desktop_viewport(tmp_path).json()["width"] == 900
     monkeypatch.setenv(PIN_VARIABLE, "fixed")
     assert user_engine(tmp_path) == "chromium"
+
+
+def test_a_handover_whose_arrivals_only_swing_ends_at_its_bound():
+    """A page whose arrivals left swing between two counts at every reading, as they
+    do where each arrival makes way for the next, never progresses, so its readiness
+    wait ends at its bound however fast the readings come."""
+
+    class SwingingPage:
+        readings = itertools.cycle((["arrived", 2], ["arrived", 3]))
+
+        def wait_for_function(self, expression, *, arg, timeout):
+            reading = (
+                "arrived"
+                if expression == render_checks.OUTSTANDING
+                else next(self.readings)
+            )
+            return SimpleNamespace(json_value=lambda: reading)
+
+    with pytest.raises(render_checks.PageNotReady) as unready:
+        render_checks.wait_until_ready(SwingingPage(), timeout_ms=50)
+    assert unready.value.stage == "arrived"
 
 
 def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monkeypatch):

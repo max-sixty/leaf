@@ -704,6 +704,63 @@ test("a mark a render transform draws again is no shape the drawing no longer ho
   );
 });
 
+test("a mark whose shapes a transform joins to other data is read again", () => {
+  // As a d3 update join does, the transform binds the shapes it drew to the index
+  // reversed, keeping each node.
+  /** @type {() => void} */
+  let rejoin = () => {};
+  const rejoined = barShapes({
+    marks: [
+      Plot.barY(BARS, {
+        x: "k",
+        y: "v",
+        render(/** @type {any} */ index, ...[scales, values, size, context, next]) {
+          const drawing = next(index, scales, values, size, context);
+          rejoin = () =>
+            drawing.querySelectorAll("rect").forEach((/** @type {any} */ shape, n) => {
+              shape.__data__ = index[index.length - 1 - n];
+            });
+          return drawing;
+        },
+      }),
+    ],
+  });
+  assert.deepEqual(rejoined.found, rejoined.shown);
+  rejoin();
+  assert.deepEqual(
+    rejoined.reading.points.map((p) => shapeOf(rejoined.reading, p)),
+    [...rejoined.shown].reverse(),
+  );
+});
+
+test("a mark drawn in facets Plot doesn't number names no shape in them", () => {
+  // Plot numbers each facet it draws a mark in (`index.fi`), which its types don't
+  // declare. Were it to stop, every facet would read as one, and the chart rings each
+  // point rather than mark another facet's shape.
+  const bar = Plot.barY(BARS, { x: "k", y: "v", facet: false });
+  const points = readPoints(bundle, [bar]);
+  for (const mark of [bar, ...points.marks]) {
+    const render = mark.render;
+    mark.render = function (/** @type {any} */ index, /** @type {any[]} */ ...rest) {
+      const unnumbered =
+        index && Object.assign([...index], { fx: index.fx, fy: index.fy });
+      return render.call(this, unnumbered, ...rest);
+    };
+  }
+  Plot.plot({
+    width: 640,
+    height: 400,
+    facet: { data: [{ g: "A" }, { g: "B" }], x: "g" },
+    marks: [[bar], points.marks],
+  });
+  const reading = points.done();
+  assert.equal(reading.points.length, 4);
+  assert.deepEqual(
+    reading.points.map((p) => shapeOf(reading, p)),
+    [null, null, null, null],
+  );
+});
+
 test("a time reads to the second or millisecond its datum has", () => {
   const reading = read({
     x: { type: "utc" },

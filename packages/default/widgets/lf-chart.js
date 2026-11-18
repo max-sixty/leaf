@@ -225,11 +225,11 @@ customElements.define(
     /** @type {object | null} */
     #declared = null;
     #presses = 0;
-    // The points Leaf has named by id in the drawing showing, each with the mark drawn
-    // at it (`#find`), or null for one the drawing lacks; whether Leaf has asked for
-    // any, in this drawing or before it; the registration Leaf names them through; and
-    // whether the next rendering pass tells Leaf they changed.
-    /** @type {Map<string, Part | null>} */
+    // The points Leaf has named by id in the drawing showing, each with its point and
+    // the mark drawn at it (`#find`), or null for one the drawing lacks; whether Leaf
+    // has asked for any, in this drawing or before it; the registration Leaf names them
+    // through; and whether the next rendering pass tells Leaf they changed.
+    /** @type {Map<string, {point: Point, part: Part} | null>} */
     #marks = new Map();
     #asked = false;
     /** @type {{update: () => void} | null} */
@@ -529,17 +529,27 @@ customElements.define(
       if (!id.startsWith(POINT)) return null;
       this.#asked = true;
       if (!reading) return null;
-      let part = this.#marks.get(id);
-      if (part === undefined || (part && !reading.svg.contains(part.element))) {
+      let found = this.#marks.get(id);
+      // A bar a render transform has drawn again, or joined to other data, is no longer
+      // the point's (`shapeOf`), where a ring stays its point's.
+      const { element } = found?.part ?? {};
+      if (
+        found &&
+        element &&
+        !reading.marks.contains(element) &&
+        shapeOf(reading, found.point) !== element
+      )
+        found = undefined;
+      if (found === undefined) {
         const datum = id.slice(POINT.length);
         const point =
           this.#at && datumOf(this.#at) === datum
             ? this.#at
             : datumPoint(reading, datum);
-        part = point && this.#mark(reading, point, id);
-        this.#marks.set(id, part);
+        found = point && { point, part: this.#mark(reading, point, id) };
+        this.#marks.set(id, found);
       }
-      return part;
+      return found?.part ?? null;
     }
 
     /** @param {Reading} reading @param {Point} point @param {string} id

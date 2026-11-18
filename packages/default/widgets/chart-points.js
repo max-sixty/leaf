@@ -175,16 +175,20 @@ export function readPoints({ Plot, tipSources, tipRows }, marks) {
   /** @type {Scales | null} */
   let chart = null;
   // What each mark that fills a box for each datum drew in each facet it drew, by the
-  // facet's number, for the shape that is a datum's bar or cell (`shapeOf`).
+  // facet's number, for the shape that is a datum's bar or cell (`shapeOf`). The
+  // number is Plot's own (`index.fi`), which its types don't declare, so a mark drawn
+  // twice under one number, as every facet would be without it, names no shape there.
   const boxes = [Plot.BarX, Plot.BarY, Plot.Cell, Plot.Rect];
   /** @type {Map<number | undefined, Rendered>[]} */
   const rendered = tipped.map(() => new Map());
   tipped.forEach((mark, order) => {
     if (!boxes.some((kind) => mark instanceof kind)) return;
     const render = mark.render;
+    const drawings = rendered[order];
     mark.render = function (index, ...rest) {
       const node = render.call(this, index, ...rest);
-      rendered[order]?.set(index?.fi, { node });
+      const facet = index?.fi;
+      drawings?.set(facet, { node: drawings.has(facet) ? null : node });
       return node;
     };
   });
@@ -428,26 +432,38 @@ function* entries({ i, drawn }) {
  * `<path>` a bar with rounded corners is, that Plot's join bound to the datum's index
  * (d3's `__data__`), inside any link or clip Plot wraps it in. Null for a dot, a line's
  * vertex or an area's, and wherever the chart can't be sure which shape is the
- * datum's: where two shapes hold it, or where a render transform has drawn the mark
- * again since, as Plot's pointer does, replacing what it drew first. The first ask of a
- * facet reads its shapes, one pass, and each ask after it is one lookup.
+ * datum's: where two shapes hold it, where the mark drew twice in what reads as one
+ * facet, or where a render transform has drawn the mark again since, as Plot's pointer
+ * does, replacing what it drew first. A transform that joins other data to the shapes
+ * it drew, reusing them, has the facet's shapes read again. The first ask of a facet
+ * reads its shapes, one pass, and each ask after it is one lookup while the shape it
+ * finds still holds its datum.
  * @param {Reading} reading @param {Point} point @returns {Element | null} */
 export function shapeOf({ rendered }, { order, i, drawn }) {
   const facet = rendered[order]?.get(drawn.fi);
   const root = facet?.node;
   if (!facet || !root?.parentNode) return null;
-  if (!facet.shapes) {
-    /** @type {Map<number, Element | null>} */
-    const shapes = new Map();
-    for (const shape of root.querySelectorAll("rect, path")) {
-      const datum = /** @type {{__data__?: unknown}} */ (shape).__data__;
-      if (typeof datum === "number")
-        shapes.set(datum, shapes.has(datum) ? null : shape);
-    }
-    facet.shapes = shapes;
+  let shape = facet.shapes?.get(i);
+  if (!facet.shapes || (shape && boundTo(shape) !== i)) {
+    facet.shapes = shapesIn(root);
+    shape = facet.shapes.get(i);
   }
-  const shape = facet.shapes.get(i);
   return shape && root.contains(shape) ? shape : null;
+}
+
+/** @param {Element} shape */
+const boundTo = (shape) => /** @type {{__data__?: unknown}} */ (shape).__data__;
+
+/** Each datum's shape under a mark's drawing, or null for a datum two shapes hold.
+ * @param {Element} root */
+function shapesIn(root) {
+  /** @type {Map<number, Element | null>} */
+  const shapes = new Map();
+  for (const shape of root.querySelectorAll("rect, path")) {
+    const datum = boundTo(shape);
+    if (typeof datum === "number") shapes.set(datum, shapes.has(datum) ? null : shape);
+  }
+  return shapes;
 }
 
 /** The token naming a point's datum, kept on it once read.

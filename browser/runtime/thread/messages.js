@@ -821,9 +821,6 @@ export class MessageView {
       present: (reading) => this.present(reading),
     });
     presentation.model = model;
-    // The wording this drawing moves off goes where nothing else holds it.
-    if (prior && shownWording(prior) !== shownWording(model))
-      dropUnheld(prior.attempt ?? prior.id);
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
     if (!prior) {
@@ -925,6 +922,9 @@ export class MessageView {
       }
       settleAuthoredSoon(authoredKey);
     }
+    // The wording this drawing moves off goes where nothing else holds it.
+    if (prior && shownWording(prior) !== shownWording(model))
+      dropUnheld(prior.attempt ?? prior.id);
     const holds =
       model.body.authored && authoredHolders.get(authoredKey) === presentation;
     // Whether this drawing holds the message's widgets, for a surface whose own

@@ -1256,6 +1256,82 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
 @pytest.mark.parametrize(
     "fault, protected",
     [
+        ("", False),
+        ("part_at_once", False),
+        ("unstanding", True),
+        ("from_below", True),
+        ("past_its_place", True),
+    ],
+)
+def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, protected):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, may draw the step news's append growth takes as travel: a ResizeObserver
+    delivery no input owns begins a carry that draws the standing port's head where it
+    was and slides it to where its rise puts it, or draws part of the step at once, as
+    news may draw all of it. The step itself is judged as if drawn at once, so a carry
+    of a step the port may not take still fails, and so does one that draws the head
+    below where it was or past where its rise puts it."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            "<style>@property --carry { syntax: '<length>+'; inherits: false;"
+            " initial-value: 0px 0px; }</style>"
+            '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;left:0;'
+            'width:360px"><header id="row"><button id="head">Close</button></header>'
+            '<div id="port" data-lf-rises '
+            'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<button id="field">Comment</button></section>'
+            """<script>
+            let height = null;
+            new ResizeObserver(() => {
+              const now = port.getBoundingClientRect().height;
+              const grew = height !== null && now > height;
+              height = now;
+              if (!grew) return;
+              const fault = document.body.dataset.fault;
+              const from = { part_at_once: 20, from_below: 80 }[fault] ?? 40;
+              const to = fault === 'past_its_place' ? -20 : 0;
+              window.carries = [row, port].map((part) => {
+                part.style.translate = 'var(--carry)';
+                return part.animate(
+                  [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }],
+                  { duration: 200, fill: 'forwards' });
+              });
+            }).observe(port);
+            </script></body>"""
+        )
+    )
+    if fault == "unstanding":
+        page.locator("#port").evaluate("node => node.removeAttribute('data-lf-rises')")
+    page.evaluate("fault => { document.body.dataset.fault = fault; }", fault)
+    paint(page)
+    page.evaluate(
+        """() => {
+          const next = document.createElement('p');
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+        }"""
+    )
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'finished')"
+    )
+    paint(page)
+    judge_watches()
+    if not protected:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#head"), errors
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
         ("", None),
         ("overgrown_port", "button#head"),
         ("extra_field", "button#field"),

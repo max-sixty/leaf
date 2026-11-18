@@ -27,6 +27,7 @@ from render_harness import (
     round_trip,
     select,
     sending,
+    stored_draft_text,
     told,
     watched,
     write,
@@ -330,6 +331,9 @@ def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, 
     page.keyboard.press("c")
     page.keyboard.type("Kept")
     expect(field).to_have_js_property("value", "Kept")
+    # The reload is served the drafts the server holds: a write still in flight would
+    # land after it and replace the words typed on arrival.
+    assert stored_draft_text(page, "general") == "Kept"
     held = _hold_the_editor(context)
     try:
         page.reload()

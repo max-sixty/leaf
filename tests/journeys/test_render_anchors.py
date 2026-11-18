@@ -1357,9 +1357,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     What the pointer path must not do is here too. A keyboard selection is never
     grown — shift-arrow is the user being precise — so the comment field captures
     a mid-word selection exactly as made. Machine-placed words never glue to the
-    author's: a generated span is a fenced cell in the reading, whether a test writes
-    it or a widget draws it, as a sample draws its label flush before its words
-    inside a list item, where both share the one block.
+    author's: a generated span is a fenced cell in the reading.
 
     A sentence follows the same rule at its two meaningful edges. A drag that already
     reaches its opening and closing words grows over the punctuation around them, but
@@ -1374,8 +1372,6 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         serve(
             INLINE_PAGE.replace(
                 '<p id="p">',
-                '<ul><li><lf-sample id="spec" label="mono">glyphs set close'
-                "</lf-sample></li></ul>\n"
                 '<p id="sentence">🔴 🟢 “<strong>Opening</strong> words stay '
                 "<em>together</em>.” 🔴 🟢 Next sentence.</p>\n"
                 '<ul><li id="nested">“Opening words<p>Nested block.</p>'
@@ -1488,11 +1484,6 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     page.locator("#p2").scroll_into_view_if_needed()
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
-
-    # The sample's label, drawn by its module flush before the sample's own words:
-    # its own cell, so a drag into "glyphs" doesn't take "mono".
-    select(page, spot("lf-sample", "glyphs", 3), spot("lf-sample", "close", 3))
-    assert captured() == "glyphs set close"
 
 
 @pytest.mark.shifts_unsurveyed

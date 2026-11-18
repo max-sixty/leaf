@@ -246,7 +246,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 )
 def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serve):
     """The gutter marks what is quoted and nothing else, at both ends, and two separate
-    things had to be true for that. The "quoted ·" note over the bar is the theme's word
+    things had to be true for that. The "quoted" note over the bar is the theme's word
     *about* the region rather than a word in it, and the bar opened at the note, drawing
     the marking around a line the page never said. And a table cell is a margin barrier,
     so the room the exhibit's outermost blocks reserve against neighbours they haven't
@@ -405,8 +405,6 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 else clip["y"] + painted / scale
             )
             found[f"{edge}-exhibit"] = exhibit[edge]
-            if edge == "top":
-                found["note"] = exhibit["note"]
 
         assert abs(found["top"] - found["top-exhibit"]) <= 1, (
             f"#{spec}'s marking begins at {found['top']} and the exhibit at "
@@ -419,9 +417,3 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             f"a trailing margin inside a child that generates no box, which the "
             f"theme's rule for the sample's last child cannot reach"
         )
-        if found["note"] is not None:
-            assert found["note"] <= found["top"] + 1, (
-                f"#{spec}'s marking begins at {found['top']}, above the foot of the "
-                f"note at {found['note']}: the marking takes in a line the page never "
-                f"said"
-            )

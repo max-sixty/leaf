@@ -60,15 +60,12 @@ export const isPagePaint = (name) =>
   Object.values(marks).some((mark) => mark.attribute === name);
 
 // A word for a user listening, silent on screen: real text — the one thing every
-// screen reader announces in every mode — placed at the element's start, after any
-// title its `label` draws, wearing .lf-ui (an invisible word is apparatus the anchor
-// pass must not offer), .lf-quiet (the shared clip), and data-lf-gen (no author wrote
-// it). One writer per element, and the empty word removes what stands: a fact the
-// page has stopped painting must stop being said too, so a caller states the whole of
-// what this element says quietly and never appends to it. Content widgets once
-// hand-copied this idiom before it was one, and the copies had already diverged on
-// whether a stale word was removed first — which is now renderQuiet's to state for
-// every widget that declares it.
+// screen reader announces in every mode — placed at the element's start, wearing .lf-ui
+// (an invisible word is apparatus the anchor pass must not offer), .lf-quiet (the
+// shared clip), and data-lf-gen (no author wrote it). One writer per element, and the
+// empty word removes what stands: a fact the page has stopped painting must stop being
+// said too, so a caller states the whole of what this element says quietly and never
+// appends to it.
 //
 // Which writer an element gets follows from what paints it, and the two sets do not
 // meet: renderQuiet has the elements the runtime paints a provenance on, and a module
@@ -77,8 +74,7 @@ export const isPagePaint = (name) =>
 // user would hear as the element re-reading itself.
 /** @param {Element} el @param {string | null} word */
 function quietWord(el, word) {
-  const title = el.querySelector(':scope > [data-lf-said="label"]');
-  const seat = title ? title.nextSibling : el.firstChild;
+  const seat = el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");
   if (existing) {
     // Nothing to say that isn't already said, in the place it belongs: a screen
@@ -96,7 +92,7 @@ function quietWord(el, word) {
     textContent: word,
   });
   generatedElement(span, { says: false });
-  move(el, span, title ? title.nextSibling : el.firstChild);
+  move(el, span, el.firstChild);
 }
 
 // The quiet word a module declares on a part it builds, as `data-lf-quiet`, such as a

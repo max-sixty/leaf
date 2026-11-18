@@ -270,9 +270,8 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     resized(page, 420, 900)
     inside = """(id) => {
                   const el = document.getElementById(id);
-                  const inner = el.querySelector("[data-lf-said='value']") ?? el;
                   const range = document.createRange();
-                  range.selectNodeContents(inner);
+                  range.selectNodeContents(el);
                   const style = getComputedStyle(el);
                   return range.getBoundingClientRect().right -
                          (el.getBoundingClientRect().right - parseFloat(style.paddingRight));

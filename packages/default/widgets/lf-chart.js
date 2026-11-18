@@ -526,11 +526,12 @@ customElements.define(
 
     // The point an id names in the drawing showing, or null where the drawing has no
     // such datum: the bar, bin or cell Plot drew for it, or a ring drawn round it once
-    // Leaf asks, which stays until the next drawing. Leaf asks for a comment's point
-    // each time it places comments, and for the point `c` would comment on, the one the
-    // reader is on, at each key step, which is found without a search of the drawing.
-    // So until the next drawing a ring, unseen until Leaf strokes it, stands round each
-    // dot or vertex the keys or a comment reached.
+    // Leaf asks, which stays until the next drawing, as one does round a bar a render
+    // transform has drawn again (`shapeOf`). Leaf asks for a comment's point each time
+    // it places comments, and for the point `c` would comment on, the one the reader is
+    // on, at each key step, which is found without a search of the drawing. So until
+    // the next drawing a ring, unseen until Leaf strokes it, stands round each dot or
+    // vertex the keys or a comment reached.
     /** @param {string} id */
     #find(id) {
       const reading = this.#reading;
@@ -538,7 +539,7 @@ customElements.define(
       this.#asked = true;
       if (!reading) return null;
       let part = this.#marks.get(id);
-      if (part === undefined) {
+      if (part === undefined || (part && !reading.svg.contains(part.element))) {
         const datum = id.slice(POINT.length);
         const point =
           this.#at && datumOf(this.#at) === datum

@@ -617,6 +617,93 @@ test("a bar, a bin and a cell are the shape Plot drew for them, and a dot or ver
   assert.deepEqual(line.found, [null, null, null]);
 });
 
+const BARS = [
+  { k: "a", v: 1 },
+  { k: "b", v: 3 },
+];
+// The shape each point of a bar chart is, and the shapes of `kind` the bars drew.
+/** @param {any} options @param {string} [kind] */
+const barShapes = (options, kind = "rect") => {
+  const { reading, svg } = drawn(options);
+  const shown = [...svg.querySelectorAll(`[aria-label="bar"] ${kind}`)];
+  return { reading, svg, found: reading.points.map((p) => shapeOf(reading, p)), shown };
+};
+
+test("a mark repeated in each facet is, in the second, the shape drawn there", () => {
+  const repeated = barShapes({
+    facet: { data: [{ g: "A" }, { g: "B" }], x: "g" },
+    marks: [Plot.barY(BARS, { x: "k", y: "v", facet: false })],
+  });
+  assert.equal(repeated.shown.length, 4);
+  assert.deepEqual(repeated.found, repeated.shown);
+});
+
+test("a datum's shape is the one Plot bound it to, in whatever order it drew them", () => {
+  const reversed = barShapes({
+    marks: [
+      Plot.barY(BARS, {
+        x: "k",
+        y: "v",
+        render: (
+          /** @type {any[]} */ index,
+          ...[scales, values, size, context, next]
+        ) => next([...index].reverse(), scales, values, size, context),
+      }),
+    ],
+  });
+  assert.deepEqual(reversed.found, [...reversed.shown].reverse());
+});
+
+test("a linked bar, a clipped one and one with rounded corners are their shapes", () => {
+  // Plot wraps a linked bar in a link and a clipped mark's group in another, and
+  // draws a bar with rounded corners as a path.
+  const linked = barShapes({
+    marks: [
+      Plot.barY(BARS, { x: "k", y: "v", href: (/** @type {any} */ d) => `#${d.k}` }),
+    ],
+  });
+  assert.equal(linked.shown[0]?.parentElement?.localName, "a");
+  assert.deepEqual(linked.found, linked.shown);
+  const clipped = barShapes({
+    marks: [Plot.barY(BARS, { x: "k", y: "v", clip: true })],
+  });
+  assert.deepEqual(clipped.found, clipped.shown);
+  const rounded = barShapes(
+    { marks: [Plot.barY(BARS, { x: "k", y: "v", r: 4 })] },
+    "path",
+  );
+  assert.equal(rounded.shown.length, 2);
+  assert.deepEqual(rounded.found, rounded.shown);
+});
+
+test("a mark a render transform draws again is no shape the drawing no longer holds", () => {
+  // As Plot's pointer does, the transform replaces what it drew first, and the chart,
+  // unable to say which shape is now the datum's, names none.
+  /** @type {() => void} */
+  let redraw = () => {};
+  const redrawn = barShapes({
+    marks: [
+      Plot.barY(BARS, {
+        x: "k",
+        y: "v",
+        render(/** @type {any} */ index, ...[scales, values, size, context, next]) {
+          const drawing = next(index, scales, values, size, context);
+          redraw = () =>
+            drawing.replaceWith(next(index, scales, values, size, context));
+          return drawing;
+        },
+      }),
+    ],
+  });
+  assert.deepEqual(redrawn.found, redrawn.shown);
+  redraw();
+  assert.equal(redrawn.svg.querySelectorAll('[aria-label="bar"] rect').length, 2);
+  assert.deepEqual(
+    redrawn.reading.points.map((p) => shapeOf(redrawn.reading, p)),
+    [null, null],
+  );
+});
+
 test("a time reads to the second or millisecond its datum has", () => {
   const reading = read({
     x: { type: "utc" },

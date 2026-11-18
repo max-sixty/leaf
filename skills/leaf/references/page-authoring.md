@@ -357,7 +357,7 @@ table. Where a wrapper holds only one child that fills it, put the id on the chi
 Group a heading with its eyebrow or subtitle in `<hgroup>` and put the id on the
 `<hgroup>`.
 When that title starts a section with an id, the `<section>` carries the address
-instead. An id a heading needs for `aria-labelledby` is not the section's address.
+instead.
 
 Threads, reading position and version comparison all find a block by its id, so a
 rewritten paragraph keeps its id. A heading offers the reader a link to that address, so

@@ -10,9 +10,9 @@ them press by press. On each page of `PAGES`, or each `--page`, it presses every
 command a key reaches at rest, twice, since a second press walks on or toggles back;
 runs `JOURNEYS`, the sequences whose later presses mean something only after the first,
 such as a search's next match or a comparison's changes; presses each key `g` leads to;
-and Tabs through the page, pressing ArrowDown, ArrowRight and End at the first stop in
-each kind of widget, which walks its rows where it has a walk. Undo runs last, since
-what it takes back stays taken back. Between commands it puts the page back at rest with
+and Tabs through the page, pressing at the first stop in each kind of widget each key of
+the walks the register offers there, or ArrowDown, ArrowRight and End where it offers
+none. Undo runs last, since what it takes back stays taken back. Between commands it puts the page back at rest with
 Escape, and reloads it where that leaves something behind.
 
 After each press it reads the seat's words and the kind of reading they are
@@ -20,7 +20,9 @@ After each press it reads the seat's words and the kind of reading they are
 region said since the last press, and where focus stands, and keeps a capture of the
 window. It then runs the page's clock on past a notice's moment and reads the seat
 again, since what stands after the moment is the other half of what a press leaves.
-The clock is Playwright's, installed before the page loads, so the wait costs no time.
+The clock is Playwright's, installed once the page has loaded, since the startup
+reading reads the navigation's timings from the `performance` it replaces, so the wait
+costs no time.
 
 Each run writes, under `.tmp/words/run-*/`, `readings.jsonl`, one line per page and arm
 with every row, the captures under `shots/`, and `index.html`, a Leaf page holding a
@@ -33,7 +35,8 @@ came before, so a command one arm lacks shows as a row on one side only.
 
 The survey reads what the seat says, not whether it should say it. To judge that, read
 the table beside the captures and ask of each row what it tells the reader that the
-screen doesn't (`references/glossary.md`, "Leaf's interface"). News that arrives
+screen doesn't, by `browser/AGENTS.md`, "Leaf's interface", and the voice the
+developing-leaf skill's `references/glossary.md` sets. News that arrives
 without a press, such as an agent's reply or a new version, takes a page whose log
 grows while it is open, which no case here holds yet.
 """

@@ -311,6 +311,7 @@ import {
   sendMessage,
   tellDraft,
 } from "./drafts.js";
+import { loadFieldEditor } from "./composing/field-editor.js";
 import { textField } from "./composing/text-field.js";
 import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
@@ -5782,22 +5783,27 @@ export function createFloatingPanel({
             heldWords.value = words;
             if (words) announce(heldText(words));
           },
+          // The field's editor, which the served row's field waits for before its
+          // words come here (bootstrap.js, `standRow`).
+          editor: loadFieldEditor,
           // The served row's field, which the user may have written in before the
-          // panel stood (`initial`): its words go on in the page's field, after a draft
-          // the field holds as typing there would, and the caret, if the user is in
-          // the textarea, with the selection where it stood. The caret moves while the
-          // textarea still stands, so a phone's keyboard has a field to stay up for.
+          // panel stood (`initial`): its words go on in the page's field, a space
+          // after a draft the field holds, which the row didn't show, and the caret,
+          // if the user is in the textarea, with the selection where it stood. The
+          // caret moves while the textarea still stands, so a phone's keyboard has a
+          // field to stay up for.
           /** @param {HTMLTextAreaElement} box */
           write(box) {
             const inBox = focused() === box;
             if (!box.value && !inBox) return;
             const input = pageEditor().input;
-            const before = input.value.length;
-            if (box.value) input.edit(input.value + box.value);
+            const draft =
+              box.value && /\S$/.test(input.value) ? `${input.value} ` : input.value;
+            if (box.value) input.edit(draft + box.value);
             if (!inBox) return;
             input.setSelectionRange(
-              before + box.selectionStart,
-              before + box.selectionEnd,
+              draft.length + box.selectionStart,
+              draft.length + box.selectionEnd,
               box.selectionDirection,
             );
             writeOnPage();

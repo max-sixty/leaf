@@ -236,6 +236,7 @@ interface DocumentEventMap {
    * (`bootstrap.js`, `floating-panel.js`). */
   "lf-held-keys-seat": CustomEvent<{
     show(words: HeldWords | null): void;
+    editor(): Promise<unknown>;
     write(box: HTMLTextAreaElement): void;
   }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */

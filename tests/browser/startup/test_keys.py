@@ -501,10 +501,10 @@ def test_words_typed_in_the_served_field_go_on_in_the_panels_field(
 ):
     """A reader who clicks the panel's field before the runtime loads and types writes
     words, not page keys: the field the document served, a textarea, takes them with
-    the caret, Return makes no line and sends nothing, and once the panel stands its
-    field holds the words with the caret where it stood, so typing goes on there and
-    `t` never walked to the thread. Firefox edits a field standing after `body`, as
-    the chrome does, by rules of its own, so the test runs there too."""
+    the caret, Return makes a line, since nothing can send yet, and once the panel
+    stands its field holds the words with the caret where it stood, so typing goes on
+    there and `t` never walked to the thread. Firefox edits a field standing after
+    `body`, as the chrome does, by rules of its own, so the test runs there too."""
     page, served, box, release = _served_field(request.getfixturevalue(engine), serve)
     box.click()
     expect(box).to_be_focused()
@@ -516,7 +516,7 @@ def test_words_typed_in_the_served_field_go_on_in_the_panels_field(
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
     page.keyboard.press("ArrowLeft")
-    expect(box).to_have_value("fix it")
+    expect(box).to_have_value("fix it\n")
     expect(served.locator(".lf-fp-words")).to_be_hidden()
     expect(page.locator(".lf-held-key")).to_have_count(0)
     words = box.bounding_box()
@@ -525,26 +525,31 @@ def test_words_typed_in_the_served_field_go_on_in_the_panels_field(
     expect(served).to_have_count(0)
     field = panel_field(page)
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "fix it")
-    expect(field).to_have_js_property("selectionStart", 4)
+    expect(field).to_have_js_property("value", "fix it\n")
+    expect(field).to_have_js_property("selectionStart", 5)
     # The words stand where the served field drew them.
     moved = field.bounding_box()
     assert moved and words and abs(moved["x"] - words["x"]) < 1, (words, moved)
     page.keyboard.type("a")
-    expect(field).to_have_js_property("value", "fix ait")
+    expect(field).to_have_js_property("value", "fix iat\n")
     wait_until_ready(page)
     expect(page.locator(".lf-held-key")).to_have_count(0)
     expect(field).to_be_focused()
     assert page.evaluate("() => scrollY") == 0
 
 
-def test_words_left_in_the_served_field_wait_in_the_panels_field(browser, serve):
-    """Words typed in the served field before the reader went back to the page wait in
-    the panel's field once it stands, and the caret stays where the reader went."""
+@pytest.mark.parametrize("leave", ["pointer", "Escape"])
+def test_words_left_in_the_served_field_wait_in_the_panels_field(browser, serve, leave):
+    """Words typed in the served field before the reader went back to the page, by a
+    press there or by Escape as from the panel's field, wait in the panel's field once
+    it stands, and the caret stays where the reader went."""
     page, served, box, release = _served_field(browser, serve)
     box.click()
     page.keyboard.type("fix it")
-    page.locator("#said").click()
+    if leave == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        page.locator("#said").click()
     expect(box).not_to_be_focused()
     expect(served.locator(".lf-fp-row")).not_to_have_attribute(
         "data-lf-control-focus-visible", ""
@@ -555,6 +560,84 @@ def test_words_left_in_the_served_field_wait_in_the_panels_field(browser, serve)
     expect(panel_field(page)).to_have_js_property("value", "fix it")
     expect(panel_field(page)).not_to_be_focused()
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_served_field_takes_typing_until_the_panels_editor_has_loaded(
+    request, serve, engine
+):
+    """The served field stands over the mounted panel until the panel's field has its
+    editor, so typing and Backspace go on in the textarea meanwhile: the runtime
+    field's own box before its editor deletes nothing in Firefox."""
+    page, served, box, release = _served_field(request.getfixturevalue(engine), serve)
+    editor = []
+    page.route("**/vendor/codemirror.esm.js*", lambda route: editor.append(route))
+    box.click()
+    page.keyboard.type("catz")
+
+    release()
+    expect(page.locator(".lf-floating-panel:not([data-lf-served])")).to_be_attached()
+    holding(page, editor, 1, "the editor module")
+    expect(served).to_have_count(1)
+    page.keyboard.press("Backspace")
+    page.keyboard.type("s")
+    expect(box).to_have_value("cats")
+
+    page.unroute("**/vendor/codemirror.esm.js*")
+    editor.pop().continue_()
+    expect(served).to_have_count(0)
+    field = panel_field(page)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "cats")
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "cat")
+
+
+def test_words_in_the_served_field_stay_when_no_panel_comes(browser, serve):
+    """A page that cannot start keeps the words typed in its served field where they
+    were written, so the reader can still copy them, rather than taking the row away
+    with them."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    module, _ = _hold_startup(page, "module")
+    page.goto(asked_again(url), wait_until="commit")
+    holding(page, module, 1, "the module request")
+    first_frame(page)
+    box = page.locator(".lf-floating-panel[data-lf-served] .lf-fp-served-field")
+    box.click()
+    page.keyboard.type("fix it")
+
+    module.pop().abort()
+    expect(
+        page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
+    ).to_be_visible()
+    expect(box).to_have_value("fix it")
+    expect(box).to_be_visible()
+    consume_browser_errors(page, "leaf.js", "net::ERR_FAILED")
+
+
+def test_an_input_method_composing_as_the_panel_stands_finishes_first(browser, serve):
+    """An input method still composing in the served field as the panel mounts
+    finishes there, and the panel's field then takes the words it wrote, once: taken
+    mid-composition, the unfinished letters stood before the method's own words."""
+    page, served, box, release = _served_field(browser, serve)
+    box.click()
+    ime = page.context.new_cdp_session(page)
+    ime.send(
+        "Input.imeSetComposition",
+        {"text": "にほ", "selectionStart": 2, "selectionEnd": 2},
+    )
+    expect(box).to_have_value("にほ")
+
+    release()
+    expect(page.locator(".lf-floating-panel:not([data-lf-served])")).to_be_visible()
+    expect(served).to_have_count(1)
+    ime.send("Input.insertText", {"text": "日本"})
+    expect(served).to_have_count(0)
+    field = panel_field(page)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "日本")
 
 
 def test_held_keys_stand_beside_a_saved_draft(browser, serve):

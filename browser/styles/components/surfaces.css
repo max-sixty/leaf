@@ -502,6 +502,22 @@ a[data-lf-external]::after,
   stroke-dasharray: none !important;
   vector-effect: non-scaling-stroke !important;
 }
+/* A part that draws no shape of its own, such as a chart's axis label or key entry,
+   or a marker it draws by `<use>` from shapes kept in `<defs>`, has no contour to take
+   the mark, so it wears the outline round its box that words wear elsewhere, its words
+   and marker keeping their own paint. */
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ):not(path, rect, circle, ellipse, line, polyline, polygon):not(
+    :has(:is(path, rect, circle, ellipse, line, polyline, polygon):not(defs *))
+  ) {
+  outline-style: solid !important;
+}
 :where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
   --lf-band-ink: var(--lf-mark-contour-ink);
   --lf-band-w: var(--lf-mark-contour-w);

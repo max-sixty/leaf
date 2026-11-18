@@ -80,7 +80,8 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 
 - `files.json` — local text-file grants written by `leaf file bind PAGE ID PATH`
   (`file_bindings.py`). The bound files remain their own authority, outside revisions
-  and the log.
+  and the log. A bound file may live in the page directory, as an example's
+  `files/` does; its grant names it from there, so it moves with the directory.
 
 - `data/` — one publication per source, `<source>.json`, which `leaf data set` writes
   and `leaf data clear` removes (`data.py`). The page holds a source exactly while its

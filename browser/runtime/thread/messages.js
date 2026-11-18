@@ -369,42 +369,25 @@ export function draftPreview(drafts, about = null) {
 // message has an island of its own, so a drawing that holds back an agent's edit
 // (held-news.js) keeps drawing the words and controls it shows, and the reading the
 // page adopts decides which island the message's widgets answer for
-// (`islandChange`). A message keeps an island only while it is in hand: the one the
-// adopted reading draws its widgets from, and any whose wording a drawing still
-// shows. The rest go when the adopted island changes and when a drawing moves off a
-// wording or retires (`dropUnheld`), so a message an agent edited ten times keeps one
-// island once its drawings show the last edit.
-// An edit redraws its message's island whole, so a value typed into a field in it,
-// an open disclosure or focus there is lost: a rare path, which redraws rather than
-// carrying a mechanism of its own (SOUL.md, "Keep the foundation small and
-// extensible"). A second island of one wording takes the same path. A reading still
-// on its way to adoption holds the islands it prepared, and a drop meanwhile, such as
-// the one adopting a second edit of the message first makes, can take one from its
-// message. Adopting the reading puts that island back, but another reading of the
-// same wording arriving in between prepares a second island, and the message redraws
-// when that one is adopted. Rejected: keeping each island until every reading that
-// prepared it is adopted or dropped, a hold state application would take and release
-// on every reading. For the same reason a thread gesture names no wording: one a tab
-// makes before an edit reaches it is read in the wording in force when it lands
+// (`islandChange`). Each island lives until the page reloads, one for each edit an
+// agent makes to a message holding HTML, which is rare. An edit redraws its
+// message's island whole, so a value typed into a field in it, an open disclosure
+// or focus there is lost: a rare path, which redraws rather than carrying a
+// mechanism of its own (SOUL.md, "Keep the foundation small and extensible"). For
+// the same reason a thread gesture names no wording: one a tab makes before an
+// edit reaches it is read in the wording in force when it lands
 // (`thread_context.message_wording`).
 /** @typedef {{
  * message: string,
- * markdown: string,
  * body: {text: string, heldElsewhere: string, document: {thread: string, message: string}},
  * authored: ReturnType<typeof stageAuthoredStates>,
  * descriptors: ReturnType<typeof stageWidgetDescriptors>,
  * nodes: readonly ChildNode[], root: DocumentFragment,
  * preparation: Promise<PreparedAuthoredMessage> | null,
  * }} PreparedAuthoredMessage */
-/** Each message → its islands in hand by the Markdown each was prepared from.
+/** Each message → its islands by the Markdown each was prepared from.
  * @type {Map<string, Map<string, PreparedAuthoredMessage>>} */
 const authoredMessages = new Map();
-/** @param {string} key */
-const islandsOf = (key) => {
-  let islands = authoredMessages.get(key);
-  if (!islands) authoredMessages.set(key, (islands = new Map()));
-  return islands;
-};
 /** Each message → the island the adopted reading draws its widgets from.
  * @type {Map<string, PreparedAuthoredMessage>} */
 const adoptedIslands = new Map();
@@ -461,9 +444,8 @@ function* islandElements(island) {
  * from, against the reading adopted before it: `retired`, the widget ids an island
  * held that its message's island in this reading doesn't, as when an edit rewrote
  * the message or left it no HTML; and `commit`, which makes this reading's islands
- * the adopted ones once the page adopts it and drops each other island of those
- * messages that no drawing shows (`dropUnheld`). `prepared` is null for a message
- * drawn as Markdown alone. A message whose island is unchanged costs one lookup.
+ * the adopted ones once the page adopts it. `prepared` is null for a message drawn
+ * as Markdown alone. A message whose island is unchanged costs one lookup.
  * @param {readonly {message: {id: string, attempt?: string | null},
  *   prepared: PreparedAuthoredMessage | null | undefined}[]} entries
  */
@@ -487,18 +469,14 @@ export function islandChange(entries) {
         for (const element of prior ? islandElements(prior) : [])
           if (keptElements.get(element.id)?.element === element)
             keptElements.delete(element.id);
-        if (prepared) {
-          adoptedIslands.set(key, prepared);
-          // Back in hand where a drop took it while its reading was on its way.
-          islandsOf(key).set(prepared.markdown, prepared);
-          for (const element of islandElements(prepared))
-            if (!keptElements.has(element.id))
-              keptElements.set(element.id, {
-                element,
-                document: prepared.body.document,
-              });
-        } else adoptedIslands.delete(key);
-        dropUnheld(key);
+        if (!prepared) {
+          adoptedIslands.delete(key);
+          continue;
+        }
+        adoptedIslands.set(key, prepared);
+        for (const element of islandElements(prepared))
+          if (!keptElements.has(element.id))
+            keptElements.set(element.id, { element, document: prepared.body.document });
       }
     },
   };
@@ -511,7 +489,9 @@ export function prepareAuthoredMessage(message, thread) {
   if (typeof thread !== "string" || !thread)
     throw new TypeError("an authored message needs its thread's id");
   const source = message.text ?? "";
-  let prepared = authoredMessages.get(key)?.get(source);
+  let islands = authoredMessages.get(key);
+  if (!islands) authoredMessages.set(key, (islands = new Map()));
+  let prepared = islands.get(source);
   if (!prepared) {
     // Captured once for each wording, so never from the escaped source the renderer
     // stands in with until it loads.
@@ -546,7 +526,6 @@ export function prepareAuthoredMessage(message, thread) {
     const nodes = Object.freeze([...template.content.childNodes]);
     prepared = {
       message: message.id,
-      markdown: source,
       body: {
         text,
         heldElsewhere: elsewhere,
@@ -558,7 +537,7 @@ export function prepareAuthoredMessage(message, thread) {
       root: template.content,
       preparation: null,
     };
-    islandsOf(key).set(source, prepared);
+    islands.set(source, prepared);
   }
   for (const descriptor of prepared.descriptors.descriptors.values())
     if (
@@ -622,23 +601,6 @@ const shown = (view) => view.node.isConnected && showsContents(view.node);
 const hidden = (view) => view.node.isConnected && !showsContents(view.node);
 /** @param {PresentedMessage} a @param {PresentedMessage} b */
 const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
-// The wording a drawing shows of an authored message, or null where it draws none.
-/** @param {ReturnType<typeof messageReading>} model */
-const shownWording = (model) => (model.body.authored ? model.markdown : null);
-// Drops each of a message's islands that neither the adopted reading draws its widgets
-// from nor a drawing shows.
-/** @param {string} key */
-function dropUnheld(key) {
-  const islands = authoredMessages.get(key);
-  if (!islands) return;
-  const adopted = adoptedIslands.get(key);
-  const drawn = new Set(
-    [...(authoredDrawings.get(key) ?? [])].map((view) => shownWording(view.model)),
-  );
-  for (const [markdown, island] of islands)
-    if (island !== adopted && !drawn.has(markdown)) islands.delete(markdown);
-  if (!islands.size) authoredMessages.delete(key);
-}
 /** @param {string} key */
 function settleAuthored(key) {
   const drawings = authoredDrawings.get(key) ?? new Set();
@@ -922,9 +884,6 @@ export class MessageView {
       }
       settleAuthoredSoon(authoredKey);
     }
-    // The wording this drawing moves off goes where nothing else holds it.
-    if (prior && shownWording(prior) !== shownWording(model))
-      dropUnheld(prior.attempt ?? prior.id);
     const holds =
       model.body.authored && authoredHolders.get(authoredKey) === presentation;
     // Whether this drawing holds the message's widgets, for a surface whose own
@@ -1153,7 +1112,6 @@ export class MessageView {
       authoredDrawings.get(key)?.delete(presentation);
       if (!authoredDrawings.get(key)?.size) authoredDrawings.delete(key);
       releaseAuthored(key, presentation);
-      dropUnheld(key);
     }
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();

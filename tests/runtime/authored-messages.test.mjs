@@ -1,20 +1,14 @@
 /* An agent's message holding HTML prepares once for each wording, from its rendered
    Markdown, before joining any thread surface, and keeps that preparation when its
-   original nodes move out of the inert fragment, for as long as the adopted reading or
-   a drawing holds the wording. */
+   original nodes move out of the inert fragment. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
-import { servedThread } from "../served.mjs";
 import { loadMarkdown } from "/runtime/markdown.js";
 import { adoptRegistry } from "/runtime/registry.js";
-import { readThreadRecords } from "/runtime/thread/model.js";
 import {
-  HOLDS,
-  MessageView,
   islandChange,
   messageHolding,
-  messageReading,
   prepareAuthoredMessage,
 } from "/runtime/thread/messages.js";
 
@@ -122,76 +116,6 @@ test("adopting an edit's island retires the widgets the wording before it held",
   assert.deepEqual(withdrawn.retired, ["edited-second", "edited-second-a"]);
   withdrawn.commit();
   assert.equal(messageHolding("edited-second-a"), null);
-});
-
-// The page keeps the wordings it still draws, not every wording an agent sent: an
-// edit's adoption lets go of the wording before it unless a drawing still shows it, as
-// one holding back the edit does, and that drawing lets go of it as it moves on or
-// closes. A wording nothing holds is prepared afresh if it comes back.
-test("a wording's island goes once neither the adopted reading nor a drawing holds it", async () => {
-  adoptRegistry({
-    $layer: { generation: "released-message" },
-    "lf-options": {},
-    "lf-option": {},
-  });
-  assert.equal(await loadMarkdown(), true);
-  const thread = "released-thread";
-  const message = { id: "released-message" };
-  const wordings = ["First", "Second", "Third"].map(
-    (label) =>
-      `Pick:\n\n<lf-options id="released-${label}"><lf-option id="released-${label}-a">${label}</lf-option></lf-options>`,
-  );
-  const prepare = (text) => prepareAuthoredMessage({ ...message, text }, thread);
-  const adopt = (prepared) => islandChange([{ message, prepared }]).commit();
-  // The reading a drawing draws the message from, as the thread surfaces read it.
-  const reading = (text, prepared) => {
-    const served = {
-      id: message.id,
-      kind: "comment",
-      author: "agent",
-      text,
-      html: true,
-      seq: 1,
-      ts: "2026-03-01T12:00:00Z",
-    };
-    const [record] = readThreadRecords(
-      [servedThread([served])],
-      {
-        registry: {},
-        descriptors: new Map(),
-        messageBodies: new Map([[message.id, prepared.body]]),
-      },
-      new Map(),
-      [],
-    );
-    return messageReading(record.root, { authoredRank: HOLDS.reader, workflows: [] });
-  };
-  const drawing = new MessageView({
-    read: { observeMessage: () => () => {} },
-    reply: { wireInput: () => {}, actions: { edit: () => {} } },
-    reaction: {},
-    edit: {},
-  });
-  document.body.append(drawing.node);
-
-  const first = await prepare(wordings[0]);
-  adopt(first);
-  drawing.present(reading(wordings[0], first));
-  const second = await prepare(wordings[1]);
-  adopt(second);
-  assert.equal(await prepare(wordings[0]), first, "the drawing still shows it");
-  drawing.present(reading(wordings[1], second));
-  const again = await prepare(wordings[0]);
-  assert.notEqual(again, first, "the drawing moved on");
-
-  const third = await prepare(wordings[2]);
-  adopt(third);
-  assert.notEqual(await prepare(wordings[0]), again, "nothing holds it");
-  assert.equal(await prepare(wordings[1]), second, "the drawing still shows it");
-  drawing.retire();
-  drawing.node.remove();
-  assert.notEqual(await prepare(wordings[1]), second, "the drawing closed");
-  assert.equal(await prepare(wordings[2]), third, "the adopted reading holds it");
 });
 
 // A thread named by its opening message, and On Me's row for a reply, read these words

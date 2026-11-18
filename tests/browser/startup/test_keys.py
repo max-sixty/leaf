@@ -413,6 +413,12 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     page.keyboard.press("t")
     expect(field.locator(".lf-held-key")).to_have_text("t")
     expect(field).to_contain_text("runs when the page is ready")
+    if stage == "module":
+        # A screen reader hears the held keys where the served row shows them, as it
+        # does once the panel has mounted and announces them.
+        expect(
+            page.get_by_role("status").filter(has_text="runs when the page is ready")
+        ).to_have_count(1)
     bounds = field.bounding_box()
     assert bounds and bounds["y"] >= 0
     assert bounds["y"] + bounds["height"] <= page.viewport_size["height"], bounds
@@ -463,6 +469,7 @@ def test_a_folded_panel_stands_folded_from_the_first_paint_with_held_keys_in_its
     page.keyboard.press("t")
     peek = page.locator(".lf-floating-panel .lf-fp-peek[data-lf-shown]")
     expect(peek.locator(".lf-held-key")).to_have_text("t")
+    expect(page.get_by_role("status").filter(has_text="t")).to_have_count(1)
 
     release()
     expect(served).to_have_count(0)

@@ -233,7 +233,12 @@
         throw new Error("The panel's served row has no field words or peek");
       panel.dataset.lfRest = window.lfChrome.rest;
       panel.toggleAttribute("data-lf-served", true);
-      for (const part of panel.children) part.toggleAttribute("inert", true);
+      // Only the controls are inert, since an inert subtree is hidden from assistive
+      // technology too: the field's words and the folded leaf's peek are each a status,
+      // so held keys are heard where they are seen.
+      for (const control of panel.querySelectorAll("button, input"))
+        control.toggleAttribute("inert", true);
+      for (const seat of [words, peek]) seat.setAttribute("role", "status");
       const status = [...words.childNodes];
       const sheet = window.lfSheets().chrome;
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];

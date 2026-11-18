@@ -538,18 +538,13 @@ def test_words_typed_in_the_served_field_go_on_in_the_panels_field(
     assert page.evaluate("() => scrollY") == 0
 
 
-@pytest.mark.parametrize("leave", ["pointer", "Escape"])
-def test_words_left_in_the_served_field_wait_in_the_panels_field(browser, serve, leave):
-    """Words typed in the served field before the reader went back to the page, by a
-    press there or by Escape as from the panel's field, wait in the panel's field once
-    it stands, and the caret stays where the reader went."""
+def test_words_left_in_the_served_field_wait_in_the_panels_field(browser, serve):
+    """Words typed in the served field before the reader went back to the page wait in
+    the panel's field once it stands, and the caret stays where the reader went."""
     page, served, box, release = _served_field(browser, serve)
     box.click()
     page.keyboard.type("fix it")
-    if leave == "Escape":
-        page.keyboard.press("Escape")
-    else:
-        page.locator("#said").click()
+    page.locator("#said").click()
     expect(box).not_to_be_focused()
     expect(served.locator(".lf-fp-row")).not_to_have_attribute(
         "data-lf-control-focus-visible", ""
@@ -563,12 +558,13 @@ def test_words_left_in_the_served_field_wait_in_the_panels_field(browser, serve,
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_the_served_field_takes_typing_until_the_panels_editor_has_loaded(
+def test_the_panels_field_takes_backspace_before_its_editor_loads(
     request, serve, engine
 ):
-    """The served field stands over the mounted panel until the panel's field has its
-    editor, so typing and Backspace go on in the textarea meanwhile: the runtime
-    field's own box before its editor deletes nothing in Firefox."""
+    """Words typed in the served field go on in the panel's field as it mounts, before
+    the field's editor has loaded, and Backspace deletes there: Firefox deletes nothing
+    from a `contenteditable` standing after `body`, as the chrome does, so the field's
+    box before its editor is a textarea."""
     page, served, box, release = _served_field(request.getfixturevalue(engine), serve)
     editor = []
     page.route("**/vendor/codemirror.esm.js*", lambda route: editor.append(route))
@@ -576,19 +572,17 @@ def test_the_served_field_takes_typing_until_the_panels_editor_has_loaded(
     page.keyboard.type("catz")
 
     release()
-    expect(page.locator(".lf-floating-panel:not([data-lf-served])")).to_be_attached()
-    holding(page, editor, 1, "the editor module")
-    expect(served).to_have_count(1)
-    page.keyboard.press("Backspace")
-    page.keyboard.type("s")
-    expect(box).to_have_value("cats")
-
-    page.unroute("**/vendor/codemirror.esm.js*")
-    editor.pop().continue_()
     expect(served).to_have_count(0)
     field = panel_field(page)
     expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "catz")
+    holding(page, editor, 1, "the editor module")
+    page.keyboard.press("Backspace")
+    page.keyboard.type("s")
     expect(field).to_have_js_property("value", "cats")
+
+    page.unroute("**/vendor/codemirror.esm.js*")
+    editor.pop().continue_()
     page.keyboard.press("Backspace")
     expect(field).to_have_js_property("value", "cat")
 

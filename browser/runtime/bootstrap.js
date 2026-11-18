@@ -204,32 +204,29 @@
   // in it and what the user types is words, which the browser keeps, with the caret,
   // selection, input methods and a phone's keyboard, and which the hold leaves to it,
   // as it leaves any field's (`takesLetters`). The words the field says stand under
-  // the textarea while it is empty. Return makes a line, since nothing can send yet,
-  // and Escape takes the user out of the field, as it does from the panel's. While the
-  // user is in the field or it holds words, the row stands as the panel's does while
-  // the user writes, as far as the row draws it: the field's ring
+  // the textarea while it is empty. Return makes a line, since nothing can send yet.
+  // While the user is in the field or it holds words, the row stands as the panel's
+  // does while the user writes, as far as the row draws it: the field's ring
   // (`data-lf-control-focus-visible`, focus.js), and the field in the On Me mark's
   // room (`quickHidden`, floating-panel.js).
   // Rejected: dropping the keys typed there, which loses every word typed before the
   // runtime loads; drawing them in the field's words as typed, which needs a caret,
-  // endings, wrapping and a phone's keyboard of its own; a `contenteditable`, the
-  // runtime field's own box while CodeMirror loads, which Firefox types into but
-  // deletes nothing from when it stands after `body`, as the chrome does; and holding
+  // endings, wrapping and a phone's keyboard of its own; a `contenteditable`, which
+  // Firefox types into but deletes nothing from when it stands after `body`, as the
+  // chrome does (notes/browser-support.md); and holding
   // Return to send once the panel stands, which hides the words typed after it until
   // then or needs a display of its own, for a key the user presses again a moment on.
   //
   // The panel takes the row over as it mounts, in the task that draws the panel's first
   // frame, whose leaf, field and marks stand where the row's stood (floating-panel.css,
-  // `data-lf-served`), and offers its field (`lf-held-keys-seat`). A field the user is
-  // in or wrote in stands until the panel's field has its editor (`editor`) and an
-  // input method composing in it has finished; then the panel's field takes its words
-  // and caret (floating-panel.js, `write`) and the row goes. Before its editor, the
-  // runtime field takes typing in that `contenteditable`, where Firefox's Backspace
-  // would do nothing, and words taken mid-composition the method writes again as it
-  // ends. Where no panel is coming, because the document reports it cannot start or
-  // the runtime gives it up, the row goes as the hold on keys ends
-  // (`stopHoldingKeys`), and its sheet with it, which nothing then draws with, unless
-  // its field holds words, which stay where the user wrote them.
+  // `data-lf-served`), and offers its field (`lf-held-keys-seat`), which takes the
+  // textarea's words and caret (floating-panel.js, `write`) as the row goes. An input
+  // method composing in the textarea finishes there first, since words taken
+  // mid-composition the method writes again as it ends. Where no panel is coming,
+  // because the document reports it cannot start or the runtime gives it up, the row
+  // goes as the hold on keys ends (`stopHoldingKeys`), and its sheet with it, which
+  // nothing then draws with, unless its field holds words: they stay where the user
+  // wrote them until recovery reloads the page.
   /** @type {{say(words: HeldWords | null): void, end(): void} | null} */
   let row = null;
   let rowEnded = false;
@@ -277,9 +274,6 @@
         const typed = box.value !== "";
         if (fieldWords.hidden !== typed) fieldWords.hidden = typed;
       });
-      box.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && !event.isComposing) box.blur();
-      });
       let composing = false;
       for (const type of ["compositionstart", "compositionend"])
         box.addEventListener(type, () => (composing = type === "compositionstart"));
@@ -318,9 +312,7 @@
           detail.write(box);
           go(true);
         };
-        if (box.value || document.activeElement === box)
-          detail.editor().then(hand, hand);
-        else hand();
+        hand();
       };
       document.addEventListener("lf-held-keys-seat", takeOver, { once: true });
       // The panel's size stands while the row does, so one seat says the keys.

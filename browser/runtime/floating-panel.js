@@ -311,7 +311,6 @@ import {
   sendMessage,
   tellDraft,
 } from "./drafts.js";
-import { loadFieldEditor } from "./composing/field-editor.js";
 import { textField } from "./composing/text-field.js";
 import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
@@ -5783,9 +5782,6 @@ export function createFloatingPanel({
             heldWords.value = words;
             if (words) announce(heldText(words));
           },
-          // The field's editor, which the served row's field waits for before its
-          // words come here (bootstrap.js, `standRow`).
-          editor: loadFieldEditor,
           // The served row's field, which the user may have written in before the
           // panel stood (`initial`): its words go on in the page's field, a space
           // after a draft the field holds, which the row didn't show, and the caret,

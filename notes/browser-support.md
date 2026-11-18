@@ -1333,3 +1333,17 @@ area and aim in both. Recorded rather than corrected, since a chart's bars are u
 rectangles. Recheck with `uv run leaf-dev probe` of a page whose inline `<svg>` holds
 `<g id="bar"><path d="M0 10 L100 10" stroke="black" stroke-width="6"/></g>`, reading
 `document.querySelector('#bar').getBoundingClientRect().height` in Chromium.
+
+### Deleting in an editing host after `body` in Firefox
+
+Firefox types into a `contenteditable` that stands after `body`, as Leaf's chrome
+does, but deletes nothing from it: Backspace and Delete do nothing, in a shadow root
+or not, with `true` or `plaintext-only`. On 2026-11-18, Playwright Firefox 159.0
+(Playwright 1.65.0) kept "abcd" after two Backspaces in such a host, and "ab" in the
+same host inside `body`; HeadlessChrome 158.0.8127.18 gave "ab" in both, and a
+`textarea` after `body` gave "ab" in both engines. A text field's box before
+CodeMirror loads (`composing/text-field.js`, `#rest`) and the served row's field
+(`bootstrap.js`, `standRow`) are textareas for this, which edit the same way in
+every engine; CodeMirror deletes by its own commands and is unaffected. Recheck by
+appending `<div contenteditable>` after `body` in Firefox, typing "abcd" into it and
+pressing Backspace twice.

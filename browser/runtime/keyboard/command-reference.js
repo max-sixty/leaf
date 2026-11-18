@@ -1099,7 +1099,7 @@ function moveCommandReferenceSelection(dir) {
   const next = referenceElement(`#${nextRecord.entry.rowId}`);
   if (focusedId) focusDestination(next, "move");
   scrollIntoView(next, { block: "nearest" });
-  beginWalk("shortcut-command", "Command", () => {
+  beginWalk("shortcut-command", null, () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(
       commandReferenceView.visibleCommands.map(({ entry }) => entry.id),

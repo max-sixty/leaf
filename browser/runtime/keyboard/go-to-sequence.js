@@ -74,7 +74,7 @@ import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
-import { announce, notice } from "../notifications.js";
+import { announce } from "../notifications.js";
 import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc, saying } from "./scopes.js";
@@ -421,7 +421,6 @@ export function createGoToSequence({
   /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], GoToHintModel>} */
   const hintOptions = {
     layer: goToHintLayer,
-    walk: "go-to-target",
     read: visibleCandidates,
     kept: (candidate) => !targetFilter || targetFilter.matches(candidate),
     identity: (candidate) => candidate.member,
@@ -482,12 +481,14 @@ export function createGoToSequence({
     const chosen = TARGET_FILTERS.find(({ key }) => key === binding);
     if (!chosen) return;
     targetFilter = chosen;
+    // The narrowed hints show the eye what the filter found, so a listener alone is
+    // told; with none, the field says so while the filter stands (`goToStatus`).
     const found = hints.narrow();
-    const message = found.length
-      ? `${found.length} visible ${chosen.word}; type a hint or press Tab to hear them.`
-      : `No visible ${chosen.word}.`;
-    if (found.length) notice(message);
-    else announce(message);
+    announce(
+      found.length
+        ? `${found.length} visible ${chosen.word}; type a hint or press Tab to hear them.`
+        : `No visible ${chosen.word}`,
+    );
   }
 
   // An empty active filter is useful state, not a four-second event. The candidate map is
@@ -495,7 +496,7 @@ export function createGoToSequence({
   // out of the expensive visibility and hit-test pass.
   function goToStatus() {
     if (!goToActive || !targetFilter || hints.candidates().length) return null;
-    return `No visible ${targetFilter.word}.`;
+    return `No visible ${targetFilter.word}`;
   }
 
   // The sequence is one scope: generated visible targets, named global destinations, structural

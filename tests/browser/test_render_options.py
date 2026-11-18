@@ -45,7 +45,6 @@ from render_harness import (
     compare_with,
     expect_obligations_answered,
     expect_panel_offers,
-    expect_panel_says,
     hold_selection,
     holding,
     leaf_page,
@@ -302,10 +301,13 @@ def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
     page.locator("#opt-bearer .lf-pick").focus()
     page.keyboard.press("ArrowUp")
     expect(page.locator("#opt-strict .lf-pick")).to_be_focused()
-    expect_panel_says(page, "Option 2 of 3")
+    # The options stand whole around the ring, so a step says no position.
+    assert (
+        page.evaluate("async () => (await window.__lfCheckApi()).walkPosition()")
+        is None
+    )
     page.keyboard.press("ArrowDown")
     expect(page.locator("#opt-bearer .lf-pick")).to_be_focused()
-    expect_panel_says(page, "Option 3 of 3")
     page.keyboard.press(" ")
     expect(page.locator("#opt-bearer")).to_have_attribute("selected", "")
     round_trip(page)

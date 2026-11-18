@@ -491,6 +491,7 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
+    threadLanding: anchorTravel.threadLanding,
     repaint,
   });
   const queueWalk = createQueueWalk({

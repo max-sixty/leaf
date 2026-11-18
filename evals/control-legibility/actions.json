@@ -43,5 +43,7 @@
   "suggest": "Suggest new wording for the selected words",
   "undo": "Undo the last action",
   "zoom-in": "Zoom in",
-  "zoom-out": "Zoom out"
+  "zoom-out": "Zoom out",
+  "next-on-me": "Go to the next item waiting on you, offered at the panel field's end while anything waits on you",
+  "next-thread": "Go to the next open thread, offered after you resolve one"
 }

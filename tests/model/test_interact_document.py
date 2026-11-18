@@ -1573,6 +1573,29 @@ def test_check_advises_on_a_language_class_nothing_will_colour(page_dir):
     ]
 
 
+def test_check_advises_on_markdown_the_page_shows_as_typed(page_dir):
+    """HTML reads no Markdown, so a code span, `**` bold or link written in a page's
+    text shows its syntax to the reader, as an issue title carried into a heading
+    does. The check names each element holding one and refuses nothing. Text in
+    <code>, <samp> or <pre> shows as written, and `_` or `*` emphasis is left alone,
+    since paths and globs use those marks."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>\n"
+            "<h3>Require `test` on `main` again</h3>\n"
+            "<p>See [the issue](https://example.com/4045), <strong>**now**</strong>.</p>\n"
+            "<p>Run <code>`x`</code>, <samp>`y`</samp> and leaf/__init__.py on *.py,"
+            " or see https://example.com.</p>",
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    [finding] = found(findings, "literal-markdown")
+    assert finding.severity == "advice"
+    assert [e["tag"] for e in finding.values["elements"]] == ["h3", "p", "strong"]
+
+
 def test_every_declared_attribute_and_enum_stands_in_an_example():
     """The corpus floor one level down from tags (examples/AGENTS.md): where an
     attribute or an enum value changes what a user sees, a page shows it. The

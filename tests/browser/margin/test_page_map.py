@@ -1252,7 +1252,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     told(page)
     expect(
         page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').locator(
-            ".lf-margin-count"
+            ".lf-badge-count"
         )
     ).to_have_text("10")
     expect(actions).to_have_count(13)

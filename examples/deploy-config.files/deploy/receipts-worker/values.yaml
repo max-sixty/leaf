@@ -1,0 +1,45 @@
+# receipts-worker: values every environment shares.
+# Rendered with: helm template receipts-worker charts/worker \
+#   -f values.yaml -f values-<environment>.yaml
+
+image:
+  repository: ghcr.io/ledgerline/receipts-worker
+  # The deploy workflow sets the tag to the commit it deploys.
+  tag: ""
+
+queue:
+  name: receipts.render
+  deadLetter: receipts.render.dlq
+  # A receipt that fails this many times moves to the dead-letter queue.
+  maxAttempts: 5
+  visibilityTimeoutSeconds: 120
+
+worker:
+  # Receipts one pod renders at once; each render drives one Chromium page.
+  concurrency: 2
+  renderTimeoutSeconds: 45
+
+mail:
+  provider: postmark
+  stream: receipts
+  # Postmark's limit for the whole account, shared by every pod.
+  sendsPerMinute: 600
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 768Mi
+  limits:
+    memory: 1Gi
+
+probes:
+  liveness:
+    path: /healthz
+    periodSeconds: 10
+  readiness:
+    path: /readyz
+    periodSeconds: 5
+
+metrics:
+  port: 9102
+  serviceMonitor: true

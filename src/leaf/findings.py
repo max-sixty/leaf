@@ -2099,6 +2099,10 @@ _TEXT = {
     "not-a-reply": lambda at, v: (
         f"response {v['reference']!r} requires {v['answer']}, not a reply"
     ),
+    "title-fitted": lambda at, v: (
+        f"the title ran past {v['limit']} characters, so the thread is named"
+        f" {v['title']!r}; `leaf thread edit` with --title renames it"
+    ),
     "ephemeral-content": lambda at, v: (
         "--ephemeral is for progress text; it cannot ask the user, open a to-do, hold"
         " a widget, report failure, or move the thread"

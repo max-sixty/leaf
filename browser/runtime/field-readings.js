@@ -67,8 +67,6 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @property {boolean} thread whether the field is an open thread's reply box
  * @property {boolean} writing whether the caret is in the field
  * @property {{message: string} | null} error the newest error the field can say
- * @property {boolean} pressing whether a notice offering a press passes while the caret
- * is elsewhere
  * @property {string | null} held keys pressed before the page was ready, which wait
  * @property {string | null} selected the words selected on the page, as quoted
  * @property {{message: Words, press: BoxPress | null} | null} notice a notice while it
@@ -96,11 +94,13 @@ export const FIELD_READINGS = Object.freeze([
   // at any box (composing/input.js). The user chose this over errors riding the
   // passing notice, which would fade after four seconds and go unsaid while the user
   // writes. A notice offering a press after the user's own gesture is newer, so while
-  // it passes the error waits in the menu's Errors, as one the field has passed does,
-  // and the field says it again once the notice has gone.
+  // it passes with the caret elsewhere the error waits in the menu's Errors, as one the
+  // field has passed does, and the field says it again once the notice has gone or the
+  // caret comes back, since the field says nothing that passes under the caret.
   {
     says: "error",
-    claims: (f) => (f.error && !f.pressing ? leafSays(f.error.message) : null),
+    claims: (f) =>
+      f.error && !(f.notice?.press && !f.writing) ? leafSays(f.error.message) : null,
     end: "key",
   },
   // Keys pressed while the page loads, which wait for it, until it is ready
@@ -129,24 +129,17 @@ export const FIELD_READINGS = Object.freeze([
     claims: (f) =>
       f.selected === null
         ? null
-        : leafSays([f.goTo ?? f.step, `“${f.selected}”`].filter(Boolean).join(" · ")),
+        : leafSays([navigation(f), `“${f.selected}”`].filter(Boolean).join(" · ")),
     lead: "standing",
     end: "comment",
     offers: true,
   },
-  // What passes in the panel's one seat for passing words: a notice for its moment, or
-  // until the user's next input where it offers a press (notifications.js); the Go-to
-  // filter's word while its sequence waits for a key; and on the page, a walk's
-  // position for a notice's moment from each step (notifications.js, `answerStep`). In
-  // a thread the position stands before Reply instead (floating-panel.js, `turnLead`):
-  // the user asked for that, since "Thread 11 of 11" in Reply's place leaves nothing
-  // saying how to reply to the thread they are reading.
+  // What passes in the panel's one seat for passing words (`passingWords`).
   {
     says: "notice",
     claims: (f) => {
-      if (f.notice) return noticeWords(f.notice.message);
-      const navigation = f.goTo ?? (f.thread ? null : f.step);
-      return navigation ? noticeWords(navigation) : null;
+      const passing = passingWords(f);
+      return passing ? noticeWords(passing) : null;
     },
     lead: "stance",
     end: "moment",
@@ -179,6 +172,23 @@ export const FIELD_READINGS = Object.freeze([
   },
 ]);
 
+/** What passes in the panel's one seat for words that pass, which the field says
+ * (`notice`) and the folded leaf's peek, where no field shows (floating-panel.js,
+ * `peekPresentation`): a notice for its moment, or until the user's next input where it
+ * offers a press (notifications.js); else the Go-to filter's word while its sequence
+ * waits for a key; else on the page a walk's position for a notice's moment from each
+ * step (notifications.js, `answerStep`). In a thread the position stands before Reply
+ * instead (floating-panel.js, `turnLead`): the user asked for that, since "Thread 11 of
+ * 11" in Reply's place leaves nothing saying how to reply to the thread they are
+ * reading.
+ * @param {Pick<FieldFacts, "thread" | "goTo" | "step"> & {notice: {message: Words} | null}} f
+ * @returns {Words | null} */
+export const passingWords = (f) => f.notice?.message ?? navigation(f);
+
+/** The Go-to word or a walk's position, which selected words say before their quote.
+ * @param {Pick<FieldFacts, "thread" | "goTo" | "step">} f */
+const navigation = (f) => f.goTo ?? (f.thread ? null : f.step);
+
 /** What the field says: which reading (`says`), its words with what leads them
  * (`lead`), and what its end offers (`end`: a press, the word its key enters with, the
  * key alone as "", or null), whether that is the stance's Close (`exits`), and whether
@@ -197,7 +207,7 @@ export function readField(f) {
           ? [leafSays(`${f.stance} · `)]
           : [];
     const words = [...lead, ...[said].flat()];
-    const { end, exits } = f.held ? NOTHING : endOf(reading.end, f, words);
+    const { end, exits } = endOf(reading.end, f, words);
     return {
       says: reading.says,
       words,
@@ -213,10 +223,11 @@ export function readField(f) {
 /** @type {{end: null, exits: false}} */
 const NOTHING = { end: null, exits: false };
 
-/** @param {End} kind @param {FieldFacts} f @param {readonly (string | Said)[]} words
+/** While the page holds keys, every reading's end offers nothing (`held`).
+ * @param {End} kind @param {FieldFacts} f @param {readonly (string | Said)[]} words
  * @returns {{end: BoxPress | string | null, exits: boolean}} */
 function endOf(kind, f, words) {
-  if (kind === "none") return NOTHING;
+  if (kind === "none" || f.held) return NOTHING;
   if (kind === "key") return { end: "", exits: false };
   if (kind === "comment") return { end: COMMENT_HINT, exits: false };
   if (f.notice?.press) return { end: f.notice.press, exits: false };

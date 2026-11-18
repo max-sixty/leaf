@@ -299,7 +299,7 @@ import {
   seeErrors,
 } from "./errors.js";
 import { statusContextReading } from "./keyboard/status-context.js";
-import { readField } from "./field-readings.js";
+import { passingWords, readField } from "./field-readings.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import {
@@ -422,17 +422,17 @@ let copyRefused = false;
 /** @param {ReturnType<typeof pageControls>[number]} entry */
 const groupOf = (entry) =>
   entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
-// What passes in the panel's one seat for words that pass: a notice while one shows,
-// else the Go-to filter's word while its sequence waits for a key, or a walk's position
-// ("1 of 3 waiting on me") for a notice's moment after each step (`stepWords`). The
-// user asked that whatever is not anchored to the page stand at the panel rather than
-// against the window. The field says them as field-readings.js orders them.
+// What passes in the panel's one seat for words that pass, on the page, as
+// field-readings.js orders them (`passingWords`), or null. The user asked that whatever
+// is not anchored to the page stand at the panel rather than against the window.
 function passing() {
   const notice = noticeReading();
-  if (notice.visible)
-    return { message: notice.message, visible: true, press: notice.press };
-  const message = statusContextReading().goTo ?? stepWords() ?? "";
-  return { message, visible: Boolean(message), press: null };
+  return passingWords({
+    thread: false,
+    notice: notice.visible ? notice : null,
+    goTo: statusContextReading().goTo,
+    step: stepWords(),
+  });
 }
 // A walk's position for a notice's moment from each step (notifications.js,
 // `answerStep`); the walk itself stands where it landed after the moment.
@@ -685,7 +685,7 @@ export function createFloatingPanel({
     const statusModel = initial ? CONNECTING : status();
     const onUser = initial ? 0 : onUserCount();
     const news = initial ? 0 : newCount();
-    const unseen = !initial && errorsWaiting(input);
+    const unseen = !initial && errorsWaiting(reading);
     const exit = initial ? null : fieldExit(search, top, input, reading);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
     // the head line, where a thread's presses stand and every other view's name. A
@@ -1192,8 +1192,7 @@ export function createFloatingPanel({
     return readField({
       thread: !page,
       writing: input === focused(),
-      error: sayable()[0] ?? null,
-      pressing: noticePressing(input),
+      error: fieldError(),
       held: held && heldText(held),
       selected: page && selectedWords ? excerptWords(selectedWords.quote, 60) : null,
       notice: notice.visible
@@ -1222,22 +1221,18 @@ export function createFloatingPanel({
     offers: false,
   });
   const HIDDEN = "Annotations hidden";
-  // A notice offering a press after the user's own gesture is newer than any error the
-  // field would say, so the error waits in the menu's Errors while it passes
-  // (field-readings.js, "error"). The caret in the field says nothing that passes.
-  /** @param {Element | null} input */
-  function noticePressing(input) {
-    return Boolean(passing().press) && input !== focused();
-  }
+  // The newest error the field can say, which it says where nothing newer claims it
+  // (field-readings.js, "error").
+  const fieldError = () => sayable()[0] ?? null;
   // Whether an error waits unseen in the menu's Errors list: one the user hasn't opened
-  // the list on, which neither the field says now nor stands at its own box. The leaf
-  // and the Errors row wear the same dot for it, so the row a press on the dotted
-  // leaf opens to is the one dotted there.
-  /** @param {Element | null} input */
-  function errorsWaiting(input) {
-    const saying = noticePressing(input) ? [] : sayable();
+  // the list on, which neither the field says now (`reading`) nor stands at its own box.
+  // The leaf and the Errors row wear the same dot for it, so the row a press on the
+  // dotted leaf opens to is the one dotted there.
+  /** @param {ReturnType<typeof fieldReading> | null} reading */
+  function errorsWaiting(reading) {
+    const said = reading?.says === "error" ? fieldError() : null;
     return errorsReading().some(
-      (error) => !error.seen && !saying.includes(error) && !standsAtItsBox(error),
+      (error) => !error.seen && error !== said && !standsAtItsBox(error),
     );
   }
   // Where the user stands on the page, which leads the page field's words for as long
@@ -2550,7 +2545,7 @@ export function createFloatingPanel({
       html`Errors<span
           class="lf-fp-error-dot"
           aria-hidden="true"
-          ?data-lf-shown=${errorsWaiting(fieldInput())}
+          ?data-lf-shown=${errorsWaiting(fieldReading(null, fieldInput()))}
         ></span>`,
       html`<span class="lf-fp-value">${errors.length}</span>`,
       () => {
@@ -5154,13 +5149,13 @@ export function createFloatingPanel({
   function peekPresentation() {
     const held = heldWords.value;
     const notice = passing();
-    const telling = (held || notice.visible) && host.dataset.lfRest === "mark";
+    const telling = (held || notice) && host.dataset.lfRest === "mark";
     return {
       content: !telling
         ? nothing
         : held
           ? heldParts(held)
-          : voiced(noticeWords(notice.message)),
+          : voiced(noticeWords(notice ?? "")),
       shown: Boolean(telling),
     };
   }
@@ -5169,7 +5164,7 @@ export function createFloatingPanel({
   // notice standing in the folded leaf's peek is all it says.
   function leafPreview() {
     if (host.dataset.lfRest !== "mark") return { name: "Page menu" };
-    if (passing().visible) return false;
+    if (passing()) return false;
     const fold = commandSteps(FOLD);
     return {
       name: "Unfold Leaf",

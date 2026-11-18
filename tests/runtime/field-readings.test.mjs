@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { FIELD_READINGS, readField } from "/runtime/field-readings.js";
+import { FIELD_READINGS, passingWords, readField } from "/runtime/field-readings.js";
 import { leafSays, wordsText } from "/runtime/voice.js";
 
 /** @param {string} word */
@@ -18,7 +18,6 @@ const facts = (over = {}) => ({
   thread: false,
   writing: false,
   error: null,
-  pressing: false,
   held: null,
   selected: null,
   notice: null,
@@ -52,7 +51,10 @@ test("the status is the page field's own words, after where the user stands", ()
   );
   assert.equal(reading.says, "status");
   assert.equal(wordsText(reading.words), "v1 of 2 · Running the browser suite");
-  assert.equal(reading.end, NEXT_ON_ME);
+  assert.deepEqual(
+    [wordsText(reading.lead), reading.end, reading.offers],
+    ["v1 of 2 · ", NEXT_ON_ME, false],
+  );
   assert.equal(readField(facts()).end, "Comment…");
 });
 
@@ -73,12 +75,26 @@ test("something of the user's takes the status's place while it stands, in order
   assert.equal(readField(facts(cleared)).says, "status");
 });
 
+test("selected words name what a press on the field does, as at rest", () => {
+  const selection = readField(facts({ selected: "the queue fills", goTo: "Thread" }));
+  assert.deepEqual(
+    [wordsText(selection.words), selection.end, selection.offers],
+    ["Thread · “the queue fills”", "Comment…", true],
+  );
+  assert.equal(
+    readField(facts({ selected: "the queue fills", thread: true })).says,
+    "turn",
+  );
+});
+
 test("a walk's step takes the page field's words, and leaves a thread's Reply", () => {
   const step = { step: "Thread 2 of 5" };
   assert.equal(said(facts(step)), "Thread 2 of 5");
   const thread = readField(facts({ ...step, thread: true }));
-  assert.equal(thread.says, "turn");
-  assert.equal(wordsText(thread.words), "Reply…");
+  assert.deepEqual(
+    [thread.says, wordsText(thread.words), thread.end, thread.offers],
+    ["turn", "Reply…", "", true],
+  );
   assert.equal(
     readField(facts({ ...step, thread: true, goTo: "No visible threads." })).says,
     "notice",
@@ -107,21 +123,27 @@ test("words that pass lead with the stance alone, whose Close the field's end of
 
 test("a notice offering a press says it over an error, and offers its press", () => {
   const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD };
-  const over = facts({
-    error: { message: "Couldn't load v3" },
-    notice: resolved,
-    pressing: true,
-  });
+  const over = facts({ error: { message: "Couldn't load v3" }, notice: resolved });
   assert.deepEqual(
     [said(over), readField(over).end],
     ["Resolved “Retries”", NEXT_THREAD],
   );
   assert.equal(readField(facts({ ...over, thread: true })).end, NEXT_THREAD);
-  assert.equal(said({ ...over, pressing: false }), "Couldn't load v3");
+  assert.equal(said({ ...over, writing: true }), "Couldn't load v3");
+});
+
+test("the folded leaf's peek says what passes, in the field's order", () => {
+  const notice = { message: "Updated to v4", press: null };
+  const moment = facts({ notice, goTo: "Thread", step: "Thread 2 of 5" });
+  assert.equal(passingWords(moment), "Updated to v4");
+  assert.equal(passingWords({ ...moment, notice: null }), "Thread");
+  assert.equal(passingWords({ ...moment, notice: null, goTo: null }), "Thread 2 of 5");
+  assert.equal(said({ ...moment, notice: null, goTo: null }), "Thread 2 of 5");
 });
 
 test("keys the page holds leave the field's end empty", () => {
-  for (const over of [{}, { error: { message: "Couldn't load v3" } }])
+  const error = { error: { message: "Couldn't load v3" } };
+  for (const over of [{}, error, { ...error, thread: true }])
     assert.equal(
       readField(facts({ held: "t runs when the page is ready", ...over })).end,
       null,

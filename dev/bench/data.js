@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794916933524,
+  "lastUpdate": 1795003743670,
   "repoUrl": "https://github.com/max-sixty/leaf",
   "entries": {
     "Bench at 64 sections": [
@@ -5238,6 +5238,653 @@ window.BENCHMARK_DATA = {
           {
             "name": "documents: browse cpu",
             "value": 31.91,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "leaf-agent",
+            "username": "leaf-agent",
+            "email": "l@leaf.page"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "8afbebff48f78a211546aca490166a15619bc76b",
+          "message": "Say what holds now in hook, activity and fork docstrings, and drop fork eval keys nothing reads (#6360)\n\nComment, docstring and eval-data corrections from the nightly sweep, so\ntext in the tree says what holds now (root AGENTS.md, \"Where\ninstructions live\"). No behavior changes.\n\n`hooks.cmd_pages` keeps its two rules (a newer Leaf reads an older\nfollower's lane as no one's, and a follower whose module isn't this\nLeaf's keeps nothing back) and points at `activity.STARTING_GRACE`\ninstead of a 30 s hold that no longer exists. The dated incidents behind\nthem move to the commit message, as do the measurements that settled\n`STARTING_GRACE`.\n\nThe `summary_fork` header now states the decision and its reason without\ntelling its history. The `fork_eval` header and `evals/README.md` now\nname the summary fork, which the executor already runs\n(`evals/summary-fork`).\n\nStale references fixed: `events.summary_range` now points at\n`thread_context.summary_hint`, the `agent_state` header describes a\nthread's holder as `holding.holder` names it (main thread, line turn or\nworking fork, with whether that turn runs, closed or lapsed), and the\nworker cites `inference.CODEX_MODEL` instead of the nonexistent\n`thread_titles.CODEX_TITLE_MODEL`.\n\n`evals/workflows/fork_eval.yaml` loses the top-level `thread:` key on\nten line-fork cases. `fork_eval` takes the thread from KEEP's output,\nand a grep finds no reader of `scenario[\"thread\"]`.\n\nChecks run: ruff check and format on the touched Python, and\n`dev/tests/test_evals.py -k \"fork or case or catalog\"` (the fork replay\ncases and the catalog build), which passed.\n\n---------\n\nCo-authored-by: leaf-agent <318509791+leaf-agent@users.noreply.github.com>",
+          "timestamp": "2026-11-18T08:44:24Z",
+          "url": "https://github.com/max-sixty/leaf/commit/8afbebff48f78a211546aca490166a15619bc76b"
+        },
+        "date": 1795003742773,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "asks: load cpu",
+            "value": 1302.6,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click cpu",
+            "value": 37.19,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: key cpu",
+            "value": 12.3,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: leave cpu",
+            "value": 23.66,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: tab cpu",
+            "value": 37.21,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: walk cpu",
+            "value": 52.76,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: scroll cpu",
+            "value": 5,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: hover cpu",
+            "value": 1.27,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: aim cpu",
+            "value": 3.92,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: design cpu",
+            "value": 299.47,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: draw cpu",
+            "value": 124.2,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: capture cpu",
+            "value": 225.73,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: revision cpu",
+            "value": 180.85,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: stamp cpu",
+            "value": 156.2,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: select cpu",
+            "value": 65.31,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: open cpu",
+            "value": 99.9,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment cpu",
+            "value": 169.64,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve cpu",
+            "value": 86.61,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: reply cpu",
+            "value": 66.41,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: status cpu",
+            "value": 21.51,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click shown",
+            "value": 39.2,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment shown",
+            "value": 189.5,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve shown",
+            "value": 76.3,
+            "unit": "ms"
+          },
+          {
+            "name": "document: load cpu",
+            "value": 633.85,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click cpu",
+            "value": 54.63,
+            "unit": "ms"
+          },
+          {
+            "name": "document: key cpu",
+            "value": 18.34,
+            "unit": "ms"
+          },
+          {
+            "name": "document: leave cpu",
+            "value": 34.03,
+            "unit": "ms"
+          },
+          {
+            "name": "document: tab cpu",
+            "value": 50.51,
+            "unit": "ms"
+          },
+          {
+            "name": "document: walk cpu",
+            "value": 45.3,
+            "unit": "ms"
+          },
+          {
+            "name": "document: scroll cpu",
+            "value": 10.94,
+            "unit": "ms"
+          },
+          {
+            "name": "document: hover cpu",
+            "value": 1.08,
+            "unit": "ms"
+          },
+          {
+            "name": "document: aim cpu",
+            "value": 10.62,
+            "unit": "ms"
+          },
+          {
+            "name": "document: design cpu",
+            "value": 53.95,
+            "unit": "ms"
+          },
+          {
+            "name": "document: draw cpu",
+            "value": 72.48,
+            "unit": "ms"
+          },
+          {
+            "name": "document: capture cpu",
+            "value": 124.3,
+            "unit": "ms"
+          },
+          {
+            "name": "document: revision cpu",
+            "value": 92.55,
+            "unit": "ms"
+          },
+          {
+            "name": "document: stamp cpu",
+            "value": 80.78,
+            "unit": "ms"
+          },
+          {
+            "name": "document: select cpu",
+            "value": 72.89,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment cpu",
+            "value": 230.4,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve cpu",
+            "value": 118.01,
+            "unit": "ms"
+          },
+          {
+            "name": "document: reply cpu",
+            "value": 102.27,
+            "unit": "ms"
+          },
+          {
+            "name": "document: status cpu",
+            "value": 50.28,
+            "unit": "ms"
+          },
+          {
+            "name": "document: search cpu",
+            "value": 49.51,
+            "unit": "ms"
+          },
+          {
+            "name": "document: matches cpu",
+            "value": 426.61,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click shown",
+            "value": 40.1,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment shown",
+            "value": 204,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve shown",
+            "value": 90.1,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: load cpu",
+            "value": 474.29,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click cpu",
+            "value": 30.21,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: key cpu",
+            "value": 12.86,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: leave cpu",
+            "value": 17.93,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: tab cpu",
+            "value": 38.28,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: walk cpu",
+            "value": 19.93,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: scroll cpu",
+            "value": 2.78,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: hover cpu",
+            "value": 2.87,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: aim cpu",
+            "value": 8.13,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: design cpu",
+            "value": 69.82,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: draw cpu",
+            "value": 37.39,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: capture cpu",
+            "value": 59.37,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: revision cpu",
+            "value": 64.15,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: stamp cpu",
+            "value": 66.38,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: select cpu",
+            "value": 58.26,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment cpu",
+            "value": 190.51,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve cpu",
+            "value": 70.6,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: reply cpu",
+            "value": 58.01,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: status cpu",
+            "value": 19.27,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click shown",
+            "value": 32.6,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment shown",
+            "value": 183.5,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve shown",
+            "value": 76.4,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: load cpu",
+            "value": 515.18,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click cpu",
+            "value": 30.88,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: key cpu",
+            "value": 12.96,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: leave cpu",
+            "value": 22.39,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: tab cpu",
+            "value": 48.62,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: walk cpu",
+            "value": 32.15,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: scroll cpu",
+            "value": 3.61,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: hover cpu",
+            "value": 0.87,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: aim cpu",
+            "value": 7.63,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: design cpu",
+            "value": 36.67,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: draw cpu",
+            "value": 41.66,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: capture cpu",
+            "value": 58.54,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: revision cpu",
+            "value": 70.2,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: stamp cpu",
+            "value": 69.24,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: select cpu",
+            "value": 50.77,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment cpu",
+            "value": 199.93,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve cpu",
+            "value": 87.43,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: reply cpu",
+            "value": 57.91,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: status cpu",
+            "value": 19.88,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click shown",
+            "value": 33.15,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment shown",
+            "value": 186,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve shown",
+            "value": 91.8,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: load cpu",
+            "value": 710,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click cpu",
+            "value": 57.06,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: key cpu",
+            "value": 13.79,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: leave cpu",
+            "value": 18.95,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: tab cpu",
+            "value": 63.86,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: walk cpu",
+            "value": 22.05,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: scroll cpu",
+            "value": 6.07,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: hover cpu",
+            "value": 5.72,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: aim cpu",
+            "value": 8.34,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: design cpu",
+            "value": 95.86,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: draw cpu",
+            "value": 60.03,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: capture cpu",
+            "value": 99.44,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: revision cpu",
+            "value": 105.88,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: stamp cpu",
+            "value": 121.63,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: select cpu",
+            "value": 66.24,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment cpu",
+            "value": 221.78,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve cpu",
+            "value": 105.29,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: reply cpu",
+            "value": 74.54,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: status cpu",
+            "value": 22.86,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click shown",
+            "value": 50.6,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment shown",
+            "value": 208.9,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve shown",
+            "value": 90.7,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: load cpu",
+            "value": 766.35,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: design cpu",
+            "value": 48.26,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: inspect cpu",
+            "value": 15.97,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: pick cpu",
+            "value": 42.06,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: part cpu",
+            "value": 128.83,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: draw cpu",
+            "value": 67.67,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: capture cpu",
+            "value": 114.42,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: data cpu",
+            "value": 118.56,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: reveal cpu",
+            "value": 104.7,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: search cpu",
+            "value": 39.4,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: matches cpu",
+            "value": 1959.71,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: browse cpu",
+            "value": 36.91,
             "unit": "ms"
           }
         ]

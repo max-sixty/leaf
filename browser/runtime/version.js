@@ -185,7 +185,7 @@ import { rememberAuthoredParents, stageAuthoredStates } from "./projection/autho
 import { foldWidgetStates, obligationValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
-  commitWidgetDescriptors,
+  bindWidgetDescriptors,
   quoted,
   stageWidgetDescriptors,
 } from "./widget-descriptors.js";
@@ -2066,7 +2066,7 @@ export function createVersionController({
         // custom element. The publisher still holds the outgoing document until the
         // patch and matching server reading are admitted together, so this descriptor
         // cannot borrow the old widget's semantic state during preparation.
-        commitWidgetDescriptors({ bindings });
+        bindWidgetDescriptors(bindings);
         formatDeclaredMarkdown(arriving);
         prepaintDeclaredFiles(arriving);
         arrived.push(arriving);
@@ -2138,16 +2138,6 @@ export function createVersionController({
       );
     for (const [id, descriptor] of prior.descriptors)
       if (descriptor.document.kind === "thread") descriptors.set(id, descriptor);
-    const retired = new Set(
-      [...prior.descriptors]
-        .filter(
-          ([id, descriptor]) =>
-            descriptor.document.kind === "page" &&
-            !sourceDescriptors.descriptors.has(id),
-        )
-        .map(([id]) => id),
-    );
-    commitWidgetDescriptors({ bindings: [] }, retired);
     return {
       document: {
         ...prior,

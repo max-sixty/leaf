@@ -860,26 +860,15 @@
     inset: -3px -3px auto;
     --lf-badge-reach: 3px;
   }
-  .lf-fp-badge,
-  .lf-fp-news-dot {
+  .lf-fp-leaf > .lf-badges > .lf-fp-badge,
+  .lf-fp-leaf > .lf-badges > .lf-fp-news-dot {
     display: none;
   }
-  .lf-fp-badge {
-    box-shadow: 0 0 0 2px var(--lf-paper);
-    min-width: 17px;
-    height: 17px;
-    padding: 0 5px;
-    box-sizing: border-box;
-    border-radius: 999px;
+  /* Its count is of what is On me, so it wears the user's turn (tokens.css,
+     `--lf-badge-fill`). */
+  .lf-fp-leaf > .lf-badges > .lf-fp-badge {
     background: var(--lf-badge-fill);
     color: var(--lf-badge-ink);
-    place-items: center;
-    font: var(--lf-font-count);
-  }
-  /* The folded leaf's dot is a size up, to read beside its count. */
-  .lf-fp-news-dot {
-    width: 8px;
-    height: 8px;
   }
   .lf-floating-panel[data-lf-rest="mark"]
     :is(.lf-fp-badge, .lf-fp-news-dot)[data-lf-shown] {

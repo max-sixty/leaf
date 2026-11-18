@@ -458,7 +458,7 @@ const groupOf = (entry) =>
   entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
 // else what the status line says between notices, the Go-to filter's word or a walk's
-// position ("1 of 3 waiting on me · Options"). The user asked that
+// position ("1 of 3 waiting on me"). The user asked that
 // whatever is not anchored to the page stand at the panel rather than against the
 // window.
 function passing() {
@@ -4273,13 +4273,10 @@ export function createFloatingPanel({
       </button>`;
     } else answers = nothing;
     const stop = queueStop(item);
-    const mine = item.owner === "user";
-    // A line says what its item is: what waits on the user in the walk's word for it,
-    // so a suggestion says Insertion, Deletion or Rewrite as the field does after `m`,
-    // and the agent's as the reply, answer or to-do it owes. A line of the user's under
-    // Done names none, since how it ended, such as the answer it took, says what it
-    // was.
-    const kind = mine ? (list === "done" ? "" : stop.noun) : agentNoun(item);
+    // A line of the agent's says what its item is, the reply, answer or to-do it owes.
+    // The user's stand as cards, but under Done, where how one ended, such as the answer
+    // it took, says what it was.
+    const kind = item.owner === "user" ? "" : agentNoun(item);
     const where = says === "place" ? "" : onMe.place(item);
     const walked = leads && queueTab === "you" && walkedStop() === stop.key;
     // On Me's card says only where its item stands over its question, where its band

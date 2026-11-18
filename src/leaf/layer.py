@@ -681,9 +681,9 @@ def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerCompositio
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies
-    its own runtime (`runtime_selection`). Held for the process, since a plugin
-    update may replace the tree under a running server, which keeps answering with
-    the bytes it started with. Held by the package roots the selection resolves to
+    its own runtime (`runtime_selection`). Held for the process (`forget_layers`),
+    since a plugin update may replace the tree under a running server, which keeps
+    answering with the bytes it started with. Held by the package roots the selection resolves to
     rather than its spelling, since a page's own copy is another directory in another
     page, and an installed name another snapshot after `package install`; and a
     page's copy by its stamp too, since its next `page init` replaces it in place."""
@@ -708,6 +708,15 @@ def _selection(
 
 _vocabularies: dict = {}
 _compositions: dict = {}
+
+
+def forget_layers() -> None:
+    """Drop every layer and vocabulary this process holds (`selected_layer`), and the
+    Leaf it read itself to be (`running_leaf`), which a layer names as its producer
+    (`runtime_selection.forget_tree`)."""
+    _vocabularies.clear()
+    _compositions.clear()
+    running_leaf.cache_clear()
 
 
 def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:

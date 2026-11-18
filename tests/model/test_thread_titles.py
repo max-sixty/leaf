@@ -15,7 +15,6 @@ from interact_support import (
     Prose,
     append_carried_log_record,
     append_command,
-    claude_code_module,
     record_claim,
     stamp,
     wait_for,
@@ -30,6 +29,7 @@ from leaf import harness as harness_model
 from leaf import interaction_log as interaction_model
 from leaf import state as cleanup_model
 from leaf.thread import fit_title
+from leaf_dev.claude_code_module import claude_code_module
 
 # What Codex's turn reports when the account cannot use the model it asks for.
 UNAVAILABLE_MODEL = {

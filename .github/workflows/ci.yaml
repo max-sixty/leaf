@@ -10,7 +10,8 @@ name: ci
 #   the tests over their directory's budget; `test-macos` runs them on macOS too.
 #   The daily schedule also runs the benchmark (`bench`), whose readings gate
 #   nothing.
-# Developer-tool tests live in dev/tests and are opt-in, outside every CI selection.
+# The daily schedule also runs the developer-tool tests in dev/tests, which no other
+# event runs.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -180,6 +181,18 @@ jobs:
       - name: Wait for lint and Python tests
         wait: [lint, python-tests]
 
+      # Only the daily run runs the developer-tool tests (dev/AGENTS.md, "Tests"). They
+      # follow the product suite rather than run beside it, so neither takes the
+      # other's cores, and a failure turns the run red for tend, with its report
+      # beside the suite's in the uploaded results. They come before the next step,
+      # which replaces the harness packages in `node_modules`.
+      - name: 🧪 Developer-tool tests
+        if: github.event_name == 'schedule' && !cancelled()
+        timeout-minutes: 60
+        run: |
+          uv run pytest dev/tests -n 3 -v --junitxml=.tmp/test-results/dev-results.xml
+          pnpm run test:evals
+
       # The daily run checks `hooks/` again against each harness's newest release, once
       # the steps reading `node_modules` are done. The pins move with Dependabot's weekly
       # npm group, while a user's Claude Code updates itself as each release ships, so a
@@ -334,17 +347,19 @@ jobs:
       # few seconds later. Chromium answers the change by failing every loopback load
       # still waiting for a socket with net::ERR_NETWORK_CHANGED, and the test that was
       # loading fails. Setting the leased address, router and DNS server by hand keeps
-      # the interface unchanged for the rest of the job.
+      # the interface unchanged for the rest of the job. Every value is read from the
+      # lease before any is set, since setting the address ends the lease and
+      # `ipconfig getoption` answers nothing for it afterwards.
       - name: Hold the runner's network address
         run: |
           interface=$(route -n get default | awk '/interface:/ {print $2}')
           service=$(networksetup -listnetworkserviceorder | awk -v device="$interface" '/^\([0-9]+\) / {sub(/^\([0-9]+\) /, ""); name=$0} index($0, "Device: " device ")") {print name}')
           address=$(ipconfig getifaddr "$interface")
-          sudo networksetup -setmanual "$service" "$address" \
-            "$(ipconfig getoption "$interface" subnet_mask)" \
-            "$(ipconfig getoption "$interface" router)"
-          sudo networksetup -setdnsservers "$service" \
-            "$(ipconfig getoption "$interface" domain_name_server)"
+          mask=$(ipconfig getoption "$interface" subnet_mask)
+          router=$(ipconfig getoption "$interface" router)
+          dns=$(ipconfig getoption "$interface" domain_name_server)
+          sudo networksetup -setmanual "$service" "$address" "$mask" "$router"
+          sudo networksetup -setdnsservers "$service" "$dns"
           until [ "$(ipconfig getifaddr "$interface")" = "$address" ]; do sleep 1; done
 
       - name: 📂 Checkout code

@@ -158,7 +158,7 @@
   },
   "$attributes": {
     "description": "The attributes that mean the same on every widget, as HTML's global attributes do. A declaration lists each one its element takes among its `properties`, like any other attribute, and Leaf supplies the meaning, so no key maps a widget's own name for it. `id`, `restated` ($restated), `overruled` ($report) and `resolves` (`verbs`) are global the same way.",
-    "label": "The element's title, which the page uses to name the element elsewhere, as the activity feed does. Take it only where an attribute is the title, as an option card's, a board card's, a column's or a tab's is; a section is already titled by its heading and a disclosure by its summary. An attribute the element merely shows first, such as a metric's value, is not its title.",
+    "label": "The element's name, which the page uses to name the element elsewhere, as On Me and the activity feed do. An option card, a board card, a group, a column and a tab take it; a section is already named by its heading and a disclosure by its summary. Whether the element shows its name is the element's own: a column and a tab draw theirs, and a card or a group shows whatever title its author writes in it. An attribute the element merely shows first, such as a metric's value, is not its name.",
     "tone": "One of the layer's semantic tints. Composing the vocabulary gives the attribute `$tones.names`, which the theme has a rule for, as its `enum`."
   },
   "$verbs": {

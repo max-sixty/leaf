@@ -142,27 +142,25 @@ test("a message's words part its blocks, as the page reading does", async () => 
   assert.equal(prepared.body.text, "Pick one: Open it now Hold it");
 });
 
-// An option's title is its label, which the message writes as words where it draws, so
+// A label a widget draws, as a sample does, is among its words wherever it draws, so
 // the message's words hold it too.
-test("a message's words hold its options' labels", async () => {
+test("a message's words hold the labels its widgets draw", async () => {
   adoptRegistry({
     $layer: { generation: "message-labels" },
-    "lf-options": {},
-    "lf-option": { says: { label: "before" } },
+    "lf-sample": { says: { label: "before" } },
   });
   assert.equal(await loadMarkdown(), true);
   const prepared = await prepareAuthoredMessage(
     {
       id: "labelled-message",
       text:
-        'Pick one:\n\n<lf-options id="labelled-choice">\n' +
-        '<lf-option id="labelled-now" label="Open it now">Today.</lf-option>\n' +
-        '<lf-option id="labelled-hold" label="Hold it"></lf-option>\n' +
-        "</lf-options>",
+        "See:\n\n" +
+        '<lf-sample id="labelled-sample" label="Next season">' +
+        "<p>Paper maps.</p></lf-sample>",
     },
     "labelled-thread",
   );
-  assert.equal(prepared.body.text, "Pick one: Open it now Today. Hold it");
+  assert.equal(prepared.body.text, "See: Next season Paper maps.");
 });
 
 // A drawing that doesn't hold the message's widgets, such as a margin card while the

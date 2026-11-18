@@ -297,8 +297,12 @@ flowchart TD
         <lf-group id="keyboard-review" label="Keep the keyboard change?">
           <h4 id="keyboard-review-h">Keep the keyboard change?</h4>
           <lf-options id="keyboard">
-            <lf-option id="keyboard-approve" label="Approve change"></lf-option>
-            <lf-option id="keyboard-revisit" label="Revisit change"></lf-option>
+            <lf-option id="keyboard-approve" label="Approve change"
+              ><strong>Approve change</strong></lf-option
+            >
+            <lf-option id="keyboard-revisit" label="Revisit change"
+              ><strong>Revisit change</strong></lf-option
+            >
           </lf-options>
         </lf-group>
       </section>

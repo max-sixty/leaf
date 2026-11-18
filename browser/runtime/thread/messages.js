@@ -516,8 +516,8 @@ export function prepareAuthoredMessage(message, thread) {
     // The message's words as the page reading says them (`says`). `says` refuses text
     // with no element over it, and a message may open with bare text, so it reads a
     // copy inside a <div> of the template's inert document, where nothing upgrades; the
-    // copy writes its declared labels as the drawn message does (`renderSaid`), so an
-    // option's title is among its words.
+    // copy writes its declared labels as the drawn message does (`renderSaid`), so a
+    // sample's label is among its words.
     const body = template.content.ownerDocument.createElement("div");
     body.append(template.content.cloneNode(true));
     renderSaid(body);

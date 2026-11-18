@@ -290,9 +290,9 @@ needed.</p>
 </ul>
 <lf-group id="choice-q" label="How long should the old cluster stay warm?">
 <lf-options id="choice">
-<lf-option id="choice-week" label="Keep the old cluster for a week">Covers the
+<lf-option id="choice-week" label="Keep the old cluster for a week"><strong>Keep the old cluster for a week</strong> Covers the
 Sunday batch jobs.</lf-option>
-<lf-option id="choice-days" label="Keep it for three days">Saves most of the
+<lf-option id="choice-days" label="Keep it for three days"><strong>Keep it for three days</strong> Saves most of the
 cost.</lf-option>
 </lf-options>
 </lf-group>

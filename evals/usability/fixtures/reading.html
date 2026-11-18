@@ -95,13 +95,16 @@
         </p>
         <lf-options id="cutover-mode">
           <lf-option id="mode-big-bang" label="Big bang" recommended
-            >Stop writes, copy everything, switch once.</lf-option
+            ><strong>Big bang</strong> Stop writes, copy everything, switch
+            once.</lf-option
           >
           <lf-option id="mode-shard" label="Shard by shard"
-            >Move and switch one shard at a time.</lf-option
+            ><strong>Shard by shard</strong> Move and switch one shard at a
+            time.</lf-option
           >
           <lf-option id="mode-dual" label="Dual write"
-            >Write to both clusters, then switch reads.</lf-option
+            ><strong>Dual write</strong> Write to both clusters, then switch
+            reads.</lf-option
           >
         </lf-options>
       </lf-group>

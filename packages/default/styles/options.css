@@ -1,10 +1,10 @@
 /* lf-options / lf-option. The theme draws the whole widget; the module adds the pick, the
  * block reference, and the option the user writes.
  *
- * Form follows the options' titles: a group whose options carry a `label` stacks
- * full-width cards in the document's serif, each arguing its case under the title the
- * label draws (`says`); a group of bare labels is a question about the page and
- * reads as compact sans rows, each naming the block it is about (`for`). A rule true of
+ * Form follows the options' names: a group whose options carry a `label` stacks
+ * full-width cards in the document's serif, each arguing its case under the title its
+ * author writes in it, a leading <strong>; a group of bare labels is a question about
+ * the page and reads as compact sans rows, each naming the block it is about (`for`). A rule true of
  * one form puts the form predicate in its selector, so no rule resets another form's
  * state. The predicate reads the label in :where() (`lf-option:where([label])`), so it
  * weighs as two elements and a live group's rules, whose guard adds no weight (below),
@@ -12,10 +12,10 @@
  * the author asks (`across`, below); that is an arrangement of the titled form, not a
  * third form.
  *
- * Chips are inline-block, so a card's chips open the line under its title and a bare
- * label's ride in its row. Authors write as many as the decision needs, so the band
- * wraps rather than reserving room. A card's title is its first line, so cards that
- * share a row align their titles.
+ * Chips are inline-block, so chips written before a card's title band on their own line
+ * above the block <strong>, and a bare label's ride in its row. Authors write as many
+ * as the decision needs, so the band wraps rather than reserving room. Cards that share
+ * a row float their chips instead, so their titles align (below).
  *
  * Joined is a second axis: on screen, a group of words becomes one
  * control whose cells share hairlines; under `settled`, in an exhibit, or on paper it
@@ -28,6 +28,14 @@
  * add cell (`.lf-another`, which creates a real option through `choose`, not a thread)
  * and Done. What every cell owes is stated over every child; only what one kind alone
  * answers names it. */
+/* Whether an option shares a row with its siblings, which it does only in a group laid
+ * across that is wide enough to hold them all (`--lf-options-row-width`). Each option
+ * computes it against its group's width and its children read it. */
+@property --lf-option-in-row {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 /* The line an option's words stand on, resolved on the group and inherited: the prose
  * line for a card, the row face below. The add field stands on the same line whatever
  * its type (--lf-entry-floor), so the option that replaces it keeps the row's height. */
@@ -76,13 +84,6 @@ lf-options:has(> lf-option:where([label])) > lf-option {
   padding: var(--lf-option-pad-block) var(--lf-sp-3);
   --lf-block-frame: 1;
 }
-/* A labelled card's title stands at its start, drawn or painted from the attribute, so
- * the frame trims only its end: a figure after the title keeps its margin, as after any
- * heading. */
-lf-options:has(> lf-option:where([label])) > lf-option[label] {
-  --lf-block-frame: 0;
-  --lf-frame-end: 1;
-}
 /* The add field takes the type its options take, the row's font or, on a card, the
    page's, rather than the controls' face, so the words typed stand as the option they
    become will. */
@@ -103,29 +104,13 @@ lf-options > .lf-another {
 lf-options[settled]:has(> lf-option:where([label])) > .lf-another {
   border: 1px solid transparent;
 }
-/* A card's title is its label, which the runtime writes as text (`says`) and the
- * theme paints from the attribute until it does, so a page no script runs still shows
- * it. */
-lf-option[label]::before,
-lf-option > [data-lf-said="label"] {
-  font-weight: bolder;
-}
-lf-option[label]::before {
-  content: attr(label);
-}
-lf-option:has(> [data-lf-said="label"])::before {
-  content: none;
-}
-/* The option the page advises wears a `recommended` chip at the end of its title, or
- * at the head of a bare label's row, in the chip face (chip.css). */
-lf-option[recommended] > [data-lf-said="label"]::after,
-lf-option[recommended]:not([label])::before {
+/* The option the page advises wears a `recommended` chip in the chip face (chip.css) at
+ * the head of its words: the first chip of a card's band, before whatever the author
+ * wrote, and at the head of a bare label's row. Cards laid across float it with the
+ * chips that open them (below). It stays at the head where a working card floats its
+ * chips to the row's end: generated before the mark, it would take the mark's corner. */
+lf-option[recommended]::before {
   content: "recommended";
-}
-lf-option[recommended] > [data-lf-said="label"]::after {
-  margin-inline-start: 6px;
-}
-lf-option[recommended]:not([label])::before {
   margin: 0 6px 2px 0;
 }
 /* A title heads its card, or, at working density (`--lf-density`, base.css) in a card
@@ -133,22 +118,23 @@ lf-option[recommended]:not([label])::before {
  * A narrower card keeps the heading, since a row there broke the title around the
  * floated chips. The card is the container, so both conditions read the same box. */
 @container not (style(--lf-density: working) and (width >= 30rem)) {
-  /* What follows the title starts on its next line, whatever it is. */
-  lf-option[label]::before,
-  lf-option > [data-lf-said="label"] {
+  /* What follows the title starts on its next line, whatever it is. The title's own
+   * margin would set a sentence holding an inline element or Markdown lower than a
+   * plain one, whose title the frame's trim takes for the card's last block. */
+  lf-option[label] > strong {
     display: block;
+    margin: 0;
   }
   /* A consequence the author set as its own paragraph starts where the sentence written
    * after the title does. The paragraph's margin would set it lower, so those cards
    * would read looser than their neighbours. */
-  lf-option[label] > p:nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+  lf-option[label] > strong + p {
     margin-block-start: 0;
   }
 }
 @container style(--lf-density: working) and (width >= 30rem) {
   lf-options:has(> lf-option:where([label])) > lf-option {
-    &::before,
-    & > [data-lf-said="label"] {
+    & > strong {
       margin-inline-end: 0.35em;
     }
     & > .tag {
@@ -727,6 +713,34 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       )
     );
     max-inline-size: none;
+  }
+  /* Cards laid across align their titles, whatever chips each opens with. The chips
+   * that open a card float out of the line flow, so its title is the card's first
+   * baseline, and the row aligns each card's contents on it (baseline
+   * content-alignment) while the cards keep the row's height and their corners.
+   * Chromium lacks baseline content-alignment (`notes/browser-support.md`), so where
+   * any card in the row opens with chips every title also clears the state seat:
+   * chips that fit beside the seat then leave every title on the line below it in
+   * both engines. A row without chips keeps its titles beside the seat. Subgrid would
+   * need a box around a card's chips, and a card's children stay as the author wrote
+   * them. */
+  lf-options:has(> lf-option:where([label])) > lf-option {
+    --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
+    align-content: first baseline;
+  }
+  @container style(--lf-option-in-row: 1) {
+    /* Each chip's row is the seat's height, so the chips wrap level beside the seat and
+     * under it rather than stepping down where the seat ends. */
+    lf-option[label] > .tag:has(~ strong),
+    lf-option[label][recommended]:has(> strong)::before {
+      float: inline-start;
+      margin-block-end: calc(var(--lf-card-state-height) - 1lh);
+    }
+    lf-options:has(> lf-option[label]:is([recommended], :has(> .tag ~ strong)))
+      > lf-option
+      > strong {
+      clear: both;
+    }
   }
   /* Focus inside the control is carried by the exact row, so the control holding it
    * stands down the location ring of the obligation around it (page-paint.js,

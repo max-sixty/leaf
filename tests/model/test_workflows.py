@@ -364,7 +364,7 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "author": "agent",
             "revision": 1,
             "text": "Which region?\n\n" + '<lf-options id="thread-region">'
-            '<lf-option id="thread-east" label="East"></lf-option>'
+            '<lf-option id="thread-east" label="East"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -930,8 +930,8 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "author": "agent",
             "revision": 1,
             "text": "Which region?\n\n" + '<lf-options id="region">'
-            '<lf-option id="east" label="East"></lf-option>'
-            '<lf-option id="west" label="West"></lf-option>'
+            '<lf-option id="east" label="East"><strong>East</strong></lf-option>'
+            '<lf-option id="west" label="West"><strong>West</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -991,8 +991,8 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "author": "agent",
             "revision": 1,
             "text": "Which regions?\n\n" + '<lf-options id="regions" multiple>'
-            '<lf-option id="east" label="East"></lf-option>'
-            '<lf-option id="west" label="West"></lf-option>'
+            '<lf-option id="east" label="East"><strong>East</strong></lf-option>'
+            '<lf-option id="west" label="West"><strong>West</strong></lf-option>'
             "</lf-options>",
         },
     )

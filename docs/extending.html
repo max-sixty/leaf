@@ -509,14 +509,16 @@
                 <p>Start with canary clients; expand after the error rate settles.</p>
                 <lf-options id="spec-options">
                   <lf-option id="so-rewrite" label="Canary clients" recommended>
-                    Start with a small group and compare its error rate before
-                    expanding.</lf-option
+                    <strong>Canary clients</strong> Start with a small group and compare
+                    its error rate before expanding.</lf-option
                   >
                   <lf-option id="so-shim" label="All clients"
-                    >Enable the release for everyone once the checks pass.</lf-option
+                    ><strong>All clients</strong> Enable the release for everyone once
+                    the checks pass.</lf-option
                   >
                   <lf-option id="so-stage" label="Hold the release"
-                    >Gather more evidence before enabling it for any clients.</lf-option
+                    ><strong>Hold the release</strong> Gather more evidence before
+                    enabling it for any clients.</lf-option
                   >
                 </lf-options>
                 <h3>Which job should start first?</h3>
@@ -554,15 +556,22 @@
                 <lf-board id="spec-board">
                   <lf-column id="sb-incoming" label="Incoming">
                     <lf-card id="sc-flaky" label="Flaky auth test"
-                      >Fails one run in twenty on CI only.</lf-card
+                      ><strong>Flaky auth test</strong> Fails one run in twenty on CI
+                      only.</lf-card
                     >
-                    <lf-card id="sc-contrast" label="Dark-mode contrast pass"></lf-card>
+                    <lf-card id="sc-contrast" label="Dark-mode contrast pass"
+                      ><strong>Dark-mode contrast pass</strong></lf-card
+                    >
                   </lf-column>
                   <lf-column id="sb-sprint" label="This week">
-                    <lf-card id="sc-ratelimit" label="Rate-limit the export"></lf-card>
+                    <lf-card id="sc-ratelimit" label="Rate-limit the export"
+                      ><strong>Rate-limit the export</strong></lf-card
+                    >
                   </lf-column>
                   <lf-column id="sb-done" label="Done">
-                    <lf-card id="sc-tokens" label="Tokenize the palette"></lf-card>
+                    <lf-card id="sc-tokens" label="Tokenize the palette"
+                      ><strong>Tokenize the palette</strong></lf-card
+                    >
                   </lf-column>
                 </lf-board>
                 <h3>Recorded actions</h3>

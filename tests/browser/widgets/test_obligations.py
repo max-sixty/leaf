@@ -58,14 +58,14 @@ ACROSS_OBLIGATION = """
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
     <lf-options id="{id}-choice"{across}{width}>
-      <lf-option id="{id}-7" label="7 days">The cheapest.
+      <lf-option id="{id}-7" label="7 days"><strong>7 days</strong> The cheapest.
         <lf-options id="{id}-nested">
-          <lf-option id="{id}-hot" label="Hot only">Drop warm at once.</lf-option>
-          <lf-option id="{id}-both" label="Both tiers">Keep warm a week.</lf-option>
+          <lf-option id="{id}-hot" label="Hot only"><strong>Hot only</strong> Drop warm at once.</lf-option>
+          <lf-option id="{id}-both" label="Both tiers"><strong>Both tiers</strong> Keep warm a week.</lf-option>
         </lf-options>
       </lf-option>
-      <lf-option id="{id}-30" label="30 days">Covers every incident review.</lf-option>
-      <lf-option id="{id}-90" label="90 days">Covers a quarter's audit.</lf-option>
+      <lf-option id="{id}-30" label="30 days"><strong>30 days</strong> Covers every incident review.</lf-option>
+      <lf-option id="{id}-90" label="90 days"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
     </lf-options>
     <p>Whichever you pick, the hot tier keeps a day.</p>
   </lf-group>
@@ -93,13 +93,13 @@ PICTURED_OBLIGATION = """
   <lf-group id="{id}" label="Should each item say where it sits in the plan?">
     <h3 id="{id}-h">Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice"{width}>
-      <lf-option id="{id}-yes" label="Show the goal and step">A line over each item.
+      <lf-option id="{id}-yes" label="Show the goal and step"><strong>Show the goal and step</strong> A line over each item.
         <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
           aria-label="Items under their step">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
-      <lf-option id="{id}-no" label="Leave the list as it is">Items as today.
+      <lf-option id="{id}-no" label="Leave the list as it is"><strong>Leave the list as it is</strong> Items as today.
         <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img" aria-label="Items as today">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
@@ -125,12 +125,12 @@ PLATE_PACKAGE = {
 
 
 PLATED_OPTION = """
-      <lf-option id="plated-{side}" label="{title}">        <lf-plate id="plated-{side}-picture"><p>{title} by week</p></lf-plate>
+      <lf-option id="plated-{side}" label="{title}">        <strong>{title}</strong> <lf-plate id="plated-{side}-picture"><p>{title} by week</p></lf-plate>
       </lf-option>"""
 
 
 CAPTURED_OPTION = """
-      <lf-option id="captured-{side}" label="{title}">        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
+      <lf-option id="captured-{side}" label="{title}">        <strong>{title}</strong> <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
       </lf-option>"""
 
 
@@ -161,8 +161,8 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + ROWED_OPTION.format(side="no", title="Under the lawn")
     + "</lf-options></lf-group>"
     + '<lf-group id="worded" label="Which order?"><h3 id="worded-h">Which order?</h3><lf-options id="worded-choice">'
-    + '<lf-option id="worded-yes" label="By owner">Grouped.</lf-option>'
-    + '<lf-option id="worded-no" label="By age">As today.</lf-option>'
+    + '<lf-option id="worded-yes" label="By owner"><strong>By owner</strong> Grouped.</lf-option>'
+    + '<lf-option id="worded-no" label="By age"><strong>By age</strong> As today.</lf-option>'
     + "</lf-options></lf-group>",
 )
 
@@ -222,7 +222,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
     # Apart or joined changes only the frame: a pick fills and rings a card as it does
     # a cell, so it reads among pictures as plainly as among words.
     for id in ("pictured", "worded"):
-        page.locator(f'#{id}-yes > [data-lf-said="label"]').click()
+        page.locator(f"#{id}-yes > strong").click()
         expect(page.locator(f"#{id}-yes")).to_have_attribute("selected", "")
     page.mouse.move(0, 0)
     face = """el => { const s = getComputedStyle(el);
@@ -275,11 +275,11 @@ def test_options_marked_across_lay_across(browser, serve):
 
 def chipped_obligation(id, cards):
     """An obligation framing a drawing, its titled cards laid across; each card is
-    (chips, title, attributes)."""
+    (chips, title, attributes), its chips written before its title."""
     options = "".join(
         f'<lf-option id="{id}-{n}" label="{title}"{attributes}>'
         + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
-        + "<p>Its consequence.</p></lf-option>"
+        + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
         for n, (chips, title, attributes) in enumerate(cards)
     )
     return (
@@ -320,12 +320,15 @@ CHIPPED_CARDS_PAGE = leaf_page(
     ("engine", "rows"),
     [("browser", ("some",)), ("firefox_browser", ("some", "all"))],
 )
-def test_cards_laid_across_align_their_titles_whatever_chips_follow_them(
+def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
     request, serve, engine, rows
 ):
     """Cards side by side read as one comparison, so each title stands on one line
-    across the row whatever chips follow it, with the "selected" state or the
-    recommended badge beside it."""
+    across the row whether its card opens with chips, with none, with the "selected"
+    state beside them, or with the recommended badge in its corner. A card whose chips
+    wrap to several lines moves its neighbours' contents down with it, which needs
+    baseline content-alignment: Chromium lacks it, so there only chips that fit beside
+    the state seat keep the row aligned (`notes/browser-support.md`)."""
     page = open_page(request.getfixturevalue(engine), serve(CHIPPED_CARDS_PAGE))
     resized(page, 1440, 900)
     at = page.evaluate(
@@ -335,7 +338,7 @@ def test_cards_laid_across_align_their_titles_whatever_chips_follow_them(
             Math.round(card.querySelector(`:scope > ${part}`).getBoundingClientRect().top);
           return [id, {
             cards: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
-            titles: cards.map((card) => top(card, '[data-lf-said="label"]')),
+            titles: cards.map((card) => top(card, 'strong')),
           }];
         }))""",
         list(rows),

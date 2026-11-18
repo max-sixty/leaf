@@ -146,12 +146,12 @@ expire old keys</code></pre>
                     label="Switch readers back automatically"
                     selected
                   >
-                    Mirror writes for 24 hours, then return to the old keys if counts
-                    diverge.
+                    <strong>Switch readers back automatically</strong> Mirror writes for
+                    24 hours, then return to the old keys if counts diverge.
                   </lf-option>
                   <lf-option id="review-cache-hold" label="Stop for operator review">
-                    Keep readers on the new keys until an operator inspects the
-                    mismatch.
+                    <strong>Stop for operator review</strong> Keep readers on the new
+                    keys until an operator inspects the mismatch.
                   </lf-option>
                 </lf-options>
               </section>
@@ -232,14 +232,15 @@ expire old keys</code></pre>
                     label="Keep it on the old reporting path"
                     selected
                   >
-                    Close the current run without changing the historical ledger entry.
+                    <strong>Keep it on the old reporting path</strong> Close the current
+                    run without changing the historical ledger entry.
                   </lf-option>
                   <lf-option
                     id="review-billing-correct"
                     label="Correct the ledger entry"
                   >
-                    Move the invoice into the new path after finance approves the
-                    adjustment.
+                    <strong>Correct the ledger entry</strong> Move the invoice into the
+                    new path after finance approves the adjustment.
                   </lf-option>
                 </lf-options>
               </section>

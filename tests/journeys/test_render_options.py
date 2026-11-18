@@ -175,7 +175,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         '<h1 id="h">Three jobs</h1>',
         '<h1 id="h">Three jobs</h1>\n'
         '<lf-board id="work-board"><lf-column id="work-now" label="In flight">\n'
-        '  <lf-card id="card-migration" label="Run the migration">'
+        '  <lf-card id="card-migration" label="Run the migration"><strong>Run the migration</strong> '
         "Check the shard before cutover.</lf-card>\n"
         '</lf-column><lf-column id="work-next" label="Next"></lf-column>\n'
         '<lf-column id="work-done" label="Done"></lf-column></lf-board>',

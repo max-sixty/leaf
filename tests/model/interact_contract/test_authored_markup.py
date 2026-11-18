@@ -179,9 +179,10 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
 
 
 def test_check_advises_a_label_where_a_card_leads_with_a_strong(page_dir):
-    """An option or card leading with a <strong>, past any chips, draws as bold words
-    rather than a titled card, so `page check` advises its title in `label`. Bold words
-    after words of the option's own, or an option with a label, draw no advice."""
+    """An option or card leading with a <strong>, past any chips, with no `label` draws
+    as bold words rather than a titled card and is named by all its words, so `page
+    check` advises its name in `label`. Bold words after words of the option's own, or
+    an option with a label and its <strong> title, draw no advice."""
     (page_dir / "index.html").write_text(
         PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice">').replace(
             '<lf-option id="flag-first" label="Flag first">',
@@ -192,7 +193,7 @@ def test_check_advises_a_label_where_a_card_leads_with_a_strong(page_dir):
     )
     status, findings = check_findings(page_dir)
     assert status == 0
-    assert [(f.at, f.severity) for f in found(findings, "title-in-strong")] == [
+    assert [(f.at, f.severity) for f in found(findings, "unnamed-card")] == [
         ("<lf-option id=old>", "advice")
     ]
 

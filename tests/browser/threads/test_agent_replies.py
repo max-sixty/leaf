@@ -923,7 +923,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             "responds": root,
             "text": "Here is the board.\n\n"
             '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
-            '<lf-card id="fb-cache" label="Cache"></lf-card></lf-column>'
+            '<lf-card id="fb-cache" label="Cache"><strong>Cache</strong></lf-card></lf-column>'
             '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
         },
     )

@@ -475,12 +475,12 @@ leaf server start ./review</code></pre>
                   </h3>
                   <lf-options id="queue-policy">
                     <lf-option id="block-producer" label="Pause the producer"
-                      >Keep every queued record; wait for space before accepting
-                      more.</lf-option
+                      ><strong>Pause the producer</strong> Keep every queued record;
+                      wait for space before accepting more.</lf-option
                     >
                     <lf-option id="drop-oldest" label="Drop the oldest record"
-                      >Accept the newest record immediately; discard the oldest queued
-                      one.</lf-option
+                      ><strong>Drop the oldest record</strong> Accept the newest record
+                      immediately; discard the oldest queued one.</lf-option
                     >
                   </lf-options>
                 </lf-group>
@@ -1872,10 +1872,10 @@ flowchart TD
                 <h2 id="ship-ask-h">When should this ship?</h2>
                 <lf-options id="ship">
                   <lf-option id="ship-now" label="Now"
-                    >Today, behind the flag.</lf-option
+                    ><strong>Now</strong> Today, behind the flag.</lf-option
                   >
                   <lf-option id="ship-later" label="Later"
-                    >Next week, after the load test.</lf-option
+                    ><strong>Later</strong> Next week, after the load test.</lf-option
                   >
                 </lf-options>
               </lf-group>
@@ -2293,14 +2293,14 @@ flowchart TD
                 </h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
-                  <lf-option
-                    id="sample-publish-report-keep"
-                    label="Keep it private"
-                  ></lf-option>
+                  <lf-option id="sample-publish-report-keep" label="Keep it private"
+                    ><strong>Keep it private</strong></lf-option
+                  >
                   <lf-option
                     id="sample-publish-report-publish"
                     label="Publish the report"
-                  ></lf-option>
+                    ><strong>Publish the report</strong></lf-option
+                  >
                 </lf-options>
               </lf-group>
               <lf-activity id="sample-permission-history"></lf-activity>

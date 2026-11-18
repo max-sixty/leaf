@@ -14,8 +14,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def card(name, question):
     return f"""<lf-group id="{name}-ask" label="{question}"><h3 id="{name}-ask-h">{question}</h3>
       <lf-options id="{name}-choice">
-        <lf-option id="{name}-yes" label="Yes"></lf-option>
-        <lf-option id="{name}-no" label="No"></lf-option>
+        <lf-option id="{name}-yes" label="Yes"><strong>Yes</strong></lf-option>
+        <lf-option id="{name}-no" label="No"><strong>No</strong></lf-option>
       </lf-options></lf-group>"""
 
 
@@ -117,8 +117,8 @@ DRAFT_DECK_PAGE = leaf_page(
     '<lf-group id="reply-ask" label="Send this reply?"><h3 id="reply-ask-h">Send this reply?</h3>'
     '<lf-draft id="reply-draft"><pre>\nThanks for the report.</pre></lf-draft>'
     '<lf-options id="reply-choice">'
-    '<lf-option id="reply-send" label="Send it"></lf-option>'
-    '<lf-option id="reply-hold" label="Hold it"></lf-option>'
+    '<lf-option id="reply-send" label="Send it"><strong>Send it</strong></lf-option>'
+    '<lf-option id="reply-hold" label="Hold it"><strong>Hold it</strong></lf-option>'
     "</lf-options></lf-group>" + card("notes", "Post the notes?") + "</lf-deck>",
 )
 

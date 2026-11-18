@@ -17,7 +17,6 @@ from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
     expect_obligations_answered,
-    expect_preview_words,
     holding,
     leaf_page,
     open_page,
@@ -160,12 +159,12 @@ Adds --dry-run to every mutating command.
 </pre></lf-draft></lf-group>
 <lf-group id="cache-ask" label="Which cache?"><h2 id="cache-ask-h">Which cache?</h2>
 <lf-options id="cache">
-  <lf-option id="cache-none" label="No cache">Read through.</lf-option>
+  <lf-option id="cache-none" label="No cache"><strong>No cache</strong> Read through.</lf-option>
 </lf-options></lf-group>
 <lf-group id="tags-ask" label="Which tags?"><h2 id="tags-ask-h">Which tags?</h2>
 <lf-options id="tags" multiple>
-  <lf-option id="tag-alpha" label="Alpha" selected></lf-option>
-  <lf-option id="tag-beta" label="Beta"></lf-option>
+  <lf-option id="tag-alpha" label="Alpha" selected><strong>Alpha</strong></lf-option>
+  <lf-option id="tag-beta" label="Beta"><strong>Beta</strong></lf-option>
 </lf-options></lf-group>
 <lf-group id="tone-ask" label="Which notification?"><h2 id="tone-ask-h">Which notification?</h2>
 <lf-playground id="tone">
@@ -737,31 +736,31 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
 
 
-# Card-shaped options as the registry lays them out: tags, the recommended tag, a title,
-# the sentence saying what choosing it gives, inline or as a paragraph, then a picture;
-# and a label-only option.
+# Card-shaped options as the registry lays them out: a label, tags, a title, the
+# sentence saying what choosing it gives, inline or as a paragraph, then a picture; one
+# recommended; and a compact option.
 CARD_OPTIONS_PAGE = leaf_page(
     "card options",
     """<h1 id="title">Sidebar</h1>
 <lf-group id="stick-ask" label="How should a long sidebar stick?"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
 <lf-options id="stick">
-  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="tag">two days</small>
+  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="tag">two days</small> <strong>Wrap the blocks in one box</strong>
     One mechanism for any number of <em>blocks</em>.
     <svg class="drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
-  <lf-option id="stick-aside" label="Stick the aside itself">It covers the
+  <lf-option id="stick-aside" label="Stick the aside itself"><strong>Stick the aside itself</strong> It covers the
     footer.</lf-option>
-  <lf-option id="stick-rule" label="Keep the one-block rule">    <p>Authors keep writing one block.</p></lf-option>
+  <lf-option id="stick-rule" label="Keep the one-block rule">    <strong>Keep the one-block rule</strong> <p>Authors keep writing one block.</p></lf-option>
   <lf-option id="stick-none">Leave it</lf-option>
 </lf-options></lf-group>""",
 )
 
 
-def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
-    """An On Me card's choice for a card-shaped option names it over the sentence saying
-    what choosing it gives, written inline or as a paragraph, and wears `recommended` where the page advises it, so the
-    user answers there without Show; the option's other tags and its picture stay on the
-    page. A label-only option's choice is its name alone. A press there picks the
-    option, and Undo puts the choices back."""
+def test_an_option_s_choice_on_its_card_is_its_name(browser, serve):
+    """An On Me card's choice for an option is its name, a card's `label` or a compact
+    option's words, and wears `recommended` where the page advises it, so the user
+    answers there without Show. The card's own words, tags and picture stay on the
+    page, since Leaf picks no sentence out of the author's markup. A press there picks
+    the option, and Undo puts the choices back."""
     page = open_page(browser, serve(CARD_OPTIONS_PAGE))
     resized(page, 390, 844)
     open_on_me(page)
@@ -771,21 +770,12 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     box, aside, rule, none = (choices.nth(i) for i in range(4))
     expect(box.locator(".lf-fp-choice-name")).to_have_text("Wrap the blocks in one box")
     expect(box.locator(".lf-fp-choice-tag")).to_have_text("recommended")
-    expect(box.locator(".lf-fp-choice-says")).to_have_text(
-        "One mechanism for any number of blocks."
-    )
-    # Cut to two lines on the card, the words read whole in their preview, and the
-    # press, whose name already holds them, isn't described by them again.
-    expect_preview_words(
-        box.locator(".lf-fp-choice-says"), "One mechanism for any number of blocks."
-    )
+    expect(card.locator(".lf-fp-choice-says")).to_have_count(0)
     expect(box).to_have_accessible_description("")
-    expect(aside.locator(".lf-fp-choice-says")).to_have_text("It covers the footer.")
-    expect(aside.locator(".lf-fp-choice-tag")).to_have_count(0)
-    expect(rule.locator(".lf-fp-choice-says")).to_have_text(
-        "Authors keep writing one block."
-    )
-    expect(none).not_to_have_attribute("data-lf-told", "")
+    for choice in (aside, rule, none):
+        expect(choice).not_to_have_attribute("data-lf-told", "")
+    expect(aside).to_have_text("Stick the aside itself")
+    expect(rule).to_have_text("Keep the one-block rule")
     expect(none).to_have_text("Leave it")
 
     aside.click()
@@ -794,7 +784,7 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     card.get_by_role("button", name="Undo").click()
     round_trip(page)
     expect(page.locator("#stick-aside")).not_to_have_attribute("selected", "")
-    expect(card.locator(".lf-fp-answer[data-lf-told]")).to_have_count(3)
+    expect(card.locator(".lf-fp-answer[data-lf-told]")).to_have_count(1)
 
 
 def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
@@ -802,8 +792,9 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
 ):
     """A `multiple` group's Done stands on its On Me card as the press that commits the
     picks, not as one more described choice: its name alone, what it does as its
-    tooltip, and as wide as its word while each described choice takes the line. A
-    press there answers the group as Done on the page does."""
+    tooltip, and as wide as its word while a described choice, such as the
+    recommended one, takes the line. A press there answers the group as Done on the
+    page does."""
     page = open_page(
         browser,
         serve(
@@ -812,8 +803,8 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
                 """<h1 id="title">Tags</h1>
 <lf-group id="tags-ask" label="Which tags?"><h2 id="tags-ask-h">Which tags?</h2>
 <lf-options id="tags" multiple>
-  <lf-option id="tag-alpha" label="Alpha" selected>The first tag.</lf-option>
-  <lf-option id="tag-beta" label="Beta">The second tag.</lf-option>
+  <lf-option id="tag-alpha" label="Alpha" recommended selected><strong>Alpha</strong> The first tag.</lf-option>
+  <lf-option id="tag-beta" label="Beta"><strong>Beta</strong> The second tag.</lf-option>
 </lf-options></lf-group>""",
             )
         ),
@@ -821,7 +812,7 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
     open_on_me(page)
     card = on_card(page, "widget:tags")
     told = card.locator(".lf-fp-answer[data-lf-told]")
-    expect(told).to_have_count(2)
+    expect(told).to_have_count(1)
     done = card.get_by_role("button", name="Done", exact=True)
     expect(done).to_have_text("Done")
     assert preview_parts(done) == ["Done", "Finish choosing options"]
@@ -849,8 +840,8 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
             "revision": 1,
             "text": "Ship on Friday?\n\n"
             '<lf-options id="ship">'
-            '<lf-option id="ship-friday" label="Ship Friday"></lf-option>'
-            '<lf-option id="ship-wait" label="Wait a week"></lf-option>'
+            '<lf-option id="ship-friday" label="Ship Friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait" label="Wait a week"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -930,8 +921,8 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
             },
             "text": "Ship on Friday?\n\n"
             '<lf-options id="ship">'
-            '<lf-option id="ship-friday" label="Ship Friday"></lf-option>'
-            '<lf-option id="ship-wait" label="Wait a week"></lf-option>'
+            '<lf-option id="ship-friday" label="Ship Friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait" label="Wait a week"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -984,8 +975,8 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
             "anchor": {"section": "risk"},
             "text": "Ship on Friday?\n\n"
             '<lf-options id="ship">'
-            '<lf-option id="ship-friday" label="Ship Friday"></lf-option>'
-            '<lf-option id="ship-wait" label="Wait a week"></lf-option>'
+            '<lf-option id="ship-friday" label="Ship Friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait" label="Wait a week"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
         },
     )

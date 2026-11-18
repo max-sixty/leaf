@@ -782,8 +782,8 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
     body = (
         '<h1>Retention</h1><p id="own">Words.</p><p id="controls"></p>'
         '<lf-group id="window-q" label="How long?">'
-        '<lf-options id="window"><lf-option id="short" label="30 days">'
-        ' In budget.</lf-option><lf-option id="long" label="90 days">'
+        '<lf-options id="window"><lf-option id="short" label="30 days"><strong>30 days</strong> '
+        ' In budget.</lf-option><lf-option id="long" label="90 days"><strong>90 days</strong> '
         " Covers the hold.</lf-option></lf-options></lf-group>"
     )
     faces = """() => Object.fromEntries(['press', 'field', 'window', 'short'].map((id) => {

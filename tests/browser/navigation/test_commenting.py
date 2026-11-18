@@ -571,8 +571,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 <lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-group>
 <lf-group id="picked-decision" label="Should we keep it?"><h2 id="picked-decision-h">Should we keep it?</h2>
 <lf-options id="picked">
-  <lf-option id="pk-keep" label="Keep it" selected>Settled by a pick.</lf-option>
-  <lf-option id="pk-drop" label="Drop it">The alternative.</lf-option>
+  <lf-option id="pk-keep" label="Keep it" selected><strong>Keep it</strong> Settled by a pick.</lf-option>
+  <lf-option id="pk-drop" label="Drop it"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-group>
 <p id="p2">A passage carrying
 <lf-suggestion id="sug-window">
@@ -806,8 +806,8 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
 <h1 id="t">Seated</h1>
 <lf-group id="shape-decision" label="Which material?"><h2 id="shape-decision-h">Which material?</h2>
 <lf-options id="shape">
-  <lf-option id="sh-steel" label="Steel">Galvanised, drop-in.</lf-option>
-  <lf-option id="sh-cedar" label="Cedar">Cheap; needs sealing.</lf-option>
+  <lf-option id="sh-steel" label="Steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
+  <lf-option id="sh-cedar" label="Cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-group>
 <lf-test-plan id="hub" label="The rail">
   <lf-test-task id="fitting" status="active" talk><strong>Who fits the rail?</strong>

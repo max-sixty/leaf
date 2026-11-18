@@ -579,12 +579,12 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
 <lf-group id="release" label="When and where does it ship?">
 <h2 id="release-h">When and where does it ship?</h2>
 <lf-options id="ship">
-  <lf-option id="ship-monday" label="Ship Monday"></lf-option>
-  <lf-option id="ship-thursday" label="Ship Thursday"></lf-option>
+  <lf-option id="ship-monday" label="Ship Monday"><strong>Ship Monday</strong></lf-option>
+  <lf-option id="ship-thursday" label="Ship Thursday"><strong>Ship Thursday</strong></lf-option>
 </lf-options>
 <lf-options id="region">
-  <lf-option id="region-eu" label="EU first"></lf-option>
-  <lf-option id="region-us" label="US first"></lf-option>
+  <lf-option id="region-eu" label="EU first"><strong>EU first</strong></lf-option>
+  <lf-option id="region-us" label="US first"><strong>US first</strong></lf-option>
 </lf-options>
 </lf-group>""",
             )

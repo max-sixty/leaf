@@ -275,7 +275,7 @@ CASES = (
         + "".join(
             f'<lf-column id="board-{column}" label="{label}">'
             + "".join(
-                f'<lf-card id="board-{column}-{i}" label="{title}">Cosmetic'
+                f'<lf-card id="board-{column}-{i}" label="{title}"><strong>{title}</strong> Cosmetic'
                 " for most, wrong-day for UTC+13.</lf-card>"
                 for i, title in enumerate(titles)
             )

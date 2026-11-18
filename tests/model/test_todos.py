@@ -802,7 +802,7 @@ def test_any_agent_session_can_end_a_todo_another_started(task_log):
 WORK_PAGE = FLOW_PAGE.replace(
     '<lf-diagram id="flow">',
     '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
-    '  <lf-card id="rollout-card" label="Ship the rollout">'
+    '  <lf-card id="rollout-card" label="Ship the rollout"><strong>Ship the rollout</strong> '
     "Check the fallback before cutover.</lf-card>\n"
     '</lf-column></lf-board>\n<lf-diagram id="flow">',
 )
@@ -1355,8 +1355,8 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
             "--text",
             "Which store should own sessions?\n\n"
             '<lf-options id="store">'
-            '<lf-option id="store-account" label="Account store"></lf-option>'
-            '<lf-option id="store-own" label="Their own store"></lf-option>'
+            '<lf-option id="store-account" label="Account store"><strong>Account store</strong></lf-option>'
+            '<lf-option id="store-own" label="Their own store"><strong>Their own store</strong></lf-option>'
             "</lf-options>",
         )
     )
@@ -1603,7 +1603,7 @@ def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_d
     work_page = PAGE.replace(
         "</section>",
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
-        '  <lf-card id="rollout-card" label="Ship the rollout"></lf-card>\n'
+        '  <lf-card id="rollout-card" label="Ship the rollout"><strong>Ship the rollout</strong></lf-card>\n'
         "</lf-column></lf-board>\n</section>",
     )
     (page_dir / "index.html").write_text(work_page)

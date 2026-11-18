@@ -932,9 +932,9 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 <lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
   <lf-group id="ask-a" label="What happens to a?"><h3 id="q-a">What happens to a?</h3>
     <lf-options id="o-a">
-      <lf-option id="o-a-fix" label="Fix">Ship the patch.</lf-option>
-      <lf-option id="o-a-close" label="Escalate to engineering">Send the logs.</lf-option>
-      <lf-option id="o-a-long" label="Escalate to the international engineering incident response team">Send all logs.</lf-option>
+      <lf-option id="o-a-fix" label="Fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-a-close" label="Escalate to engineering"><strong>Escalate to engineering</strong> Send the logs.</lf-option>
+      <lf-option id="o-a-long" label="Escalate to the international engineering incident response team"><strong>Escalate to the international engineering incident response team</strong> Send all logs.</lf-option>
     </lf-options>
   </lf-group>
 </lf-tab>

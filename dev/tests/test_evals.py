@@ -239,11 +239,11 @@ REPLAYED = {
                     "production rebuild?\n\n"
                     '<lf-options id="rebuild-when">\n'
                     '<lf-option id="rebuild-tonight" label="Rebuild tonight" '
-                    "recommended></lf-option>\n"
-                    '<lf-option id="rebuild-now" label="Rebuild now">p95 up '
-                    "30%</lf-option>\n"
+                    "recommended><strong>Rebuild tonight</strong></lf-option>\n"
+                    '<lf-option id="rebuild-now" label="Rebuild now">'
+                    "<strong>Rebuild now</strong> p95 up 30%</lf-option>\n"
                     '<lf-option id="rebuild-saturday" label="Rebuild on Saturday">'
-                    "</lf-option>\n</lf-options>",
+                    "<strong>Rebuild on Saturday</strong></lf-option>\n</lf-options>",
                     "passage": "",
                     "again": "",
                     "quote": "I'd go tonight.",

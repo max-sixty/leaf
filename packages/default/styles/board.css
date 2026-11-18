@@ -245,32 +245,17 @@ lf-card {
     clear: right;
   }
 }
-/* A card's title is its label, which the runtime writes as text (`says`). Until
-   it does, the theme paints the title from the attribute in the place the grip's float
-   stands, keeping the grip's room at its line's end, so a page no script runs still
-   shows it. The prose after the title starts on its next line in whatever shape the
-   author wrote it, and a paragraph's margin would set its prose lower than a
-   sentence's. The title stands at the card's start, so the frame trims only its end: a
-   block after the title keeps its margin, as after any heading. */
-lf-card > [data-lf-said="label"] {
+/* A card's title is the <strong> its author writes in it; its `label` is its name, which
+   nothing draws. The prose after the title starts on its next line in whatever shape the
+   author wrote it. Otherwise a title margin is trimmed only where no element follows it
+   (the frame's trim reads a plain sentence's title as the card's last block), and a
+   paragraph's margin sets its prose lower than a sentence's. */
+lf-card > strong {
   display: block;
   font: var(--lf-font-title);
-}
-lf-card[label]:not(:has(> [data-lf-said="label"]))::before {
-  content: attr(label);
-  display: block;
-  float: none;
-  inline-size: auto;
-  block-size: auto;
   margin: 0;
-  padding-inline-end: var(--lf-grip-room, 0);
-  font: var(--lf-font-title);
 }
-lf-card[label] {
-  --lf-block-frame: 0;
-  --lf-frame-end: 1;
-}
-lf-card[label] > p:nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+lf-card > strong + p {
   margin-block-start: 0;
 }
 /* Enter grabs the grip and arrows move the card. It is a symbol, the drag handle's

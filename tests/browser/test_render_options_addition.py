@@ -103,7 +103,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
                                  - parseFloat(s.borderBottomWidth); }"""
     assert abs(form.evaluate(inner_height) - option.evaluate(inner_height)) < 0.5
 
-    card_words = page.locator('#br-steel > [data-lf-said="label"]')
+    card_words = page.locator("#br-steel > strong")
     card_field = page.locator("#bracket > .lf-another leaf-text")
     assert same_face(card_field.evaluate(typography), card_words.evaluate(typography))
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5

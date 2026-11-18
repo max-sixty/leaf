@@ -61,9 +61,9 @@ def caches(group: str = "cache") -> str:
     page."""
     return (
         f'<lf-options id="{group}">\n'
-        f'<lf-option id="{group}-lru" label="Use the LRU cache" recommended>'
+        f'<lf-option id="{group}-lru" label="Use the LRU cache" recommended><strong>Use the LRU cache</strong> '
         "81% hits</lf-option>\n"
-        f'<lf-option id="{group}-ttl" label="Use the TTL cache"></lf-option>\n'
+        f'<lf-option id="{group}-ttl" label="Use the TTL cache"><strong>Use the TTL cache</strong></lf-option>\n'
         "</lf-options>"
     )
 
@@ -651,7 +651,7 @@ def _fixed(capsys, page_dir, words: str, replacement: str) -> dict:
             "Ship behind a flag.",
             "dark.",
             "behind a flag.",
-            "risk: med Ship behind a flag.",
+            "Flag first Ship behind a flag.",
         ),
         # The quote crosses a link and a code span; the word that changes doesn't.
         (

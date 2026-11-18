@@ -402,7 +402,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
             path.read_text().replace(
                 "</section>",
                 '<lf-board id="rollout"><lf-column id="now" label="Now">'
-                '<lf-card id="rollout-card" label="Ship"></lf-card>'
+                '<lf-card id="rollout-card" label="Ship"><strong>Ship</strong></lf-card>'
                 "</lf-column></lf-board></section>",
             )
         )

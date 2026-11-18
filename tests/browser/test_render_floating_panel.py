@@ -80,13 +80,13 @@ OBLIGATION_PAGE = leaf_page(
     """<h1 id="t">Ask</h1>
 <lf-group id="schema-decision" label="How should the schema migrate?"><h3 id="schema-decision-h">How should the schema migrate?</h3>
 <lf-options id="schema">
-  <lf-option id="shim" label="Shim the old schema">Fastest to ship.</lf-option>
-  <lf-option id="stage" label="Migrate in stages">Table by table.</lf-option>
+  <lf-option id="shim" label="Shim the old schema"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
+  <lf-option id="stage" label="Migrate in stages"><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-group>
 <lf-group id="queue-decision" label="Which queue takes the retries?"><h3 id="queue-decision-h">Which queue takes the retries?</h3>
 <lf-options id="queues">
-  <lf-option id="fast" label="The fast queue">Shared.</lf-option>
-  <lf-option id="slow" label="The slow queue">Its own.</lf-option>
+  <lf-option id="fast" label="The fast queue"><strong>The fast queue</strong> Shared.</lf-option>
+  <lf-option id="slow" label="The slow queue"><strong>The slow queue</strong> Its own.</lf-option>
 </lf-options></lf-group>""",
 )
 

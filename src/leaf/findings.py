@@ -897,9 +897,10 @@ _TEXT = {
             else f"one of {', '.join(v['allowed'])}"
         )
     ),
-    "title-in-strong": lambda at, v: (
-        f"{_line(at, v)}: leads with a <strong>, which names nothing and draws as bold"
-        ' words; give the title in label="…" and keep the rest as its words'
+    "unnamed-card": lambda at, v: (
+        f"{_line(at, v)}: leads with a <strong> but has no label, so Leaf names it by"
+        ' all its words; give its name in label="…" and keep the <strong> as the title'
+        " the page shows"
     ),
     "inert-allocation": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has no effect: "

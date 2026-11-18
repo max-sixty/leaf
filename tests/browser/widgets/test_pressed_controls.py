@@ -117,8 +117,8 @@ UNRESOLVED = """async () => {
 # Controls no worked example shows, by package directory: a `multiple` group's Done.
 STATES = {
     "default": """<lf-options id="pressed-many" multiple>
-  <lf-option id="pressed-first" label="Cache the parsed config"></lf-option>
-  <lf-option id="pressed-second" label="Parse it lazily"></lf-option>
+  <lf-option id="pressed-first" label="Cache the parsed config"><strong>Cache the parsed config</strong></lf-option>
+  <lf-option id="pressed-second" label="Parse it lazily"><strong>Parse it lazily</strong></lf-option>
 </lf-options>""",
 }
 

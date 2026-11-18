@@ -3829,8 +3829,8 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
                 """<h1 id="h">Cramped targets</h1>
 <p><label for="name">Name</label> <input id="name" type="text" value="Ada"></p>
 <lf-group id="ship-q" label="When to ship?"><lf-options id="ship">
-  <lf-option id="ship-monday" label="Ship Monday">soon</lf-option>
-  <lf-option id="ship-thursday" label="Ship Thursday">later</lf-option>
+  <lf-option id="ship-monday" label="Ship Monday"><strong>Ship Monday</strong> soon</lf-option>
+  <lf-option id="ship-thursday" label="Ship Thursday"><strong>Ship Thursday</strong> later</lf-option>
 </lf-options></lf-group>""",
             )
         ),

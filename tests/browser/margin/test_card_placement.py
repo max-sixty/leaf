@@ -142,9 +142,9 @@ PICK_UNDER_A_CARD = leaf_page(
 <lf-group id="ask" label="What should a phone's one-row banner hold?">
   <h3 id="ask-h">What should a phone's one-row banner hold?</h3>
   <lf-options id="choice">
-    <lf-option id="row" label="Status in words">The status keeps its words
+    <lf-option id="row" label="Status in words"><strong>Status in words</strong> The status keeps its words
     on the row, cut short with an ellipsis where the sentence runs long.</lf-option>
-    <lf-option id="two" label="Keep two rows">The status keeps its
+    <lf-option id="two" label="Keep two rows"><strong>Keep two rows</strong> The status keeps its
     sentence.</lf-option>
   </lf-options>
 </lf-group>

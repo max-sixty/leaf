@@ -1646,10 +1646,10 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     def part(key):
         return (
             f'<lf-part id="part-{key}" label="{key.title()}">'
-            f'<article class="layout-column"><lf-ask id="{key}-ask">'
-            f'<h2>Pick the {key} route</h2><lf-options id="{key}" choose>'
-            f'<lf-option id="{key}-alpha">Alpha</lf-option>'
-            f'<lf-option id="{key}-beta">Beta</lf-option></lf-options></lf-ask>'
+            f'<article class="layout-column"><h2>{key.title()}</h2>'
+            f'<lf-group id="{key}-ask" label="Pick the {key} route">'
+            f'<lf-options id="{key}"><lf-option id="{key}-alpha">Alpha</lf-option>'
+            f'<lf-option id="{key}-beta">Beta</lf-option></lf-options></lf-group>'
             "</article></lf-part>"
         )
 

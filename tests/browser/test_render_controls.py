@@ -23,8 +23,18 @@ from leaf_dev.example_data import named_source
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def _apart(*marks):
-    """Whether no two of the marks' boxes overlap."""
+def _whole_and_apart(*marks):
+    """Whether each mark shows whole, a dot round and a count holding its digits, and
+    no two marks' boxes overlap."""
+    for mark in marks:
+        assert mark.evaluate(
+            """mark => {
+              const box = mark.getBoundingClientRect();
+              return mark.textContent
+                ? mark.scrollWidth <= mark.clientWidth
+                : Math.abs(box.width - box.height) < 0.1;
+            }"""
+        ), mark
     boxes = [mark.bounding_box() for mark in marks]
     return all(
         a["x"] + a["width"] <= b["x"]
@@ -38,12 +48,13 @@ def _apart(*marks):
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction):
-    """Every badge on a control stays whole beside the others: a margin entry's unread
-    dot and count, in the rail and as a pin, and the folded leaf's count, news and
-    error, in either direction (`.lf-badges`, controls.css)."""
+    """Every badge on a control stays whole beside the others, a two-digit count among
+    them: a margin entry's count and unread dot, in the rail and as a pin, and the
+    folded leaf's count, news and error, which are wider together than the leaf, in
+    either direction (`.lf-badges`, controls.css)."""
     source = leaf_page(
         "Badges",
-        '<p id="answered">Two answers wait here.</p><p id="asked">One question.</p>',
+        '<p id="answered">Twelve answers wait here.</p><p id="asked">One question.</p>',
     )
     if direction == "rtl":
         source = source.replace('<html lang="en">', '<html lang="en" dir="rtl">')
@@ -55,37 +66,35 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
         "text": "One answer.",
         "anchor": {"section": "answered"},
     }
-    asked = {**answer, "author": "user", "id": "q", "text": "Which first?"}
+    asked = {**answer, "author": "user", "anchor": {"section": "asked"}}
     del asked["agent"]
-    page = open_page(
-        browser,
-        serve(
-            source,
-            events=[
-                answer,
-                {**answer, "text": "Another answer."},
-                {**asked, "anchor": {"section": "asked"}},
-                {
-                    "kind": "reply",
-                    "author": "agent",
-                    "agent": "Claude",
-                    "revision": 1,
-                    "parent": "q",
-                    "responds": "q",
-                    "obligation": True,
-                    "text": "The hatch or the window?",
-                },
-            ],
-        ),
-    )
+    questions = [
+        event
+        for n in range(12)
+        for event in (
+            {**asked, "id": f"q{n}", "text": f"Which comes {n}th?"},
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "revision": 1,
+                "parent": f"q{n}",
+                "responds": f"q{n}",
+                "obligation": True,
+                "text": "The hatch or the window?",
+            },
+        )
+    ]
+    answers = [{**answer, "text": f"Answer {n}."} for n in range(12)]
+    page = open_page(browser, serve(source, events=[*answers, *questions]))
     entry = page.locator('[data-lf-margin-for="answered"]')
     for width, place in ((1440, "rail"), (700, "pin")):
         resized(page, width, 900)
         expect(entry).to_have_attribute("data-lf-place", place)
         badges = entry.locator(".lf-margin-marker > .lf-badges")
-        expect(badges.locator(".lf-margin-count")).to_have_text("2")
+        expect(badges.locator(".lf-margin-count")).to_have_text("12")
         expect(badges.locator(".lf-unread-dot")).to_be_visible()
-        assert _apart(
+        assert _whole_and_apart(
             badges.locator(".lf-margin-count"), badges.locator(".lf-unread-dot")
         )
 
@@ -97,7 +106,7 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
     marks.append(leaf.locator(".lf-fp-error-dot"))
     for mark in marks:
         expect(mark).to_be_visible()
-    assert _apart(*marks)
+    assert _whole_and_apart(*marks)
 
 
 @pytest.mark.parametrize("width", [390])

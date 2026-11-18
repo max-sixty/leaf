@@ -436,13 +436,19 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    at the window's right and a pin keeps its count off the window's edge. A carrier
    places the row along its top edge, where a lone dot stands, and says how far past
    that corner its count reaches (`--lf-badge-reach`); a pin's count takes the left
-   corner (annotation-theme.css). Each badge keeps its own face. */
+   corner (annotation-theme.css). Each badge keeps its own face and size. Where the
+   badges together are wider than their carrier, as a two-digit count, news and an
+   error are on the folded leaf, the row runs past its left end rather than squeeze
+   them. */
 .lf-badges {
   display: flex;
   direction: ltr;
   justify-content: flex-end;
   align-items: start;
   gap: 2px;
+}
+.lf-badges > * {
+  flex: none;
 }
 .lf-badges > .lf-badge-count {
   margin: calc(-1 * var(--lf-badge-reach, 0px)) calc(-1 * var(--lf-badge-reach, 0px)) 0

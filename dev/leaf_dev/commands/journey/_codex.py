@@ -88,6 +88,7 @@ from leaf_dev.arms import (
     environment,
     install_codex_plugin,
     now,
+    preview_lease,
     run_leaf,
 )
 from leaf_dev.codex_task import Task, trust_plugin_hooks
@@ -99,7 +100,6 @@ from leaf_dev.commands.journey._journey import (
     title,
     user_at,
 )
-from leaf_dev.commands.preview import preview_lease
 from leaf_dev.eval_codex import records_for
 from leaf_dev.review_scenario import (
     REQUEST,

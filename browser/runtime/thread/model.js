@@ -149,7 +149,7 @@ const hasUnread = (thread) => thread.unread.length > 0;
 /**
  * Whether a thread is news: still open and holding words the user hasn't read. A
  * resolved thread's unread words aren't, so the news the panel counts never outnumbers
- * the open threads; a reply reopens its thread, and the user chose on 21 October to
+ * the open threads; a reply reopens its thread, and the user chose to
  * leave what reaches a closed one unannounced.
  * @param {Pick<Thread, "resolved"> & Unread} thread */
 export const isNews = (thread) => !thread.resolved && hasUnread(thread);
@@ -167,12 +167,13 @@ export function threadCounts(threads) {
     unread: listed.filter(isNews).length,
   };
 }
-// Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
-// by: an element anchor naming that widget and carrying nothing else. Spelled again here
-// because the server has not seen this message yet, and a thread that seated itself
-// differently for the half-second before it lands would move once it arrived.
-/** @param {Message} message */
-const pendingSeat = (message) =>
+// Which widget's seat a message the server has not seen stands in, a pending thread's
+// root or the comment being written, by the rule `seat_root` reads the log by: an
+// element anchor naming that widget and carrying nothing else. Spelled again here
+// because a thread that seated itself differently for the half-second before it lands
+// would move once it arrived.
+/** @param {{anchor?: import("../../types/domain.js").Anchor | null | undefined, about?: string | null | undefined}} message */
+export const seatOf = (message) =>
   message.about || !message.anchor || Object.keys(message.anchor).length !== 1
     ? null
     : (message.anchor.section ?? null);
@@ -322,7 +323,7 @@ export function foldThreads(threads, gestures) {
         revisions: [],
         resolved: null,
         bare_reaction: reaction,
-        seat: pendingSeat(gesture),
+        seat: seatOf(gesture),
         summaries: [],
         unread: {},
         attention: reaction ? null : sending(gesture),
@@ -429,7 +430,7 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    A reader made by `threadRecordReader` keeps each thread's record (`kept.js`), and
    reads it again only where the thread or something it holds has changed: the served
    thread, its unread versions, workflows, obligations and to-dos, and the state of the
-   widgets frozen into its messages. Within a thread it reads again, it keeps each
+   widgets in its messages. Within a thread it reads again, it keeps each
    message's reading in turn, so a reply to a long thread reads one message and the
    reactions it touches. A message's captured words (`messageBodies`) are prepared from
    the message itself, so the message stands for them. A workflow stands in the thread
@@ -488,7 +489,7 @@ export function threadRecordReader() {
     const markingIn = grouped(markingRead, (item) => item.message);
     const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
     const reacts = ready && Object.keys(tokens).length > 0;
-    // The widgets frozen into each message, and into each thread, with their state.
+    // The widgets in each message, and in each thread, with their state.
     /** @type {Map<string | undefined, Unit[]>} */
     const unitsByMessage = new Map();
     /** @type {Map<string | undefined, Unit[]>} */
@@ -524,7 +525,7 @@ export function threadRecordReader() {
     const obligationsIn = grouped(obligations, (obligation) => obligation.thread);
     const todosIn = grouped(todos, (todo) => todo.thread);
     // The message's own inputs, its first words and each rewrite of them, and the
-    // actions on widgets frozen into it, in the published order `strongestWorkflow`
+    // actions on widgets in it, in the published order `strongestWorkflow`
     // reads.
     /** @param {Message} message */
     const messageWorkflows = (message) => {
@@ -544,7 +545,7 @@ export function threadRecordReader() {
     /** @param {Message} message @param {boolean} unread @param {string} thread */
     const readMessage = (message, unread, thread) => {
       const {
-        markup,
+        html,
         plainText,
         attention,
         session,
@@ -556,12 +557,12 @@ export function threadRecordReader() {
       } = message;
       const units = unitsByMessage.get(message.id) ?? [];
       const authored = document.messageBodies?.get(message.id);
-      if (markup && !authored)
+      if (html && !authored)
         throw new Error(`Authored message ${message.id} has no captured body`);
       /** @type {({kind: "authored", units: typeof units} & CapturedBody)
        * | {kind: "reaction" | "suggestion" | "prose", text: string}} */
       const body =
-        markup && authored
+        html && authored
           ? { kind: "authored", ...authored, units }
           : {
               kind: message.token
@@ -669,7 +670,7 @@ export function threadRecordReader() {
         resolved: thread.resolved,
         attention: thread.attention,
         // The obligations that stand in it: those widgets in its messages make, such as
-        // an `lf-ask` the user owes words to there, and those its updates publish.
+        // an `lf-options` the user owes a pick there, and those its updates publish.
         obligations: obligationsIn.get(thread.id) ?? [],
         // The agent's open to-dos on the thread: a reply that promised one says it is
         // still open (a to-do a reply opens takes the reply's id, `todos.py`), the

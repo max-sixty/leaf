@@ -12,13 +12,13 @@ then checks that its tag has `role: "goal"` in `$work.widgets`. An exclusive doc
 retains this independent contract; Atlas now uses a native overview section:
 
 ```text
-lf-atlas-worker.x-refers = {
+lf-atlas-worker.refers = {
   "on": {
     "via": "$work.widgets",
     "where": {"role": "goal"}
   }
 }
-lf-test-plan.x-refers = {
+lf-test-plan.refers = {
   "readings": {
     "via": "$work.widgets",
     "where": {"role": "readings"},
@@ -37,10 +37,10 @@ role table. There is no duplicate role table to remove.
 Name the required interface directly:
 
 ```text
-lf-atlas-worker.x-refers = {
+lf-atlas-worker.refers = {
   "on": {"interface": "command/goal"}
 }
-lf-test-plan.x-refers = {
+lf-test-plan.refers = {
   "readings": {
     "interface": "command/readings",
     "owns": true
@@ -80,10 +80,10 @@ visual parts under their existing authorities.
 ## Owning sources
 
 - [Command Hub registry](../examples/command-hub.page/registry.json):
-  `$work.widgets` and `lf-atlas-worker.x-refers.on`; the work test fixture
+  `$work.widgets` and `lf-atlas-worker.refers.on`; the work test fixture
   owns the exclusive-reference contrast.
 - [Diff registry](../packages/diff/registry.json): `$diff.widgets`
-  and `lf-call-diff.x-refers.diff`.
+  and `lf-call-diff.refers.diff`.
 - [Registry contract](../src/leaf/registry/contract.py):
   `registry_path` and `reference_relation_problem`.
 - [Instance validation](../src/leaf/validation/instances.py):

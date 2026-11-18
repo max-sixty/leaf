@@ -44,8 +44,6 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traffic: "data-lf-traffic",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",
-  // One of the page's own headers over the document (root-headers.js, `pageHeads`).
-  pageHead: "data-lf-page-head",
   // The marks the runtime draws round a box as its outline (target-paint.js,
   // surfaces.css): the aim, the trace a margin entry draws on what it concerns, the proxy
   // ring and the location ring. Attributes rather than classes, so an observer of the
@@ -54,18 +52,21 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traced: "data-lf-traced",
   proxied: "data-lf-proxied",
   location: "data-lf-projected-location",
-  // The cursor's paint, which the margin likewise does not hear: the hand over a
-  // thread's mark, on the element under the pointer (annotation-overlay/anchor-paint.js,
-  // annotation-chrome.css), the armed aim on `body` (composing/aim.js), and the aim's
-  // hand on the element under the pointer where it has an item (page-geometry.js).
+  // The cursor's paint, on the element under the pointer, which the margin likewise does
+  // not hear: the hand over a thread's mark (anchor-paint.js,
+  // annotation-chrome.css), and the aim's hand where it has an item and the crosshair of
+  // Draw mode and Capture area (page-geometry.js).
   overMark: "data-lf-over-mark",
-  aiming: "data-lf-aiming",
   overItem: "data-lf-over-item",
+  crosshair: "data-lf-crosshair",
   // The anchor name a heading holds while its link shows (heading-links.js, marks.css),
   // which the margin likewise does not hear.
   headingLink: "data-lf-heading-link",
+  // A typeset formula's `<code>`, `inline` or `display`, whose rules stop drawing
+  // code's face round it and round a display formula's `<pre>` (formulas.js).
+  formula: "data-lf-formula",
   // An element holding words a passage highlight paints, which the highlights' rules
-  // name (annotation-overlay/anchor-paint.js, `holdWords`; annotation-marks.css).
+  // name (anchor-paint.js, `holdWords`; marks.css).
   markedWords: "data-lf-marked-words",
 });
 

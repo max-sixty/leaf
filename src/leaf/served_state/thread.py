@@ -10,7 +10,7 @@ from ..events import (
     turn_message,
     unanswered_agent_turn,
 )
-from ..projection import FrozenThreadReading
+from ..projection import ThreadMarkupReading
 from ..read_state import content_version, unread_content
 from ..schema import agent_name
 from .wire import browser_projection
@@ -21,8 +21,8 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
 
     A provisional reply is reserved under a delivery attempt and addressed to a
     response, and the durable answer names itself by either. Reading only the response
-    address let an answer whose address had moved stand beside its own placeholder, and
-    the panel drew the draft rather than the answer the log held.
+    address would let an answer whose address has moved stand beside its own
+    placeholder, and the panel draw the draft rather than the answer the log holds.
     """
     return any(
         event.get(named) == live_reply[named] for named in ("attempt", "responds")
@@ -75,16 +75,19 @@ def thread_counts(threads: list[dict]) -> dict:
 
 def browser_thread(
     work, live_reply: dict | None = None
-) -> tuple[dict, FrozenThreadReading]:
-    """Serialize the shared frozen-thread work reading, adding presentation only.
+) -> tuple[dict, ThreadMarkupReading]:
+    """Serialize the shared thread-markup work reading, adding presentation only.
     Messages and closing events carry their canonical display name; provisional
     replies and unread/summary protection never become durable work authority.
 
     A provisional reply joins its thread once it has words. Before then the input's
     workflow says the agent is replying, and an empty message would only reserve a
-    bubble with nothing in it."""
+    bubble with nothing in it. An agent's message whose current Markdown holds HTML
+    carries `html` (`thread_context.thread_structure`), which the browser draws as
+    markup."""
     events, threads = work.events, work.threads
     reading, thread_obligations = work.thread, work.thread_obligations
+    fragments = reading.structure.fragments
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -110,7 +113,7 @@ def browser_thread(
             for item in thread_obligations["unanswered"]
             if item["thread"] == thread_id and item["source"]["kind"] == "widget"
         }
-        for message_id, fragment in reading.structure.fragments.items():
+        for message_id, fragment in fragments.items():
             if obligation_sources.intersection(fragment.by_id):
                 protected.add(message_id)
         summaries = summaries_for[thread_id]
@@ -122,6 +125,7 @@ def browser_thread(
             {
                 **_named(message),
                 **_answer_key(message, first_answers),
+                **({"html": True} if message["id"] in fragments else {}),
                 "content_version": content_version(message),
             }
             for message in thread["msgs"]
@@ -129,11 +133,11 @@ def browser_thread(
         rendered_threads.append(
             {
                 # A thread's turn and closure histories are the server's to read
-                # (`unanswered_turns`, `provenance.saved_after`).
+                # (`unanswered_turns`, `provenance.saved_after`, `obligations`).
                 **{
                     key: value
                     for key, value in thread.items()
-                    if key not in ("turns", "closures")
+                    if key not in ("turns", "closures", "closings")
                 },
                 "msgs": messages,
                 "root": next(

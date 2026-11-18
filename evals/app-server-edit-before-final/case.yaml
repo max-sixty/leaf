@@ -1,14 +1,13 @@
-# Reconstructed from issue #1841 and a local hosted replay on 2026-10-05. Both
-# ended with invalid source and an automatic final reply rejected after the model
-# turn was over. The replay put authored content inside the empty lf-activity.
+# Reconstructs a hosted turn that ended with invalid source and an automatic final
+# reply rejected after the model turn was over, with authored content inside the
+# empty lf-activity.
 # This is a guard, not a separating measurement: the read-only eval loads the
 # normal Leaf skill on both arms, while hosted disables it. The live hosted
 # journey separately checks execution with the hosted model and tool transcript.
 # The prompt names no reference path, so each arm selects its own shipped contract.
-# The guard then asked for `leaf page check` before the final reply. Replying fast
-# came first after that (2026-10-20): the final reply checks the saved edit itself
-# and a refusal starts a correction turn, so the guard now asks for no check before
-# the final reply. Base 124fb8de2 ran the check 2 of 2 on Codex.
+# Replying fast comes first: the final reply checks the saved edit itself and a
+# refusal starts a correction turn, so the guard asks for no `leaf page check`
+# before the final reply.
 description: app-server-edit-before-final
 metadata:
   purpose: "App Server: a turn that saved a page edit ends with its final reply, which checks the edit."
@@ -27,7 +26,7 @@ vars:
     The hosted harness serves the page and handles its status, so run no server,
     watcher or status operation. No checkpoint was requested.
 
-    Read the contract and write the remaining steps you would take before ending
+    Write the remaining steps you would take before ending
     the turn. Only reading instructions runs here; show any commands you would
     run and then the final reply.
 assert:

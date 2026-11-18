@@ -10,6 +10,7 @@ from click.testing import CliRunner, Result
 from interact_support import (
     FLOW_PAGE,
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     ModelPage,
     _start,
@@ -25,7 +26,6 @@ from interact_support import (
     page_state,
     publish,
     record_claim,
-    refused_on,
     response_reference,
     served_obligations,
     served_thread,
@@ -39,7 +39,6 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as contracts_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -226,14 +225,14 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
         {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
     )
     reference = response_reference(page_dir, comment["id"])
-    for flags in (
-        [],
-        ["--done", "--todo", "Tighten"],
-        ["--ephemeral", "--done"],
-        # Markup with no question in it asks nothing back, so it declares nothing.
-        ["--markup", '<figure id="sketch"><p>A sketch.</p></figure>'],
+    for text, flags in (
+        ("On it.", []),
+        ("On it.", ["--done", "--todo", "Tighten"]),
+        ("On it.", ["--ephemeral", "--done"]),
+        # HTML with no question in it asks nothing back, so it declares nothing.
+        ('On it.\n\n<figure id="sketch"><p>A sketch.</p></figure>', []),
     ):
-        result = leaf("thread", "reply", reference, "--text", "On it.", *flags)
+        result = leaf("thread", "reply", reference, "--text", text, *flags)
         assert result.exit_code != 0, (flags, result.output)
     assert kinds(state_json(page_dir)["queues"]["on_agent"]) == [
         ("update", f"update:{comment['id']}")
@@ -310,13 +309,13 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     assert cut["item"] == {"kind": "todo", "id": todo["id"]}
     assert cut["since"] == cut["running"]["ts"]
 
-    # A question answered elsewhere reads done, and a rewrite that leaves the to-do
-    # out leaves it owed.
+    # A question whose thread the agent resolved, as it does once the user answers
+    # elsewhere, reads done, and a rewrite that leaves the to-do out leaves it owed.
     question = written(
         leaf("thread", "create", page_dir, "--text", "Merge?", "--obligation")
     )
     asked = f"message:{question['id']}"
-    written(leaf("task", "end", page_dir, asked, "done", "--text", "In chat"))
+    written(leaf("thread", "resolve", page_dir, question["id"]))
     written(
         plan(
             [
@@ -660,18 +659,16 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     assert state["activity"]["kind"] != "working"
 
 
-@pytest.mark.parametrize(
-    "claim, refusal",
-    [("task start", "unowed-start"), ("progress reply", "superseded-reply")],
-)
-def test_a_claim_reaching_the_door_as_its_update_settles_is_refused(
-    page_dir, monkeypatch, claim, refusal
+@pytest.mark.parametrize("claim", ["task start", "progress reply"])
+def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
+    page_dir, monkeypatch, capsys, claim
 ):
     """An agent decides to take an update in hand from a delivery it read earlier, so
     the update may settle between that reading and its claim. The door reads whether
     the update is still owed under the same log lock as the append, so a claim that
-    reaches the lock while the settlement holds it is refused, and the page never
-    reads Working on a settled update."""
+    reaches the lock while the settlement holds it takes nothing in hand, and the page
+    never reads Working on a settled update. A bare start is refused; progress still
+    posts in the thread, with a note of what the log now holds the update as."""
     publish(page_dir)
     comment = append_command(
         page_dir,
@@ -712,9 +709,21 @@ def test_a_claim_reaching_the_door_as_its_update_settles_is_refused(
     claiming.join(STATED_TIMEOUT)
     assert not claiming.is_alive()
 
-    [refused] = refusals
-    assert refused.findings[0].code == refusal
-    assert events_model.read_events(page_dir)[-1]["kind"] == "resolve"
+    last = events_model.read_events(page_dir)[-1]
+    if claim == "task start":
+        [refused] = refusals
+        assert refused.findings[0].code == "unowed-start"
+        assert last["kind"] == "resolve"
+    else:
+        assert refusals == []
+        assert (last["kind"], last["ephemeral"], "start" in last) == (
+            "reply",
+            True,
+            False,
+        )
+        noted = json.loads(capsys.readouterr().err.splitlines()[-1])
+        assert noted["code"] == "superseded-progress"
+        assert "resolved the thread" in noted["text"]
     state = state_json(page_dir)
     assert state["workflows"] == []
     assert state["activity"]["kind"] != "working"
@@ -778,109 +787,29 @@ def task_log():
     return append, log
 
 
-@pytest.mark.parametrize("outcome", ["done", "failed", "dropped"])
-def test_only_the_latest_starting_session_can_complete_agent_work(task_log, outcome):
-    """Log order transfers authority for every outcome, even while work is put down."""
+def test_any_agent_session_can_end_a_todo_another_started(task_log):
+    """A start says who is at work, not who may end the to-do: a session that
+    neither opened nor started it ends it."""
     append, log = task_log
     todo = append("todo", session="opener", subject={"kind": "page"}, title="Plan")
-    for session in ("older", "newer"):
-        latest = append("start", session=session, item=todo["id"], text="Working")
-    append("status", session="newer", state="waiting")
-    assert todos_model.TodoReading(log).owed[0]["running"] is None
-
-    for session in ("older", "opener", "third", None):
-        with pytest.raises(events_model.EventRefused) as refused:
-            append("todo_end", session=session, todo=todo["id"], outcome=outcome)
-        finding = refused_on(refused.value)
-        assert (finding.code, finding.values) == (
-            "todo-execution",
-            {
-                "todo": todo["id"],
-                "start": latest["id"],
-                "session": "newer",
-                "kind": "todo_end",
-            },
-        )
-    completed = append("todo_end", session="newer", todo=todo["id"], outcome=outcome)
+    append("start", session="worker", item=todo["id"], text="Working")
+    completed = append("todo_end", session="third", todo=todo["id"], outcome="failed")
     [ended] = todos_model.TodoReading(log).todos
-    assert ended["state"] == outcome
+    assert ended["state"] == "failed"
     assert ended["outcome"]["id"] == completed["id"]
-
-
-def test_explicit_starts_transfer_completion_authority_back_and_between_tasks(task_log):
-    """A session can retake work; a start on another item transfers only that item."""
-    append, log = task_log
-    todos = [
-        append("todo", subject={"kind": "page"}, title=title)
-        for title in ("Plan", "Glossary")
-    ]
-    for session in ("older", "newer", "older"):
-        append("start", session=session, item=todos[0]["id"], text="Working")
-    append("start", session="newer", item=todos[1]["id"], text="Other work")
-    with pytest.raises(events_model.EventRefused) as refused:
-        append("todo_end", session="newer", todo=todos[0]["id"], outcome="done")
-    assert refused_on(refused.value).code == "todo-execution"
-    for todo, session in zip(todos, ("older", "newer"), strict=True):
-        append("todo_end", session=session, todo=todo["id"], outcome="done")
-    assert todos_model.TodoReading(log).owed == []
-
-
-def test_unstarted_and_anonymously_started_tasks_remain_completable(task_log):
-    """Opening creates no session ownership; an anonymous start is a real start."""
-    append, log = task_log
-    unstarted = append("todo", session="opener", subject={"kind": "page"}, title="Plan")
-    append("todo_end", session="another", todo=unstarted["id"], outcome="done")
-    anonymous = append("todo", subject={"kind": "page"}, title="Glossary")
-    latest = append("start", item=anonymous["id"], text="Working")
-    with pytest.raises(events_model.EventRefused) as refused:
-        append("todo_end", session="identified", todo=anonymous["id"], outcome="done")
-    assert refused_on(refused.value).values == {
-        "todo": anonymous["id"],
-        "start": latest["id"],
-        "session": None,
-        "kind": "todo_end",
-    }
-    append("todo_end", todo=anonymous["id"], outcome="done")
-    assert todos_model.TodoReading(log).owed == []
-
-
-def test_delayed_completion_keeps_its_session_authority_after_claim_and_turn_changes(
-    page_dir,
-):
-    """A later turn and a different watcher do not make a posting session obsolete."""
-    publish(page_dir)
-    todo = written(
-        leaf("task", "create", page_dir, "page", "--title", "Draft the plan")
-    )
-    record_claim(page_dir, id=todo["session"], turn="earlier-turn")
-    start = written(
-        leaf("task", "start", page_dir, todo["id"], "--text", "Drafting the plan")
-    )
-    assert start["turn"] == "earlier-turn"
-
-    record_claim(page_dir, id=todo["session"], turn="later-turn")
-    continued = written(
-        leaf("task", "start", page_dir, todo["id"], "--text", "Continuing the plan")
-    )
-    assert continued["turn"] == "later-turn"
-    # Claims govern who watches the page; completion comes from the poster's voice.
-    record_claim(page_dir, id="another-watcher", turn="watcher-turn")
-    completed = written(leaf("task", "end", page_dir, todo["id"], "done"))
-    assert completed["session"] == continued["session"] == start["session"]
-    assert state_json(page_dir)["todos"] == []
 
 
 WORK_PAGE = FLOW_PAGE.replace(
     '<lf-diagram id="flow">',
     '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
-    '  <lf-card id="rollout-card"><strong>Ship the rollout</strong> '
+    '  <lf-card id="rollout-card" label="Ship the rollout"><strong>Ship the rollout</strong> '
     "Check the fallback before cutover.</lf-card>\n"
     '</lf-column></lf-board>\n<lf-diagram id="flow">',
 )
 
 
 def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
-    """A to-do on a page widget needs a widget that declares `x-work` or holds an
+    """A to-do on a page widget needs a widget that declares `work` or holds an
     unsettled move. Dropping its widget leaves it open; `page stamp --completes`
     ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
@@ -933,8 +862,9 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     assert "needs no --completes" in again.output
 
 
-def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(page_dir):
-    """A stamp uses the same authority rule for every task it completes, atomically."""
+def test_a_completing_stamp_ends_todos_another_session_started(page_dir):
+    """A stamp's `--completes` ends every open to-do on its widget, whichever
+    session last started each."""
     source = page_dir / "index.html"
     source.write_text(WORK_PAGE)
     publish(page_dir)
@@ -942,11 +872,7 @@ def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(pag
         written(leaf("task", "create", page_dir, "rollout-card", "--title", title))
         for title in ("Check fallback", "Check rollout")
     ]
-    for todo in todos:
-        written(
-            leaf("task", "start", page_dir, todo["id"], "--text", "Checking rollout")
-        )
-    continued = append_command(
+    append_command(
         page_dir,
         {
             "kind": "start",
@@ -957,38 +883,6 @@ def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(pag
         },
     )
     source.write_text(WORK_PAGE.replace("<title>t</title>", "<title>Checked</title>"))
-    before = events_model.read_events(page_dir)
-    revisions = files_model.list_revisions(page_dir)
-    [refused] = command_findings(
-        "page",
-        "stamp",
-        page_dir,
-        "--text",
-        "Checks complete",
-        "--completes",
-        "rollout-card",
-    )
-    assert refused.code == "todo-execution"
-    assert refused.values == {
-        "todo": todos[-1]["id"],
-        "start": continued["id"],
-        "session": "newer",
-        "kind": "note",
-    }
-    assert events_model.read_events(page_dir) == before
-    assert files_model.list_revisions(page_dir) == revisions
-    assert len(todos_model.TodoReading(before).owed) == 2
-
-    append_command(
-        page_dir,
-        {
-            "kind": "start",
-            "author": "agent",
-            "session": todos[-1]["session"],
-            "item": todos[-1]["id"],
-            "text": "Retaking the checks",
-        },
-    )
     completed = stamp(page_dir, "Checks complete", completes=("rollout-card",))
     assert completed.exit_code == 0, completed.output
     assert state_json(page_dir)["todos"] == []
@@ -1079,7 +973,7 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
     made there reads Working and lets the turn that started it end over it. A move
     made after the start is not in hand."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="choice">', 1)
     )
     publish(page_dir)
     pick = append_command(
@@ -1141,7 +1035,7 @@ def test_a_start_line_is_one_sentence(page_dir):
 def asking(page_dir):
     """Publish the fixture page with its obligation's widget named, so the obligation is open."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="choice">', 1)
     )
     publish(page_dir)
 
@@ -1172,103 +1066,53 @@ def test_the_browser_ends_no_todo_or_obligation_outright(page_dir):
     assert state_json(page_dir)["todos"][-1]["id"] == mine["id"]
 
 
-def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_dir):
-    """A decision widget's obligation follows its state. The agent ends a question `done`
-    when the user answered it elsewhere and `dropped` when it no longer applies;
-    neither invents the user's answer, and `failed` says nothing about an obligation."""
+def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_dir):
+    """A decision widget's obligation follows its state, and a question asked in a
+    thread leaves On Me when the agent resolves its thread, as it does once the user
+    answered elsewhere, without inventing their answer or listing it under Done, and
+    a later reply in the thread doesn't bring it back. `task end` names only to-dos,
+    and refuses either obligation with how it ends."""
     asking(page_dir)
     [item] = obligations_on_user(state_json(page_dir))
-    asked = []
-    for text, words in (("Which colour?", "Warm or cool?"), ("Which font?", "Serif?")):
-        comment = append_carried_log_record(
-            page_dir,
-            {"kind": "comment", "author": "user", "revision": 1, "text": text},
-        )
-        question = written(
-            leaf(
-                "thread",
-                "reply",
-                response_reference(page_dir, comment["id"]),
-                "--text",
-                words,
-                "--obligation",
-            )
-        )
-        asked.append(f"message:{question['id']}")
-    answered_elsewhere, dropped = asked
-    [refused] = command_findings(
-        "task", "end", page_dir, item["id"], "dropped", "--text", "Decided in chat"
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Which colour?"},
     )
-    assert refused.code == "widget-obligation"
-    [refused] = command_findings(
-        "task", "end", page_dir, answered_elsewhere, "failed", "--text", "No reply"
+    question = written(
+        leaf(
+            "thread",
+            "reply",
+            response_reference(page_dir, comment["id"]),
+            "--text",
+            "Warm or cool?",
+            "--obligation",
+        )
     )
-    assert refused.code == "failed-question"
-    assert [item["id"] for item in state_json(page_dir)["queues"]["on_user"]] == [
-        item["id"],
-        *asked,
+    asked = f"message:{question['id']}"
+    for identity, message in ((item["id"], None), (asked, question["id"])):
+        [refused] = command_findings(
+            "task", "end", page_dir, identity, "done", "--text", "In chat"
+        )
+        assert (refused.code, refused.values["message"]) == ("obligation-end", message)
+    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [
+        ("widget", item["id"]),
+        ("message", asked),
     ]
 
-    written(
-        leaf(
-            "task",
-            "end",
-            page_dir,
-            answered_elsewhere,
-            "done",
-            "--text",
-            "Warm, in chat",
-        )
-    )
-    written(
-        leaf("task", "end", page_dir, dropped, "dropped", "--text", "Font is fixed")
-    )
+    written(leaf("thread", "resolve", page_dir, question["id"]))
+    # A later reply reopens the thread and brings back nothing the resolve ended.
+    written(leaf("thread", "reply", page_dir, question["id"], "--text", "Warm it is."))
     state = state_json(page_dir)
-    assert [item["id"] for item in state["queues"]["on_user"]] == [item["id"]]
-    assert [thread["attention"] for thread in state["threads"]] == [None, None]
-    refused = leaf("task", "end", page_dir, dropped, "done", "--text", "Asked again")
-    assert refused.exit_code != 0
-    assert f"obligation {dropped!r} is already withdrawn" in refused.output
-
-    served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served["browser"]["todos"] == []
-    ended = {
-        record["id"]: (
-            record["status"],
-            record["answer"],
-            record["end"]["detail"],
-            record["end"]["event"]["author"],
-        )
-        for record in served_obligations(served["browser"])["all"]
-    }
-    assert ended == {
-        answered_elsewhere: ("answered_elsewhere", None, "Warm, in chat", "agent"),
-        dropped: ("withdrawn", None, "Font is fixed", "agent"),
-    }
-    [view] = served["browser"]["views"].values()
-    done = {
-        item["id"]: (item["state"], item["detail"], item["ended"] is not None)
-        for item in view["queues"]["done"]
-        if item["kind"] == "message"
-    }
-    assert done == {
-        answered_elsewhere: ("done", "Warm, in chat", True),
-        dropped: ("dropped", "Font is fixed", True),
-    }
-
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "choice",
-            "action": "choose",
-            "detail": {"value": ["flag-first"]},
-        },
+    assert kinds(state["queues"]["on_user"]) == [("widget", item["id"])]
+    [record] = [record for record in state["obligations"] if record["id"] == asked]
+    assert (record["status"], record["answer"], record["next_actor"]) == (
+        "open",
+        None,
+        None,
     )
-    [answered] = command_findings("task", "end", page_dir, item["id"], "done")
-    assert answered.code == "widget-obligation"
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    [view] = served["browser"]["views"].values()
+    assert asked not in [row["id"] for row in view["queues"]["done"]]
 
 
 def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
@@ -1496,8 +1340,8 @@ def test_obligation_names_a_question_its_own_thread_asks(page_dir):
 
 def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     """A choice sent in a reply stays the user's after they answer it in words, since
-    no revision can write a frozen widget's state. The delivery of their words names
-    the choice in `waiting`, and the agent's `done` end takes it off On Me."""
+    no revision can write a thread widget's state. The delivery of their words names
+    the choice in `waiting`, and the agent's resolve of the thread takes it off On Me."""
     asking(page_dir)
     asked = append_command(
         page_dir,
@@ -1509,11 +1353,10 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
             "reply",
             response_reference(page_dir, asked["id"]),
             "--text",
-            "Which store should own sessions?",
-            "--markup",
-            '<lf-options id="store" choose>'
-            '<lf-option id="store-account"><strong>Account store</strong></lf-option>'
-            '<lf-option id="store-own"><strong>Their own store</strong></lf-option>'
+            "Which store should own sessions?\n\n"
+            '<lf-options id="store">'
+            '<lf-option id="store-account" label="Account store"><strong>Account store</strong></lf-option>'
+            '<lf-option id="store-own" label="Their own store"><strong>Their own store</strong></lf-option>'
             "</lf-options>",
         )
     )
@@ -1522,9 +1365,9 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
         {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Account."},
     )
     [delivered_words] = freeze_events(page_dir, [said])["batches"][0]["events"]
-    assert delivered_words["waiting"] == [
-        {"id": "widget:store", "text": "Which store should own sessions?"}
-    ]
+    [waiting] = delivered_words["waiting"]
+    assert waiting["id"] == "widget:store"
+    assert waiting["text"].startswith("Which store should own sessions?")
     written(
         leaf(
             "thread",
@@ -1538,11 +1381,18 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     on_user = [item["id"] for item in state_json(page_dir)["queues"]["on_user"]]
     assert "widget:store" in on_user
 
-    written(leaf("task", "end", page_dir, "widget:store", "done", "--text", "In words"))
+    written(leaf("thread", "resolve", page_dir, "store"))
     state = state_json(page_dir)
     assert "widget:store" not in [item["id"] for item in state["queues"]["on_user"]]
     [record] = [item for item in state["obligations"] if item["id"] == "widget:store"]
-    assert (record["status"], record["answer"]) == ("answered_elsewhere", None)
+    assert (record["status"], record["answer"]) == ("open", None)
+    # The user's next words there are delivered with no question waiting on them.
+    later = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Thanks."},
+    )
+    [delivered_later] = freeze_events(page_dir, [later])["batches"][0]["events"]
+    assert not delivered_later.get("waiting")
 
 
 def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):
@@ -1610,9 +1460,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
     """A start on a page widget's move holds that move; a later move on the widget,
     which supersedes it, is not in hand until the agent starts it."""
     version = page_dir / "index.html"
-    version.write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
-    )
+    version.write_text(PAGE.replace(PAGE_GROUP, '<lf-options id="choice">', 1))
     publish(page_dir)
     chosen = append_command(
         page_dir,
@@ -1746,8 +1594,8 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     assert page_state(page_dir)["workflows"] == []
 
 
-def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
-    """x-work admits a task on a widget; it is not the task's only later seat.
+def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_dir):
+    """`work` admits a task on a widget; it is not the task's only later seat.
 
     Re-vendoring can remove that declaration while the live widget remains, because
     the page-edge margin entry continues to present the task already admitted.
@@ -1755,7 +1603,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
     work_page = PAGE.replace(
         "</section>",
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
-        '  <lf-card id="rollout-card"><strong>Ship the rollout</strong></lf-card>\n'
+        '  <lf-card id="rollout-card" label="Ship the rollout"><strong>Ship the rollout</strong></lf-card>\n'
         "</lf-column></lf-board>\n</section>",
     )
     (page_dir / "index.html").write_text(work_page)
@@ -1775,7 +1623,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
     card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-card"
     ]
-    card.pop("x-work")
+    card.pop("work")
     layer = Path.cwd() / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
@@ -1792,7 +1640,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
 
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page_dir)
-    assert "x-work" not in registry["lf-card"]
+    assert "work" not in registry["lf-card"]
     [todo] = state_json(page_dir)["todos"]
     assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}
 
@@ -1804,9 +1652,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     all the same, and the next version that records it settles the move and ends the
     start with it.
     """
-    work_page = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-    )
+    work_page = PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -1874,7 +1720,7 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     version.write_text(
         PAGE.replace(
             '<small class="tag">effort: low</small>',
-            '<lf-gloss id="effort" tip="A short task.">effort: low</lf-gloss>',
+            '<lf-gloss id="effort">effort: low<span popover>A short task.</span></lf-gloss>',
         )
     )
     publish(page_dir)
@@ -2017,7 +1863,7 @@ def test_the_input_a_reply_answers_moves_to_its_lists_done():
 
 
 @pytest.mark.parametrize("route", ["open", "proactive", "addressed"])
-def test_explicit_message_obligations_need_no_markup(page_dir, route):
+def test_explicit_message_obligations_need_no_html(page_dir, route):
     """Every author route atomically sends the question and registers On Me."""
     publish(page_dir)
     if route == "open":
@@ -2050,7 +1896,7 @@ def test_explicit_message_obligations_need_no_markup(page_dir, route):
         {"text": "Which environment?", "target": None},
     )
     assert ("message", identity) in kinds(state["queues"]["on_user"])
-    assert "markup" not in message
+    assert "html" not in message
     answer = append_carried_log_record(
         page_dir,
         {

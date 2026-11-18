@@ -16,12 +16,12 @@
    session, which stands through a send until the server accepts it. Rejected:
    beginning on every `focusin`, which made an opening's caret a session nobody began
    and kept a resolved thread's card standing over its empty box (the same class as the
-   send's caret, #5364; found on 4 November 2026).
+   send's caret).
    The send preserves the panel's narrowing and, whichever control sent it, leaves the
    caret in the box for the next message, on a card or a seat as in the floating
-   panel's field; Escape takes the user to the thread. The user chose this on 31
-   October, as an experiment for consistency with the panel: a second send by mistake
-   is rare, so keeping the caret costs little. Reverting it would again leave focus on
+   panel's field; Escape takes the user to the thread. The user chose this,
+   as an experiment for consistency with the panel: a second send by mistake
+   is rare, so keeping the caret costs little. Reverting it would leave focus on
    the conversation's card or title (`landSent`, landing.js), ringed, where the next
    message takes `c` or Enter on the thread first. A saved draft preserves
    words independently of the editor. External settlement retains a reply the user is
@@ -77,8 +77,8 @@ import { tick } from "../version-signal.js";
 /** @typedef {ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"]} WireInput */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
  * wireInput: WireInput,
- * landSent: ReturnType<typeof import("./landing.js").createThreadLanding>["landSent"],
- * landInThread: ReturnType<typeof import("./landing.js").createThreadLanding>["landInThread"]}} ReplyCommands */
+ * landSent: typeof import("./landing.js").returnToThread,
+ * landInThread: typeof import("./landing.js").landInThread}} ReplyCommands */
 /** @typedef {Partial<Pick<import("../composing/input.js").InputOptions,
  * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy">> & {
  * onChange?: () => void,
@@ -357,8 +357,8 @@ export function replyControlDestination(node) {
 
 // A thread's reply draft has several views, and sending claims its exact generation.
 // A second view pressing Send afterwards reads the generation as
-// spent and refuses on its own — in this tab and in any other showing the page, which is
-// further than a hold kept in this document's memory reached. A send returns the
+// spent and refuses on its own — in this tab and in any other showing the page, which a
+// hold kept in this document's memory would not reach. A send returns the
 // message it drew; nothing when nothing was sent.
 /** @param {string} draftCtx @param {string} key @param {string} text
  * @param {Parameters<typeof sendMessage>[1]} owns @param {ReplyCommands["actions"]} actions */

@@ -3,13 +3,13 @@
  * each result as a `move` action. Unupgraded it reads as a static board. */
 /* The floor a column stops narrowing at, and the reason it is arithmetic rather than a
  * round number. A board lays its columns into whatever width it is given and scrolls
- * once they are at their narrowest, which is the right order — but the floor was stated
- * as the column's own box (10rem), and a column is mostly not its card's words: 18px of
- * the column's border and inset, then the card's border, its two insets and the column
- * the grip hangs in. Measured at 160px, 70 of them were furniture and the card's prose
- * got 90 — twelve characters, in which `documented` (92px of Charter at the page's own
- * 17) cannot be set at all, so the shipped board broke ordinary words across lines the
- * moment the thread strip took its margin. A board is meant to scroll before it squeezes,
+ * once they are at their narrowest, which is the right order. Rejected: the floor
+ * stated as the column's own box (10rem), since a column is mostly not its card's
+ * words: 18px of the column's border and inset, then the card's border, its two insets
+ * and the column the grip hangs in. At 10rem the furniture takes 70px of the column's
+ * 160 and leaves the card's prose 90, in which an ordinary word such as `documented`
+ * cannot be set at all, so the board breaks ordinary words across lines. A board is
+ * meant to scroll before it squeezes,
  * and a floor that does not count what the board spends does not know when to.
  *
  * So the measure is the number chosen and the furniture is derived from the rules that
@@ -27,7 +27,7 @@
  * board scrolls its columns inside itself. Its declared reach caps the minimum at the
  * room its holder grants, including the page's occupied margins. A frame grants only
  * its own width. Only a document declares a reach (layouts.css); without one (a
- * workspace, a page with no Layout, a frozen message) the box the board stands in caps
+ * workspace, a page with no Layout, a thread message) the box the board stands in caps
  * it, a grid cell included, and so does the nearest size container: a framed box
  * holding the board (a pane's body, a card), and a sample, which cannot be one, through
  * `--lf-box-cap`. So a box narrower than the minimum scrolls the board rather than the
@@ -44,7 +44,7 @@ lf-board {
     min-inline-size: min(
       calc(
         var(--lf-board-columns) * var(--lf-reading-column-floor) +
-          (var(--lf-board-columns) - 1) * var(--sp-2)
+          (var(--lf-board-columns) - 1) * var(--lf-sp-2)
       ),
       var(--lf-reach, min(100%, 100cqi)),
       var(--lf-box-cap, 100vw)
@@ -78,7 +78,7 @@ lf-board {
       var(--lf-card-inset) + var(--lf-grip-room, 0px) + 2px
   ); /* the card's two 1px borders */
   grid-auto-columns: 1fr;
-  gap: var(--sp-2);
+  gap: var(--lf-sp-2);
   margin: 14px 0;
   align-items: stretch;
   overflow-x: auto;
@@ -89,14 +89,14 @@ lf-board {
 /* The column states its own floor rather than the board stating it as a track, because a
    track cannot read the box it sits in and a column can. `1fr` is `minmax(auto, 1fr)`,
    and a specified min-width is exactly what that automatic minimum resolves to, so the
-   track is the width it was. A track width is a border-box measure, so the column is
-   sized as one too, and its min-height restates the outer box it stated before. */
+   track's minimum is the column's floor. A track width is a border-box measure, so the
+   column is sized as one too, and its min-height states the outer box. */
 lf-column {
   display: block;
-  --lf-ground: var(--field);
+  --lf-ground: var(--lf-field);
   background: var(--lf-ground);
   box-sizing: border-box;
-  border-radius: var(--r);
+  border-radius: var(--lf-r);
   padding: var(--lf-reading-column-inset);
   min-width: var(--lf-reading-column-floor);
   min-height: calc(64px + 2 * var(--lf-reading-column-inset));
@@ -109,12 +109,12 @@ lf-column {
    columns stack: each takes the board's width and its own height, so every column is a
    scroll down away, the gesture the rest of the page already takes, and the rationale
    a page writes after its board follows the last column rather than the tallest one's
-   empty field. The board used to page sideways here, one column wide with a sliver of
-   the next as the cue, which left one column on screen, every other behind a sideways
-   swipe nothing else on the page asks for, and each column stretched to the tallest's
-   height. The floor still wins inside a narrower frame. The board asks its own box, so
-   a board in a workspace pane answers for the room it has rather than for the room the
-   window has. The grid flows by column and a container query cannot restyle its own
+   empty field. Rejected: paging the board sideways here, one column wide with a sliver
+   of the next as the cue, which left one column on screen, every other behind a
+   sideways swipe nothing else on the page asks for, and each column stretched to the
+   tallest's height. The floor still wins inside a narrower frame. The board asks its
+   own box, so a board in a workspace pane answers for the room it has rather than for
+   the room the window has. The grid flows by column and a container query cannot restyle its own
    container, so each column takes the first track and sparse placement gives it the
    next row. */
 @media screen {
@@ -130,26 +130,27 @@ lf-column {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: var(--sp-1);
-      margin-top: var(--sp-2);
+      gap: var(--lf-sp-1);
+      margin-top: var(--lf-sp-2);
     }
     .lf-board-destinations-label {
-      color: var(--muted);
-      font: var(--font-small);
+      color: var(--lf-muted);
+      font: var(--lf-font-small);
     }
   }
 }
-/* The heading is written by lf-board.js rather than by the x-says pass, because
-   it is the list's accessible name as well as its visible words and the pass
-   knows nothing about names. Where the upgrade ran, the column carries those
-   words as its name and the span is aria-hidden, so they reach the tree once;
-   where no script runs at all there is no name either, and the generated text
-   is the whole rendering, audible as well as visible. */
+/* The heading is written by lf-board.js, because it is the list's accessible name as
+   well as its visible words. The module writes it as real text, which a user can select
+   and comment on, where a pseudo-element's glyphs live in no text node. Where the
+   upgrade ran, the column carries those words as its name and the span is aria-hidden,
+   so they reach the tree once. Where no script runs at all, the theme paints the same
+   words from the attribute (`::before`), which is then the whole rendering, audible as
+   well as visible, and stands down once the module's span is there. */
 lf-column::before,
-lf-column > [data-lf-said="label"] {
+lf-column > .lf-column-name {
   display: block;
-  font: var(--font-title);
-  color: var(--ink-2);
+  font: var(--lf-font-title);
+  color: var(--lf-ink-2);
   padding: 2px var(--lf-card-inset) 10px;
 }
 lf-column::before {
@@ -162,19 +163,19 @@ lf-column::before {
    every heading starts at the same place. */
 lf-column {
   position: relative;
-  --lf-tone-dot: var(--border-2);
+  --lf-tone-dot: var(--lf-border);
 }
 lf-column[tone="ok"] {
-  --lf-tone-dot: var(--ok);
+  --lf-tone-dot: var(--lf-ok);
 }
 lf-column[tone="warn"] {
-  --lf-tone-dot: var(--warn);
+  --lf-tone-dot: var(--lf-warn);
 }
 lf-column[tone="danger"] {
-  --lf-tone-dot: var(--danger);
+  --lf-tone-dot: var(--lf-danger);
 }
 lf-column::before,
-lf-column > [data-lf-said="label"] {
+lf-column > .lf-column-name {
   padding-left: calc(var(--lf-card-inset) + 14px);
   padding-right: calc(var(--lf-card-inset) + 2.5em);
   background: radial-gradient(circle, var(--lf-tone-dot) 3.5px, transparent 4px)
@@ -184,11 +185,11 @@ lf-column > .lf-column-count {
   position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
-  font: var(--font-title);
-  color: var(--muted);
+  font: var(--lf-font-title);
+  color: var(--lf-muted);
   font-variant-numeric: tabular-nums;
 }
-lf-column:has(> [data-lf-said="label"])::before {
+lf-column:has(> .lf-column-name)::before {
   content: none;
 }
 lf-card {
@@ -196,21 +197,22 @@ lf-card {
   --lf-grip-inset-block: 2px;
   display: block;
   position: relative;
-  --lf-ground: var(--card);
+  --lf-ground: var(--lf-card);
   background: var(--lf-ground);
-  font: var(--font-widget);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
+  font: var(--lf-font-widget);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
   padding: var(--lf-card-inset-block) var(--lf-card-inset);
-  margin: 0 0 var(--sp-2);
+  margin: 0 0 var(--lf-sp-2);
   container-type: inline-size;
   --lf-block-frame: 1;
 }
 /* The room the grip takes, spent only beside the grip: an empty float the grip's own
    size stands in the card's top corner, so the lines level with the grip (the title's,
    and on a finger's taller grip the first line after it) stop short of it, and what
-   runs below takes the card's whole width. It used to be a column down the card's full
-   height, which set a 188px card's prose at 136px under a 30px glyph. The float starts
+   runs below takes the card's whole width. Rejected: a column down the card's full
+   height, which narrows a card's prose all the way down for a glyph at its top. The
+   float starts
    where the grip does, at its inset from the card's edge rather than the card's padding,
    and its width keeps the card's inset between the words and the grip.
 
@@ -244,13 +246,14 @@ lf-card {
     clear: right;
   }
 }
-/* The prose after the title starts on its next line in whatever shape the author wrote
-   it. A title margin was trimmed only where no element followed it (the frame's trim
-   reads a plain sentence's title as the card's last block), and a paragraph's margin
-   set its prose 13px lower than a sentence's. */
+/* A card's title is the <strong> its author writes in it; its `label` is its name, which
+   nothing draws. The prose after the title starts on its next line in whatever shape the
+   author wrote it. Otherwise a title margin is trimmed only where no element follows it
+   (the frame's trim reads a plain sentence's title as the card's last block), and a
+   paragraph's margin sets its prose lower than a sentence's. */
 lf-card > strong {
   display: block;
-  font: var(--font-title);
+  font: var(--lf-font-title);
   margin: 0;
 }
 lf-card > strong + p {
@@ -281,18 +284,18 @@ lf-card .lf-grip {
      cards, so the ring's right run and both corners on that side fell outside the clip
      while the grip itself stayed whole. An inset ring cannot leave the box it names, at
      any scroll position. */
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 /* SortableJS drag states on the real card: the in-flow slot and pressed card. */
 lf-card.lf-ghost {
   opacity: 0.4;
   border-style: dashed;
-  border-color: var(--accent);
+  border-color: var(--lf-accent);
 }
 /* A held card says so with its contour. The lift's shadow alone does not show on the
    dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
    is merely focused. */
 lf-card.lf-lift {
-  box-shadow: var(--raise-1);
-  border-color: var(--accent);
+  box-shadow: var(--lf-raise-1);
+  border-color: var(--lf-accent);
 }

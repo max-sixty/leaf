@@ -25,13 +25,13 @@ import {
  * the layout, so nothing waits on it, and a failure shows where it happened
  * (`failSoft`). Its step is kept under its id, which no other widget on the page or in
  * a reply shares. */
+import { render } from "/vendor/lit.js";
 import {
   announce,
   commandsChanged,
   failSoft,
   once,
   registerVisualParts,
-  render,
   reportFailure,
   sizeObserver,
   tabStore,
@@ -219,8 +219,9 @@ class Timeline extends HTMLElement {
       const pick = (/** @type {Event} */ event) => {
         if (!(event.target instanceof Element)) return;
         const target = event.target.closest("[data-lf-step]");
-        if (target && this.contains(target))
-          this.#go(Number(target.getAttribute("data-lf-step")), false);
+        if (!target || !this.contains(target)) return;
+        event.preventDefault();
+        this.#go(Number(target.getAttribute("data-lf-step")), false);
       };
       // The step list's rows are its buttons, which Enter and Space press as they do a
       // native button's (`selectableOffered`); a press on a mark is the pointer's

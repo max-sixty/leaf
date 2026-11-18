@@ -36,7 +36,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.render_gate import command as render_command_model
 from leaf.service import requires_agent_attention
-from leaf.structure import source_index
+from leaf.structure import source_index, splice
 from leaf.thread import successful_replies
 from leaf.user_views import read_user_views
 from leaf_dev import ROOT, pane_readings, plain_html
@@ -325,9 +325,7 @@ def rebase_page_links(source: str, addresses: dict[str, str]) -> str:
                 f'href="{escape(target, quote=True)}"',
             )
         )
-    for start, end, replacement in sorted(edits, reverse=True):
-        source = source[:start] + replacement + source[end:]
-    return source
+    return splice(source, edits)
 
 
 @contextmanager
@@ -379,12 +377,17 @@ def open_as_user(run: Run, url: str) -> None:
 
     The author's `page check --render` reads the desktop at the window a browser last
     reported for the page (`render_gate.command.desktop_viewport`), so in use it
-    checks the user's window. Here the browser user first opens the page in the
-    comment phase, and until then every render check read the fixed laptop window
-    while the user's stated window was 1600×1000: authors hunted for a way to
-    change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
-    in 8 of 12 width revisions on 2026-10-24."""
+    checks the user's window. Without this view the browser user first opens the
+    page in the comment phase, and until then every render check reads the fixed
+    laptop window rather than the user's stated one: authors can hunt for a way to
+    change it, setting `LEAF_RENDER_VIEWPORT` and grepping Leaf's source. The check
+    passes over a browser a script drives (`render_gate.command._reader_view`), as
+    this one is, so the tab says it is not driven, standing in for the user's own
+    browser."""
     with headless_shell() as browser, tab(browser, run.journey_window) as view:
+        view.add_init_script(
+            "Object.defineProperty(Navigator.prototype, 'webdriver', {get: () => false})"
+        )
         load(view, url)
         deadline = time.monotonic() + 20
         while not read_user_views(run.authored_page, None)["sessions"]:

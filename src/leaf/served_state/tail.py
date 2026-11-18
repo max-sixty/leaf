@@ -43,10 +43,10 @@ changes through its objects:
 A list whose items are not all named one of those ways, or whose names repeat, is a
 value like any other.
 
-#5271 sent only the history after the held reading and re-read it at the held
-sequence, which keeps no record of what each tab holds and is exact, since it sent
-everything else whole. Remembering readings, as this module does instead, reverses
-that, and buys the rest: the threads and workflows also read the claim, the live
+Sending only the history after the held reading and re-reading it at the held
+sequence keeps no record of what each tab holds and is exact, since it sends
+everything else whole. Remembering readings, as this module does instead, buys the
+rest: the threads and workflows also read the claim, the live
 stream and the clock, so the same log sequence can read two ways and re-reading
 can't give what the tab holds of them, while a content name can, so those records
 travel as changes too. Readings are remembered in this process alone, each as the

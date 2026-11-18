@@ -25,12 +25,12 @@
         margin: 0;
       }
       .panels figcaption {
-        font: 14px/1.45 var(--sans);
-        color: var(--muted);
+        font: 14px/1.45 var(--lf-sans);
+        color: var(--lf-muted);
         margin-top: 10px;
       }
       .panels figcaption strong {
-        color: var(--ink);
+        color: var(--lf-ink);
         display: block;
         font-size: 15px;
         margin-bottom: 2px;
@@ -38,12 +38,12 @@
       /* Marks particular to these drawings, on the same tokens as the theme's
          svg.drawing idiom: the rail and a surface drawn over the page. */
       svg.drawing .rail {
-        fill: var(--accent-tint);
+        fill: var(--lf-accent-tint);
       }
       svg.drawing .over {
-        fill: var(--paper);
+        fill: var(--lf-paper);
         fill-opacity: 0.92;
-        stroke: var(--accent);
+        stroke: var(--lf-accent);
         stroke-width: 1.5;
         stroke-dasharray: 5 4;
       }
@@ -63,8 +63,10 @@
     <main class="layout-column">
       <header id="top">
         <nav class="sitenav" aria-label="Site"></nav>
-        <p class="eyebrow">Using a page</p>
-        <h1>Using a Leaf page</h1>
+        <hgroup>
+          <p>Using a page</p>
+          <h1>Using a Leaf page</h1>
+        </hgroup>
         <p class="lede" id="intro">
           An agent hands the user a page about its work. The user reads it, comments on
           exact passages, makes the choices it asks for, and follows what the agent is
@@ -83,8 +85,8 @@
           mobile versions.
         </p>
       </header>
-      <lf-tabs id="using" class="layout-flow"
-        ><lf-tab id="panel" label="The panel" class="layout-flow"
+      <lf-tabs id="using" flow="page"
+        ><lf-tab id="panel" label="The panel"
           ><details class="topic-outline" id="panel-outline">
             <summary>In this topic</summary>
             <nav aria-label="The panel sections">
@@ -96,7 +98,7 @@
               </ul>
             </nav>
           </details>
-          <section id="chrome" class="layout-flow">
+          <section id="chrome">
             <h2>Panel, rail and thread cards</h2>
             <p id="chrome-what">
               Leaf adds controls around the authored HTML. This interface is called
@@ -105,10 +107,11 @@
               leaf, coloured by the agent's state; the comment field, which shows the
               agent's status while it is empty; and the On Me mark, counting what waits
               on the user, with a dot while a thread holds a reply they haven't read.
-              The leaf opens a small menu of the page's other controls. Pressing the On
-              Me mark opens its view above the row. A ✕ replaces the mark while the view
-              is open and closes it when pressed. A folded panel shows only the leaf in
-              the window's corner.
+              The leaf opens the On view above the row: a menu of the page's other
+              controls, with On Me and Threads as its tabs. Pressing the On Me mark
+              opens the view on On Me. A ✕ replaces the mark while a view is open and
+              closes it when pressed. A folded panel shows only the leaf in the window's
+              corner.
             </p>
             <p id="chrome-lists">
               The On view shows one list at a time, under a tab named for its actor,
@@ -324,7 +327,7 @@
               </figure>
             </div>
           </section>
-          <section id="panel-line" class="layout-flow">
+          <section id="panel-line">
             <h2>What the panel's line says</h2>
             <p id="panel-line-lede">
               The panel's comment field, while empty, is Leaf's one line of words about
@@ -378,6 +381,14 @@
               with the key that enters it at the line's end; a notice takes their place
               for its four seconds, and a walk's position follows whose turn it is.
             </p>
+            <p id="panel-line-end">
+              At its end the line offers the one press that matters now, with its key:
+              <em>Open latest</em> on an older version, otherwise <em>Next On Me</em>
+              <kbd>m</kbd> while something waits on the user, and <em>Comment…</em>
+              <kbd>c</kbd> once nothing does. After a Resolve it offers
+              <em>Next thread</em> <kbd>t</kbd>, and in a mode <em>Close</em>
+              <kbd>esc</kbd>.
+            </p>
             <p id="panel-line-grammar">
               A middle dot joins separate facts, as in
               <em>In Draw mode · Thread 2 of 5</em>, and a dash attaches a detail to the
@@ -392,7 +403,7 @@
               the leaf.
             </p>
           </section>
-          <section id="on-me" class="layout-flow">
+          <section id="on-me">
             <h2>On Me</h2>
             <p id="on-me-what">
               The On Me mark at the end of the panel's row counts what waits on the
@@ -412,7 +423,7 @@
               works says exactly what belongs on each.
             </p>
           </section>
-          <section id="updates-notices" class="layout-flow">
+          <section id="updates-notices">
             <h2>Notices</h2>
             <p id="updates-notices-lede">
               A notice stands in the panel's line for four seconds and is announced to
@@ -468,7 +479,7 @@
               </tbody>
             </table>
           </section></lf-tab
-        ><lf-tab id="threads" label="Threads" class="layout-flow"
+        ><lf-tab id="threads" label="Threads"
           ><details class="topic-outline" id="threads-outline">
             <summary>In this topic</summary>
             <nav aria-label="Threads sections">
@@ -480,7 +491,7 @@
               </ul>
             </nav>
           </details>
-          <section id="comments" class="layout-flow">
+          <section id="comments">
             <h2>Comments and replies</h2>
             <p id="comment-route">
               Select a passage, then use the comment control or press <kbd>c</kbd> to
@@ -502,7 +513,7 @@
               clarifying, shortening, supporting, or prioritizing content.
             </p>
           </section>
-          <section id="practice" class="layout-flow">
+          <section id="practice">
             <h2>Try a thread</h2>
             <p id="sample-introduction">
               This fictional exchange shows an agent's reply after revising the importer
@@ -547,7 +558,7 @@
               </template>
             </lf-sample>
           </section>
-          <section id="thread-readings" class="layout-flow">
+          <section id="thread-readings">
             <h2>What a thread shows</h2>
             <p id="thread-readings-lede">
               A thread appears in several places at once: its card in Threads, its entry
@@ -599,7 +610,7 @@
               </tbody>
             </table>
           </section>
-          <section id="ending" class="layout-flow">
+          <section id="ending">
             <h2>How a thread ends</h2>
             <p id="resolving-user">
               The user usually closes a thread with <strong>Resolve thread</strong>, or
@@ -624,13 +635,21 @@
               it to no words.
             </p>
             <p id="unsent-words">
-              Words typed but not sent are kept after their box closes. If a new version
-              removes the content they were about, Resume writing (<kbd>g</kbd>
+              Words typed but not sent stay with what they are about after their box
+              closes: a comment with its passage or element, a reply with its thread.
+              Commenting somewhere else starts that place's own draft. Each draft stands
+              in the margin as a dashed entry beside its passage or its thread, and
+              Threads lists them all under <strong>Drafts</strong>; a press on either
+              opens the draft in its box. While any wait and no thread has news, the On
+              Me mark wears a grey dot, and a press on it opens Threads. If a new
+              version removes the content they were about, Resume writing (<kbd>g</kbd>
               <kbd>i</kbd>) opens them, unsent, in Comment on the page, after any words
-              already there.
+              already there. The page's server keeps drafts, so they reach every tab and
+              device showing the page; words typed while it is out of reach stay in
+              their tab until it answers again.
             </p>
           </section></lf-tab
-        ><lf-tab id="keys" label="Keys and touch" class="layout-flow"
+        ><lf-tab id="keys" label="Keys and touch"
           ><details class="topic-outline" id="keys-outline">
             <summary>In this topic</summary>
             <nav aria-label="Keys and touch sections">
@@ -642,7 +661,7 @@
               </ul>
             </nav>
           </details>
-          <section id="navigation-basics" class="layout-flow">
+          <section id="navigation-basics">
             <h2>Navigation</h2>
             <p id="navigation-lede">
               Leaf's shortcuts act where focus is. A thread, its passage and its margin
@@ -734,8 +753,8 @@
               distinguish walks that wrap from lists that stop.
             </p>
           </section>
-          <section id="phone" class="layout-flow">
-            <section id="phone-scope" class="layout-flow">
+          <section id="phone">
+            <section id="phone-scope">
               <h2>Phones and touch screens</h2>
               <p id="phone-scope-what">
                 Touch users can read, comment and operate widgets. Leaf’s page commands
@@ -745,7 +764,7 @@
                 regions stack.
               </p>
             </section>
-            <section id="phone-panel" class="layout-flow">
+            <section id="phone-panel">
               <h2>The panel and its menu</h2>
               <p id="phone-panel-row">
                 The panel fits a narrow window with space at its edges. Its row holds
@@ -761,7 +780,7 @@
                 the match count; tapping the marked match selects it.
               </p>
             </section>
-            <section id="phone-comments" class="layout-flow">
+            <section id="phone-comments">
               <h2>Comments, threads and widgets</h2>
               <p id="phone-comments-select">
                 Select words to quote them in the panel’s field; tap the field to open a

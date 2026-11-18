@@ -34,7 +34,7 @@ from .event_facts import EventFacts
 from .events import bare_reaction, is_reaction
 from .files import revision_path
 from .passages import page_passages
-from .projection import FrozenThreadReading, retirement_outcomes
+from .projection import ThreadMarkupReading, retirement_outcomes
 from .publishing import authored_digest, authored_files
 from .refusals import Refused
 from .registry.storage import layer_metadata
@@ -58,8 +58,8 @@ def state_entry(coordinate, e: dict, facts: dict, thread: str | None = None) -> 
     with the facts its delivery carried about it (`event_facts`).
 
     `revision` is the exact document the action was taken on, which for a widget an agent
-    sent is a fact about the gesture and none about the widget: thread markup is
-    frozen in the log, so no page version bounds one of these.
+    sent is a fact about the gesture and none about the widget: no page version
+    bounds thread markup.
     """
     widget, unit, _verb = coordinate
     return {
@@ -223,7 +223,7 @@ def _apply_document_state(
 
 
 def _apply_thread_state(
-    state: dict, thread: FrozenThreadReading, facts: EventFacts
+    state: dict, thread: ThreadMarkupReading, facts: EventFacts
 ) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the user
@@ -308,12 +308,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             for item in state["obligations"]
             if item["thread"] is None
             and (
-                (
-                    item["source"]["kind"] == "widget"
-                    and (
-                        inside(item["source"]["id"]) or inside(item["prompt"]["target"])
-                    )
-                )
+                (item["source"]["kind"] == "widget" and inside(item["source"]["id"]))
                 or (
                     item["source"]["kind"] == "update"
                     and item["source"]["subject"]["kind"] == "widget"
@@ -540,6 +535,7 @@ def page_state(
             }
             for key in (
                 "kind",
+                "ts",
                 "author",
                 "agent",
                 "session",

@@ -1,7 +1,7 @@
 {
   "registry": {
     "lf-sample": {
-      "x-exhibit": {
+      "exhibit": {
         "when": {
           "interactive": [false]
         }
@@ -10,7 +10,7 @@
     "lf-group": {},
     "lf-pick": {},
     "lf-quote": {
-      "x-exhibit": true
+      "exhibit": true
     }
   },
   "cases": [

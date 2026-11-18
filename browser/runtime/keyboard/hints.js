@@ -29,9 +29,9 @@
    and its member stays in the map, which the walk still reaches aloud. Where
    seating in page order would withhold the chip the walk is on, that chip is seated
    first, so it shows wherever its target leaves room for one. A withheld chip's code
-   still takes it, as every member's does. Until 11 November 2026 every chip was shown,
-   moved up or down as far as a free seat lay, so a crowded column's chips slid rows
-   past their targets. Geometry belongs to each caller and is passed in so this module
+   still takes it, as every member's does. Rejected: showing every chip,
+   moved up or down as far as a free seat lies, which slides a crowded column's chips
+   rows past their targets. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through its callers. */
 import { bindingEnabled, cycledRow, hasRows, spell } from "./bindings.js";
 import { html, render } from "/runtime/framework.js";
@@ -39,7 +39,7 @@ import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
 import { layoutWindow } from "../geometry.js";
-import { scrolling, watchScrollEnds } from "../arrivals.js";
+import { scrollDrawn, scrolling, watchScrollEnds } from "../arrivals.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
@@ -176,7 +176,7 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap, admits) {
 function spreadHints(seats, hints, { barriers }) {
   const band =
     parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
+      getComputedStyle(document.documentElement).getPropertyValue("--lf-focus-ring-w"),
     ) || 0;
   const faces = hints.map((hint) => {
     const { chip, box: start } = seats.measure(hint.seat, hint.at);
@@ -286,7 +286,7 @@ export function seatHints(
 ) {
   const gap = 2;
   const targets = faces.map(({ target }) => target);
-  // The browsed hint wears the layer's band (--focus-shadow, styles/tokens.css), which a face's
+  // The browsed hint wears the layer's band (--lf-focus-shadow, styles/tokens.css), which a face's
   // own rectangle does not report. Any chip can become the browsed one as the user
   // types, so the pass seats every face as though it were, keeping the one layout. A
   // window edge takes the whole band, because a band drawn past it is clipped away. A
@@ -298,7 +298,7 @@ export function seatHints(
   // Side by side, two chips stand `apart`, well clear of the 1px between one code's own
   // keycaps (`.lf-binding-sequence`, chrome.css), so a row of two-letter chips reads as
   // codes: touching, `na` and `ng` read as `n a n g`. Stacked chips keep only `clear`,
-  // since a code reads across. Until 14 November 2026 chips could touch side by side.
+  // since a code reads across.
   const apart = 6;
   /** @param {HintBox} box @returns {HintBox} */
   const widened = (box) => ({
@@ -369,8 +369,7 @@ export function seatHints(
   // run bury it. A narrow target beside a wide one, as an icon beside a field, keeps its
   // chip. Its member stays in the map, so its code still takes it and a walk onto it
   // shows its chip. A key is a chip's height, one keycap. Rows stacked one under another,
-  // as in a contents list, share no line and keep their chips. Until 14 November 2026
-  // such a run's chips stacked or scattered around it.
+  // as in a contents list, share no line and keep their chips.
   /** @param {HintFace} face */
   const bunched = ({ start, target }) =>
     target.width < start.height &&
@@ -537,24 +536,30 @@ export function seatHints(
 
 /* One armed map over a caller's scene.
 
-   Membership and seating are separate readings, and the difference is how often each is
-   taken. `read` answers which members the map holds and what codes name them, each
-   member already carrying its `code` because the codes are the caller's, so `kept` and a
-   typed letter narrow the map without recoding it; that answer is held until something
-   invalidates it. `layout`
-   answers where those members are, from one `scene` reading for every member a paint
-   seats, because a chip's place among its neighbours and its own box are the same
-   measurement: derived from different readings they put the chip where neither reading
-   said. `identity` names the element a walk and a re-read recognize a member by.
-   `kept` narrows the map to the members a caller's filter keeps, as a typed letter
-   narrows it to the codes that begin with it.
+   `read` takes one reading of the scene: which members the map holds, what codes name
+   them, and the box each stands in, each member carrying its `code` and its `rect`
+   because both are the caller's. A chip's place among its neighbours and its own box
+   come from that one reading, since derived from different readings they put the chip
+   where neither reading said. The answer is held until the scene moves, so `kept` and a
+   typed letter narrow the map without recoding it, and `layout` only turns each member
+   into the face it shows and where it asks to stand. `identity` names the element a
+   walk and a re-read recognize a member by. `kept` narrows the map to the members a
+   caller's filter keeps, as a typed letter narrows it to the codes that begin with it.
 
    Seats belong to the whole map. A paint that seats chips seats every member's, and
    narrowing the map, by a letter or by `kept`, hides the chips it rules out and moves
    none, so the chips the user is reading stay where they stood. A walk holds the seats
    too, except where it reaches a withheld chip, which seats the map again with that chip
-   first (`seatHints`, `browsed`). The map is seated again on a new reading, once a
-   scroll settles, on a resize, and when the caller invalidates it.
+   first (`seatHints`, `browsed`). A paint between readings measures nothing, and Lit
+   writes only the faces that changed, so a Tab writes the two chips it moves between
+   however many the map holds. The map is read and seated again once a scroll settles,
+   on a resize, when the chrome comes to cover other boxes, as a panel view the user
+   opens does, when a member leaves the document, and when the caller invalidates it.
+   Between readings a chip rides its target by its anchor (chip-seats.js), so a
+   page that moves under the map, as a revision or an opening disclosure does, moves
+   the chips with what they name and changes no letter the user has read. Rejected:
+   measuring every member again on each paint to notice a move, a hit test per chip,
+   which made each Tab cost what the map held.
 
    `chrome.barriers` reads the fixed furniture the placement pass must keep clear.
    A map stands through a scroll once it has stood still long enough to be read: its
@@ -564,23 +569,21 @@ export function seatHints(
    still for nobody, and shows nothing until it settles rather than putting codes on a
    scene that is leaving. */
 /** @template {{code: string}} C
- * @template R
  * @template {{key: unknown, className: string}} M
  * @typedef {{layer: HTMLElement, walk: string, read: () => C[], identity: (candidate: C) => Element,
  * kept?: (candidate: C) => boolean,
- * scene: () => R, layout: (candidates: C[], options: {current: C | undefined, reading: R}) => {candidate: C, model: M, left: number, top: number, target: HintBox, placement: HintPlacement}[],
+ * layout: (candidates: C[], options: {current: C | undefined}) => {candidate: C, model: M, left: number, top: number, target: HintBox, placement: HintPlacement}[],
  * template: (model: M) => unknown, take: (candidate: C) => unknown,
  * words: {describe: (candidate: C) => string, take: string, all: string}, chrome: {barriers: () => HintBarrier[]}}} HintSessionOptions
  */
-/** @template {{code: string}} C @template R @template {{key: unknown, className: string}} M
- * @param {HintSessionOptions<C, R, M>} options */
+/** @template {{code: string}} C @template {{key: unknown, className: string}} M
+ * @param {HintSessionOptions<C, M>} options */
 export function createHintSession({
   layer,
   walk: walkKey,
   read,
   identity,
   kept = () => true,
-  scene,
   layout,
   template,
   take: takeCandidate,
@@ -597,9 +600,9 @@ export function createHintSession({
   // The members `kept` keeps, taken when the map is read or `kept` changes.
   /** @type {C[]} */
   let mapped = [];
-  // What the seats were measured against, until a new reading or a settled scroll: each
-  // seated member's target and the chrome's barriers, and the members withheld.
-  /** @type {{targets: Map<unknown, HintBox>, barriers: HintBarrier[], withheld: Set<C>} | null} */
+  // What the seats were measured against, until a new reading: the chrome's barriers,
+  // and the members withheld.
+  /** @type {{barriers: HintBarrier[], withheld: Set<C>} | null} */
   let seating = null;
   const seats = chipSeats(layer);
 
@@ -636,13 +639,47 @@ export function createHintSession({
     return found;
   }
 
-  function arm() {
+  // Read the scene again, keeping the walk on the target it had heard where the target
+  // keeps its code.
+  function readAgain() {
+    const heard = hinted()[at];
+    hold(read());
+    at = heard
+      ? hinted().findIndex(
+          (candidate) =>
+            identity(candidate) === identity(heard) && candidate.code === heard.code,
+        )
+      : -1;
+  }
+
+  // The map stands on a scene the browser has drawn (arrivals.js, `scrollDrawn`). A
+  // scroll a script has just written, as `g` writes landing the glides under way, leaves
+  // a box anchored to what it moved where it stood until the next rendering update, so a
+  // map read then would name a margin entry the thread card the walk opened is arriving
+  // to cover, and Tab would walk to it. Armed before then, the map is read at once, for
+  // a key typed in those frames, and read again once the scene is drawn, unless a
+  // letter typed meanwhile holds it; `then` hears what the map found once it stands on
+  // the drawn scene.
+  /** @type {Promise<void> | null} */
+  let reading = null;
+  /** @param {(found: C[]) => void} [then] */
+  function arm(then = () => {}) {
     armed = true;
-    return hold(read());
+    hold(read());
+    const drawn = (reading = scrollDrawn());
+    if (!drawn) return then(candidates);
+    drawn.then(() => {
+      if (!armed || reading !== drawn) return;
+      reading = null;
+      if (!prefix) readAgain();
+      then(candidates);
+      repaint();
+    });
   }
 
   function disarm() {
     armed = false;
+    reading = null;
     hold([]);
     seats.clear();
   }
@@ -664,7 +701,6 @@ export function createHintSession({
     prefix = "";
     at = -1;
     stale = true;
-    seating = null;
     repaint();
   }
 
@@ -763,8 +799,8 @@ export function createHintSession({
   // Seats every member's chip, whatever narrowing or character routes leave showing,
   // and stands the seats of the chips that show where the seating puts them. Widening
   // the map onto a chip with no seat seats the whole map anew.
-  /** @param {ReturnType<typeof layout>} plans */
-  function draw(plans) {
+  /** @param {ReturnType<typeof layout>} plans @param {HintBarrier[]} barriers */
+  function draw(plans, barriers) {
     const browsed = hinted()[at];
     const drawn = plans.map((plan) => {
       const seat = seats.seat(plan.model.key);
@@ -779,7 +815,6 @@ export function createHintSession({
       };
     });
     // The coded map is spread around the fixed chrome.
-    const barriers = chrome.barriers();
     const placed = plans.length ? spreadHints(seats, drawn, { barriers }) : [];
     const showing = new Set(showable(plans));
     seats.place(
@@ -789,7 +824,6 @@ export function createHintSession({
       }),
     );
     seating = {
-      targets: new Map(plans.map(({ model, target }) => [model.key, target])),
       barriers,
       withheld: new Set(
         plans.flatMap(({ candidate }, index) =>
@@ -807,23 +841,19 @@ export function createHintSession({
     return plans.filter((plan) => narrowed.has(plan.candidate) && shown(plan));
   }
 
-  // Whether the seats still stand for the whole map's `plans`: every target and the
-  // chrome's barriers stand where the seats were measured against them, every chip that
-  // shows has a seat, and the walk is not on a withheld chip, which seats the map again
-  // with that chip first (`seatHints`, `browsed`).
-  /** @param {ReturnType<typeof layout>} plans */
-  function standing(plans) {
+  // Whether the seats still stand for the whole map's `plans`, which the map's reading
+  // holds where they were seated: the chrome's barriers stand where the seats were
+  // measured against them, every chip that shows has a seat, and the walk is not on a
+  // withheld chip, which seats the map again with that chip first (`seatHints`,
+  // `browsed`).
+  /** @param {ReturnType<typeof layout>} plans @param {HintBarrier[]} barriers */
+  function standing(plans, barriers) {
     if (!seating) return false;
-    const { targets, barriers, withheld } = seating;
     const heard = hinted()[at];
     return (
-      !(heard && withheld.has(heard)) &&
-      plans.every(({ model, target }) => {
-        const was = targets.get(model.key);
-        return was !== undefined && sameBox(was, target);
-      }) &&
+      !(heard && seating.withheld.has(heard)) &&
       showable(plans).every(({ model }) => seats.seated(model.key)) &&
-      sameBoxes(chrome.barriers(), barriers)
+      sameBoxes(barriers, seating.barriers)
     );
   }
 
@@ -842,54 +872,45 @@ export function createHintSession({
       seats.clear();
       return;
     }
-    const moving = scrolling();
+    const moving = scrolling() || scrollDrawn() !== null;
     const wasWalking = at >= 0;
-    const heard = hinted()[at];
     const emptyBefore = mapped.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
+    const barriers = chrome.barriers();
+    // Chrome the user has opened over the page, such as a panel view, covers other boxes
+    // than the reading saw.
+    const covered = seating !== null && !sameBoxes(barriers, seating.barriers);
     // Only at rest and with no letters typed: a partly typed code freezes the map until
     // the user completes or backs out of that prefix.
-    if (!moving && !prefix && (stale || detached || !candidates.length)) {
-      hold(read());
-      at = heard
-        ? hinted().findIndex(
-            (candidate) =>
-              identity(candidate) === identity(heard) && candidate.code === heard.code,
-          )
-        : -1;
-    }
-    const plans = layout(candidates, { current: hinted()[at], reading: scene() });
+    if (!moving && !prefix && (stale || covered || detached || !candidates.length))
+      readAgain();
+    const plans = layout(candidates, { current: hinted()[at] });
     // A scroll holds the seats, and so does every paint while they stand, the map the
     // user has read keeping its faces up to date in them as they type or walk it.
-    if (!moving && !standing(plans)) draw(plans);
-    const kept = showable(plans);
-    show(kept);
+    if (!moving && !standing(plans, barriers)) draw(plans, barriers);
+    show(showable(plans));
     if (moving) return;
-    const current = hinted()[at];
-    if (wasWalking && current && !kept.some(({ candidate }) => candidate === current))
-      at = -1;
-    // The keys were painted before geometry retired the browsed hint, and a map
-    // that has just emptied or filled, after `kept`, changes which of the caller's
-    // rows stand.
+    // The keys were painted before a reading retired the browsed hint, and a map that
+    // has just emptied or filled changes which of the caller's rows stand.
     if ((wasWalking && at < 0) || emptyBefore !== (mapped.length === 0)) repaint();
   }
 
   // A page that moves under an armed map makes opaque labels temporarily untrustworthy,
-  // so the map is read again once the scroll settles. Only while armed: what the
-  // page's own repaint door says holds at every scroll position, no list's membership
-  // moving with the page.
+  // so the map is read again once the scroll settles and the browser has drawn where it
+  // left the page: a script's scroll ends before the update that moves what is anchored
+  // to the page (`arm`). Only while armed: what the page's own repaint door says holds
+  // at every scroll position, no list's membership moving with the page.
   function mount() {
     document.addEventListener("lf-keyboard-preference", invalidate);
     watchScrollEnds(() => {
       if (!armed) return;
       stale = true;
-      seating = null;
       repaint();
+      scrollDrawn()?.then(repaint);
     });
     addEventListener("resize", () => {
       if (!armed) return;
       stale = true;
-      seating = null;
       repaint();
     });
   }

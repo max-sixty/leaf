@@ -8,9 +8,9 @@ A serving context holds this result once; its browser selects the same objects.
 
 from typing import NamedTuple
 
-from ..activity import canonical_activity, canonical_stream_reply, present_holding
-from ..holding import Holding
-from ..projection import FrozenThreadReading, page_reading
+from ..activity import canonical_activity, canonical_stream_reply
+from ..holding import Holding, reading_of
+from ..projection import ThreadMarkupReading, page_reading
 from ..service import no_stream
 from ..todos import TodoReading
 from ..work_reading import WorkReading
@@ -22,7 +22,7 @@ class WorkState(NamedTuple):
     workflows: list[dict]
     live_reply: dict | None
     presence: dict
-    # Who holds each thread, as the fold read it (`activity.present_holding`), which
+    # Who holds each thread, as the fold read it (`holding.reading_of`), which
     # `leaf page state` names and delivery filters.
     holding: Holding
 
@@ -67,7 +67,7 @@ def _strength(workflow: dict, records: dict[str, dict]) -> tuple:
 
 def served_workflows(
     workflows: list[dict],
-    thread_reading: FrozenThreadReading,
+    thread_reading: ThreadMarkupReading,
     records: dict,
     forked: frozenset[str],
 ) -> list[dict]:
@@ -80,7 +80,7 @@ def served_workflows(
     (`holding.Holding.forked`), which the page words On it while its delivery stands. Every
     reader that ages, nudges or holds a turn reads the stage alone.
     `thread` is the thread the workflow stands in: a thread input's own, a widget
-    frozen into a message's thread, or null for a page widget. Whose turn the thread
+    in a message's thread, or null for a page widget. Whose turn the thread
     is reads the records in it, which `records` (`workflows.handed_over`) holds.
 
     The order is the one comparator: whatever shows one workflow of several, a
@@ -129,7 +129,7 @@ def work_state(
     )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
-    holding = present_holding(present, events, now)
+    holding = reading_of(events, present, now, durable.threads)
     activity = canonical_activity(
         present,
         durable.workflows,

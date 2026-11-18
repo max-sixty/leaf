@@ -26,7 +26,7 @@
  * `mount()` does.
  *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
- * `/runtime/` and `/vendor/` draws it too, in the fonts that page's `--sans` and `--mono`
+ * `/runtime/` and `/vendor/` draws it too, in the fonts that page's `--lf-sans` and `--lf-mono`
  * name, else the browser's sans-serif. What Leaf adds it reads from outside: the drawing
  * under way as a `pending-task` event and the named boxes as the visual parts this
  * module registers, which only Leaf's Comment reads. */
@@ -82,6 +82,27 @@ function namedParts(model, drawn) {
         selector: ":is(" + selector + ")",
       };
     });
+}
+
+// The words a drawn box says, with a space where a line wraps. Pele sets each line of a
+// wrapped label in a `tspan` at a `y` of its own, and the runs a line's styles split it
+// into share their line's, so the box's `textContent` ran "Start" and "request"
+// together as "Startrequest", which named its Respond control and its Comment target.
+// A `title` is a tooltip, not the box's words.
+/** @param {Element} box */
+function wordsOf(box) {
+  let words = "";
+  for (const text of box.querySelectorAll("text")) {
+    let line = text.getAttribute("y");
+    words += " ";
+    for (const run of text.childNodes) {
+      const y = run instanceof Element ? run.getAttribute("y") : null;
+      if (y !== null && y !== line) words += " ";
+      line = y ?? line;
+      words += run.textContent;
+    }
+  }
+  return words.replace(/\s+/g, " ").trim();
 }
 
 // `accTitle` names the drawing for a reader who can't see it. Pele writes it as the
@@ -163,8 +184,8 @@ customElements.define(
         const model = parse(source);
         const options = {
           idPrefix: renderId,
-          fontFamily: style.getPropertyValue("--sans").trim(),
-          fontFamilyMono: style.getPropertyValue("--mono").trim(),
+          fontFamily: style.getPropertyValue("--lf-sans").trim(),
+          fontFamilyMono: style.getPropertyValue("--lf-mono").trim(),
           fontSize: 14,
           padding: drawingPadding,
           responsive: false,
@@ -227,8 +248,7 @@ customElements.define(
         const [element, duplicate] = elements;
         if (!element || duplicate)
           throw new Error(`Pele did not draw one named box for ${part.id}`);
-        const label =
-          part.label || element.textContent.replace(/\s+/g, " ").trim() || part.id;
+        const label = part.label || wordsOf(element) || part.id;
         visualParts.set(`node:${encodeURIComponent(part.id)}`, {
           element,
           label,

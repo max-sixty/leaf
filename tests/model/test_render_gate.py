@@ -1,62 +1,33 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
 import json
-from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
 
 import pytest
 
-from leaf import render_checks as render_checks_model
 from leaf import user_views
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.command import PIN_VARIABLE, BrowserCheck, desktop_viewport
+from leaf.render_gate.command import (
+    PIN_VARIABLE,
+    BrowserCheck,
+    desktop_viewport,
+    user_engine,
+)
 from model.test_user_views import report
-
-
-@pytest.mark.parametrize("failure", [None, "body", "finish"])
-def test_probe_observation_finishes_and_disposes_native_handle(monkeypatch, failure):
-    """A failed check or native reading still disconnects and releases its observation."""
-    calls = []
-    finding = {"code": "passive-layout-shift"}
-
-    def finish(_expression):
-        calls.append("finish")
-        if failure == "finish":
-            raise RuntimeError("finish failed")
-        return [finding]
-
-    handle = SimpleNamespace(evaluate=finish, dispose=lambda: calls.append("dispose"))
-    page = SimpleNamespace(evaluate_handle=lambda *_args: handle)
-    monkeypatch.setattr(render_checks_model, "_load_probes", lambda *_args: None)
-    error = (
-        pytest.raises(RuntimeError, match=f"{failure} failed")
-        if failure
-        else nullcontext()
-    )
-    with error:
-        with render_checks_model.observe_probe(page, "passiveLayoutShifts") as records:
-            assert records == []
-            if failure == "body":
-                raise RuntimeError("body failed")
-    assert calls == ["finish", "dispose"]
-    assert records == ([] if failure == "finish" else [finding])
 
 
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     """The sweep names a fault per element and per unbroken run of widths, with its
     reading at the run's narrowest. Here a spill clears between 1520px and 640px and
     returns below, so it is two runs. A clipped control is read the same way, and the
-    phone widths' second sample, at the phone's height, joins it: a control clipped
-    in either sample of a width is clipped at that width. One clipped in both is one
-    run; one clipped only at the desktop height, or only at the phone's, is a run of
-    its own. A squeezed table is advice wherever the sweep finds it. Two drawings that
-    share a name are told apart by their place."""
-    widths = sorted({*render_gate_readings.SWEEP_WIDTHS, 540}, reverse=True)
+    desktop's second sample, as the page loaded, joins it: a control clipped in either
+    sample of a width is clipped at that width. A squeezed table is advice wherever
+    the sweep finds it. Two drawings that share a name are told apart by their place."""
+    widths = sorted(render_gate_readings.SWEEP_WIDTHS, reverse=True)
 
-    def at(width, short=False):
+    def at(width, loaded=False):
         spill = 1560 <= width <= 1600 or width <= 600
         drawings = [
             {
@@ -94,13 +65,24 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
                 | {"by": "<div id=row>"}
                 for place, clipped in (
                     ("#narrow", width <= 440),
-                    ("#tall", 520 <= width <= 560 and not short),
-                    ("#short", 400 <= width <= 480 and short),
+                    ("#mid", 520 <= width <= 560),
+                    ("#loaded", loaded),
                 )
                 if clipped
             ],
             "covered": [],
             "labels": {"threshold_px": 10, "drawings": drawings},
+            "broken": [
+                {
+                    "code": "broken-name",
+                    "at": "<table id=n>",
+                    "place": {"id": "n", "steps": []},
+                    "count": 1,
+                    "names": ["x-awaits"],
+                }
+            ]
+            if width >= 1200
+            else [],
             "squeezed": [
                 {
                     "code": "squeezed-table",
@@ -118,13 +100,14 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
         }
 
     readings = [(width, at(width)) for width in widths]
-    short = [(width, at(width, short=True)) for width in widths if width <= 540]
-    swept = render_gate_readings.swept_faults([*readings, *short])
+    swept = render_gate_readings.swept_faults(
+        [(1280, at(1280, loaded=True)), *readings]
+    )
     assert [(f.code, f.at, f.widths) for f in swept] == [
         ("past-column", "<pre>", (1560, 1600)),
+        ("clipped-control", "<button id=loaded>", (1280, 1280)),
         ("past-column", "<pre>", (360, 600)),
-        ("clipped-control", "<button id=tall>", (520, 560)),
-        ("clipped-control", "<button id=short>", (400, 480)),
+        ("clipped-control", "<button id=mid>", (520, 560)),
         ("clipped-control", "<button id=narrow>", (360, 440)),
     ]
     spill, _, _, _, clipped = swept
@@ -136,9 +119,10 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
         '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="lf-scroll"'
     )
     squeezed = render_gate_readings.squeezed_advice(readings)
-    assert [(f.at, f.widths, f.values["scrolls"], f.severity) for f in squeezed] == [
-        ("<table id=u>", (520, 560), 520, "advice"),
-        ("<table id=t>", (360, 400), 360, "advice"),
+    assert [(f.code, f.at, f.widths, f.severity) for f in squeezed] == [
+        ("broken-name", "<table id=n>", (1200, 1920), "advice"),
+        ("squeezed-table", "<table id=u>", (520, 560), "advice"),
+        ("squeezed-table", "<table id=t>", (360, 400), "advice"),
     ]
     advice = render_gate_readings.shrunk_label_advice(readings)
     assert [
@@ -158,19 +142,17 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
         "past-column",
         "<div id=wide>",
         {"place": "#wide", "past": 74},
-        scheme="dark",
-        viewports=("540x720",),
+        widths=(360, 400),
     )
     assert str(finding) == (
-        "[dark] <div id=wide> is set 74px past the column, out in the margin"
-        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="lf-scroll" (at 540x720)'
+        "at 360–400px wide, <div id=wide> is set 74px past the column, out in the margin"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="lf-scroll"'
     )
     assert json.loads(json.dumps(finding.json())) == {
         "code": "past-column",
         "severity": "error",
         "at": "<div id=wide>",
-        "scheme": "dark",
-        "viewports": ["540x720"],
+        "widths": [360, 400],
         "values": {"place": "#wide", "past": 74},
         "text": str(finding),
     }
@@ -234,18 +216,57 @@ def test_the_render_check_reads_the_desktop_in_the_last_reported_window(
         read()
 
 
+def test_the_render_check_draws_in_the_engine_of_the_last_reported_browser(
+    tmp_path, monkeypatch
+):
+    """`page check` draws in Firefox where the browser that reported last is a Firefox,
+    so a break only Firefox draws reaches the author, and in Chromium for any other
+    reader, before any report, and when the caller pins the check. Firefox on iOS is a
+    WebKit and names itself otherwise."""
+    monkeypatch.delenv(PIN_VARIABLE)
+    now = datetime(2026, 11, 16, tzinfo=UTC)
+    monkeypatch.setattr(user_views, "_now", lambda: now)
+    assert user_engine(tmp_path) == "chromium"
+
+    agents = {
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:160.0) Gecko/20100101"
+        " Firefox/160.0": "firefox",
+        "Mozilla/5.0 (Android 14; Mobile; rv:160.0) Gecko/160.0 Firefox/160.0": "firefox",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15"
+        " (KHTML, like Gecko) FxiOS/146.0 Mobile/15E148 Safari/605.1.15": "chromium",
+        report()["identity"]["browser"]["user_agent"]: "chromium",
+    }
+    for sequence, (agent, engine) in enumerate(agents.items(), start=1):
+        view = report(sequence=sequence)
+        view["identity"]["browser"]["user_agent"] = agent
+        user_views.observe_user_view(tmp_path, view)
+        assert user_engine(tmp_path) == engine, agent
+    view = report(sequence=len(agents) + 1)
+    view["identity"]["browser"]["user_agent"] = next(iter(agents))
+    user_views.observe_user_view(tmp_path, view)
+    # An agent's own browser opening the page later, such as a headless Chromium a
+    # script drives, is not the reader's, and leaves the check where the reader is.
+    now += timedelta(minutes=1)
+    driven = report(session="b" * 32)
+    driven["identity"]["browser"]["webdriver"] = True
+    driven["viewport"] = {"width": 1280, "height": 720}
+    user_views.observe_user_view(tmp_path, driven)
+    assert user_engine(tmp_path) == "firefox"
+    assert desktop_viewport(tmp_path).json()["width"] == 900
+    monkeypatch.setenv(PIN_VARIABLE, "fixed")
+    assert user_engine(tmp_path) == "chromium"
+
+
 def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monkeypatch):
     """The retry policy over whole attempts (`render_version`): a notice is ignored
     only when a later complete attempt is clean, ordinary failures from both attempts
     stand once each, and an incomplete confirmation pardons nothing. Advice is the
     first attempt's. What an attempt hears is the browser's half, read by
     `test_a_recurring_resize_notice_fails_the_render_gate`."""
-    notice = Finding(
-        "resize-loop", values={"text": "ResizeObserver loop completed"}, scheme="light"
-    )
-    error = Finding("console-error", values={"text": "first attempt"}, scheme="light")
-    later = Finding("console-error", values={"text": "later"}, scheme="dark")
-    failed = Finding("probe-failed", values={"error": "probe failed"}, scheme="light")
+    notice = Finding("resize-loop", values={"text": "ResizeObserver loop completed"})
+    error = Finding("console-error", values={"text": "first attempt"})
+    later = Finding("console-error", values={"text": "later"})
+    failed = Finding("probe-failed", values={"error": "probe failed"})
     first = Finding(
         "grows-with-content",
         "<lf-x id=a>",
@@ -262,7 +283,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         monkeypatch.setattr(
             render_gate_model,
             "_render_version_attempt",
-            lambda browser, url, desktop, served_timeout_ms=None, implementations=None, declaration_sources=None: (
+            lambda browser, url, desktop, served_timeout_ms=None, implementations=None, declaration_sources=None, page_code=None: (
                 left.pop(0)
             ),
         )
@@ -285,7 +306,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     recurring = policy(attempt(notices=[notice]), attempt(notices=[notice])).failures
     assert recurring == [confirmed("recurred")]
     assert str(recurring[0]) == (
-        "[light] console: window error: ResizeObserver loop completed"
+        "window error: ResizeObserver loop completed"
         " (recurred on the confirming render attempt)"
     )
     # A confirmation that did not finish cannot say the notice was transient.

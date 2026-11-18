@@ -48,7 +48,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     assert hint.locator("kbd").evaluate(
         "key => getComputedStyle(key).fontFamily"
     ) == page.evaluate(
-        r"() => getComputedStyle(document.body).getPropertyValue('--mono').trim().replace(/\s+/g, ' ')"
+        r"() => getComputedStyle(document.body).getPropertyValue('--lf-mono').trim().replace(/\s+/g, ' ')"
     )
     assert hint.locator(".lf-compose-placeholder-words").evaluate(
         "label => getComputedStyle(label).fontFamily"
@@ -88,7 +88,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     assert abs(gaps["#jobs"]["end"] - gaps["#bracket"]["end"]) < 0.5, gaps
     assert 0 <= gaps["#bracket"]["end"] < 8, gaps
     spacing = page.locator("html").evaluate(
-        "el => parseFloat(getComputedStyle(el).getPropertyValue('--sp-2'))"
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-sp-2'))"
     )
     assert gaps["#bracket"]["room"] - gaps["#jobs"]["room"] == (
         pytest.approx(shown["badgeWidth"] + spacing, abs=0.5)

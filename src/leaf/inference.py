@@ -108,10 +108,9 @@ def answered(text: str, schema: dict, host: str) -> object:
     return value
 
 
-# The model Claude Code is asked on, whatever model the session runs. The request
-# names no effort, and Haiku thought over none of the titles measured below (a median
-# 20 tokens out); thinking had made its titles slower (3–7 s versus 1–2 s) without
-# better results.
+# The model Claude Code is asked on, whatever model the session runs. The request names
+# no effort: Haiku writes a title without thinking it over, and thinking makes its
+# titles slower without better results.
 CLAUDE_CODE_MODEL = "haiku"
 # The most one reply can hold, claude-haiku-5-5's limit and `$.model.complete`'s
 # (Claude Code 2.1.322), so the time limit ends a long answer, such as a widget's
@@ -125,10 +124,9 @@ def claude_code_generator(session_id: str) -> Callable[..., dict]:
     makes (`completions`), with no tools, history or system prompt beyond Claude
     Code's identity block and the one given.
 
-    Told the schema in the system prompt (`answering`), Haiku answered 392 of 392
-    thread titles asked of real pages' threads with JSON matching it, in a median
-    1.5 s (p90 2.2 s); asked for the title as plain text, it prefaced 4 with its
-    reasoning about the request (Claude Code 2.1.322)."""
+    Told the schema in the system prompt (`answering`), Haiku answers a thread title
+    with JSON matching it; asked for the title as plain text, it can preface it with
+    its reasoning about the request (Claude Code 2.1.322)."""
 
     def generate(
         request: str,
@@ -359,14 +357,12 @@ def pi_generate(
     caller's instructions from naming one: Pi reads a `--system-prompt` that names an
     existing path as that file, and an empty one as its own coding-agent prompt.
 
-    Told the schema that way, gpt-6.1-sol on Pi's `openai-codex` provider answered 56
-    of 56 requests with JSON matching it, across eight widget-style requests (a thread
-    title, a classification, nullable fields in a list, no instructions, and a request
-    for Markdown paragraphs among them). Answers took 1.8–3.6 s, and the Markdown one
-    up to 15 s, at a load average near 30 (Pi 1.0.4). Asked for thread titles, whose
-    instructions say to reply with the title alone, it answered 24 of 24 in the
-    schema, to messages asking for a fix, a shell command, a poem, a sum, a bare
-    "YES" or a plain-text answer.
+    Told the schema that way, gpt-6.1-sol on Pi's `openai-codex` provider answered with
+    JSON matching it across widget-style requests (a thread title, a classification,
+    nullable fields in a list, no instructions, and a request for Markdown paragraphs
+    among them) (Pi 1.0.4). Asked for thread titles, whose instructions say to reply
+    with the title alone, it answered in the schema, to messages asking for a fix, a
+    shell command, a poem, a sum, a bare "YES" or a plain-text answer.
 
     Pi exits some 3 s after it answers (Pi 1.0.4 on its `openai-codex` provider,
     where the model took 1–2 s), so the answer is read as Pi prints it, and the

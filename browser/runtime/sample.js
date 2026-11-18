@@ -44,7 +44,7 @@
  * document. Child-capability responses carry `Referrer-Policy: no-referrer` (http.py,
  * `_sample_headers`). The frame delegates no permission policy, so the browser refuses
  * the child's clipboard writes and its copy controls fall back as on any page whose
- * clipboard refuses. The user chose this on 21 October 2026 over delegating
+ * clipboard refuses. The user chose this over delegating
  * `clipboard-write`, which would let any script an author puts in a sample write the
  * user's clipboard on a press. A failed allocation or admission retires the
  * allocation before `ready` rejects. */
@@ -145,7 +145,7 @@ export function sampleFrameImage(frame, crop) {
 
 // For the minutes after a leaf.page deploy that a visitor's container still runs the
 // previous release, the edge refuses an allocation and names a wait (`retryAfter`,
-// layer-client.js). Measured rollouts ended within 381 s; a release that still refuses
+// layer-client.js). A rollout can take about 381 s; a release that still refuses
 // after ten minutes has failed, and the allocation fails with it.
 const ROLLOUT_MS = 10 * 60_000;
 
@@ -180,7 +180,7 @@ function connectionMessage(value) {
 export function mountSample(frame, { template, source, window: asWindow = false }) {
   if ((template == null) === (source == null))
     throw new Error("a sample needs either an authored template id or source document");
-  // A template is declared in its revision's document or in a message's frozen
+  // A template is declared in its revision's document or in a message's
   // markup, which the server reads from the log beside the current revision.
   let revision = runtime.currentRevision;
   /** @type {string | undefined} */
@@ -492,8 +492,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   const size = sizeObserver(visibility);
   size.observe(frame);
   const nativeTransition = () => nextRender(visibility);
-  for (const type of ["beforetoggle"])
-    document.addEventListener(type, nativeTransition, true);
+  document.addEventListener("beforetoggle", nativeTransition, true);
   const unwatch = onFrameVisibility(visibility);
   const undress = registerSampleDress(frame, (dress) =>
     channel?.postMessage({ type: "dress", detail: dress }),
@@ -682,8 +681,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       document.removeEventListener("visibilitychange", visibility);
       seen.stop();
       size.disconnect();
-      for (const type of ["beforetoggle"])
-        document.removeEventListener(type, nativeTransition, true);
+      document.removeEventListener("beforetoggle", nativeTransition, true);
       lifetime.disconnect();
       unwatch();
       undress();

@@ -258,7 +258,8 @@ function advance(entry, signal, admitted = null) {
  *   registry: Record<
  *     string,
  *     {
- *       "x-state"?: Record<string, ActionSpec>;
+ *       verbs?: Record<string, ActionSpec>;
+ *       awaits?: { value?: string };
  *       [name: string]: unknown;
  *     }
  *   > & {
@@ -269,7 +270,11 @@ function advance(entry, signal, admitted = null) {
  *   descriptors: ReadonlyMap<string, WidgetDescriptor>;
  *   messageBodies?: ReadonlyMap<
  *     string,
- *     { text: string; markup: string; document?: { thread: string; message: string } }
+ *     {
+ *       text: string;
+ *       heldElsewhere?: string;
+ *       document?: { thread: string; message: string };
+ *     }
  *   >;
  * }} SemanticDocument
  */
@@ -355,52 +360,75 @@ const NO_OBLIGATIONS = {
   user: /** @type {ObligationRecord[]} */ ([]),
   unanswered: /** @type {ObligationRecord[]} */ ([]),
 };
+/** @type {import("../../types/domain.js").ClassifiedEntry[]} */
+const NO_WITHDRAWALS = [];
 
 /* The admitted inventory owns membership and widget completion. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
  * visible before its POST settles the obligation. */
 /**
+ * Each widget's record is kept by what it reads (`kept.js`): the served record, its
+ * widget's state, the verb it awaits and that widget's withdrawals, so a publication
+ * that moves one widget makes that widget's record again and no other.
+ *
  * @param {PageView["obligations"] | undefined} obligations
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {SemanticDocument["descriptors"]} descriptors
  * @param {ReturnType<typeof foldProjection>["pendingWithdrawals"]} pendingWithdrawals
+ * @param {ReturnType<typeof keptReadings<ObligationRecord>>} records
  * @returns {ObligationLists}
  */
-function normalizedObligations(obligations, widgets, descriptors, pendingWithdrawals) {
+function normalizedObligations(
+  obligations,
+  widgets,
+  descriptors,
+  pendingWithdrawals,
+  records,
+) {
+  /** @type {Map<string, import("../../types/domain.js").ClassifiedEntry[]>} */
+  const withdrawing = new Map();
+  for (const withdrawal of pendingWithdrawals.values()) {
+    const widget = withdrawal.e.widget;
+    if (widget !== undefined)
+      withdrawing.set(widget, [...(withdrawing.get(widget) ?? []), withdrawal]);
+  }
   const all = (obligations ?? []).map(
     /** @returns {ObligationRecord} */ (item) => {
       if (!hasObligationSource(item, "widget")) return item;
       const sourceId = item.source.id;
       const sourceUnit = item.source.unit;
       const widget = widgets.get(sourceId);
-      const declaration = /** @type {{ value?: string } | undefined} */ (
-        descriptors.get(item.source.id)?.declaration["x-awaits"]
-      );
+      const declaration = descriptors.get(item.source.id)?.declaration.awaits;
       const verb = declaration?.value;
       if (!verb || !widget) return item;
-      const completed =
-        item.status === "answered" &&
-        !(item.answer?.event && pendingWithdrawals.has(item.answer.event.id));
-      const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
-      const pendingValue =
-        /** @type {{ e: Event; unit: string }[]} */ (widget.entries).some(
-          ({ e, unit }) =>
-            e.action === verb &&
-            (sourceUnit === undefined || unit === sourceUnit) &&
-            !Number.isInteger(e.seq),
-        ) ||
-        [...pendingWithdrawals.values()].some(
-          ({ e, unit }) =>
-            e.widget === sourceId &&
-            (sourceUnit === undefined || unit === sourceUnit) &&
-            (e.action === verb || e.id === item.answer?.event?.id),
-        );
-      const answer = present
-        ? { value, event: pendingValue ? null : (item.answer?.event ?? null) }
-        : null;
-      return { ...item, answer };
+      const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
+      const answerWithdrawn = Boolean(
+        item.answer?.event && pendingWithdrawals.has(item.answer.event.id),
+      );
+      const inputs = [item, widget, verb, withdrawals, answerWithdrawn];
+      return records.read(item.id, inputs, () => {
+        const completed = item.status === "answered" && !answerWithdrawn;
+        const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
+        const pendingValue =
+          /** @type {{ e: Event; unit: string }[]} */ (widget.entries).some(
+            ({ e, unit }) =>
+              e.action === verb &&
+              (sourceUnit === undefined || unit === sourceUnit) &&
+              !Number.isInteger(e.seq),
+          ) ||
+          withdrawals.some(
+            ({ e, unit }) =>
+              (sourceUnit === undefined || unit === sourceUnit) &&
+              (e.action === verb || e.id === item.answer?.event?.id),
+          );
+        const answer = present
+          ? { value, event: pendingValue ? null : (item.answer?.event ?? null) }
+          : null;
+        return { ...item, answer };
+      });
     },
   );
+  records.done();
   // A widget's record keeps the server's status and next actor, which only the log
   // decides.
   return {
@@ -512,8 +540,10 @@ function currentWidgetRelations(descriptors, widgets, desired) {
  * @param {ObligationLists} items
  * @param {readonly ObligationRecord[]} local
  * @param {ReadonlyMap<string, ObligationRecord>} record each of `items` by its id
+ * @param {ReturnType<typeof keptReadings<any>>} rows each served item's row, kept by
+ *   the item and the record it carries
  */
-function localQueues(served, workflows, todos, items, local, record) {
+function localQueues(served, workflows, todos, items, local, record, rows) {
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const todoRecord = new Map(todos.map((todo) => [todo.id, todo]));
   // The threads holding a send this tab has in flight.
@@ -566,10 +596,19 @@ function localQueues(served, workflows, todos, items, local, record) {
   // A record's row carries this tab's record of its obligation, and a to-do's row the
   // served to-do.
   /** @template {QueueItem} T @param {T} item @returns {T & QueueRecord} */
-  const current = (item) =>
-    namesRecord(item)
-      ? { ...item, obligation: obligationOf(item) }
-      : { ...item, kind: "todo", owner: "agent", todo: todoOf(item) };
+  const current = (item) => {
+    if (namesRecord(item)) {
+      const obligation = obligationOf(item);
+      return rows.read(item, [obligation], () => ({ ...item, obligation }));
+    }
+    const todo = todoOf(item);
+    return rows.read(item, [todo], () => ({
+      ...item,
+      kind: "todo",
+      owner: "agent",
+      todo,
+    }));
+  };
   /** @param {DoneItem} done */
   const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }) =>
     current(/** @type {QueueItem} */ (item));
@@ -668,7 +707,6 @@ function localUpdates(workflows) {
           },
           answer: null,
           status: "open",
-          end: null,
           next_actor: refused ? "user" : "agent",
         });
       return { ...workflow, obligation: id };
@@ -711,7 +749,7 @@ const namesRecord = (item) => item.kind !== "todo";
 // publisher shares each widget's group across publications, so a widget whose entries
 // did not move reads the group it read before. Entries group by widget id alone: the
 // selected server view already bounds page history to the captured revision and thread
-// history to its frozen document, and widget ids are unique across both, so filtering
+// history to its thread markup, and widget ids are unique across both, so filtering
 // again by the event's authored revision would discard carried decisions from an
 // earlier revision.
 /** @param {SemanticRoot} root @returns {WidgetIndex} */
@@ -797,7 +835,7 @@ function widgetReading(inputs, descriptor) {
   const classified = inputs.entries.classified.toSorted(
     (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
   );
-  const actionSpecs = descriptor.declaration["x-state"] ?? {};
+  const actionSpecs = descriptor.declaration.verbs ?? {};
   const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
   const durableUndo = inputs.entries.undo;
@@ -861,6 +899,12 @@ export function createSemanticApplication({ presentation } = {}) {
   // one reads changed (`kept.js`).
   const widgetStates = widgetStateReader();
   const threadRecords = threadRecordReader();
+  // Each obligation's record, and each queue row with the workflow serving it, made
+  // again only where what it reads changed (`normalizedObligations`, `localQueues`).
+  /** @type {ReturnType<typeof keptReadings<ObligationRecord>>} */
+  const obligationRecords = keptReadings();
+  /** @type {ReturnType<typeof keptReadings<any>>} */
+  const queueRows = keptReadings();
   // Each step of `derive` that reads the whole page, run again only where one of the
   // parts it reads changed (`kept.js`). A step left alone hands back what it made last
   // time, which the publisher has shared before and so need not compare again
@@ -1058,6 +1102,7 @@ export function createSemanticApplication({ presentation } = {}) {
           widgets,
           document.descriptors,
           projection.pendingWithdrawals,
+          obligationRecords,
         )
       : NO_OBLIGATIONS;
     // Thread attention is the server's reading, and one local fact adjusts it: a
@@ -1250,6 +1295,7 @@ export function createSemanticApplication({ presentation } = {}) {
       items,
       localRecords,
       obligationsById,
+      queueRows,
     );
     // A record's row reads the strongest workflow serving it, the first in the
     // published order.
@@ -1260,10 +1306,19 @@ export function createSemanticApplication({ presentation } = {}) {
         serving.set(workflow.obligation, workflow);
     /** @template {{ id: string; kind: QueueItem["kind"] }} T @param {T[]} items */
     const contextual = (items) =>
-      items.map((item) => ({
-        ...item,
-        workflow: serving.get(item.id) ?? null,
-      }));
+      items.map((item) => {
+        const workflow = serving.get(item.id) ?? null;
+        return /** @type {T & {workflow: Workflow | null}} */ (
+          queueRows.read(item, [workflow], () => ({ ...item, workflow }))
+        );
+      });
+    const queues = {
+      phase,
+      on_user: contextual(selectedQueues.on_user),
+      on_agent: contextual(selectedQueues.on_agent),
+      done: contextual(selectedQueues.done),
+    };
+    queueRows.done();
     steps.done();
     return {
       hostAvailable,
@@ -1287,12 +1342,7 @@ export function createSemanticApplication({ presentation } = {}) {
       plan: ready ? (state?.browser.plan ?? null) : null,
       // On Me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
-      queues: {
-        phase,
-        on_user: contextual(selectedQueues.on_user),
-        on_agent: contextual(selectedQueues.on_agent),
-        done: contextual(selectedQueues.done),
-      },
+      queues,
       // Part of the effective reading, so a read that changes only the view's
       // reports, publication time, or undo list opens an epoch and reaches its readers.
       view,
@@ -1630,9 +1680,7 @@ export function createSemanticApplication({ presentation } = {}) {
           ? before.document.descriptors.get(event.widget)?.declaration
           : null;
       const spec =
-        event.kind === "action" && widget
-          ? declaration?.["x-state"]?.[event.action]
-          : null;
+        event.kind === "action" && widget ? declaration?.verbs?.[event.action] : null;
       const unit =
         event.kind === "action" && spec
           ? spec.unit === "widget"

@@ -68,9 +68,10 @@ def test_a_sandboxed_command_runs_outside_the_sandbox(page_dir):
 @pytest.mark.usefixtures("bridged")
 def test_a_bridged_command_keeps_its_stdin_streams_and_status(page_dir):
     """The command reads the stdin it was given, and its stdout, stderr and exit
-    status come back apart."""
+    status come back apart. A hook leaves stdout to its harness's answer, so it
+    refuses on stderr."""
     refused = subprocess.run(
-        [LAUNCHER, "data", "set", str(page_dir), "source"],
+        [LAUNCHER, "hook", "--harness", "claude-code"],
         input="{",
         capture_output=True,
         text=True,
@@ -78,7 +79,7 @@ def test_a_bridged_command_keeps_its_stdin_streams_and_status(page_dir):
     )
     assert refused.returncode == 1
     assert refused.stdout == ""
-    assert "invalid JSON (Expecting property name" in refused.stderr
+    assert "Expecting property name" in json.loads(refused.stderr)["error"]
 
 
 @pytest.mark.usefixtures("bridged")
@@ -111,7 +112,7 @@ def test_a_bridged_command_refuses_a_socket_stdin_at_once(page_dir):
             check=False,
         )
     assert refused.returncode == 1
-    assert "no JSON given" in refused.stderr
+    assert "no JSON given" in refused.stdout
 
 
 @pytest.mark.usefixtures("bridged")
@@ -131,7 +132,7 @@ def test_a_bridged_command_reads_a_socket_stdin_it_names(page_dir):
             check=False,
         )
     assert read.returncode == 1
-    assert "invalid JSON (Expecting property name" in read.stderr
+    assert "invalid JSON (Expecting property name" in read.stdout
 
 
 def test_a_background_job_keeps_the_bridge_while_the_job_stands(

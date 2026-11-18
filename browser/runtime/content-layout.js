@@ -12,7 +12,6 @@ import { layoutWindow, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { readPageHead } from "./root-headers.js";
 import { inChrome } from "./shadow-tree.js";
 
 let documentLayoutOpen = false;
@@ -28,9 +27,6 @@ let watchedHead = null;
 let railAvailable = null;
 function readDocumentLayout() {
   const { changed } = readDocumentHeaders();
-  // The page's own head, read once the Layout's header has passed its height on, so
-  // the one is never read as the other (root-headers.js).
-  readPageHead();
   syncLayoutRegion();
   const header = layoutHeader();
   if (header !== watchedHead) {
@@ -134,7 +130,7 @@ export const railStands = (main = layoutBox()) => {
     document.body.dataset.rail === "none"
   )
     return false;
-  const width = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+  const width = parseFloat(getComputedStyle(main).getPropertyValue("--lf-rail")) || 0;
   return shellRight() - proseRect(main).right >= width;
 };
 // Whether the window has room for the rail: as wide as the column with a rail on either

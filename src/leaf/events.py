@@ -33,8 +33,8 @@ def document_identity(scope: str, revision: int | None = None) -> dict:
     """The document a widget event is made in, from its scope and revision.
 
     A `page` event's document is the revision it names; a `thread` event's is the
-    frozen thread markup, which lasts the page's whole lifetime and so carries no
-    revision. Admission, thread folds, and the browser all key documents on this
+    message markup, which no revision carries: an edit rewrites it in place
+    (`thread_context.thread_structure`). Admission, thread folds, and the browser all key documents on this
     identity."""
     if scope == "thread":
         return {"kind": "thread"}
@@ -228,8 +228,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     retracting it (`InForce`) leaves the one before deciding, at the place where
     that happened. ``closures`` holds each time the thread stood closed, in log order:
     the seq it ``closed`` at and the seq it ``reopened`` at, or null while it stands,
-    so what a closure ended stayed ended until then (`provenance.saved_after`);
-    only the server reads it. ``resolved`` is the closing that stands at the end of
+    so what a closure ended stayed ended until then (`provenance.saved_after`).
+    ``closings`` holds each closing still in force, in log order, however the thread
+    reopened since, which ends every question asked before it (`obligations`). Only
+    the server reads either. ``resolved`` is the closing that stands at the end of
     the log, or null.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
@@ -245,6 +247,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
+    message_kinds = kinds_declaring("message")
     standing = standing_withdrawn(events, withdrawn)
     undos = {e["undoes"]: e for e in events if e.get("undoes") in standing}
     # Every action at a coordinate competes, including a non-answer, so thread
@@ -283,8 +286,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             if e["kind"] == "undo"
             else thread_for.get(e.get("parent", e.get("message")))
         )
-        if home is not None and (turn := _turn(e)):
-            home["turns"].append(turn)
+        if home is not None and in_history(e, message_kinds):
+            home["turns"].append(e)
             said_in[e["id"]] = home
         # Whether each thread stands closed, at this place (``closures``): what the
         # event puts in force and what it takes out of it.
@@ -339,12 +342,13 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "revisions": [],
                 "turns": [],
                 "closures": [],
+                "closings": [],
                 "resolved": None,
             }
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
-            if turn := _turn(e):
-                thread["turns"].append(turn)
+            if in_history(e, message_kinds):
+                thread["turns"].append(e)
                 said_in[e["id"]] = thread
             continue
         if e["kind"] == "thread_title":
@@ -391,6 +395,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread["rewritten_from"] = None
     for thread in threads.values():
         thread["resolved"] = closures.standing(thread)
+        thread["closings"] = closures.closings(thread)
     return threads
 
 
@@ -419,6 +424,12 @@ class _ClosureHistory:
         held = self._held.get(thread["id"])
         return held[-1][3] if held and held[-1][2] else None
 
+    def closings(self, thread: dict) -> list[dict]:
+        """The thread's closings in force, in log order."""
+        return [
+            event for _, _, closes, event in self._held.get(thread["id"], []) if closes
+        ]
+
     def step(self, at: float | None, put: list, out: list) -> None:
         """Take out of force each event `out` names, put each `(thread, event,
         closes)` in `put` into it, and record each thread that closed or reopened
@@ -445,21 +456,15 @@ class _ClosureHistory:
                 thread["closures"][-1]["reopened"] = at
 
 
-def _turn(event: dict) -> dict | None:
-    """What a thread's history keeps of a turn, a spoken message that is no progress
-    or the user's rewrite of one (`exchange`), or of an undo, which `build_threads`
-    keeps only where it takes a turn back: what settles a batch of turns. Other
-    events keep nothing."""
-    spoken = (
-        event["kind"] in kinds_declaring("message")
-        and "token" not in event
-        and not event.get("ephemeral")
-    )
-    rewrite = event["kind"] == "edit" and event["author"] != "agent"
-    if not (spoken or rewrite or event["kind"] == "undo"):
-        return None
-    keep = ("id", "seq", "author", "responds", "undoes", "message")
-    return {key: event[key] for key in keep if key in event}
+def in_history(event: dict, messages: frozenset[str]) -> bool:
+    """Whether a thread's history keeps an event as a turn: a spoken message, of
+    `messages`' kinds, that is no progress, or the user's rewrite of one
+    (`exchange`), or an undo, which `build_threads` keeps only where it takes a turn
+    back: what settles a batch of turns."""
+    kind = event["kind"]
+    if kind in messages:
+        return "token" not in event and not event.get("ephemeral")
+    return kind == "undo" or (kind == "edit" and event["author"] != "agent")
 
 
 # What a message says: its words, its reaction's mark and its drawing, and whether its
@@ -557,6 +562,48 @@ def progress_completions(thread: dict) -> dict[str, dict]:
     return completed
 
 
+def summary_range(
+    thread: dict, summaries: list, start: str, end: str
+) -> tuple[str, str]:
+    """The range a summary asked from `start` through `end` must cover, where
+    `summaries` are those in force once it stands: the asked range, widened over every
+    message they leave in full above the last drawn summary.
+
+    The one rule a thread's summaries keep, so a reader sees the opening message, the
+    summaries, then only what is newer than all of them. Admission
+    (`event_contracts._thread_presentation_error`) refuses a range this widens and
+    names the wider one. It reads the summaries that stand once the asked one replaces
+    those it overlaps, so a summary that ends inside an earlier one cannot uncover that
+    one's tail above a later summary. Whatever the wider range replaces lies inside it,
+    so admission takes it as named. A delivery's `summary_hint`
+    (`thread_context.batch_threads`) is the range this gives for a run of messages and
+    the summaries in force beside it, so following a hint is never refused.
+
+    The opening message may stay outside, since it says what the thread is about. A
+    message counts where the panel draws it whole: a spoken turn no summary covers,
+    other than progress a later reply completed (`progress_completions`), which is
+    drawn nowhere. Pending progress is drawn, so it counts, and a reaction is a mark
+    on another message, so it doesn't. A summary of completed progress alone is drawn
+    nowhere, so no message stands above it. Only `covers` is read of each summary, so
+    a caller can weigh a range it has not written."""
+    covered = {identity for summary in summaries for identity in summary["covers"]}
+    completed = progress_completions(thread)
+    spoken = spoken_turns(thread)
+    drawn = [message for message in spoken if message["id"] not in completed]
+    last = max(
+        (at for at, message in enumerate(drawn) if message["id"] in covered),
+        default=0,
+    )
+    left = [
+        message["id"]
+        for message in drawn[:last]
+        if message["id"] != thread["id"] and message["id"] not in covered
+    ]
+    position = {message["id"]: at for at, message in enumerate(spoken)}
+    reach = [position[identity] for identity in (start, end, *left)]
+    return spoken[min(reach)]["id"], spoken[max(reach)]["id"]
+
+
 def _thread_summaries(
     thread: dict, summaries: list, edits: dict, taken: list
 ) -> list[dict]:
@@ -602,7 +649,7 @@ def unanswered_turns(thread: dict) -> list[dict]:
     settles every input accumulated through it, and a later input starts a fresh
     batch. Until then each input stays owed, and answering an older one removes
     only that input while the newer address stays owed. Mere log order is not
-    settlement: an agent answering an older frozen-widget action after newer user
+    settlement: an agent answering an older thread-widget action after newer user
     input leaves that newer input with the agent.
 
     Not the agent, rather than the user: `author` is an open string on every message
@@ -709,11 +756,11 @@ def seat_root(thread: dict) -> str | None:
     """The widget whose thread seat this thread's root stands in.
 
     An element anchor naming that widget and carrying nothing else, which is the
-    runtime's `seatRoot` and the anchor `renderSeats` collects into the seat's
-    own view. Narrower than any anchor naming the widget, deliberately: a quote
-    anchor points into the widget's words rather than standing in the box it offers,
-    and the user can see the difference — one is a note on a phrase, the other is
-    the cell."""
+    runtime's `seatRoot` and the thread a widget is offered an outlet of its own
+    for (`threadOutlets`). Narrower than any anchor naming the widget, deliberately:
+    a quote anchor points into the widget's words rather than standing in the place
+    it offers, and the user can see the difference — one is a note on a phrase, the
+    other is the cell."""
     root = thread["root"]
     anchor = thread["anchor"]
     if root.get("about") or not anchor or len(anchor) != 1:
@@ -798,11 +845,10 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
 
     One predicate for every reader of liveness — the fold's survival test, the
     words gate's, and the thread a decision settles — because a decision the log
-    has taken back has to be absent everywhere at once. It was written out twice
-    and a third reader went without: `build_threads` settled a thread on a decision
-    and never asked, so a suggestion the next version rewrote came back pending
-    with the thread it had answered still filed away, and the user was never asked
-    the question again."""
+    has taken back has to be absent everywhere at once. A reader that goes without,
+    as `build_threads` settling a thread on a decision without asking would, brings
+    a suggestion the next version rewrote back pending with the thread it answered
+    still filed away, and the user is never asked the question again."""
     return any(
         floors.get(i, 0) > event["revision"] for i in action_rests_on(event, within)
     )

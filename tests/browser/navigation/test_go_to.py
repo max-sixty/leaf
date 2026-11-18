@@ -5,31 +5,29 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE, live_url
+from render_cases_interaction import live_url
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
     FOOTED_PAGE,
-    _publish,
     address_code,
     address_codes,
     go_to_address,
 )
 from render_harness import (
-    PANEL,
+    LONG_PAGE,
+    held_frames,
     leaf_page,
     open_page,
-    panel_view,
     resized,
+    scroll_settled,
     shown,
     told,
 )
 
 from browser.navigation import expect_walk_position
-from browser.threads import open_panel_thread
-from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -324,7 +322,7 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
 
     # The paint that can read a notice is the one taken while it shows, and only a
     # notice wide enough to reach under the hint could move it.
-    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Moved to Done.')")
+    page.evaluate("async () => (await window.__lfCheckApi()).notice('Moved to Done.')")
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-lf-says", "notice"
     )
@@ -461,10 +459,11 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     resized(page, 1280, 900)
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
-    # Longer than the session's settle, so the map has stood still and the user has had
-    # the chance to read it. A map armed into a page already moving is a different case,
-    # held by tests/runtime/hint-session.test.mjs.
-    page.wait_for_timeout(200)
+    # The chips show only once the map is drawn at rest, and `rendered` waits for every
+    # repaint that arming it queued, so the map stands still before the page moves. A
+    # map armed into a page already moving is a different case, held by
+    # tests/runtime/hint-session.test.mjs.
+    rendered(page)
 
     # A smooth scroll is the case that holds the session in motion: a programmatic step
     # ends in its own frame, and Chrome sends `scrollend` for each one.
@@ -516,6 +515,60 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     assert all(abs(seen["gap"] - resting) < 2 for seen in travel["moving"]), (
         f"a chip came off the target it names while the page moved: {travel}"
     )
+
+
+def test_a_map_armed_as_a_walk_lands_names_what_the_landed_page_shows(browser, serve):
+    """`g` pressed while a `t` walk glides lands the glide and names what the page shows
+    where the walk left it, as `g` pressed after the walk does. There the thread card the
+    walk opened covers the thread's margin entry, so the entry gets no hint. Read in the
+    task that landed the glide, the card still stood where the glide had carried it, a
+    frame behind the scroll, and the map named the entry, which Tab then walked to first;
+    read again as that scroll ended, before the frame that moved the card, it named it
+    again (arrivals.js, `scrollDrawn`)."""
+    source = LONG_PAGE.replace(
+        "<p id='p20'>Paragraph 20.", "<p id='p20'>Paragraph 20. <a href='#p20'>Mid</a>"
+    ).replace(
+        "<p id='p42'>Paragraph 42.",
+        "<p id='p42'>Paragraph 42. <a id='near' href='#p42'>Near</a>",
+    )
+    url = serve(source, anchored=[("p41", "Paragraph 41.")])
+
+    def hints(during):
+        page = open_page(browser, url)
+        resized(page, 1440, 900)
+        page.locator("#p20 a").focus()
+        scroll_settled(page)
+        rendered(page)
+        start = page.evaluate("scrollY")
+        if during:
+            with held_frames(page) as step:
+                page.keyboard.press("t")
+                for _ in range(30):
+                    if page.evaluate("scrollY") != start:
+                        break
+                    step()
+                else:
+                    raise AssertionError("the walk's glide never set off")
+                step()
+                page.keyboard.press("g")
+        else:
+            page.keyboard.press("t")
+            scroll_settled(page)
+            rendered(page)
+            page.keyboard.press("g")
+        scroll_settled(page)
+        rendered(page)
+        expect(page.locator(CHIPS).first).to_be_visible()
+        return page.evaluate(
+            """sel => [...document.querySelectorAll(sel)]
+              .map(chip => `${chip.dataset.lfGoToKind} ${chip.dataset.lfGoToTarget}`)
+              .sort()""",
+            CHIPS,
+        )
+
+    after = hints(during=False)
+    assert "Link near" in after, after
+    assert hints(during=True) == after
 
 
 def test_a_generated_hint_is_never_drawn_on_the_panel(browser, serve):
@@ -790,61 +843,32 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     expect(page.locator(CHIPS)).to_have_count(0)
 
 
-def test_global_destinations_switch_from_a_covering_workspace(
-    browser, serve, live_leaf
-):
-    """An open view keeps the global Go-to addresses that can replace it."""
-    live_leaf("second", "A second leaf")
-    url = serve(OBLIGATIONS_PAGE, comments=1)
-    _publish(serve.page_dir, 2, OBLIGATIONS_PAGE, "two")
-    page = open_page(browser, url)
-    resized(page, 420, 800)
-
-    def view(name):
-        return page.locator(panel_view(name))
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    expect(view("leaves")).to_be_visible()
-
-    for key, opened, closed in (
-        ("Shift+m", "queue", "leaves"),
-        ("Shift+t", "threads", "queue"),
-    ):
-        page.keyboard.press("g")
-        expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-        page.keyboard.press(key)
-        expect(view(opened)).to_be_visible()
-        expect(view(closed)).to_have_count(0)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    page_map = page.locator(".lf-page-map-dialog")
-    expect(page_map).to_be_visible()
-    expect(page_map.get_by_role("searchbox")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page_map).to_be_hidden()
-
-    # From a thread open in the panel, Versions opens over the leaf's menu in the
-    # thread's place, as every view does; Escape steps back to the menu, then puts the
-    # view away.
-    thread_id = next(
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, serve):
+    """A revision moves the page under an armed Go-to map with no scroll. Each chip rides
+    its target, and every letter the user has read and the target the walk stands on
+    stay, so the letter they just read takes what they read it on (keyboard/hints.js)."""
+    links = "".join(
+        f'<p><a id="l{n}" href="#top">Destination {n}</a></p>' for n in range(1, 6)
     )
-    open_panel_thread(page, thread_id).focus()
+    heading = '<h1 id="top">Kept letters</h1>'
+    source = leaf_page("Kept letters", heading + links)
+    page = open_page(browser, live_url(serve(source)))
     page.keyboard.press("g")
-    page.keyboard.press("Shift+v")
-    versions = view("versions")
-    expect(versions).to_be_visible()
-    assert versions.evaluate("view => view.contains(document.activeElement)")
-    expect(versions.locator(".lf-fp-version")).to_have_count(2)
-    expect(page.locator(".lf-fp-head .lf-fp-back")).to_have_accessible_name(
-        "Back to Menu"
+    expect(page.locator(CHIPS)).to_have_count(5)
+    codes = {n: address_code(page, "Link", f"l{n}") for n in range(1, 6)}
+    for _ in range(3):
+        page.keyboard.press("Tab")
+    expect_walk_position(page, "Target 3 of 5")
+
+    added = '<p>New words with <a id="new" href="#top">a new link</a>.</p>'
+    (serve.page_dir / "index.html").write_text(source.replace(heading, heading + added))
+    told(page)
+    expect(page.locator("#new")).to_be_visible()
+    rendered(page)
+    assert {n: address_code(page, "Link", f"l{n}") for n in range(1, 6)} == codes
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l3"]')).to_have_class(
+        re.compile(r"\blf-current\b")
     )
-    page.keyboard.press("Escape")
-    expect(versions).to_have_count(0)
-    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
-    page.keyboard.press("Escape")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
+    page.keyboard.press("Tab")
+    expect_walk_position(page, "Target 4 of 5")
+    expect(page.locator(".lf-live")).to_contain_text("Destination 4")

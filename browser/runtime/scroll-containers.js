@@ -246,16 +246,27 @@ export function seenGlided(node, box, travel) {
 
 // Whether any of `node` is in front of the user (geometry.js, `seenRect`) where the
 // glides under way leave it (`seenGlided`), since a key pressed while one runs acts as
-// though it had landed (user-place.js, `focusPlace`), or whether they carry it toward
-// the window (`glideGap`); with none, whether it is in front now. Toward as well: the
-// box of a card the walk is gliding in trails its placement, and read where the glide
-// would carry it, it could stand a pixel past the window the walk is bringing it into.
+// though it had landed (user-place.js, `focusPlace`); with none, whether it is in front
+// now. This is where the reading of the page finds the block the user reads
+// (reading-place.js, `blocksOnScreen`), so a stop judged beside that block is judged
+// here too (`seenWhereRead`).
+/** @param {Element} node */
+export const seenLanded = (node) => landed(node, glideTravel(node));
+/** @param {Element} node @param {ReturnType<typeof glideTravel>} travel */
+function landed(node, travel) {
+  if (!travel) return Boolean(seenRect(node, new Map()));
+  const inner = clippedPlace(node, new Map(), undefined, travel.outer);
+  return Boolean(inner && seenGlided(node, inner, travel));
+}
+// Whether `node` is seen where the glides under way leave it (`seenLanded`), or they
+// carry it toward the window (`glideGap`). Toward as well: the box of a card the walk is
+// gliding in trails its placement, and read where the glide would carry it, it could
+// stand a pixel past the window the walk is bringing it into.
 /** @param {Element} node */
 export const seenAhead = (node) => {
   const travel = glideTravel(node);
-  if (!travel) return Boolean(seenRect(node, new Map()));
-  const inner = clippedPlace(node, new Map(), undefined, travel.outer);
-  if (inner && seenGlided(node, inner, travel)) return true;
+  if (landed(node, travel)) return true;
+  if (!travel) return false;
   const gap = glideGap(node);
   return Boolean(gap && gap.after < gap.now);
 };

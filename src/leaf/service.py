@@ -410,10 +410,6 @@ class PageTransaction:
                 },
             )
 
-    def owned_by(self, harness: Harness | None) -> bool:
-        """Whether this transaction may act for the given waiter."""
-        return claimant_matches(self.active_claim, harness)
-
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
         ended.
@@ -731,7 +727,7 @@ class PageTransaction:
         return acknowledged(self.events)
 
     def watch_state(self, harness: Harness | None) -> str:
-        if not self.owned_by(harness):
+        if not claimant_matches(self.active_claim, harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
 

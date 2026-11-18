@@ -79,7 +79,7 @@ import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
-import { pageScroller, stopGlide } from "../scrolling.js";
+import { landGlides } from "../scrolling.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -418,32 +418,22 @@ export function createGoToSequence({
 
   // A generated label over an inline link must not become a span the passage walk then
   // has to understand, so the chips are chrome and the scene is read rather than marked.
-  /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], ReturnType<typeof keyBadgePlacement>, GoToHintModel>} */
+  /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], GoToHintModel>} */
   const hintOptions = {
     layer: goToHintLayer,
     walk: "go-to-target",
     read: visibleCandidates,
     kept: (candidate) => !targetFilter || targetFilter.matches(candidate),
     identity: (candidate) => candidate.member,
-    scene: keyBadgePlacement,
-    layout: (candidates, { current, reading }) =>
-      candidates.flatMap((candidate) => {
-        const rect = reading.badgeBox(candidate.member);
-        if (
-          !candidate.member.checkVisibility() ||
-          !rect ||
-          !reading.exposes(candidate.member, rect, candidate.exposure)
-        )
-          return [];
-        return {
-          candidate,
-          model: goToHintModel(candidate, candidate === current),
-          target: rect,
-          placement: "corner",
-          left: rect.left,
-          top: rect.top,
-        };
-      }),
+    layout: (candidates, { current }) =>
+      candidates.map((candidate) => ({
+        candidate,
+        model: goToHintModel(candidate, candidate === current),
+        target: candidate.rect,
+        placement: "corner",
+        left: candidate.rect.left,
+        top: candidate.rect.top,
+      })),
     template: goToHintTemplate,
     take: (candidate) => {
       setGoToSequence(false);
@@ -463,7 +453,10 @@ export function createGoToSequence({
     // Armed over a control that has claimed Escape, one press would have two owners — the
     // control's rung and the sequence's cancel — so the sequence refuses to arm there at all.
     if (on && !goToActive && claimsEsc(focused())) return;
-    if (on) stopGlide(pageScroller);
+    // The map waits for a still scene, so the glides under way land at once, where the
+    // map typed after them would read the page (scrolling.js, `landGlides`); stopped
+    // where they stood, `g` pressed as `t` set off left the page short of the thread.
+    if (on) landGlides();
     goToActive = on;
     document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     targetFilter = null;
@@ -471,11 +464,12 @@ export function createGoToSequence({
       hints.disarm();
       return repaint();
     }
-    const found = hints.arm();
     // The chips are the eye's copy; the sequence itself is spoken, or the context change is silent
     // to exactly the user who cannot see them.
-    announce(
-      `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+    hints.arm((found) =>
+      announce(
+        `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+      ),
     );
     repaint();
   }

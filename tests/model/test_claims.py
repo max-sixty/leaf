@@ -21,7 +21,6 @@ from interact_support import (
     append_carried_log_record,
     claim_and_wait_command,
     lock_contention,
-    neighbour_page,
     page_state,
     record_claim,
     release_codex_command,
@@ -37,7 +36,6 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import presence as presence_model
-from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -47,14 +45,13 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     tmp_path, under_codex, codex_env
 ):
     """The claim's pid is the one two reapers read as the session's life, and
-    `$PPID` is not it: it is a fact about the shape of the command. Measured
-    through `codex exec`, a bare command and an `&&` chain reported the codex
-    process because the wrapping shell exec'd leaf in place, and a pipeline
-        reported that shell — which exits with the command, so ownership would go
-        inactive and its server would stop a second later. Here the
-    shell is between the session and the command and has exited by the time this
-    reads what was written, so a pid it could have recorded is one this cannot
-    match."""
+    `$PPID` is not it: it is a fact about the shape of the command. Through
+    `codex exec`, a bare command and an `&&` chain can report the codex process,
+    because the wrapping shell execs leaf in place, and a pipeline can report that
+    shell — which exits with the command, so ownership would go inactive and its
+    server would stop a second later. Here the shell is between the session and the
+    command and has exited by the time this reads what was written, so a pid it could
+    have recorded is one this cannot match."""
     page = tmp_path / "codex-page"
     env = codex_env | {"CODEX_THREAD_ID": "thread-shape"}
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
@@ -237,74 +234,6 @@ def test_a_page_names_its_claimant_as_the_harness_does_now(page_dir, monkeypatch
     assert harness_model.CodexHarness("t3", "Codex").session_name() is None
 
 
-def test_page_list_names_each_page_and_the_session_holding_it(dead_pid):
-    """`leaf page list` is how a session finds the machine's pages and which session
-    each one's comments reach. A claimed page is listed with its claimant even
-    while nothing serves it, since that is when "who holds it" matters most; a page
-    nothing claimed is listed only while it serves, by its row."""
-    pages = cleanup_model.state_home() / "pages"
-    held, stopped, unclaimed = pages / "held", pages / "stopped", pages / "unclaimed"
-    url = neighbour_page(held, title="Held page", port=59001)
-    record_claim(held, id="s1", cwd="/work/held")
-    registry = harness_model.claude_code_sessions()
-    registry.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(
-        registry / f"{os.getpid()}.json",
-        {
-            "pid": os.getpid(),
-            "sessionId": "s1",
-            "status": "idle",
-            "statusUpdatedAt": int(time.time() * 1000),
-            "name": "Fix the build",
-        },
-    )
-    neighbour_page(stopped, title="Stopped page", dead=True)
-    record_claim(stopped, id="s2", pid=dead_pid, cwd="/work/stopped")
-    neighbour_page(unclaimed, title="Unclaimed page", port=59002)
-
-    listed = CliRunner().invoke(cli_model.cli, ["page", "list"])
-    assert listed.exit_code == 0, listed.output
-    lines = [json.loads(line) for line in listed.output.splitlines()]
-    assert lines == [
-        {
-            "page": str(held.resolve()),
-            "title": "Held page",
-            "url": url,
-            "on_user": 0,
-            "threads": {"open": 0, "unread": 0},
-            "harness": "claude-code",
-            "claim_session": "s1",
-            "session_name": "Fix the build",
-            "session_cwd": "/work/held",
-            "session_alive": True,
-        },
-        {
-            "page": str(stopped.resolve()),
-            "title": "Stopped page",
-            "url": None,
-            "on_user": None,
-            "threads": None,
-            "harness": "claude-code",
-            "claim_session": "s2",
-            "session_name": None,
-            "session_cwd": "/work/stopped",
-            "session_alive": False,
-        },
-        {
-            "page": str(unclaimed.resolve()),
-            "title": "Unclaimed page",
-            "url": server_model.page_url("127.0.0.1", 59002, server_model.host_key()),
-            "on_user": 0,
-            "threads": {"open": 0, "unread": 0},
-            "harness": None,
-            "claim_session": None,
-            "session_name": None,
-            "session_cwd": None,
-            "session_alive": None,
-        },
-    ]
-
-
 @pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")
 def test_a_session_whose_shell_is_sandboxed_claims_its_page(page_dir, monkeypatch):
     """Claude Code's and Codex's macOS sandboxes refuse their commands any signal
@@ -359,9 +288,9 @@ def test_a_sandbox_refusal_says_to_run_outside_it(
         check=False,
     )
     assert done.returncode == 1
-    assert "[Errno 1] Operation not permitted" in done.stderr
-    assert "(SANDBOX_RUNTIME=1), so rerun it outside the sandbox" in done.stderr
-    assert "Traceback" not in done.stderr
+    assert "[Errno 1] Operation not permitted" in done.stdout
+    assert "(SANDBOX_RUNTIME=1), so rerun it outside the sandbox" in done.stdout
+    assert "Traceback" not in done.stdout + done.stderr
 
 
 def test_a_sandbox_that_hides_the_session_says_to_claim_outside_it(
@@ -495,7 +424,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         check=False,
     )
     assert second.returncode == 2
-    assert "another `leaf wait` is already active" in second.stderr
+    assert "another `leaf wait` is already active" in second.stdout
 
     # SIGTERM unwinds the wait's application cleanup and releases its kernel lease.
     first.terminate()
@@ -510,7 +439,7 @@ def test_a_sigterm_its_handler_takes_inside_a_finalizer_still_ends_the_wait(
     """Python discards an exception raised in a weakref callback, as it does one
     raised in `__del__` or a GC callback, so a SIGTERM whose handler runs inside
     one cannot end the wait by raising. A page memory's finalizer joins threads,
-    which is where a stopped wait once kept running. The wait still ends with
+    which is where a stopped wait could keep running. The wait still ends with
     SIGTERM's status and releases its lease."""
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
@@ -838,7 +767,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
         {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
     )
 
-    # The reported failure: the watcher walks every page the session holds, and
+    # The failure this guards: the watcher walks every page the session holds, and
     # the record it cannot read belongs to a page the user is not on.
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exception is None, repr(waited.exception)
@@ -868,11 +797,11 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
 
     The claims this writes have to go to a relocated home. A record left in a shared
     directory outlives the run that made it, and a constant id in one is a name every
-    run answers to: an earlier version of this test wrote into the developer's own
-    `~/.local/state/leaf/claims`, one unreleased claim per run under this same id and
-    nothing ever sweeping them. Seventy-six had collected when one of their pids came
-    round again on a live process, and the rule below read as true for a claim no run
-    of this test had made. `isolated_session` supplies the home.
+    run answers to: written into the developer's own `~/.local/state/leaf/claims`, one
+    unreleased claim per run under this same id collects with nothing ever sweeping
+    them, until one of their pids comes round again on a live process and the rule below
+    reads as true for a claim no run of this test made. `isolated_session` supplies the
+    home.
     """
     page = tmp_path / "page"
     page.mkdir()

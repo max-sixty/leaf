@@ -40,11 +40,11 @@ from .server import exit_serving
 from .service import page_claim
 from .state import STRING, Record, described, object_schema, page_key, state_home
 
-# The neighbor row and the browser's state answer share this compact activity shape.
+# The compact activity shape a row carries, as `/api/pages` serves it.
 ACTIVITY_FIELDS = frozenset(
-    read_json(Path(__file__).with_name("served_state") / "state.schema.json")[
-        "properties"
-    ]["others"]["items"]["properties"]["activity"]["required"]
+    read_json(Path(__file__).with_name("served_state") / "state.schema.json")["$defs"][
+        "LivePage"
+    ]["properties"]["activity"]["required"]
 )
 COUNT_FIELDS = frozenset(
     {"active", "handling", "queued", "picked_up", "pending", "overdue", "total"}

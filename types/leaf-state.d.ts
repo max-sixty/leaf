@@ -6,8 +6,16 @@ declare module "claude-code" {
     leaf: {
       // The forks the module spawned or resumed to do a thread's work, by agent id,
       // with when each one's present run started, in milliseconds since the epoch,
-      // and the turn Leaf opened for that run (`forks._take`).
-      forks: Record<string, { started: number; turn: string }>;
+      // the turn Leaf opened for that run (`forks._take`), and, once the run ended
+      // and until Leaf has closed its turn, how it ended (`endFork`).
+      forks: Record<
+        string,
+        {
+          started: number;
+          turn: string;
+          ended?: { answer: string } | { failed: string };
+        }
+      >;
     };
   }
 }

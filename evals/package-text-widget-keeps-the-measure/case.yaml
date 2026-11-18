@@ -1,6 +1,6 @@
 # A package widget whose content is read as text keeps to the reading measure in its
 # own stylesheet, so on a wide page its box keeps the measure the prose beside it keeps.
-# `x-space` names only a room past the measure, so the widget declares none.
+# A declared space names only a room past the measure, so the widget declares none.
 description: package-text-widget-keeps-the-measure
 metadata:
   purpose: A package's text-like widget keeps the reading measure in its own stylesheet.
@@ -15,7 +15,7 @@ vars:
     they go. Teams will put a checklist on their release dashboards, which are wide
     pages with charts and tables beside the prose.
 
-    Read the package reference and show the registry.json entries for lf-checklist
+    Show the registry.json entries for lf-checklist
     and lf-check, with a sentence on each declaration you chose, and the stylesheet
     rules that set lf-checklist's width. Return JSON in your reply.
 assert:
@@ -25,5 +25,5 @@ assert:
       Pass only if lf-checklist's stylesheet caps its width at the reading measure,
       as `max-inline-size: var(--lf-measure)` (or `max-width` of the same), so the list
       keeps the prose's line length on a wide page, and its registry entry declares no
-      "x-space" of "wide" or "available". Fail if it widens the checklist past the
-      measure or leaves its width unset.
+      space of "wide" or "available" (Leaf's room past the measure). Fail if it widens
+      the checklist past the measure or leaves its width unset.

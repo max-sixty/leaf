@@ -114,6 +114,7 @@ const browserGlobals = Object.fromEntries(
     "SVGSVGElement",
     "SVGTextElement",
     "SVGUseElement",
+    "ScrollTimeline",
     "ShadowRoot",
     "StaticRange",
     "Text",
@@ -1837,6 +1838,11 @@ export default [
   {
     files: ["src/leaf/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
+  },
+  {
+    // The script an export draws its page with (`exporting.static_document`).
+    files: ["src/leaf/static-export.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
   },
   {
     // Properties the layer and its packages reach only through their owner. A file

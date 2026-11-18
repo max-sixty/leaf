@@ -193,12 +193,15 @@
   // Me mark with no count, since nothing the server reads is known yet, and the keys
   // held below in place of the status.
   //
-  // Until the panel mounts, a press on the row lands on it and does nothing. What a
-  // press on the leaf, the field or On Me does turns on the panel's state, which only
-  // the runtime reads, so a press held until then would act on a panel the user never
-  // saw take it; a key means the same wherever it lands, which is why keys are held.
-  // The press still never reaches the page beneath the row, and ends a run of held keys
-  // as any press does. Its controls take no focus (`inert`), so Tab passes them by.
+  // Until the panel mounts, a press on the field asks to write there, as a press on the
+  // panel's own field does: the printed keys after it are words, which the row shows as
+  // they are typed and the panel's field takes as it mounts (`holdEarlyKeys`). A press
+  // on the leaf or On Me lands on the row and does nothing, since what it does turns on
+  // the panel's state, which only the runtime reads: held until then, it would act on a
+  // panel the user never saw take it. A key means the same wherever it lands, which is
+  // why keys are held. A press never reaches the page beneath the row, and ends a run of
+  // held keys as any press does. The row's controls take no focus (`inert`), so Tab
+  // passes them by.
   //
   // The panel takes the row over as it mounts, in the task that draws the panel's first
   // frame, whose leaf, field and marks stand where the row's stood (floating-panel.css,
@@ -206,7 +209,7 @@
   // away. Where no panel is coming, because the document reports it cannot start or the
   // runtime gives it up, the row goes as the hold on keys ends (`stopHoldingKeys`), and
   // its sheet with it, which nothing then draws with.
-  /** @type {{say(words: HeldWords | null): void, end(taken: boolean): void} | null} */
+  /** @type {{field: Element, say(words: HeldWords | null): void, write(typed: string): void, end(taken: boolean): void} | null} */
   let row = null;
   let rowEnded = false;
   /** @param {boolean} taken whether the panel took the row over */
@@ -227,9 +230,11 @@
       chrome.setAttribute("data-lf-runtime", "");
       chrome.append(template.content.cloneNode(true));
       const panel = chrome.firstElementChild;
-      const words = panel?.querySelector(".lf-fp-words .lf-compose-placeholder-words");
+      const field = panel?.querySelector(".lf-fp-field");
+      const box = panel?.querySelector(".lf-fp-words");
+      const words = box?.querySelector(".lf-compose-placeholder-words");
       const peek = panel?.querySelector(".lf-fp-peek");
-      if (!(panel instanceof HTMLElement) || !words || !peek)
+      if (!(panel instanceof HTMLElement) || !field || !box || !words || !peek)
         throw new Error("The panel's served row has no field words or peek");
       panel.dataset.lfRest = window.lfChrome.rest;
       panel.toggleAttribute("data-lf-served", true);
@@ -248,6 +253,7 @@
       // The panel's size stands while the row does, so one seat says the keys.
       const folded = panel.dataset.lfRest === "mark";
       row = {
+        field,
         // The keys as the panel says them, each as its badge beside Leaf's words: in
         // the field, or in the folded leaf's peek, as the panel's `heldParts` draws
         // them. None gives the field back its status.
@@ -261,9 +267,17 @@
             node.textContent = typeof part === "string" ? part : part.key;
             return node;
           });
-          if (!folded) return words.replaceChildren(...(parts ?? status));
+          if (!folded) {
+            box.toggleAttribute("data-lf-typed", false);
+            return words.replaceChildren(...(parts ?? status));
+          }
           peek.replaceChildren(...(parts ?? []));
           peek.toggleAttribute("data-lf-shown", Boolean(parts));
+        },
+        // The words typed after a press on the field, in the face typed words wear.
+        write(typed) {
+          box.toggleAttribute("data-lf-typed", true);
+          words.textContent = typed;
         },
         end(taken) {
           chrome.remove();
@@ -299,8 +313,15 @@
   //
   // They are shown where the page says what it is doing, the floating panel's field,
   // in place of the status: before the panel mounts, in the row the document served
-  // (`standRow`, below), and once the panel offers its field as their seat
-  // (`lf-held-keys-seat`, floating-panel.js), there. The user chose the panel's look
+  // (`standRow`, above), and once the panel offers its field as their seat
+  // (`lf-held-keys-seat`, floating-panel.js), there.
+  //
+  // A press on the served row's field starts a run of its own, of words: every printed
+  // key after it, Space included, is a letter the user is writing there, Backspace takes
+  // the last one back, and the row shows them as typed, at once. They are never page
+  // keys. As the panel mounts, its field takes the press and the words, and the caret
+  // goes there (`write`, floating-panel.js), so typing goes on natively. Shortcuts being
+  // off leaves this run alone, since none of its keys is one. The user chose the panel's look
   // and field over a notice of the keys' own, a second interface that often stood
   // beside the panel.
   //
@@ -332,6 +353,8 @@
     /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
+    // Whether the run began with a press on the served row's field, so its keys are words.
+    let writing = false;
     // The words shown, as text, or "" while none are.
     let shown = "";
     /** @type {((words: HeldWords | null) => void) | null} */
@@ -351,13 +374,15 @@
     // Words already shown are not shown again: the panel's field repaints for each, and
     // each of its paints asks the keyboard owner to take the keys again
     // (controller.js, `watchCommandAvailability`), which pauses on the same key.
+    const typed = () => held.map(({ key }) => key).join("");
     const show = () => {
       beat = 0;
-      const said = words();
+      const said = writing ? typed() : words();
       const text = JSON.stringify(said);
       if (text === shown) return;
       shown = text;
-      if (seat) seat(said);
+      if (typeof said === "string") row?.write(said);
+      else if (seat) seat(said);
       else row?.say(said);
     };
     const hide = () => {
@@ -370,6 +395,7 @@
     };
     const letGo = () => {
       held.length = 0;
+      writing = false;
       hide();
     };
     /** @param {KeyboardEvent} event */
@@ -377,17 +403,20 @@
       if (event.repeat) return;
       held.push(event);
       if (taken) return;
-      if (shown) show();
+      if (shown || writing) show();
       else beat ||= setTimeout(show, 150);
     };
     /** @param {KeyboardEvent} event */
     const hold = (event) => {
-      if (!window.lfKeyboard.quick) return letGo();
+      if (!writing && !window.lfKeyboard.quick) return letGo();
       if (event.isComposing || HALF_PRESSES.has(event.key)) return;
       // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
       const printed =
         event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
-      if (held.length || taken) {
+      if (writing && event.key === "Backspace") {
+        held.pop();
+        show();
+      } else if (held.length || taken || writing) {
         // The run is open, so a printed key follows the keys before it wherever it was
         // typed: a held `c` may yet open the box the rest is text for. Any other key
         // ends the run and keeps its own meaning: Enter, Backspace, Tab, an arrow or a
@@ -416,7 +445,11 @@
       event.preventDefault();
       event.stopImmediatePropagation();
     };
-    const pointed = () => letGo();
+    /** @param {PointerEvent} event */
+    const pointed = (event) => {
+      letGo();
+      writing = Boolean(row && event.composedPath().includes(row.field));
+    };
     // The controller takes a run, but the hold stands until its owner has pressed the
     // last key in it: a printed key pressed meanwhile joins the same run rather than
     // running ahead of the keys pressed before it. Words already shown stand until the
@@ -447,7 +480,11 @@
     /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
     const seated = (event) => {
       seat = event.detail.show;
-      if (shown) seat(words());
+      if (writing) {
+        const text = typed();
+        letGo();
+        event.detail.write(text);
+      } else if (shown) seat(words());
     };
     shownKeys = () => (shown ? words() : null);
     stopHoldingKeys = () => {

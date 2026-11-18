@@ -600,6 +600,11 @@
   .lf-fp-words {
     color: var(--lf-quiet);
   }
+  /* Words typed after a press on the served row's field (bootstrap.js, `holdEarlyKeys`)
+     wear the ink of words written in the field. */
+  .lf-fp-words[data-lf-typed] {
+    color: var(--lf-ink);
+  }
   /* The word naming what entering the field does, after the agent's or Leaf's words
      (composing/input.js, `enters`), or the press the field's end offers in its place,
      such as a Resolve's Next thread, keeps that face whatever ink the words before it

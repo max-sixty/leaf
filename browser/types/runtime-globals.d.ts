@@ -232,8 +232,12 @@ interface DocumentEventMap {
     )
   >;
   /** The floating panel's offer of its field to say the bootstrap's held keys in, null
-   * once none are shown (`bootstrap.js`, `floating-panel.js`). */
-  "lf-held-keys-seat": CustomEvent<{ show(words: HeldWords | null): void }>;
+   * once none are shown, and to take the words typed after a press on the served row's
+   * field (`bootstrap.js`, `floating-panel.js`). */
+  "lf-held-keys-seat": CustomEvent<{
+    show(words: HeldWords | null): void;
+    write(text: string): void;
+  }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<

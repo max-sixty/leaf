@@ -385,7 +385,7 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   widen it, so a summary that follows it replaces those summaries with one and is
   never refused. A delivery leaves it out for a thread whose newest delivered
   message Leaf kept back for a line fork, since a fork beside that line fork
-  summarizes the thread (`summary_fork`). `text` may be empty and `label` defaults to “Earlier discussion”.
+  summarizes the thread (`summary_fork`). `text` may be empty, and an optional `label` names the range.
   `events.active_summaries` says which summaries stand. A summary answers, resolves,
   settles and marks read nothing.
 - An agent `reply` with `ephemeral: true` is progress. It carries no `responds`,

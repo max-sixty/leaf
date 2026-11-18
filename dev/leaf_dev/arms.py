@@ -297,10 +297,19 @@ class ServedPage(NamedTuple):
     state: Path
 
     def leaf(
-        self, *args: str, timeout: float | None = None
+        self, *args: str, timeout: float | None = None, **extra: str
     ) -> subprocess.CompletedProcess:
-        """Run the arm's launcher under the state home, refusing a failed command."""
-        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
+        """Run the arm's launcher under the state home with `extra` in its
+        environment, such as a session for a command only an agent's voice may run,
+        refusing a failed command."""
+        return run_leaf(
+            self.arm,
+            self.state,
+            *args,
+            env=environment(**extra),
+            check=True,
+            timeout=timeout,
+        )
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from

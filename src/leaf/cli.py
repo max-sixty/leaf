@@ -1060,7 +1060,7 @@ def thread() -> None:
     help="the last message folded",
 )
 @body_options("the summary's Markdown")
-@click.option("--label", help="disclosure label (default: Earlier discussion)")
+@click.option("--label", help="a name for the folded range, leading the summary")
 def thread_summarize(
     page_dir: Path,
     from_message: str,

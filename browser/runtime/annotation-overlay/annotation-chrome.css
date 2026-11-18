@@ -487,19 +487,24 @@
   /* The action track crosses the transcript and its retained message groups.
      Bodies keep both tracks; the head beside the actions stops at them without
      copying their measured width into every message. */
-  .lf-margin-thread .lf-thread-transcript > *,
-  .lf-margin-thread :is(.lf-thread-checkpoint, .lf-summary-checkpoint) > * {
+  .lf-margin-thread .lf-thread-transcript > * {
     grid-column: 1 / -1;
   }
-  .lf-margin-thread
-    :is(.lf-msg, .lf-thread-checkpoint, .lf-summary-checkpoint):not([hidden]) {
+  .lf-margin-thread .lf-msg:not([hidden]) {
     display: grid;
     grid-template-columns: subgrid;
   }
-  /* A summary's head is a head too: one opening the transcript stands under the
-     actions, which would otherwise cover its disclosure on a narrow card. */
-  .lf-margin-thread :is(.lf-msg-head, .lf-summary-header) {
+  .lf-margin-thread .lf-msg-head {
     grid-column: 1;
+  }
+  /* A summary opening the card stands under the actions, a head's gap to its words
+     below their line, and takes the card's width. Rejected: its head beside them, in
+     the room Next unread's words leave, which on a narrow card cut its press to
+     "Show 5 e…". */
+  .lf-margin-thread
+    .lf-thread-transcript
+    > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
+    margin-block-start: calc(var(--lf-thread-action-room) + var(--lf-msg-body-gap));
   }
   /* A later message's head shares the actions' line only once it sticks there, so it
      takes both tracks, and its controls stand at the card's edge rather than mid-card
@@ -600,14 +605,18 @@
     margin-block-end: calc(-1 * var(--lf-transcript-room));
     padding-block-end: var(--lf-transcript-room);
   }
-  /* The row holds paper in the actions' track that sticks on the heads' line, so
-     words pass beneath the actions only where a message's head row paints over it
-     (below). The transcript's mask makes it a stacking context, so paper on the
-     actions themselves would cover that row too. Its margin leaves the row the
-     room's height, and once anything is scrolled away it reaches up over the room. */
+  /* The row holds paper across the heads' line, from the card's edge to its other,
+     sticking there, so what passes beneath it shows only where a message's head row
+     paints over it (below). A summary has no head, and passes beneath it whole: paper
+     in the actions' track alone cut its region's tint under them. The transcript's
+     mask makes it a stacking context, so paper on the actions themselves would cover
+     that row too. Its margin leaves the row the room's height, and once anything is
+     scrolled away it reaches up over the room. */
   .lf-margin-thread .lf-thread-transcript::before {
     content: "";
-    grid-column: 2;
+    grid-column: 1 / -1;
+    margin-inline: calc(-1 * (var(--lf-thread-text-inset) + var(--lf-transcript-room)))
+      calc(-1 * var(--lf-transcript-room));
     position: sticky;
     z-index: 1;
     inset-block-start: calc(var(--lf-top) - var(--lf-thread-room-cover, 0px));
@@ -770,10 +779,12 @@
       var(--lf-news-room, var(--lf-news-width))
     );
   }
-  /* A sticky head and its words paint the message's one animated ground.
-     Shared message rules own wrapping, including progress disclosures below the
-     capped metadata when the card's actions leave too little inline room. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg {
+  /* A sticky head and its words paint the message's one animated ground, the card's
+     paper, or the tint of the summary region a message an open summary folds stands
+     in (surfaces.css). Shared message rules own wrapping, including progress
+     disclosures below the capped metadata when the card's actions leave too little
+     inline room. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg:not([data-lf-summarized]) {
     --lf-msg-rest-ground: var(--lf-paper);
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-head {
@@ -782,16 +793,16 @@
     inset-block-start: var(--lf-top);
     z-index: 1;
     background-color: var(--lf-msg-ground);
-    /* Paper over the room above it: a shadow, which paints beneath the head's own
-       controls and their rings. Paper rather than the message's ground, which an
-       arriving message tints. */
-    box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--lf-paper);
+    /* The message's resting ground over the room above it, paper or an open
+       summary's tint: a shadow, which paints beneath the head's own controls and their
+       rings. Not the ground itself, which an arriving message tints. */
+    box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--lf-msg-rest-ground);
   }
   /* The head row's cell in the actions' track, beside a head that keeps to the first
      track (the first message's, and a later one on the actions' line), sticks with
      the head in the message's ground, over the transcript's paper; elsewhere a later
-     head spans that track itself. It comes before the head, whose focused control's
-     ring paints over it. */
+     head spans that track itself, and covers the room above it as the head does. It
+     comes before the head, whose focused control's ring paints over it. */
   .lf-margin-thread
     .lf-thread-transcript
     > .lf-msg:is(
@@ -805,6 +816,7 @@
     inset-block-start: var(--lf-top);
     z-index: 1;
     background-color: var(--lf-msg-ground);
+    box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--lf-msg-rest-ground);
   }
   /* A message holding visible focus wears no ring of its own: the card wears it
      (above). The message's own outline also painted under its sticky head, which cut

@@ -5,12 +5,15 @@
  * and a rendered hit resolves to the nearest registered part. `surface` is the native
  * element whose paint Leaf should follow; it defaults to the semantic element, while a
  * package may name one descendant to exclude decorative paint from a compound part.
- * `focus` is the element Leaf puts the user on for the part, as it travels to it or
- * hands them back from a comment on it; it defaults to the part's element too, and a
- * visual whose parts are no places to stand, as a chart's marks round its points are
- * not, names itself. Leaf asks `reveal(id)` first (below), so the visual takes focus
- * settled on the part. Invalid inventories throw at the read that consumes them; live
- * readers do not replace a package error with an empty inventory.
+ * Invalid inventories throw at the read that consumes them; live readers do not
+ * replace a package error with an empty inventory.
+ *
+ * Leaf puts the user on a part's element as it travels to the part or hands them back
+ * from a comment on it. A visual whose parts are no places to stand, as the marks round
+ * a chart's points are not, names `focus(id)`, which Leaf asks at that moment and no
+ * other: the visual settles on the part, as a chart moves its reading to the point even
+ * where it holds focus already, and returns the node of itself to focus, as the chart
+ * returns itself.
  *
  * A visual whose parts are too many to list, such as a chart's points, answers both
  * directions itself, so neither takes longer as the visual holds more. `find(id)`
@@ -39,16 +42,18 @@ import { labelWords } from "./words.js";
 import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
 
-/** @typedef {{id: string, element: Element, label: string, surface?: Element | null, focus?: Element | null}} VisualPart
+/** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
  * @typedef
  * {import("../types/contract.js").WidgetDeclaration["visual"]}
  * VisualDeclaration
  * @typedef {{read: () => Iterable<VisualPart>, reveal: ((id: string) => void) | null,
  * label: ((id: string) => string | null | undefined) | null,
  * find: ((id: string) => VisualPart | null | undefined) | null,
- * at: ((node: Element) => VisualPart | null | undefined) | null}} Registration
+ * at: ((node: Element) => VisualPart | null | undefined) | null,
+ * focus: ((id: string) => Element | null | undefined) | null}} Registration
  * @typedef {{reveal?: Registration["reveal"], label?: Registration["label"],
- * find?: Registration["find"], at?: Registration["at"]}} RegistrationOptions */
+ * find?: Registration["find"], at?: Registration["at"],
+ * focus?: Registration["focus"]}} RegistrationOptions */
 /** @type {WeakMap<Element, Registration>} */
 const registrations = new WeakMap();
 
@@ -63,18 +68,20 @@ const registrations = new WeakMap();
  * current state without revealing it. `find(id)`, when given, returns the record for
  * part `id` in the current state, or null, in place of a search of `read()`.
  * `at(node)`, when given, returns the record for the part a node of the visual stands
- * for where no element `read()` registers holds it, or null.
+ * for where no element `read()` registers holds it, or null. `focus(id)`, when given,
+ * settles the visual on part `id` and returns the node of it to focus, asked only as
+ * Leaf puts the user on the part.
  */
 /** @param {Element} source @param {() => Iterable<VisualPart>} read
  * @param {RegistrationOptions} [options] */
 export function registerVisualParts(
   source,
   read,
-  { reveal = null, label = null, find = null, at = null } = {},
+  { reveal = null, label = null, find = null, at = null, focus = null } = {},
 ) {
   if (registrations.has(source))
     throw new TypeError("A visual source may register its parts only once");
-  registrations.set(source, { read, reveal, label, find, at });
+  registrations.set(source, { read, reveal, label, find, at, focus });
   return { update: () => layoutChanged(source) };
 }
 
@@ -127,7 +134,6 @@ function checkedPart(source, part, number) {
   const element = part.element;
   const label = labelWords(part.label);
   const surface = part.surface ?? element;
-  const focus = part.focus ?? element;
   if (typeof id !== "string" || !id || /\s/.test(id))
     throw new TypeError(`Visual part ${number} has no single-token id`);
   if (!(element instanceof Element) || element === source || !under(element, source))
@@ -135,9 +141,7 @@ function checkedPart(source, part, number) {
   if (!label) throw new TypeError(`Visual part ${id} has no label`);
   if (!(surface instanceof Element) || !under(surface, element))
     throw new TypeError(`Visual part ${id} has no descendant Element surface`);
-  if (!(focus instanceof Element) || !under(focus, source))
-    throw new TypeError(`Visual part ${id} has no Element of its visual to focus`);
-  return { id, element, label, surface, focus };
+  return { id, element, label, surface };
 }
 
 /** @param {Element} source */
@@ -195,6 +199,18 @@ export function registeredVisualPartAt(source, target, admits = () => true) {
     if (part) return part;
   }
   return target && target !== source ? namedAt(source, target, admits) : null;
+}
+
+/** The element to put the user on for part `id`, asked only as Leaf puts them there:
+ * the node of itself the visual's `focus(id)` settles on, else the part's element. */
+/** @param {Element} source @param {string} id */
+export function focusOnVisualPart(source, id) {
+  const part = registeredVisualPart(source, id);
+  if (!part) return null;
+  const named = registrations.get(source)?.focus?.(id);
+  if (named && !under(named, source))
+    throw new TypeError(`A visual source focuses part ${id} outside itself`);
+  return named ?? part.element;
 }
 
 /** The part a visual holding focus stands on, as a chart's keys put the reader on a

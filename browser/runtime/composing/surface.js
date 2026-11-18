@@ -79,7 +79,6 @@ import {
   anchoringIsReady,
   lightSeat,
   resolveAnchor,
-  revealAddressed,
   sectionOf,
   visualAt,
 } from "../anchor-resolution.js";
@@ -466,18 +465,20 @@ export function createResponseSurface({
   // and closing returns to the obligation itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: it is a hidden stand-in for the drawing
   // (control-faces.js, `proxy`), so the drawing, which the user sees, is where they
-  // return. A part of a drawing is returned to as travel reaches it: the drawing
-  // settles on the part, and the user lands where the drawing names for it, as a chart
-  // takes focus standing on its point (`addressedFocus`). A quoted selection clears to
-  // the page; a removed subject has no parent to land on.
+  // return. A quoted selection clears to the page; a removed subject has no parent to
+  // land on.
   /** @param {Anchor | null} anchor */
-  const returnPlaces = (anchor) => {
-    if (!anchor || anchor.quote) return [];
-    const drawing = anchor.visual ? sectionOf(anchor) : null;
-    if (drawing && anchor.visual) revealAddressed(drawing, anchor.visual);
-    const part =
-      drawing && anchor.visual ? addressedFocus(drawing, anchor.visual) : null;
-    return [part ?? anchorTargetAt(anchor), visualActionAnchor(anchor)];
+  const returnPlaces = (anchor) =>
+    anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];
+  // Where the user lands from the places read for `anchor`, asked as they land: first,
+  // for a part of a drawing, where the drawing names for it, as travel does, a chart
+  // putting the reader on its point and taking focus itself (`addressedFocus`). The
+  // drawing is asked only then, so leaving the bar changes nothing else it shows.
+  /** @param {Anchor | null} anchor @param {(Element | null)[]} places */
+  const landingPlaces = (anchor, places) => {
+    const part = places.length ? anchor?.visual : null;
+    const drawing = part ? sectionOf(anchor) : null;
+    return [drawing && part ? addressedFocus(drawing, part) : null, ...places];
   };
   // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
   // moves no focus, and the closer names where a user who was in the bar lands, read
@@ -486,11 +487,12 @@ export function createResponseSurface({
   /** @param {boolean} toPage */
   function landingFromBar(toPage) {
     const leavingBar = fabBar.contains(fabFocused());
-    const places = leavingBar || toPage ? returnPlaces(fabAnchor.value) : [];
+    const anchor = fabAnchor.value;
+    const places = leavingBar || toPage ? returnPlaces(anchor) : [];
     return layerLanding(() => {
       // The shared return tests each place in turn: a subject that cannot take focus
       // yields to its proxy. If neither remains, it lands on the page.
-      if (leavingBar && !toPage) handBack(...places);
+      if (leavingBar && !toPage) handBack(...landingPlaces(anchor, places));
       else if (leavingBar || (toPage && places.includes(focused(document)))) letGo();
     });
   }
@@ -642,7 +644,12 @@ export function createResponseSurface({
     return start.length ? rangeOf(start) : anchorTargetAt(anchor);
   };
   const fabTargetAt = () => anchorTargetAt(fabAnchor.value);
-  const fabReturnPlaces = () => returnPlaces(fabAnchor.value);
+  // Where the user leaving the bar that is open lands, read now and named as they land.
+  const fabReturnPlaces = () => {
+    const anchor = fabAnchor.value;
+    const places = returnPlaces(anchor);
+    return () => landingPlaces(anchor, places);
+  };
 
   // Opening Comment is an overlay gesture. Any visible part of its subject is
   // enough to open it: the physical presenter owns its attachment and measure, so

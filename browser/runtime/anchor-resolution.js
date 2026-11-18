@@ -35,6 +35,7 @@ import {
   registeredVisualPartAt,
   registeredVisualParts,
   focusedVisualPart,
+  focusOnVisualPart,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -167,12 +168,15 @@ export function addressedElements(source, key) {
   return datum ? [datum] : [];
 }
 
-// Where focus goes for what a key addresses under a widget: the element a visual part
-// names for it, as a chart names itself for a point, which its `reveal` settled on the
-// point (`revealAddressed`), else the first element the key addresses.
+// Where focus goes for what a key addresses under a widget, asked only as Leaf puts the
+// user there, since a visual settles on its part as it answers: the element the visual
+// names for its part (`focusOnVisualPart`), as a chart, its reading moved to a point,
+// names itself, else the first element the key addresses.
 /** @param {Element} source @param {string} key */
 export const addressedFocus = (source, key) =>
-  visualPart(source, key)?.focus ?? addressedElements(source, key)[0] ?? null;
+  (admitsVisualPart(source, key) ? focusOnVisualPart(source, key) : null) ??
+  addressedElements(source, key)[0] ??
+  null;
 
 // Travel's half of that key space: ask the widget to draw what a key addresses before
 // anything reads it. A visual part drawn only in another state is drawn now, as

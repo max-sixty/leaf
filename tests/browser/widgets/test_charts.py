@@ -2340,6 +2340,29 @@ def test_a_link_to_a_chart_s_point_puts_the_reader_on_it(engine, request, serve)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_link_to_another_point_moves_a_focused_chart_s_reading_to_it(
+    engine, request, serve
+):
+    """A chart the keys hold on one point, followed to another of its points by a
+    link, reads the point the link names, though focus arrives as no new focus."""
+    page = open_page(request.getfixturevalue(engine), serve(POINTS_PAGE))
+    expect(page.locator("#p-dots svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 2", "sessions 5,200"]
+    page.evaluate("hash => { location.hash = hash; }", f"#p-dots:{POINT_IDS['p-dots']}")
+    expect(page).to_have_url(re.compile("#p-dots:"))
+    expect(chart).to_be_focused()
+    page.wait_for_function(
+        "() => document.getElementById('p-dots').lfPreview()?.name === 'week 3'"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_c_on_a_commented_point_continues_its_thread_beside_one_on_the_chart(
     engine, request, serve
 ):

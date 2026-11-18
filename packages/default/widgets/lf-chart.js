@@ -53,15 +53,15 @@
  * names its point by its datum (chart-points.js, `datumOf`). Leaf marks the point on
  * the bar, bin or cell Plot drew for it, as it marks any drawing's shape, and on a ring
  * the chart draws round a dot or a line's vertex, and travels to it. The chart is where
- * Leaf puts the reader for a point, settled on that point (`reveal`), as travel to a
- * comment on it and the hand back from one do. So Leaf learns of only those points
- * (`registerVisualParts`, with `find` and `at`), and the cost grows with the comments
- * rather than the data: a drawing holds no element for each dot, a line none at all,
- * and a list of every point would cost Leaf's picker a hint for each and offer the
- * reader nothing they could aim at, so the chart lists none. A comment whose datum the
- * drawing lacks stands on the whole chart, named by its datum's values, since a chart
- * in a shut tab has drawn nothing yet and one whose body reads its width may draw a
- * datum at one width and not another.
+ * Leaf puts the reader for a point, its reading moved to that point (`focus`), as
+ * travel to a comment on it and the hand back from one do. So Leaf learns of only
+ * those points (`registerVisualParts`, with `find` and `at`), and the cost grows with
+ * the comments rather than the data: a drawing holds no element for each dot, a line
+ * none at all, and a list of every point would cost Leaf's picker a hint for each and
+ * offer the reader nothing they could aim at, so the chart lists none. A comment whose
+ * datum the drawing lacks stands on the whole chart, named by its datum's values, since
+ * a chart in a shut tab has drawn nothing yet and one whose body reads its width may
+ * draw a datum at one width and not another.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
@@ -113,7 +113,7 @@ const POINT = "point:";
 /** @typedef {import("./chart-points.js").Point} Point
  * @typedef {import("./chart-points.js").PlotBundle} PlotBundle
  * @typedef {import("./chart-points.js").Reading & {svg: SVGSVGElement, ring: SVGGElement, marks: SVGGElement, aim: SVGCircleElement}} Reading
- * @typedef {{id: string, element: Element, label: string, focus: Element}} Part
+ * @typedef {{id: string, element: Element, label: string}} Part
  * @typedef {"pointer" | "focus" | "key"} By */
 
 // A ring round a dot or a line's vertex, wider than the chart's own ring, where Leaf
@@ -219,9 +219,6 @@ customElements.define(
     #place = null;
     /** @type {Point | null} */
     #away = null;
-    // The point Leaf settled the chart on (`#reveal`), where the next focus lands.
-    /** @type {Point | null} */
-    #landing = null;
     // What the page's preview last read of the chart, while it stands, which names the
     // reading a preview that ends had (`PREVIEW_ENDED`), and how many times a finger
     // has pressed on the chart.
@@ -261,7 +258,7 @@ customElements.define(
       this.#parts = registerVisualParts(this, () => [], {
         find: (id) => this.#find(id),
         at: (node) => this.#partAt(node),
-        reveal: (id) => this.#reveal(id),
+        focus: (id) => this.#focusOn(id),
         label: (id) =>
           id.startsWith(POINT) ? datumWords(id.slice(POINT.length)) : null,
       });
@@ -305,19 +302,14 @@ customElements.define(
         this.addEventListener("pointerleave", () => this.#leave(), { signal });
         // Focus the browser shows lands the reader on a point, the one they are on, the
         // one the keys left them on, or the first, which the arrows then step from: the
-        // keyboard's from then on. Focus Leaf puts on a point, travelling to a comment on
-        // it or handing the reader back from one, lands on that point however it came.
+        // keyboard's from then on. Focus Leaf puts on a point has put them on it already
+        // (`#focusOn`).
         this.addEventListener(
           "focus",
           () => {
-            const landing = this.#landing;
-            this.#landing = null;
-            if (this.#reading && (landing || this.matches(":focus-visible")))
+            if (this.#reading && this.matches(":focus-visible"))
               this.#choose(
-                landing ??
-                  this.#at ??
-                  this.#place ??
-                  step(this.#reading, null, "first"),
+                this.#at ?? this.#place ?? step(this.#reading, null, "first"),
                 "focus",
               );
           },
@@ -512,7 +504,6 @@ customElements.define(
       this.#at = null;
       this.#place = again(this.#place);
       this.#away = again(this.#away);
-      this.#landing = again(this.#landing);
       this.#marks = new Map();
       if (this.#asked) this.#tell();
       const points = reading?.points.length ?? 0;
@@ -562,18 +553,23 @@ customElements.define(
         reading.marks.append(ring);
         mark = ring;
       }
-      return { id, element: mark, label: pointWords(point), focus: this };
+      return { id, element: mark, label: pointWords(point) };
     }
 
-    // Settles the chart on the point an id names, for Leaf to put the reader on it, as
-    // it does travelling to a comment on the point or handing them back from one: the
-    // next focus the chart takes lands on it, whatever the pointer read since, until
-    // the reader aims at another point.
+    // Puts the reader on the point an id names, for Leaf, which asks as it puts focus
+    // on the point, travelling to a comment on it or handing the reader back from one,
+    // and takes that focus itself, since a mark is no place to stand. The reading moves
+    // now, since the chart may hold focus already, as it does when a link to another
+    // of its points is followed, and focus it holds arrives as no new focus.
     /** @param {string} id */
-    #reveal(id) {
+    #focusOn(id) {
       const reading = this.#reading;
-      if (!reading || !id.startsWith(POINT)) return;
-      this.#landing = datumPoint(reading, id.slice(POINT.length));
+      const point =
+        reading && id.startsWith(POINT)
+          ? datumPoint(reading, id.slice(POINT.length))
+          : null;
+      if (point) this.#choose(point, "focus");
+      return this;
     }
 
     // The point a node of the chart stands for: for a node of the drawing, the point
@@ -596,7 +592,6 @@ customElements.define(
         id: `${POINT}${datumOf(point)}`,
         element: shapeOf(reading, point) ?? reading.aim,
         label: pointWords(point),
-        focus: this,
       };
     }
 
@@ -658,7 +653,6 @@ customElements.define(
     /** @param {Point | null} point @param {By} by @param {boolean} [aim] */
     #choose(point, by, aim = false) {
       this.#by = by;
-      if (aim) this.#landing = null;
       if (point === this.#at) return;
       this.#at = point;
       const reading = this.#reading;

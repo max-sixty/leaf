@@ -249,7 +249,7 @@ export function createReactionController({
         showFab(null);
         setReact(false);
       },
-      () => handBack(...returnTo),
+      () => handBack(...returnTo()),
     );
     getSelection()?.removeAllRanges();
     await sent;

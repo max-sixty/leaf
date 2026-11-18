@@ -95,6 +95,13 @@ the part a node of the visual stands for where no element `read()` returns holds
 through the data, and asks it for the visual itself when focus on the visual names a
 target, such as the point its arrow keys reached.
 
+Leaf puts the user on a part's `element` when they travel to it or leave a comment box
+on it. A visual whose parts are no places to stand, such as the marks round a chart's
+points, also passes `focus`: `focus(id)` settles the visual on the part and returns the
+element of the visual that takes focus, as a chart moves its reading to the point, even
+where it holds focus already, and returns itself. Leaf asks it only at that moment, so
+nothing else the visual shows changes when the user leaves a comment box.
+
 ## Threads
 
 ### Reading and opening Threads from a widget

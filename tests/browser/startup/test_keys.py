@@ -478,35 +478,6 @@ def test_a_folded_panel_stands_folded_from_the_first_paint_with_held_keys_in_its
     expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
 
 
-def test_a_press_on_the_served_field_writes_there(browser, serve):
-    """The panel's field stands before the runtime loads, so a press on it asks to write
-    there: what the user types after it shows as typed words, Backspace included, never
-    as page keys, and the panel's field takes the words and the caret as it mounts."""
-    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    module, release = _hold_startup(page, "module")
-    page.goto(url, wait_until="commit")
-    holding(page, module, 1, "the module request")
-    served = page.locator(".lf-floating-panel[data-lf-served]")
-    served.locator(".lf-fp-field").click()
-    page.keyboard.type("fix itt")
-    page.keyboard.press("Backspace")
-    expect(served.locator(".lf-fp-words")).to_have_text("fix it")
-    expect(page.locator(".lf-held-key")).to_have_count(0)
-
-    release()
-    expect(served).to_have_count(0)
-    field = panel_field(page)
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "fix it")
-    # Typing goes on in the field once it stands; no key ran as a page command, as `t`
-    # would have walked to the thread.
-    page.keyboard.type(" now")
-    expect(field).to_have_js_property("value", "fix it now")
-    expect(field).to_be_focused()
-
-
 def test_held_keys_stand_beside_a_saved_draft(browser, serve):
     """A draft in the panel's field hides the words it says at rest, so keys held while
     the page reloads stand in the field's mode chip beside the draft, which stays."""

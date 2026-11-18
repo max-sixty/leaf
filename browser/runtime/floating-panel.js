@@ -5772,15 +5772,6 @@ export function createFloatingPanel({
             heldWords.value = words;
             if (words) announce(heldText(words));
           },
-          // A press on the served row's field asked to write there, and `text` is what
-          // the user typed after it: the caret goes to the page's field with the words,
-          // as the press and keys would have put them had the panel stood.
-          /** @param {string} text */
-          write(text) {
-            writeOnPage();
-            paint();
-            if (text) document.execCommand("insertText", false, text);
-          },
         },
       }),
     );

@@ -202,14 +202,6 @@ class _FailedTurn:
         }
 
 
-class _Text:
-    def __init__(self, text: str):
-        self.text = text
-
-    def inner_text(self) -> str:
-        return self.text
-
-
 class _DeployedPage:
     """The page the agent pass opens, reloads after its turn, and reads back."""
 
@@ -264,11 +256,11 @@ class _DeployedPage:
             return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
         if expression != "window.__leafVerifier.revisionAtLeast":
             # The readiness the verifier waits on (`wait_until_ready`).
-            assert arg == {"held": None, "through": "presented"}
+            assert arg["asked"] == {"held": None, "through": "presented"}
             self.presentation_waits.append(timeout)
             if self.reloaded and self.reload_stalls_at is not None:
                 raise PlaywrightTimeout("the page never got ready")
-            return None
+            return SimpleNamespace(json_value=lambda: "ready")
         self.revision_waits.append((arg, timeout))
         if self.revision >= arg and not self.presentation_pending:
             return
@@ -277,11 +269,10 @@ class _DeployedPage:
             return
         raise PlaywrightTimeout("revision did not arrive")
 
-    def locator(self, selector: str):
-        assert selector == "main"
-        return _Text(self.recorded)
-
     def evaluate(self, script: str, arg=None):
+        if "document.body.children" in script:
+            # The page's text, less Leaf's own elements.
+            return self.recorded
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.replyShownAt":
@@ -1476,7 +1467,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             ],
         },
         "change": {
-            "marker": release[:8],
+            "marker": release[:7],
             "revision": 2,
             "reply": "deployment verified",
         },

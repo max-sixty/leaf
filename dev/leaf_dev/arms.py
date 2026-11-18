@@ -105,14 +105,14 @@ HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 # the author under evaluation never changes who assesses its output.
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
-    CodexHarness.name: "gpt-6.1-sol",
-    "user": "gpt-6.1-sol",
+    CodexHarness.name: "gpt-6.2-sol",
+    "user": "gpt-6.2-sol",
     # It answers only setup and the developer's turns, so a fast one does.
     "journey-session": "claude-sonnet-5-5",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
-    CodexHarness.name: "gpt-6-astra",
+    CodexHarness.name: "gpt-6.2-astra",
 }
 # Models an experiment compares beside the pinned authors and judges.
 COMPARED_MODELS = ("claude-fable-5-2",)

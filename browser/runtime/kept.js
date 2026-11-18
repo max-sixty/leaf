@@ -33,12 +33,12 @@
    announces its change, the document presented or a widget's layout changing
    (anchor-resolution.js, `currentDatums`, `claimsVisualGesture`).
 
-   `keptReadings` keeps each record of a fold beside the inputs its fold is given and
-   makes it again only where one of them has changed, compared by identity. The inputs
-   have to name everything the record reads: a fold that reads more than it names keeps
-   a stale record. They are compared by identity, so they keep it while unchanged, as
-   the served reading does for every record the server didn't change (`completeState`
-   in `layer-client.js`).
+   The publication's fold keeps each record it makes this way, keyed by the served
+   record it is made from, so a publication about one thing makes only that thing's
+   records again: the served reading keeps every record the server didn't change
+   (`completeState` in `layer-client.js`), and publication gives each unchanged part
+   its old identity (framework/snapshot.js, `share`). A make at module scope reads only
+   its arguments, so a fold can't read more than it is kept by.
 
    This module imports nothing but signals, so the pure folds can use it. */
 import { computed } from "/vendor/signals-core.js";
@@ -209,47 +209,4 @@ export function kept(make) {
     make(...args),
   );
   return (...args) => each(one, ...args);
-}
-
-// Between the lists one record's inputs hold, so an item that moves from one list to
-// the next reads as a change.
-export const BETWEEN = Symbol("between");
-
-/** @param {readonly unknown[]} held @param {readonly unknown[]} inputs */
-const same = (held, inputs) =>
-  held.length === inputs.length &&
-  inputs.every((input, at) => Object.is(input, held[at]));
-
-/**
- * A reader of records by key. `read(key, inputs, make)` returns the value it kept for
- * `key` where `inputs` are the ones it was made from, else `make(earlier)`'s, where
- * `earlier` is the value kept for `key`, if any, for a value that keeps finer readings
- * of its own. `done()` ends a reading: what it read is kept, and every key it didn't
- * read is forgotten.
- *
- * @template V
- */
-export function keptReadings() {
-  /** @type {Map<unknown, {inputs: readonly unknown[], value: V}>} */
-  let held = new Map();
-  /** @type {Map<unknown, {inputs: readonly unknown[], value: V}>} */
-  let reading = new Map();
-  return {
-    /**
-     * @param {unknown} key
-     * @param {readonly unknown[]} inputs
-     * @param {(earlier: V | undefined) => V} make
-     * @returns {V}
-     */
-    read(key, inputs, make) {
-      const was = held.get(key);
-      const value = was && same(was.inputs, inputs) ? was.value : make(was?.value);
-      reading.set(key, { inputs, value });
-      return value;
-    },
-    done() {
-      held = reading;
-      reading = new Map();
-    },
-  };
 }

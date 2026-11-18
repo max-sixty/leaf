@@ -35,6 +35,7 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
+    told,
 )
 
 from browser.navigation import expect_walk_position, walk_position
@@ -1437,13 +1438,14 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     browser, serve
 ):
     """An obligation in a reply sits in a thread about a page question. Located in the
-    reply's obligation keeps that location whether or not it is answered: the thread leads to
-    its page obligation only from a node inside no obligation, so a user back on the answered option
-    does not have the page obligation's ring and digits. A contributed control for a widget in
-    the reply stands where that widget does: in no obligation, it stands where the thread's
-    view does, at the page obligation the thread is about, which wears the ring and takes
-    the digits, and `m` from it steps on from that obligation to the question in the reply
-    rather than from behind every obligation on the page."""
+    reply's obligation keeps that location whether or not it is answered, so a user back
+    on the answered option does not have the page obligation's ring and digits. A
+    contributed control for a widget in the reply stands where that widget does: in no
+    obligation, it stands where the thread's view does, at the page obligation the thread
+    is about. It is in the question the thread asks, as the whole view is, so that
+    question wears the ring and takes the digits, answered or not, and `m` from it steps
+    on past it. Once the agent says more, the thread asks it no longer, and the control's
+    ring and digits return to the page question."""
     url = serve(
         OBLIGATION_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1496,14 +1498,15 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
         )
         == "cache-ask"
     ), "a control on a widget in a reply does not stand where its thread is about"
-    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("m")
-    expect(page.locator("#follow-ask")).to_be_focused()
+    expect(page.locator("#ship-ask")).to_be_focused()
+    open_panel_thread(page, about_obligation)
     option = page.locator("#follow-yes")
     option.click()
     expect(option).to_have_attribute("selected", "")
-    # Back on the answered option, the user is located in the reply's question. Answering moves
-    # focus to the message, which is inside no obligation and so does stand at the page question.
+    # Back on the answered option, the user is located in the reply's question.
     round_trip(page)
     option.locator(".lf-pick").focus()
     expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-obligation", "1")
@@ -1511,23 +1514,42 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("selected", "")
 
-    # From the control on the reply's widget, which stands at the page question, its digit
-    # answers it, and the answered obligation keeps its ring there: the control is a
-    # review route to it, as an On card is.
+    # From the control on the reply's widget, a digit changes the reply's answer, which
+    # keeps its ring there: the control is a review route to it, as an On card is.
+    contributed.focus()
+    expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("2")
+    round_trip(page)
+    expect(page.locator("#follow-no")).to_have_attribute("selected", "")
+    expect(page.locator("#cache-ask lf-option[selected]")).to_have_count(0)
+    expect(contributed).to_be_focused()
+    expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
+
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": about_obligation,
+            "text": "Measuring now. Your pick on the page question still stands open.",
+        },
+    )
+    told(page)
     contributed.focus()
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
-    expect(contributed).to_be_focused()
-    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#follow-no")).to_have_attribute("selected", "")
 
 
 def test_a_thread_takes_the_digits_of_the_question_it_asks(browser, serve):
-    """A thread about no obligation that asks one in its own messages answers it by
-    digits from its view: `t` lands on the thread, the last question's options wear
-    their digits, and a digit picks one there, leaving the question it asked before
-    alone and the user on the thread. The panel's view of the thread answers it too."""
+    """A thread whose agent's latest message asks a question is in it: `t` lands on
+    the thread, that question wears the ring and its options their digits, and a digit
+    picks one there, leaving the question it asked before alone and the user on the
+    thread. The panel's view of the thread answers it too."""
     source = leaf_page(
         "Release charts",
         '<section id="release"><h2 id="release-h">The release page</h2>'
@@ -1569,6 +1591,7 @@ def test_a_thread_takes_the_digits_of_the_question_it_asks(browser, serve):
     page.keyboard.press("t")
     thread = page.locator(f'{CARD} .lf-page-thread[data-lf-thread="ask"]')
     expect(thread).to_be_focused()
+    expect(page.locator("#second")).to_have_attribute("data-lf-obligation", "1")
     expect(page.locator("#second-here .lf-key-badge")).to_have_text("2")
     page.keyboard.press("2")
     expect(page.locator("#second-here")).to_have_attribute("selected", "")

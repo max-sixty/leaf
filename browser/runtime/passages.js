@@ -6,19 +6,21 @@
    introduce another text walk for one of those jobs: the page's words are `pageText()`
    (its `segments`, and its blocks `pageRuns()`), the part of them under one element is
    `pageText(el)`, and one element's own words are `elementReading(el, "says" |
-   "wrote")`; each is kept until what it was read from changes. Each segment also
+   "wrote" | "named")`; each is kept until what it was read from changes. Each segment also
    carries the `block` its words read in, their typographic `textBlock`, and the
    generated element (`gen`) they stand in, which the walk knew on its way down. A datum
    starts a reading block without inserting whitespace into inline text; a cut segment
    keeps these facts.
 
-   Two readings are intentionally different:
+   The readings are intentionally different:
 
-   - `says` is what the rendered page tells the user. It includes registry or
-     module-generated words declared as part of the page. A behavior module reads
+   - `says` is what the rendered page tells the user. It includes module-generated
+     words declared as part of the page. A behavior module reads
      authored or user-facing words with `says`, never raw `textContent`.
    - `wrote` is what the author placed in the version. It excludes generated runtime
      and widget words and is appropriate for version comparison.
+   - `named` is `wrote` less a popover's words, which stand apart until shown: the
+     words that name an element, as a heading names its section.
 
    Both are bounded by the root they are handed. `.lf-ui` says the runtime built a node
    rather than the author, and a reading rooted at the document takes that straight.
@@ -107,11 +109,7 @@
 
    The page's widget inventory remains the document's declared inventory. Do not
    silently discover nested widget families inside shadow roots as new top-level
-   content. A module that stages a declared widget inside a shadow tree still owes the
-   visible words promised by that widget's entry. `silentWords`, in the render checks,
-   examines open roots and catches promised words that are absent, clipped, or hidden.
-   It also catches a module that replaces declared words after the shared render
-   passes. */
+   content. */
 
 import { isNode, closestAcross } from "./shadow-tree.js";
 import { liveStages } from "./arrivals.js";
@@ -159,7 +157,7 @@ import { excerptWords } from "./words.js";
 import { union } from "./rect.js";
 
 /** @typedef {{el: Element, editing: boolean, up: CellChain | null}} CellChain
- * @typedef {{chrome: boolean, silenced: boolean, generated: boolean,
+ * @typedef {{chrome: boolean, silenced: boolean, generated: boolean, popover: boolean,
  * gen: Element | null, block: Element | null, textBlock: Element | null,
  * words: Element | null, island: Element | null, cells: CellChain | null}} ReadingContext
  * @typedef {{node: Text, start: number, end: number, block: Element | null,
@@ -196,8 +194,8 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // again. The authored reading additionally skips content an upgrade generated, so it
 // reads a live block as the block's source does: a version comparison paints a source's
 // words onto the live block standing for it (version.js), and a module reads its own
-// authored words. So generated text the page authored — a widget's label, an attribute
-// renderSaid rendered — is quotable and outside the authored reading.
+// authored words. So generated text the page speaks, such as a widget's label drawn
+// from its attribute, is quotable and outside the authored reading.
 //
 // A decided suggestion's retired slot goes with them. Its markup is still in the
 // document — the honoring version is what finally drops it — but the user has
@@ -507,6 +505,7 @@ const NO_CONTEXT = Object.freeze({
   chrome: false,
   silenced: false,
   generated: false,
+  popover: false,
   gen: null,
   block: null,
   textBlock: null,
@@ -521,7 +520,10 @@ const NO_CONTEXT = Object.freeze({
 // only a class or an id is settled by one match.
 const GEN = "[data-lf-gen]";
 const ISLAND = "[data-lf-markdown-words]";
-const MARKS = [UI_MARKS, GENERATED, ISLAND].join(", ");
+// A popover's words, such as a gloss's explanation, stand apart from the words around
+// them until shown, so they name nothing (`named`), though the author wrote them.
+const POPOVER = "[popover]";
+const MARKS = [UI_MARKS, GENERATED, ISLAND, POPOVER].join(", ");
 const BLOCK_TAGS = new Set(TEXT_BLOCK.split(","));
 // A projected datum is independently addressable, even when its rows share one pre.
 // A closer paragraph or other text block still supplies the datum's reading grain.
@@ -538,26 +540,15 @@ const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 const SILENT_TAGS = new Set(["script", "style", "textarea"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
-// A generated element whose words the file cannot model: one the registry does not
-// declare as a `says` edge of the element holding it. Controls and the hidden
-// comment count hold no accepted text, and `says` spans are already in the
-// file-side reading.
-/** @param {Element} el */
-const unmodelled = (el) => {
-  const attr = el.getAttribute("data-lf-said");
-  const parent = el.parentElement;
-  return !(attr && parent && registry[parent.localName]?.says?.[attr]);
-};
-// Automatic control capture uses authored or registry-declared words, never the
-// mutable value of a native editing host. A user's actual Range remains readable.
+// Automatic control capture uses authored words, which the file reads too, never
+// generated words or the mutable value of a native editing host. A user's actual Range
+// remains readable.
 /** @param {readonly Segment[]} segments */
 export const fileModelsPassage = (segments) =>
-  segments.every(
-    ({ node, gen }) => !isEditing(elementOver(node)) && (!gen || !unmodelled(gen)),
-  );
+  segments.every(({ node, gen }) => !isEditing(elementOver(node)) && !gen);
 // A cell candidate: an opaque widget or one of its original direct children, which
-// always fence, or an unmodelled generated element, which fences once a word of the
-// page's reading is its own (`indexed`).
+// always fence, or a generated element, whose words the file cannot read, which fences
+// once a word of the page's reading is its own (`indexed`).
 /** @param {Element} el */
 const opaque = (el) => passageFences.has(el);
 // Editing values and readonly islands inside them are separate passage cells.
@@ -591,7 +582,7 @@ function enter(ctx, el, inFrame = true) {
   const textBlock = BLOCK_TAGS.has(el.localName);
   const block = textBlock || el.matches(DATUM);
   const editing = editingBoundary(el);
-  const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
+  const cell = opaque(el) || editing || (marked && el.matches(GEN));
   const silent = !ctx.silenced && silences(el);
   const apart = !phrasing(el);
   if (!marked && !block && !cell && !silent && !apart) return ctx;
@@ -601,6 +592,7 @@ function enter(ctx, el, inFrame = true) {
     chrome,
     silenced: ctx.silenced || silent,
     generated,
+    popover: ctx.popover || (marked && inFrame && el.matches(POPOVER)),
     gen: marked && el.matches(GEN) ? el : ctx.gen,
     block: block ? el : ctx.block,
     textBlock: textBlock ? el : ctx.textBlock,
@@ -649,7 +641,9 @@ const segmentIn = (node, ctx, breakBefore) => ({
   breakBefore,
 });
 // Which text each named reading keeps. `says` skips the runtime's own words and whatever
-// is silenced; `wrote` skips everything an upgrade generated, a declared label included.
+// is silenced; `wrote` skips everything an upgrade generated, a declared label included;
+// `named`, the words that name an element, is `wrote` less a popover's (`POPOVER`), as
+// Python's name text is (gesture_words.py, `_text`).
 // `unsilenced` is `says` with nothing silenced, for the one reader asking whether words
 // the page silences are still on screen (render-checks, `retiredSlots`). Like every
 // reading its chrome is bounded at the root's frame, so chrome above that widget is not
@@ -658,6 +652,7 @@ const segmentIn = (node, ctx, breakBefore) => ({
 const READINGS = {
   says: (ctx) => !ctx.chrome && !ctx.silenced,
   wrote: (ctx) => !ctx.generated,
+  named: (ctx) => !ctx.generated && !ctx.popover,
   unsilenced: (ctx) => !ctx.chrome,
 };
 // The `wrote` reading asked of one node: whether it is authored, within the frame `root`
@@ -770,9 +765,11 @@ function walk(
   };
   // A declared tree handed in as the root reads where its host stands, its tree-local
   // facts starting over as they do when the walk crosses into it; the document starts
-  // with nothing over it.
+  // with nothing over it. A popover counts from below the root, so a heading inside
+  // one is still named by its words (`named`), as Python reads a name's own subtree.
   const host = shadowHost(root);
-  if (isElement(root)) enterElement(root, contextAt(root, frame));
+  if (isElement(root))
+    enterElement(root, { ...contextAt(root, frame), popover: false });
   else visit(root, host ? crossed(contextAt(host, frame)) : NO_CONTEXT);
 }
 // The step up the tree `walk` comes down, from any node, read or not. A slot is that step
@@ -1372,14 +1369,13 @@ export function drawsWithin(element, visibility = true) {
   }
   return false;
 }
-// The other question, and a different answer: what the *author* wrote here, with
-// everything an upgrade generated left out. A version comparison keys sources by it and
-// paints a source's words onto the live block that reads the same; a widget asks it to name
-// one of its own parts, where `says` would hand back the widget's own declared labels
-// along with the words — a picked row's mark is the page speaking, so it is in the
-// reading a user points at and out of the row's name.
+// The words that name an element: what the author wrote there, less a popover's, such
+// as a gloss's explanation. A widget asks it to name one of its own parts, where `says`
+// would hand back the widget's own declared labels along with the words — a picked
+// row's mark is the page speaking, so it is in the reading a user points at and out of
+// the row's name.
 /** @param {Node} el */
-export const wrote = (el) => quoteFrom(textNodesUnder(el, "wrote"));
+export const named = (el) => quoteFrom(textNodesUnder(el, "named"));
 
 // A passage as one Range: what selects it, and what tells two passages' bounds apart.
 // Both ends of a Range stand in one tree, so a passage that runs into a shadow tree, as
@@ -1798,6 +1794,7 @@ const READING_MARKERS = [
   "data-lf-gen",
   "data-lf-projection",
   "data-lf-datum",
+  "popover",
   "slot",
   "name",
   "contenteditable",
@@ -2411,10 +2408,10 @@ const frameCollected = () => (framePiece().collected ??= collect(pageDocument(),
 /** @param {readonly Segment[]} segments @param {readonly (CellChain | null)[]} chains
  * @param {readonly PartMark[]} [marks] @returns {PageReading} */
 function indexed(segments, chains, marks = []) {
-  // Generated page-words that the registry does not model are their own passage cells:
-  // the generated element a word of the reading stands in, where it is unmodelled.
+  // Generated page-words are their own passage cells: the generated element a word of
+  // the reading stands in, since the file cannot read them.
   const dynamicWords = new Set();
-  for (const { gen } of segments) if (gen && unmodelled(gen)) dynamicWords.add(gen);
+  for (const { gen } of segments) if (gen) dynamicWords.add(gen);
   // A segment's cell is the nearest candidate over it that fences. The chain crosses
   // the shadow boundary (upFrom), and that is what keeps a `shadow` widget fenced.
   // The parts were remembered off the light DOM before any module ran, so nothing

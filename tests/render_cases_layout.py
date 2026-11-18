@@ -1397,10 +1397,10 @@ rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new>
 before it ships.</p>
 <lf-group id="extras-decision" label="Which extras should we add?"><h2 id="extras-decision-h">Which extras should we add?</h2>
 <lf-options id="extras" multiple>
-<lf-option id="x-tray" label="Seed tray"><lf-gloss tip="Price">£9</lf-gloss> <strong>Seed tray</strong>
+<lf-option id="x-tray" label="Seed tray"><lf-gloss>£9<span popover>Price</span></lf-gloss> <strong>Seed tray</strong>
 Catches the spill under the south pair.
 </lf-option>
-<lf-option id="x-dome" label="Weather dome"><lf-gloss tip="Price">£15</lf-gloss> <strong>Weather dome</strong>
+<lf-option id="x-dome" label="Weather dome"><lf-gloss>£15<span popover>Price</span></lf-gloss> <strong>Weather dome</strong>
 Keeps the seed dry through a wet week.
 </lf-option>
 </lf-options></lf-group>

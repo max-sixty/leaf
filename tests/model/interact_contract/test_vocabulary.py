@@ -308,7 +308,7 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
                 "lf-beta": _faulty(
                     "lf-beta",
                     **{
-                        "says": ["label"],
+                        "refers": [],
                     },
                 ),
                 "$data": {
@@ -327,7 +327,7 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
                 "lf-beta": _faulty(
                     "lf-beta",
                     **{
-                        "says": {"label": "before"},
+                        "refers": {"label": {}},
                     },
                 ),
                 "lf-eps": _faulty(

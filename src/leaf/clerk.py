@@ -953,10 +953,10 @@ def fixed_source(source: str, registry: dict, logged: dict, edit: dict):
     if _TAG.search(new):
         return None
     old, target = words[start:end], found[0] + start
-    placed = _place(SourceDocument(source), registry, old, target, passages, read)
+    placed = _place(SourceDocument(source), old, target, passages, read)
     if placed is None:
         return None
-    place, attribute, preformatted = placed
+    place, preformatted = placed
     parts = new.split(" ") if new else []
     gaps = COLLAPSE.findall(place.group())
     before, after = source[: place.start()], source[place.end() :]
@@ -972,9 +972,9 @@ def fixed_source(source: str, registry: dict, logged: dict, edit: dict):
     ):
         return None
     spaces = [*gaps, *[" "] * len(parts)][: max(len(parts) - 1, 0)]
-    swapped = [escape(part, quote=attribute) for part in parts[:1]]
+    swapped = [escape(part, quote=False) for part in parts[:1]]
     for part, gap in zip(parts[1:], spaces, strict=True):
-        swapped += [gap, escape(part, quote=attribute)]
+        swapped += [gap, escape(part, quote=False)]
     fixed = source[: place.start()] + "".join(swapped) + source[place.end() :]
     reading = read(fixed)
     shown = collapse(passages.text[:target] + new + passages.text[found[0] + end :])
@@ -983,12 +983,11 @@ def fixed_source(source: str, registry: dict, logged: dict, edit: dict):
     return fixed, {"old": old, "new": new}
 
 
-def _place(document, registry: dict, words: str, target: int, passages, read):
+def _place(document, words: str, target: int, passages, read):
     """Where `document`'s source writes the `words` the user reads at `target` in
-    `passages`, its page's reading, as the match, whether it stands in an attribute
-    and whether in a `<pre>`; or None. Each place the source may write them, in its text or in
-    the value of an attribute a widget shows (`says`), gets a character of its
-    own just before it, and the marked page's reading (`read`) says which mark
+    `passages`, its page's reading, as the match and whether it stands in a `<pre>`;
+    or None. Each place in the source's text that may write them gets a character of
+    its own just before it, and the marked page's reading (`read`) says which mark
     stands at `target`. A copy in a script, a style, the head, a comment or a body
     the user rewrote shows nowhere, so it is never the one found.
 
@@ -1000,7 +999,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
     from .passages import COLLAPSE
 
     source = document.html
-    tags, values, preformatted = [], [], []
+    tags, preformatted = [], []
     for element in document.tree.find_all(True):
         location = element.source_location
         if location is None:
@@ -1017,27 +1016,12 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
                     document.offsets(location.end_tag)[0],
                 )
             )
-        for name in (registry.get(element.tag) or {}).get("says") or {}:
-            if name in location.attrs:
-                start, end = document.offsets(location.attrs[name])
-                _, equals, value = source[start:end].partition("=")
-                value = value.lstrip()
-                quoted = value[:1] in {'"', "'"}
-                if equals:
-                    values.append((end - len(value) + quoted, end - quoted))
     tags.sort()
-    values.sort()
 
-    def within(spans: list, place: re.Match) -> bool:
-        index = bisect_right(spans, (place.start(), len(source))) - 1
-        return index >= 0 and place.end() <= spans[index][1]
-
-    def free(place: re.Match) -> bool | None:
-        """Whether a place may be the one, in text (False) or an attribute (True)."""
-        if within(values, place):
-            return True
+    def free(place: re.Match) -> bool:
+        """Whether a place stands in the source's text rather than inside a tag."""
         index = bisect_right(tags, (place.start(), len(source))) - 1
-        return False if index < 0 or tags[index][1] <= place.start() else None
+        return index < 0 or tags[index][1] <= place.start()
 
     pattern = COLLAPSE.pattern.join(
         "".join(
@@ -1053,9 +1037,9 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
         "(?![^\\W_])" if words[-1].isalnum() else "",
     )
     places = [
-        (place, inside)
+        place
         for place in re.finditer(edges[0] + pattern + edges[1], source)
-        if (inside := free(place)) is not None
+        if free(place)
     ]
     held = set(source) | set(passages.text)
     private = chain(range(0xF0000, 0xFFFFE), range(0x100000, 0x10FFFE))
@@ -1065,7 +1049,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
     if len(marks) < len(places):
         return None
     marked, last = [], 0
-    for mark, (place, _) in zip(marks, places, strict=True):
+    for mark, place in zip(marks, places, strict=True):
         marked += [source[last : place.start()], mark]
         last = place.start()
     by_mark = dict(zip(marks, places, strict=True))
@@ -1074,10 +1058,9 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
         if found.group() not in by_mark:
             continue
         if found.start() - seen == target:
-            place, attribute = by_mark[found.group()]
+            place = by_mark[found.group()]
             return (
                 place,
-                attribute,
                 any(a <= place.start() and place.end() <= b for a, b in preformatted),
             )
         seen += 1

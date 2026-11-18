@@ -10,7 +10,6 @@ import { readFileSync } from "node:fs";
 import { findQuote, pageText, spanIn, textNodesUnder } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
-import { renderSaid } from "/runtime/declared-words.js";
 
 const { cases } = JSON.parse(
   readFileSync(new URL("../quote_cases.json", import.meta.url), "utf8"),
@@ -34,7 +33,6 @@ for (const { id, markup, anchor, before, ...widgets } of cases)
         shadowStage(host, [...tree.content.childNodes]);
         host.innerHTML = light;
       }
-    renderSaid(document.body);
     const section = document.getElementById(anchor.section);
     const reading = pageText();
     const found = findQuote(reading, anchor.quote, anchor, section);

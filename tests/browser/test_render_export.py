@@ -768,8 +768,8 @@ def test_a_gloss_keeps_its_explanation_in_print(browser, serve):
         "gloss export",
         """
 <h1>Rollout</h1>
-<p>Start with a <lf-gloss tip="A thin path through the real system."
-  >walking skeleton</lf-gloss> before parallelizing.</p>
+<p>Start with a <lf-gloss
+  >walking skeleton<span popover>A thin path through the real system.</span></lf-gloss> before parallelizing.</p>
 """,
     )
     url = serve(source)

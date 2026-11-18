@@ -85,7 +85,7 @@ const SQUASH = 0.01;
  * @typedef {{values: Values, scales: Scales, fx: unknown, fy: unknown, left: number, bottom: number, number: (value: number) => string | undefined, sources: Sources, format: Format, authored: Format, rows: (this: {format: Format}, i: number, index: {fx?: unknown, fy?: unknown}, sources: Sources, scales: Scales, values: Values) => Iterable<Row>}} Drawn
  * @typedef {{tx: number, ty: number, kx: number, ky: number, reach: number, frame: Dimensions, points: Point[]}} Frame
  * @typedef {{x: number, y: number, px: number, py: number, ax: number, ay: number, i: number, order: number, drawn: Drawn, series: number, n: number, said?: string, datum?: string, same?: Point}} Point
- * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y", filed?: Map<string, Point[]>}} Reading
+ * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y", named?: Map<string, Point>}} Reading
  * @typedef {import("@observablehq/plot").Mark & {data?: any, tip?: unknown, facet?: unknown, facetAnchor?: unknown, format: Format, frameAnchor?: string, dx?: number, dy?: number}} Drawable */
 
 /** @param {Scale | undefined} scale */
@@ -412,45 +412,19 @@ export const datumOf = (point) =>
   (point.datum ??= [String(point.order), ...entries(point)].join(";"));
 
 /** The point of `reading` holding the datum `datum` names, if it draws it. The first
- * ask of a drawing files its points by their mark and the value on the first channel
- * they stand at (`PLACE`), one pass over the drawing, so each ask reads only the points
- * standing where the datum does, each until its first value that differs.
+ * ask of a drawing names each of its points (`datumOf`), one pass, so each ask after it
+ * is one lookup however the points stand. Of two points with one name, the first
+ * drawn holds it.
  * @param {Reading} reading @param {string} datum */
 export function datumPoint(reading, datum) {
-  const [order = "", ...named] = datum.split(";");
-  const filed = (reading.filed ??= fileByPlace(reading.points));
-  const place =
-    PLACE.map((key) => named.find((entry) => entry.startsWith(`${key}=`))).find(
-      Boolean,
-    ) ?? "";
-  /** @param {Point} point */
-  const holds = (point) => {
-    let n = 0;
-    for (const entry of entries(point)) if (entry !== named[n++]) return false;
-    return n === named.length;
-  };
-  return filed.get(`${order};${place}`)?.find(holds) ?? null;
-}
-
-// The channels a datum stands at, in the order a drawing files its points by them:
-// where a dot, a bar or a line's vertex stands, a horizontal bar's category, or where a
-// bin starts.
-const PLACE = ["x", "y", "x1", "y1"];
-
-/** @param {Point[]} points */
-function fileByPlace(points) {
-  /** @type {Map<string, Point[]>} */
-  const filed = new Map();
-  for (const point of points) {
-    const { channels } = point.drawn.values;
-    const key = PLACE.find((name) => channels[name]);
-    const place = key ? `${key}=${written(channels[key]?.value[point.i])}` : "";
-    const at = `${point.order};${place}`;
-    const same = filed.get(at);
-    if (same) same.push(point);
-    else filed.set(at, [point]);
+  if (!reading.named) {
+    reading.named = new Map();
+    for (const point of reading.points) {
+      const name = datumOf(point);
+      if (!reading.named.has(name)) reading.named.set(name, point);
+    }
   }
-  return filed;
+  return reading.named.get(datum) ?? null;
 }
 
 /** A datum's token in words, each value after its channel's name, for a datum the

@@ -304,3 +304,21 @@ def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):
     expect(again).to_be_focused()
     page.keyboard.press("Enter")
     open_card(page, "beta-ask")
+
+
+def test_by_keyboard_back_from_the_end_of_the_pass_keeps_stepping_back(browser, serve):
+    """Back pressed on the end frame's step back in brings the last card up with the
+    user on it, so the next Back steps further rather than falling to the page."""
+    page = open_page(browser, serve(DECK_PAGE))
+    page.keyboard.press("m")
+    for name in ["store", "beta", "notes"]:
+        expect(page.locator(f"#{name}-ask")).to_be_focused()
+        page.keyboard.press("1")
+        round_trip(page)
+    end = page.locator("lf-deck .lf-deck-end")
+    expect(end.get_by_role("button", name="Review from the start")).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    open_card(page, "notes-ask")
+    expect(page.locator("#notes-ask")).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    open_card(page, "beta-ask")

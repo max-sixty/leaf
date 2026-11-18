@@ -270,7 +270,7 @@ customElements.define(
       this.#landing?.(next);
       const card = this.#open.value;
       if (next === card) return this.#show(next);
-      const carry = this.#carry(card);
+      const carry = this.#carry(card ?? this.#end);
       const before = parseFloat(getComputedStyle(this).height);
       const arriving = next ?? this.#end;
       const back = side === "back";
@@ -455,25 +455,25 @@ customElements.define(
       return card ? this.#cards.indexOf(card) : this.#cards.length;
     }
 
-    // What becomes of the user on a card the deck puts away, or on a control standing
-    // for it such as a suggestion's margin entry or its thread's reply box: one who was
-    // there by keyboard arrives at the card that comes up as `m` would, on what waits
-    // there, so its own keys answer it, or at the forward control once the pass is
-    // over; one who pressed lets go of the hidden card, and Tab goes on from where it
-    // was. After an answer the arrival waits until the card has settled, so a key
-    // pressed twice answers one card. Read before the card goes.
-    /** @param {HTMLElement | null} card */
-    #carry(card) {
+    // What becomes of the user on what the deck puts away: the open card, a control
+    // standing for it such as a suggestion's margin entry or its thread's reply box, or
+    // the end frame once a step back in leaves it. One who was there by keyboard arrives
+    // at the card that comes up as `m` would, on what waits there, so its own keys
+    // answer it, or at the step back in once the pass is over; one who pressed lets go
+    // of what is hidden, and Tab goes on from where it was. After an answer the arrival
+    // waits until the card has settled, so a key pressed twice answers one card. Read
+    // before `leaving` goes.
+    /** @param {HTMLElement} leaving */
+    #carry(leaving) {
       const here = focused();
       const place = here && placeOf(here);
-      const inside = Boolean(
-        card && (currentLocationIn(card) || (place && under(place, card))),
-      );
+      const inside =
+        currentLocationIn(leaving) || Boolean(place && under(place, leaving));
       const keyed = inside && here !== null && here.matches(":focus-visible");
       return (/** @type {HTMLElement | null} */ next, wait = 0) => {
         // A caret or selection left in the hidden card would start the next walk there.
         const selection = getSelection();
-        if (selection?.rangeCount && card && under(selection.anchorNode, card))
+        if (selection?.rangeCount && under(selection.anchorNode, leaving))
           selection.removeAllRanges();
         if (!inside) return;
         if (
@@ -526,9 +526,7 @@ customElements.define(
       if (card)
         return this.#onward(readings && waitsOn(readings(card)) ? "left" : "right");
       const waiting = readings && this.#cards.find((each) => waitsOn(readings(each)));
-      const keyed = focused() === this.#again && this.#again.matches(":focus-visible");
       this.#go(waiting ?? this.#cards[0], "rise");
-      if (keyed) this.#arrive(this.#open.value);
     }
 
     // A touch drag on the open card, begun anywhere but on a control inside it.

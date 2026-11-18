@@ -284,7 +284,7 @@ def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
     """A declared inline widget keeps suggestion slots inline, including after undo."""
     source = REBUILT_INLINE_PAGE.replace(
         "<lf-new>Valkey</lf-new>",
-        '<lf-new><lf-gloss id="replacement-name" tip="A Redis-compatible store.">Valkey</lf-gloss></lf-new>',
+        '<lf-new><lf-gloss id="replacement-name">Valkey<span popover>A Redis-compatible store.</span></lf-gloss></lf-new>',
     )
     page = open_page(browser, serve(source))
     form = "() => getComputedStyle(document.querySelector('#sug-store lf-new')).display"

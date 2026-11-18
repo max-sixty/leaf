@@ -1535,8 +1535,8 @@ def test_a_passage_entered_by_bold_words_lets_the_link_and_gloss_in_it_preview(
             "Rollout",
             '<p id="marked"><strong id="lead">The rollout starts with</strong> '
             '<a id="linked" href="#destination">a small cohort</a> and uses '
-            '<lf-gloss id="gloss" tip="Check every gate before expanding.">a gate'
-            "</lf-gloss> before expanding.</p>"
+            '<lf-gloss id="gloss">a gate<span popover>Check every gate before '
+            "expanding.</span></lf-gloss> before expanding.</p>"
             '<p id="partial">This section keeps <a id="partial-link" '
             'href="#destination">the first group and the remaining group</a> '
             "together.</p>"

@@ -59,22 +59,14 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "tip": {
-          "type": "string",
-          "minLength": 1
-        }
+        "id": { "type": "string" }
       },
-      "required": ["tip"],
       "additionalProperties": false
     },
     "inline": true,
-    "says": {
-      "tip": "after"
-    },
     "verbatim": true,
-    "instructions": "Write a self-contained explanation at the first useful occurrence rather than on every repetition. Keep the phrase out of authored parentheses: print adds the explanation as a parenthetical note.",
-    "example": "Deploy through a <lf-gloss tip=\"A thin, end-to-end path through the real system.\">walking skeleton</lf-gloss> before parallelizing."
+    "instructions": "Write the phrase, then its explanation in a <span popover> after it, the last thing in the gloss: the reader opens it as a card beside the phrase, and print sets it after the phrase as a parenthetical note. Write a self-contained explanation at the first useful occurrence rather than on every repetition, and keep the phrase out of authored parentheses.",
+    "example": "Deploy through a <lf-gloss>walking skeleton<span popover>A thin, end-to-end path through the real system.</span></lf-gloss> before parallelizing."
   },
   "lf-num": {
     "description": "A measured number in prose, tied to the data run that produced it.",
@@ -459,9 +451,6 @@
     },
     "content": "members",
     "owners": ["lf-board"],
-    "says": {
-      "label": "before"
-    },
     "instructions": "Write a label that names the column on its own. Use tone when landing here carries a status judgment, such as blocked, needing review, or done; otherwise leave it neutral. On a board whose cards show answers, `value` names the answer the column holds, and a column without one holds the answers that name none."
   },
   "lf-card": {
@@ -652,9 +641,6 @@
       },
       "required": ["id"],
       "additionalProperties": false
-    },
-    "says": {
-      "label": "before"
     },
     "exhibit": { "when": { "interactive": [false] } },
     "instructions": "Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On Me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",

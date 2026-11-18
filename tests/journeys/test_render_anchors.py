@@ -1357,10 +1357,9 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     What the pointer path must not do is here too. A keyboard selection is never
     grown — shift-arrow is the user being precise — so the comment field captures
     a mid-word selection exactly as made. Machine-placed words never glue to the
-    author's, on either side of the declaration line: an undeclared generated span
-    is a fenced cell in the reading, and a declared label — a sample's, rendered
-    flush before its words inside a list item, where both share the one block — is
-    the seam itself.
+    author's: a generated span is a fenced cell in the reading, whether a test writes
+    it or a widget draws it, as a sample draws its label flush before its words
+    inside a list item, where both share the one block.
 
     A sentence follows the same rule at its two meaningful edges. A drag that already
     reaches its opening and closing words grows over the punctuation around them, but
@@ -1490,9 +1489,8 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
 
-    # The declared label: rendered by the real pass, flush before the sample's own
-    # words, unfenced because the registry models it — so the reading holds
-    # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
+    # The sample's label, drawn by its module flush before the sample's own words:
+    # its own cell, so a drag into "glyphs" doesn't take "mono".
     select(page, spot("lf-sample", "glyphs", 3), spot("lf-sample", "close", 3))
     assert captured() == "glyphs set close"
 

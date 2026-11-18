@@ -1483,7 +1483,7 @@ def test_check_rejects_widget_violations(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>',
-            '<lf-gloss tip="A short explanation"/>'
+            '<lf-gloss id="short-gloss"/>'
             "<figure/>"
             "<lf-bogus></lf-bogus>"
             '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'

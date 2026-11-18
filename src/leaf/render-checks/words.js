@@ -520,46 +520,6 @@ export function uncolouredCode() {
     }));
 }
 
-// Words a declaration promised and the page never got. Every other reading here works
-// from what the browser drew, and that is exactly what cannot see this one: a word that
-// never arrived looks the same as an attribute with nothing to say. The registry is what
-// knows the difference — `says` names the attributes whose values are words at the
-// element's edge — so the declaration is what this asks against.
-//
-// The pass runs once at the upgrade, before an async widget's own render lands, so a
-// module that rebuilds its body from a settle() promise takes the words out with it and
-// nothing on the page says so.
-//
-// It reads every open root (OPEN_ROOTS) where the word pass stops at the boundary on
-// purpose: which widgets the page holds is the document's question, and settling a
-// staged widget's nesting in a sweep would be writing that contract where nobody would
-// look for it (the layer's AGENTS.md). So a staged element keeps its declarations and
-// gets no pass, which is exactly where a promised word reaches nobody in silence —
-// reported here, to the module's author, at handover.
-//
-// It asks the *rendered* page rather than the markup, and a shadow host is why: an
-// element that stages a tree keeps its light DOM in the document and out of every box,
-// so the pass finds the host, writes there, and leaves `textContent` and `querySelector`
-// reporting words the user will never get. Words are `says()`, the layer's one answer to
-// what an element says rather than a second reading spelled here — asked of the host's
-// root where there is one, since the walk behind it substitutes a declared root for a
-// *child* and never for the element it was handed.
-/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
-export function silentWords(declarations) {
-  const found = [];
-  const all = openRoots(document);
-  const every = (/** @type {string} */ tag) =>
-    all.flatMap((r) => [...r.querySelectorAll(tag)]);
-  for (const [tag, entry] of Object.entries(declarations))
-    for (const attr of Object.keys(entry.says ?? {}))
-      for (const el of every(tag)) {
-        const value = el.getAttribute(attr);
-        if (value !== null && !says(el.shadowRoot ?? el).includes(value))
-          found.push({ code: "silent-word", at: at(el), attr, value });
-      }
-  return found;
-}
-
 // The smallest size the drawing idiom sets its labels at, in viewBox units
 // (`--lf-drawing-small-size`). Both the live reading and the gate use this heuristic, and a
 // reading carries the threshold so its consumer can distinguish it from a failure.

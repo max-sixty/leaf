@@ -267,7 +267,7 @@ SCRIPT_WORDS = leaf_page(
 <p id="readout">Counting…</p>
 <section id="tally"><p id="tally-note">The script appends a paragraph here.</p></section>
 <div id="listed"></div>
-<p id="glossed">Plain words around a <lf-gloss id="term" tip="A term.">term</lf-gloss>.</p>
+<p id="glossed">Plain words around a <lf-gloss id="term">term<span popover>A term.</span></lf-gloss>.</p>
 <p id="cloned">Words a script copies.</p>
 <p id="outro">The last authored paragraph.</p>
 """,

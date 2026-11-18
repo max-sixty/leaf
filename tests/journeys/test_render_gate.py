@@ -1753,7 +1753,7 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
 
 
 def test_the_render_gate_holds_project_widgets_to_their_declarations(
-    browser, serve, tmp_path, monkeypatch, declared_reading_package
+    browser, serve, tmp_path, monkeypatch
 ):
     """Bug-backs for the module contracts the gate enforces, one project widget each,
     on one page, beside the DevTools issues the page owns.
@@ -1763,67 +1763,9 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     `author-card` is the clean control beside it: a page script's own custom element
     with a shadow root it attached itself, which the gate accepts, since the passage
     reading leaves an undeclared root's words alone and reads its host by its light
-    children, as the file does.
-
-    `lf-stager` breaks the other thing a declaration promises: that the words arrive.
-    The word pass stops at a shadow boundary on purpose — which widgets the page holds
-    is the document's question — so an element a module stages into its own tree keeps
-    its declarations and gets no pass, and the failure is silence: no error, no missing
-    box. It stages a declared lf-reading whose declaration names a `says` word, and
-    the gate is asked for it. A staged element rather than a module that wipes its own
-    body after the pass has run, which is the same failure by a route that races the
-    module's own render, and a bug-back that has to win a race is a bug-back that
-    reports the machine.
-
-    `lf-veil` is the host case of that failure: its declarations are on the element that
-    stages the tree, so the pass finds it and writes into a light DOM the shadow root
-    hides. It is the half a reading of the markup cannot see. `textContent` returns a
-    hidden light-DOM span and `querySelector` finds it, so a check written against the
-    markup passes on a page whose user is never handed the word. Asking `says()` for
-    the words is what tells the two apart — the layer's own reading enters a declared
-    root in the host's stead."""
+    children, as the file does."""
     monkeypatch.chdir(tmp_path)
-    package = tmp_path / ".leaf"
     _author_lying_callout(tmp_path)
-    for tag in ("lf-stager", "lf-veil"):
-        add_test_widget(package, tag, upgrade=True)
-    registry_path = package / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    for tag in ("lf-stager", "lf-veil"):
-        # Each module shows a tree of its own rather than the body, and declares it.
-        declarations[tag].pop("verbatim")
-        declarations[tag]["shadow"] = True
-    veil = declarations["lf-veil"]
-    veil["attributes"]["properties"]["label"] = {"type": "string"}
-    veil["says"] = {"label": "before"}
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    modules = {
-        "lf-stager": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    const staged = document.createElement("lf-reading");\n'
-            '    staged.id = "staged-reading";\n'
-            '    staged.setAttribute("label", "09:00");\n'
-            '    staged.textContent = "The feeder stopped.";\n'
-            "    shadowStage(this, [staged]);\n"
-            "  }\n"
-        ),
-        "lf-veil": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    const stage = document.createElement("p");\n'
-            '    stage.textContent = "The feeder stopped overnight.";\n'
-            "    shadowStage(this, [stage]);\n"
-            "  }\n"
-        ),
-    }
-    for tag, body in modules.items():
-        (package / "widgets" / f"{tag}.js").write_text(
-            'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-            f'customElements.define("{tag}", class extends HTMLElement {{\n'
-            + body
-            + "});\n"
-        )
     # A lazy image that holds no room is reported only in DevTools' Issues panel. The
     # page owns an image it authors in a form-associated control's light DOM, and a
     # frame it embeds, whose issue is placed at the frame. The same image in the
@@ -1867,9 +1809,6 @@ customElements.define("author-card", class extends HTMLElement {
         )
         .replace(
             "</main>",
-            '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
-            '<lf-veil id="veiled-note" label="Escalated">'
-            "<strong>Heads up</strong> Clipped words.</lf-veil>\n"
             '<author-card id="author-card"><span slot="lead">Slotted lead.</span>'
             "Unslotted source.</author-card>\n</main>",
         )
@@ -1890,10 +1829,6 @@ customElements.define("author-card", class extends HTMLElement {
 
     assert reported("verbatim", "custom-note"), failures
     assert not [f for f in failures if "author-card" in f.at + str(f)], failures
-    assert {f.values["value"] for f in reported("silent-word")} >= {
-        "09:00",
-        "Escalated",
-    }, failures
     # Delivery serves media under the revision, so the issue names that URL.
     issues = [f for f in reading.advice if f.code == "devtools-issue"]
     # Chromium may emit the same issue for a frame more than once. The gate's

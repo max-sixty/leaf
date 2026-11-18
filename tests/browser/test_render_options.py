@@ -1606,14 +1606,9 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
     with subtests.test("a chip an option says stands with the rest of its words"):
         # A chip is the page's words and the apparatus around it is the module's, so the
         # user — and the file's reading of that same version — find the chip inside the
-        # row's own words rather than out among the row's machinery.
-        #
-        # In an attribute rendered by `says`, the edge a pseudo-element would take
-        # stops being the element's own words the moment a module injects chrome, and
-        # appending puts the page's words on the far side of it. A chip is authored
-        # markup, written before the title, so it cannot land there by construction —
-        # which is the stronger form of the same guarantee, and this holds the outcome
-        # rather than the mechanism that would threaten it.
+        # row's own words rather than out among the row's machinery. A chip is
+        # authored markup, written before the title, so it lands there by construction,
+        # and this holds the outcome.
         #
         # The mark leads the row and the `for` reference ends it, so the words are what
         # stands between them, and the chip is read against both edges rather than
@@ -2422,9 +2417,8 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     ).to_be_attached()  # the reply's widgets upgraded
 
     # The gutter renders in the panel: the sample rules aren't scoped to the
-    # document's column, and neither is the label — which reaches the panel only
-    # because renderSaid runs over a reply's markup too, where no custom element
-    # upgrade would have carried it.
+    # document's column, and neither is the label, which the sample's module draws in
+    # a reply as on the page.
     label = view.locator('#rp-spec > [data-lf-said="label"]')
     assert label.text_content() == "the April thread"
     assert (

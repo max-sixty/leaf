@@ -1013,7 +1013,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert result.exit_code == 0, result.output
     keys = registry_storage.load_registry(page_dir)["$keys"]
     assert keys["space"] == "wider, in this project"
-    assert keys["says"]  # the rest of the shipped members stand
+    assert keys["verbatim"]  # the rest of the shipped members stand
 
 
 @pytest.mark.parametrize("fact", ["$verbs", "$awaits"])

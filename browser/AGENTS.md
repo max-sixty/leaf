@@ -822,9 +822,10 @@ layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
 
 Python models only the text changes the registry declares. A module that changes text
-in a way the file can't reproduce is fenced, and browser capture stops at the fence, so
-a selection across it never becomes a quote the file can't confirm. Declare words Python
-can model with `says` or `content`.
+in a way the file can't reproduce is fenced, and words a module generates are a passage
+cell of their own, so browser capture stops at the fence and a selection across it
+never becomes a quote the file can't confirm. Words Python should model belong in the
+markup, where the file reads them (`content`).
 
 ## Render gates
 

@@ -79,7 +79,7 @@ import {
   scrollLimit,
   sizeObserver,
   whileConnected,
-  wrote,
+  named,
   focused,
   currentLocationIn,
 } from "/runtime/widget-api.js";
@@ -96,7 +96,7 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, { label: wrote, chrome: inChrome }));
+      return (this.#drawingOwner ??= drawToc(this, { label: named, chrome: inChrome }));
     }
     get #nav() {
       return this.#drawing.nav;

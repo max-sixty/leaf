@@ -140,7 +140,7 @@ export {
 } from "./reading-regions.js";
 export { raiseError } from "./errors.js";
 export { MAX_EDIT_LENGTH } from "./text-alignment.js";
-export { says, wrote } from "./passages.js";
+export { named, says, wrote } from "./passages.js";
 export { ago, agePreview } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";

@@ -115,7 +115,6 @@ def validate_widget_record_contracts(
     tag: str,
     entry: dict,
     properties: dict,
-    said: set,
     registry: dict,
     declarations: dict,
     path,
@@ -172,8 +171,6 @@ def validate_widget_record_contracts(
                 raise registry_error(
                     "record-undeclared", path, tag, verb=verb, attr=attr
                 )
-            if attr in said:
-                raise registry_error("record-says", path, tag, verb=verb, attr=attr)
             schema = properties[attr]
             string_enum = (
                 isinstance(schema, dict)

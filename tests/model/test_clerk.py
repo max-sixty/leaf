@@ -701,15 +701,15 @@ def test_the_fork_fixes_a_few_stale_words_and_tells_the_agent(
             "Backfill: done",
             "<h3>Backfill: <span>done</span></h3>",
         ),
-        # A tip a widget shows from its attribute, beside a paragraph with the
-        # same words.
+        # A gloss's explanation, which the page shows only when opened, beside a
+        # paragraph with the same words.
         (
             "",
-            '<p>Path <lf-gloss tip="A thin path, built Monday.">gloss</lf-gloss></p>'
+            "<p>Path <lf-gloss>gloss<span popover>A thin path, built Monday.</span></lf-gloss></p>"
             "<p>Built Monday.</p>",
             "A thin path, built Monday.",
             "A thin path, built Tuesday.",
-            '<p>Path <lf-gloss tip="A thin path, built Tuesday.">gloss</lf-gloss></p>'
+            "<p>Path <lf-gloss>gloss<span popover>A thin path, built Tuesday.</span></lf-gloss></p>"
             "<p>Built Monday.</p>",
         ),
         # The source writes a character as a reference.
@@ -747,14 +747,14 @@ def test_the_fork_fixes_a_few_stale_words_and_tells_the_agent(
             '<lf-draft id="plan-note"><pre>\nShip loudly.\n\nThen we verify.\n</pre>'
             "</lf-draft>",
         ),
-        # The words a widget shows from an attribute, here naming it, and words the
-        # page writes beside a character from a private use area, as an icon font's.
+        # A gloss's explanation, here naming it, and words the page writes beside a
+        # character from a private use area, as an icon font's.
         (
             "",
-            '<p>Path <lf-gloss tip="Read the tip then go.">gloss</lf-gloss></p>',
+            "<p>Path <lf-gloss>gloss<span popover>Read the tip then go.</span></lf-gloss></p>",
             "Read the tip then go.",
             "Read the hint then go.",
-            '<p>Path <lf-gloss tip="Read the hint then go.">gloss</lf-gloss></p>',
+            "<p>Path <lf-gloss>gloss<span popover>Read the hint then go.</span></lf-gloss></p>",
         ),
         (
             "",

@@ -4,8 +4,8 @@
    moved to another or replaced by the same words, and a declared shadow stage replaced
    by another holding the same ids, filled in place or before it is put there. After
    each change, in the task that made it as well as after the watcher delivers it, on
-   pages with threads and on pages holding only a draft, every thread's placement, and
-   the draft's, stands
+   pages with threads and on pages holding only a draft, every thread's placement, the
+   draft's and a saved draft's, stands
    where a resolution of its anchor read afresh puts it: no reader reads placement older
    than the page (anchor-placement.js, `settle`). A fresh resolution names the quote
    with a space before it, which the page's index of quotes doesn't keep, so it reads
@@ -20,6 +20,7 @@ import { resolveAnchor, setAnchoringReady } from "/runtime/anchor-resolution.js"
 import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
+import { registerVisualParts } from "/runtime/visual-parts.js";
 
 const STAGED = '<p id="s4">Mu nu shared phrase xi.</p>';
 const PAGE =
@@ -99,8 +100,10 @@ test("placement stands where a fresh resolution does, after every change", async
       { section: "s4", quote: "shared phrase" },
       { section: "s4" },
     ];
-    // The draft a user opened on a passage, which no thread names yet.
+    // The draft a user opened on a passage, which no thread names yet, and a comment
+    // they saved and haven't sent.
     const drafted = { section: "s3", quote: "Theta alpha beta" };
+    const saved = { section: "s2", quote: "Second shared phrase" };
     assert.ok(spanIn(reading, fresh(anchors[2]).segments)[0] > 0, "the second copy");
     // The last runs hold only the draft, as a page before its first thread does.
     const threads = (seed > 5 ? [] : anchors).map((anchor, at) => ({
@@ -116,6 +119,7 @@ test("placement stands where a fresh resolution does, after every change", async
       threads,
       draft: { open: true, anchor: drafted, about: null, drawing: null },
       actionAnchor: null,
+      saved: [{ context: "kept", anchor: saved }],
     });
     const texts = () => {
       const found = [];
@@ -196,8 +200,10 @@ test("placement stands where a fresh resolution does, after every change", async
       },
     };
     const kinds = Object.keys(changes);
-    const placedNow = () =>
-      threads.map((thread) => where(placement.placedAt(thread.id)));
+    const placedNow = () => [
+      ...threads.map((thread) => where(placement.placedAt(thread.id))),
+      where(placement.savedAt("kept")),
+    ];
     let placedBefore = placedNow();
     let versionBefore = placement.placementVersion();
     for (let step = 0; step < 400; step++) {
@@ -211,8 +217,14 @@ test("placement stands where a fresh resolution does, after every change", async
           where(fresh(anchors[at] ?? thread.anchor)),
           `seed ${seed}, step ${step} (${kind}), thread ${at}`,
         );
+      assert.deepEqual(
+        where(placement.savedAt("kept")),
+        where(fresh(saved)),
+        `seed ${seed}, step ${step} (${kind}), the saved draft`,
+      );
       // A reading derived from placement keeps what it derived while the version
-      // stands, so the version moves whenever a thread's placement does.
+      // stands, so the version moves whenever a thread's or a saved draft's placement
+      // does.
       const placed = placedNow();
       const version = placement.placementVersion();
       if (placed.some((place, at) => !samePlace(place, placedBefore[at])))
@@ -258,6 +270,7 @@ test("placement keeps a range over a passage's words, a thread's and the draft's
         drawing: null,
       },
       actionAnchor: null,
+      saved: [],
     });
   read();
   const [placed] = placement.placedAt("t").ranges;
@@ -272,4 +285,75 @@ test("placement keeps a range over a passage's words, a thread's and the draft's
   words.data = "Both exports run.";
   assert.equal(placement.pendingAt(), null);
   document.body.replaceChildren();
+});
+
+// A saved draft on a part of a picture stands on the picture while the picture draws
+// no element for the part, and on the part at the first read after it draws one, as a
+// widget's draw is followed by a presentation's read, with the version moved so that
+// whatever drew the draft's margin entry draws it again.
+test("a saved draft on a part the picture draws later stands on the part at the next read", () => {
+  registry["lf-plot"] = { visual: { prefixes: ["point:"] } };
+  document.body.innerHTML =
+    '<main><lf-plot id="plot"><svg><circle id="p"></circle></svg></lf-plot></main>';
+  setAnchoringReady(true);
+  const plot = /** @type {Element} */ (document.getElementById("plot"));
+  const point = /** @type {Element} */ (document.getElementById("p"));
+  let drawn = false;
+  registerVisualParts(plot, () => [], {
+    find: (id) =>
+      drawn && id === "point:p" ? { id, element: point, label: "x 1" } : null,
+    label: (id) => (id === "point:p" ? "x 1" : null),
+  });
+  const placement = createAnchorPlacement();
+  const read = () =>
+    placement.read({
+      threads: [],
+      draft: { open: false, anchor: null, about: null, drawing: null },
+      actionAnchor: null,
+      saved: [{ context: "kept", anchor: { section: "plot", visual: "point:p" } }],
+    });
+  try {
+    read();
+    assert.equal(placement.savedAt("kept")?.element, plot);
+    assert.equal(placement.savedAt("kept")?.label, "x 1");
+    const version = placement.placementVersion();
+    drawn = true;
+    read();
+    assert.equal(placement.savedAt("kept")?.element, point);
+    assert.notEqual(placement.placementVersion(), version);
+  } finally {
+    delete registry["lf-plot"];
+    document.body.replaceChildren();
+  }
+});
+
+// Those who hear which threads placement placed again hear only threads: a saved draft
+// placed again, which a later read no longer holds by the time they are told, is none.
+test("placement's hearers never hear a saved draft as a thread", async () => {
+  document.body.innerHTML =
+    '<main><p id="a">The nightly export keeps one file per tenant.</p></main>';
+  setAnchoringReady(true);
+  const placement = createAnchorPlacement();
+  /** @type {string[]} */
+  const heard = [];
+  placement.hearPlaced((change) => heard.push(...change.threads));
+  /** @param {{context: string, anchor: {section: string, quote: string}}[]} saved */
+  const read = (saved) =>
+    placement.read({
+      threads: [],
+      draft: { open: false, anchor: null, about: null, drawing: null },
+      actionAnchor: null,
+      saved,
+    });
+  try {
+    read([{ context: "kept", anchor: { section: "a", quote: "one file per tenant" } }]);
+    const words = /** @type {Text} */ (document.getElementById("a")?.firstChild);
+    words.data = "The nightly export keeps nothing.";
+    assert.equal(placement.savedAt("kept"), undefined);
+    read([]);
+    await new Promise((done) => setTimeout(done, 0));
+    assert.deepEqual(heard, []);
+  } finally {
+    document.body.replaceChildren();
+  }
 });

@@ -960,14 +960,17 @@ export function resolveAnchor(anchor) {
         element: found.element,
         place: section,
         surface: found.surface,
+        label: found.label,
       });
     // A declared part the visual draws only in another state stands in for the whole
-    // visual, as a lazy datum does, until travel reveals it or the visual draws it.
+    // visual, as a lazy datum does, until travel reveals it or the visual draws it. It
+    // keeps the name its visual gives it there.
     return admitsVisualPart(section, anchor.visual) && drawsAbsentParts(section)
       ? {
           ...resolvedElement({
             element: section,
             surface: wholeVisualSurface(section),
+            label: visualPartLabel(section, anchor.visual),
           }),
           exact: false,
           status: "fallback",

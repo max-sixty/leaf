@@ -12,7 +12,9 @@
    draws it in its view of the message's thread, it keeps the element's reading too, so
    the element is marked there. `placedAt` tracks changes to resolved placements for
    views that read them while drawing; a source replacement can change a quote's
-   status without changing its thread.
+   status without changing its thread. A comment the user saved and hasn't sent is
+   placed here as a thread is, and read by its draft's context (`savedAt`), so the
+   margin entry it stands in moves when a thread's would.
 
    Placement is the one record of where each passage stands, and no read of it is older
    than the page: every read settles first (`settle`), taking the changes the page's
@@ -34,7 +36,7 @@
      shadow trees, and which section holds each copy: the watcher reports the ids that
      came or went and the elements whose own id changed, and placement places again the
      threads naming those ids and those standing under those elements;
-   - the thread's messages and the draft's anchor: application state, which a
+   - the thread's messages and the drafts' anchors: application state, which a
      presentation reads (`read`);
    - for a quote in a datum, the datum's source, identity and revision attributes and
      whether its widget reported a draw: those reach placement only through the
@@ -99,6 +101,7 @@ const samePlacement = (a, b) =>
   a?.element === b?.element &&
   a?.place === b?.place &&
   a?.surface === b?.surface &&
+  a?.label === b?.label &&
   a?.message === b?.message &&
   a?.point === b?.point &&
   a?.pointRow === b?.pointRow &&
@@ -142,6 +145,9 @@ function liveRanges(was, segments) {
 
 // The key the draft's anchor is kept under beside the threads', which no thread's id is.
 const DRAFT = "\u0000draft";
+// The key a saved comment draft's placement is kept under beside the threads', its
+// context after this prefix, which no thread's id starts with.
+const SAVED = "\u0000saved:";
 /** @typedef {{threads: readonly string[], pending: boolean}} Placed */
 
 export function createAnchorPlacement() {
@@ -164,6 +170,8 @@ export function createAnchorPlacement() {
   let threads = [];
   /** @type {Map<string, Thread>} */
   let byId = new Map();
+  /** @type {Map<string, Anchor>} */
+  let savedAnchors = new Map();
   /** @type {Map<string, Set<string>>} */
   let byQuote = new Map();
   /** @type {Map<string, Set<string>>} */
@@ -214,15 +222,15 @@ export function createAnchorPlacement() {
     if ([...written].some((node) => inNode.has(node))) afterScript(settle);
   });
 
-  // A thread's placement, as its anchor resolves now: in the message holding the element
-  // it names where the page doesn't hold it, and over its passage the ranges `was` had
-  // where they still stand; a pointed row (`placePoints`) is a presentation's to give.
-  /** @param {Thread & {anchor: Anchor}} thread @param {Placement | undefined} was
+  // A thread's or a saved draft's placement, as its anchor resolves now: in the message
+  // holding the element it names where the page doesn't hold it, and over its passage
+  // the ranges `was` had where they still stand; a pointed row (`placePoints`) is a
+  // presentation's to give.
+  /** @param {Anchor} anchor @param {Placement | undefined} was
    * @param {boolean} [keepsPoint] @returns {Placement | undefined} */
-  function place(thread, was, keepsPoint = false) {
-    const found = resolveAnchor(thread.anchor);
-    const held =
-      found && !inChrome(found.place) ? null : heldIn(thread.anchor, threads);
+  function place(anchor, was, keepsPoint = false) {
+    const found = resolveAnchor(anchor);
+    const held = found && !inChrome(found.place) ? null : heldIn(anchor, threads);
     const resolved = !held
       ? found
       : found
@@ -250,8 +258,9 @@ export function createAnchorPlacement() {
     return resolved;
   }
 
-  /** @param {{threads: readonly Thread[], draft: ThreadDraft, actionAnchor: Anchor | null}} options */
-  function read({ threads: all, draft, actionAnchor }) {
+  /** @param {{threads: readonly Thread[], draft: ThreadDraft, actionAnchor: Anchor | null,
+   * saved: readonly {context: string, anchor: Anchor}[]}} options */
+  function read({ threads: all, draft, actionAnchor, saved }) {
     if (!anchoringIsReady()) return null;
     catchUpWords();
     const before = new Map(placed);
@@ -261,10 +270,17 @@ export function createAnchorPlacement() {
     names = threadNames(all);
     threads = all;
     byId = new Map(all.map((thread) => [thread.id, thread]));
+    savedAnchors = new Map(
+      saved.map(({ context, anchor }) => [SAVED + context, anchor]),
+    );
     byQuote = new Map();
     bySection = new Map();
     pendingAnchor = draft.open ? draft.anchor : null;
-    for (const { id, anchor } of [...all, { id: DRAFT, anchor: pendingAnchor }]) {
+    for (const [id, anchor] of [
+      ...all.map((thread) => /** @type {const} */ ([thread.id, thread.anchor])),
+      /** @type {const} */ ([DRAFT, pendingAnchor]),
+      ...savedAnchors,
+    ]) {
       if (anchor?.quote) file(byQuote, anchor.quote, id);
       if (anchor?.section) file(bySection, anchor.section, id);
     }
@@ -274,10 +290,7 @@ export function createAnchorPlacement() {
     const pointable = [];
     for (const thread of all) {
       if (!thread.anchor) continue;
-      const placement = place(
-        /** @type {Thread & {anchor: Anchor}} */ (thread),
-        before.get(thread.id),
-      );
+      const placement = place(thread.anchor, before.get(thread.id));
       if (!placement) continue;
       const target = targetElement(placement) ?? placement.place;
       placed.set(thread.id, placement);
@@ -295,6 +308,14 @@ export function createAnchorPlacement() {
           pointRow: point.row,
           pointWords: point.words,
         });
+    }
+    // A saved draft is placed as a thread is, so a picture drawing its part again, or
+    // anything else that moves a thread, moves the draft's entry too.
+    for (const [id, anchor] of savedAnchors) {
+      const placement = place(anchor, before.get(id));
+      if (!placement) continue;
+      placed.set(id, placement);
+      note(id, placement, true);
     }
     const resolvedDraft = placePending(pendingPlaced);
     pendingPlaced = resolvedDraft;
@@ -353,15 +374,11 @@ export function createAnchorPlacement() {
             unheard.add(DRAFT);
           continue;
         }
-        const thread = byId.get(id);
-        if (!thread?.anchor) continue;
+        const anchor = byId.get(id)?.anchor ?? savedAnchors.get(id);
+        if (!anchor) continue;
         const was = placed.get(id);
         note(id, was, false);
-        const placement = place(
-          /** @type {Thread & {anchor: Anchor}} */ (thread),
-          was,
-          !thread.anchor.quote,
-        );
+        const placement = place(anchor, was, !anchor.quote);
         if (placement) placed.set(id, placement);
         else placed.delete(id);
         note(id, placement, true);
@@ -376,7 +393,10 @@ export function createAnchorPlacement() {
   function tell() {
     if (!unheard.size) return;
     const pending = unheard.delete(DRAFT);
-    const change = { threads: [...unheard], pending };
+    const change = {
+      threads: [...unheard].filter((id) => !id.startsWith(SAVED)),
+      pending,
+    };
     unheard.clear();
     tick(version);
     for (const hear of hearers) hear(change);
@@ -393,6 +413,12 @@ export function createAnchorPlacement() {
       settle(false);
       version.value;
       return id == null ? undefined : placed.get(names.get(id)?.id ?? id);
+    },
+    // Where the saved comment draft with this context stands, placed as a thread is.
+    savedAt: (/** @type {string} */ context) => {
+      settle(false);
+      version.value;
+      return placed.get(SAVED + context);
     },
     // Which placement of the threads stands, for a reading derived from it to keep until
     // this changes, as readings of the page keep theirs against `pageReadingVersion`

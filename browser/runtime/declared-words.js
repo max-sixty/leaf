@@ -60,13 +60,12 @@ export const isPagePaint = (name) =>
   Object.values(marks).some((mark) => mark.attribute === name);
 
 // A word for a user listening, silent on screen: real text — the one thing every
-// screen reader announces in every mode — placed after the title its author writes in
-// it, a `<strong>` (as an option or a board card carries), or else at its start,
-// wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
-// .lf-quiet (the shared clip), and data-lf-gen (no author wrote it). One writer per
-// element, and the empty word removes what stands: a fact the page has stopped
-// painting must stop being said too, so a caller states the whole of what this element
-// says quietly and never appends to it.
+// screen reader announces in every mode — placed at the element's start, wearing .lf-ui
+// (an invisible word is apparatus the anchor pass must not offer), .lf-quiet (the
+// shared clip), and data-lf-gen (no author wrote it). One writer per element, and the
+// empty word removes what stands: a fact the page has stopped painting must stop being
+// said too, so a caller states the whole of what this element says quietly and never
+// appends to it.
 //
 // Which writer an element gets follows from what paints it, and the two sets do not
 // meet: renderQuiet has the elements the runtime paints a provenance on, and a module
@@ -75,8 +74,7 @@ export const isPagePaint = (name) =>
 // user would hear as the element re-reading itself.
 /** @param {Element} el @param {string | null} word */
 function quietWord(el, word) {
-  const title = el.querySelector(":scope > strong");
-  const seat = title ? title.nextSibling : el.firstChild;
+  const seat = el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");
   if (existing) {
     // Nothing to say that isn't already said, in the place it belongs: a screen
@@ -94,7 +92,7 @@ function quietWord(el, word) {
     textContent: word,
   });
   generatedElement(span, { says: false });
-  move(el, span, title ? title.nextSibling : el.firstChild);
+  move(el, span, el.firstChild);
 }
 
 // The quiet word a module declares on a part it builds, as `data-lf-quiet`, such as a

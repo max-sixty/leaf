@@ -197,8 +197,8 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         "    - 'button \"Move: Heated perch — Todo\"'\n"
         '- list "Done":\n'
         "  - listitem:\n"
-        "    - strong: Squirrel baffle\n"
         "    - text: my change\n"
+        "    - strong: Squirrel baffle\n"
         "    - 'button \"Move: Squirrel baffle — Done\"'"
     )
 

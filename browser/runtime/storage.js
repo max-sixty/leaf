@@ -28,7 +28,9 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // comment, a reply, an `lf-draft`) and hasn't sent, are every tab's and every device's,
 // so the page's server keeps them (drafts.js), and the agent reads none of them, because
 // sending is when the user says them. An edit to a bound file is not one: the file on
-// disk is what tabs share, so its buffer stays in its tab. `userStore` is this user's
+// disk is what tabs share, so its buffer stays in its tab. The tab holds unsent words
+// only from a page to its reload, while the server has yet to answer their writes
+// (drafts.js). `userStore` is this user's
 // lasting preference across pages, which is the chrome they arrange and expect to find
 // arranged. The stores reach this tab or this browser. What another browser or the agent
 // must read is none of the three: it goes in the log, which every tab already follows,

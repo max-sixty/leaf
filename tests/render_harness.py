@@ -1414,6 +1414,12 @@ def stored_drafts(page) -> dict:
         "async () => (await window.__lfCheckApi()).draftsWaiting"
     )
     page.wait_for_function("waiting => waiting() === 0", arg=waiting)
+    return drafts_on_server(page)
+
+
+def drafts_on_server(page) -> dict:
+    """The drafts the page's server holds now, by context, whatever this tab has yet to
+    send, asked as `stored_drafts` asks."""
     origin = urlsplit(page.url)
     answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/drafts")
     assert answer.ok, f"the server would not say what drafts it holds: {answer.status}"

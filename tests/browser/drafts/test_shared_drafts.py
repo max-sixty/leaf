@@ -15,6 +15,7 @@ from render_harness import (
     _traffic,
     _until,
     draft_control,
+    drafts_on_server,
     expect_panel_says,
     expect_preview_words,
     heard_draft,
@@ -42,6 +43,7 @@ from browser.drafts import (
 )
 from leaf import event_log as events_model
 from leaf.findings import Finding
+from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -790,11 +792,211 @@ def test_words_typed_while_a_write_is_out_survive_the_page_going_away(
     holding(page, held, 2, "the resend as the page goes away")
     held[1].fulfill(response=held[1].fetch())
 
-    origin = urlsplit(page.url)
-    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/drafts")
-    assert answer.json()["drafts"]["general"]["text"] == (
+    assert drafts_on_server(page)["general"]["text"] == (
         "Fit the south bracket. Or the east."
     )
+
+
+def _reload_while_writing(page, before_reload=lambda: None):
+    """Type "Kept" after the "K" the page comment's box holds, and reload while the
+    write of "Ke" is out. The page resends "Kept" as it goes, which a Chromium page's
+    routes don't see, so the resend reaches the server after the reload is served "K".
+    Every draft write and every read of the drafts is held until the test lands it, so
+    the reload hears what the server holds only through its writes' answers. Returns
+    the held writes and reads."""
+    write(page_comment(page), "K")
+    assert stored_draft_text(page, "general") == "K"
+    writes, reads = [], []
+    page.route("**/api/draft", lambda route: writes.append(route))
+    page.route("**/api/drafts", lambda route: reads.append(route))
+    page.keyboard.type("ept")
+    holding(page, writes, 1, "the write of Ke")
+    before_reload()
+    page.reload()
+    wait_until_ready(page)
+    return writes, reads
+
+
+def _land(route):
+    """Let a held request reach the server, then hand the page its answer."""
+    route.fulfill(response=route.fetch())
+
+
+def _land_in_order(page, writes, reads):
+    """End the write that was out as the page left, as leaving does, then land the
+    reload's writes one after another, and let its reads through after them."""
+    refuse(writes.pop(0))
+    page.unroute("**/api/draft")
+    page.unroute("**/api/drafts")
+    for route in writes:
+        _land(route)
+    for route in reads:
+        route.continue_()
+
+
+def _type_on_arrival(page, words):
+    """Put the user in the page comment's box as they arrive, type `words`, and return
+    the box."""
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    page.keyboard.type(words)
+    return field
+
+
+def test_words_typed_on_a_reload_stand_over_the_resend_of_the_page_it_left(
+    browser, serve, one_user
+):
+    """A reload can be served its drafts before the page it replaced has sent the last
+    words typed there, which that page resends as it goes. The reload starts from the
+    words that page held and counts its writes as its own, so the words typed after
+    the reload stand, though the resend reaches the server before them."""
+    page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    writes, reads = _reload_while_writing(page)
+    wait_for(
+        lambda: drafts_on_server(page)["general"]["text"],
+        lambda text: text == "Kept",
+        failure=lambda: "the resend never reached the server",
+    )
+    field = _type_on_arrival(page, " words")
+
+    _land_in_order(page, writes, reads)
+    assert stored_draft_text(page, "general") == "Kept words"
+    expect(field).to_have_js_property("value", "Kept words")
+
+
+def test_words_typed_on_a_reload_stand_however_late_the_page_it_left_writes(
+    firefox_browser, serve
+):
+    """The writes the page a reload replaced sent count as the reload's own past the
+    server's first answer to the reload. Firefox's routes hold the resend that page
+    sends as it goes, which Chromium's don't see, so this orders every write: the write
+    that was out lands, the server turns the reload's first write away over it, and the
+    resend lands before the reload's write of the words typed on arrival."""
+    page = open_page(firefox_browser, serve(LONG_PAGE))
+    writes, reads = _reload_while_writing(page)
+    holding(page, writes, 3, "the resend and the reload's first write")
+    out, resend, first = writes
+    field = _type_on_arrival(page, " words")
+
+    _land(out)
+    _land(first)
+    holding(page, writes, 4, "the reload's write of the words typed on it")
+    _land(resend)
+    assert drafts_on_server(page)["general"]["text"] == "Kept"
+    page.unroute("**/api/draft")
+    page.unroute("**/api/drafts")
+    _land(writes[3])
+    for route in reads:
+        route.continue_()
+    assert stored_draft_text(page, "general") == "Kept words"
+    expect(field).to_have_js_property("value", "Kept words")
+
+
+def test_words_typed_on_a_reload_stand_over_the_send_it_cut_short(
+    firefox_browser, serve
+):
+    """A reload that cuts short a send still out starts from the drafts it was served,
+    since only the log can say whether those words were sent, and the page it replaced
+    resends them as it goes. Each reload after counts that resend as its own write
+    until the server takes one of its own, so the words typed after a second reload
+    stand over the resend landing after them. Firefox's routes hold the resend, which
+    Chromium's don't see."""
+    page = open_page(firefox_browser, serve(LONG_PAGE))
+    sends = []
+
+    def send():
+        page.route("**/api/event", lambda route: sends.append(route))
+        page.locator(".lf-fp-send").click()
+        holding(page, sends, 1, "the send")
+        page.unroute("**/api/event")
+
+    writes, reads = _reload_while_writing(page, before_reload=send)
+    holding(page, writes, 2, "the resend")
+    out, resend = writes
+    refuse(sends[0])
+    page.reload()
+    wait_until_ready(page)
+    field = _type_on_arrival(page, " words")
+    holding(page, writes, 3, "the second reload's write")
+
+    refuse(out)
+    _land(resend)
+    assert drafts_on_server(page)["general"]["text"] == "Kept"
+    page.unroute("**/api/draft")
+    page.unroute("**/api/drafts")
+    _land(writes[2])
+    for route in reads:
+        route.continue_()
+    assert stored_draft_text(page, "general") == "K words"
+    expect(field).to_have_js_property("value", "K words")
+
+
+def test_words_typed_on_a_reload_stand_over_a_resend_landing_after_a_rewrite(
+    firefox_browser, serve
+):
+    """A reload goes on counting the writes of the page it replaced as its own after
+    the server takes a generation those writes can still land over, as when the reload
+    gives the server back the words it was served and the server then lost. Firefox's
+    routes hold the resend, which Chromium's don't see."""
+    page = open_page(firefox_browser, serve(LONG_PAGE))
+    sends = []
+
+    def send():
+        page.route("**/api/event", lambda route: sends.append(route))
+        page.locator(".lf-fp-send").click()
+        holding(page, sends, 1, "the send")
+        page.unroute("**/api/event")
+
+    writes, reads = _reload_while_writing(page, before_reload=send)
+    holding(page, writes, 2, "the resend")
+    out, resend = writes
+    refuse(sends[0])
+    (serve.page_dir / "drafts.json").unlink()
+    page.unroute("**/api/drafts")
+    for route in reads:
+        route.continue_()
+    holding(page, writes, 3, "the reload giving back the words the server lost")
+    _land(writes[2])
+    field = _type_on_arrival(page, " words")
+    holding(page, writes, 4, "the reload's write of the words typed on it")
+
+    refuse(out)
+    _land(resend)
+    assert drafts_on_server(page)["general"]["text"] == "Kept"
+    page.unroute("**/api/draft")
+    _land(writes[3])
+    assert stored_draft_text(page, "general") == "K words"
+    expect(field).to_have_js_property("value", "K words")
+
+
+def test_words_sent_just_before_a_reload_do_not_come_back_with_it(
+    browser, serve, one_user
+):
+    """A send settles its words while their last writes are still out, and the reload
+    that follows is served the earlier words the server still holds. The reload starts
+    from the page's settled copy, so no part of the sent words returns to its box, and
+    nothing the page wrote before it went stands as a draft afterwards."""
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url, context=one_user)
+
+    def send():
+        page.locator(".lf-fp-send").click()
+        round_trip(page)
+
+    writes, reads = _reload_while_writing(page, before_reload=send)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    expect(field).to_have_js_property("value", "")
+
+    _land_in_order(page, writes, reads)
+    until_draft_settled(page, "general")
+    expect(field).to_have_js_property("value", "")
+    comments = [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert comments == ["Kept"]
 
 
 def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_user):

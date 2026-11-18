@@ -70,8 +70,11 @@
    Taking back what the user wrote puts it to draft rather than discarding it, since no
    redo brings it back (`writtenIn`; drafts.js, `giveBackWords`): a comment's words, and
    its drawing, go back to its passage's draft or the page's, a reply's to its thread's
-   reply box, and a rewrite's to the message's rewrite. The log's answer decides the
-   undo, so the words come back with it. Rejected: leaving the words only in the log,
+   reply box, and a rewrite's to the message's rewrite, and Resume writing goes to them.
+   A comment whose thread goes with it takes the words of the thread's reply box along
+   (`keepReplyWith`), as a refused one does, so sending it again brings back the thread
+   and the reply. The log's answer decides the undo, so the words come back with it, in
+   the box the press leaves the user at. Rejected: leaving the words only in the log,
    which no reading shows once nothing stands on the message taken back (the user's
    decision). */
 import { notice } from "./notifications.js";
@@ -98,7 +101,13 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { eventSource } from "./pointer.js";
 import { raiseError } from "./errors.js";
-import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
+import {
+  giveBackWords,
+  keepReplyWith,
+  PAGE_DRAFT,
+  replyContext,
+  rewriteContext,
+} from "./drafts.js";
 import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "./thread/model.js";
 
@@ -208,19 +217,22 @@ function placeOf(event) {
 }
 
 // The draft a message the user wrote was written in, holding what taking it back gives
-// back: a comment's words, and its drawing, to its passage's draft or the page's; a
-// reply's to its thread's reply box; a rewrite's to the message's rewrite, written over
-// the words taking it back restores. Null for a reaction, a deletion, whose words come
-// back on the message, and every gesture that wrote none.
-/** @param {UndoEvent} event @returns {{ctx: string, text: string, payload?: object} | null} */
+// back: a comment's words, and its drawing, to its passage's draft or the page's, with
+// the reply box of the thread it opened (`under`); a reply's to its thread's reply box;
+// a rewrite's to the message's rewrite, written over the words taking it back restores.
+// Null for a reaction, a deletion, whose words come back on the message, and every
+// gesture that wrote none.
+/** @param {UndoEvent} event @returns {{ctx: string, text: string, payload?: object, under?: string | null} | null} */
 function writtenIn(event) {
   if (event.token) return null;
   const text = event.text ?? "";
   switch (event.kind) {
     case "comment": {
       const { anchor } = event;
-      if (anchor) return { ...commentDraft({ ...event, anchor }), text };
-      return text ? { ctx: PAGE_DRAFT, text } : null;
+      const thread = threadNamed(event.id);
+      const under = thread ? replyContext(threadKey(thread)) : null;
+      if (anchor) return { ...commentDraft({ ...event, anchor }), text, under };
+      return text ? { ctx: PAGE_DRAFT, text, under } : null;
     }
     case "reply": {
       const thread = event.parent ? threadNamed(event.parent) : null;
@@ -339,9 +351,14 @@ export function createUndo({
     const written = writtenIn(event);
     return post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
-        const kept =
-          written && giveBackWords(written.ctx, written.text, written.payload);
-        notice([`Undid: ${taken}`, kept].filter(Boolean).join(". "));
+        notice(`Undid: ${taken}`);
+        if (written) {
+          giveBackWords(written.ctx, written.text, written.payload);
+          // The answer brings the reading that holds the withdrawal, in which the
+          // thread is gone unless something stands on its first message.
+          if (written.under && !threadNamed(event.id))
+            keepReplyWith(written.ctx, written.under);
+        }
         if (event.attempt) gestures.delete(event.attempt);
       }
       return accepted;

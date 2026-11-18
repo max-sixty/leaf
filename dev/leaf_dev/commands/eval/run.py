@@ -30,14 +30,12 @@ results join Promptfoo's store and viewer like any other run's.
 
 import fnmatch
 import json
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
 from collections.abc import Callable, Iterator
 from copy import deepcopy
-from datetime import datetime
 from functools import cache, partial
 from importlib import import_module
 from pathlib import Path
@@ -46,7 +44,7 @@ import click
 import yaml
 from click.core import ParameterSource
 
-from leaf.harness import ClaudeCodeHarness
+from leaf.harness import ClaudeCodeHarness, claude_code_config
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
@@ -64,6 +62,7 @@ from leaf_dev.arms import (
     environment,
     install_codex_plugin,
     instruction_context,
+    run_directory,
     run_leaf,
 )
 from leaf_dev.browser import WINDOWS
@@ -254,9 +253,7 @@ def workflow_provider(
             # `eval run` drops CLAUDE_CONFIG_DIR from Promptfoo's environment, so native
             # providers can't read the user's settings; executors need it to find
             # the login (`claude_child`).
-            "claude_config_dir": os.environ.get(
-                "CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")
-            ),
+            "claude_config_dir": str(claude_code_config()),
             "harness": harness,
             "model": model or MODELS[harness],
             "condition": condition,
@@ -747,12 +744,7 @@ def eval(
         raise click.ClickException(
             "Install development dependencies first: pnpm install --frozen-lockfile"
         )
-    RUNS.mkdir(parents=True, exist_ok=True)
-    out = Path(
-        tempfile.mkdtemp(
-            prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=RUNS
-        )
-    )
+    out = run_directory(RUNS)
     click.echo(f"evidence: {out}")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)

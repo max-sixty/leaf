@@ -120,6 +120,7 @@ import {
 import {
   moveScrollerBy,
   SCROLL_SLACK,
+  scrollGoal,
   scrollLimit,
   scrollToEnd,
 } from "../scrolling.js";
@@ -1030,8 +1031,11 @@ export class ThreadView {
     // write below asks again, for an input made since, and stands back where the box no
     // longer stands where this read it: the browser can apply a wheel's scroll before the
     // page hears the wheel or the scroll, as it does for macOS's precise wheels.
+    // A glide this placement set going toward the end, which a growth arriving before
+    // it lands finds under way, still stands the user there (`scrollGoal`).
     const stood = scroller.scrollTop;
-    const atEnd = !readerScrolls(scroller) && before.limit - stood <= SCROLL_SLACK;
+    const atEnd =
+      !readerScrolls(scroller) && before.limit - scrollGoal(scroller) <= SCROLL_SLACK;
     const pad = Number.parseFloat(getComputedStyle(scroller).paddingTop);
     const from = () =>
       turn.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pad;

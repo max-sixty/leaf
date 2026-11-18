@@ -504,6 +504,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   lf-options:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid;
     gap: var(--lf-cell-gap);
+    /* One control, so its marks stand at a control's gap (tokens.css, "Where it
+     * stands"), and so does the location ring where it asks alone in a message, as a
+     * group's does on the page. */
+    --lf-ring-at: var(--lf-focus-ring-gap);
     /* The authored options paint before the generated Add and Done cells, so their rows
      * are held until upgrade and the next block stays put. Add is one option line inside
      * the same inset and edge as the option it becomes. A `closed` group never draws

@@ -2363,6 +2363,34 @@ def card_message_by_keyboard(page: Page) -> None:
     raise AssertionError("Next On Me never reached a card's message")
 
 
+def card_choice_by_keyboard(page: Page) -> None:
+    """An option group the agent asked alone in a thread, reached by Next On Me (`m`),
+    which rings the group's frame inside the card."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "plan-context",
+        "--text",
+        "Shall I open the pull request?\n\n"
+        '<lf-options id="pr-open">\n'
+        '<lf-option id="pr-open-now" recommended>Open it as it stands</lf-option>\n'
+        '<lf-option id="pr-open-hold">Hold it: I\'ll review the wording on the pull '
+        "request first</lf-option>\n"
+        "</lf-options>",
+    )
+    page.reload()
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    for _ in range(6):
+        page.keyboard.press("m")
+        settle(page)
+        if page.evaluate(
+            "() => document.activeElement?.matches('.lf-margin-preview #pr-open')"
+        ):
+            return
+    raise AssertionError("Next On Me never reached the card's option group")
+
+
 def card_ask_by_keyboard(page: Page) -> None:
     """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
     ask, so the location ring stands round it inside the card's transcript."""
@@ -3634,6 +3662,12 @@ STATES = (
         window=WINDOWS["phone"],
     ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "plan-card-choice-keyboard",
+        "review-a-plan",
+        card_choice_by_keyboard,
+        region=".lf-margin-preview",
+    ),
     State(
         "ship-card-ask-keyboard",
         "ship-review",

@@ -73,10 +73,7 @@ def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
             '<nav class="sitenav" aria-label="Site"></nav>',
             '<nav class="sitenav" aria-label="Site"><a href="/">leaf</a></nav>',
         ),
-        (
-            '<img\n                alt="Sandbox',
-            '<img src="/media/0000000000000000.jpg"\n                alt="Sandbox',
-        ),
+        ('alt="Sandbox', 'src="/media/0000000000000000.jpg" alt="Sandbox'),
     ],
 )
 def test_a_composed_part_refuses_an_authored_copy(slot, copy):

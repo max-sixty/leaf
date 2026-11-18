@@ -202,14 +202,6 @@ class _FailedTurn:
         }
 
 
-class _Text:
-    def __init__(self, text: str):
-        self.text = text
-
-    def inner_text(self) -> str:
-        return self.text
-
-
 class _DeployedPage:
     """The page the agent pass opens, reloads after its turn, and reads back."""
 
@@ -277,10 +269,6 @@ class _DeployedPage:
             return
         raise PlaywrightTimeout("revision did not arrive")
 
-    def locator(self, selector: str):
-        assert selector == "main"
-        return _Text(self.recorded)
-
     def evaluate(self, script: str, arg=None):
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
@@ -319,6 +307,8 @@ class _DeployedPage:
             return self.revision >= arg and not self.presentation_pending
         if script == "window.__leafVerifier.status":
             return self.status
+        if "innerText" in script:
+            return self.recorded
         return []
 
 
@@ -1348,7 +1338,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     presentation does not imply the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
-    recorded = f"Deployment {release[:8]} verified"
+    recorded = f"Deployment {release[:7]} verified"
     page = _DeployedPage(
         recorded,
         revision=1,
@@ -1478,7 +1468,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             ],
         },
         "change": {
-            "marker": release[:8],
+            "marker": release[:7],
             "revision": 2,
             "reply": "deployment verified",
         },
@@ -1545,7 +1535,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     presentation names, while one that applied an old answer stands under its status.
     """
     release = "5b6be522" + "0" * 56
-    recorded = f"Deployment {release[:8]} verified"
+    recorded = f"Deployment {release[:7]} verified"
     published = {
         "revision": 2,
         "url": "revisions/2.html",

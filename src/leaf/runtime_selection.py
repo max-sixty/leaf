@@ -50,6 +50,7 @@ from .layer import (
     composed_sheets,
     files_identity,
     layer_inputs,
+    package_files,
     stylesheet,
 )
 from .registry.storage import revision_vocabulary, selected
@@ -323,8 +324,6 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     ).removeprefix("sha256:")[:16]
     # Samples re-compose in their own directory. Keep just the local package
     # copies this selection needs, using the same file inventory as page init.
-    from .vendoring import package_files
-
     names = with_theme(tuple(record["packages"]), record["theme"])
     copies = {
         root.relative_to(artifact.page_dir).as_posix(): MappingProxyType(

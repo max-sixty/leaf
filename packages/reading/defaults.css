@@ -26,7 +26,7 @@
  * would have to arrive as a base64 blob in both — and referenced by URL instead
  * it silently falls back in exactly the medium (an exported file, mailed on) that
  * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
- * else; each is a screen serif with a large `height`, which is the property that
+ * else; each is a screen serif with a large x-height, which is the property that
  * matters at 17px. */
 
 /* The document is warm paper under near-black ink, in either scheme. Leaf steps its

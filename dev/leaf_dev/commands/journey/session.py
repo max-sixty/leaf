@@ -4,7 +4,7 @@ hooks module draws there, such as the band above the prompt.
 
     uv run leaf-dev journey session [--stop]
 
-The session runs as the `claude-code` journey's does (`journey_claude_code`), under a
+The session runs as the `claude-code` journey's does (`_claude_code`), under a
 throwaway home holding only the host's login and a state home of its own, but its
 plugin is the working tree itself (`--plugin-dir`), not a copy, so an edit to
 `hooks/claude-code.ts` reloads in the running session. Claude Code reloads a quiet
@@ -28,8 +28,8 @@ import click
 from leaf.server import running_server
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS
-from leaf_dev.commands.journey.run import Isolation, stop_left_running
-from leaf_dev.journey_claude_code import ClaudeCode, claude_code_environment
+from leaf_dev.commands.journey._claude_code import ClaudeCode, claude_code_environment
+from leaf_dev.commands.journey._journey import Isolation, stop_left_running
 from leaf_dev.review_scenario import prepare
 
 # Where the running session is recorded, for the next run and `--stop`.

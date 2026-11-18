@@ -2198,6 +2198,7 @@ describe("website page agent", () => {
           method: "GET",
           status: 500,
           source: "disconnected",
+          detail: body,
           retried: true,
         });
       }
@@ -2229,6 +2230,7 @@ describe("website page agent", () => {
         method: "POST",
         status: 500,
         source: "disconnected",
+        detail: lost,
         retried: false,
       });
 
@@ -2254,6 +2256,7 @@ describe("website page agent", () => {
         method: "POST",
         status: 500,
         source: "disconnected",
+        detail: lost,
         retried: true,
       });
       expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);

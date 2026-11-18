@@ -84,12 +84,13 @@ import {
   obligationHolding,
   placeOf,
   currentLocationOrigin,
+  questionAsked,
   stepFrom,
   walkOrigin,
 } from "./current-target.js";
 import { readingBlock } from "./reading-place.js";
 import { readingRegionFor } from "./reading-regions.js";
-import { closestAcross, inChrome, pageReadingVersion } from "./passages.js";
+import { closestAcross, inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
@@ -103,6 +104,7 @@ import { drawnThreadId } from "./thread/selectors.js";
 import { partOver } from "./thread/placement.js";
 import { addressableLabel } from "./addressable-names.js";
 import { userChoice } from "./storage.js";
+import { kept, keptEach } from "./kept.js";
 import { agentName } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -205,7 +207,6 @@ const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
  * arriveAtRecord: ReturnType<typeof import("./obligations/view.js").createObligationView>["arriveAtRecord"],
  * arriveAtThread: ReturnType<typeof import("./navigation.js").createNavigation>["arriveAtThread"],
  * threadPlace: (id: string) => Element | null,
- * placementVersion: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placementVersion"],
  * prepareNavigationStep: Travel["prepareNavigationStep"], arrive: Travel["arrive"],
  * announce: typeof import("./notifications.js").announce,
  * }} dependencies */
@@ -213,7 +214,6 @@ export function createQueueWalk({
   arriveAtRecord,
   arriveAtThread,
   threadPlace,
-  placementVersion,
   prepareNavigationStep,
   arrive,
   announce,
@@ -236,45 +236,22 @@ export function createQueueWalk({
     return at?.isConnected && !inChrome(at) ? at : null;
   };
 
-  // On Me's reading of the page: each item's stop, the element the stop stands at
-  // (`pagePlace`) and the heading over that element (`partOver`), and the walk's stops
-  // in On Me's order and in page order. It is derived once and kept until one of its
-  // inputs changes: the lists and obligations the server read, the plan, the user's
-  // grouping, the page's reading (`pageReadingVersion`), which moves with the ids and
-  // part names its elements bear too, and the threads' placement (`placementVersion`).
-  // A press of `m`, the position it announces and the On Me view then look items up
-  // rather than reading the page for each item (AGENTS.md, "Responsiveness").
-  /** @typedef {{key: readonly unknown[], seats: WeakMap<QueueItem, Seat>,
-   * stops: PlacedStop[] | null, pageStops: PlacedStop[] | null}} Kept */
-  /** @type {Kept | null} */
-  let kept = null;
-  function reading() {
-    const key = [
-      readQueues(),
-      readObligations().all,
-      readPlan(),
-      chosenGrouping.read(),
-      pageReadingVersion(),
-      placementVersion(),
-    ];
-    if (!kept || key.some((part, at) => part !== kept?.key[at]))
-      kept = { key, seats: new WeakMap(), stops: null, pageStops: null };
-    return kept;
-  }
-  // Each item's seat, its stop, place and heading, in the kept reading.
-  function seats() {
-    const { seats: held } = reading();
-    return (/** @type {QueueItem} */ item) => {
-      let seat = held.get(item);
-      if (!seat) {
-        const stop = queueStop(item);
-        const place = pagePlace(stop);
-        seat = { stop, place, heading: place ? partOver(place) : null };
-        held.set(item, seat);
-      }
-      return seat;
-    };
-  }
+  // An item's seat: its stop, the element the stop stands at (`pagePlace`) and the
+  // heading over that element (`partOver`).
+  /** @param {QueueItem} item @returns {Seat} */
+  const seatFor = (item) => {
+    const stop = queueStop(item);
+    const place = pagePlace(stop);
+    return { stop, place, heading: place ? partOver(place) : null };
+  };
+  // On Me's reading of the page: each item's seat, made when the item is first asked
+  // about (`seats`), and the walk's stops in On Me's order and in page order (`stops`,
+  // `pageStops`). Each is kept until something it read changes (kept.js), the lists, the
+  // obligations and the plan the server read, the user's grouping, the page's reading
+  // and the threads' placement among them, so a press of `m`, the position it announces
+  // and the On Me view look items up rather than reading the page for each item
+  // (AGENTS.md, "Responsiveness").
+  const seats = keptEach(seatFor);
 
   // Items of any list in the walk's order: by where each is arrived at on the page, and
   // those with no place there after, in the list's own order.
@@ -427,21 +404,16 @@ export function createQueueWalk({
     return list;
   }
   // The walk's stops in On Me's order, and in page order whatever On Me's grouping.
-  const stops = () => {
-    const held = reading();
-    return (held.stops ??= stopsAmong(
+  const stops = kept(() =>
+    stopsAmong(
       onMeGroups(readQueues().on_user).flatMap((group) => group.items),
       seats(),
-    ));
-  };
-  const pageStops = () => {
-    const held = reading();
+    ),
+  );
+  const pageStops = kept(() => {
     const seatOf = seats();
-    return (held.pageStops ??= stopsAmong(
-      inWalkOrder(readQueues().on_user, seatOf),
-      seatOf,
-    ));
-  };
+    return stopsAmong(inWalkOrder(readQueues().on_user, seatOf), seatOf);
+  });
 
   // The stops of a walk within `region`: the obligations waiting on the user it holds,
   // in page order whatever On Me's grouping, as the region is read on the page.
@@ -455,16 +427,16 @@ export function createQueueWalk({
   /** @param {Element | null | undefined} region */
   const stopsOf = (region) => (region ? stopsWithin(region) : stops());
 
-  // The item the user is on, if any: the thread holding them, else the innermost of the
+  // The item the user is on, if any: the thread holding them, else the question that
+  // thread asks them (`questionAsked`, current-target.js), else the innermost of the
   // list's obligations holding their place, as `obligationHolding` reads obligations,
   // or the innermost widget an action was handed back on, in page order the last that holds
   // them. A thread drawn beside their place, such as the card a thread about an
   // obligation opens, is not one they are in, so a thread stop of its own is the next
   // one along from the obligation, and from the thread's target the press arrives at
-  // it. Being in a thread that holds an open obligation is not being on that
-  // obligation. `origin` names the user's place unless a walk supplies its own starting
-  // point; only a current location can be on a stop, so a place they let go of or a
-  // reading in the viewport starts a walk but selects no task to finish or count.
+  // it. `origin` names the user's place unless a walk supplies its own starting point;
+  // only a current location can be on a stop, so a place they let go of or a reading in
+  // the viewport starts a walk but selects no task to finish or count.
   /** @param {readonly PlacedStop[]} list @param {Origin | null} origin */
   function currentLocationStop(list, origin = currentLocationOrigin()) {
     if (origin?.kind !== "current-location") return null;
@@ -494,9 +466,9 @@ export function createQueueWalk({
   // (`obligationHolding`).
   /** @type {WeakMap<readonly PlacedStop[], {listed: PlacedStop[], records: Obligation[]}>} */
   const obligationStops = new WeakMap();
-  // The obligation or subject stop holding the user's place, if any.
+  // The obligation or subject stop the user is on, if any.
   /** @param {readonly PlacedStop[]} list @param {Origin} origin */
-  function placeStop(list, { place: here }) {
+  function placeStop(list, { node, place: here }) {
     let held = obligationStops.get(list);
     if (!held) {
       const listed = list.filter((stop) => stop.kind === "obligation");
@@ -504,8 +476,10 @@ export function createQueueWalk({
       obligationStops.set(list, held);
     }
     const { listed, records } = held;
-    const item = obligationHolding(records, placeOf(here), readObligations().all);
-    if (item) return listed.find((stop) => stop.id === item.id);
+    const item =
+      questionAsked(node) ??
+      obligationHolding(records, placeOf(here), readObligations().all);
+    if (item) return listed.find((stop) => stop.id === item.id) ?? null;
     return (
       list.findLast((stop) => {
         if (stop.kind !== "subject") return false;

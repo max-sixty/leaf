@@ -1,5 +1,6 @@
 /*
- * Browser-side observations for `leaf-dev site verify`, installed before each navigation.
+ * Browser-side observations for the website's pages (`leaf_dev.website`), which
+ * `leaf-dev site verify` and `leaf-dev journey run` install before each navigation.
  * Shared startup evidence is installed separately. Reply readings use sessionStorage
  * because the agent journey may navigate before Python reads them. __leafVerifier is
  * the website-specific Playwright boundary exposed to the Python orchestrator.

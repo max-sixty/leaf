@@ -25,7 +25,6 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
-    panel_menu,
     resized,
     round_trip,
     scroll_settled,
@@ -37,7 +36,7 @@ from render_harness import (
     write,
 )
 
-from browser.widgets import PLAYGROUND_PAGE
+from browser.widgets import PLAYGROUND_PAGE, expect_accept_all
 from journeys import first_thread_head
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -48,15 +47,6 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-def expect_accept_all(page, words):
-    """The leaf's menu offers accepting every remaining suggestion, by its count; read
-    the row enabled and put the menu away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="blanket:accept"]')
-    expect(row).to_have_text(words)
-    expect(row).to_be_enabled()
-    page.locator(".lf-fp-leaf").click()
 
 
 MOTION_SAMPLE_CONTENT = """
@@ -1175,7 +1165,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
         "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
     )
     expect(rejected).to_be_hidden()
-    expect_accept_all(second, "Accept all (2)")
+    expect_accept_all(second, 2)
 
     # Now the race the controls make possible: a window cut off from the log still
     # shows both buttons, so the user can decide the other way there. Two
@@ -1189,7 +1179,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
-    expect_accept_all(second, "Accept all (1)")
+    expect_accept_all(second, 1)
     unfolded_button(
         third.locator(
             "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=reject]"
@@ -1295,10 +1285,6 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
     page.keyboard.press("Escape")
 
 
-import pytest
-
-
-@pytest.mark.shifts_unsurveyed
 @pytest.mark.parametrize("destination", ["call", "patch"])
 def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
     """Light-DOM data and its shadow-DOM destination keep exact identity."""

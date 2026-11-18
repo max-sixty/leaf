@@ -41,7 +41,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.commands.generate.corpus import sources as corpus_sources
+from leaf_dev.corpus import sources as corpus_sources
 
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
@@ -741,6 +741,42 @@ def open_card(page: Page, marker: Locator) -> float:
     marker.click()
     page.wait_for_function(OPEN_CARD)
     return before
+
+
+def summary_card(page: Page) -> None:
+    """A margin card a summary of the thread's opening messages opens, under its
+    actions, and the agent's latest reply after it."""
+    root = "9303f850cbdc9b9f79f1725011251d36"
+    as_agent("thread", "reply", root, "--text", "Export now checks the sandbox first.")
+    # A summary speaks in its agent's voice, which a session gives it.
+    served = served_page.get()
+    served.leaf(
+        "thread",
+        "summarize",
+        str(served.directory),
+        "--from",
+        root,
+        "--through",
+        "sandbox-shutdown-reply",
+        "--text",
+        "The supervisor reaps every child before export, so an empty sandbox is "
+        "its precondition.",
+        LEAF_SESSION_ID="stills-summary",
+        LEAF_AGENT="Codex",
+    )
+    wait_until_ready(
+        page, PageClient(served_page.get().address).state(), through="state"
+    )
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    page.mouse.move(0, 0)
+
+
+def summary_card_opened(page: Page) -> None:
+    """The same card with its summary opened on the messages it folds."""
+    summary_card(page)
+    page.locator(".lf-margin-preview .lf-summary-expand").click()
+    settle(page)
+    page.mouse.move(0, 0)
 
 
 def thread_by_marker(page: Page) -> None:
@@ -2009,6 +2045,15 @@ def chart_preview(page: Page) -> None:
     settle(page)
 
 
+def chart_point_aim(page: Page) -> None:
+    """The point `chart_preview` reads under Alt: Leaf's aim on the mark round the
+    chart's ring, which a click takes as the comment's point (lf-chart.js). A runtime
+    whose charts take no comment on a point aims at the whole chart."""
+    chart_preview(page)
+    page.keyboard.down("Alt")
+    settle(page)
+
+
 def gallery_plans(page: Page) -> None:
     """Planned work beside observed history, using authored stable section identity."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
@@ -3212,6 +3257,7 @@ STATES = (
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),
     State("chart-preview", "feature-gallery", chart_preview, region="#bg-chart"),
+    State("chart-point-aim", "feature-gallery", chart_point_aim, region="#bg-chart"),
     State("gallery-plans", "feature-gallery", gallery_plans),
     State(
         "gallery-drawing",
@@ -3278,6 +3324,18 @@ STATES = (
         "plan-card-cluster-resolved",
         "review-a-plan",
         card_cluster_resolved,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "summary-card",
+        "review-a-plan",
+        summary_card,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "summary-card-opened",
+        "review-a-plan",
+        summary_card_opened,
         region=".lf-margin-preview",
     ),
     State(

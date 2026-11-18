@@ -108,6 +108,7 @@ import { move } from "../dom-move.js";
 import {
   declareRelease,
   focusDestination,
+  focusElement,
   handBack,
   holdFocus,
   layerLanding,
@@ -663,7 +664,7 @@ export function createMarginProjection({
   // hidden: `focusDestination`'s call, with its cause.
   /** @param {Parameters<typeof focusDestination>[0]} control @param {Parameters<typeof focusDestination>[1]} cause @param {Parameters<typeof focusDestination>[2]} [options] */
   function focusForNavigation(control, cause, options) {
-    reveal(control);
+    reveal(focusElement(control));
     focusDestination(control, cause, options);
   }
 

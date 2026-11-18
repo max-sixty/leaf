@@ -124,7 +124,7 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
 
 
 def _bound(page_dir: Path) -> list[tuple[str, Path]]:
-    # Files a page binds for editing live outside it, so each is stamped by path.
+    # Files a page binds for editing may live outside it, so each is stamped by path.
     return [(f"$file:{name}", path) for name, path in bound_paths(page_dir).items()]
 
 
@@ -182,8 +182,8 @@ def held_page_reading(page_dir: Path) -> str:
     the same stamps (`source_readings`), so a file source validation reads that could
     change without moving it would leave a save unactivated; `media/` is stamped
     without descending because its filenames are content-addressed. The state answer
-    also carries each bound file's stamp (`file_bindings.binding_stamps`), naming
-    which binding moved.
+    also carries each bound file's label and stamp (`file_bindings.bound_files`),
+    naming which binding moved.
     """
     return _token([*_page_stamps(page_dir), *_outside_stamps(page_dir)])
 

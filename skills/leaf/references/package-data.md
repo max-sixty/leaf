@@ -140,7 +140,7 @@ On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
 
 An answer has one owner, the widget whose `awaits.value` verb records it, but the
 user may want to see and change it from another view, as a board gathers the picks of
-proposals answered in their own sections. The view's element declares `shows`, as
+proposals answered in their own questions. The view's element declares `shows`, as
 `lf-card` does:
 
 ```json

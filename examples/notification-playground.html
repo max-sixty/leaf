@@ -15,15 +15,30 @@
         container-type: inline-size;
       }
 
-      /* A setting's reading stands at the end of its words' line, above its slider. */
+      /* A setting's reading stands at the end of its words' first line, in a column
+         of its own, so words that wrap in a narrow rail stop short of it; the slider
+         under them spans both columns. The reading keeps to the top of the row,
+         which also holds the slider, so it never covers the slider's end. */
       #notification-playground .setting {
-        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        column-gap: var(--lf-sp-2);
+      }
+
+      #notification-playground .setting > label {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        grid-template-columns: subgrid;
+      }
+
+      #notification-playground .setting > label > input {
+        grid-column: 1 / -1;
       }
 
       #notification-playground .setting > output {
-        position: absolute;
-        inset-block-start: 0;
-        inset-inline-end: 0;
+        grid-column: 2;
+        grid-row: 1;
+        align-self: start;
       }
 
       /* The two formats are lanes down the stage: a stage the window holds taller than
@@ -358,7 +373,7 @@
   <body>
     <main class="layout-workspace density-working" id="notification-workspace">
       <lf-group id="notification-ask" label="Stress-test the deployment notification">
-        <h1 id="notification-ask-h">Stress-test the deployment notification</h1>
+        <h1>Stress-test the deployment notification</h1>
         <lf-playground
           id="notification-playground"
           contract="notification-playground-values"

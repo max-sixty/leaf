@@ -83,13 +83,17 @@ rubrics:
       The input is the line "The fork gave no usable answer.", which fails, or a
       conversation between a user and a coding agent, a thread on the agent's page as
       its log holds it (a `summary` event folds the messages from `from` through
-      `through`), the range of the thread a fork of that conversation was asked to
-      summarize, and the summary Leaf posted from the fork's answer as the agent's,
-      which reads "(no summary)" when Leaf posted none, which fails. Pass only if the summary is Markdown prose that gives the range's
+      `through`), the range of the thread Leaf suggested a fork of that conversation
+      summarize, the range the summary folds, and the summary Leaf posted from the
+      fork's answer as the agent's, which reads "(no summary)" when Leaf posted none,
+      which fails. Pass only if the summary is Markdown prose that gives the range's
       decisions, their reasons where the thread gives them, and its open questions,
       correctly and from the original messages, including those an earlier summary
       in the range folded; holds every decision the range made; and answers nothing
-      the thread's newest message asks, which is the agent's to answer.
+      the thread's newest message asks, which is the agent's to answer. The range
+      must fold the settled earlier discussion, and each message the thread keeps
+      after it must read on from the summary: where a kept message answers a
+      question the range folds, the summary states that question.
 
 # The words a guardrail and its positive case share.
 words:
@@ -226,7 +230,7 @@ conversations:
     - leaf: >-
         Leaf has new input for your turn. Read this complete delivery before
         answering.
-        {"format": "leaf-delivery/46", "batches": [{"page": "{page}", "threads":
+        {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
         [{"id": "c1", "anchor": {"section": "cache-findings"}, "messages": [{"id":
         "c1", "author": "user", "text": "Does TTL's 74% count the cache warming up
         from empty?"}]}], "handling": {"h1": "Answer it with `leaf thread reply`."},
@@ -559,7 +563,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/46", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
           [{"id": "q1", "title": "Turning on the LRU cache in staging", "resolved":
           "user", "messages": [{"id": "q1", "author": "agent", "text": "Setting
           staging flags needs your ops login, which this session doesn't have. Run
@@ -1111,7 +1115,6 @@ cases:
     conversation:
       - from: flaky
       - *flaky-reply
-    thread: w1
     waiting:
       - kind: comment
         author: user
@@ -1131,7 +1134,6 @@ cases:
     conversation:
       - from: flaky
       - *flaky-reply
-    thread: w1
     waiting:
       - kind: comment
         author: user
@@ -1151,7 +1153,6 @@ cases:
     conversation:
       - from: flaky
       - *flaky-reply
-    thread: w1
     waiting:
       - kind: comment
         author: user
@@ -1195,7 +1196,6 @@ cases:
           description: Ask on the page which fix to make
         result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "Which fix to make", "obligation": true}'
       - *flaky-reply
-    thread: q1
     waiting:
       - kind: reply
         author: user
@@ -1225,7 +1225,6 @@ cases:
         input:
           command: pytest -n 8 -q
           description: Run the full suite with the warmup awaited
-    thread: w1
     waiting:
       - kind: comment
         author: user
@@ -1245,7 +1244,6 @@ cases:
     conversation:
       - from: flaky
       - *flaky-reply
-    thread: w1
     waiting:
       - kind: comment
         author: user
@@ -1270,7 +1268,6 @@ cases:
           I'm leaning toward awaiting the warmup, since it's three lines, but the 200 ms
           is an estimate. I'll measure startup on a production-size cache next, and
           recommend one once I have the number.
-    thread: w1
     waiting:
       - kind: comment
         author: user
@@ -1299,7 +1296,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/46", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
           [{"id": "r1", "title": "Release bf40b427 deployment checks passed",
           "anchor": null, "resolved": null, "messages": [{"id": "r2", "author":
           "agent", "text": "recording that release bf40b427 passed its deployment
@@ -1341,7 +1338,6 @@ cases:
           checks: a new tile in the status panel, beside the countdown to the
           Thursday cut. I didn't change any cards or columns. The update is live, and
           I've answered your comment on the page.
-    thread: w1
     waiting: &count-cards
       - kind: comment
         author: user
@@ -1365,7 +1361,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/46", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
           [{"id": "r1", "title": "Splitting the webhook retries card", "anchor":
           {"section": "card-retry"}, "resolved": null, "messages": [{"id": "r2",
           "author": "agent", "text": "splitting the webhook retries card into one per
@@ -1384,7 +1380,6 @@ cases:
           old_string: <lf-card id="card-retry">Webhook retries ignore Retry-After</lf-card>
           new_string: <lf-card id="card-retry-acme">Acme rate limits our webhook retries, which ignore Retry-After</lf-card>
         result: The file {page}/index.html has been updated successfully.
-    thread: w1
     waiting: *count-cards
     labels:
       work: hand_over
@@ -1486,7 +1481,6 @@ cases:
     conversation:
       - from: cache
       - *cache-reply
-    thread: w1
     waiting:
       - kind: reply
         author: user
@@ -1495,3 +1489,63 @@ cases:
         text: Could we keep serving the old results during a rebuild instead?
     assert:
       - *summary
+  # A thread long enough that Leaf suggests folding its first five messages, whose
+  # exact claims the user's newest message asks the agent to walk through, so the
+  # fork folds nothing (`{"fold": false}`). From the agent's own case,
+  # thread-summary-preserves-needed-exchange.
+  summary-keeps:
+    fork: summary
+    declines: true
+    page: turn-end-check/pages/cache.html
+    log:
+      - kind: comment
+        author: user
+        revision: 1
+        id: ttl-one
+        text: The feed updates every ten minutes. What TTL follows?
+        anchor:
+          section: cache-lede
+          quote: TTL at five minutes
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: ttl-one
+        responds: ttl-one
+        id: ttl-two
+        text: Ten minutes, if expiry starts at the feed's publication.
+      - kind: reply
+        author: user
+        parent: ttl-one
+        id: ttl-three
+        text: It starts at the request, which can precede publication by five minutes.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: ttl-one
+        responds: ttl-three
+        id: ttl-four
+        text: Then five minutes caps the stale interval at ten.
+      - kind: reply
+        author: user
+        parent: ttl-one
+        id: ttl-five
+        text: But a request just after publication gets almost fifteen minutes that way.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: ttl-one
+        responds: ttl-five
+        id: ttl-six
+        text: You're right. I mixed up the expiry origin and the staleness origin.
+    conversation:
+      - from: cache
+      - *cache-reply
+    thread: ttl-one
+    waiting:
+      - kind: reply
+        author: user
+        parent: ttl-one
+        id: ttl-seven
+        text: Walk through those two claims against my counterexample.
+    # The `declined` check is the whole score: there is no summary to judge.
+    assert: []

@@ -121,9 +121,17 @@
           "additionalProperties": false
         },
         "files": {
-          "description": "Each bound file's stamp, by binding, which moves when the file may have: an editor reads its file only when this stamp does.",
+          "description": "Each bound file, by binding (`file_bindings.bound_files`): its label, the name the browser shows for it, and its stamp, which moves when the file may have, so an editor reads its file only when this stamp does.",
           "type": "object",
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "stamp": { "type": "string" }
+            },
+            "required": ["label", "stamp"],
+            "additionalProperties": false
+          }
         },
         "status": {
           "description": "The agent's declaration, the newest `status` event (`activity.declaration`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
@@ -1566,16 +1574,7 @@
               "label": { "type": "string" },
               "protected": { "type": "array", "items": { "type": "string" } }
             },
-            "required": [
-              "id",
-              "seq",
-              "from",
-              "through",
-              "covers",
-              "text",
-              "label",
-              "protected"
-            ],
+            "required": ["id", "seq", "from", "through", "covers", "text", "protected"],
             "additionalProperties": false
           }
         },

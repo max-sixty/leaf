@@ -47,13 +47,22 @@ def settled(page):
     wait_for_probe(page, "restingIn", PANEL, ".lf-fp-ground")
 
 
-def ink_box(image, colour):
-    difference = ImageChops.difference(image, Image.new("RGB", image.size, colour))
+def ink_box(image, window):
+    """The `(left, top, right, bottom)` box around the pixels of the RGB `image` whose
+    every channel lies in `window`, a `(low, high)` range per channel, both ends
+    excluded, or None where none does."""
     channels = [
-        channel.point(lambda value: 255 if value < 30 else 0)
-        for channel in difference.split()
+        channel.point(
+            lambda value, low=low, high=high: 255 if low < value < high else 0
+        )
+        for channel, (low, high) in zip(image.split(), window, strict=True)
     ]
     return ImageChops.darker(ImageChops.darker(*channels[:2]), channels[2]).getbbox()
+
+
+def near(colour, tolerance: int = 30) -> list[tuple[int, int]]:
+    """The `ink_box` window of the RGB `colour`, each channel within `tolerance`."""
+    return [(value - tolerance, value + tolerance) for value in colour]
 
 
 # The mark's and the ring's colours as a screenshot holds them. Computed style keeps a
@@ -154,13 +163,13 @@ def reading(viewport, route, action, colours, boxes, frames) -> dict:
             .convert("RGB")
             .crop((0, viewport["height"] - 70, viewport["width"], viewport["height"]))
         )
-        mark = ink_box(pixels, colours["mark"])
+        mark = ink_box(pixels, near(colours["mark"]))
         missing_mark += mark is None
         if mark is not None:
             center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
             centers.append(center[0])
         if route == "keyboard":
-            ring = ink_box(pixels, colours["ring"])
+            ring = ink_box(pixels, near(colours["ring"]))
             missing_ring += ring is None
             if mark is not None and ring is not None:
                 ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)

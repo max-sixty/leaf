@@ -14,10 +14,14 @@ Each copy is one process (`-n0`: the copies are the concurrency).
 The copies are load that exists only to compete for the machine, so on macOS each one
 runs in the background band (`taskpolicy -b`), which gives it only the CPU and disk the
 machine's other work leaves, on the efficiency cores. The copies still compete with
-each other, `--workers` at a time. Beside other runs or other sessions' work, a run takes
-longer rather than slowing them, though the band shares out CPU and disk, not memory.
-A slower copy reports the same result, because the suite's results don't depend on
-execution speed (`tests/AGENTS.md`, "Results do not depend on execution speed").
+each other, `--workers` at a time, and with the `--load` busy loops beside them, which
+run in the same band and end with this command, since each spins only while its parent
+is this command. A copy's demand for CPU comes and goes, so copies alone starve a test
+less steadily than loops do. Beside other runs or other
+sessions' work, a run takes longer rather than slowing them, though the band shares out
+CPU and disk, not memory. A slower copy reports the same result, because the suite's
+results don't depend on execution speed (`tests/AGENTS.md`, "Results do not depend on
+execution speed").
 
 A load flake that a slower CI runner shows and this machine doesn't can need a slower
 CPU rather than more copies: `--cpu-throttle RATE` passes the suite's own option, which
@@ -29,6 +33,7 @@ copy of every test passed; a skip is not a pass.
 """
 
 import shutil
+import subprocess
 import sys
 import tempfile
 from collections import Counter, defaultdict
@@ -42,6 +47,9 @@ from leaf_dev.arms import run_directory
 from leaf_dev.commands.suite._runs import checkout, collect, run, snapshot
 
 BACKGROUND = ("taskpolicy", "-b") if sys.platform == "darwin" else ()
+# A busy loop that spins while this command is its parent, so one this command
+# can't end, as after a SIGKILL, ends itself.
+SPIN = "import os\nparent = os.getppid()\nwhile os.getppid() == parent:\n    pass"
 # A message is printed to this many lines; the log keeps all of it.
 LINES = 12
 OUT = ROOT / ".tmp" / "flake"
@@ -65,13 +73,24 @@ RESULTS = ("passed", "failed", "error", "skipped", "not run")
     help="How many copies run at once.",
 )
 @click.option(
+    "--load",
+    type=click.IntRange(min=0),
+    default=0,
+    show_default=True,
+    help="How many busy loops run beside the copies.",
+)
+@click.option(
     "--cpu-throttle",
     "throttle",
     type=click.FloatRange(min=1),
     help="Slow every Chromium page the tests open this many times.",
 )
 def flake(
-    selection: tuple[str, ...], copies: int, workers: int, throttle: float | None
+    selection: tuple[str, ...],
+    copies: int,
+    workers: int,
+    load: int,
+    throttle: float | None,
 ) -> None:
     """Run tests as concurrent copies to surface load flakes.
 
@@ -106,12 +125,19 @@ def flake(
             finally:
                 shutil.rmtree(target)
 
+        loops = [
+            subprocess.Popen([*BACKGROUND, sys.executable, "-c", SPIN])
+            for _ in range(load)
+        ]
         pool = ThreadPoolExecutor(workers)
         try:
             results = list(pool.map(copy, range(1, copies + 1)))
         finally:
             # On Ctrl-C, start no more copies; the running ones stop with it.
             pool.shutdown(cancel_futures=True)
+            for loop in loops:
+                loop.terminate()
+                loop.wait()
 
     click.echo(f"| test | {' | '.join(RESULTS)} |\n|---|{'---|' * len(RESULTS)}")
     for item in items:

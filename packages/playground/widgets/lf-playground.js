@@ -341,6 +341,7 @@ customElements.define(
           const pick = initial.candidate(target);
           if (!pick) return;
           if (reachedForWords(pick.box) || worksInside(target, pick.box)) return;
+          event.preventDefault();
           focusDestination(pick.radio, "press");
           pick.radio.click();
         });

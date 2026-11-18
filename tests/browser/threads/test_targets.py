@@ -167,6 +167,67 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
     assert armed["act"] == armed["twin"], armed
 
 
+def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
+    """A press means one thing. A press on an option card picks it and one on a gloss
+    pins its card, so neither opens the thread on the question they stand in, whose
+    reply box would take the user's focus (composing/surface.js, the page's click). A
+    gloss in a label leaves the press to the label, which ticks its box. A press on the
+    question's own words still opens that thread."""
+    source = leaf_page(
+        "Commented question",
+        '<lf-group id="cache-q" label="Which cache should the importer use?">'
+        "<h2>Which cache should the importer use?</h2>"
+        '<p id="words">Both hold a day of results.</p>'
+        '<p>Only a <lf-gloss id="durable" tip="It survives a restart.">durable store'
+        "</lf-gloss> keeps them.</p>"
+        '<p><label><input type="checkbox" id="wal-on"> Turn on the '
+        '<lf-gloss id="wal" tip="A log of each write before it lands.">WAL</lf-gloss>'
+        "</label></p>"
+        '<lf-options id="cache">'
+        '<lf-option id="cache-memory" label="In memory"><strong>In memory</strong>'
+        " Nothing new to run.</lf-option>"
+        '<lf-option id="cache-redis" label="Redis"><strong>Redis</strong>'
+        " One more service.</lf-option>"
+        "</lf-options></lf-group>",
+    )
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Does Redis need a deploy step?",
+                    "anchor": {"section": "cache-q"},
+                }
+            ],
+        ),
+    )
+    expect(page.locator("#cache-q")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    card = page.locator(".lf-margin-preview")
+
+    page.locator("#cache-redis strong").click()
+    expect(page.locator("#cache-redis lf-option-control")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    page.locator("#wal").click()
+    expect(page.locator("#wal-on")).to_be_checked()
+    expect(page.locator("#wal [aria-expanded]")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    page.locator("#durable").click()
+    expect(page.locator("#durable [aria-expanded]")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    rendered(page)
+    expect(card).to_be_hidden()
+
+    page.locator("#words").click()
+    expect(card.locator("leaf-text")).to_be_focused()
+
+
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     browser, serve
 ):

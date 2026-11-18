@@ -406,8 +406,12 @@ A control labelled with the page's own words skips a click where
 `reachedForWords(control)` is true, since the user was selecting the words, but lets a
 click made with Enter or Space through, checking `pressIsKeyboardActivation(event)`
 first. A container that takes a click anywhere on it, as an option card does, asks
-`worksInside(event.target, container)` for the control inside that the click was aimed
-at.
+`worksInside(event.target, container)` for the control the click was aimed at, inside
+the container or around it, and leaves the click to that control.
+
+A click on words a thread marks opens that thread, unless the click landed on a control
+or a handler took it. So a handler that acts on a click on anything but a control, such
+as a card, a mark or a phrase, calls `event.preventDefault()`.
 
 Call `dragging(this, true)` when the user starts dragging the widget and
 `dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;

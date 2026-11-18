@@ -231,6 +231,7 @@ customElements.define(
           return;
         if (reachedForWords(this)) return;
         if (!this.#available()) return;
+        ev.preventDefault();
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
       });
 

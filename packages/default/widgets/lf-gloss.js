@@ -110,6 +110,7 @@ customElements.define(
       const nested = worksInside(target, this);
       if (nested && nested !== this.#mark) return;
       if (event.composedPath().includes(this.#bubble)) return;
+      event.preventDefault();
       this.#pin(!this.#pinned);
       this.#sync();
     }

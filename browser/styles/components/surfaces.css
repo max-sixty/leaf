@@ -505,7 +505,9 @@ a[data-lf-external]::after,
 /* A part that draws no shape of its own, such as a chart's axis label or key entry,
    or a marker it draws by `<use>` from shapes kept in `<defs>`, has no contour to take
    the mark, so it wears the outline round its box that words wear elsewhere, its words
-   and marker keeping their own paint. */
+   and marker keeping their own paint. Its neighbours in a drawing stand closer than a
+   control's gap, as the next label or dot does in a chart, so the outline stands on
+   its edge (tokens.css, "Where it stands"). */
 :where(svg)
   :where(:not(foreignObject *)):where(
     [data-lf-aimed],
@@ -516,6 +518,7 @@ a[data-lf-external]::after,
   ):not(path, rect, circle, ellipse, line, polyline, polygon):not(
     :has(:is(path, rect, circle, ellipse, line, polyline, polygon):not(defs *))
   ) {
+  --lf-ring-at: 0;
   outline-style: solid !important;
 }
 :where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {

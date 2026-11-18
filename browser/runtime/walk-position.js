@@ -29,18 +29,23 @@ window.addEventListener(WALK, () => {
 });
 
 // The walk over a flat list of focusable rows, declared once for every list that has
-// one: ArrowUp and ArrowDown step and clamp, Home and End land on the ends, and every
+// one: ArrowUp and ArrowDown step and clamp, Home and End land on the ends, and a
 // landing reports its position. It returns the two register rows, `<id>.walk` and
 // `<id>.edge`, for the owner's own scope; `id` is also the walk's position key and the
-// prefix of each route. `steps` names the four routes and their words, in the order
-// ArrowUp, ArrowDown, Home, End, for a list whose ends have a meaning of their own.
-// `position` reads where a landing stands, by default its place among the rows. A list
-// passes its own where the items it counts are narrower than the stops the walk lands
-// on, as a fold's door between items is a stop and not an item, or where another walk
-// over the same items already reports their position, so both say the same. A reader
-// returns null for a landing it counts no item at, which shows no position.
+// prefix of each route, and `noun` names its steps ("Next entry"). `steps` names the
+// four routes and their words, in the order ArrowUp, ArrowDown, Home, End, for a list
+// whose ends have a meaning of their own. The rows are on screen, so a landing's
+// position names no list, "3 of 14" (walk-declaration.js, `beginWalk`). `position`
+// reads where a landing stands, by default its place among the rows. A list passes
+// its own where the items it counts are narrower than the stops the walk lands on, as
+// a fold's door between items is a stop and not an item, or where another walk over
+// the same items already reports their position, so both say the same. A reader
+// returns null for a landing it counts no item at, which shows no position and ends
+// any walk standing. A list wholly in view, such as a question's options, passes
+// `position: null` and declares no walk, since the ring shows where it stands; the
+// walk the user came by, such as On Me's, stands.
 // `landed(row)` runs after a press that moved focus to another row. `scroll: false`
-// holds the page still for a list read off what is in view, such as the Page Map's
+// holds the page still for a list read off what is in view, such as the margin's
 // visible markers, where scrolling to the landed row would change the list the walk
 // is over. A walk that comes round at its ends steps with `cycledRow`
 // (keyboard/bindings.js); the page's queue walk steps by document position.
@@ -51,7 +56,7 @@ const STEPS = Object.freeze(["previous", "next", "first", "last"]);
  *   noun: string,
  *   plural: string,
  *   rows: () => HTMLElement[],
- *   position?: () => ReturnType<typeof listWalkPosition>,
+ *   position?: (() => ReturnType<typeof listWalkPosition>) | null,
  *   steps?: readonly [string, string, string, string],
  *   landed?: (row: HTMLElement) => void,
  *   scroll?: boolean,
@@ -82,7 +87,7 @@ export function rowWalk({
     // After the focus paint this move queued, since a landing measures the box wearing
     // the row's ring, which that paint marks (focus.js, `ringBox`).
     if (scroll) afterScript(() => scrollIntoView(row, { block: "nearest" }));
-    beginWalk(id, noun, position);
+    if (position) beginWalk(id, null, position);
     if (row !== was) landed?.(row);
   };
   return [

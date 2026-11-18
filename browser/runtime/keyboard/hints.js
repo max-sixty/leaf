@@ -42,7 +42,6 @@ import { layoutWindow } from "../geometry.js";
 import { scrollDrawn, scrolling, watchScrollEnds } from "../arrivals.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
-import { beginWalk, listWalkPosition } from "../walk-position.js";
 
 /** @typedef {import("../rect.js").Box & {held?: boolean}} HintBarrier */
 /** @typedef {import("../rect.js").Box & {width: number, height: number, held?: boolean, clippedTop?: boolean}} HintBox
@@ -570,7 +569,7 @@ export function seatHints(
    scene that is leaving. */
 /** @template {{code: string}} C
  * @template {{key: unknown, className: string}} M
- * @typedef {{layer: HTMLElement, walk: string, read: () => C[], identity: (candidate: C) => Element,
+ * @typedef {{layer: HTMLElement, read: () => C[], identity: (candidate: C) => Element,
  * kept?: (candidate: C) => boolean,
  * layout: (candidates: C[], options: {current: C | undefined}) => {candidate: C, model: M, left: number, top: number, target: HintBox, placement: HintPlacement}[],
  * template: (model: M) => unknown, take: (candidate: C) => unknown,
@@ -580,7 +579,6 @@ export function seatHints(
  * @param {HintSessionOptions<C, M>} options */
 export function createHintSession({
   layer,
-  walk: walkKey,
   read,
   identity,
   kept = () => true,
@@ -734,12 +732,10 @@ export function createHintSession({
   function walk(direction) {
     const targets = hinted();
     if (!hasRows(targets)) return;
-    // Nothing heard yet, the walk starts at whichever end it walks from.
+    // Nothing heard yet, the walk starts at whichever end it walks from. Every hint
+    // stands on screen, so the step says no position.
     const target = cycledRow(targets, targets[at], direction);
     at = targets.indexOf(target);
-    beginWalk(walkKey, "Target", () =>
-      listWalkPosition(hinted(), hinted()[at], { identity }),
-    );
     const said = words.describe(target);
     const stop = /[.!?]$/.test(said) ? "" : ".";
     announce(

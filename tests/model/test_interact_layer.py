@@ -1,5 +1,6 @@
 """CLI, plugin payload, layer, and customization tests."""
 
+import gc
 import json
 import os
 import re
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import threading
 import tomllib
+import weakref
 from datetime import datetime
 from pathlib import Path
 
@@ -3081,7 +3083,9 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
     and sharing the CPU with every request behind them."""
     record = registry_storage.layer_record(page_dir)
     assert record is not None
-    layer_model._vocabularies.clear()
+    # A process that has composed no layer yet, for any page.
+    monkeypatch.setattr(layer_model, "_shared", layer_model._Layers())
+    monkeypatch.setattr(page_memory, "_memories", page_memory.PageMemories())
     requests: list[threading.Thread] = []
     composed = []
     compose = layer_model.compose_vocabulary
@@ -3122,6 +3126,42 @@ def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monke
 
     assert len(composed) == 1
     assert len(read) == 8 and all(vocabulary is read[0] for vocabulary in read)
+
+
+def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
+    tmp_path, monkeypatch
+):
+    """A layer that reads a page's own copy of a package is kept in the page's memory
+    beside the copy's stamp (`layer._held`). Each `page init` that replaces the copy
+    replaces that layer rather than keeping another beside it, so a process holds one
+    layer for the page however often its package is edited, and none once it drops
+    the page's memory."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "notes"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    page = tmp_path / "page"
+    kept = weakref.WeakSet()
+    for edit in range(3):
+        sheet = f".note {{ --edit: {edit}; }}"
+        (package / "defaults.css").write_text(sheet + "\n")
+        made = CliRunner().invoke(
+            cli_model.cli, ["page", "init", "--package", "./notes", str(page)]
+        )
+        assert made.exit_code == 0, made.output
+        record = registry_storage.layer_record(page)
+        assert record is not None
+        layer = registry_storage.selected(record, page)
+        assert sheet in layer.files["/theme.css"].decode()
+        kept.add(layer)
+    del layer
+    gc.collect()
+    assert len(kept) == 1
+
+    for n in range(page_memory.PageMemories.LIMIT):
+        page_memory.memory_of(tmp_path / f"other-{n}")
+    gc.collect()
+    assert len(kept) == 0
 
 
 @pytest.mark.parametrize(

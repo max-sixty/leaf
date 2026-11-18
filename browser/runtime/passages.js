@@ -1369,11 +1369,6 @@ export function drawsWithin(element, visibility = true) {
   }
   return false;
 }
-// The other question, and a different answer: what the *author* wrote here, with
-// everything an upgrade generated left out. A version comparison keys sources by it and
-// paints a source's words onto the live block that reads the same.
-/** @param {Node} el */
-export const wrote = (el) => quoteFrom(textNodesUnder(el, "wrote"));
 // The words that name an element: what the author wrote there, less a popover's, such
 // as a gloss's explanation. A widget asks it to name one of its own parts, where `says`
 // would hand back the widget's own declared labels along with the words — a picked

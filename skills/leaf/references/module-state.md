@@ -41,8 +41,9 @@ recorded action applied, including the user's latest gestures before the server 
 them. `memberships` maps each attribute an `attribute` record marks to the ids of the
 members the widget currently owns. `thread.heldBy` is the id of the open Thread whose
 opening message holds this widget, or `null`. Each entry in `actions` says whether the
-action is available and what Undo can take back; check it before changing anything for
-the action. Before the document has loaded, `authored` and `state` may be missing, and a
+action is `available`, why not in `unavailable` (a phrase such as `no agent or server is
+available`, or `null`), and what Undo can take back; check it before changing anything
+for the action. Before the document has loaded, `authored` and `state` may be missing, and a
 `LeafElement` draws nothing until `state` holds every declared verb.
 
 Record a gesture with `dispatch({kind: "action", verb, detail, attempt?, says?})`, and

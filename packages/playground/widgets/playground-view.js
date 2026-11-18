@@ -355,7 +355,6 @@ export function createPlayground(host) {
     pageSubmit.replaceChildren();
     pageSubmit.dataset.lfRoom = submitRoom;
   }
-  const offline = Boolean(document.querySelector("script[data-lf-offline]"));
   const presetBar = () =>
     !presets.length
       ? nothing
@@ -498,8 +497,13 @@ export function createPlayground(host) {
       }
       return { attributes, properties };
     },
-    /** @param {{values?: Configuration, instruction?: string | null, chosen?: () => boolean}} [options] */
-    render({ values: next = defaults, instruction = null, chosen = () => false } = {}) {
+    /** @param {{values?: Configuration, instruction?: string | null, chosen?: () => boolean, unavailable?: string | null}} [options] */
+    render({
+      values: next = defaults,
+      instruction = null,
+      chosen = () => false,
+      unavailable = null,
+    } = {}) {
       // A field takes a value only where it differs from what the field last showed,
       // so the words being typed and a number being cleared stay as they are.
       for (const [name, each] of fields) {
@@ -570,9 +574,9 @@ export function createPlayground(host) {
             <div class="lf-playground-instruction-body">${output}</div>
           </div>
           ${
-            offline
+            unavailable
               ? html`<span class="lf-playground-unavailable" data-lf-gen="1"
-                  >Submission unavailable: no agent or server is available.</span
+                  >Submission unavailable: ${unavailable}.</span
                 >`
               : nothing
           }

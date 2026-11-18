@@ -9,9 +9,10 @@ Go-to filter's word, and where the user stands before the agent's status
 them press by press. On each page of `PAGES`, or each `--page`, it presses every page
 command a key reaches at rest, twice, since a second press walks on or toggles back;
 runs `JOURNEYS`, the sequences whose later presses mean something only after the first,
-such as a search's next match or a comparison's changes; and Tabs through the page,
-pressing ArrowDown, ArrowRight and End at the first stop in each kind of widget, which
-walks its rows where it has a walk. Between commands it puts the page back at rest with
+such as a search's next match or a comparison's changes; presses each key `g` leads to;
+and Tabs through the page, pressing ArrowDown, ArrowRight and End at the first stop in
+each kind of widget, which walks its rows where it has a walk. Undo runs last, since
+what it takes back stays taken back. Between commands it puts the page back at rest with
 Escape, and reloads it where that leaves something behind.
 
 After each press it reads the seat's words and the kind of reading they are
@@ -83,6 +84,9 @@ OPENERS = {
     "target.picker.open",
 }
 SCROLLS = {"page.down", "page.up", "scroll.down", "scroll.up"}
+# Undo takes back the page's latest gesture, which the log keeps, so it runs last: a
+# thread it reopens would otherwise stand in every later row.
+LAST = {"history.undo"}
 
 # Each journey runs where its first route stands at rest: its presses, `type:WORDS`
 # typing words.
@@ -225,10 +229,12 @@ class Survey:
         page.evaluate(INSTALL)
         page.evaluate(READ)
 
-    def sequence(self, route: str, keys: tuple[str, ...]) -> None:
+    def sequence(self, route: str, keys: tuple[str, ...], first: int = 0) -> None:
+        """Press `keys` in turn, reading after each, and put the page back at rest. The
+        press at `first` names `route` in its row."""
         for at, key in enumerate(keys):
             self.press(key)
-            self.observe(f"{key} ({route})" if at == 0 else key)
+            self.observe(f"{key} ({route})" if at == first else key)
         self.settle_rest()
 
     def run(self) -> list[dict]:
@@ -238,23 +244,35 @@ class Survey:
         routes = routes_at_rest(page)
         available = {route for route, _ in routes}
         for route, key in routes:
-            if route not in OPENERS | SCROLLS:
+            if route not in OPENERS | SCROLLS | LAST:
                 self.sequence(route, (key, key))
         for route, keys in JOURNEYS:
             if route in available:
                 self.sequence(route, keys)
         if "navigation.go-to.open" in available:
-            self.press("g")
-            filters = [
-                key
-                for route, key in routes_at_rest(page)
-                if route.startswith("navigation.go-to.") and len(key) == 1
-            ]
-            self.settle_rest()
-            for key in filters:
-                self.sequence("navigation.go-to", ("g", key))
+            self.go_to()
         self.tab_through()
+        for route, key in routes:
+            if route in LAST:
+                self.sequence(route, (key, key))
         return self.rows
+
+    def go_to(self) -> None:
+        """Each second key of a Go-to sequence, after `g`, and the hints' first Tabs."""
+        self.press("g")
+        seconds = [
+            (route, key)
+            for route, key in routes_at_rest(self.page)
+            if route
+            not in {"navigation.go-to.back", "command.reference.open"} | SCROLLS
+            and not key.startswith("Tab")
+            and not key.startswith("Shift+Tab")
+        ]
+        self.settle_rest()
+        for route, key in seconds:
+            self.sequence(route, ("g", key), first=1)
+        if any(route == "navigation.target" for route, _ in seconds):
+            self.sequence("navigation.target", ("g", "a", "Tab", "Tab"), first=1)
 
     def tab_through(self) -> None:
         """Tab through the page, and at the first stop in each kind of widget press

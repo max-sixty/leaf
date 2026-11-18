@@ -9,7 +9,7 @@ from render_harness import (
     watched,
 )
 
-from leaf_dev.commands.site.verify import observe_startup
+from leaf_dev.website import observe_startup
 
 
 @pytest.mark.parametrize("collector", [watched, observe_startup])

@@ -25,9 +25,11 @@ import {
   registeredVisualPart,
   registeredVisualPartLabel,
   revealRegisteredVisualPart,
-  revealsVisualParts,
+  drawsAbsentParts,
   registeredVisualPartAt,
   registeredVisualParts,
+  focusedVisualPart,
+  visualPartFocus,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -59,6 +61,7 @@ import {
 import { registry, tagsDeclaring } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
+import { layoutsChanged } from "./widget-upgrade.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
   accessibleName,
@@ -90,8 +93,12 @@ export function setAnchoringReady(ready) {
 export const sectionOf = (anchor) =>
   anchor?.section ? elementById(anchor.section) : null;
 
+// The data a widget drew for `key`. What says which they are, their source and
+// identity among it, is not what the page's reading hears, so a reader follows the
+// document changing (`documentChanged`), and so does whatever it reads of them after.
 /** @param {Element | null} source @param {string} key @param {string | null} [identity] @param {string | null} [dataSource] */
 function currentDatums(source, key, identity = null, dataSource = null) {
+  documentChanged();
   if (!source?.id) return [];
   return pageQueryAll(DATUM).filter(
     (datum) =>
@@ -113,12 +120,11 @@ export const projectedDatum = (source, key) => {
 // What an anchor's datum is called: the label its projection gave the element drawn
 // for it, found as resolution finds it, or for a datum its lazy widget has not drawn,
 // what that widget calls it (`lfDatumLabel`), so a thread on a line of a closed file
-// is named as its row would be. It reads the page's nodes, so a paint that draws it
-// follows the document changing (`documentChanged`), as a projection relabelling it does.
+// is named as its row would be. It reads the page's nodes (`currentDatums`), so a paint
+// that draws it follows the document changing, as a projection relabelling it does.
 /** @param {Anchor | null | undefined} anchor */
 export function datumLabel(anchor) {
   if (!anchor?.datum) return "";
-  documentChanged();
   const source = sectionOf(anchor);
   const datums = currentDatums(
     source,
@@ -159,6 +165,15 @@ export function addressedElements(source, key) {
   const datum = projectedDatum(source, key) ?? suppliedDatum(source, key);
   return datum ? [datum] : [];
 }
+
+// Where focus goes for what a key addresses under a widget: a visual part's destination
+// (`visualPartFocus`), which a chart settles on its point only as focus is placed, else
+// the first element the key addresses. Naming it changes nothing.
+/** @param {Element} source @param {string} key */
+export const addressedFocus = (source, key) =>
+  (admitsVisualPart(source, key) ? visualPartFocus(source, key) : null) ??
+  addressedElements(source, key)[0] ??
+  null;
 
 // Travel's half of that key space: ask the widget to draw what a key addresses before
 // anything reads it. A visual part drawn only in another state is drawn now, as
@@ -247,9 +262,15 @@ const outermostAcross = (element, selector) => {
 // A picture inside a press is that control's rendering, so the control keeps the
 // gesture and no visual reading is offered for it. A region that holds content — a tab
 // panel, a scroll region, a stage that takes keys, a grid — leaves its pictures
-// pictures (widget-elements.js, PRESSES).
+// pictures (widget-elements.js, PRESSES). What makes a press, such as a role, is not
+// what the page's reading hears, so it follows the document changing
+// (`documentChanged`) and a widget's layout (widget-upgrade.js, `layoutsChanged`).
 /** @param {Element} element */
-const claimsVisualGesture = (element) => element.matches(`${PRESSES},${PRESSABLE}`);
+const claimsVisualGesture = (element) => {
+  documentChanged();
+  layoutsChanged();
+  return element.matches(`${PRESSES},${PRESSABLE}`);
+};
 
 /** @param {Node | null} target */
 export const unclaimedVisualGesture = (target) => {
@@ -755,17 +776,32 @@ function designTargetAt(
 export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
   if (design) return designTargetAt(node, marginTargetAt);
   const visual = visualAt(node, { unclaimed: false });
-  if (visual?.part)
-    return {
-      anchor: { section: visual.id, visual: visual.part.id },
-      element: visual.part.element,
-      label: aimLabel(visual.seat, visual.part.label),
-      surface: visual.part.surface,
-    };
+  if (visual?.part) return partTarget(visual, visual.part);
   const datum = closestAcross(node, DATUM);
   if (datum) return datumAimTarget(datum);
   const addressable = addressableAt(node);
   return addressable ? addressableAimTarget(addressable) : null;
+}
+
+/** @param {NonNullable<ReturnType<typeof visualAt>>} visual
+ * @param {import("./visual-parts.js").VisualPart} part @returns {AimTarget} */
+const partTarget = (visual, part) => ({
+  anchor: { section: visual.id, visual: part.id },
+  element: part.element,
+  label: aimLabel(visual.seat, part.label),
+  surface: part.surface ?? null,
+});
+
+// The target focus on `node` names: the part a visual holding focus stands on, as a
+// chart on the point its keys reached (`focusedVisualPart`), else the target a press
+// on `node` takes. Only focus asks the visual itself, so a reading of the picture as
+// a whole, as the target picker's, keeps it whole.
+/** @param {Element} node @returns {AimTarget | null} */
+export function focusTargetAt(node) {
+  const visual = visualAt(node, { unclaimed: false });
+  const admits = visual?.element === node ? visualAdmission(node) : null;
+  const part = admits && focusedVisualPart(node, (found) => admits(found.id));
+  return visual && part ? partTarget(visual, part) : aimTargetAt(node);
 }
 
 // A target as a comment takes it: a Design mode control part with its passage
@@ -928,14 +964,17 @@ export function resolveAnchor(anchor) {
         element: found.element,
         place: section,
         surface: found.surface,
+        label: found.label,
       });
     // A declared part the visual draws only in another state stands in for the whole
-    // visual, as a lazy datum does, until travel reveals it.
-    return admitsVisualPart(section, anchor.visual) && revealsVisualParts(section)
+    // visual, as a lazy datum does, until travel reveals it or the visual draws it. It
+    // keeps the name its visual gives it there.
+    return admitsVisualPart(section, anchor.visual) && drawsAbsentParts(section)
       ? {
           ...resolvedElement({
             element: section,
             surface: wholeVisualSurface(section),
+            label: visualPartLabel(section, anchor.visual),
           }),
           exact: false,
           status: "fallback",

@@ -75,12 +75,15 @@ import { html, render, signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
 import { COMMENT_HINT } from "../words.js";
 import {
+  addressedFocus,
   anchoringIsReady,
   lightSeat,
   resolveAnchor,
+  sectionOf,
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
+import { threadNamed } from "../thread/state.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { covered, placeBox, seenRect } from "../geometry.js";
@@ -462,11 +465,18 @@ export function createResponseSurface({
   // and closing returns to the obligation itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: it is a hidden stand-in for the drawing
   // (control-faces.js, `proxy`), so the drawing, which the user sees, is where they
-  // return. A quoted selection clears to the page; a removed subject has no parent to
-  // land on.
+  // return. A part of a drawing is returned to as travel reaches it, where the drawing
+  // names for it (`addressedFocus`), as a chart takes focus itself, settling on its point
+  // only if the user lands there. A quoted selection clears to the page; a removed
+  // subject has no parent to land on.
   /** @param {Anchor | null} anchor */
-  const returnPlaces = (anchor) =>
-    anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];
+  const returnPlaces = (anchor) => {
+    if (!anchor || anchor.quote) return [];
+    const drawing = anchor.visual ? sectionOf(anchor) : null;
+    const part =
+      drawing && anchor.visual ? addressedFocus(drawing, anchor.visual) : null;
+    return [part, anchorTargetAt(anchor), visualActionAnchor(anchor)];
+  };
   // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
   // moves no focus, and the closer names where a user who was in the bar lands, read
   // before it goes. `putAwayFab` hands them back to the bar's subject; `letGoOfFab` lets
@@ -1406,13 +1416,17 @@ export function createResponseSurface({
     // An undrawn thread continues only where it is about what they stand on: its target
     // lies within the element they stand at — the obligation holding focus, answered or
     // not, else the element itself — as an obligation's options group does when the user
-    // holds one of its marks. So with no card shown, an element inside a commented block
-    // takes a thread of its own, and a selection still starts one on its words.
+    // holds one of its marks, or it names the very target they stand on, as a thread on
+    // the point a chart's keys stand on does, whose mark is not the element focus holds.
+    // So with no card shown, an element inside a commented block takes a thread of its
+    // own, and a selection still starts one on its words.
 
     const target = threadId && threadTarget(threadId);
     const subject =
       threadId &&
-      (!here || (target && under(target, heldObligation() ?? here.element)));
+      (!here ||
+        (target && under(target, heldObligation() ?? here.element)) ||
+        sameAnchor(threadNamed(threadId)?.anchor, here.anchor));
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // current target. Read both page and thread location before choosing the aim.
     // After the user lands elsewhere, Comment names that new place and opens its own

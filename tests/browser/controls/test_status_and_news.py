@@ -144,13 +144,13 @@ def test_the_neighbour_reading_detects_a_whole_row_moving_on_press(browser):
 
     page.locator("#move").click()
     assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == [
-        'button "Neighbour" moved by [32, 24, 0, 0] (left, top, width, height)'
+        'button "Neighbour" moved by [32.0, 24.0, 32.0, 24.0] (left, top, right, bottom)'
     ]
     # Moving beyond the viewport is displacement too, not hiding the control.
     page.locator("#move").click()
     assert page.get_by_role("button", name="Neighbour").bounding_box()["x"] > 800
     assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == [
-        'button "Neighbour" moved by [2000, 24, 0, 0] (left, top, width, height)'
+        'button "Neighbour" moved by [2000.0, 24.0, 2000.0, 24.0] (left, top, right, bottom)'
     ]
 
 

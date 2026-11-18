@@ -22,7 +22,11 @@ reflects back what a choice does, and refuses only input that would break a
 guarantee whatever the agent meant. Where a choice harms the user only in some
 cases, as an edit that relabels an option the user already picked does, Leaf
 accepts it and tells the agent what it did, rather than refusing every choice
-of that kind to stop the worst one.
+of that kind to stop the worst one. Leaf's code doesn't make such a choice in the
+agent's place either, even where a fork of the agent acts for it, as in writing a
+thread's summary. It offers evidence, such as the range it suggests folding, the
+instructions state the goal, and the agent or fork judges the case, since a
+cutoff on a measure misjudges the cases near it.
 
 ## Stage
 
@@ -256,8 +260,9 @@ plugins can load in place instead; point Codex at the git source, since its
 local-directory marketplace also copies a checkout's `.venv`. Nothing is built
 at install time: installing, authoring pages, writing custom packages and
 exporting need no browser build or npm. Pages run the browser runtime's source
-modules from the serving install, so a runtime change takes no build. Only a
-prepared installation, such as the website's container, compiles them into a
+modules from the serving install, so a runtime change takes no build, but for one to
+the floating panel's row, whose first-paint copy the build draws (`build/AGENTS.md`).
+Only a prepared installation, such as the website's container, compiles them into a
 kernel (`build/runtime-bundle.mjs`, `leaf.runtime_selection.read_runtime`).
 `bin/leaf` is `uv run --no-dev` on the tree, so the install must be writable,
 and Leaf writes nothing else there. A plugin update may replace the directory,

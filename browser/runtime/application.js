@@ -305,6 +305,7 @@ function createApplication(dependencies) {
   const annotations = createAnnotationInventory({
     readObligations,
     placedAt: dependencies.anchorPlacement.placedAt,
+    savedAt: dependencies.anchorPlacement.savedAt,
     openThread: openPageThread,
     goToObligation: dependencies.goToObligation,
     resumeDraft: dependencies.annotationCommands.resumeDraft,

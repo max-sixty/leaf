@@ -984,20 +984,34 @@ def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
         assert [event["id"] for event in whole["events"]] == ["e1"], key
 
 
-def test_one_pages_answers_leave_another_readings_remembered(monkeypatch):
-    """A process serving several pages, or a page and its live samples, remembers each
-    page's readings apart, so one page's answers never push out the reading another
-    page's tab holds (`served_state.tail.PAGES`)."""
+def test_a_pages_memory_keeps_the_readings_its_tabs_hold(tmp_path, monkeypatch):
+    """Each page's readings are remembered in its memory (`page_memory`), so one page's
+    answers, such as a live sample's or another page's on a multiplexed server, never
+    push out the reading another page's tab holds. A page whose memory the process
+    dropped answers whole, and patches again from that answer."""
+    from leaf import page_memory
     from leaf.served_state import tail
 
     monkeypatch.setattr(tail, "REMEMBERED", 1)
-    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+    html = model.leaf_page("Tail", '<p id="p">One.</p>')
     log = [{"kind": "comment", "text": "Why?"}]
-    first = model.served_reading(page, log)
-    later = model.served_reading(page, [*log, {"kind": "comment", "text": "And?"}])
-    held = tail.answer(deepcopy(first), None, "page")["browser"]["basis"]["key"]
-    tail.answer(deepcopy(later), None, "sample")
-    assert "since" in tail.answer(deepcopy(later), held, "page")
+    first = model.served_reading(html, log)
+    later = model.served_reading(html, [*log, {"kind": "comment", "text": "And?"}])
+    page, sample = tmp_path / "page", tmp_path / "sample"
+
+    def key(answer: dict) -> str:
+        return answer["browser"]["basis"]["key"]
+
+    held = key(tail.answer(deepcopy(first), None, page))
+    tail.answer(deepcopy(later), None, sample)
+    assert "since" in tail.answer(deepcopy(later), held, page)
+
+    held = key(tail.answer(deepcopy(first), None, page))
+    for n in range(page_memory.PageMemories.LIMIT):
+        page_memory.memory_of(tmp_path / f"other-{n}")
+    whole = tail.answer(deepcopy(later), held, page)
+    assert "since" not in whole
+    assert "since" in tail.answer(deepcopy(first), key(whole), page)
 
 
 def test_revision_labels_name_each_draft_after_the_newest_earlier_stamp():

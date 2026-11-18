@@ -1414,6 +1414,12 @@ def stored_drafts(page) -> dict:
         "async () => (await window.__lfCheckApi()).draftsWaiting"
     )
     page.wait_for_function("waiting => waiting() === 0", arg=waiting)
+    return drafts_on_server(page)
+
+
+def drafts_on_server(page) -> dict:
+    """The drafts the page's server holds now, by context, whatever this tab has yet to
+    send, asked as `stored_drafts` asks."""
     origin = urlsplit(page.url)
     answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/drafts")
     assert answer.ok, f"the server would not say what drafts it holds: {answer.status}"
@@ -1753,11 +1759,13 @@ def watch_sources(shifts: bool) -> str:
 
 @contextmanager
 def restarting(page):
-    """Enclose a span in which the test replaces the page's server or executable layer.
+    """Enclose a span in which the test replaces the page's document: a reload, or a
+    replacement of its server or executable layer, which reloads it.
 
-    A layer replacement reloads the document. WebKit reports even a caught fetch
-    rejection from the departing document as a native page exception while its
-    replacement is loading. A stopped server answers no fetch, and the words the
+    WebKit reports even a caught fetch rejection from the departing document as a
+    native page exception while its replacement is loading, and Firefox warns of each
+    module load the departing document still had running, such as the view checks a
+    page imports after it presents. A stopped server answers no fetch, and the words the
     failure arrives in depend on which fetch was in flight when it stopped: a bare
     `Failed to fetch`, a named module, a stack through the icon load, one of several
     `net::` codes. A reading written over

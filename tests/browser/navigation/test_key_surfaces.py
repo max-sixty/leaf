@@ -274,7 +274,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     page.keyboard.press("Escape")
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
 
     expect(page_comment(page)).not_to_have_attribute("placeholder", re.compile(r" c$"))
     expect(badge).to_have_count(0)

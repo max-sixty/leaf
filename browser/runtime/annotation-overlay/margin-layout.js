@@ -122,6 +122,7 @@ import { layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { offerActionElement } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
+import { registry } from "../registry.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
@@ -1955,21 +1956,37 @@ function layoutMountedRows(layer) {
   // of its boxes resize meanwhile.
   const geometry = new Set(seatings.size ? wantedGeometry : []);
   const parents = new Set();
+  // What a picture draws (a tag declaring `visual`) is the picture's to report as it
+  // moves (visual-parts.js, `update`), and the picture may draw it afresh inside a size
+  // delivery (lf-chart.js), where a box the layer watched leaving the page is a
+  // ResizeObserver loop error. So a row standing by a part of a picture has the
+  // picture's box watched, and those around it, never a box the picture draws.
   /** @param {Element} target */
   function observeGeometry(target) {
+    /** @type {Element[]} */
+    let boxes = [];
+    /** @type {ParentNode[]} */
+    let around = [];
     /** @type {Element | null} */
     let at = target;
     for (; at && at !== pageScroller; at = renderedParent(at)) {
       if (at instanceof Element) {
-        geometry.add(at);
+        if (registry[at.localName]?.visual) {
+          boxes = [];
+          around = [];
+        }
+        boxes.push(at);
         // Scroll and slot changes stay in their shadow tree. A slotted target's
         // own root is the document; the rendered walk reaches the roots that
         // actually move and clip it, and re-arms them after a slot or parent move.
         const root = at.getRootNode();
         if (root instanceof ShadowRoot) hearTargetChanges(root);
       }
-      const parent = at.parentNode;
-      if (!parent || parents.has(parent)) continue;
+      if (at.parentNode) around.push(at.parentNode);
+    }
+    for (const box of boxes) geometry.add(box);
+    for (const parent of around) {
+      if (parents.has(parent)) continue;
       parents.add(parent);
       for (const sibling of parent.children ?? [])
         if (!inChrome(sibling)) geometry.add(sibling);

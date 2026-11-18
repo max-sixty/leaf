@@ -24,8 +24,9 @@ commands a developer reaches for together about one subject, while a command use
 across subjects, such as `probe`, stands at the top. Tooling that CI, a hook or an alias runs is a command too,
 so the repository has no directory of loose scripts. Code two tools need lives in one
 module here that the others import, never through `sys.path`, `PYTHONPATH` or a file
-path. Where only one group's commands need it, that module is the group's own, named
-`_name.py` so `cli.py` lists it as no command (`journey/_journey.py`). A mechanism
+path. A command module is imported only by the CLI and its own tests; where only one
+group's commands need the code, its module is the group's own, named `_name.py` so
+`cli.py` lists it as no command (`journey/_journey.py`). A mechanism
 only one tool uses stays in that tool's file, and a command is named for what it
 examines rather than for the mechanisms inside it, so the code a new tool needs may
 sit in a command whose name doesn't suggest it. Before writing a mechanism,

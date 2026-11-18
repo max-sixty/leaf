@@ -25,8 +25,8 @@ from leaf.event_log import read_events
 from leaf.leases import take_wait_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf_dev import website
 from leaf_dev.browser import PANEL_THREAD
-from leaf_dev.commands.site import verify as verify_site
 
 
 @pytest.mark.parametrize("read_elsewhere", [False, True], ids=["here", "elsewhere"])
@@ -41,7 +41,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     url = serve(LONG_PAGE)
     page_dir = serve.page_dir
     page = open_page(browser, url)
-    verify_site.observe_startup(page)
+    website.observe_startup(page)
     page.reload()
     told(page)
     box = page_comment(page)

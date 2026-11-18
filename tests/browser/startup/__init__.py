@@ -25,3 +25,10 @@ def _hold_startup(page, stage):
             route.continue_()
 
     return held, release
+
+
+def first_frame(page):
+    """Wait for the page's first frame. Before it the render-blocking theme may still be
+    loading, so the layout a test reads, the served panel row's included, is one no
+    reader sees: the row's field read as a full-width box at the page's top."""
+    page.evaluate("() => new Promise((drawn) => requestAnimationFrame(() => drawn()))")

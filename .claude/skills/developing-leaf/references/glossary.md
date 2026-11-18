@@ -71,8 +71,8 @@ and places too, since the interface's upright face would read as the agent's.
 Neither they nor Leaf's italic words narrate the agent from outside (“Claude is
 working”, “Waiting for Claude”), which puts a third party between the user and the
 agent; Leaf names the agent only where the agent isn't the one acting, as in “Queued
-for Claude”, and in the panel's resting line, “Claude awaits”, which the user chose on
-16 November 2026 over “Ready” alone.
+for Claude”, and in the panel's resting line, “Claude awaits”, which the user chose
+over “Ready” alone.
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
 as an author, **Waiting on me** and **On Me**, **my change**, and commands such as
@@ -225,7 +225,7 @@ its link's preview counts them.
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
 | **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On Me list (`m`), the changes a version comparison marks, each a run of changed blocks (`h`), a list's rows. A press steps off the stop the user is on, in its destination, and arrives at one they are only at, such as one they just left with Escape (`current-target.js`) |
 | **Obligation** | What a widget or an agent's message waits on the user for, or what an update the user handed over is owed (`obligations.py`, `readObligations()`): its prompt, its answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`). On the page, only its source answers it, through the widget's own actions or a reply in the thread; the agent ends a thread question the user answered elsewhere by resolving its thread. A thread is never one |
-| **On Me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user. `m` walks it. A label that leads into the list, such as **Next On Me** or **New On Me**, writes its name in title case, as **On Claude** is. A phrase about what waits on the user keeps *me* in lower case, as in **Waiting on me** and **Nothing waiting on me**, beside the agent's **Waiting on Claude**. A row names its obligation by the widget's word (`word`, or its module's `lfWord()`) |
+| **On Me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user. `m` walks it. A label that leads into the list, such as **Next On Me** or **New On Me**, writes its name in title case, as **On Claude** is. A phrase about what waits on the user keeps *me* in lower case, as in **Waiting on me** and **Nothing waiting on me**, beside the agent's **Waiting on Claude**. Its By kind grouping names an obligation by the widget's word (`word`, or its module's `lfWord()`) |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations whose next actor is the agent and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Work the agent owes until it ends (`todo` in the protocol) |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |

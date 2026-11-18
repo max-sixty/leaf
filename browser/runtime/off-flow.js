@@ -94,6 +94,13 @@ onCurrentLocation((node, cause, left) => {
   }
 });
 
+// Whether `node` stands in a surface floating over the page.
+/** @param {Element} node */
+export const offFlow = (node) =>
+  [...surfaces.values()].some(
+    ({ surface, floats }) => floats() && under(node, surface),
+  );
+
 // Bring back the surface holding `node`, where the window does not show all of it; a
 // node in flow needs nothing.
 /** @param {Element} node @param {ScrollBehavior} [behavior] */

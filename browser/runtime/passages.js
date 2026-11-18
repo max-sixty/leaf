@@ -123,6 +123,7 @@ import {
   under,
   upFrom,
 } from "./shadow-tree.js";
+import { version } from "./kept.js";
 import { liveStages } from "./arrivals.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
@@ -950,6 +951,7 @@ export function textNodesUnder(
 // declared inside it.
 /** @param {string | null | undefined} id @param {Document | Element | null} [root] */
 export const elementById = (id, root = document) => {
+  pageVersion.read();
   if (id == null || root === null) return null;
   const page = root === root.ownerDocument?.body;
   /** @param {Element | null | undefined} node */
@@ -2046,27 +2048,33 @@ let names = {};
 const renames = (record) =>
   record.attributeName === "id" ||
   NAMING_ATTRIBUTES.includes(record.attributeName ?? "");
-/** @type {WeakMap<object, {names: object, token: object}>} */
-const versions = new WeakMap();
-/** Which reading of the page stands: a new value each time the page's is forgotten, or
- * an id or a part's name changes (`names`), so a reading derived from the page's own
- * nodes, as the visual responses, On Me's places and the parts conversations stand in
- * are, keeps what it derived while this stands. It holds nothing of the reading itself.
- * @returns {object} */
+// Which reading of the page stands, and the reading and names it last stood at: it
+// moves each time the page's reading is forgotten, or an id or a part's name changes
+// (`names`), as the page's watcher catches up (`catchUpReading`).
+const pageVersion = version(catchUpReading);
+/** @type {object | null} */
+let versionedReading = null;
+/** @type {object | null} */
+let versionedNames = null;
+/** Which reading of the page stands: a new count each time the page's is forgotten, or
+ * an id or a part's name changes (`names`). Each reader of the page reads it (kept.js,
+ * `version`) as it catches up (`catchUpReading`), the readers of its words and
+ * `elementById` among them, so a reading derived from the page, as On Me's places are,
+ * is kept while this stands (kept.js, `kept`); work that spans tasks, as a search does,
+ * compares it to hear that the page changed under it. It holds nothing of the reading
+ * itself.
+ * @returns {number} */
 export function pageReadingVersion() {
   catchUpReading();
-  const { token } = documentReading(pageDocument());
-  let version = versions.get(token);
-  if (version?.names !== names) versions.set(token, (version = { names, token: {} }));
-  return version.token;
+  return pageVersion.read();
 }
 /** What a reader derives from the reading of the document `scope` (`authoredScope`) and
  * keeps while that reading stands, under the reader's own `owner`: made by `make` for
  * each new reading and dropped with the old one, so an answer holding the document's
  * nodes keeps none past a change that removes them. It lasts as long as the reading of
  * the words, as the layout of the words on screen does (reading-place.js), so it
- * outlives an id or a part's name changing; a reading of the page's nodes keys on
- * `pageReadingVersion`, which moves with those too. A document the watcher doesn't
+ * outlives an id or a part's name changing, where a reading `kept` (kept.js) moves
+ * with those too. A document the watcher doesn't
  * hear, such as a message body
  * no longer in this document, detached or in another, is answered afresh each time.
  * @template T @param {Element} scope @param {object} owner @param {() => T} make
@@ -2084,6 +2092,8 @@ export function keptWithReading(scope, owner, make) {
 // are each read for that; another document's stop being read once it has moved.
 /** @param {readonly MutationRecord[]} records */
 function hear(records) {
+  // Every reader catches up first, so most hear nothing.
+  if (!records.length) return;
   /** @type {Set<Element>} */
   const moved = new Set();
   const page = pageDocument();
@@ -2321,6 +2331,12 @@ function catchUpReading() {
   }
   readingVocabulary = vocabulary;
   readingSettled = settledKey;
+  const { token } = documentReading(pageDocument());
+  if (token !== versionedReading || names !== versionedNames) {
+    [versionedReading, versionedNames] = [token, names];
+    pageVersion.move();
+  }
+  pageVersion.read();
 }
 // A reading of one element's words, kept exactly as long as the piece of its document's
 // reading it stands in (`readingDocument`, `readingPart`): the watcher above is what says

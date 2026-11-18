@@ -792,16 +792,7 @@ Firefox on macOS bounced a sticky column with trackpad overscroll on
 positioning to stay still; other root-sticky boxes can still bounce.
 Recheck with a native trackpad fling at the document's end; headless Playwright
 supplies no overscroll. If engines hold sticky boxes still, the column can
-return to sticky positioning. Its current cost is the WebKit anchor drift below.
-
-### An anchor under a fixed box in WebKit
-
-A mark, margin row or floating card targeting a fixed panel drifts as the
-page scrolls. Playwright WebKit 26.6 applied the root scroll twice on
-2026-10-14; Chromium 153, Chrome 155 and Firefox 155 placed it on the target.
-`browser/runtime/css-anchors.js` accepts this gap; Leaf's page-of-parts column
-is an affected surface. Recheck a fixed anchored box against a target in a
-fixed scrolling panel while scrolling both the document and panel.
+return to sticky positioning.
 
 ### An anchor inside an SVG foreignObject in Chromium
 
@@ -1333,3 +1324,20 @@ area and aim in both. Recorded rather than corrected, since a chart's bars are u
 rectangles. Recheck with `uv run leaf-dev probe` of a page whose inline `<svg>` holds
 `<g id="bar"><path d="M0 10 L100 10" stroke="black" stroke-width="6"/></g>`, reading
 `document.querySelector('#bar').getBoundingClientRect().height` in Chromium.
+
+### Deleting in an editing host after `body` in Firefox
+
+Firefox types into a `contenteditable` that stands after `body`, as Leaf's chrome
+does, but deletes nothing from it: Backspace and Delete do nothing, in a shadow root
+or not, with `true` or `plaintext-only`. On 2026-11-18, Playwright Firefox 159.0
+(Playwright 1.65.0) kept "abcd" after two Backspaces in such a host, and "ab" in the
+same host inside `body`; HeadlessChrome 158.0.8127.18 gave "ab" in both, and a
+`textarea` after `body` gave "ab" in both engines. A text field's box before
+CodeMirror loads (`composing/text-field.js`, `#rest`) and the served row's field
+(`bootstrap.js`, `standRow`) are textareas for this, which edit the same way in
+every engine. CodeMirror deletes from the keyboard by its own commands, but
+`document.execCommand("delete")` on a selection in a loaded panel editor still
+returns false and deletes nothing in Firefox; standing the chrome inside `body`
+would cure both, at the cost of the isolation it has after `body`. Recheck by
+appending `<div contenteditable>` after `body` in Firefox, typing "abcd" into it and
+pressing Backspace twice.

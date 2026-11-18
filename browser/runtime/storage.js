@@ -3,6 +3,7 @@
  * documents use native scoped storage, whose refusal never prevents reading. */
 import { registry } from "./registry.js";
 import { keeps } from "./keeps.js";
+import { version } from "./kept.js";
 import { marks } from "./kernel-facts.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
@@ -28,7 +29,9 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // comment, a reply, an `lf-draft`) and hasn't sent, are every tab's and every device's,
 // so the page's server keeps them (drafts.js), and the agent reads none of them, because
 // sending is when the user says them. An edit to a bound file is not one: the file on
-// disk is what tabs share, so its buffer stays in its tab. `userStore` is this user's
+// disk is what tabs share, so its buffer stays in its tab. The tab holds unsent words
+// only from a page to its reload, while the server has yet to answer their writes
+// (drafts.js). `userStore` is this user's
 // lasting preference across pages, which is the chrome they arrange and expect to find
 // arranged. The stores reach this tab or this browser. What another browser or the agent
 // must read is none of the three: it goes in the log, which every tab already follows,
@@ -85,12 +88,26 @@ export const userStore = window.lfStorage.userStore;
 // Which of a view's arrangements the user chose, such as On Me's grouping, kept for
 // every page as the chrome they arrange is: the stored value while it is one of
 // `values`, else null, as a store that refuses reads, so the caller's default stands.
+// Another tab may change it, so its version catches up by reading the store again, and
+// a reading kept from it (kept.js) is made again when the choice changes.
 /** @template {string} T @param {string} key @param {readonly T[]} values */
-export const userChoice = (key, values) =>
-  Object.freeze({
+export const userChoice = (key, values) => {
+  /** @type {T | null} */
+  let chosen = null;
+  const catchUp = () => {
+    const value = userStore.get(key);
+    const now = values.find((candidate) => candidate === value) ?? null;
+    if (now === chosen) return;
+    chosen = now;
+    choice.move();
+  };
+  const choice = version(catchUp);
+  return Object.freeze({
     read: () => {
-      const value = userStore.get(key);
-      return values.find((candidate) => candidate === value) ?? null;
+      catchUp();
+      choice.read();
+      return chosen;
     },
     write: (/** @type {T | null} */ value) => userStore.set(key, value),
   });
+};

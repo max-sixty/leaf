@@ -1,7 +1,8 @@
 /* The canonical result of resolving a durable anchor into the current document.
  *
  * An element is the semantic hit and travel target; its optional visual `surface` changes
- * only contour paint. A passage carries text segments instead. Both kinds name `place`,
+ * only contour paint, and a part of a picture carries the `label` its visual registers
+ * for it (visual-parts.js). A passage carries text segments instead. Both kinds name `place`,
  * where panel order and attached chrome sit: a verified control face for a named
  * control passage, otherwise its readable block or authored item. Frame-bound paint uses only an exact
  * target; a fallback place remains useful for travel and attached chrome, but cannot
@@ -15,13 +16,18 @@ import { renderedOrder } from "./shadow-tree.js";
 import { rangeOf, segmentLines, segmentsBox } from "./passages.js";
 
 /** @typedef {{exact: boolean, status: "exact" | "fallback" | "outdated", datumElement: Element | null}} Resolution
- * @typedef {Resolution & {kind: "element", element: Element, place: Element, surface: Element | null}} ElementTarget
+ * @typedef {Resolution & {kind: "element", element: Element, place: Element, surface: Element | null, label: string | null}} ElementTarget
  * @typedef {Resolution & {kind: "passage", place: Element | null, segments: import("./passages.js").Segment[], ranges?: readonly Range[]}} PassageTarget
  * @typedef {Resolution & {kind: "message", message: string, place: null}} MessageTarget
  * @typedef {ElementTarget | PassageTarget | MessageTarget} ResolvedTarget */
 
-/** @param {{element: Element, place?: Element, surface?: Element | null}} target @returns {ElementTarget} */
-export const resolvedElement = ({ element, place = element, surface = null }) => ({
+/** @param {{element: Element, place?: Element, surface?: Element | null, label?: string | null}} target @returns {ElementTarget} */
+export const resolvedElement = ({
+  element,
+  place = element,
+  surface = null,
+  label = null,
+}) => ({
   exact: true,
   status: "exact",
   datumElement: null,
@@ -29,6 +35,7 @@ export const resolvedElement = ({ element, place = element, surface = null }) =>
   element,
   place,
   surface,
+  label,
 });
 
 /** @param {{place: Element | null, segments: import("./passages.js").Segment[]}} target @returns {PassageTarget} */

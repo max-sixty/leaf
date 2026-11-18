@@ -243,8 +243,11 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
     & > :is(lf-option, .lf-another) {
       padding-inline-start: var(--lf-sp-3);
     }
+    /* The card's content holds the state band's height before its mark arrives, as the
+     * mark's float holds it after, so a one-line card keeps its first box on upgrade. */
     & > lf-option {
       padding-bottom: var(--lf-option-pad-block);
+      min-block-size: var(--lf-card-state-height);
     }
     /* The field takes the card's inset and the state band's height, so the row keeps its
     * height when the add lands. */

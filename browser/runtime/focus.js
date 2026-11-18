@@ -178,16 +178,19 @@ export const tabStops = (root) =>
 //
 // A destination may be an element its owner settles as the user lands on it,
 // `{element, settle}`, as a chart moves its reading to the point Leaf puts the user on
-// (visual-parts.js, `focus`). `settle` runs here, as focus is placed, and nowhere else,
-// so a route that names a destination it never lands on, or a hand-back that passes
-// it by, changes nothing the owner shows.
+// (visual-parts.js, `focus`). `settle` runs here, as focus is placed on an element that
+// can take it, and nowhere else, so a route that names a destination it never lands
+// on, a hand-back that passes it by, or a placement on an inert or hidden element,
+// changes nothing the owner shows. A destination is told from an element by its node
+// type rather than `instanceof`, since an element of a same-origin frame, as a
+// playground's preview holds, belongs to another window's `Element`.
 export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 /** @typedef {[start: number, end: number, direction?: "forward" | "backward" | "none"]} Caret
  * @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
 /** The element a destination puts the user on. @param {FocusDestination} destination */
 export const focusElement = (destination) =>
-  destination instanceof Element ? destination : destination.element;
+  isElement(destination) ? destination : destination.element;
 /** @param {FocusDestination} destination @param {"move" | "step" | "return" | "press"} cause
  * @param {{caret?: Caret | null}} [options] */
 export function focusDestination(
@@ -209,7 +212,7 @@ export function focusDestination(
     ...(!pressLed() && { focusVisible: true }),
   };
   placed(cause, () => {
-    if (!(destination instanceof Element)) destination.settle();
+    if (!isElement(destination) && drawn(element)) destination.settle();
     nativeFocusTarget(element).focus(options);
     if (!landedOn(element) && lendable(element)) lendStop(element, options);
   });

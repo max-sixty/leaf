@@ -309,6 +309,10 @@ test("a visual settles on its part as focus is placed there, and at no other tim
   handBack(destination, elsewhere);
   assert.equal(document.activeElement, elsewhere);
   assert.deepEqual(state.settled, []);
+  // Nor does placing focus on it while it can't take focus, as travel to a chart inside
+  // an inert region does.
+  focusDestination(destination, "move");
+  assert.deepEqual(state.settled, []);
   // Placing focus there settles the plot on the point, once, and the plot takes it.
   element.inert = false;
   focusDestination(destination, "move");

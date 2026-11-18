@@ -111,7 +111,7 @@
    silently discover nested widget families inside shadow roots as new top-level
    content. */
 
-import { isNode, closestAcross } from "./shadow-tree.js";
+import { isNode, closestAcross, inChrome } from "./shadow-tree.js";
 import { keptEach, unkept, version } from "./kept.js";
 import { liveStages } from "./arrivals.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
@@ -2378,9 +2378,13 @@ const wordsRead = /** @type {Record<Reading, (element: Element) => string>} */ (
     ]),
   )
 );
+// Leaf's own surfaces, which no document reads, are read afresh without a kept reading
+// to make and drop on every pass.
 /** @param {Element} element @param {Reading} [reading] */
 export const elementReading = (element, reading = "says") =>
-  wordsRead[reading](element);
+  inChrome(element)
+    ? quoteFrom(textNodesUnder(element, reading))
+    : wordsRead[reading](element);
 // The walk itself, over the page's words under `root`, by the page's rules for any root
 // the page reading reaches (`walk`, `frame`): each word's segment, with its cell chain and
 // whether a break stood before it, and the outline the walk records. A root outside the

@@ -82,8 +82,8 @@
       "schema": {"description":"The user's unsent message drafts on a page, in the page directory's `drafts.json`.","type":"object","properties":{"version":{"description":"Counts the store's writes; each record holds the count at its own.","type":"integer","minimum":0},"drafts":{"description":"Each draft's latest generation, by its context, which a generation the log admitted no longer is.","type":"object","additionalProperties":{"type":"object","properties":{"attempt":{"description":"The generation's attempt, which its send carries into the log.","type":"string","minLength":1,"maxLength":128},"text":{"description":"The words, untrimmed.","type":"string"},"payload":{"description":"What the generation's send depends on beside its words, such as a comment's anchor (`$events.draft`).","type":"object"},"held":{"description":"A reply a refusal handed back to the draft whose message opens its thread.","type":"string"},"version":{"type":"integer","minimum":0}},"required":["attempt","text"]}}},"required":["version","drafts"]}
     },
     "file-bindings": {
-      "since": 13,
-      "schema": {"description":"The local text files a page may edit, in the page directory's `files.json`.","type":"object","properties":{"bindings":{"description":"Each binding id's file, by its canonical absolute path.","type":"object","additionalProperties":{"type":"string"}}},"required":["bindings"]}
+      "since": 50,
+      "schema": {"description":"The local text files a page may edit, in the page directory's `files.json`.","type":"object","properties":{"bindings":{"description":"Each binding id's file: its path from the page directory when it lies inside it, and otherwise its canonical absolute path.","type":"object","additionalProperties":{"type":"string"}}},"required":["bindings"]}
     },
     "http-connections": {
       "since": 19,

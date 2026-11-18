@@ -16,6 +16,10 @@ the patch enough width to read, keep the navigator available while reading it,
 and provide an obvious route back to the file list when the regions stack on a
 phone. A small flat patch usually needs only the diff's own listing.
 
+With `file-editor`, name an editor that holds several bound files, and the
+navigator lists them and opens the one the reader picks; that package's author
+instructions show the pair.
+
 The producer supplies the paths, optional Git status, and optional datum keys.
 Its optional `current` path keeps selection aligned with the file its viewer shows.
 Selecting a keyed file reveals that datum through the declared reference. A tree

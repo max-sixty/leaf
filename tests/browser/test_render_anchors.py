@@ -220,7 +220,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     looks like a busy page rather than like a bug."""
     page = open_page(browser, live_url(serve(SAID_PAGE)))
 
-    heading = page.locator('lf-column#col-now > [data-lf-said="label"]')
+    heading = page.locator("lf-column#col-now > .lf-column-name")
     box = heading.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
@@ -294,11 +294,11 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         source = FENCED_CAPTURE_PAGE.replace("week-1", "week-2")
     stamp_page(serve.page_dir, source, "Refresh the document")
     wait_for_revision(page, 2)
-    expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
+    expect(page.locator("#gate-milestone > .lf-column-name")).to_have_count(1)
     registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
-        ("#gate-milestone strong", "Build feeders", "gate-milestone"),
-        ("#gate-milestone", "Two classic models.", "gate-milestone"),
+        ("#gate-card strong", "Build feeders", "gate-card"),
+        ("#gate-card", "Two classic models.", "gate-card"),
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
@@ -5998,23 +5998,6 @@ def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_page_search_finds_a_shipped_options_chip_and_title_apart(
-    engine, request, serve
-):
-    """The default package's lf-options example, as shipped, puts an option's title and
-    the chip that follows it apart, as the theme draws them: page search finds
-    "list effort", the title's last word and the chip's first."""
-    registry = json.loads(
-        (Path(__file__).parents[2] / "packages/default/registry.json").read_text()
-    )
-    url = serve(leaf_page("Ask", registry["lf-options"]["example"]))
-    page = open_page(request.getfixturevalue(engine), url)
-    page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill("list effort")
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize(
     ("source", "words"),
     [("extending", "window The workspace"), ("how-it-works", "there The quote")],
@@ -6050,17 +6033,18 @@ def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_page_search_finds_a_label_a_widget_draws(engine, request, serve):
-    """A label a widget's module draws, as a sample's caption, is the page's words, so
-    page search finds it."""
+    """A label a widget's module draws, as a board column's heading, is the page's
+    words, so page search finds it."""
     url = serve(
         leaf_page(
             "Said label",
-            '<div id="pair"><lf-sample id="said" label="Head"><p>body words</p>'
-            "</lf-sample></div>" + "<p>More.</p>" * 4,
+            '<lf-board id="pair"><lf-column id="said" label="Head">'
+            '<lf-card id="said-card" label="Body"><strong>body words</strong></lf-card>'
+            "</lf-column></lf-board>" + "<p>More.</p>" * 4,
         )
     )
     page = open_page(request.getfixturevalue(engine), url)
-    page.wait_for_function("() => document.querySelector('#said > [data-lf-said]')")
+    page.wait_for_function("() => document.querySelector('#said > .lf-column-name')")
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill("Head")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")

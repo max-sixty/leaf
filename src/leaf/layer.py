@@ -174,6 +174,28 @@ def input_paths(inputs: list[Path]) -> list[Path]:
     return paths
 
 
+def package_files(root: Path) -> dict[str, bytes]:
+    """The files of package `root` a layer composes (`checked_inputs`), by their path
+    in the package: its top files, every sheet one of its sheets imports, wherever in
+    the package that stands (`stylesheet`), and its directories. A copy of a package
+    is these files, so a page's copy and an installed one compose as the source does."""
+    root = root.resolve()
+    files = {}
+    for name in PACKAGE_FILES:
+        if not (root / name).is_file():
+            continue
+        files[name] = (root / name).read_bytes()
+        if name.endswith(".css"):
+            for imported in imported_sheets(root / name, root):
+                files[imported.relative_to(root).as_posix()] = imported.read_bytes()
+    for sub in PACKAGE_DIRS:
+        if (root / sub).is_dir():
+            for path in sorted((root / sub).rglob("*")):
+                if path.is_file():
+                    files[path.relative_to(root).as_posix()] = path.read_bytes()
+    return files
+
+
 def overlapping_inputs(inputs: list[Path]):
     """The first resolved path shared by two precedence scopes."""
     located_inputs = [(root, located(input_paths([root]))) for root in inputs]

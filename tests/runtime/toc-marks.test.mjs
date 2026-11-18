@@ -1,4 +1,4 @@
-/* Which section of the contents each open thread, On me item and change counts in
+/* Which section of the contents each open thread, On Me item and change counts in
    (toc-marks.js), and the words a row's link previews them in. How the marks draw, and
    that the widget reads them again as the readings change, is the browser's to show
    (`tests/browser/widgets/test_contents_and_glosses.py`). */
@@ -11,7 +11,7 @@ import { marksWords, sectionMarks } from "../../packages/default/widgets/toc-mar
 
 // The contents of `markup` as lf-toc lists them, and each section's marks, by the words
 // of the heading leading it ("" for an untitled start), from threads about the elements
-// `threads` names (`{id, resolved}`), On me items at the widgets `onMe` names, and
+// `threads` names (`{id, resolved}`), On Me items at the widgets `onMe` names, and
 // changes over the blocks each of `changes` names, or a removal whose gap stands
 // `before`, `after` or `in` the element `at` names.
 /** @param {string} markup

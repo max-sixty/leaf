@@ -1996,6 +1996,22 @@ def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
         assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
 
 
+def test_a_widget_sharing_its_opening_line_is_refused_for_its_paragraph_alone(
+    page_dir,
+):
+    """A widget whose opening tag shares its line with its content is inline HTML, so
+    Markdown draws a paragraph around it, and its `<pre>` closes that paragraph. The
+    refusal names that repair alone, not the widget the parser emptied, which the
+    agent wrote whole."""
+    published(page_dir)
+    code = '<lf-code id="snippet">{}<pre><code class="language-python">print(1)</code></pre></lf-code>'
+    refused = comment(page_dir, "--text", "Here:\n\n" + code.format(""))
+    assert refused.exit_code != 0
+    assert [f["code"] for f in json.loads(refused.output)["findings"]] == ["unclosed"]
+    kept = comment(page_dir, "--text", "Here:\n\n" + code.format("\n"))
+    assert kept.exit_code == 0, kept.output
+
+
 def test_data_widget_prose_members_are_quotable_without_admitting_source():
     registry = with_modules(
         {

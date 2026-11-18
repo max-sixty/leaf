@@ -1,7 +1,10 @@
 /* lf-sample: inline content (quoted by default, interactive on the parent page
- * when declared), or a complete live page authored in a template, under the caption
- * its label draws. The inline modes need no controller; the registry owns their
- * quotation semantics.
+ * when declared), or a complete live page authored in a template. Its `label` is its
+ * name wherever Leaf names it, and nothing draws it: the page introduces a sample in
+ * its own words, and a caption it shows is the author's HTML, such as a `<figure>`'s
+ * `<figcaption>`. The user chose this, as for option and board cards (lf-options.js):
+ * a name Leaf reads is data apart from any title the page shows. The inline modes need
+ * no controller; the registry owns their quotation semantics.
  * The shared host owns the child page and its independent event log. The frame
  * takes its child's height, so the surrounding page scrolls the sample like any
  * other block and focus moves into it the way it moves into any iframe. A `window`
@@ -170,7 +173,6 @@ export class Sample extends HTMLElement {
 
   connectedCallback() {
     if (!once(this)) return;
-    this.#caption();
     if (!this.#build()) return;
     whileConnected(this, () => {
       this.#mount();
@@ -312,18 +314,6 @@ export class Sample extends HTMLElement {
   // posture in the same task rather than at the arrival batch.
   disconnectedCallback() {
     if (this.#pageView?.view.getAttribute("role") === "dialog") this.#embed();
-  }
-
-  // The label is the sample's caption, drawn as the page's words at its start so the
-  // user can select, quote and comment on it, which a pseudo-element's glyphs can't
-  // take. A revision that changes it replaces the sample.
-  #caption() {
-    const words = this.getAttribute("label");
-    if (words === null) return;
-    const caption = document.createElement("span");
-    caption.dataset.lfSaid = "label";
-    caption.textContent = words;
-    this.prepend(generatedElement(caption, { says: true }));
   }
 
   #build() {

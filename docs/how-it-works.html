@@ -470,9 +470,7 @@ leaf server start ./review</code></pre>
                   id="queue-question"
                   label="When the queue fills, what should happen?"
                 >
-                  <h3 id="queue-question-h">
-                    When the queue fills, what should happen?
-                  </h3>
+                  <h3>When the queue fills, what should happen?</h3>
                   <lf-options id="queue-policy">
                     <lf-option id="block-producer" label="Pause the producer"
                       ><strong>Pause the producer</strong> Keep every queued record;
@@ -626,7 +624,8 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   <code>$events.answering</code>. Leaf combines the applicable clauses
                   in the batch's <code>handling</code> object. The agent follows those
                   clauses and reads current state before answering: a newer update may
-                  already have settled the response the captured batch requested.
+                  already have settled the response the captured batch requested. The
+                  excerpt below is illustrative, with the batch's other fields omitted.
                 </p>
                 <lf-sample
                   id="handling-example"
@@ -1869,7 +1868,7 @@ flowchart TD
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
               <lf-group id="ship-ask" label="When should this ship?">
-                <h2 id="ship-ask-h">When should this ship?</h2>
+                <h2>When should this ship?</h2>
                 <lf-options id="ship">
                   <lf-option id="ship-now" label="Now"
                     ><strong>Now</strong> Today, behind the flag.</lf-option
@@ -2288,9 +2287,7 @@ flowchart TD
                 id="sample-publish-report-decision"
                 label="Publish the sample report?"
               >
-                <h2 id="sample-publish-report-decision-h">
-                  Publish the sample report?
-                </h2>
+                <h2>Publish the sample report?</h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
                   <lf-option id="sample-publish-report-keep" label="Keep it private"

@@ -1004,7 +1004,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     native SVG is the other control: a gradient reference is valid paint even though
     it is not a color.
 
-    And the replay check reaches a decision made in the panel. `RELATIVE_REPLAYS`
+    And the replay check reaches a decision made in the panel. `relativeReplays`
     applies every winner in force again and asks whether anything moved; a widget an
     agent sent in a reply is folded by a projection of its own and replayed into a tree
     the panel built, and the probe reads the validation state adapter, which returns

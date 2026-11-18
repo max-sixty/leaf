@@ -17,7 +17,7 @@ vars:
     complete history:
 
     cache-one (user): "Why does the first draft use a ten-minute TTL? I worry about stale quotes."
-    [summary sum-one, which you wrote earlier, covering cache-two through cache-six, label "Earlier discussion"]:
+    [summary sum-one, which you wrote earlier, covering cache-two through cache-six]:
       "The ten-minute TTL was a guess from the feed cadence. Measured from the quote
       timestamp, the worst stale interval was fourteen minutes, so you chose five
       minutes, and the document records the measurement and its origin."
@@ -75,7 +75,7 @@ variants:
         complete history:
 
         cache-one (user): "Why does the first draft use a ten-minute TTL? I worry about stale quotes."
-        [summary sum-one, which you wrote earlier, covering cache-two through cache-six, label "Earlier discussion"]:
+        [summary sum-one, which you wrote earlier, covering cache-two through cache-six]:
           "The ten-minute TTL was a guess from the feed cadence. Measured from the quote
           timestamp, the worst stale interval was fourteen minutes, so you chose five
           minutes, and the document records the measurement and its origin."

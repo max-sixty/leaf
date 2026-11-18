@@ -1,0 +1,14 @@
+# Staging: one pod, mail to Postmark's sandbox stream.
+# Ran 3,412 receipts on 12 November with these values; none dead-lettered.
+
+replicas: 1
+
+worker:
+  concurrency: 4
+
+mail:
+  stream: receipts-sandbox
+
+resources:
+  limits:
+    memory: 1536Mi

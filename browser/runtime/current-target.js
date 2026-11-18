@@ -17,6 +17,9 @@
    target; walks use its position in page order. An open obligation represented by its
    card still wears its ring and takes its digits. At an element represented by its own
    thread, `c` continues the thread, `r` settles it, and `m` and `t` step from the target.
+   A thread's view stands at the thread's target but is in the question the thread asks
+   now, where it asks one (`questionAsked`): that question wears the ring, takes the
+   digits and is the walk's stop the user is on, from anywhere in the view.
 
    Current location does not imply arrival at the target. The floating panel shows a
    thread or obligation beside the page (`declareSide`'s `beside`). Features that follow
@@ -61,11 +64,14 @@ import {
 } from "./focus.js";
 import { seenAhead } from "./scroll-containers.js";
 import { closestAcross, inChrome } from "./passages.js";
-import { THREAD } from "./thread/selectors.js";
+import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
+import { isReaction } from "./thread/model.js";
+import { threadNamed } from "./thread/state.js";
 import { readObligations } from "./obligations/model.js";
-import { obligationPlace } from "./obligations/place.js";
+import { obligationPlace, obligationsIn } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import {
+  byRenderedOrder,
   isElement,
   composedParentNode,
   renderedOrder,
@@ -179,6 +185,45 @@ export const arrivalOf = (node) => placeFrom(node, new Set(), false);
 /** @param {Node | null | undefined} node */
 export const obligationAt = (node) =>
   obligationHolding(readObligations().all, placeOf(node));
+
+// The obligation, answered or not, the user at `node` is in: the question a thread's view
+// asks them (`questionAsked`), else the one holding the place the node stands for
+// (`obligationAt`). The location ring and the digits read it.
+/** @param {Node | null | undefined} node */
+export const obligationIn = (node) => questionAsked(node) ?? obligationAt(node);
+
+// The question a thread asks the user at `node`, where `node` is in a view of the thread
+// outside any obligation drawn there: the first still open of those drawn in the agent's
+// latest message in it. A thread and the question it asks are one target, as an
+// obligation and the thread about it are, and the question comes before the obligation
+// the thread is about: it is what the thread asks of the user now, drawn where they are
+// reading, while the obligation stands on the page, where they answer it. A message
+// asking several moves the user on to the next one still open as they answer, as a form
+// does. Once none is open the thread asks nothing, and the view stands for the
+// obligation it is about again, whose ring shows the user where the next digit goes, so
+// a digit there never revises an answer given in the thread; Tab and a click reach the
+// question for that. The thread asks what its newest agent message asks: a question an
+// older message left open stays in On Me, where `m` reaches it.
+/** @param {Node | null | undefined} node */
+export function questionAsked(node) {
+  const view = closestAcross(node ?? null, THREAD);
+  if (!view) return null;
+  const whole = wholeThread(view);
+  const all = readObligations().all;
+  const held = obligationHolding(all, node ?? null);
+  if (held && under(obligationPlace(held, all).source, whole)) return null;
+  const thread = threadNamed(drawnThreadId(view) ?? "");
+  const latest = thread?.msgs.findLast(
+    (message) => message.author === "agent" && !isReaction(message),
+  );
+  const asked =
+    (latest && thread?.obligations.filter((item) => item.message === latest.id)) || [];
+  const drawn = byRenderedOrder(
+    obligationsIn(whole, asked),
+    (item) => obligationPlace(item, all).source,
+  );
+  return drawn.find((item) => item.status === "open") ?? null;
+}
 
 /** @param {Node | null | undefined} node @param {Set<Element>} visited
  * @param {boolean} countBeside @returns {Element | null} */
@@ -344,8 +389,8 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem, at = nul
   return (dir > 0 ? reach[0] : reach.at(-1)) ?? (dir > 0 ? list[0] : list.at(-1));
 }
 
-// The obligation the user is in, answered or not: where letting go lands, and the extent
-// of what `c` counts as the element they are at.
+// The obligation holding the user's place, answered or not: where letting go lands, and
+// the extent of what `c` counts as the element they are at.
 export function heldObligation(node = focused()) {
   return obligationPlace(obligationAt(node)).node;
 }

@@ -65,4 +65,23 @@ export {
   language,
   highlightingFor,
 } from "@codemirror/language";
-export { tags, highlightTree } from "@lezer/highlight";
+export { tags, highlightTree, styleTags } from "@lezer/highlight";
+// What the file editor's language modules import from the editor core and Lezer
+// (build/vendor.mjs, "file-editor"), so their parsers share this core's node types.
+export {
+  LRLanguage,
+  indentNodeProp,
+  delimitedIndent,
+  foldNodeProp,
+  foldInside,
+} from "@codemirror/language";
+export {
+  parseMixed,
+  Parser,
+  NodeProp,
+  NodeSet,
+  NodeType,
+  DefaultBufferLength,
+  Tree,
+  IterMode,
+} from "@lezer/common";

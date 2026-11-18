@@ -84,6 +84,7 @@ import {
   obligationHolding,
   placeOf,
   currentLocationOrigin,
+  questionAsked,
   stepFrom,
   walkOrigin,
 } from "./current-target.js";
@@ -455,16 +456,16 @@ export function createQueueWalk({
   /** @param {Element | null | undefined} region */
   const stopsOf = (region) => (region ? stopsWithin(region) : stops());
 
-  // The item the user is on, if any: the thread holding them, else the innermost of the
+  // The item the user is on, if any: the thread holding them, else the question that
+  // thread asks them (`questionAsked`, current-target.js), else the innermost of the
   // list's obligations holding their place, as `obligationHolding` reads obligations,
   // or the innermost widget an action was handed back on, in page order the last that holds
   // them. A thread drawn beside their place, such as the card a thread about an
   // obligation opens, is not one they are in, so a thread stop of its own is the next
   // one along from the obligation, and from the thread's target the press arrives at
-  // it. Being in a thread that holds an open obligation is not being on that
-  // obligation. `origin` names the user's place unless a walk supplies its own starting
-  // point; only a current location can be on a stop, so a place they let go of or a
-  // reading in the viewport starts a walk but selects no task to finish or count.
+  // it. `origin` names the user's place unless a walk supplies its own starting point;
+  // only a current location can be on a stop, so a place they let go of or a reading in
+  // the viewport starts a walk but selects no task to finish or count.
   /** @param {readonly PlacedStop[]} list @param {Origin | null} origin */
   function currentLocationStop(list, origin = currentLocationOrigin()) {
     if (origin?.kind !== "current-location") return null;
@@ -494,9 +495,9 @@ export function createQueueWalk({
   // (`obligationHolding`).
   /** @type {WeakMap<readonly PlacedStop[], {listed: PlacedStop[], records: Obligation[]}>} */
   const obligationStops = new WeakMap();
-  // The obligation or subject stop holding the user's place, if any.
+  // The obligation or subject stop the user is on, if any.
   /** @param {readonly PlacedStop[]} list @param {Origin} origin */
-  function placeStop(list, { place: here }) {
+  function placeStop(list, { node, place: here }) {
     let held = obligationStops.get(list);
     if (!held) {
       const listed = list.filter((stop) => stop.kind === "obligation");
@@ -504,8 +505,10 @@ export function createQueueWalk({
       obligationStops.set(list, held);
     }
     const { listed, records } = held;
-    const item = obligationHolding(records, placeOf(here), readObligations().all);
-    if (item) return listed.find((stop) => stop.id === item.id);
+    const item =
+      questionAsked(node) ??
+      obligationHolding(records, placeOf(here), readObligations().all);
+    if (item) return listed.find((stop) => stop.id === item.id) ?? null;
     return (
       list.findLast((stop) => {
         if (stop.kind !== "subject") return false;

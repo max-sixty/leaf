@@ -743,6 +743,42 @@ def open_card(page: Page, marker: Locator) -> float:
     return before
 
 
+def summary_card(page: Page) -> None:
+    """A margin card a summary of the thread's opening messages opens, under its
+    actions, and the agent's latest reply after it."""
+    root = "9303f850cbdc9b9f79f1725011251d36"
+    as_agent("thread", "reply", root, "--text", "Export now checks the sandbox first.")
+    # A summary speaks in its agent's voice, which a session gives it.
+    served = served_page.get()
+    served.leaf(
+        "thread",
+        "summarize",
+        str(served.directory),
+        "--from",
+        root,
+        "--through",
+        "sandbox-shutdown-reply",
+        "--text",
+        "The supervisor reaps every child before export, so an empty sandbox is "
+        "its precondition.",
+        LEAF_SESSION_ID="stills-summary",
+        LEAF_AGENT="Codex",
+    )
+    wait_until_ready(
+        page, PageClient(served_page.get().address).state(), through="state"
+    )
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    page.mouse.move(0, 0)
+
+
+def summary_card_opened(page: Page) -> None:
+    """The same card with its summary opened on the messages it folds."""
+    summary_card(page)
+    page.locator(".lf-margin-preview .lf-summary-expand").click()
+    settle(page)
+    page.mouse.move(0, 0)
+
+
 def thread_by_marker(page: Page) -> None:
     """The plan's stop thread, opened by a press on its marker: a margin card on a
     window with room for the rail, the floating panel's view of it on a phone."""
@@ -3278,6 +3314,18 @@ STATES = (
         "plan-card-cluster-resolved",
         "review-a-plan",
         card_cluster_resolved,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "summary-card",
+        "review-a-plan",
+        summary_card,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "summary-card-opened",
+        "review-a-plan",
+        summary_card_opened,
         region=".lf-margin-preview",
     ),
     State(

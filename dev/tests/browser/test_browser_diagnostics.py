@@ -10,10 +10,9 @@ from render_harness import (
 )
 
 from leaf_dev.commands.site.verify import observe_startup
-from leaf_dev.visits import console_findings
 
 
-@pytest.mark.parametrize("collector", [watched, console_findings, observe_startup])
+@pytest.mark.parametrize("collector", [watched, observe_startup])
 def test_uncaught_errors_keep_the_throw_site_in_each_document(browser, collector):
     """Identical messages in separate documents must keep their distinct call sites."""
     page = browser.unwatched.new_page()

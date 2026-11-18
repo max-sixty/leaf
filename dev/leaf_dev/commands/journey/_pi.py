@@ -14,7 +14,7 @@ user's comments at the journey's user end. It reads the page's log and claim in
 process, and stops at the first check that fails.
 
 The steps, in order; all but `held-escape` are those more than one harness takes,
-as `journey.Terminal` has them:
+as `_journey.Terminal` has them:
 
 - `setup`, the extension watching the session's pages as the run settles;
 - `release`;
@@ -25,7 +25,7 @@ as `journey.Terminal` has them:
 - `quit`, by closing Pi's stdin.
 
 After each step the journey requires what every harness must hold between steps
-(`journey.Terminal.between`), with the watch as what listens for Pi's session. Pi's
+(`_journey.Terminal.between`), with the watch as what listens for Pi's session. Pi's
 stderr joins the run's evidence. It spends a few model turns on the host's Codex
 login, so CI does not run it.
 """
@@ -45,7 +45,7 @@ import click
 
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, environment, now, pi_home
-from leaf_dev.commands.journey.run import (
+from leaf_dev.commands.journey._journey import (
     STEP_LIMIT,
     Isolation,
     Terminal,

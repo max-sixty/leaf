@@ -27,7 +27,7 @@ place, so by default the session runs with forks off (`LEAF_FORK_REPLIES=off`).
 `--forks` turns them on, and runs the fork steps in place of the delivery steps.
 
 The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
-more than one harness takes, as `journey.Terminal` has them:
+more than one harness takes, as `_journey.Terminal` has them:
 
 - `setup`;
 - `release`, which asks for work, so with `--forks` a fork hands it over and the
@@ -99,7 +99,7 @@ that the session's next turn didn't answer the forks' questions again.
 Then `quit`, by `/exit`.
 
 After each step the journey requires what every harness must hold between steps
-(`journey.Terminal.between`), with the watch as what listens for the session; and
+(`_journey.Terminal.between`), with the watch as what listens for the session; and
 that no Stop hook has continued a turn with input, so each turn ends on its own
 answer, no delivery shows in the terminal, and Leaf put no empty wake or notice in
 the conversation (`ClaudeCode.between`). Escape runs no Stop hook,
@@ -138,14 +138,14 @@ from leaf.harness import (
     claude_code_live_turn,
     claude_code_registry,
 )
-from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
+from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, inline_delivery
 from leaf.server import running_server
 from leaf.service import page_claim
 from leaf.state import turn_open
 from leaf.todos import TodoReading
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, PageClient, claude_environment, claude_home
-from leaf_dev.commands.journey.run import (
+from leaf_dev.commands.journey._journey import (
     Isolation,
     Terminal,
     User,
@@ -507,16 +507,11 @@ def steps(
         """The delivery steps, from `mid-turn` to `compacting`."""
         started = time.monotonic()
         mid_turn = cc.mid_turn(user, page)
+        records = native_records(cc.home, session)
         require(
             any(
-                event["id"] == mid_turn
-                for record in native_records(cc.home, session)
-                if (attachment := record.get("attachment", {})).get("hookEvent")
-                == "PostToolBatch"
-                for content in attachment["content"]
-                if content.startswith(INLINE_OPENING + "\n")
-                for batch in json.loads(content.split("\n")[1])["batches"]
-                for event in batch["events"]
+                records[position]["attachment"].get("hookEvent") == "PostToolBatch"
+                for position in deliveries(records, mid_turn)
             ),
             "mid-turn: PostToolBatch did not hand the exact input to the model",
         )
@@ -1238,8 +1233,8 @@ def deliveries(records: list[dict], update: str) -> list[int]:
         and any(
             event["id"] == update
             for content in attachment.get("content") or []
-            if content.startswith(INLINE_OPENING + "\n")
-            for batch in json.loads(content.split("\n")[1])["batches"]
+            if (delivery := inline_delivery(content)) is not None
+            for batch in delivery["batches"]
             for event in batch["events"]
         )
     ]

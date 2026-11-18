@@ -1,7 +1,8 @@
-"""Replay Leaf's two conversation forks on short constructed conversations, and score
-each answer: the turn-end check (`leaf.clerk`) and the fork that writes the agent's
-working line on a thread message before Leaf hands it to the session (`leaf.forks`). Claude Code makes both forks, so
-every case runs on that harness alone.
+"""Replay Leaf's conversation forks on short constructed conversations, and score
+each answer: the turn-end check (`leaf.clerk`), the fork that writes the agent's
+working line on a thread message before Leaf hands it to the session (`leaf.forks`),
+and the fork beside it that summarizes a long thread (`leaf.summary_fork`). Claude
+Code makes every fork, so every case runs on that harness alone.
 
 A case in `workflows/fork_eval.yaml` is a conversation written for one decision a
 fork's prompt asks about, the page the session holds (an authored source with the
@@ -15,7 +16,7 @@ command (`Leaf`). The executor builds the page in a throwaway state home, opens 
 turn for a fresh session id and claims the page as that session
 (`CLAUDE_CODE_SESSION_ID`, with this process as `CLAUDE_PID`). It asks `leaf hook
 --fork` for the prompt as `forkStep` in `hooks/claude-code.ts` does, and hands it
-the answer the same way. For a line fork, a process of the arm's holds the session's
+the answer the same way. For a line or summary fork, a process of the arm's holds the session's
 forks lane (`forks.take_lane`) from before the user's waiting messages are admitted,
 as the event endpoint admits them (`KEEP`), until the answer is taken, as the pages
 follower holds it, and asks about the thread the follower would list

@@ -3,14 +3,14 @@ discussion into one summary, written as the agent's own, beside the line fork th
 answers the user's newest message in it (`forks.py`). It runs only in Claude Code,
 where the line fork does.
 
-Leaf suggests a range of a long thread to summarize (`thread_context.summary_hint`),
-and summarizing it was the agent's chore, done in the turn that answers the user,
-which it often skipped. The user chose to have a fork write it, and to make it at the
-line fork's moment rather than at the turn's end with the clerk (`clerk.py`): the
-user has just written in the thread, which is changing anyway, and the summary
-usually lands before the session's answer does, whereas at the turn's end it would
-land while the user reads that answer, and drop once they reply. They also chose that
-summarizing comes second to answering. So the summary is a fork of its own, started
+Leaf suggests a range of a long thread to summarize (`thread_context.summary_hint`).
+The user chose to have a fork write it, rather than leave it to the turn that answers
+the user, which often skips it, and to make it at the line fork's moment rather than
+at the turn's end with the clerk (`clerk.py`): the user has just written in the
+thread, which is changing anyway, and the summary usually lands before the session's
+answer does, whereas at the turn's end it would land while the user reads that
+answer, and drop once they reply. They also chose that summarizing comes second to
+answering. So the summary is a fork of its own, started
 beside the line fork (`forks.ask`'s `beside`), rather than a part of the line fork's
 answer: a fork's answer arrives whole, and a summary's few hundred words would hold
 back the working line and the thread's handover to the session by seconds.
@@ -19,7 +19,8 @@ The hint is the fork's for a thread whose newest delivered message Leaf kept bac
 a line fork, since `forks.ask` asked this fork then: the session's delivery leaves it
 out (`thread_context.batch_threads`), so the session spends no step on it. A delivery
 whose newest message in the thread wasn't kept back, as one arriving while the
-session still owed the thread its answer, carries the hint to the session as before.
+session still owed the thread its answer, carries the hint to the session when a
+range is suggested.
 Where the fork fails, Leaf tells the session the range it suggested (`_handed`), so
 the summary has an owner either way. One path leaves it without one until the
 thread's next message Leaf keeps back: a line turn that lapses, or whose step fails,

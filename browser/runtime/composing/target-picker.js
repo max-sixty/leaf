@@ -144,6 +144,9 @@ const searchCount = (position, total) => `${position} of ${total}`;
  */
 // A letter or digit, which a word runs on through.
 const WORD = /[\p{L}\p{N}]/u;
+// Words ended as a sentence, where they don't end in a stop or an ellipsis of their own.
+/** @param {string} words */
+const sentence = (words) => (/[.!?…]$/u.test(words) ? words : `${words}.`);
 
 /** @param {TargetPickerOptions} options */
 export function createTargetPicker({
@@ -638,7 +641,7 @@ export function createTargetPicker({
     const query = searchQuery();
     const said =
       beginWalk("page-search", "Match", () => matchWalkPosition(query)) ?? matchPlace();
-    announce(`${said}: ${matchDescription(selected)}.`);
+    announce(`${said}: ${sentence(matchDescription(selected))}`);
     repaint();
   }
 
@@ -685,7 +688,7 @@ export function createTargetPicker({
     setTargetPicker(false);
     const said = landOnMatch(segments, repeatedSearch.query);
     announce(
-      `${said}, selected: ${matchDescription(segments)}. ${
+      `${said}, selected: ${sentence(matchDescription(segments))} ${
         coarsePointer.matches || !bindingEnabled("c")
           ? "A press on the comment field comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
@@ -731,7 +734,7 @@ export function createTargetPicker({
     repetition.index = active;
     showMatch();
     const said = landOnMatch(selected, repetition.query);
-    announce(`${said}: ${matchDescription(selected)}.`);
+    announce(`${said}: ${sentence(matchDescription(selected))}`);
   }
 
   function back() {

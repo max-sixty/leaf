@@ -499,9 +499,6 @@ const groupOf = (entry) =>
 // window.
 /** @type {ReadonlySet<string>} */
 const NO_STANDING = new Set();
-// The facts the page field's standing words say, each while it holds (`standing`).
-/** @type {ReadonlySet<string>} */
-const STANDING = new Set(["stance", "version", "comparison", "annotations"]);
 function passing(says = NO_STANDING) {
   const notice = noticeReading();
   if (notice.visible && !(notice.about && says.has(notice.about)))
@@ -1273,7 +1270,6 @@ export function createFloatingPanel({
   // carries the agent's words, so nothing in it is nobody's: Leaf says a stance's name,
   // where the user stands and the words quoted, since the interface's upright face would
   // read as the agent's (the user's choice).
-  const HIDDEN = "Annotations hidden";
   // A notice offering a press after the user's own gesture is newer than any error the
   // field says, so while it passes it says its words over that error,
   // which waits in the menu's Errors meanwhile, as one the field has passed does, and
@@ -1313,19 +1309,42 @@ export function createFloatingPanel({
   // placeholder (`saying`). The version stood in a tinted notice beside the On Me mark
   // until #5642, which narrowed the field as it came and went and slid the press at
   // the field's end from under the user's aim.
+  // Each fact where the user stands that the page field's words say while it holds, in
+  // the order they say them, with its words (`standing`): the stance's name, the version
+  // shown where it is older than the latest, a comparison's changes and hidden
+  // annotations.
+  /** @type {readonly [string, (stance: string | null) => ReturnType<typeof leafSays> | null][]} */
+  const STANDING_PARTS = [
+    ["stance", (stance) => (stance === null ? null : leafSays(stance))],
+    [
+      "version",
+      () => {
+        const { shown } = versionsReading().latest;
+        return shown === null ? null : leafSays(shown);
+      },
+    ],
+    [
+      "comparison",
+      () => {
+        const base = comparisonBase();
+        return base
+          ? leafSays(
+              `${counted(comparisonChanges().length, "change")} since ${base.name}`,
+            )
+          : null;
+      },
+    ],
+    [
+      "annotations",
+      () => (annotationsHidden() ? leafSays("Annotations hidden") : null),
+    ],
+  ];
+  const STANDING = new Set(STANDING_PARTS.map(([about]) => about));
   /** @param {string | null} stance @param {boolean} [more] whether words follow */
   function standing(stance, more = false) {
-    const { shown } = versionsReading().latest;
-    const base = comparisonBase();
-    const compared = base
-      ? leafSays(`${counted(comparisonChanges().length, "change")} since ${base.name}`)
-      : null;
-    const parts = [
-      stance === null ? null : leafSays(stance),
-      shown === null ? null : leafSays(shown),
-      compared,
-      annotationsHidden() ? leafSays(HIDDEN) : null,
-    ].filter((part) => part !== null);
+    const parts = STANDING_PARTS.map(([, words]) => words(stance)).filter(
+      (part) => part !== null,
+    );
     return parts.map((part, at) =>
       !more && at === parts.length - 1
         ? part
@@ -5512,8 +5531,13 @@ export function createFloatingPanel({
       run: () => focusDestination(leaf, "return"),
     },
   ]);
-  // Folding to the leaf is the page's command, so it has a key and a row in the menu.
-  const foldPanel = () => setRest(prefs().rest === "mark" ? "row" : "mark");
+  // Folding to the leaf is the page's command, so it has a key and a row in the menu. A
+  // listener hears the panel go, or come back, which nothing else says to them.
+  const foldPanel = () => {
+    const folding = prefs().rest !== "mark";
+    setRest(folding ? "mark" : "row");
+    announce(folding ? "Folded to the leaf" : "Unfolded");
+  };
   pageCommand({
     id: FOLD,
     keys: ["."],

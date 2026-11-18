@@ -496,12 +496,15 @@ export function createGoToSequence({
   const hearThem = (count) =>
     `type a hint or press Tab to hear ${count === 1 ? "it" : "them"}`;
 
-  // An empty active filter is useful state, not a four-second event. The candidate map is
+  // Hint chips show the eye that the sequence waits for a key. Where none shows, the
+  // page's targets or a filter's being out of view, the field says so for as long as
+  // the sequence waits, which is useful state, not a four-second event; without it the
+  // next key would go to Go-to with nothing on screen saying so. The candidate map is
   // the reading the hint session already holds; using it here keeps the shortcut repaint
   // out of the expensive visibility and hit-test pass.
   function goToStatus() {
-    if (!goToActive || !targetFilter || hints.candidates().length) return null;
-    return `No visible ${targetFilter.word}s`;
+    if (!goToActive || hints.candidates().length) return null;
+    return `No visible ${targetFilter ? `${targetFilter.word}s` : "targets"}`;
   }
 
   // The sequence is one scope: generated visible targets, named global destinations, structural

@@ -172,8 +172,8 @@ absolutely, and writes the key into it while the key works. `leaf package check
 
 A list of focusable rows gets its arrow keys from `rowWalk({id, noun, plural, rows})`,
 whose two returned rows go into the list's scope: ArrowUp and ArrowDown step, Home and
-End reach the ends, and a step shows its place in Leaf's panel, such as `3 of 7`, where
-the list runs past the window. `rows()` returns the list at each press, `landed(row)`
+End reach the ends, and a step shows its position in Leaf's panel, such as `Entry 3 of
+7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
 runs after a move, and `scroll: false` keeps the page still.
 
 A row whose press carries the user along a list of its own, as a timeline's arrows
@@ -185,8 +185,8 @@ A widget that steps through something itself, such as a diff's hunks, calls
 as `Hunk 3 of 7`. `noun` names one stop, and `read()` returns the position, usually
 from `listWalkPosition(items, current, {identity})`. A walk within a list on screen,
 such as a chart's points or a tab strip, gives `list()`, its first and last stops;
-Leaf's panel then shows the place alone, and nothing while both stand in view, since
-the focus ring shows where the step landed. A walk that comes round at its ends steps with
+Leaf's panel then says nothing while both stand in view, since the focus ring shows
+where the step landed. A walk that comes round at its ends steps with
 `cycledRow(items, current, direction)`, which returns the item it lands on.
 
 ### Go-to targets

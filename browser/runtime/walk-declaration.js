@@ -11,7 +11,10 @@
    (walk-position.js, `walkWords`), and a listener hears the whole position, which
    `beginWalk` returns for the owner to announce, since a listener sees no list. The
    user asked for this over each owner choosing what the panel shows, which no owner
-   could choose right where the panel's own words already named the list. */
+   could choose right where the panel's own words already named the list. A position
+   names its list wherever it says one, a list on screen's included, "Tab 2 of 14":
+   the panel stands apart from the list, beside words of the page's own such as "1 of
+   31 pages real", so a bare "2 of 14" doesn't say what it counts. */
 export const WALK = "lf-walk";
 
 /** @typedef {{target: unknown, position: number, total: number, qualifier: string}} WalkPosition
@@ -64,7 +67,6 @@ export function walkPosition() {
       position.qualifier,
     ),
     place: walkPositionLabel(null, position.position, position.total),
-    list: Boolean(walking.list),
     about: walking.about,
   };
 }
@@ -76,10 +78,11 @@ export function walkPosition() {
 // reading's qualifier names, as "2 of 5 waiting on me" does; such a walk never names
 // the kind of the stop the user stands on, which is in front of them. A walk within a
 // list on screen, such as a tab strip, a question's options or a chart's points, gives
-// `list`, its first and last stops; a list whose stops all stand in view whenever it
-// can be walked, as Go-to's hints do, declares no walk. `about` names the fact where
-// the user stands whose list the walk is over (floating-panel.js, `standing`), as
-// "comparison" does for its changes.
+// `list`, its first and last stops, so the host can tell when the whole list stands in
+// view; a list whose stops all stand in view whenever it can be walked, as Go-to's
+// hints do, declares no walk. `about` names the fact where the user stands whose list
+// the walk is over (floating-panel.js, `standing`), as "comparison" does for its
+// changes.
 //
 // The host may decline to present a step, as Leaf does where the whole list stands in
 // view and the ring already shows the place (walk-position.js): the walk the user came

@@ -705,8 +705,8 @@ customElements.define(
     // A key's step is a walk along the reading's series, a new aim wherever it lands; a
     // redraw that keeps the reader on their point is none. It tells a listener where it
     // landed: the point's words, then its place in its series. The series' first and
-    // last points bound the list, each by its shape, or by the drawing where a shape
-    // holds more than one point, as a line does.
+    // last points bound the list, each by its shape, or by the drawing where the chart
+    // draws no shape of the point's own, as a line's or a dot's.
     /** @param {Point | null} point */
     #step(point) {
       this.#place = null;

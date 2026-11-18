@@ -43,15 +43,14 @@ window.addEventListener(WALK, (event) => {
 });
 
 // What a surface of the panel says of a walk's step, which the walk's owner declared
-// (walk-declaration.js, `beginWalk`): its place alone where the screen names the list,
-// "2 of 14", since a list on screen shows which it is but perhaps not where it ends, and
-// where the surface's own words say the fact the list is about (`says`), as the page
-// field's "5 changes since v2 · 1 of 5" does; else the whole position, "Thread 2 of 5",
-// since the rest of a walk across the page is out of view.
+// (walk-declaration.js, `beginWalk`): its place alone where the surface's own words say
+// the fact the list is about (`says`), as the page field's "5 changes since v2 · 1 of 5"
+// does, and else the whole position, "Thread 2 of 5", "Tab 2 of 14", since the panel
+// stands apart from the list it counts.
 /** @param {NonNullable<ReturnType<typeof import("./walk-declaration.js").walkPosition>>} walk
  * @param {ReadonlySet<string>} says */
 export const walkWords = (walk, says) =>
-  walk.list || (walk.about !== null && says.has(walk.about)) ? walk.place : walk.text;
+  walk.about !== null && says.has(walk.about) ? walk.place : walk.text;
 
 // The walk over a flat list of focusable rows, declared once for every list that has
 // one: ArrowUp and ArrowDown step and clamp, Home and End land on the ends, and a
@@ -61,7 +60,7 @@ export const walkWords = (walk, says) =>
 // four routes and their words, in the order ArrowUp, ArrowDown, Home, End, for a list
 // whose ends have a meaning of their own. The rows are a list on screen, which its
 // first and last rows bound (walk-declaration.js, `beginWalk`), so a landing shows its
-// place, "3 of 14", or nothing where the whole list stands in view. `position`
+// position, "Entry 3 of 14", or nothing where the whole list stands in view. `position`
 // reads where a landing stands, by default its place among the rows. A list passes
 // its own where the items it counts are narrower than the stops the walk lands on, as
 // a fold's door between items is a stop and not an item, or where another walk over

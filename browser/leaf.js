@@ -398,6 +398,7 @@ async function boot() {
   app = mountApplication({
     arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
     nextObligationWithin: (options) => queueWalk.nextWithin(options),
+    goToObligation: (record) => queueWalk.goToObligation(record),
     createEngagement,
     targetPickerOpen: () => targets.targetPickerOpen(),
     wireInput: inputs.wireInput,
@@ -442,7 +443,6 @@ async function boot() {
       renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
       scrollThreadIntoView,
       openInPanel: (id) => floatingPanel?.openThread(id),
-      goToObligation: (...args) => items.goToObligation(...args),
       resumeDraft: (context) => writingResume.resumeDraft(context),
     },
     state: {
@@ -488,7 +488,6 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
-    announce,
     repaint,
   });
   const queueWalk = createQueueWalk({

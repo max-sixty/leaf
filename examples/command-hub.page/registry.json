@@ -106,73 +106,71 @@
   },
   "lf-atlas-plan": {
     "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
-    "x-name": "label",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "label": {
-        "type": "string"
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "overview": {
+          "type": "string"
+        }
       },
-      "phase": {
-        "type": "string"
-      },
-      "overview": {
-        "type": "string"
-      }
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "members",
-    "x-refers": {
+    "content": "members",
+    "refers": {
       "overview": {}
-    },
-    "x-upgrade": true
+    }
   },
   "lf-atlas-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "status": {
-        "enum": ["planned", "active", "blocked", "review", "stalled", "done"]
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": ["planned", "active", "blocked", "review", "stalled", "done"]
+        },
+        "owner": {
+          "type": "string"
+        },
+        "when": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
+        },
+        "needs": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*( [a-z0-9][a-z0-9-]*)*$"
+        },
+        "stopped-at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "talk": {
+          "type": "boolean",
+          "description": "The row takes comments: it shows the conversations about it at its foot, above a Comment control that starts one. The comment box there offers a second send, Send & pause, whose comment holds the goal until its conversation is resolved."
+        },
+        "overruled": {
+          "type": "boolean"
+        }
       },
-      "owner": {
-        "type": "string"
-      },
-      "when": {
-        "type": "string"
-      },
-      "tags": {
-        "type": "string",
-        "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
-      },
-      "needs": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*( [a-z0-9][a-z0-9-]*)*$"
-      },
-      "stopped-at": {
-        "type": "string",
-        "format": "date-time"
-      },
-      "talk": {
-        "type": "boolean"
-      },
-      "overruled": {
-        "type": "boolean"
-      }
+      "required": ["id", "status"],
+      "additionalProperties": false
     },
-    "required": ["id", "status"],
-    "additionalProperties": false,
-    "x-owners": ["lf-atlas-plan", "lf-atlas-task"],
-    "x-content": "markup",
-    "x-upgrade": true,
-    "x-thread-seat": {
-      "when": {
-        "talk": [true]
-      },
-      "hold": "Send & pause"
-    },
-    "x-state": {
+    "owners": ["lf-atlas-plan", "lf-atlas-task"],
+    "verbs": {
       "status": {
         "writer": "agent",
         "unit": "widget",
@@ -185,22 +183,23 @@
   },
   "lf-atlas-worker": {
     "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "state": {
-        "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "state": {
+          "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
+        },
+        "on": { "type": "string" },
+        "overruled": {
+          "type": "boolean"
+        }
       },
-      "on": { "type": "string" },
-      "overruled": {
-        "type": "boolean"
-      }
+      "required": ["id", "state"],
+      "additionalProperties": false
     },
-    "required": ["id", "state"],
-    "additionalProperties": false,
-    "x-owners": ["lf-atlas-plan", "lf-atlas-task"],
-    "x-content": "markup",
-    "x-refers": {
+    "owners": ["lf-atlas-plan", "lf-atlas-task"],
+    "refers": {
       "on": {
         "via": "$work.widgets",
         "where": {
@@ -208,8 +207,7 @@
         }
       }
     },
-    "x-upgrade": true,
-    "x-state": {
+    "verbs": {
       "state": {
         "writer": "agent",
         "unit": "widget",
@@ -223,22 +221,23 @@
   },
   "lf-atlas-tree": {
     "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "source": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "required": ["id", "source"],
+      "additionalProperties": false
     },
-    "required": ["id", "source"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-data": {
+    "content": "empty",
+    "inputs": {
       "worktrees": {
         "contract": "atlas-worktrees",
         "source": "source",
         "property": "value"
       }
     },
-    "x-upgrade": true,
-    "x-space": "wide"
+    "space": "wide"
   }
 }

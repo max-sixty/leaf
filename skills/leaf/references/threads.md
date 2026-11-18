@@ -2,8 +2,8 @@
 
 Open a thread when the answer depends on the user. Add `--obligation` to put the
 message on their On Me list until they answer. The message itself supplies the
-request; no widget or markup is needed, though a question whose answers you can list
-takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
+request; no widget is needed, though a question whose answers you can list
+usually takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
 for a diagram or image, a declared part for one box within a visual, or nothing for
 the page as a whole:
 
@@ -51,35 +51,59 @@ longer describes the discussion, rename it with
 `leaf thread edit <page> <message> --title "<a few words>"`, which adds no
 message.
 
-Add `--markup` for an HTML fragment after the text: a native table, a bounded log, or
-a choice ("Ask for a pick" below). Native HTML needs no widget wrapper. Its ids must be new, used in no version of the page and no earlier
-message. Leaf checks markup as it checks a page, and refuses document settings or a
-stylesheet for the whole page. An `lf-sample` template gives the user a live
-practice page in the thread (`live-samples.md`).
+A message is Markdown, and HTML in it draws where you write it, as on GitHub: a
+formula inside a sentence, a native table, a bounded log, or a choice ("Ask for a
+pick" below). Native HTML needs no widget wrapper. Leaf reads it by CommonMark's
+rules, as GitHub does. Start a block of HTML after a blank line, with its opening tag
+alone on its line. The next blank line ends the block and Markdown resumes, so a blank
+line inside a widget or `<details>` splits it. Text whose blank lines matter, such as
+code, goes in a Markdown fence or in a `<pre>` opening its own line after a blank
+line; inside a widget, leave a blank line before and after it. HTML among words
+belongs to their paragraph, and Markdown still reads the words inside it. Write a `<`
+meant as text in backticks or as `&lt;`. Ids must be new, used in no
+version of the page and no earlier message. Leaf checks the HTML as it checks a page,
+and refuses document settings or a stylesheet for the whole page. An `lf-sample`
+template gives the user a live practice page in the thread (`live-samples.md`).
 
 ```bash
-leaf thread reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
+leaf thread reply <answer.ref> --done <<'EOF'
+The deploy passed.
+
+<details>
+<summary>Deploy log</summary>
+<pre>Ready
+Done</pre>
+</details>
+EOF
 ```
 
-Leaf checks markup when you post it, and draws a data widget, such as a chart or
+Leaf checks the HTML when you post it, and draws a data widget, such as a chart or
 diagram, once first: a widget that fails to draw refuses the message with its error.
 Fix it and post again. Where Leaf has no browser, the failure reaches you instead as an
 `error` event when the user opens the thread; answer with a corrected reply.
 
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
-wall there. Say what changed or where to look in a sentence or two, give each further
-point a short paragraph or item of its own, and put a question you ask on its own
-line; the page carries the evidence. Record a decision, result, or deferred work on
-the page and link it from the reply with a fragment link such as
+wall there. The user should take in at a glance what a message tells them and what it
+asks of them. A message is generally a sentence or two; where it has several points,
+such as the options a question weighs, give each a short paragraph or item, and a
+question a line of its own. The page carries the work. Record a decision, result,
+or deferred work on the page and link it from the reply with a fragment link such as
 `[the decision](#decision)`, which previews its target while the user points at it and
-opens any tab or group hiding it. To point
+opens any tab or group hiding it. The thread already reaches the passage or section it
+is on, as a card beside it or by Show on page in the panel, so a link to it takes the
+user nowhere new; say in words what changed in it. To point
 at lines of an `lf-code` block, put them after its id and a colon, in the grammar of
 its `hi` attribute: `[the retry](#client:12-18)`. Where
 the reasoning matters to someone using the result, keep the thread anchored to that
-section.
+section. Where a message rests on a source, such as a rule, a file or an earlier
+message, quote the whole passage it turns on, conditions included, so the user can
+check the message against it where they read; a passage longer than a few lines goes
+in a `<details>`.
 
-A reply renders as Markdown. Use `--text` for a one-liner, and `--file`, or a
-heredoc on stdin, for anything longer.
+Use `--text` for a one-liner, and `--file`, or a heredoc on stdin, for anything
+longer. A `math` fence holds a display formula, and `<code class="language-math">` a
+formula inside a sentence, where Markdown still reads the LaTeX: write `\\{` for `\{`
+and `\*` for `*` (`page-authoring.md`, "Markup").
 
 To send an image, run `leaf page media <page> <file>`
 and put the `path` it prints in your text as a Markdown image.
@@ -93,7 +117,8 @@ leaf thread reply <page> <message> --text "The monitoring window has ended."
 
 Use the whole `answer.ref` when answering a delivered update or posting progress on
 it. The reference identifies the page, thread and exact input being answered.
-Use the page and message id to add a message when the thread owes no reply.
+A message posted by page and message id answers nothing, so an answer its thread
+owes stays owed.
 While the session an update was delivered to holds the page,
 `leaf page state` shows the same `ref` on the update's `answer`. A reply on a `ref`
 delivered before the user's newer correction does not answer that correction.
@@ -102,12 +127,13 @@ Successful answers check the saved `index.html` and make it the active revision
 with the answer; the first answer on a revision also notes the advice `page check`
 gives. Progress and failure reports use the active revision without checking or
 publishing an in-progress draft. Rerunning an
-answer with the same `ref` adds nothing.
+answer with the same `ref`, text and flags adds nothing.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
-"Replies"). Use `leaf thread reply` instead when the answer needs markup, a question
-back, a to-do, a title, or a moved anchor. To have a command hub worker answer, forward
-it the `answer.ref` as that package's coordinator instructions say.
+"Replies"). Use `leaf thread reply` instead when the answer needs a question back,
+a to-do, a title, or a moved anchor. To
+have a command hub worker answer, forward it the `answer.ref` as that package's
+coordinator instructions say.
 
 ## Preserve revised anchors
 
@@ -144,7 +170,7 @@ Every answer declares whose move it leaves:
   `message:<its id>` on On Me until their next reply or a settling reaction answers
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
-  `--markup` asks instead ("Ask for a pick").
+  the message usually asks instead ("Ask for a pick").
 
   Where their reply left a question standing, as when they asked something back or
   the step is still to do, give `--obligation` its id, repeating the flag for each
@@ -155,7 +181,9 @@ Every answer declares whose move it leaves:
 
 - `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
   that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
-  ([Long-running work](conversation-loop.md#long-running-work)).
+  ([Long-running work](conversation-loop.md#long-running-work)). A later `--done` on
+  the same reference posts its reply in the thread, and Leaf names the to-do still
+  open for `leaf task end`.
 - `--done`: nobody's. It delivers what the message asked for and leaves the user
   nothing to decide.
 
@@ -170,23 +198,32 @@ finished work.
 
 ### Ask for a pick
 
-When a message asks the user to choose among answers you can list, such as which of
-two ways to proceed or whether to take an action, send the answers as an `lf-options`
-group in `--markup` rather than listing them in words. The user answers with a press
-in the thread, and the group waits on them until they do, so the message takes no
-`--obligation`, which the command refuses beside it. The message's text asks the
-question and gives your reason, so the group needs no `lf-ask`. Title each option by
-what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
-question holds"):
+When a message asks the user to choose among answers you can list, such as which of two
+ways to proceed, whether to take an action or whether a step they took worked, you can
+send the answers in the message as an `<lf-options id="…">` holding an
+`<lf-option id="…">` for each. Picking an option is generally quicker and easier for
+the user than typing a reply, so a choice usually serves them better than answers
+listed in words. The user answers with a press in the thread, and the `lf-options`
+waits on them until they do, so the message takes no `--obligation`, which the command
+refuses beside it. The message's text asks the question and gives your reason, so the
+`lf-options` needs no heading or group round it. Title each option by what choosing it
+does and mark the one you advise (`authoring-on-me.md`, "What a question holds").
 
 ```bash
-leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
+leaf thread reply <answer.ref> <<'EOF'
+Which store should own sessions? I'd keep the account store, which already expires them.
+
+<lf-options id="session-store">
+<lf-option id="session-store-account" label="Keep the account store" recommended><strong>Keep the account store</strong></lf-option>
+<lf-option id="session-store-own" label="Give sessions their own store"><strong>Give sessions their own store</strong> One more service to run.</lf-option>
+</lf-options>
+EOF
 ```
 
-If the user answers in words instead, end the question with
-`leaf task end <page> widget:<id> done --text "<where they answered>"`; the delivery
-of their reply lists it in `waiting`. Another widget that asks works the same way, such
-as an `lf-draft` marked `needed` for wording the user edits. A decision the page
+If the user answers in words instead, the delivery of their reply lists the question
+in `waiting`; once you have answered, resolve the thread if nothing else in it waits on
+them, which takes the question off On Me. Another widget that asks works the same way, such
+as an `lf-draft` marked `required` for wording the user edits. A decision the page
 records, or one whose evidence needs the column, goes on the page beside its subject
 (`authoring-on-me.md`), linked from the reply.
 
@@ -208,12 +245,12 @@ The thread shows the latest progress as one dim working message where you posted
 Progress never counts as unread. Your next ordinary reply replaces the preceding
 progress.
 Progress carries only text;
-questions, to-dos, markup, anchor moves and failure receipts each need a reply of
+questions, to-dos, HTML, anchor moves and failure receipts each need a reply of
 their own.
 
-A widget that asks in a message's markup keeps its thread at "Your turn" until the
+A widget that asks in a message keeps its thread at "Your turn" until the
 user answers it ("Ask for a pick"). A thread you open waits on nobody by itself:
-`--obligation` registers the message's request without markup.
+`--obligation` registers the message's request without a widget.
 
 Correct a message you or an earlier agent wrote, without adding a turn:
 
@@ -221,20 +258,26 @@ Correct a message you or an earlier agent wrote, without adding a turn:
 leaf thread edit <page> <message> --text "Corrected wording."
 ```
 
-The page labels it `edited`, and the log keeps every wording. Only the text changes;
-markup stays as it was sent.
+The page labels it `edited`, and the log keeps every wording. An edit may change the
+message's HTML too. An answer the user gave a widget in it stays with the widget's
+ids, and shows on whatever the edit leaves under them.
 
 While your reply is still the thread's latest message and the user hasn't answered
 it, a correction to it, or a later finding of yours that changes its answer, goes
 into that reply with `leaf thread edit` rather than a new reply, so the user returns
 to the current answer rather than to messages that correct one another. Keep new
 replies for news the user is waiting on, such as a result you promised, and for
-answering a delivered update, which an edit does not answer.
+answering a delivered update, which an edit does not answer. Where you already
+posted such a correction as a new reply, fold it and the reply it corrects into one
+current answer with `leaf thread summarize <page> --from <earlier-reply> --through
+<correction> --text "<the current answer>"`, widening the range where Leaf names a
+wider one ("Summarize a long discussion").
 
 An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
 answer; the user usually resolves it. Resolve it yourself only when the user asks,
-when an event's `handling` says to, or when no review or follow-up could change the
-outcome, which finishing the work does not show by itself. When unsure, leave it
+when an event's `handling` says to, when its question was settled elsewhere
+(`conversation-loop.md`, "The On lists"), or when no review or follow-up could change
+the outcome, which finishing the work does not show by itself. When unsure, leave it
 open. First answer any unanswered user message in it:
 
 ```bash
@@ -256,19 +299,27 @@ one is not an answer.
 When a thread's topic has moved on, or settled detail buries the current exchange,
 summarize the earlier discussion as part of answering new input, without waiting to
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
-with `leaf page state <page> <message>` and choose a contiguous range that fits the
-topic, starting and ending on spoken messages rather than reactions. Leave out
-messages whose wording still matters to the current exchange. Summarize the range's
-decisions, reasoning, and open questions in Markdown prose, and put its outcomes in
-the page too:
+with `leaf page state <page> <message>` and choose a contiguous range, starting and
+ending on spoken messages rather than reactions. Leave out messages whose wording
+still matters to the current exchange. A range may take in summaries already in the
+thread, and the new summary replaces them. Take them in, as the hint does, so the
+user reads one account of the earlier discussion rather than a row of summaries. No
+message but the thread's first may stay unsummarized above any summary. Leaf refuses
+a range that would leave one there, a fold without prose included, and names a wider
+range it accepts; write that summary to cover the added messages too.
+
+A summary gives the range's decisions, reasoning, and open questions in Markdown
+prose, written from the original messages rather than only from the summaries it
+replaces.
+
+Put the range's outcomes in the page too, and write the summary:
 
 ```bash
 leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --file summary.md
 ```
 
 The summary replaces the range in the thread, and the originals stay available to
-unfold. It answers nothing. When summarizing again, read the originals rather than
-only the older summary. A recap in an ordinary reply folds nothing.
+unfold. It answers nothing. A recap in an ordinary reply folds nothing.
 
 To fold messages
 without a summary, pass an empty `--text`:

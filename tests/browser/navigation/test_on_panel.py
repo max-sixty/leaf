@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
+    expect_obligations_answered,
     expect_panel_says,
     field_press,
     holding,
@@ -53,9 +54,9 @@ def expect_on_me(page, count):
 QUEUE_PAGE = leaf_page(
     "What waits on you",
     '<h1 id="h">Release</h1><p id="cadence">We publish a build every week.</p>'
-    '<lf-ask id="channel-ask"><h2>Which channel first?</h2>'
-    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
-    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    '<lf-group id="channel-ask" label="Which channel first?"><h2 id="channel-ask-h">Which channel first?</h2>'
+    '<lf-options id="channel"><lf-option id="beta">Beta first</lf-option>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-group>'
     '<p id="notes">Release notes come from merged titles.</p>',
 )
 
@@ -216,13 +217,13 @@ UNDER_PANEL_PAGE = leaf_page(
     "Stops under the panel",
     '<h1 id="h">Release</h1>'
     + FILLER
-    + '<lf-ask id="mid-ask"><h2>Which channel first?</h2>'
-    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
-    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    + '<lf-group id="mid-ask" label="Which channel first?"><h2 id="mid-ask-h">Which channel first?</h2>'
+    '<lf-options id="channel"><lf-option id="beta">Beta first</lf-option>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-group>'
     + FILLER
-    + '<lf-ask id="foot-ask"><h2>Ship notes with it?</h2>'
-    '<lf-options id="notes" choose><lf-option id="yes">Yes</lf-option>'
-    '<lf-option id="no">No</lf-option></lf-options></lf-ask>'
+    + '<lf-group id="foot-ask" label="Ship notes with it?"><h2 id="foot-ask-h">Ship notes with it?</h2>'
+    '<lf-options id="notes"><lf-option id="yes">Yes</lf-option>'
+    '<lf-option id="no">No</lf-option></lf-options></lf-group>'
     '<p id="tail">The notes go out with the build.</p>',
 )
 
@@ -239,12 +240,12 @@ SEEN_SHARE = """async (selector) => {
 }"""
 
 
-def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve):
-    """Once the server reads a reply as answering the question it was sent under, while
-    more waits on the user, the panel field's end offers Next On Me. The caret stays in
-    the card's reply box, where `m` is a letter typed, so the press stands without its
-    key and still walks to the next item, whose key it then says. An answer that leaves
-    nothing On Me offers nothing."""
+def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, serve):
+    """While anything waits on the user, the panel field's end offers Next On Me with
+    `m`, and still does once an answer leaves one item there. With the caret in the
+    card's reply box, where `m` is a letter typed, the press stands without its key and
+    still walks to the next item, whose key it then says. Once nothing is On Me, the
+    field's end offers it no more."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -272,6 +273,9 @@ def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve)
     )
     page = open_page(browser, url)
     expect_on_me(page, 2)
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(press.locator("kbd")).to_have_text("m")
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Reply")
     page.keyboard.press("Enter")
@@ -280,7 +284,6 @@ def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve)
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect_on_me(page, 1)
-    press = field_press(page)
     expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
     expect(box).to_be_focused()
     expect(press.locator("kbd")).to_have_count(0)
@@ -356,9 +359,9 @@ BOUNDED_FOOT_PAGE = leaf_page(
     + FILLER
     + '<section id="bounded" data-bound="start" style="height: 220px">'
     + "".join(f"<p>Log line {i} of the bounded block.</p>" for i in range(12))
-    + '<lf-ask id="bound-ask"><h2>Ship notes with it?</h2>'
-    '<lf-options id="bound" choose><lf-option id="yes">Yes</lf-option>'
-    '<lf-option id="no">No</lf-option></lf-options></lf-ask></section>'
+    + '<lf-group id="bound-ask" label="Ship notes with it?"><h2 id="bound-ask-h">Ship notes with it?</h2>'
+    '<lf-options id="bound"><lf-option id="yes">Yes</lf-option>'
+    '<lf-option id="no">No</lf-option></lf-options></lf-group></section>'
     '<p id="end">The end.</p>',
 )
 
@@ -440,10 +443,10 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
 
     def item(key, label):
         return (
-            f'<lf-tab id="t-{key}" label="{label}"><lf-ask id="{key}-decision">'
-            f'<h2>Pick the {key}</h2><lf-options id="{key}" choose>'
+            f'<lf-tab id="t-{key}" label="{label}"><lf-group id="{key}-decision" label="Pick the {key}">'
+            f'<h2 id="{key}-decision-h">Pick the {key}</h2><lf-options id="{key}">'
             f'<lf-option id="{key}-a">Alpha</lf-option>'
-            f'<lf-option id="{key}-b">Beta</lf-option></lf-options></lf-ask></lf-tab>'
+            f'<lf-option id="{key}-b">Beta</lf-option></lf-options></lf-group></lf-tab>'
         )
 
     page = open_page(
@@ -453,9 +456,9 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
                 "A tallied queue",
                 '<header><h1>Queue</h1><p><lf-tally id="left" for="queue" next>'
                 "</lf-tally></p></header>"
-                '<lf-ask id="outside-decision"><h2>Outside</h2>'
-                '<lf-options id="outside" choose><lf-option id="outside-a">Out</lf-option>'
-                "</lf-options></lf-ask>"
+                '<lf-group id="outside-decision" label="Outside"><h2 id="outside-decision-h">Outside</h2>'
+                '<lf-options id="outside"><lf-option id="outside-a">Out</lf-option>'
+                "</lf-options></lf-group>"
                 '<lf-tabs id="queue" list="side">'
                 + item("first", "First")
                 + item("second", "Second")
@@ -659,10 +662,10 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
         serve(
             leaf_page(
                 "One decision",
-                '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
-                '<lf-options id="only" choose>'
+                '<h1>One decision</h1><lf-group id="only-decision" label="Pick one"><h2 id="only-decision-h">Pick one</h2>'
+                '<lf-options id="only">'
                 '<lf-option id="first">First</lf-option>'
-                '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
+                '<lf-option id="second">Second</lf-option></lf-options></lf-group>',
             )
         ),
     )
@@ -752,14 +755,66 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     expect(page.locator("#only-decision")).to_be_focused()
 
 
+def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
+    """A press naming one obligation, as a Page Map row or a deck's arrival does, says
+    where it stands in On Me as `m` landing there says it, counting the same list: with
+    the first of three questions answered, the third is the second of three, beside the
+    proposal still open. An answered question inside that proposal has no place in On
+    Me, so it says how it ended rather than the proposal's place, and the proposal's
+    place, said a moment before, stands no longer."""
+    asks = "".join(
+        f"""<lf-group id="ask-{index}" label="Question {index}"><h2>Question {index}</h2>
+<lf-options id="pick-{index}">
+  <lf-option id="pick-{index}-yes">Yes</lf-option>
+  <lf-option id="pick-{index}-no">No</lf-option>
+</lf-options></lf-group>"""
+        for index in range(1, 4)
+    )
+    proposal = """<lf-suggestion id="plan"><lf-old><p>The old plan reads this way.</p></lf-old>
+<lf-new><p>The new plan reads another way.</p>
+<lf-group id="step-ask" label="Keep the new step?"><lf-options id="step">
+  <lf-option id="step-keep">Keep it</lf-option>
+  <lf-option id="step-drop">Drop it</lf-option>
+</lf-options></lf-group></lf-new></lf-suggestion>"""
+    page = open_page(
+        browser,
+        serve(leaf_page("three questions", f"<h1>Questions</h1>{asks}{proposal}")),
+    )
+
+    def open_obligation(id_):
+        assert page.evaluate(
+            """async id => (await window.__lfWidgetApi()).obligationActions.open(id)""",
+            id_,
+        )
+
+    page.keyboard.press("m")
+    expect(page.locator("#ask-1")).to_be_focused()
+    page.keyboard.press("1")
+    expect_obligations_answered(page, "1/5")
+    page.keyboard.press("Escape")
+    open_obligation("widget:pick-3")
+    expect(page.locator("#ask-3")).to_be_focused()
+    expect_walk_position(page, "2 of 4 waiting on me · Options")
+
+    page.locator("#step lf-option-control").first.click()
+    expect_obligations_answered(page, "2/5")
+    page.keyboard.press("Escape")
+    open_obligation("widget:plan")
+    expect_walk_position(page, "3 of 3 waiting on me · Rewrite")
+    open_obligation("widget:step")
+    expect(page.locator("#step-ask")).to_be_focused()
+    expect(page.locator(".lf-live")).to_have_text("Options · Answered: Keep it")
+    expect_walk_position(page, None)
+
+
 def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     """An empty On Me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",
-        '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
-        '<lf-options id="only" choose>'
+        '<h1>One decision</h1><lf-group id="only-decision" label="Pick one"><h2 id="only-decision-h">Pick one</h2>'
+        '<lf-options id="only">'
         '<lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>',
     )
     url = serve(source)
     page = open_page(browser, live_url(url))
@@ -807,10 +862,10 @@ def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
     notice's words and comes back to them."""
     source = leaf_page(
         "One decision",
-        '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
-        '<lf-options id="only" choose>'
+        '<h1>One decision</h1><lf-group id="only-decision" label="Pick one"><h2 id="only-decision-h">Pick one</h2>'
+        '<lf-options id="only">'
         '<lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>',
     )
     page = open_page(browser, serve(source))
     # The sequence of motions the leaf's mark starts, each by the turn it reaches first.
@@ -867,9 +922,9 @@ def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     ask and `Shift+m` walks back to the suggestion."""
     filler = "".join(f"<p>Paragraph {n} of the release notes.</p>" for n in range(30))
     asks = "".join(
-        f'<lf-ask id="ask-{n}"><h2>Question {n}</h2><lf-options id="pick-{n}" choose>'
+        f'<lf-group id="ask-{n}" label="Question {n}"><h2 id="ask-{n}-h">Question {n}</h2><lf-options id="pick-{n}">'
         f'<lf-option id="yes-{n}">Yes</lf-option><lf-option id="no-{n}">No</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
         for n in range(10)
     )
     page = open_page(

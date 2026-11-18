@@ -12,11 +12,11 @@
 
    The editor holds no room of its own. Words a refused send hands back, and a draft
    typed in another tab, grow it as typing does, in a card as in the floating panel
-   (browser/AGENTS.md, "The page holds still under the user's aim"; the user's choice, 25
-   October 2026), over holding the room for returned and synced words, where the
-   editor kept its height from before Send and the spacer kept the refused turn's room
-   through its fold, so the card held still while a gap stood above the box, and a
-   mirrored draft stayed in the box of the last native edit, clipped mid-glyph. */
+   (browser/AGENTS.md, "The page holds still under the user's aim"; the user's choice),
+   over holding the room for returned and synced words, where the
+   editor keeps its height from before Send and the spacer keeps the refused turn's room
+   through its fold, so the card holds still while a gap stands above the box, and a
+   mirrored draft stays in the box of the last native edit, clipped mid-glyph. */
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { layoutPx } from "../keeps.js";
 

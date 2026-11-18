@@ -3,24 +3,24 @@ exit: 2
 {"error": "Missing argument 'REFERENCE_OR_PAGE'.", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]"}
 
 $ leaf thread reply /page user-1 --text Answer
-exit: 1
-{"error": "thread 'user-1' currently requires a response; `leaf thread reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1 answers it", "findings": [{"code": "owed-response", "severity": "error", "values": {"thread": "user-1", "answer": "`leaf thread reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1"}}]}
+exit: 0
+{"kind": "reply", "parent": "user-1", "notes": ["thread 'user-1' still owes the user an answer, which this message doesn't give; `leaf thread reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1 answers it"]}
 
 $ leaf thread reply /page --text Answer --done
 exit: 1
 {"error": "invalid delivery id '/page'", "findings": []}
 
 $ leaf thread reply /page user-1 --text Answer
-exit: 1
-{"error": "thread 'user-1' currently requires a response; `leaf thread reply response-ref` answers it", "findings": [{"code": "owed-response", "severity": "error", "values": {"thread": "user-1", "answer": "`leaf thread reply response-ref`"}}]}
+exit: 0
+{"kind": "reply", "parent": "user-1", "notes": ["thread 'user-1' still owes the user an answer, which this message doesn't give; `leaf thread reply response-ref` answers it"]}
 
 $ leaf thread reply response-ref --text Answer --done
 exit: 0
-{"kind": "reply", "parent": "user-1"}
+{"kind": "reply", "parent": "user-1", "notes": []}
 
 $ leaf thread reply response-ref --text Answer --done
 exit: 0
-{"kind": "reply", "parent": "user-1"}
+{"kind": "reply", "parent": "user-1", "notes": []}
 
 $ leaf thread reply /page user-1 --text Follow-up --done
 exit: 2
@@ -28,7 +28,7 @@ exit: 2
 
 $ leaf thread reply /page user-1 --text Follow-up --obligation
 exit: 0
-{"kind": "reply", "parent": "user-1"}
+{"kind": "reply", "parent": "user-1", "notes": []}
 
 $ leaf thread reply not-a-response-ref --text Answer --done
 exit: 1
@@ -36,4 +36,4 @@ exit: 1
 
 $ leaf thread resolve /page user-3
 exit: 0
-{"kind": "resolve", "parent": "user-3"}
+{"kind": "resolve", "parent": "user-3", "notes": []}

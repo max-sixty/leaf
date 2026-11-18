@@ -9,7 +9,8 @@ A serving context holds this result once; its browser selects the same objects.
 from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
-from ..projection import FrozenThreadReading, page_reading
+from ..holding import Holding, reading_of
+from ..projection import ThreadMarkupReading, page_reading
 from ..service import no_stream
 from ..todos import TodoReading
 from ..work_reading import WorkReading
@@ -21,6 +22,9 @@ class WorkState(NamedTuple):
     workflows: list[dict]
     live_reply: dict | None
     presence: dict
+    # Who holds each thread, as the fold read it (`holding.reading_of`), which
+    # `leaf page state` names and delivery filters.
+    holding: Holding
 
     @property
     def obligations(self) -> list[dict]:
@@ -63,7 +67,7 @@ def _strength(workflow: dict, records: dict[str, dict]) -> tuple:
 
 def served_workflows(
     workflows: list[dict],
-    thread_reading: FrozenThreadReading,
+    thread_reading: ThreadMarkupReading,
     records: dict,
     forked: frozenset[str],
 ) -> list[dict]:
@@ -73,10 +77,10 @@ def served_workflows(
     `at_work` is whether the agent is at work on it whatever its condition, which
     every surface reads rather than restating stages: at `working` or `replying`, or
     `forked`, its input taken on by a fork of the agent's conversation
-    (`forks.forked`), which the page words On it while its delivery stands. Every
+    (`holding.Holding.forked`), which the page words On it while its delivery stands. Every
     reader that ages, nudges or holds a turn reads the stage alone.
     `thread` is the thread the workflow stands in: a thread input's own, a widget
-    frozen into a message's thread, or null for a page widget. Whose turn the thread
+    in a message's thread, or null for a page widget. Whose turn the thread
     is reads the records in it, which `records` (`workflows.handed_over`) holds.
 
     The order is the one comparator: whatever shows one workflow of several, a
@@ -125,6 +129,7 @@ def work_state(
     )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
+    holding = reading_of(events, present, now, durable.threads)
     activity = canonical_activity(
         present,
         durable.workflows,
@@ -135,15 +140,17 @@ def work_state(
         stream["reply_reservations"],
         todo_reading=log,
         updates=durable.updates,
+        holding=holding,
     )
     workflows = (
         served_workflows(
             activity["workflows"],
             durable.thread,
             durable.updates,
-            frozenset(present["forked"]),
+            # With no active claim, no fork speaks for the page.
+            frozenset(holding.forked()) if holding.live else frozenset(),
         )
         if source
         else activity["workflows"]
     )
-    return WorkState(durable, activity, workflows, reply, present)
+    return WorkState(durable, activity, workflows, reply, present, holding)

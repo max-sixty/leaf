@@ -73,10 +73,6 @@ PUBLICATION = Record(
 )
 
 
-class StaleDataError(DataError):
-    """A deferred-value request named a source revision the source no longer holds."""
-
-
 def source_file(page_dir: Path, source: str) -> Path:
     return page_dir / DATA_DIR / f"{source}.json"
 
@@ -166,13 +162,15 @@ def _publication(page_dir: Path, source: str) -> tuple[dict, str] | None:
     reading = (
         None
         if publication is None
-        else (
-            publication,
-            hashlib.sha256(json_bytes(publication["value"])).hexdigest()[:16],
-        )
+        else (publication, value_revision(publication["value"]))
     )
     held[source] = (stamp, reading)
     return reading
+
+
+def value_revision(value) -> str:
+    """The revision a source holding `value` reads as: a digest of its encoding."""
+    return hashlib.sha256(json_bytes(value)).hexdigest()[:16]
 
 
 def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
@@ -195,12 +193,9 @@ def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
 
 
 def read_data(page_dir: Path, registry: dict | None) -> dict:
-    """Every source the page holds, read and judged against `registry`.
-
-    `version` digests each source's contract, publication and validity, so a
-    changed contract or validation result is news even when the value matches.
-    A rerun is news even when it writes the same value. A page whose layer cannot be
-    read has no contracts to judge its values by, and reads as holding none."""
+    """Every source the page holds, read and judged against `registry`, with their
+    `data_version`. A page whose layer cannot be read has no contracts to judge its
+    values by, and reads as holding none."""
     names = _source_names(page_dir)
     # A source the page no longer holds keeps nothing.
     held = memo(page_dir, _Publications).held
@@ -214,6 +209,14 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
     sources = {
         source: reading for source, reading in readings.items() if reading is not None
     }
+    return {"version": data_version(sources), "sources": sources}
+
+
+def data_version(sources: dict) -> str:
+    """The version of data holding these source readings (`read_source`): a digest of
+    each source's contract, publication and validity, so a changed contract or
+    validation result is news even when the value matches, and a rerun is news even
+    when it writes the same value."""
     identity = json.dumps(
         {
             source: [
@@ -226,10 +229,7 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
             for source, reading in sources.items()
         }
     )
-    return {
-        "version": hashlib.sha256(identity.encode()).hexdigest()[:16],
-        "sources": sources,
-    }
+    return hashlib.sha256(identity.encode()).hexdigest()[:16]
 
 
 def data_errors(stored: dict) -> list[str]:
@@ -237,107 +237,6 @@ def data_errors(stored: dict) -> list[str]:
     return [
         reading["error"] for reading in stored["sources"].values() if "error" in reading
     ]
-
-
-def deferred_records(value, contract: str, registry: dict) -> dict | None:
-    """The contract's `records` declaration when this validated value's records
-    carry a field Leaf delivers on demand (`records.deferred`).
-
-    A contract may admit both an inline value and a record array. The deferred
-    field applies only to an object carrying the declared item array.
-    """
-    spec = (
-        registry.get("$data", {}).get("contracts", {}).get(contract, {}).get("records")
-    )
-    return (
-        spec
-        if spec is not None
-        and "deferred" in spec
-        and isinstance(value, dict)
-        and isinstance(value.get(spec["items"]), list)
-        else None
-    )
-
-
-def data_manifest(value, contract: str, registry: dict):
-    """Keep a contract's records while leaving each deferred field at its source.
-
-    Both browser delivery and agent inspection use this projection. It never
-    mutates its input and returns the original value when nothing is deferred.
-    """
-    spec = deferred_records(value, contract, registry)
-    if spec is None:
-        return value
-    return {
-        **value,
-        spec["items"]: [
-            {key: item for key, item in record.items() if key != spec["deferred"]}
-            for record in value[spec["items"]]
-        ],
-    }
-
-
-def deferred_fields(value, contract: str, registry: dict) -> dict:
-    """Each record's deferred field by the record's key: what `data_manifest` leaves at
-    the source. The deferred door answers one of these, and an export embeds them all.
-
-    `read_source` judged the value by its contract (`payload_error`): every record is
-    an object with a unique key. Its item schema decides which fields it carries."""
-    spec = deferred_records(value, contract, registry)
-    if spec is None:
-        return {}
-    return {
-        item[spec["key"]]: item[spec["deferred"]]
-        for item in value[spec["items"]]
-        if spec["deferred"] in item
-    }
-
-
-def browser_data_from(stored: dict, registry: dict | None) -> dict:
-    """The reading a browser receives: each value with its deferred fields omitted,
-    which the deferred door serves from the same source file."""
-    return {
-        "version": stored["version"],
-        "sources": {
-            source: (
-                {
-                    **reading,
-                    "value": data_manifest(
-                        reading["value"], reading["contract"], registry or {}
-                    ),
-                }
-                if "value" in reading
-                else reading
-            )
-            for source, reading in stored["sources"].items()
-        },
-    }
-
-
-def deferred_value(
-    reading: dict | None, registry: dict, *, source: str, revision: str, key: str
-) -> dict:
-    """One record's deferred field in the source value at `revision`, which must
-    still be current.
-
-    `reading` is the source as `read_source` read it, or None where the page holds
-    no such source."""
-    if reading is None:
-        raise DataError(f"unknown data source {source!r}")
-    if reading.get("revision") != revision:
-        raise StaleDataError(
-            f"data source {source!r} no longer holds revision {revision!r}"
-        )
-    fields = deferred_fields(reading.get("value"), reading["contract"], registry)
-    if key not in fields:
-        raise DataError(f"data source {source!r} defers no field of record {key!r}")
-    return {
-        "source": source,
-        "contract": reading["contract"],
-        "revision": revision,
-        "key": key,
-        "value": fields[key],
-    }
 
 
 def _write_source(page_dir: Path, source: str, value) -> dict:

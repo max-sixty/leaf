@@ -19,12 +19,19 @@ progress without adding a checkpoint, use `leaf page export <page> --draft -o <f
 it checks and captures current source and reports `version: null`. `--draft` and
 `--version` cannot be combined.
 
-Hand back the `file://` URL; don't start a server or wait. The file opens offline with
-the selected content and the decisions recorded on its widgets. Reading controls and
-the page's own code work, but recording new Leaf choices or updates and Undo require the
-served page and its server; an active agent is not required to record a choice. A page
-with a live sample can't be exported. Write the file where the project keeps files for
-the user. Exporting a live page doesn't end its loop.
+The file shows the page as it stands: the selected content, each widget drawn with the
+decisions recorded on it, what each fold holds for the reader to open, and its images
+and fonts. It holds no script, so a browser that blocks scripts shows all of it, its
+controls draw but don't respond, and it is small enough to attach. Leaf draws it in the
+host's browser, which `page check --render` also needs. When the file's reader should
+operate the page, such as a playground's controls, add `--runtime`: the file then
+carries Leaf's runtime, about 11 MB, and opens with the reading controls and the page's
+own code working. Recording new Leaf choices or updates, and Undo, still require the
+served page and its server, though not an active agent.
+
+Hand back the `file://` URL; don't start a server or wait. A page with a live sample
+can't be exported. Write the file where the project keeps files for the user.
+Exporting a live page doesn't end its loop.
 
 An export can go to people who shouldn't read your conversation with the user, so the
 file holds none of it, on screen or in its source: no threads or their attachments,
@@ -68,9 +75,10 @@ version as a file.
 
 A page records the packages it selects, and the Leaf serving, checking or exporting it
 composes their widgets, theme and vocabulary, as it supplies its runtime. A server
-keeps the Leaf it started under, so a page takes an update when its server next
-starts, and open pages keep working across updates except one that changes the page
-protocol.
+keeps the Leaf it started under, and `leaf server start` from another Leaf, such as an
+update, restarts it under that one at the same URL; open tabs reconnect, reloading where
+the runtime changed. Open pages keep working across updates except one that changes
+the page protocol.
 
 After a protocol change, the session holding the page takes it to the new protocol at
 its first `leaf` command or hook, keeping the log and source, and reports only a
@@ -112,7 +120,7 @@ closed. To end the page's conversation, follow `page-checkpoints.md`, "Ending".
 ## Resuming a persistent or foreign page
 
 Resume a page from one session only. `leaf page list` prints each page on the machine
-as a JSON line, served or stopped, with the session holding it, by the name its harness
+in `pages`, served or stopped, with the session holding it, by the name its harness
 gives it (`session_name`) and whether it still runs (`session_alive`). Use it to find
 the page the user means, and to see whether another live session holds it before you
 claim it. Then read the page:

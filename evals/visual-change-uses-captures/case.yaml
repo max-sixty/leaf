@@ -1,5 +1,5 @@
-# From session 78ca368e. A rewording of what is now "Show the subject" drew an SVG of the Save
-# button beside its captures in 2 of 3 runs and was reverted; main passed 3 of 3.
+# Tempts an SVG of the Save button beside its captures, which a rewording of "Show the
+# subject" can lead authors to draw.
 description: visual-change-uses-captures
 metadata:
   purpose:

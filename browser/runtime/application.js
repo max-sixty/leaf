@@ -15,9 +15,7 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce, offerPress } from "./notifications.js";
-import { inputCount } from "./focus.js";
-import { pressCommand } from "./keyboard/dispatch.js";
+import { announce } from "./notifications.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
@@ -37,7 +35,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions, onUserCount } from "./queue-api.js";
+import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
@@ -45,7 +43,6 @@ import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
-import { threadBox as buildThreadBox } from "./thread/box.js";
 import { isMessageEvent } from "./pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
@@ -60,7 +57,7 @@ import { raiseError } from "./errors.js";
 /** @typedef {Parameters<typeof createThreadPresentation>[0]} ThreadPresentationOptions
  * @typedef {ReturnType<typeof createThreadDestinations>} ThreadDestinations
  * @typedef {{render: import("./thread/primary-reader.js").PrimaryRender, reveal: import("./thread/destination.js").OpenPrimary, answersAtOnce?: boolean}} PresentationSpec
- * @typedef {PresentationSpec & {yielded: () => (() => void) | null}} YieldingSpec
+ * @typedef {PresentationSpec & {yielded: () => (() => void) | null, messagesAside?: boolean}} YieldingSpec
  */
 /** @template {PresentationSpec} [T=PresentationSpec]
  * @typedef {{owner: Element, spec: T, attached: {reader: ReturnType<typeof createPrimaryReader>, detach: () => void} | null}} PresentationEntry */
@@ -69,57 +66,27 @@ import { raiseError } from "./errors.js";
  * activeActionAnchor: ThreadPresentationOptions["activeActionAnchor"],
  * targetPickerOpen: () => boolean,
  * anchorPlacement: ThreadPresentationOptions["anchorPlacement"],
- * anchorPaint: ReturnType<typeof import("./annotation-overlay/anchor-paint.js").createAnchorPaint> | null,
+ * anchorPaint: ReturnType<typeof import("./anchor-paint.js").createAnchorPaint>,
  * anchorControls: ThreadPresentationOptions["anchorControls"],
  * drawingPaint: ThreadPresentationOptions["drawingPaint"],
  * pageGeometry: ThreadPresentationOptions["pageGeometry"],
  * readThreadDraft: ThreadPresentationOptions["readDraft"],
  * anchorTravel: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>,
  * wireInput: ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"],
- * landInThread: ReturnType<typeof import("./thread/landing.js").createThreadLanding>["landInThread"],
- * landSent: ReturnType<typeof import("./thread/landing.js").createThreadLanding>["landSent"],
+ * landInThread: typeof import("./thread/landing.js").landInThread,
+ * landSent: typeof import("./thread/landing.js").returnToThread,
  * sendReaction: Parameters<typeof createThreadActions>[0]["sendReaction"],
  * registerReactSurface: ReturnType<typeof import("./reactions.js").createReactionController>["registerReactSurface"],
  * compositionSurface: ThreadPresentationOptions["surfaceView"]["composition"],
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
+ * goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation">,
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string) => Promise<void>},
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * }} ApplicationDependencies */
 
 const commandDispatch = createCommandDispatch();
-
-// After a gesture of the user's answers something On Me lists, while On Me still lists
-// anything, the floating panel's field offers the next item there, `m`'s press, at its
-// end (notifications.js, `offerPress`). The user chose this on 6 November 2026 over the
-// field's Comment… and c, from three weeks of their keys, in which `m` came next after
-// 29% of picks and 21% of comments and replies. Which items a gesture answered is the
-// server's reading, each obligation's `answer.event` (obligations.py), so a pick, a
-// settling reaction and a reply count alike, and a playground's unsent settings never
-// do; the offer waits for that reading, so it never offers the item just answered, and
-// only while the user hasn't moved since. It goes at their next input, or once nothing
-// is left On Me. A reply or comment sent from the panel's field keeps the caret there,
-// whose end then says the keys that send, so leaving it is the input that withdraws the
-// offer: the press follows picks, settling reactions and replies sent from a card.
-/** @type {import("./notifications.js").NoticePress} */
-const nextOnMe = {
-  action: "next-on-me",
-  command: "queue.next",
-  run: () => pressCommand("queue.next"),
-  stands: () => onUserCount() > 0,
-};
-/** @param {import("./pending/state.js").DeliveryHandle} entry */
-const offerNextOnMe = (entry) => {
-  const since = inputCount();
-  void entry.read.then((logged) => {
-    if (inputCount() !== since || !nextOnMe.stands()) return;
-    const answered = readObligations().all.some(
-      (obligation) => obligation.answer?.event?.id === logged.id,
-    );
-    if (answered) offerPress(nextOnMe);
-  });
-};
 
 /** @type {ReturnType<typeof createApplication> | null} */
 let application = null;
@@ -231,7 +198,6 @@ function createApplication(dependencies) {
 
   /** @param {import("./pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
-    offerNextOnMe(entry);
     // Enqueue has already published and claimed its presentation, whose coordinator
     // reports any failed paint. The entry's answer describes the server's durable
     // decision, so a local announcement failure is reported here rather
@@ -340,7 +306,8 @@ function createApplication(dependencies) {
     readObligations,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToObligation: dependencies.annotationCommands.goToObligation,
+    goToObligation: dependencies.goToObligation,
+    resumeDraft: dependencies.annotationCommands.resumeDraft,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -368,30 +335,38 @@ function createApplication(dependencies) {
       overlay?.paint(entries);
     }
   };
-  // A direct redraw can show what the presenter's last paint did not read, such as the
-  // age of a message in a card it just opened, so it follows its own reads until the
-  // presenter's next paint reads them all again, and a change to one, such as the
-  // clock, repaints through the presenter.
-  let following = () => {};
+  // A direct draw can show what the presenter's last paint did not read, such as the
+  // age of a message in a card a gesture just opened, so it follows its own reads until
+  // the presenter's next paint reads them all again, or until its caller stops it, and
+  // a change to one, such as the clock, repaints through the presenter.
+  /** @type {Set<() => void>} */
+  const following = new Set();
   const forget = () => {
-    following();
-    following = () => {};
+    for (const stop of following) stop();
+  };
+  /** @template T @param {() => T} draw @returns {{drawn: T, stop: () => void}} */
+  const follow = (draw) => {
+    let first = true;
+    /** @type {T | undefined} */
+    let drawn;
+    const stopEffect = effect(() => {
+      if (first) {
+        first = false;
+        drawn = draw();
+      } else untracked(() => void marginPresentation?.present());
+    });
+    // The draw may itself have drawn something directly, which follows its own reads
+    // beside this one; a follow stopped leaves the set, so nothing it drew stays held.
+    const stop = () => {
+      following.delete(stop);
+      stopEffect();
+    };
+    following.add(stop);
+    return { drawn: /** @type {T} */ (drawn), stop };
   };
   const renderAnnotations = () => {
     forget();
-    let first = true;
-    const stop = effect(() => {
-      if (first) {
-        first = false;
-        paintAnnotations();
-      } else untracked(() => void marginPresentation?.present());
-    });
-    // The paint may itself have redrawn them directly, which follows its own reads.
-    const nested = following;
-    following = () => {
-      nested();
-      stop();
-    };
+    follow(paintAnnotations);
   };
   renderAnnotations.refresh = () => {
     if (annotationsDrawn) renderAnnotations();
@@ -439,10 +414,13 @@ function createApplication(dependencies) {
     openPageMap: dependencies.annotationCommands.openPageMap,
     pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
+    // A card a gesture opens draws its thread outside the presenter's paint, and
+    // follows what it read, its messages' ages among them, until the card draws again
+    // or closes (thread-preview.js, `stopDraw`).
     renderMarginThread: (host, thread, outlets) =>
-      renderMarginThread(host, thread, inlineView, outlets),
+      follow(() => renderMarginThread(host, thread, inlineView, outlets)),
     placedAt: dependencies.anchorPlacement.placedAt,
-    marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
+    marksFor: (id) => dependencies.anchorPaint.marksFor(id),
     currentLocationObligation:
       dependencies.annotationCommands.currentLocationObligation,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
@@ -458,7 +436,6 @@ function createApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
-    inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,
     anchorPaint: dependencies.anchorPaint,
@@ -559,13 +536,6 @@ function createApplication(dependencies) {
     receiveState,
   });
 
-  /** @type {(...args: [Parameters<typeof buildThreadBox>[0], Parameters<typeof buildThreadBox>[1]]) => ReturnType<typeof buildThreadBox>} */
-  const threadBox = (owner, hint) =>
-    buildThreadBox(owner, hint, {
-      createComment: (command) => threadActions.create(command)?.delivery ?? null,
-      onDraftChanged: invalidateDom,
-      wireInput: dependencies.wireInput,
-    });
   const threadSurfaceCommands = {
     invalidate: invalidateDom,
     composition: dependencies.compositionSurface,
@@ -596,8 +566,8 @@ function createApplication(dependencies) {
       throw error;
     }
   };
-  // The widgets declaring x-thread-surface, registered for as long as they stand, once
-  // the registry that names them has loaded.
+  // The widgets whose element has `threadOutlets` (thread/surfaces.js), registered
+  // for as long as they stand.
   const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
   /** @type {(...args: [Parameters<typeof registerPageConsumer>[0], Parameters<typeof registerPageConsumer>[1]]) => ReturnType<typeof registerPageConsumer>} */
   const placePageThreads = (owner, render) => {
@@ -615,10 +585,10 @@ function createApplication(dependencies) {
   // registration, as that reader may ask it to present.
   // A presentation that makes room for the agent's answer to the user's last turn
   // itself says so (`answersAtOnce`), and its reader draws that answer at once.
-  /** @param {Element} owner @param {PresentationSpec} spec @param {(() => void) | undefined} [onFailure] */
+  /** @param {Element} owner @param {PresentationSpec & {messagesAside?: boolean}} spec @param {(() => void) | undefined} [onFailure] */
   const attachPresentation = (
     owner,
-    { render, reveal, answersAtOnce = false },
+    { render, reveal, answersAtOnce = false, messagesAside = false },
     onFailure = undefined,
   ) => {
     const reader = createPrimaryReader(
@@ -626,7 +596,7 @@ function createApplication(dependencies) {
       render,
       inlineView,
       () => threadPresenter.present(),
-      { answersAtOnce, ...(onFailure ? { onFailure } : {}) },
+      { answersAtOnce, messagesAside, ...(onFailure ? { onFailure } : {}) },
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -725,7 +695,6 @@ function createApplication(dependencies) {
   const mounted = {
     withdraw: undo.withdraw,
     midComposition: engagement.midComposition,
-    threadBox,
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
@@ -769,10 +738,7 @@ function createApplication(dependencies) {
           part: "message",
         });
       }
-      return dependencies.annotationCommands.goToObligation(
-        item,
-        readObligations().all,
-      );
+      return dependencies.goToObligation(item);
     },
     // The On Me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (
@@ -784,8 +750,6 @@ function createApplication(dependencies) {
   return mounted;
 }
 
-/** @type {ReturnType<typeof createApplication>["threadBox"]} */
-export const threadBox = (...args) => app().threadBox(...args);
 /** @type {ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["dispatchWidget"]} */
 export const dispatchWidget = commandDispatch.dispatchWidget;
 /** @type {ReturnType<typeof createApplication>["invalidateDom"]} */

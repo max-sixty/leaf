@@ -1,12 +1,10 @@
-# Added when the agent's answer about a decision rode on the decision's On Me row
-# (`also`): once the user picks, the answer stands alone on On Me until the user
-# replies or resolves the thread, though the pick often settles it. The user wanted
-# the agent to judge whether it still needs them. A pick's delivery now carries the
-# agent's questions still waiting in a thread about the widget (`waiting`), with a
-# clause to end the ones the pick settles. The envelopes are real deliveries frozen
-# from a page; the old arm drops `waiting` and its clause.
-# Without `waiting`: settled 0/3 on Claude Code and on Codex, still-asking 3/3 on each.
-# With it: settled 3/3 and still-asking 3/3 on each harness.
+# The agent's answer about a decision rides on the decision's On Me row (`also`):
+# once the user picks, the answer stands alone on On Me until the user replies or
+# resolves the thread, though the pick often settles it. The user wants the agent to
+# judge whether it still needs them. A pick's delivery carries the agent's questions
+# still waiting in a thread about the widget (`waiting`), with a clause to end the
+# ones the pick settles by resolving the question's thread. The envelopes are real
+# deliveries frozen from a page; the old arm drops `waiting` and its clause.
 description: answer-settles-what-it-carried
 metadata:
   purpose:
@@ -35,20 +33,17 @@ vars:
 
     Leaf''s prompt hook has now handed you this complete inline delivery:
 
-    {"format": "leaf-delivery/15", "id": "70f3afed", "created_at": 1792975809.950627, "acknowledge": null,
+    {"format": "leaf-delivery/46", "id": "70f3afed", "created_at": 1792975809.950627, "acknowledge": null,
     "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": null, "through_seq":
     4, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need
     clarification, ask in a thread on the picked option. To override the pick in a later version, mark
-    the element `restated` and say why in the version note.", "h3": "Your questions in `waiting`, asked
-    in a thread about this widget, still wait on the user. Judge from each one''s `text` whether this
-    action answers it: end one it settles with `leaf task end <page> <id> done --text \"<what answered
-    it>\"`, and leave one that still needs the user.", "h4": "It answers the page''s obligation, which
+    the element `restated` and say why in the version note.", "h3": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one''s `text` whether this action answers it. Resolve the thread of one it settles, unless something else in that thread still waits on them: `leaf thread resolve <page> <message>`, the message being its id after `message:`. Leave one that still needs the user.", "h4": "It answers the page''s obligation, which
     waits on you until the markup records the answer. Before starting the work it selects or unblocks,
     name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the
     page keeps it where the user put it."}, "events": [{"kind": "action", "author": "user", "revision":
     1, "widget": "proto-timeline", "action": "choose", "detail": {"value": ["timeline-land"]}, "id": "3843a3a5",
     "meaning": {"scope": "page", "unit": "proto-timeline", "depends": ["proto-timeline", "timeline-land"],
-    "state": {"origin": "lf-options", "decides": false, "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"},
+    "state": {"origin": "lf-options", "decides": false, "unit": "widget", "record": {"kind": "attribute", "attr": "selected"},
     "creates": null, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type":
     "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}},
     "answer": null}, "attention": true, "ts": "2026-10-25T17:50:09.949-07:00", "seq": 4, "subject": {"kind":
@@ -65,10 +60,10 @@ assert:
   - type: llm-rubric
     metric: settles
     value:
-      Pass only if the agent ends the obligation `message:3c7af481` as done, with `leaf task end` naming
-      that id and the outcome `done`. The agent's earlier message only asked the user to try the previews
-      before deciding, and the user has now decided, so the pick settles it. Fail if the agent leaves `message:3c7af481`
-      open, drops it, or only mentions it. Other commands don't matter.
+      Pass only if the agent resolves the thread of `message:3c7af481` with `leaf thread resolve`, naming
+      the message `3c7af481` or its thread. The agent's earlier message only asked the user to try the
+      previews before deciding, and the user has now decided, so the pick settles it. Fail if the agent
+      leaves that thread open or only mentions the question. Other commands don't matter.
 variants:
   still-asking:
     metadata:
@@ -94,21 +89,18 @@ variants:
 
         Leaf''s prompt hook has now handed you this complete inline delivery:
 
-        {"format": "leaf-delivery/15", "id": "f3afc2a0", "created_at": 1792975809.919296, "acknowledge":
+        {"format": "leaf-delivery/46", "id": "f3afc2a0", "created_at": 1792975809.919296, "acknowledge":
         null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/issue-triage", "claim": null, "through_seq":
         4, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you
         need clarification, ask in a thread on the picked option. To override the pick in a later version,
-        mark the element `restated` and say why in the version note.", "h3": "Your questions in `waiting`,
-        asked in a thread about this widget, still wait on the user. Judge from each one''s `text` whether
-        this action answers it: end one it settles with `leaf task end <page> <id> done --text \"<what
-        answered it>\"`, and leave one that still needs the user.", "h4": "It answers the page''s obligation,
+        mark the element `restated` and say why in the version note.", "h3": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one''s `text` whether this action answers it. Resolve the thread of one it settles, unless something else in that thread still waits on them: `leaf thread resolve <page> <message>`, the message being its id after `message:`. Leave one that still needs the user.", "h4": "It answers the page''s obligation,
         which waits on you until the markup records the answer. Before starting the work it selects or
         unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no
         writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "author":
         "user", "revision": 1, "widget": "proto-timeline", "action": "choose", "detail": {"value": ["timeline-land"]},
         "id": "19b4437a", "meaning": {"scope": "page", "unit": "proto-timeline", "depends": ["proto-timeline",
         "timeline-land"], "state": {"origin": "lf-options", "decides": false, "unit": "widget", "record": {"kind": "attribute",
-        "attr": "chosen"}, "creates": null, "detail": {"type": "object", "properties": {"value": {"type":
+        "attr": "selected"}, "creates": null, "detail": {"type": "object", "properties": {"value": {"type":
         "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"],
         "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-25T17:50:09.917-07:00",
         "seq": 4, "subject": {"kind": "widget", "id": "proto-timeline"}, "threads": [], "says": {"timeline-land":
@@ -125,7 +117,7 @@ variants:
       - type: llm-rubric
         metric: keeps
         value:
-          'Pass only if the agent leaves the obligation `message:65737160` open: no `leaf task end`
-          on `message:65737160`, with any outcome. Besides asking the user to try the previews, the agent''s
+          'Pass only if the agent leaves the obligation `message:65737160` open: no `leaf thread resolve`
+          naming `65737160` or its thread. Besides asking the user to try the previews, the agent''s
           earlier message asked whether the preview frames should stay at 640px or take the column''s full
           width, which picking "Land it" does not answer. Other commands don''t matter.'

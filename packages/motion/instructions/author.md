@@ -34,8 +34,7 @@ lead-in or final hold in the duration and subtract the lead-in in the drawing
 function. No timer or control handlers belong in that module. Label illustrative
 studies as illustrations and say where their timing came from.
 
-In a playground, put `lf-motion` inside `lf-playground-preview` around the baseline
-and the `lf-playground-control` whose rich choices contain the candidate previews.
-The playback controls inspect the candidates; the playground's choice selects what
-to build. Playback time and speed are tab-local exploration, never configuration
+In a playground, put `lf-motion` in the playground's preview around the baseline and
+the candidate previews, each holding its radio. The playback controls inspect the
+candidates; the playground's radios select what to build. Playback time and speed are tab-local exploration, never configuration
 submitted to the agent or decisions in the page log.

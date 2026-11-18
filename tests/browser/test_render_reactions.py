@@ -636,8 +636,8 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
 def test_reactions_raised_from_a_folded_pin_s_toggle_take_the_focus(browser, serve):
     """The reactions unfold a folded pin, whose face then hides the toggle the user
     pressed `e` on. They land on the first choice and the choices stay up, rather than
-    the hidden toggle reading as the user leaving the pin, which put the choices away
-    in the same frame and dropped focus to the page."""
+    the hidden toggle reading as the user leaving the pin, which would put the choices
+    away in the same frame and drop focus to the page."""
     page = open_page(browser, serve(FOLDING_PAGE))
     resized(page, 390, 844)
     margins_laid_out(page)
@@ -774,7 +774,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
 def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
     """The response choice shares the comment field's solid accent focus ring. Read in
     the dark scheme, where a ring stated as a literal value rather than the token would
-    show: `--accent` states both schemes in one `light-dark()`."""
+    show: `--lf-accent` states both schemes in one `light-dark()`."""
     page = open_page(browser, serve(PANEL_PAGE), color_scheme="dark")
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -788,12 +788,12 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
     expect(suggest).to_be_focused()
     ring = suggest.evaluate("""node => {
       const ink = document.createElement('span');
-      ink.style.color = 'var(--accent)';
+      ink.style.color = 'var(--lf-accent)';
       node.append(ink);
       const accent = getComputedStyle(ink).color;
       ink.remove();
       const band = getComputedStyle(document.documentElement)
-        .getPropertyValue('--focus-ring-w').trim();
+        .getPropertyValue('--lf-focus-ring-w').trim();
       const style = getComputedStyle(node);
       return {outline: style.outlineStyle, color: style.outlineColor,
               width: style.outlineWidth, accent, band};
@@ -1171,14 +1171,16 @@ graph LR
     page.locator("#figure svg").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile(r"figure"))
-    write(field, "Carry this explicit draft.")
+    write(field, "Words about the figure.")
     page.evaluate("document.activeElement.blur()")
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "Carry this explicit draft.")
+    expect(field).to_have_attribute("aria-label", re.compile(r"Start request"))
+    # The part's own draft opens; the figure's words stay with the figure.
+    expect(field).to_have_js_property("value", "")
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
@@ -1391,9 +1393,9 @@ def test_one_semantic_visual_target_takes_one_proxy_and_hands_back_its_subject(
     """Sibling anonymous pictures under one authored item are one durable target, with
     one keyboard proxy, and proxy and pointer entry share that item as their Escape
     parent. Opening the bar's other responses re-places it on the anchor already in
-    place. That is the same gesture continuing, not a fresh one that stood the user
-    nowhere, so the way out still ends on the bar's subject, as it does for a user who
-    goes straight back out."""
+    place. That is the same gesture continuing, not a fresh one that would stand the
+    user nowhere, so the way out still ends on the bar's subject, as it does for a user
+    who goes straight back out."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1466,7 +1468,7 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
         == "40px"
     )
     # An unnamed drawing takes the name of the section holding it (addressableLabel).
-    assert accessible_details(page, "#pic") == ["Responses to svg · Gallery"]
+    assert accessible_details(page, "#pic") == ["Responses to figure · Gallery"]
     assert control.evaluate(
         "button => button.closest('.lf-chrome') !== null && button.tabIndex === -1"
     )
@@ -1515,7 +1517,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     expect(part).to_have_attribute("data-lf-proxied", "")
-    assert_drawn_in(part, token_colour(page, "--accent"), 2)
+    assert_drawn_in(part, token_colour(page, "--lf-accent"), 2)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
@@ -1637,12 +1639,22 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     browser, serve
 ):
     """An editing field keeps the native attachment through its visual's scroller,
-    including beyond the visible part of the diagram, and returns with its target."""
+    including beyond the visible part of the diagram, and returns with its target. It
+    follows its part when the part moves, and keeps its draft when a new width draws
+    the diagram anew."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
-    diagram.evaluate("element => { element.style.width = '240px'; }")
+    # Narrower than any layout of the flow, so the drawing laid out for it still
+    # scrolls in its box. That drawing wraps the boxes' labels, and their controls keep
+    # the words' spaces.
+    page.evaluate("() => { window.lfDrawn = document.querySelector('#flow svg'); }")
+    diagram.evaluate("element => { element.style.width = '100px'; }")
+    page.wait_for_function(
+        "() => document.querySelector('#flow svg') !== window.lfDrawn"
+    )
+    expect(start.locator("tspan")).to_have_count(2)
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
@@ -1709,6 +1721,18 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
         )
         <= 2
     ), (before_part, before_field, after_part, after_field)
+
+    # Given the column's room, the diagram draws the flow anew, left to right, which
+    # replaces the part the field is about; the field keeps its draft and the user's
+    # place in it (floating-response.js says where it stands).
+    page.keyboard.type("Why here?")
+    page.evaluate("() => { window.lfDrawn = document.querySelector('#flow svg'); }")
+    diagram.evaluate("element => { element.style.removeProperty('width'); }")
+    rendered(page)
+    assert page.evaluate("() => document.querySelector('#flow svg') !== window.lfDrawn")
+    expect(bar).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", "Why here?")
 
 
 def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(
@@ -1846,9 +1870,9 @@ def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_com
     flight, which is the state the press leaves behind: opening Comment marks the
     handoff at once and lands the focus on a later frame. Holding the page's frames
     keeps that gap open for the whole of the selection rather than leaving its width to
-    the machine — measured here, the handoff lands about eight milliseconds after the
-    press returns, which is the same span the driver spends making the next call. The
-    passage is offered whether or not the handoff has landed.
+    the machine — the handoff can land about as long after the press returns as the
+    driver spends making the next call. The passage is offered whether or not the
+    handoff has landed.
     """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
@@ -2123,9 +2147,8 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
 
 def test_a_margin_card_offers_a_reply_s_reactions(browser, serve):
     """A margin card offers reactions on an agent's reply as the panel's view of the
-    thread does: by the reply's own trigger and by `e` from the card. The card once
-    drew no reactions at all, so a thread about a passage took them only in the
-    panel."""
+    thread does: by the reply's own trigger and by `e` from the card, so a thread about
+    a passage doesn't take them only in the panel."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Why this cap?", {"section": "how-cap"})
     reply = append_carried_log_record(
@@ -2471,7 +2494,9 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(view).to_be_visible()
     page.keyboard.press("1")
-    page.wait_for_timeout(100)
+    # Whatever the press sent, from its own task or a repaint it queued, has come back.
+    rendered(page)
+    round_trip(page)
     assert len(events_model.read_events(serve.page_dir)) == count
 
 
@@ -2516,7 +2541,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
 
 def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
     """A reaction someone has answered is the user's to take back, as one nobody has
-    answered is, where the log used to refuse it and `z` did nothing. Taking it back
+    answered is. Taking it back
     draws its place in the thread Deleted in the press, before the log answers, above
     the answer, which stays, as does the thread; the mark stays off the page."""
     url = serve(PANEL_PAGE)
@@ -2581,10 +2606,10 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
 
 def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, serve):
     """At a phone's width the panel's thread view covers the page, and the keyboard
-    answers only what stands inside it. The reaction mode stood nowhere, so every one of
-    its rows fell below the view's floor: an arrow reached no row, read as a stray key,
-    and closed the thread the user was reading. The open thread is where the mode
-    stands."""
+    answers only what stands inside it. A reaction mode standing nowhere would leave
+    every one of its rows below the view's floor: an arrow would reach no row, read as a
+    stray key, and close the thread the user was reading. The open thread is where the
+    mode stands."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)

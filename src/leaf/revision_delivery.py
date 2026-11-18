@@ -41,9 +41,13 @@ from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
-from .layer import CASCADE_LAYERS
+from .layer import DOCUMENT_LAYER_ORDER
 from .passages import markdown_markup
-from .registry.contract import exhibits, is_element_name
+from .registry.contract import (
+    authored_inert,
+    holds_for,
+    is_element_name,
+)
 from .registry.kernel import kernel_marks
 from .revision_artifact import (
     Resource,
@@ -66,10 +70,12 @@ from .structure import (
     delivered_elements,
     element_attrs,
     page_layout,
+    pre_body,
     rel_tokens,
     rewrite_attribute_references,
     script_kind,
     source_index,
+    splice,
 )
 
 # From a page-local URL (path and suffix) to its delivery URL, or None if unavailable.
@@ -323,7 +329,7 @@ def rebase_document(
             if delivered != body:
                 edits.append((start, end, delivered))
 
-    return _spliced(source, edits)
+    return splice(source, edits)
 
 
 def _deferred(source: str, span, location, attrs: dict) -> list[tuple[int, int, str]]:
@@ -344,21 +350,6 @@ def _deferred(source: str, span, location, attrs: dict) -> list[tuple[int, int, 
         at = end - (2 if source[end - 2 : end] == "/>" else 1)
         edits.append((at, at, " defer"))
     return edits
-
-
-def _spliced(source: str, edits: list[tuple[int, int, str]]) -> str:
-    """`source` with each `(start, end, text)` edit's range replaced by its text.
-
-    The ranges must not overlap. Edits at one offset land in the order their texts
-    sort. Joining the pieces once keeps delivery linear in the page's size, where
-    splicing each of a large page's thousands of marks into a fresh copy was not."""
-    pieces = []
-    at = 0
-    for start, end, text in sorted(edits):
-        pieces += (source[at:start], text)
-        at = end
-    pieces.append(source[at:])
-    return "".join(pieces)
 
 
 def media_size(data: bytes) -> tuple[int, int] | None:
@@ -418,9 +409,9 @@ def mark_declared(
     neither is marked.
 
     A mark is declared by the element's tag, so a selector idiom declares none. An
-    element whose written `<pre>` is Markdown, as `x-text-format` or `x-prepaint`
-    declares, is painted with its rendering, so the page first paints the words, at
-    the size, its module will show.
+    element whose written `<pre>` is Markdown, as `text-format` or
+    `prepaint` declares, is painted with its rendering, so the page first paints
+    the words, at the size, its module will show.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
@@ -438,17 +429,15 @@ def mark_declared(
         )
         marks = {}
         for key, mark in kernel_marks().items():
-            declared = (
-                exhibits(attrs, declaration)
-                if key == "x-exhibit"
-                else declaration.get(key)
-            )
-            means = {"content": content, "declared": bool(declared)}
+            declared = holds_for(attrs, declaration.get(key))
             authored = mark.get("authored")
-            # A flow takes no width of its own (`x-flow`), whatever its markup says.
-            if key == "x-space" and declaration.get("x-flow"):
+            inert = authored and authored_inert(
+                key, declaration, attrs, content=content
+            )
+            # A flow takes no width of its own, whatever its markup says.
+            if inert == "flow":
                 continue
-            if authored in attrs and means[mark["authored_on"]]:
+            if authored in attrs and not inert:
                 value = attrs[authored]
             elif declared:
                 value = (
@@ -456,11 +445,11 @@ def mark_declared(
                 )
             else:
                 continue
-            if key == "x-views":
+            if key == "views":
                 # Only the browser evaluates view selectors, including before modules.
-                marks["data-lf-view-members"] = declaration[key]["members"]
-                value = "parts" if declaration[key].get("parts") else ""
-            marks[mark["paint"]] = value
+                marks["data-lf-view-members"] = declared["members"]
+                value = "parts" if declared.get("parts") else ""
+            marks[mark["attribute"]] = value
         sizes = [
             size
             for value in attrs.values()
@@ -476,17 +465,12 @@ def mark_declared(
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names
-        # (`x-prepaint`), first paint as the rendering their module will draw.
-        words = declaration.get("x-text-format") == "markdown"
-        prepaint = declaration.get("x-prepaint")
+        # (`prepaint`), first paint as the rendering their module will draw.
+        words = declaration.get("text-format") == "markdown"
+        prepaint = declaration.get("prepaint")
         file = bool(prepaint) and attrs.get(prepaint) == "markdown"
-        pre = element.select_one(":scope > pre") if words or file else None
-        if pre is not None:
-            text = "".join(
-                child.data
-                for child in pre.children
-                if isinstance(child, turbohtml.Text)
-            )
+        text = pre_body(element) if words or file else None
+        if text is not None:
             source_words = (
                 f' data-lf-source-words="{html.escape(text, quote=True)}"'
                 if words
@@ -501,7 +485,7 @@ def mark_declared(
                     ),
                 )
             )
-    return _spliced(source, [(offset, offset, text) for offset, text in edits])
+    return splice(source, [(offset, offset, text) for offset, text in edits])
 
 
 @dataclass(frozen=True)
@@ -634,8 +618,8 @@ def delivery_sheets(
 
     `runtime/stylesheets.js` constructs these synchronously while it evaluates, so
     every document running the layer carries their text without a request or await.
-    Shared chrome and marks are always present; physical annotation sheets are absent
-    in page mode. The chrome ends with the packages' restyling of it (`/chrome.css`,
+    Shared chrome and marks are always present; the physical annotation chrome is
+    absent in page mode. The chrome ends with the packages' restyling of it (`/chrome.css`,
     `layer.chrome_restyle`). The browser constructs only the sheets this carrier
     actually holds.
     """
@@ -648,13 +632,9 @@ def delivery_sheets(
         "marks": text("/runtime/marks.css"),
     }
     if annotation_mode(document) == "overlay":
-        sheets["annotations"] = {
-            name: text(path)
-            for name, path in (
-                ("chrome", "/runtime/annotation-overlay/annotation-chrome.css"),
-                ("marks", "/runtime/annotation-overlay/annotation-marks.css"),
-            )
-        }
+        sheets["annotations"] = text(
+            "/runtime/annotation-overlay/annotation-chrome.css"
+        )
     return runtime_element(
         "script",
         {"type": "application/json", "data-lf-sheets": True},
@@ -783,8 +763,7 @@ def compose_document(
             runtime_element(
                 "style",
                 {"data-lf-annotation-theme": True},
-                f"@layer {', '.join(CASCADE_LAYERS)};\n"
-                f"@layer lf-base {{\n{annotation_theme}\n}}",
+                f"{DOCUMENT_LAYER_ORDER}@layer lf-base {{\n{annotation_theme}\n}}",
             )
             + theme
         )

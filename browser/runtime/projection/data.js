@@ -6,7 +6,7 @@
    - runtime apparatus is in neither reading;
    - projected external or derived data is in `says` and not in `wrote`.
 
-   A widget whose tag declares `x-data` names the items it drew from its bound value
+   A widget whose tag declares `inputs` names the items it drew from its bound value
    with plain attributes, and Leaf stamps them (`projectMarked`) once the widget
    reports the value it drew (element-data.js, "Bound values"):
 
@@ -46,8 +46,9 @@
    and keeps the old quote in the thread, where the quote was all of the datum's words;
    a passage within a datum, captured with words of it around the quote, stands nowhere
    on the page once its words are gone. A different source makes the placement
-   outdated; a duplicate key detaches rather than guessing. Selections crossing datum
-   boundaries remain ordinary quote anchors because they name a passage, not one fact.
+   outdated; a duplicate key detaches rather than guessing. A selection crossing a datum's
+   edge is kept as a detached quote (`{section, quote, detached: true}`): each datum is
+   fenced in the page's reading, so no search could find those words together.
 
    `data-lf-projection`, `data-lf-origin`, `data-lf-source`, `data-lf-source-revision`
    and `data-lf-gen` are written here alone, never authored in a version, and a datum is
@@ -66,7 +67,7 @@
 
 import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
-import { composedParentNode, shadowRootsIn } from "../shadow.js";
+import { composedParentNode, queryAllUnder } from "../shadow.js";
 import { keeps } from "../keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 
@@ -76,14 +77,14 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 // dropped the key from a node it retired, so this reads Leaf's own stamp.
 /** @param {Element} root */
 const projectedDescendants = (root) =>
-  [root, ...shadowRootsIn(root)]
-    .flatMap((scope) => [...scope.querySelectorAll("[data-lf-projection]")])
-    .filter((element) => element.getAttribute("data-lf-projection") === root.id);
+  queryAllUnder(root, "[data-lf-projection]").filter(
+    (element) => element.getAttribute("data-lf-projection") === root.id,
+  );
 
 /** @param {Element} node */
 const markOwner = (node) => {
   for (let at = composedParentNode(node); at; at = composedParentNode(at))
-    if (at instanceof Element && registry[at.localName]?.["x-data"]) return at;
+    if (at instanceof Element && registry[at.localName]?.inputs) return at;
   return null;
 };
 
@@ -91,8 +92,7 @@ const markOwner = (node) => {
 // stamp's refusals reduce to emptiness, duplicates and a malformed path.
 /** @param {Element} root */
 const markedDatums = (root) =>
-  [root, ...shadowRootsIn(root)]
-    .flatMap((scope) => [...scope.querySelectorAll("[data-lf-datum]")])
+  queryAllUnder(root, "[data-lf-datum]")
     .filter((node) => markOwner(node) === root)
     .map((node) => ({
       node,

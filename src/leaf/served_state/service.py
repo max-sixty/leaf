@@ -15,7 +15,8 @@ from types import MappingProxyType
 from typing import Protocol
 
 from .. import presence as presence_model
-from ..data import read_data, read_source
+from ..data import read_data
+from ..drafts import read_drafts
 from ..event_facts import EventFacts
 from ..event_log import read_events
 from ..files import (
@@ -28,7 +29,6 @@ from ..files import (
 from ..passages import SourceReading
 from ..projection import page_reading
 from ..provenance import revision_places, saved_after
-from ..registry.storage import require_registry
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
 from ..revisioning import Activation, activate_source, held_activation
 from ..service import PageTransaction
@@ -57,8 +57,6 @@ class PageSource(Protocol):
     def active_revision(self) -> int | None: ...
     def artifact(self, revision: int) -> RevisionArtifact: ...
     def revision(self, revision: int) -> SourceReading: ...
-    def active_registry(self) -> dict: ...
-    def data_source(self, source: str, registry: dict) -> dict | None: ...
     def events(self) -> list[dict]: ...
     def published_versions(self, events: list[dict]) -> set[int]: ...
 
@@ -70,9 +68,15 @@ class PageSource(Protocol):
         from, read together."""
 
     def news(self) -> str:
-        """The freshness token a visible tab polls (`PageEndpoint._news`)."""
+        """The page's own reading, which a visible tab polls (`PageEndpoint._news`)."""
 
-    def other_pages(self) -> list[dict]: ...
+    def drafts(self) -> dict:
+        """The user's unsent drafts with the store's version (`drafts.py`), which a
+        tab reads once the news names a version it hasn't heard."""
+
+    def other_pages(self) -> list[dict]:
+        """The machine's other live pages, which `/api/pages` answers apart from the
+        page's reading, with no consistency between the two."""
 
     def state_read(
         self,
@@ -108,12 +112,6 @@ class LivePage:
     def revision(self, revision: int) -> SourceReading:
         return read_revision(self.page_dir, revision)
 
-    def active_registry(self) -> dict:
-        return require_registry(self.page_dir)
-
-    def data_source(self, source: str, registry: dict) -> dict | None:
-        return read_source(self.page_dir, source, registry)
-
     def events(self) -> list[dict]:
         return read_events(self.page_dir)
 
@@ -136,6 +134,9 @@ class LivePage:
         with PageTransaction(self.page_dir) as page:
             artifact = read_artifact(self.page_dir, revision)
             return artifact, page.events, read_data(self.page_dir, artifact.registry)
+
+    def drafts(self) -> dict:
+        return read_drafts(self.page_dir)
 
     def news(self) -> str:
         """The token naming the page's current reading, the same one a state read
@@ -181,7 +182,7 @@ class LivePage:
 
     def state_reading(self, reading: str, state: dict) -> str:
         return served_reading.join_reading(
-            reading, presence_model.presence_fingerprint(state, state["others"])
+            reading, presence_model.presence_fingerprint(state)
         )
 
 
@@ -189,8 +190,8 @@ class PageStateService:
     """The state transaction every page route reads through.
 
     Activation, the reading token, and the projected state are taken under one
-    page transaction. Neighbour discovery follows after the transaction because
-    other pages are independent authorities and must not hold this page's writers.
+    page transaction. Nothing of another page enters it: the machine's other pages
+    are their own authorities, read apart (`PageSource.other_pages`).
     """
 
     def __init__(
@@ -219,17 +220,16 @@ class PageStateService:
                 "layer": served_page.served_layer_identity(context, view_revision),
                 **served,
             }
-        state["others"] = self.source.other_pages()
         state["reading"] = self.source.state_reading(reading, state)
         return state
 
     def activity_row(self) -> tuple[dict, str, dict]:
         """Compact delivery output of the same transaction and fold as the page's status.
 
-        No neighboring-page discovery runs here. The reading and live facts
-        name the inputs the publisher keeps, so a concurrent writer invalidates
-        this publication on its next look. Owed updates and reply bodies stay in
-        the page's projection; the row carries their counts, never their copies.
+        The reading and live facts name the inputs the publisher keeps, so a
+        concurrent writer invalidates this publication on its next look. Owed updates
+        and reply bodies stay in the page's projection; the row carries their counts,
+        never their copies.
         The user's counts are the active view's, as the Leaf panel's marks count
         them: its On Me list, and its threads by `thread_counts`.
         """

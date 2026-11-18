@@ -141,7 +141,8 @@ class Harness:
     def escape_sandbox(self) -> None:
         """Open the road out of this harness's sandbox that this session's `leaf`
         commands take, for as long as the session lives (`lifetime`). The hook
-        before a command naming `leaf` calls it, outside the sandbox. A harness
+        before a command naming `leaf` calls it, outside the sandbox, in the Leaf
+        the harness ran and in any it hands itself to (`hooks.main`). A harness
         whose sandbox leaves no road out, as Codex's does, opens none; Codex's
         agent runs a confined command through Leaf's MCP server instead
         (`codex_tool.py`)."""
@@ -235,6 +236,13 @@ class Harness:
         watch it has orphaned can wake nobody, and would hold the session's lease
         over the input a `nudge` could still deliver."""
         return True
+
+    def unloaded_module(self) -> dict | None:
+        """The hook output telling the user that the harness didn't load Leaf's own
+        module into the process this hook runs under, which a Stop ending the turn
+        of a session holding a page prints (`hooks.cmd_hook`); None where the
+        harness has no such module, loaded it, or the user has been told."""
+        return None
 
     @classmethod
     def run_ack(cls, command: str) -> str:
@@ -383,7 +391,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
     A subagent the session spawns runs its shell commands in the session's own
     environment, with nothing that names the subagent (measured at 2.1.317), so a
     command it runs acts for the session; only a hook's payload names it
-    (`agent_id`, `state.worker_tool_batch`)."""
+    (`agent_id`, `state.worker_tool_batch`). A fork Leaf gave a thread's work names
+    its own turn in its `leaf` commands, as Leaf's prompt tells it, so they act in
+    that turn (`state.acting_agent_turn`)."""
 
     job: str | None = None
 
@@ -549,6 +559,33 @@ class ClaudeCodeHarness(EnvironmentHarness):
         minutes, the hook still running)."""
         return pid_alive(int(os.environ["CLAUDE_PID"]))
 
+    def unloaded_module(self) -> dict | None:
+        """Claude Code refuses to load a hooks module it can't validate and says so
+        only in its debug log (measured at 2.1.325, for a `$.env.get` of a variable
+        name), so the user sees no more than Leaf's line above the prompt gone.
+        `hooks/claude-code.ts` starts its pages follower once the session holds a
+        page, after the `leaf` command that claims one and as each turn starts, and
+        the follower records the process it runs in (`leases.mark_module`). At a
+        Stop in a session holding a page, a record naming another process means the
+        module isn't running in this one; only a turn ending within the second the
+        follower of its own first claim takes to start would read wrong. The notice
+        records this process, so the user hears it once per process, and a module
+        loaded later, as `/reload-plugins` loads one, records it again."""
+        from .leases import mark_module, module_process
+        from .state import PLUGIN_ROOT
+
+        pid = self.process_pid()
+        if pid is None or module_process(self.session) == pid:
+            return None
+        mark_module(self.session, pid)
+        return {
+            "systemMessage": "Leaf: Claude Code didn't load Leaf's hooks module in "
+            "this session, so Leaf's line above the prompt is gone, and so is the "
+            "work Leaf does from this conversation, such as the working line on "
+            f"thread messages. `claude plugin validate {PLUGIN_ROOT}` says why; once "
+            "a Leaf update fixes it, /reload-plugins loads it."
+        }
+
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's hook puts them in your context at your next turn."
 
@@ -567,9 +604,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return name if isinstance(name, str) and name else None
 
     def inference_generator(self) -> Callable[..., dict]:
-        from leaf.inference import claude_code_generate
+        from leaf.inference import claude_code_generator
 
-        return claude_code_generate
+        return claude_code_generator(self.session)
 
     def nudge(self, page_dir: Path) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job
@@ -753,9 +790,10 @@ class CodexHarness(EnvironmentHarness):
         reach Stop without running another tool. Stop offers only where no adapter
         will start a turn of its own for the input over App Server
         (`later_turn_takes_input`), and the turn would continue for it
-        (`hook_transport.stop_continues`). The tool hook offers only input the
-        cursor has not passed, and Stop also an update the session holds no usable
-        reference for (`delivery.deliverable`). The tool hook also carries the
+        (`hook_transport.stop_continues`). The tool hook offers input the cursor
+        has not passed, and input the cursor passed that no pickup names, which a
+        Codex session's receipts never leave, and Stop also an update the session
+        holds no usable reference for (`delivery.deliverable`). The tool hook also carries the
         reminder of a status line left standing (`hook_transport.status_reminders`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
@@ -923,7 +961,7 @@ HARNESSES: dict[str, type[Harness]] = {
 AGENT_VARIABLE = "LEAF_AGENT"
 # Every variable that makes a process a harness session: each harness's identity and
 # the display name. A process that must not act as the session it was started from
-# scrubs the set: a build that publishes pages (`leaf-dev site`), an eval's child
+# scrubs the set: a build that publishes pages (`leaf-dev site build`), an eval's child
 # (`dev/leaf_dev/arms.py`), the test suite (`tests/conftest.py`).
 IDENTITY_VARIABLES = (
     *(
@@ -1224,8 +1262,8 @@ def claude_code_live_turn(records: list[dict]) -> dict | None:
     ends a turn without running the Stop hook, and the record turns `idle` at that
     moment (measured at Claude Code 2.1.283). `busy` is weaker: a background job's
     record stays `busy` across turn endings while its background work runs, so it
-    does not prove a turn is running; after a turn ends, it says work continues
-    (`activity.Turn.background`). The record belongs to the worker hosting the
+    does not prove a turn is running. It says the session works, in its turn or,
+    after the turn ends, in the background (`activity.Turn.busy`). The record belongs to the worker hosting the
     session's current sitting, so a background job whose worker has retired has
     none."""
     record = claude_code_current_record(records)

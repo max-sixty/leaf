@@ -1,13 +1,20 @@
 """Page claims: which session and harness hold a page, what a claim records, when it
 is active, and the leases and page locks that keep a wait and a claim exclusive."""
 
+import json
 import shlex
 import subprocess
+import time
 
+from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import STATED_TIMEOUT
+from interact_support import STATED_TIMEOUT, neighbour_page, record_claim
 
+from leaf import cli as cli_model
+from leaf import harness as harness_model
+from leaf import server as server_model
 from leaf import service as service_model
+from leaf import state as cleanup_model
 
 
 def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
@@ -162,3 +169,70 @@ cli_model.cli()
     claim_record_6 = service_model.page_claim(page)
     assert claim_record_6 is not None
     assert claim_record_6["id"] == "new-owner"
+
+
+def test_page_list_names_each_page_and_the_session_holding_it(dead_pid):
+    """`leaf page list` is how a session finds the machine's pages and which session
+    each one's comments reach. A claimed page is listed with its claimant even
+    while nothing serves it, since that is when "who holds it" matters most; a page
+    nothing claimed is listed only while it serves, by its row."""
+    pages = cleanup_model.state_home() / "pages"
+    held, stopped, unclaimed = pages / "held", pages / "stopped", pages / "unclaimed"
+    url = neighbour_page(held, title="Held page", port=59001)
+    record_claim(held, id="s1", cwd="/work/held")
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+    cleanup_model.write_json(
+        registry / f"{os.getpid()}.json",
+        {
+            "pid": os.getpid(),
+            "sessionId": "s1",
+            "status": "idle",
+            "statusUpdatedAt": int(time.time() * 1000),
+            "name": "Fix the build",
+        },
+    )
+    neighbour_page(stopped, title="Stopped page", dead=True)
+    record_claim(stopped, id="s2", pid=dead_pid, cwd="/work/stopped")
+    neighbour_page(unclaimed, title="Unclaimed page", port=59002)
+
+    listed = CliRunner().invoke(cli_model.cli, ["page", "list"])
+    assert listed.exit_code == 0, listed.output
+    assert json.loads(listed.output)["pages"] == [
+        {
+            "page": str(held.resolve()),
+            "title": "Held page",
+            "url": url,
+            "on_user": 0,
+            "threads": {"open": 0, "unread": 0},
+            "harness": "claude-code",
+            "claim_session": "s1",
+            "session_name": "Fix the build",
+            "session_cwd": "/work/held",
+            "session_alive": True,
+        },
+        {
+            "page": str(stopped.resolve()),
+            "title": "Stopped page",
+            "url": None,
+            "on_user": None,
+            "threads": None,
+            "harness": "claude-code",
+            "claim_session": "s2",
+            "session_name": None,
+            "session_cwd": "/work/stopped",
+            "session_alive": False,
+        },
+        {
+            "page": str(unclaimed.resolve()),
+            "title": "Unclaimed page",
+            "url": server_model.page_url("127.0.0.1", 59002, server_model.host_key()),
+            "on_user": 0,
+            "threads": {"open": 0, "unread": 0},
+            "harness": None,
+            "claim_session": None,
+            "session_name": None,
+            "session_cwd": None,
+            "session_alive": None,
+        },
+    ]

@@ -10,6 +10,7 @@ from render_harness import (
     displayed,
     expect_obligations_answered,
     fills_the_window,
+    held_frames,
     leaf_page,
     open_page,
     pane_scroll_behavior,
@@ -308,10 +309,10 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
 
     def item(key):
         return (
-            f'<lf-tab id="t-{key}" label="{key}"><lf-ask id="{key}-decision">'
-            f'<h2>Pick the {key}</h2><div style="height: 900px"></div>'
-            f'<lf-options id="{key}" choose><lf-option id="{key}-a">Alpha</lf-option>'
-            "</lf-options></lf-ask></lf-tab>"
+            f'<lf-tab id="t-{key}" label="{key}"><lf-group id="{key}-decision" label="Pick the {key}">'
+            f'<h2 id="{key}-decision-h">Pick the {key}</h2><div style="height: 900px"></div>'
+            f'<lf-options id="{key}"><lf-option id="{key}-a">Alpha</lf-option>'
+            "</lf-options></lf-group></lf-tab>"
         )
 
     page = open_page(
@@ -366,8 +367,10 @@ PANE_BAND_PAGE = leaf_page(
     <lf-pane id="band-detail" label="Detail">
       <div id="band-body">
         <section id="band-ticket">
-          <p class="eyebrow" id="band-eyebrow">ESC-1 · sev 1</p>
-          <h2>The ticket's title</h2>
+          <hgroup>
+            <p id="band-eyebrow">ESC-1 · sev 1</p>
+            <h2>The ticket's title</h2>
+          </hgroup>
           <p>What happened.</p>
         </section>
         <section><h2>Another ticket</h2><p>Its account.</p></section>
@@ -382,8 +385,8 @@ PANE_BAND_PAGE = leaf_page(
 
 def test_a_pane_opens_on_its_first_words_through_a_bare_wrapper(browser, serve):
     """A pane's body trims the margin at its top edge, and a declared section wrapping its
-    content passes its first child's margin to that edge. The eyebrow above a heading
-    carries the heading's 48px, which stood as an empty band at the top of the pane;
+    content passes its first child's margin to that edge. A title group with an eyebrow
+    carries its heading's 48px, which would stand as an empty band at the top of the pane;
     the body's own padding is all that stands above the first words."""
     page = open_page(browser, serve(PANE_BAND_PAGE))
     resized(page, 1440, 900)
@@ -477,14 +480,14 @@ SECTIONED_PANE_PAGE = leaf_page(
 THREE_PART_OBLIGATION_PAGE = leaf_page(
     "a three-part obligation as the workspace",
     """
-  <lf-ask id="workspace-ask">
-    <h2>Which release should go out?</h2>
+  <lf-group id="workspace-ask" label="Which release should go out?">
+    <h2 id="workspace-ask-h">Which release should go out?</h2>
     <div id="ask-context" style="height: 900px">The context the user weighs.</div>
-    <lf-options id="workspace-options" choose>
+    <lf-options id="workspace-options">
       <lf-option id="workspace-ship">Ship it</lf-option>
       <lf-option id="workspace-hold">Hold it</lf-option>
     </lf-options>
-  </lf-ask>
+  </lf-group>
 """,
     layout="workspace",
 )
@@ -552,7 +555,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     pane_scroll_behavior(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.getElementById('cells');
         }"""
@@ -591,7 +594,7 @@ def foot_reserve(page, pane="#workspace-pane"):
           const style = getComputedStyle(reader);
           return Math.round(
             parseFloat(style.paddingBlockEnd) -
-              parseFloat(style.getPropertyValue('--pane-inset'))
+              parseFloat(style.getPropertyValue('--lf-pane-inset'))
           );
         }"""
     )
@@ -600,13 +603,14 @@ def foot_reserve(page, pane="#workspace-pane"):
 ZONE_PACKAGE = {
     "lf-zone": {
         "description": "A project package's differently named pane.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
-        "required": ["id", "label"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-reading-role": "pane",
-        "x-upgrade": False,
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+            "required": ["id", "label"],
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "reading-role": "pane",
     }
 }
 
@@ -662,12 +666,12 @@ def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
         page.unroute_all(behavior="wait")
 
 
-def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
-    """An lf-ask as the workspace's body gives its last part, the answer, what its heading
-    and context leave, and never less than the answer's own height: below a context
-    taller than the window the options keep theirs, nothing is drawn over them, and the
-    body scrolls. A playground below a premise fits itself to what is left, its controls
-    scrolling within the window."""
+def test_a_question_section_gives_its_answer_what_its_context_leaves(browser, serve):
+    """A question's section as the workspace's body gives its last part, the answer,
+    what its heading and context leave, and never less than the answer's own height:
+    below a context taller than the window the options keep theirs, nothing is drawn
+    over them, and the body scrolls. A playground below a premise fits itself to what is
+    left, its controls scrolling within the window."""
     page = open_page(browser, serve(THREE_PART_OBLIGATION_PAGE))
     resized(page, 1280, 720)
     geometry = page.evaluate(
@@ -702,84 +706,6 @@ def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
     fills_the_window(page, page.locator("main"), True)
 
 
-def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve):
-    """A document keeps its end room with a pane inside it; a workspace that flows gives
-    its last block that room, and a full-height one does not scroll.
-
-    Where the workspace flows, a grid of panes ends the page with the room below all its
-    panes, so the page's end clears the panel whichever pane ends it, and no pane keeps
-    the panel's row as an empty band of its own. Held, each pane's body scrolls to the
-    window's foot, and each keeps the room."""
-    document = leaf_page(
-        "a pane mid-document",
-        f"""
-<h1>A document with a pane</h1>
-<p>Before the pane.</p>
-{LONG_PANE}
-{"<p>After the pane.</p>" * 30}
-<p id="document-end">The document's last line.</p>
-""",
-    )
-    page = open_page(browser, serve(document))
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
-    room = page.evaluate(
-        """() => {
-          const probe = document.createElement('div');
-          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-foot-room)';
-          document.body.append(probe);
-          const band = probe.getBoundingClientRect().height;
-          probe.remove();
-          return {
-            padding: parseFloat(getComputedStyle(document.body).paddingBottom),
-            band,
-            panel: innerHeight
-              - document.querySelector('.lf-fp-row').getBoundingClientRect().top,
-          };
-        }"""
-    )
-    # The page's end room is the band's stated height, which holds the panel's row.
-    assert room["padding"] == room["band"] >= room["panel"] > 0, room
-    end = clear_of_the_bottom_chrome(page, "#document-end")
-    assert end["clear"], end
-    page.close()
-
-    root = leaf_page("a workspace", LONG_PANE, layout="workspace")
-    page = open_page(browser, serve(root))
-    resized(page, 1280, 420)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
-    end = clear_of_the_bottom_chrome(page, "#pane-end")
-    assert end["clear"], end
-
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
-    fills_the_window(page, page.locator("main"), True)
-    page.close()
-
-    # Two columns at every width, the long pane first, so it ends the page on a phone.
-    grid = leaf_page(
-        "a workspace grid of panes",
-        f"""<div id="cells">
-  {LONG_PANE}
-  <lf-pane id="second-pane" label="Second"><div><p>Second</p></div></lf-pane>
-</div>""",
-        head="<style>#cells { display: grid; grid-template-columns: 1fr 1fr; }</style>",
-        layout="workspace",
-    )
-    page = open_page(browser, serve(grid))
-    for width, height in [(390, 844), (844, 390)]:
-        resized(page, width, height)
-        pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
-        assert foot_reserve(page) == 0, (width, height)
-        assert foot_reserve(page, "#second-pane") == 0, (width, height)
-        end = clear_of_the_bottom_chrome(page, "#pane-end")
-        assert end["clear"], (width, height, end)
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
-    assert foot_reserve(page) > 0
-    assert foot_reserve(page, "#second-pane") > 0
-
-
 @pytest.mark.parametrize(
     "container", ["views", "pane", "plain", "workspace-footer", "pane-footer"]
 )
@@ -812,7 +738,7 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         scroller = "#reading"
     elif container == "views":
         content = (
-            '<lf-tabs id="outer" class="layout-flow"><lf-tab id="review" label="Review">'
+            '<lf-tabs id="outer" flow="page"><lf-tab id="review" label="Review">'
             '<lf-tabs id="frame" list="side"><lf-tab id="reading" label="Experiment">'
             + reading
             + '</lf-tab><lf-tab id="other" label="Other"><p>Other result</p></lf-tab>'
@@ -822,20 +748,17 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
     elif container == "pane":
         reading = reading.replace(
             '<button id="reading-end">',
-            """<lf-ask id="release-ask"><h2>What should the review record?</h2>
+            """<lf-group id="release-ask" label="What should the review record?"><h2 id="release-ask-h">What should the review record?</h2>
               <p>Comment on the code before making your final call. A selection records
                 your review decision; it does not deploy code or mark tests as passed.</p>
               <p>Ship with changes keeps the retry budget within the deadline.
                 Update the acceptance checks before beginning rollout.</p>
-              <lf-options id="release-options" choose closed>
-              <lf-option id="ship-written"><strong>Ship as written</strong>
-                <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
-              <lf-option id="ship-changes"><strong>Ship with changes</strong>
-                <p>Reduce the retry budget and update acceptance checks before rollout.</p></lf-option>
-              <lf-option id="hold-release"><strong>Hold</strong>
-                <p>Keep the proposal unapproved and do not begin rollout. Resolve deadline
+              <lf-options id="release-options" closed>
+              <lf-option id="ship-written" label="Ship as written">                <strong>Ship as written</strong> <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
+              <lf-option id="ship-changes" label="Ship with changes">                <strong>Ship with changes</strong> <p>Reduce the retry budget and update acceptance checks before rollout.</p></lf-option>
+              <lf-option id="hold-release" label="Hold">                <strong>Hold</strong> <p>Keep the proposal unapproved and do not begin rollout. Resolve deadline
                 or exception-contract concerns and gather test evidence before revisiting.</p></lf-option>
-            </lf-options></lf-ask><button id="reading-end">""",
+            </lf-options></lf-group><button id="reading-end">""",
         )
         reading = reading.replace(
             "<p>Start</p>", '<p><a href="#release-ask">Record decision</a></p>'
@@ -894,8 +817,8 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             const outer = document.getElementById('outer');
             const style = getComputedStyle(outer ?? document.documentElement);
             const outside = outer ? parseFloat(style.paddingBottom) : 0;
-            const ringRoom = parseFloat(style.getPropertyValue('--focus-region-gap'))
-              + parseFloat(style.getPropertyValue('--focus-ring-w'));
+            const ringRoom = parseFloat(style.getPropertyValue('--lf-focus-region-gap'))
+              + parseFloat(style.getPropertyValue('--lf-focus-ring-w'));
             return {frameBottom: frame.bottom, outside, ringRoom,
                     endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
         }""",
@@ -971,7 +894,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
         pane_scroll_behavior(page, page.locator(inner), "flow")
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);
@@ -1120,6 +1043,201 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
+STREAMED_LOG_PAGE = leaf_page(
+    "A log a stream feeds",
+    '<h1 id="t">Deploy</h1><div id="log" data-bound="end" tabindex="0">'
+    + "".join(
+        f'<p>Entry {n}: <a href="#t">shard {n}</a> copied.</p>' for n in range(30)
+    )
+    + '<p style="white-space: nowrap">Copied: '
+    + "shard-0 " * 60
+    + "</p></div>",
+)
+
+
+@pytest.mark.parametrize(
+    "aim", ["u", "PageUp", "PageUp on a link", "wheel", "wheel across"]
+)
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(engine, aim, request, serve):
+    """u, PageUp or a wheel aimed up a log following its end takes the reader up while
+    entries stream in, and a wheel across its long lines takes them across, at its end.
+    u starts a glide whose first frame can leave the box where it stands, and a log
+    follower that read only the box's offset would take the next entry for a reader
+    still at the end, put the log back there and stop the glide, so the press would do
+    nothing. The end keeper every box shares lets a box a glide heads back from go
+    (scrolling.js, `followEnd`). Firefox applies a wheel's or PageUp's scroll a frame or
+    more after the input, and a keeper's write of the end meanwhile would cancel it, a
+    wheel across as well; the scroll is the reader's from the input (scrolling.js,
+    `aimScroll`). PageUp on a link in the log, read as a key the link took, would be
+    left to the keeper (scrolling.js, `scrollsFor`). Each trial aims once in the middle
+    of a stream of an entry every 4ms."""
+    if aim != "u":
+        # A browser starved of CPU can apply a key's or wheel's scroll after the 80ms
+        # the reader's scroll waits for it to move the page (arrivals.js), so the log
+        # keeps its end in a trial: Firefox as late as 800ms after the input, and
+        # Chromium in the starved macOS nightly. #6348 tracks a fix in the code or this
+        # test that lets these marks go. `u` glides by Leaf's own scroll, which this
+        # doesn't touch.
+        request.applymarker(
+            pytest.mark.xfail(
+                strict=False,
+                reason="#6348: a starved browser applies the scroll after the reader's wait ends",
+            )
+        )
+    page = open_page(
+        request.getfixturevalue(engine), live_url(serve(STREAMED_LOG_PAGE))
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    log.focus()
+    box = log.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    stood = []
+    for trial in range(6):
+        log.evaluate(
+            "log => log.scrollTo({top: log.scrollHeight, left: 0, behavior: 'instant'})"
+        )
+        scroll_settled(page, "#log")
+        page.evaluate(
+            """(trial) => { window.lfStream = new Promise((done) => {
+              const log = document.getElementById('log');
+              let n = 0;
+              const tick = () => {
+                log.append(Object.assign(document.createElement('p'),
+                  {textContent: `Streamed ${trial}.${n}`}));
+                if (++n < 60) setTimeout(tick, 4); else done();
+              };
+              tick();
+            }); }""",
+            trial,
+        )
+        page.wait_for_timeout(60)
+        if aim == "PageUp on a link":
+            page.evaluate(
+                """() => { const link = Object.assign(document.createElement('a'),
+                  {href: '#t', textContent: 'Aimed at'});
+                  document.getElementById('log').append(link);
+                  link.focus({preventScroll: true}); }"""
+            )
+            page.keyboard.press("PageUp")
+        elif aim.startswith("wheel"):
+            page.mouse.wheel(*((300, 0) if aim == "wheel across" else (0, -300)))
+        else:
+            page.keyboard.press(aim)
+        page.evaluate("() => window.lfStream")
+        scroll_settled(page, "#log")
+        stood.append(
+            log.evaluate(
+                """log => ({short: log.scrollHeight - log.clientHeight - log.scrollTop,
+                  across: log.scrollLeft})"""
+            )
+        )
+    if aim == "wheel across":
+        assert all(at["across"] > 0 and at["short"] <= 2 for at in stood), stood
+    else:
+        room = log.evaluate("log => log.clientHeight")
+        assert all(at["short"] > room / 2 for at in stood), stood
+
+
+def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
+    browser, serve, subtests
+):
+    """A `<pre>` log grows by text alone, which resizes no element a size observer
+    reports, and a log mounted under a `display: none` ancestor has no end until it is
+    drawn. An end keeper that misses either leaves the `<pre>` short of its end, or the
+    late log opened at its top. End pressed at a log's end starts a scroll that moves
+    nothing; a log emptied and refilled while it runs is clamped to its top in between,
+    and a keeper that deferred its writes for that scroll would miss the clamp and leave
+    the refilled log short of its end. A wheel across the log does hold the keeper's
+    writes until its scroll ends, and a keeper that stopped reading the box meanwhile
+    would take that clamp for the reader's move and leave the log at its top."""
+    page = open_page(browser, live_url(serve(FEED_PAGE)))
+    resized(page, 1280, 900)
+    at_end = """(id) => { const log = document.getElementById(id);
+      return log.scrollHeight > log.clientHeight
+        && log.scrollHeight - log.scrollTop - log.clientHeight <= 2; }"""
+    with subtests.test(log="text"):
+        page.evaluate(
+            """() => { const pre = document.createElement('pre');
+              pre.id = 'text-log'; pre.dataset.lfBound = 'end';
+              pre.style.cssText = 'max-block-size: 200px; overflow: auto';
+              pre.textContent = Array.from({length: 60}, (_, i) => `line ${i}`)
+                .join('\\n');
+              document.querySelector('main').append(pre); }"""
+        )
+        page.wait_for_function(at_end, arg="text-log")
+        page.evaluate(
+            """() => { const pre = document.getElementById('text-log');
+              for (let i = 0; i < 10; i++) pre.append(`\\nappended ${i}`); }"""
+        )
+        page.wait_for_function(at_end, arg="text-log")
+    with subtests.test(log="drawn late"):
+        page.evaluate(
+            """() => { const wrap = document.createElement('div');
+              wrap.id = 'undrawn'; wrap.style.display = 'none';
+              wrap.innerHTML = '<div id="late-log" data-lf-bound="end">'
+                + '<p>Entry</p>'.repeat(60) + '</div>';
+              document.querySelector('main').append(wrap); }"""
+        )
+        rendered(page)
+        page.evaluate(
+            "() => { document.getElementById('undrawn').style.display = ''; }"
+        )
+        page.wait_for_function(at_end, arg="late-log")
+    with subtests.test(log="refilled after a key at its end"):
+        page.evaluate(
+            """() => { const log = document.createElement('div');
+              log.id = 'keyed-log'; log.dataset.lfBound = 'end'; log.tabIndex = 0;
+              log.innerHTML = '<p>Entry</p>'.repeat(60);
+              document.querySelector('main').append(log); }"""
+        )
+        page.wait_for_function(at_end, arg="keyed-log")
+        page.locator("#keyed-log").focus()
+        # Held frames keep End's scroll under way, however slow the machine.
+        with held_frames(page):
+            page.keyboard.press("End")
+            page.evaluate(
+                """async () => { const log = document.getElementById('keyed-log');
+                  const entries = [...log.children];
+                  log.replaceChildren();
+                  await Promise.resolve();
+                  log.append(...entries); }"""
+            )
+        page.wait_for_function(at_end, arg="keyed-log")
+    with subtests.test(log="refilled during a wheel across it"):
+        page.evaluate(
+            """() => { const log = document.createElement('div');
+              log.id = 'wheeled-log'; log.dataset.lfBound = 'end';
+              log.innerHTML = '<p>Entry</p>'.repeat(60);
+              document.querySelector('main').append(log); }"""
+        )
+        page.wait_for_function(at_end, arg="wheeled-log")
+        # The wheel across holds the keeper's writes until its scroll ends, and the log
+        # is emptied and refilled as the wheel is heard, inside that scroll: the clamp
+        # to its top is layout's, not the reader's.
+        page.evaluate(
+            """async () => { const log = document.getElementById('wheeled-log');
+              log.addEventListener('wheel', async () => {
+                const entries = [...log.children];
+                log.replaceChildren();
+                await Promise.resolve();
+                log.append(...entries);
+              }, {once: true, passive: true});
+              const { watchScrollEnds } = await window.__lfCheckApi();
+              const stop = watchScrollEnds((box) => {
+                if (box !== log) return;
+                stop();
+                window.lfWheelEnded = true;
+              }); }"""
+        )
+        page.locator("#wheeled-log").hover()
+        page.mouse.wheel(-300, 0)
+        page.wait_for_function("() => window.lfWheelEnded")
+        assert page.evaluate(at_end, "wheeled-log")
+
+
 def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(
     browser, serve
 ):
@@ -1169,8 +1287,8 @@ def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
     """A bounded log in a tab the user is not viewing grows, and another arrives,
     without Leaf styling or measuring either while the tab is hidden. Opening the tab
     shows each log's newest entry, every time the logs grew while hidden. Such a read
-    makes the browser style the hidden panel first, and in Chromium that forced pass left
-    a decided suggestion's retired words showing (#1868)."""
+    makes the browser style the hidden panel first, and in Chromium that forced pass can
+    leave a decided suggestion's retired words showing."""
     entry = "<p>Entry: the deploy copied a shard to the new key format.</p>"
     url = serve(
         leaf_page(

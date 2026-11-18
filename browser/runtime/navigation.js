@@ -28,9 +28,9 @@ import {
   unconcealedReadingRegions,
   userReadingRegion,
   readingRegionFor,
-  scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
+import { scrollChainOf } from "./scroll-containers.js";
 import {
   currentLocationOrigin,
   walkOrigin,
@@ -111,8 +111,9 @@ async function arriveAtThread(id, { openPageThread }, intent) {
 // From anywhere but a thread, the walk steps by the page walks' one rule (`stepFrom`,
 // current-target.js): a place on the page against each thread's place (`threadPlace`).
 // A thread at the user's current location, or whose place holds where they are, is
-// where they are without being in it, so the press opens it. A general thread has no
-// place and stands after every placed one.
+// where they are without being in it, so the press opens it, unless what the window
+// shows puts them at a thread ahead of it. A general thread has no place and stands
+// after every placed one.
 /** @param {Step} dir @param {ThreadDestinations} destinations @param {PlacedAt} placedAt */
 function stepThread(dir, destinations, placedAt) {
   const { threadAtCurrentLocation, threadPlace } = destinations;
@@ -124,7 +125,7 @@ function stepThread(dir, destinations, placedAt) {
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
   const next = current
     ? cycledRow(threads, current, dir)
-    : (atTarget ?? stepFrom(threads, origin, dir, threadPlace));
+    : stepFrom(threads, origin, dir, threadPlace, atTarget);
   if (!next) return;
   // The walk reads the current destination, so begin it once the arrival has moved
   // focus, as the queue walk does; an arrival that failed registers nothing.
@@ -151,7 +152,8 @@ export function placeThreadEdge(thread, edge) {
   scrollIntoView(thread, { behavior: scrollBehavior(), block: edge });
 }
 
-// j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
+// j/k take small pixel steps; d/u move 60% of the visible reading page; Go-to's `g g`
+// and `g G` take an unbounded step, which `glideTo` stops at the box's edge. All follow
 // the active region and glide (scrolling.js, `glideTo`). A press steps from where the
 // box is headed (`scrollGoal`), so presses made while the page still moves, whether
 // after another step, after a landing such as `m`'s, or after the browser's own Space

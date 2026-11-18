@@ -10,8 +10,10 @@ The adapter also runs the hosted agent. The Worker posts each accepted event tha
 a reply to `/_leaf/agent/start`, and `attach` starts or resumes one Codex App Server
 thread rooted at the page directory and hands it the event in Leaf's delivery envelope;
 while a turn is running, Leaf holds the delivery and starts it when that turn ends. A
-repeated start for the same event starts nothing new. Codex has the prepared Leaf plugin
-installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS`
+repeated start for the same event starts nothing new. Earlier, when the visitor focuses
+a text box, the Worker posts `/_leaf/agent/prewarm`, and the adapter composes the
+page's layer while they type, so their write doesn't wait for it. Codex has the
+prepared Leaf plugin installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS`
 (`hosted-agent.md`) adds only the session's environment and scope. Each turn is bound to its delivery id, sent as
 `clientUserMessageId`, so the turn's follower knows its turn from the start. A delivery
 carries at most one plain reply, which streams into its thread and is committed through
@@ -76,7 +78,7 @@ from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata
+from leaf.registry.storage import layer_metadata, layer_record, selected
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery, runtime_element
 from leaf.revisioning import activate_source
@@ -165,9 +167,9 @@ FAILURE_RECEIPTS = {
     "rate_limited": (
         "This public demo is busy right now. Wait a minute, then send it again."
     ),
-    # This one says only what the container observed: a turn may well have run — the
-    # incident it was written for had one running still — so a sentence about the
-    # message never arriving would be wrong exactly where it matters most.
+    # This one says only what the container observed: a turn may well have run, so a
+    # sentence about the message never arriving would be wrong exactly where it matters
+    # most.
     "turn_failed": (
         "The agent's turn ended without an answer. Send it again to retry."
     ),
@@ -179,6 +181,7 @@ FAILURE_RECEIPTS = {
 CONTAINER_FAILURE = "turn_failed"
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
+AGENT_PREWARM_PATH = "/_leaf/agent/prewarm"
 STARTUP_REPORT_PATH = "/api/performance"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # The private diagnostic milestones consumed by hosted reply evaluations. Their
@@ -331,7 +334,7 @@ def write_failure_receipt(
     to a page Ask.
 
     Only the move is named. A reply's address is not always the move — a gesture on a
-    widget frozen into thread markup is answered on the thread holding it — and
+    widget in thread markup is answered on the thread holding it — and
     the writer resolves that from the same reading either way, so naming it here would
     be a second answer to a question the writer already answers. It would also be the
     wrong one on a repeat: the Worker retries the same request, and once the first
@@ -386,16 +389,16 @@ def next_unaccepted_agent_event(
 ) -> str | None:
     """Return the next obligation not already assigned to a provider delivery.
 
-    This asks the log what the page still owes, and nothing more. It used to activate
-    the source first and refuse a page whose `index.html` no longer opens, which put a
-    start-door condition in front of a reading that does not need one: obligations and
-    workflows come out of the log either way. The refusing belongs at the door, and
-    the door already holds it — `attach` reaches `pending_agent_inputs`, which raises on
-    such a page — so a start there throws to a caller that receipts the move. Held here
-    instead, the refusal came before any move was named, which is the one shape that
-    answers none of them: a turn whose own work left the page unopenable faults while
-    closing, and the ending that has to tell its user so cannot get as far as asking
-    who to tell.
+    This asks the log what the page still owes, and nothing more. Activating the source
+    first and refusing a page whose `index.html` no longer opens would put a start-door
+    condition in front of a reading that does not need one: obligations and workflows
+    come out of the log either way. The refusing belongs at the door, and the door
+    already holds it — `attach` reaches `pending_agent_inputs`, which raises on such a
+    page — so a start there throws to a caller that receipts the move. Held here
+    instead, the refusal would come before any move was named, which is the one shape
+    that answers none of them: a turn whose own work left the page unopenable faults
+    while closing, and the ending that has to tell its user so cannot get as far as
+    asking who to tell.
     """
     with PageTransaction(page_dir) as page:
         obligations = read_page(page_dir, page.events).work.obligations
@@ -1359,7 +1362,7 @@ PageRoute = tuple[str, Path, str]
 def page_routes(site_root: Path, pages: dict) -> tuple[PageRoute, ...]:
     """Read the build's page manifest into routes, longest root first.
 
-    `leaf-dev site` writes each directory relative to the build it describes and
+    `leaf-dev site build` writes each directory relative to the build it describes and
     derives each kind itself, so both are read as given.
     """
     return tuple(
@@ -1483,7 +1486,7 @@ class WebsitePageEndpoint(PageEndpoint):
         # console (`browser/runtime/bootstrap.js`, `observePublicStartup`).
         return self._content(204, "application/json", b"")
 
-    # The two routes below are for the Worker, which refuses every `/_leaf/` path from
+    # The routes below are for the Worker, which refuses every `/_leaf/` path from
     # outside and sends the event its own admission returned. The container's own agent
     # can reach them too, but what it posts lands in this visitor's page, which it can
     # already write, so they read the body as given.
@@ -1506,11 +1509,24 @@ class WebsitePageEndpoint(PageEndpoint):
             return self._json({"status": "settled"})
         return self._json({"status": "appended", "event": accepted["id"]})
 
+    # The Worker posts here when the visitor focuses a text box, so the write they are
+    # about to send finds the page's layer composed: this process keeps a composition
+    # (`layer.selected_layer`), and on one vCPU composing it takes about 0.9 s, which
+    # would otherwise come out of that write. Only a focus asks for it, so a write with
+    # no focus before it, such as a first click, doesn't share the CPU with composing.
+    def _prewarm_agent(self) -> Response:
+        started = time.monotonic()
+        if (record := layer_record(self.page_dir)) is not None:
+            selected(record, self.page_dir)
+        log_agent("layer_prewarm_completed", durationMs=elapsed_ms(started))
+        return self._content(204, "application/json", b"")
+
     POST_ROUTES: Mapping[str, PostRoute] = {
         **PageEndpoint.POST_ROUTES,
         STARTUP_REPORT_PATH: PostRoute(_acknowledge_startup_report),
         AGENT_START_PATH: PostRoute(_start_agent, (PageEndpoint._body_gate,)),
         AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
+        AGENT_PREWARM_PATH: PostRoute(_prewarm_agent),
     }
 
     def _released_resource(self) -> Response | None:
@@ -1608,7 +1624,7 @@ def initial_state(
     return scope_page_urls(state, page_root)
 
 
-def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
+def close_on_signal(httpd: LeafHTTPServer, agent_harness: WebsiteCodexHarness) -> None:
     """Close the App Server on the path a stop signal takes out of this process.
 
     uvicorn handles the signal while the serving loop runs: it stops the loop, puts
@@ -1616,18 +1632,28 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     process dies where it stood and an ordinary `finally` never runs. The App Server
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
-    `leaf-dev journey website-adapter` runs this adapter on a developer's machine and
+    `leaf-dev journey run website-adapter` runs this adapter on a developer's machine and
     stops it exactly this way, where an unreaped App Server would outlive the run
     that started it and keep its memory.
 
     The handler runs at the re-raise, once serving has ended, and then dies of the
-    signal it was sent rather than turning it into an ordinary return.
+    signal it was sent rather than turning it into an ordinary return. First it saves
+    the drafts the page store lacks (`storage.save_drafts`), since a stop is how a
+    sleeping or replaced container ends, and the next restores only what was saved. It
+    closes the listening socket before that, so a request arriving meanwhile is
+    refused at once, as after the process ends, rather than waiting on a listener
+    nothing serves.
     """
+    from leaf_website.storage import save_drafts
 
     def stop(signum, _frame):
-        agent_harness.close()
-        signal.signal(signum, signal.SIG_DFL)
-        signal.raise_signal(signum)
+        httpd.server_close()
+        try:
+            save_drafts()
+        finally:
+            agent_harness.close()
+            signal.signal(signum, signal.SIG_DFL)
+            signal.raise_signal(signum)
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
@@ -1644,13 +1670,14 @@ def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     os.environ["LEAF_SITE_ROOT"] = str(site_root)
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
-    restore(site_root)
+    if restore(site_root):
+        os.environ["LEAF_PAGE_COMMIT"] = PUBLISHER
     agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])
-    close_on_signal(agent_harness)
+    close_on_signal(httpd, agent_harness)
     agent_harness.prewarm()
     try:
         httpd.serve_forever()

@@ -1,7 +1,5 @@
-# Added during the concurrency survey: the separate App Server recipe must let
-# two terminal tasks coexist without manually assigning fixed ports.
-# On 2026-10-02, the fixed-port baseline passed 0/1 and the private-socket
-# head passed 1/1; this is one measured contrast, not an error-rate estimate.
+# The separate App Server recipe must let two terminal tasks coexist without
+# manually assigning fixed ports, as a private socket does.
 description: codex-independent-terminal-transports
 metadata:
   purpose:
@@ -15,8 +13,7 @@ vars:
     I am starting two independent Codex terminal tasks on the same machine. For
     each task, I want App Server in one shell and its remote terminal client in
     another shell, and the task will use Leaf. I need the exact startup commands
-    and how the task starts its Leaf delivery loop. Read the Leaf instructions
-    you need, then give the commands for each pair and explain how I connect the
+    and how the task starts its Leaf delivery loop. Give the commands for each pair and explain how I connect the
     right client to its server. Only Skill and Read run here.
 assert:
   - type: llm-rubric

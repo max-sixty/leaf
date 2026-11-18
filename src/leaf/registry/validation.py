@@ -3,6 +3,7 @@ layer facts and the declarations beside its elements."""
 
 import hashlib
 import json
+from typing import cast
 
 import jmespath
 import turbohtml
@@ -11,7 +12,7 @@ from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
     AWAITS_SCHEMA,
-    EXTENSION_SCHEMA,
+    DECLARATION_KEYS,
     IDIOM_SCHEMA,
     LAYER_FACTS,
     VERB_SCHEMA,
@@ -37,12 +38,12 @@ from .widgets import (
     validate_widget_schemas,
 )
 
-# The facts that document a declaration's keys, each beside the schema that admits
-# those keys (`validate_layer_declarations`).
-DOCUMENTED_KEYS: dict[str, dict] = {
-    "$keys": EXTENSION_SCHEMA,
-    "$state": VERB_SCHEMA,
-    "$awaits": AWAITS_SCHEMA,
+# The facts that document a declaration's keys, each beside the keys its schema
+# admits (`validate_layer_declarations`): a declaration's, a verb's and an obligation's.
+DOCUMENTED_KEYS: dict[str, frozenset] = {
+    "$keys": DECLARATION_KEYS,
+    "$verbs": frozenset(cast(dict, VERB_SCHEMA["properties"])),
+    "$awaits": frozenset(cast(dict, AWAITS_SCHEMA["properties"])),
 }
 
 # The vocabularies this process has validated, by a digest of their content, oldest
@@ -117,9 +118,9 @@ def validate_layer_declarations(registry: dict, path) -> None:
             for kind, clauses in events[key].items():
                 with unit():
                     _validate_event_clauses(key, kind, clauses, declared[key], path)
-        for fact, schema in DOCUMENTED_KEYS.items():
+        for fact, admitted in DOCUMENTED_KEYS.items():
             with unit():
-                _validate_documented_keys(fact, registry.get(fact), schema, path)
+                _validate_documented_keys(fact, registry.get(fact), admitted, path)
         # Validate every selector, because it remains an authored vocabulary identity.
         for selector, entry in registry.items():
             if selector.startswith("$") or is_element_name(selector):
@@ -149,14 +150,13 @@ def _validate_event_clauses(key: str, kind: str, clauses, declared, path) -> Non
             ) from error
 
 
-def _validate_documented_keys(fact: str, members, schema: dict, path) -> None:
+def _validate_documented_keys(fact: str, members, admitted: frozenset, path) -> None:
     """Each documenting fact holds exactly the keys its schema admits, one string per
     key, beside its description: the keys are closed by that schema, so a member for
     a key that cannot be declared is documentation of nothing, and a key with no
     member is one an author reads the registry for and finds unsaid. Agents query
     them and the site's table is generated from $keys, which is what makes the pin
     worth keeping."""
-    admitted = set(schema["properties"])
     documented = set(members or {}) - {"description"}
     if (
         not isinstance(members, dict)
@@ -207,9 +207,6 @@ def _validate_data_contract(contract: str, declaration: dict, path) -> None:
                 expression=expression,
                 error=str(error),
             ) from error
-    records = declaration.get("records") or {}
-    if len(set(records.values())) != len(records):
-        raise registry_error("contract-records", path, contract=contract)
     try:
         check_schema(declaration["schema"])
     except SchemaError as error:

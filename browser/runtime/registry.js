@@ -1,7 +1,7 @@
 /* The vocabulary's query doors, which is how the layer stays open.
 
    `elementDeclarations` and `tagsDeclaring` are the general iteration doors. `stateSpecs` is
-   the one traversal of every tag's `x-state`, whichever side writes each verb. New code
+   the one traversal of every tag's `verbs`, whichever side writes each verb. New code
    that loops over tag names or repeats that traversal is a closed list in another form. CSS selectors
    follow the same rule: a list of framed widget tags is still a closed consumer. */
 
@@ -79,7 +79,7 @@ function indexedState() {
   /** @type {StateIndex["specs"]} */
   const specs = [];
   for (const [tag, entry] of elementDeclarations())
-    for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
+    for (const [verb, spec] of Object.entries(entry.verbs ?? {}))
       specs.push({ tag, verb, spec });
   /** @type {Map<string, Set<string>>} */
   const recordTags = new Map();
@@ -108,33 +108,52 @@ export const recordedWidgetSelector = (record) =>
 /** @param {string} name */
 export const layerFact = (name) => registry[name];
 
-/** @template {keyof WidgetDeclaration} K @param {Element | null | undefined} el @param {K} key @returns {WidgetDeclaration[K] | undefined} */
-export const declarationFor = (el, key) =>
-  el ? registry[el.localName]?.[key] : undefined;
+// The declaration a widget's tag has: its attribute schema and the facts it declares,
+// each under its own name (`$keys`). An idiom, which a selector keys, is no element's
+// declaration.
+/** @param {Element | null | undefined} el @returns {WidgetDeclaration | undefined} */
+export const declarationFor = (el) =>
+  el && isElementName(el.localName) ? registry[el.localName] : undefined;
 
-// How a tag is decided, or null where no verb decides it: `verb`, the x-state verb whose
-// detail `outcome` is the decision, and `retires`, each outcome's member tags that leave
-// the page under it (x-retired-when). Composition stamps it into the vocabulary as
-// `$decisions` (Python's `registry.contract.stamp_decisions`), so nothing here re-derives it.
+// How a tag is decided, or null where no verb decides it: `verb`, the verb (`verbs`)
+// whose detail `outcome` is the decision, and `retires`, each outcome's member
+// tags that leave the page under it (`retired-when`). Composition stamps it into
+// the vocabulary as `$decisions` (Python's `registry.contract.stamp_decisions`), so
+// nothing here re-derives it.
 /** @param {string} tag @returns {Decision | null} */
 export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 
-/** @param {Document | DocumentFragment | Element} root @param {keyof WidgetDeclaration} key @param {{direct?: boolean}} [options] */
-export const elementsDeclaring = (root, key, { direct = false } = {}) => {
-  const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
-  return candidates.filter((el) => declarationFor(el, key) !== undefined);
+// The widgets at or under `root` whose declaration `holds` answers for, in document
+// order. The browser matches their tags, so a root holding a long document of plain
+// rows, as a tab set's panel can, costs a native match of each row rather than a
+// script's look at it. The match costs more for each tag it names, so a question about
+// some widgets names only theirs.
+/** @param {Document | DocumentFragment | Element} root @param {(entry: WidgetDeclaration) => unknown} [holds] */
+export const declaredElements = (root, holds = () => true) => {
+  const tags = tagsDeclaring(holds);
+  if (!tags.length) return [];
+  const selector = tags.join(",");
+  const found = [...root.querySelectorAll(selector)];
+  if (root instanceof Element && root.matches(selector)) found.unshift(root);
+  return found;
 };
 
 // Which widgets answer a question the way the caller means it, read from what they
-// declare. Nothing out here names a widget: a behaviour some widgets want is an x- key
-// they carry, so the twelfth widget is covered by its declaration alone — the alternative
-// keeps working perfectly on the widget it was taught and silently does nothing for the
-// next one.
-/** @param {(entry: WidgetDeclaration) => unknown} holds */
+// declare. Nothing out here names a widget: a behaviour some widgets want is a fact
+// they declare, so the twelfth widget is covered by its declaration alone — the
+// alternative keeps working perfectly on the widget it was taught and silently does
+// nothing for the next one.
+/** @param {(entry: WidgetDeclaration, tag: string) => unknown} holds */
 export const tagsDeclaring = (holds) =>
   elementDeclarations()
-    .filter(([, entry]) => holds(entry))
+    .filter(([tag, entry]) => holds(entry, tag))
     .map(([tag]) => tag);
+
+// Whether a module upgrades a tag. Composition derives `$modules` from the files it
+// composes (Python's `registry.contract.MODULES`): a module at `widgets/<tag>.js` is
+// what makes a tag an upgraded widget, and no declaration says so.
+/** @param {string} tag @returns {boolean} */
+export const upgrades = (tag) => Object.hasOwn(registry.$modules ?? {}, tag);
 
 // Every declared attribute holds one of the admitted values. A boolean asks whether a
 // flag is present; other values compare with the attribute's text. The lint holds each
@@ -149,11 +168,21 @@ export const matchesWhen = (el, when) =>
     ),
   );
 
+// A declared fact as it holds for one occurrence. A fact declared with
+// `{when: {attribute: [values]}}` is `true` while the element's attributes match and
+// `false` otherwise; any other declaration is returned as declared. A reader asking
+// whether the tag declares the fact at all reads the declaration instead. The
+// declaration schema says which facts may take that form; Python's is
+// `registry.contract.holds_for`.
+/** @param {Element} el @param {unknown} rule @returns {unknown} */
+export const holdsFor = (el, rule) =>
+  typeof rule === "object" &&
+  rule !== null &&
+  "when" in rule &&
+  Object.keys(rule).length === 1
+    ? matchesWhen(el, /** @type {Parameters<typeof matchesWhen>[1]} */ (rule.when))
+    : rule;
+
 // An occurrence quotes its descendants only while its declared condition holds.
 /** @param {Element} el @param {WidgetDeclaration | null | undefined} entry */
-export const exhibits = (el, entry) => {
-  const rule = entry?.["x-exhibit"];
-  return typeof rule === "object" && rule !== null
-    ? matchesWhen(el, rule.when)
-    : !!rule;
-};
+export const exhibits = (el, entry) => !!holdsFor(el, entry?.exhibit);

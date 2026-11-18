@@ -1,9 +1,10 @@
 /* What the chrome calls an addressable element: the word for its kind
  * (`addressableWord`), the words it says (`addressableSays`), the name the authoring
- * contract gives it (`addressableName`), the label every surface shows for it away
- * from the page (`addressableLabel`), and the word and label an anchor on it shows
- * (`sectionLabel`). Each reads authored words through the passage
- * reader, so generated chrome never names anything. */
+ * contract gives it (`addressableName`), the element a heading titles by that contract
+ * (`titledElement`), the label every surface shows for it away from the page
+ * (`addressableLabel`), and the word and label an anchor on it shows (`sectionLabel`).
+ * Each reads authored words through the passage reader, so generated chrome never
+ * names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
@@ -40,9 +41,15 @@ const HTML_WORDS = {
   h6: "heading",
 };
 
+// A drawing the page holds inline, and each part of it an author gave an id, is a
+// figure to the reader, as a diagram's box is its diagram: SVG's element names, `g`,
+// `path` and `text`, name nothing the reader sees.
+const SVG = "http://www.w3.org/2000/svg";
+
 /** @param {Element | null | undefined} addressable */
 export function addressableWord(addressable) {
   if (!addressable) return "";
+  if (addressable.namespaceURI === SVG) return "figure";
   const tag = addressable.tagName.toLowerCase();
   const word = widgetWord(tag, addressable);
   if (word) return word;
@@ -51,13 +58,16 @@ export function addressableWord(addressable) {
   return HTML_WORDS[tag] ?? tag;
 }
 
-// A widget's word for its kind: its registry's fixed `x-word`, its module's `lfWord()`
-// where `x-word` is `module` and `element` is drawn, else its tag without the prefix.
+// A widget's word for its kind: its declaration's fixed word (`word`), else what
+// its module answers from `lfWord()` where `element` is drawn and has the method, else
+// its tag without the prefix.
 /** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
-  const declared = registry[tag]?.["x-word"];
-  const own = declared === "module" ? element?.lfWord?.() : declared;
-  return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
+  return (
+    registry[tag]?.word ||
+    element?.lfWord?.() ||
+    (tag.startsWith("lf-") ? tag.slice(3) : "")
+  );
 }
 
 // The label is rooted at the addressable and reads its authored words. Generated annotation
@@ -66,55 +76,103 @@ export function widgetWord(tag, element = null) {
 /** @param {Element | null | undefined} addressable */
 export function addressableSays(addressable) {
   if (!addressable) return "";
-  const own =
-    registry[addressable.localName]?.["x-word"] === "module"
-      ? addressable.lfSays?.()
-      : "";
-  return own || elementReading(addressable);
+  return addressable.lfSays?.() || elementReading(addressable);
 }
 
 // What names an element, where the authoring contract gives it a name
-// (`../../references/page-authoring.md`): the attribute its registry entry declares
-// with `x-name`, else a leading disclosure summary, heading, or titled member's
-// <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
-// before it; elements may, as a titled member's comparison chips stand in the band
-// above its title and an eyebrow above a header's heading. The words are the ones the
-// author wrote (the `wrote` reading), so a gloss's tip the page draws beside its phrase
-// is no part of a heading's name, and generated chrome names nothing: chrome inside
-// the element, asked about the element's own insides, since a widget an agent sent in
-// a reply stands inside the floating panel's chrome and its heading is still its name.
-// An element the contract gives no name answers "". The server names an obligation's
-// element by the same rule off the document (`gesture_words.element_name`), and
-// `tests/name_cases.json` holds both to the same cases.
-const TITLES = `summary, ${HEADING}, strong`;
-/** The element whose words name `container` by that rule, or null. Finding it reads the
- * container's children, so the answer is kept as long as the page reading stands
- * (`keptAnswer`), as an element's words are: a label asked again on every pass, or a
- * preview climbing past a long run of paragraphs, reads them once.
+// (`skills/leaf/references/module-reading.md`, "Naming elements"): the name its author
+// declares, else the caption HTML gives it. A widget the registry registers declares
+// its name in its `label` attribute (the registry's `$attributes`), as an option, a
+// card, a tab or a column does, and takes none from its markup. Plain markup is named
+// by its caption: a disclosure by its <summary>, an <hgroup> by its heading, and a
+// `section` or `article` by the heading it opens with, alone or in an <hgroup>. That
+// last is a reading of position the maintainer agreed to (root AGENTS.md, "Read what
+// the page states"): HTML calls h1–h6 "headings for their sections" without saying
+// which element is the section, and an element that opens with its heading is the case
+// where the two agree. No other element is named by a heading inside it, and a <strong>
+// names nothing. The words are the ones the author wrote (the `wrote` reading), so a
+// gloss's tip the page draws beside its phrase is no part of a heading's name, and
+// generated chrome names nothing: chrome inside the element, asked about the element's
+// own insides, since a section an agent sent in a reply stands inside the floating
+// panel's chrome and its heading is still its name. An element the contract gives no
+// name answers "". The server names an obligation's element by the same rule off the
+// document (`gesture_words.element_name`), and `tests/name_cases.json` holds both to
+// the same cases.
+//
+// Rejected: naming any element by a leading heading, looked for inside a <header> or
+// past an eyebrow, which names a `div` by where a heading happens to stand; and titling
+// a widget by its leading heading, summary or <strong>, which names an option by how its
+// first words look.
+const SECTIONS = "section, article";
+/** The caption that names plain markup by that rule, or null: a disclosure's first
+ * <summary>, an hgroup's heading, or the heading a section or article opens with, alone
+ * or in an <hgroup>. Finding it reads the element's children, so the answer is kept as
+ * long as the page reading stands (`keptAnswer`), as an element's words are: a label
+ * asked again on every pass, or a preview climbing past a long run of paragraphs, reads
+ * them once.
  * @param {Element} container @returns {Element | null} */
 export const leadingTitle = (container) =>
-  keptAnswer(container, "leading title", () => readLeadingTitle(container));
-/** @param {Element} container @returns {Element | null} */
-function readLeadingTitle(container) {
-  for (const node of container.childNodes) {
+  registered(container)
+    ? null
+    : keptAnswer(container, "leading title", () => openingTitle(container));
+/** @param {Element} element @returns {Element | null} */
+function openingTitle(element) {
+  const child = (/** @type {string} */ selector) =>
+    [...element.children].find(
+      (node) => node.matches(selector) && !uiInside(node, element),
+    ) ?? null;
+  if (element.localName === "details") return child("summary");
+  if (element.localName === "hgroup") return child(HEADING);
+  if (!element.matches(SECTIONS)) return null;
+  for (const node of element.childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
-    if (!(node instanceof Element) || uiInside(node, container)) continue;
-    if (node.matches(TITLES)) return node;
-    if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
+    if (!(node instanceof Element) || uiInside(node, element)) continue;
+    if (node.localName === "hgroup") return openingTitle(node);
+    return node.matches(HEADING) ? node : null;
   }
   return null;
 }
-// The title an element's attribute holds, as its declaration names (`x-name`), such
-// as a tab's label.
+// Whether the registry registers the element, as it does each widget.
+/** @param {Element} element */
+const registered = (element) =>
+  isElementName(element.localName) && Object.hasOwn(registry, element.localName);
+// The element a heading titles: the outermost one it names by the rule above, its
+// hgroup and the section or article that opens with it; or else the heading itself.
+// `lf-toc` starts each row's stretch of the page at it, a heading's link takes
+// its address, and a heading's link preview counts the conversations about it
+// (thread/placement.js, `conversationsAbout`). `titlingHeading` reads it the other way
+// round.
+//
+// Rejected: titling the outermost element whose first heading this is, past wrappers
+// and an eyebrow, wherever every other heading inside ranks lower. It reads position
+// and rank anywhere around the heading, so a `div`, a page's column or a section
+// wrapping a question takes a title its author never gave it, and answering needs the
+// document's whole outline.
+/** @param {Element} heading @returns {Element} */
+export function titledElement(heading) {
+  let titled = heading;
+  for (let at = heading.parentElement; at; at = at.parentElement)
+    if (leadingTitle(at) === heading) titled = at;
+    else break;
+  return titled;
+}
+/** The heading that titles `element` (`titledElement`), or null.
+ * @param {Element} element @returns {Element | null} */
+export function titlingHeading(element) {
+  const title = leadingTitle(element);
+  return title?.matches(HEADING) ? title : null;
+}
+// The title a widget's `label` attribute holds, such as a tab's: the one attribute
+// that names its element on every widget that takes it (`$attributes`, Python's
+// `registry.contract.NAME_ATTRIBUTE`).
 /** @param {Element} element */
 function declaredName(element) {
-  const attribute = registry[element.localName]?.["x-name"];
-  return (attribute && element.getAttribute(attribute)?.trim()) || "";
+  return (registered(element) && element.getAttribute("label")?.trim()) || "";
 }
 // Where a name comes from: an attribute's words, or an element whose words are the name,
 // read by the reading the rule names. A reader that reads names as something else draws
 // them, as a preview reads them as the page draws them, reads the same source.
-/** @typedef {{words: string} | {by: Element, reading: "wrote" | "says"}} Naming */
+/** @typedef {{words: string} | {by: Element, reading: "named" | "says"}} Naming */
 /** @param {Naming | null} naming @returns {string} */
 const namingWords = (naming) =>
   !naming
@@ -129,8 +187,8 @@ function addressableNaming(element) {
   const declared = declaredName(element);
   if (declared) return { words: declared };
   const title = leadingTitle(element);
-  return title && elementReading(title, "wrote")
-    ? { by: title, reading: "wrote" }
+  return title && elementReading(title, "named")
+    ? { by: title, reading: "named" }
     : null;
 }
 /** @param {Element | null | undefined} element */
@@ -149,7 +207,7 @@ export const addressableName = (element) =>
 // Past that, plain markup is named by its words cut short, and a registered widget by
 // nothing: empty, and the caller says the element's word (`addressableWord`), which it
 // usually shows beside this anyway.
-const LABEL_WORDS = 60;
+export const LABEL_WORDS = 60;
 /** @param {Element} element @returns {Naming | null} */
 const captionNaming = (element) => {
   const caption = keptAnswer(element, "caption", () =>
@@ -182,7 +240,7 @@ export const ownName = (element) => namingWords(ownNaming(element));
 /** @param {Element} element */
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
-  (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
+  element.lfSays?.() ||
   [...element.childNodes].some(
     (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
   );
@@ -195,14 +253,10 @@ export function addressableLabel(element) {
   const held = namingWords(holderNaming(element));
   if (held) return held;
   // A registered widget has a word of its own, which says more than its members' words
-  // run together. Plain markup has none worth saying (a `div`), so its words, or the
-  // name of the picture it holds, are the last resort.
-  if (isElementName(element.localName) && registry[element.localName]) return "";
-  return excerptWords(
-    addressableSays(element) ||
-      element.querySelector("[aria-label]")?.getAttribute("aria-label"),
-    LABEL_WORDS,
-  );
+  // run together. Plain markup has none worth saying (a `div`), so its words are the
+  // last resort.
+  if (registered(element)) return "";
+  return excerptWords(addressableSays(element), LABEL_WORDS);
 }
 
 // The name of the nearest element holding `element` that has one, short of the document

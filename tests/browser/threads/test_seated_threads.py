@@ -13,7 +13,6 @@ from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
     expect_preview_words,
-    http_error_console,
     leaf_page,
     open_page,
     reported_browser_errors,
@@ -45,6 +44,58 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def test_a_widget_seats_the_thread_about_itself_and_none_inside_it(browser, serve):
+    """A widget is offered the thread anchored to its element and nothing inside it,
+    and the comment box that starts one. A thread on a passage of its words points
+    into the widget rather than standing in the place it offers, so it keeps its margin
+    entry, and so does the thread on a widget that returns no outlet."""
+    url = serve(
+        leaf_page(
+            "seats",
+            '<h1 id="h">Three jobs</h1><lf-test-plan id="hub" label="Before the frost">'
+            '<lf-test-task id="jobs" status="active" talk><strong>Which jobs are '
+            "worth starting?</strong> The mounts came down in January.</lf-test-task>"
+            '<lf-test-task id="quiet" status="active"><strong>Stain the fence</strong>'
+            "</lf-test-task></lf-test-plan>",
+        )
+    )
+
+    def comment(anchor, text):
+        return append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": text,
+                "anchor": anchor,
+            },
+        )["id"]
+
+    own = comment({"section": "jobs"}, "About the whole task.")
+    passage = comment(
+        {"section": "jobs", "quote": "The mounts came down in January."},
+        "About these words.",
+    )
+    unseated = comment({"section": "quiet"}, "About a task that seats nothing.")
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    seat = page.locator("#jobs > .lf-test-threads")
+    expect(seat.locator(".lf-page-thread")).to_have_count(1)
+    expect(seat.locator(f'.lf-page-thread[data-lf-thread="{own}"]')).to_be_visible()
+    for elsewhere in (passage, unseated):
+        drawn = page.locator(f'.lf-page-thread[data-lf-thread="{elsewhere}"]')
+        expect(drawn).to_have_count(0)
+    for target in ("jobs", "quiet"):
+        marker = page.locator(f'[data-lf-margin-for="{target}"] .lf-margin-marker')
+        expect(marker).to_have_count(1)
+
+    # The task's Comment control opens the box in its seat, under the thread there.
+    page.locator("#jobs > .lf-test-comment").click()
+    expect(seat.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#quiet > .lf-test-comment")).to_have_count(0)
 
 
 @pytest.mark.watch_shifts
@@ -372,9 +423,9 @@ def focus_clear_of_the_panel(page):
 def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_panel(
     browser, serve
 ):
-    """A diff draws its threads in its own shadow tree. The landing's climb stopped at
-    that root, never met the page's scroller, and read a thread taller than the window
-    as one that fits, so the growth reveal moved nothing."""
+    """A diff draws its threads in its own shadow tree. A landing whose climb stopped at
+    that root would never meet the page's scroller and would read a thread taller than
+    the window as one that fits, so the growth reveal would move nothing."""
     url, root = seated_thread(serve, "diff", 12)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
@@ -395,7 +446,7 @@ def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_panel(
 def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     request, serve, kind, engine
 ):
-    """The new turn went in above the reply box the user was typing in and pushed it,
+    """A new turn going in above the reply box the user is typing in must not push it,
     caret and all, below the fold. The user in a thread reads its news as it comes, as
     in a chat: the turn draws at once and the box stands where it was, what stood above
     it moving up by the turn, in a bounded block as on the page, and in Firefox, whose
@@ -436,15 +487,15 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
 def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away(
     request, serve, first, engine
 ):
-    """The user wrote in a thread's reply box, scrolled up out of it to read an earlier
-    message's second paragraph, and an edit from another tab grew that message's first
-    paragraph: the paragraph they read moved down by the 126px it grew. The redraw
-    replaced every paragraph of the message, the node the browser's scroll anchoring
-    held among them, and neither engine anchors again on a node that replaces its
-    anchor; it now keeps the paragraphs the edit leaves, so with the first paragraph
+    """The user writes in a thread's reply box, scrolls up out of it to read an earlier
+    message's second paragraph, and an edit from another tab grows that message's first
+    paragraph. A redraw that replaced every paragraph of the message, the node the
+    browser's scroll anchoring held among them, would move the paragraph they read down
+    by what it grew, since neither engine anchors again on a node that replaces its
+    anchor; the redraw keeps the paragraphs the edit leaves, so with the first paragraph
     above the window anchoring holds the one read. With the first on screen, anchoring
-    holds that paragraph, the growth inside it, and the seat held nothing, its focus out
-    of view; the reading's hold keeps what stands at the reading line."""
+    holds that paragraph, the growth inside it, and the seat holds nothing, its focus
+    out of view; the reading's hold keeps what stands at the reading line."""
     url, host = seated_page(serve, "task")
     second = "The second paragraph, being read. " + SEAT_WORDS * 3
     root = append_carried_log_record(
@@ -475,6 +526,9 @@ def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_a
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
+    # The edit reveals its caret in the editor's next frame (editor-view.js), so the
+    # scroll away waits for it: made before it, the reveal brings the box back.
+    rendered(page)
     read = thread.locator(".lf-msg p", has_text="The second paragraph")
     page.evaluate(
         """([node, at]) => document.scrollingElement.scrollBy({
@@ -510,9 +564,9 @@ def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     browser, serve
 ):
     """The pressed Resolve leaves with the state it changed, and the thread folds into
-    its seat's Resolved disclosure, taking the focus to the disclosure's summary. It
-    took it back with a landing on the thread: the nearest edge of a thread taller than
-    the window was a 700px jump to its head."""
+    its seat's Resolved disclosure, taking the focus to the disclosure's summary. A
+    landing on the thread that took it back would make the nearest edge of a thread
+    taller than the window a jump to its head."""
     kind = "verdict"
     url, root = seated_thread(serve, kind, 12)
     page = open_page(browser, url)
@@ -533,8 +587,8 @@ def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
 
 def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     """A diff thread folds into its outlet's Resolved disclosure when resolved and
-    comes back out when reopened, and nothing landed it either way: the summary the
-    user was located on went above the window, and the reopened thread with it."""
+    comes back out when reopened. With nothing landing it either way, the summary the
+    user was located on would go above the window, and the reopened thread with it."""
     url, root = seated_thread(serve, "diff", 12)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
@@ -589,7 +643,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
 ):
     """The box a turn arrives above is held still only while it is on screen. A user
     who wheeled up to read the page with focus still in the box is reading the page,
-    and holding the box there moved what they were reading. A box shown inside a
+    and holding the box there would move what they were reading. A box shown inside a
     bounded block the page has scrolled away is off screen too, or the growth the
     block cannot take is handed to the page under the reader."""
     messages = 1 if kind == "bounded-short" else 3
@@ -639,8 +693,9 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     browser, serve, resolved, annotations
 ):
     """A new patch takes each thread off the diff to the margin, since its anchor
-    names the patch it was written on, and the reply box the user was typing in went
-    with it: focus fell to the page, and the next letters ran page commands. The
+    names the patch it was written on, and the reply box the user was typing in goes
+    with it, where focus falling to the page would let the next letters run page
+    commands. The
     user follows the thread to its margin card, typing on in the same editor at the
     same caret, with its undo history, and no task between the two finds them on
     the page."""
@@ -707,9 +762,9 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     browser, serve
 ):
     """The patch a thread was written on comes back while the user types in its
-    margin card, and the thread takes its seat on the diff line again. The card
-    closing under the user landed them on the banner, so the next letters ran page
-    commands. They go on in the same editor on the diff line, at the same caret, with
+    margin card, and the thread takes its seat on the diff line again. A card closing
+    under the user that landed them on the banner would leave the next letters running
+    page commands. They go on in the same editor on the diff line, at the same caret, with
     its undo history."""
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url)
@@ -764,8 +819,8 @@ def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
     browser, serve
 ):
     """The user dictates a reply on the diff line, and the patch moves the thread to
-    its margin card and back. Leaf's dictation followed the editor's view and stopped
-    on each move. It goes on with the editor, still listening, and writes what it
+    its margin card and back. Dictation that followed the editor's view would stop on
+    each move. It goes on with the editor, still listening, and writes what it
     hears into the same box wherever the thread stands."""
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url, init_script=FAKE_RECOGNITION)
@@ -804,7 +859,7 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
 ):
     """The user leaves the margin card's reply before the patch comes back: by Tab onto
     the margin (`open`), or by Shift+Tab to the card's Close and Enter (`closed`). Its
-    editing session goes on: the diff line used to draw a fresh editor holding only
+    editing session goes on: a diff line drawing a fresh editor would hold only
     the words, while the hidden card kept the one with the undo history. The diff line
     takes that editor."""
     url, root = seated_thread(serve, "diff", 2)
@@ -999,20 +1054,18 @@ def _seat_manifest(patch):
 
 
 def _refused_file(serve, page):
-    """The file's next deferred patch fails to load, so its error box takes the place
+    """The file's next patch describes another file, so its error box takes the place
     of the lines it had."""
-    page.route(
-        "**/api/deferred*",
-        lambda route: route.fulfill(status=500, json={"error": "unavailable"}),
-    )
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        _seat_manifest(SEAT_DIFF.replace('+return "new"', '+return "newer"')),
+        _seat_manifest(SEAT_DIFF.replace("app.py", "other.py")),
     )
     told(page)
-    expect(page.locator("lf-diff .lf-error")).to_contain_text("unavailable")
-    consume_browser_errors(page, http_error_console(500))
+    expect(page.locator("lf-diff .lf-error")).to_contain_text(
+        "does not contain that one file"
+    )
+    consume_browser_errors(page, '<lf-diff id="patch"> failed: ')
 
 
 def _refused_patch(serve, page):
@@ -1045,8 +1098,8 @@ def _refused_patch(serve, page):
 def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch(
     browser, serve, change
 ):
-    """The same drop one surface over: the comment box a diff seats on a line went
-    with the rebuilt diff, and the user was left on the page. The draft stays about
+    """The same drop one surface over: the comment box a diff seats on a line would go
+    with the rebuilt diff, leaving the user on the page. The draft stays about
     the patch it was written on, so the composer returns beside the diff and the user
     goes on typing in it at the same caret. That holds wherever the line goes: drawn
     anew, dropped with its file, behind its file's or the whole patch's failure, or

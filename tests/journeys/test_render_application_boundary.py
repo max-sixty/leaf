@@ -1,11 +1,16 @@
 """Joint browser proof for immutable page inputs and fresh revision activation."""
 
+import json
+
 import pytest
 from browser.test_render_application_boundary import (
     PAGE_MODULE,
     activation_page,
+    arrived,
+    long_thread,
 )
-from interact_support import append_carried_log_record
+from browser.threads import open_panel_thread
+from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
@@ -13,12 +18,16 @@ from render_cases_interaction import (
     live_url,
     package_workspace,
 )
+from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     before_landing_frame,
+    expect_open_threads,
     holding,
     open_page,
     page_comment,
     panel_control,
+    reported_browser_errors,
+    resized,
     scroll_settled,
     sending,
     stamp_page,
@@ -28,6 +37,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
 
@@ -102,7 +112,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     # siblings are a shape, not an identity — so it leaves focus on the page, where the
     # page's own keys are live, rather than hand the next press to a guess.
     assert page.evaluate("document.activeElement === document.body")
-    expect(page.locator("#activation-go")).to_have_attribute("chosen", "")
+    expect(page.locator("#activation-go")).to_have_attribute("selected", "")
     restored_top = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -148,7 +158,11 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
             },
         )
     page = open_page(browser, url)
-    page.set_viewport_size({"width": 1440, "height": 320})
+    # The short window moves the workspace's reading regions, and the page puts back
+    # the place it recorded before them on the frame after; scrolling to the source
+    # before that has the page undo it (version.js, `restoreShifted`).
+    resized(page, 1440, 320)
+    rendered(page)
     heading = page.locator("h1")
     heading.evaluate(
         """(node, top) => {
@@ -285,4 +299,154 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     assert any(
         event.get("text") == "New package conversation" and event["kind"] == "comment"
         for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_thread_presentation_waits_for_its_own_widgets_only(browser, serve):
+    """The thread parent absorbs descendants without joining unrelated page work."""
+    source = LIVE_V1.replace(
+        '<h1 id="live-title">Live first</h1>',
+        '<h1 id="live-title">Live first</h1>'
+        '<lf-local id="page-local" choice="idle"></lf-local>',
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                page_files={
+                    "registry.json": json.dumps(PAGE_DECLARATION),
+                    "widgets/lf-local.js": PAGE_WIDGET,
+                },
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          const presentation = await window.__lfCheckApi();
+          const held = () => {
+            let release, reject;
+            const promise = new Promise((resolve, fail) => {
+              release = resolve;
+              reject = fail;
+            });
+            return {promise, release, reject};
+          };
+          window.pagePreparation = held();
+          window.threadPreparation = held();
+          window.__heldLocalPresentations = new Map([
+            ['thread-local', threadPreparation.promise],
+          ]);
+          document.querySelector('#page-local').controller.present(
+            pagePreparation.promise
+          );
+          window.whenLeafPresented = presentation.whenApplicationPresented;
+          window.whenLeafRegionsPresented =
+            presentation.whenApplicationRegionsPresented;
+          window.readLeafPresentation = presentation.readApplicationPresentation;
+        }"""
+    )
+
+    long_thread(serve.page_dir, "thread-widget-question", "Show the thread widget.")
+    # The panel's thread view is the reader that draws the reply's widget.
+    open_panel_thread(page, arrived(page, "thread-widget-question"))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "thread-widget-question",
+            "text": "This widget prepares inside the thread.\n\n"
+            '<lf-local id="thread-local" choice="idle"></lf-local>',
+        },
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-local",
+            "action": "choose",
+            "detail": {"value": "chosen"},
+        },
+    )
+    page.wait_for_function(
+        """() => {
+          const pending = readLeafPresentation().pending;
+          return document.querySelector('.lf-floating-panel #thread-local') &&
+            pending.includes('thread') &&
+            pending.includes('widget:thread-local:preparation') &&
+            pending.includes('widget:page-local:preparation');
+        }""",
+    )
+    page.evaluate(
+        "threadReady = false; allReady = false; "
+        "whenLeafRegionsPresented(['thread'], () => true)"
+        ".then(() => { threadReady = true; }); "
+        "whenLeafPresented().then(() => { allReady = true; }); true"
+    )
+    assert page.evaluate("threadReady") is False
+    page.evaluate("threadPreparation.release('thread')")
+    page.wait_for_function("threadReady")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
+    expect(page.locator(".lf-floating-panel #thread-local")).to_have_attribute(
+        "data-rendered-choice", "chosen"
+    )
+    assert page.evaluate("allReady") is False
+    assert "widget:page-local:preparation" in page.evaluate(
+        "readLeafPresentation().pending"
+    )
+    page.evaluate("pagePreparation.release('page')")
+    page.wait_for_function("allReady")
+
+    # A descendant owns its own fail-soft result. Its failure reports once and settles,
+    # while the parent list, count, and narrowing keep the same candidate reading.
+    page.evaluate(
+        """() => {
+          window.failedThreadPreparation = (() => {
+            let reject;
+            const promise = new Promise((_resolve, fail) => { reject = fail; });
+            return {promise, reject};
+          })();
+          window.__heldLocalPresentations.set(
+            'thread-failing', failedThreadPreparation.promise
+          );
+        }"""
+    )
+    long_thread(
+        serve.page_dir, "failing-widget-question", "Show another thread widget."
+    )
+    open_panel_thread(page, arrived(page, "failing-widget-question"))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "failing-widget-question",
+            "text": "This widget fails its preparation.\n\n"
+            '<lf-local id="thread-failing" choice="idle"></lf-local>',
+        },
+    )
+    page.wait_for_function(
+        """() => document.querySelector('.lf-floating-panel #thread-failing') &&
+          readLeafPresentation().pending.includes('thread') &&
+          readLeafPresentation().pending.includes(
+            'widget:thread-failing:preparation'
+          )""",
+    )
+    expect_open_threads(page, 2)
+    page.evaluate(
+        "threadReady = false; "
+        "whenLeafRegionsPresented(['thread'], () => true)"
+        ".then(() => { threadReady = true; }); "
+        "failedThreadPreparation.reject(new Error('thread descendant failure')); true"
+    )
+    page.wait_for_function("threadReady")
+    expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
+    expect_open_threads(page, 2)
+    reported_browser_errors(
+        page, "leaf: Presentation failed: thread descendant failure"
     )

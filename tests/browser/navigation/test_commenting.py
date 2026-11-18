@@ -17,10 +17,12 @@ from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _p
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
     INLINE_PAGE,
+    LONG_PAGE,
     RELEASE_FOCUS,
     ROOT,
     draft_control,
     expect_obligations_answered,
+    field_press,
     leaf_page,
     open_page,
     open_versions,
@@ -294,11 +296,12 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
 
 
 def test_c_comments_on_what_the_user_is_located_in(browser, serve):
-    """Focus supplies an element anchor. `c` once read the 💬 alone, so a user
-    working from the keys had two destinations where explicit pointer targeting had
+    """Focus supplies an element anchor. A `c` that read the 💬 alone would give a user
+    working from the keys two destinations where explicit pointer targeting has
     three: an item, a quote, or the whole page. A
-    focused link put them on an option and the box that opened still said "Comment on the
-    page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
+    focused link would put them on an option and the box that opened would still say
+    "Comment on the page" — the ⌥ aim's "the item under the pointer" with no twin for
+    the cursor.
 
     Where they are located is the unanswered decision first, because that is what the page
     has already told them: markHere rings the whole obligation when m/M lands on its control.
@@ -307,7 +310,7 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
 
     One box either way: `commentOnTarget` writes `{section: item.id}`, which is the anchor a
     widget's own thread seat collects, so a remark made here lands in that seat's
-    thread rather than beside it. Reaching for the seat directly instead was five
+    thread rather than beside it. Reaching for the seat directly instead would be five
     questions — escaping an author's id, whether the box can take focus, which box when
     the seat holds several, what design mode files, where the user already stood — for
     a focus landing.
@@ -340,7 +343,7 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("question · Which material?")
+    expect(page.locator(".lf-composer")).to_contain_text("group · Which material?")
     drop()
 
     # A settled group: not a decision at all, and the thread seat it still holds is
@@ -368,9 +371,10 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     # A link inside a question, open and settled: the same markup, and the same answer.
     # Located in a decision is not working one — a user who focused a link has named
     # something more particular than the question around it, and answering the question
-    # there both overrode what they named and made the reply turn on whether that question
-    # happened to be open. The settled one is the contrast that shows it was the openness
-    # doing it: it always said "option", and the open one used to say "options".
+    # there would both override what they named and make the reply turn on whether that
+    # question happened to be open. The settled one is the contrast that shows the
+    # openness doing it: it says "option", where an open one answered as the question
+    # would say "options".
     for expected_id in ("sh-steel", "st-keep"):
         drop()
         rendered(page)
@@ -401,36 +405,32 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
 ROOM_IN_THE_MARGIN = (1440, 900)
 AN_ASK_THEN_READING = leaf_page(
     "An ask, then reading",
-    '<h1>An ask, then reading</h1><lf-ask id="route"><h2>Which route?</h2>'
-    '<lf-options id="routes" choose>'
+    '<h1>An ask, then reading</h1><lf-group id="route" label="Which route?"><h2 id="route-h">Which route?</h2>'
+    '<lf-options id="routes">'
     '<lf-option id="left">Take the left route</lf-option>'
     '<lf-option id="right">Take the right route</lf-option>'
-    '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
+    '</lf-options></lf-group><div style="height:4000px">Reading on</div>',
 )
 
 
 def test_where_c_goes_shows_before_the_press(browser, serve):
-    """Nothing held, the panel's row wears the key. On a target, the row loses it and the
-    box stands beside the target with it, in the field's own place, so the press moves
-    nothing. The box at rest goes with the focus that raised it and takes no Escape step:
-    the field's Escape returns to the target, and the target's lets go of everything."""
+    """On a target, the box stands beside it wearing `c`, in the field's own place, so
+    the press moves nothing. Before that, with the ask waiting, the panel's row offers
+    Next On Me and its `m` rather than Comment and `c`. The box at rest goes with the
+    focus that raised it and takes no Escape step: the field's Escape returns to the
+    target, and the target's lets go of everything."""
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, *ROOM_IN_THE_MARGIN)
     rest = page.locator(".lf-fab-rest")
-    panel_key = page.locator(".lf-fp-field .lf-compose-placeholder > kbd")
+    press = field_press(page)
 
-    expect(panel_key).to_have_text("c")
-    expect(panel_key).to_be_visible()
-    # Its word stands with it, after the status, as Reply does in a thread.
-    expect(page.locator(".lf-fp-field .lf-compose-placeholder-enters")).to_have_text(
-        "Comment…"
-    )
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(press.locator("kbd")).to_have_text("m")
     expect(rest).to_be_hidden()
 
     page.keyboard.press("m")
     expect(rest).to_be_visible()
     expect(rest.locator("kbd")).to_have_text("c")
-    expect(panel_key).to_have_count(0)
     expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
     resting = rest.bounding_box()
 
@@ -448,7 +448,6 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#route")).not_to_be_focused()
     expect(rest).to_be_hidden()
-    expect(panel_key).to_have_text("c")
 
 
 def test_a_press_on_the_box_at_rest_opens_it_beside_its_target(browser, serve):
@@ -485,10 +484,10 @@ def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
                 "A sample",
                 '<h1>A sample</h1><lf-sample id="practice" label="Practice" window>'
                 '<template id="practice-page" data-sample><h1>Practice</h1>'
-                '<lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" choose>'
+                '<lf-group id="route" label="Which route?"><h2 id="route-h">Which route?</h2><lf-options id="routes">'
                 '<lf-option id="left">Take the left route</lf-option>'
                 '<lf-option id="right">Take the right route</lf-option>'
-                "</lf-options></lf-ask></template></lf-sample>",
+                "</lf-options></lf-group></template></lf-sample>",
             )
         ),
     )
@@ -502,13 +501,12 @@ def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
 
 def test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus(browser, serve):
     """Focus stays on the stop, but `c` no longer takes the reader back to it. Out of
-    sight, the box goes, the row wears the key again and `c` enters the panel's field
-    where the page stands, and backing out of the field leaves the page there. A scroll
-    back to the stop, with focus still on it, returns the box."""
+    sight, the box goes and `c` enters the panel's field where the page stands, and
+    backing out of the field leaves the page there. A scroll back to the stop, with
+    focus still on it, returns the box."""
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, *ROOM_IN_THE_MARGIN)
     rest = page.locator(".lf-fab-rest")
-    panel_key = page.locator(".lf-fp-field .lf-compose-placeholder > kbd")
     comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
 
     def scroll(down):
@@ -525,11 +523,9 @@ def test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus(browser,
     expect(page.locator("#route")).not_to_be_in_viewport()
     expect(page.locator("#route")).to_be_focused()
     expect(rest).to_be_hidden()
-    expect(panel_key).to_have_text("c")
 
     scroll(down=False)
     expect(rest).to_be_visible()
-    expect(panel_key).to_have_count(0)
 
     scroll(down=True)
     away = page.evaluate("scrollY")
@@ -549,12 +545,12 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     On Me because the next word there is the agent's — but the user
     is located in it all the same, and it is still the question they are working.
 
-    Read off the user's list, both the ring and `c` went with the count: the moment the
-    remark was sent the ring left from under the user, and `c` fell through from the
-    thread they had started to whichever item their focus happened to rest in. That
-    starts a second thread rather than continuing the first, so the next line of a
-    remark landed somewhere the first line was not. The agent's reply moved both back.
-    Nothing the user did moved either, which is the whole of the complaint; the reply
+    Read off the user's list, both the ring and `c` would go with the count: the moment
+    the remark was sent the ring would leave from under the user, and `c` would fall
+    through from the thread they had started to whichever item their focus happened to
+    rest in. That starts a second thread rather than continuing the first, so the next
+    line of a remark would land somewhere the first line was not. The agent's reply
+    would move both back, though nothing the user did had moved either; the reply
     phase here is what says the ring has stopped tracking the count rather than merely
     tracking it late. `c` names the user's own thread throughout, because its target,
     the widget, lies within the obligation the user holds (`commentDestination`), and the
@@ -571,13 +567,13 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             "mid-sentence",
             """
 <h1 id="t">Mid-sentence</h1>
-<lf-ask id="shape-decision"><h2>Galvanised steel for the frame?</h2>
-<lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-ask>
-<lf-ask id="picked-decision"><h2>Should we keep it?</h2>
-<lf-options id="picked" choose>
-  <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
-  <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
-</lf-options></lf-ask>
+<lf-group id="shape-decision" label="Galvanised steel for the frame?"><h2 id="shape-decision-h">Galvanised steel for the frame?</h2>
+<lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-group>
+<lf-group id="picked-decision" label="Should we keep it?"><h2 id="picked-decision-h">Should we keep it?</h2>
+<lf-options id="picked">
+  <lf-option id="pk-keep" label="Keep it" selected><strong>Keep it</strong> Settled by a pick.</lf-option>
+  <lf-option id="pk-drop" label="Drop it"><strong>Drop it</strong> The alternative.</lf-option>
+</lf-options></lf-group>
 <p id="p2">A passage carrying
 <lf-suggestion id="sug-window">
   <lf-old>Refill every feeder each morning.</lf-old>
@@ -730,9 +726,64 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     )
 
 
+def test_c_pressed_as_a_walk_glides_to_a_card_replies_in_it(browser, serve):
+    """The thread walk focuses the card it reaches, then glides the page to the words
+    the card stands by. `c` pressed on the way is meant for that card, so it writes in
+    the card's reply rather than letting go of the card and commenting on the words at
+    the window's top, and the page lands where the walk lands it alone: bringing the
+    card back as it arrived stopped the page short of that landing."""
+    alone = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    alone.keyboard.press("t")
+    expect(alone.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    scroll_settled(alone)
+    landing = alone.evaluate("scrollY")
+
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    expect(card.locator("leaf-text")).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == pytest.approx(landing, abs=2)
+
+
+def test_keys_pressed_as_g_g_sets_off_act_where_g_g_lands(browser, serve):
+    """`g g` glides the page to its top, carrying the control the user stood on out of
+    view. A key pressed as it sets off, with the control still on screen, acts as it
+    does once the glide has landed: `c` opens the panel's comment at the top, rather
+    than a comment box on the control that the glide carries off screen with focus in
+    it, and Tab carries on from the page's top, rather than from the control."""
+    page = open_page(
+        browser,
+        serve(
+            LONG_PAGE.replace(
+                "<p id='p1'>Paragraph 1.",
+                "<p id='p1'>Paragraph 1. <a href='#p1'>The top link</a>",
+            ).replace(
+                "<p id='p41'>Paragraph 41.",
+                "<p id='p41'>Paragraph 41. <a href='#p41'>A link</a>",
+            )
+        ),
+    )
+    link = page.locator("#p41 a")
+    for key, lands in (
+        ("c", page.locator('.lf-fp-field leaf-text[name="comment"]')),
+        ("Tab", page.locator("#p1 a")),
+    ):
+        link.focus()
+        scroll_settled(page)
+        page.keyboard.press("g")
+        page.keyboard.press("g")
+        page.keyboard.press(key)
+        expect(lands).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == pytest.approx(0, abs=2)
+        page.keyboard.press("Escape")
+
+
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
-    """The page side of the same question. A widget that seats its own thread
-    (`x-thread-seat`) holds one thread per exchange, each with its own box, and the
+    """The page side of the same question. A widget that seats its own threads
+    (`threadOutlets`) holds one thread per exchange, each with its own box, and the
     user can stand in any of them — so "say something about this" means the box of the
     thread they are in, exactly as it does in the panel. One reading answers both, because
     a rule for the panel and a different one for the page is two answers to one question:
@@ -753,11 +804,11 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
             "seated",
             """
 <h1 id="t">Seated</h1>
-<lf-ask id="shape-decision"><h2>Which material?</h2>
-<lf-options id="shape" choose>
-  <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
-  <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options></lf-ask>
+<lf-group id="shape-decision" label="Which material?"><h2 id="shape-decision-h">Which material?</h2>
+<lf-options id="shape">
+  <lf-option id="sh-steel" label="Steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
+  <lf-option id="sh-cedar" label="Cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
+</lf-options></lf-group>
 <lf-test-plan id="hub" label="The rail">
   <lf-test-task id="fitting" status="active" talk><strong>Who fits the rail?</strong>
   Either crew can take it, and neither has said which week.</lf-test-task>
@@ -809,10 +860,10 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     expect(second.locator("> .lf-thread-reply leaf-text")).to_be_focused()
 
     # And Esc hands back the press that got them there, which is the keyboard-is-a-stack
-    # rule read on the page rather than in the panel. The box asked for `.lf-thread` and
-    # the panel alone, so out here the rung fell through to the page's own "let go": one
-    # press in from the thread, one press out to body, with the thread they had been
-    # located in two feet away and no key back to it. Both ends read one climb now, so
+    # rule read on the page rather than in the panel. A box asking for `.lf-thread` and
+    # the panel alone would let the rung out here fall through to the page's own "let
+    # go": one press in from the thread, one press out to body, with the thread they had
+    # been located in two feet away and no key back to it. Both ends read one climb, so
     # the word going in ("comment on the thread") and the word coming out are about the
     # same element.
     page.keyboard.press("Escape")
@@ -1091,7 +1142,7 @@ DECK_SLIDES = {
 @pytest.mark.parametrize("shown", ["results", "chart"])
 def test_a_page_comment_records_the_sections_on_screen(browser, serve, shown):
     """A comment on the whole page has no passage, so on a deck that shows one slide at
-    a time, "drop this one" reached the agent without saying which slide (#5026). The
+    a time, "drop this one" would reach the agent without saying which slide. The
     panel's send records the sections whose words or pictures are on screen: the
     header's, read off the page, and the shown slide's, read in the workspace region
     that scrolls the slides, but none of the slides the page hides. A slide that is
@@ -1126,7 +1177,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     on: `c` opens the page comment, and the panel says only that a comment will not
     send yet. What it has not got is a thread list, so narrowing by what awaits the
     user is dead. Find remains available as the panel's empty search, and the panel's
-    scope used to take `c` down with the missing list, so `c` is pressed from the empty
+    scope could take `c` down with the missing list, so `c` is pressed from the empty
     list too.
 
     Offline rather than mid-load, because it is the state that stays: a loading page

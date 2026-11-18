@@ -65,7 +65,7 @@ dependencies = [
   "tree-sitter-javascript>=0.25.0",
   "turbohtml>=1.7",
   "uvicorn>=0.31.1",
-  "watchdog>=7.0.0",
+  "watchdog>=7.1.0",
   "websockets>=15",
 ]
 
@@ -102,7 +102,6 @@ dev = [
   "leaf-dev",
   # The Python server behind leaf.page, in `worker/`.
   "leaf-website",
-  "pytest-image-snapshot[pixelmatch]>=0.5.3",
   "ty>=0.0.94",
   "ruff>=0.17.3",
   "datamodel-code-generator>=0.87.0",
@@ -171,7 +170,7 @@ extra-paths = ["tests"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
-addopts = "-n 2 --dist loadgroup --max-worker-restart=0 --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.commands.suite_profile"
+addopts = "-n 2 --dist loadgroup --max-worker-restart=0 --regtest-consider-line-endings -p leaf_dev.commands.suite.profile"
 markers = [
   "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
@@ -219,7 +218,6 @@ ignore_names = [
   # runner.
   "call_api",
   "get_assert",
-  "image_snapshot_*",
   "show_differences",
   # a subject's module fixture another tier directory's module imports by its alias
   # (`tests/AGENTS.md`, "Run what the change needs")
@@ -234,6 +232,9 @@ ignore_names = [
   "handlers",
   # urllib.request calls this HTTPRedirectHandler override by name.
   "redirect_request",
+  # shlex.shlex reads these lexer settings by name.
+  "whitespace",
+  "whitespace_split",
   # a reference held only so its page stays in the recent pages (samples.py)
   "parent_memory",
   # click, uvicorn, markdown-it

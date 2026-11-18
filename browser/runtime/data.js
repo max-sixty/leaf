@@ -16,17 +16,16 @@
    fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
 
 import { computed, signal, untracked } from "/runtime/framework.js";
-import { offlineDeferred, offlineInteractive, pageUrl, runtime } from "./context.js";
+import { runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { watchOwner } from "./arrivals.js";
 import { referencedProjection, requireReference } from "./references.js";
-import { reportPageError, requestJson } from "./layer-client.js";
+import { reportPageError } from "./layer-client.js";
 import { tick } from "./version-signal.js";
 import { OUTPUT, outputProducer, refuseOutput } from "./widget-output.js";
-import { attachDeferredLoader } from "./deferred-value.js";
 
 window.addEventListener(OUTPUT, (event) => {
   const element = outputProducer(event);
@@ -74,7 +73,7 @@ export async function notifyDataSubscribers() {
 
 /** @param {Element} element @param {string} input */
 const declaredInput = (element, input) => {
-  const declaration = registry[element.localName]?.["x-data"]?.[input];
+  const declaration = registry[element.localName]?.inputs?.[input];
   if (!declaration)
     throw new Error(
       `<${element.localName}> input ${input} is not declared by this widget`,
@@ -111,7 +110,7 @@ function outputKey(element) {
 }
 /** @param {Element} element @param {string} output @param {unknown} value */
 function acceptOutput(element, output, value) {
-  const declaration = registry[element.localName]?.["x-output"]?.[output];
+  const declaration = registry[element.localName]?.outputs?.[output];
   if (!declaration)
     throw new Error(
       `publishOutput(${element.localName}, ${output}) output is not declared by this widget`,
@@ -238,7 +237,7 @@ const dataRead = applicationState.select(
 /** @param {Element} element */
 export function awaitsData(element) {
   return (
-    Object.values(registry[element.localName]?.["x-data"] ?? {}).some(
+    Object.values(registry[element.localName]?.inputs ?? {}).some(
       (declaration) => declaration.source && element.getAttribute(declaration.source),
     ) && !dataRead.read()
   );
@@ -304,13 +303,8 @@ export function dataReader(element, input, accepted) {
         value: structuredClone(sourceStore),
       };
       const { value } = copied.value;
-      if (value !== null && typeof value === "object") {
+      if (value !== null && typeof value === "object")
         supplied.set(value, copied.value);
-        if (copied.value.source) {
-          const manifest = copied.value;
-          attachDeferredLoader(value, (key) => readDeferred(manifest, key));
-        }
-      }
     }
     return copied.value;
   };
@@ -323,42 +317,4 @@ const deliveries = signal(0);
 export function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);
-}
-
-// A deferred value's identity belongs to the delivered manifest, which the widget names
-// by the value it drew. A replacement can be accepted before its subscriber renders;
-// loading through that older manifest must not fetch a same-key deferred value from the
-// replacement.
-/** @param {DataSnapshot & {source: string}} manifest @param {string} key */
-async function readDeferred(manifest, key) {
-  const { source, revision } = manifest;
-  const current = () => {
-    const reading = runtime.data.sources[source];
-    return (
-      reading?.revision === revision &&
-      reading.contract === manifest.contract &&
-      Object.hasOwn(reading, "value")
-    );
-  };
-  if (!current())
-    throw new Error(
-      `source ${source} revision ${revision} changed before loading deferred ${key}`,
-    );
-  if (offlineInteractive) {
-    const field = offlineDeferred(source, key);
-    if (!field)
-      throw new Error(`data source '${source}' defers no field of record '${key}'`);
-    return field;
-  }
-  const params = new URLSearchParams({ source, source_revision: revision, key });
-  const answer = await requestJson(
-    pageUrl(`api/deferred?${params}`),
-    {},
-    "deferred value",
-  );
-  if (!current())
-    throw new Error(
-      `source ${source} revision ${revision} changed while loading deferred ${key}`,
-    );
-  return structuredClone(answer.value);
 }

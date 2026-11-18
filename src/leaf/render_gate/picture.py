@@ -27,7 +27,12 @@ from pathlib import Path
 from leaf.event_log import read_events
 from leaf.leases import page_locked
 from leaf.page_snapshot import capture_page_snapshot
-from leaf.render_checks import PageNotReady, rendered, wait_until_ready
+from leaf.render_checks import (
+    PageNotReady,
+    open_render_page,
+    rendered,
+    wait_until_ready,
+)
 from leaf.revision_artifact import read_revision
 
 from ..refusals import Refused
@@ -115,7 +120,8 @@ def _picture(browser, url: str, comment: dict, out: Path) -> str | None:
 
     drawing = comment["drawing"]
     width, height = drawing["viewport"]
-    page = browser.new_page(
+    page = open_render_page(
+        browser,
         viewport={"width": width, "height": height},
         color_scheme=drawing["scheme"],
         reduced_motion="reduce",

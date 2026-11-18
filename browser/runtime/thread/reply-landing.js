@@ -54,7 +54,7 @@ import {
   scrollIntoView,
 } from "../landing-scroll.js";
 import { moveScrollerBy, scrollToEnd } from "../scrolling.js";
-import { SAYS_IN, SAY_BOX, SAY_ROW, THREAD } from "./selectors.js";
+import { SAY_BOX, SAY_ROW, THREAD } from "./selectors.js";
 
 /** @param {Element} held @param {Element} control */
 const replyRowOf = (held, control) => {
@@ -231,7 +231,7 @@ export function scrollThreadIntoView(
 // landing left it (box-motion.js, "send"), so the landing stays one instant scroll.
 /** @param {Element} input */
 export function sendLanding(input) {
-  const held = input.closest(SAYS_IN);
+  const held = input.closest(THREAD);
   if (!held) return () => {};
   const reply = replyRowOf(held, input);
   // The row's foot on screen, and below the top of the thread it grows in.
@@ -295,7 +295,7 @@ const revealWritingArea = (held, input, reply) => {
 // stands behind it, so the box's foot clears it too.
 /** @param {Element} message @param {Element} caretLine */
 export function revealEditor(message, caretLine) {
-  const held = message.closest(SAYS_IN);
+  const held = message.closest(THREAD);
   if (!held) return;
   bringBackSurfaceOf(held, "instant");
   const target = fitsWhole(message) ? message : caretLine;
@@ -310,7 +310,7 @@ export function revealEditor(message, caretLine) {
 }
 /** @param {Element} input */
 export function followBoxGrowth(input) {
-  const held = input.closest(SAYS_IN);
+  const held = input.closest(THREAD);
   if (!held) return;
   const reply = replyRowOf(held, input);
   // A box standing in the transcript rather than its reply row, as a rewrite stands in
@@ -318,7 +318,7 @@ export function followBoxGrowth(input) {
   // pulled a long one's top into view on every key.
   if (!reply) return;
   // A separate transcript gives up height rather than being covered by the editor, and
-  // keeps the words beside the box itself (scrolling.js, `keepFoot`).
+  // keeps the words at its end beside the box itself (scrolling.js, `followEnd`).
   if (separateTranscript(held)) {
     if (!onScreen(reply)) revealWritingArea(held, input, reply);
     return;
@@ -339,7 +339,7 @@ export function followBoxGrowth(input) {
 // its initial place.
 /** @param {Element} input */
 export function readBoxPlace(input) {
-  const held = input.closest(SAYS_IN);
+  const held = input.closest(THREAD);
   const reply = held && replyRowOf(held, input);
   // A box in the transcript has no row to hold.
   if (!reply) return;

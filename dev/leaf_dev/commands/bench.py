@@ -29,7 +29,8 @@ option to click, reads none of that input, and the report names it as missing.
   write to the file it changes, to the first frame that paints its result (`painted`);
   for a gesture, also to the arrival of its POST's answer (`answered`) and to the
   frame that presents the server's reading of its event (`shown`), which root
-  `AGENTS.md` holds to BUDGET_MS. Each counts the requests and bytes it caused
+  `AGENTS.md` holds to BUDGET_MS. Each frame is timed as it is laid out, just before
+  it paints (`leaf_dev.painted`). Each counts the requests and bytes it caused
   (`Traffic`).
 - `server` times the server's paths on each generated page in this process, with no
   browser, on this checkout only (`leaf_dev.server_paths`).
@@ -41,12 +42,17 @@ request in the window to its starter, and which names the POST's attempt.
 
 Each reading is a row of its page's table, with a column for each size and arm. With
 three sizes or more, each reading's growth above the BASE page is fitted over the
-largest sizes (least squares of log growth on log size), and an exponent above
-SUPERLINEAR is marked `!`: a step nesting one walk of the page inside another. Fitting
-the cost itself would let fixed work hide that: 30 ms per click plus 20/80/320 ms of
-quadratic work fits 1.4 over 64-256, and its growth fits 2.0. A mark is for the reader;
-nothing passes or fails on it (tests/AGENTS.md, "Results do not depend on execution
-speed").
+largest sizes (least squares of log growth on log size), and an exponent above the
+reading's `limit` is marked `!`. The CPU of an input the browser answers alone, such
+as a keystroke or a wheel step, and the requests and bytes an input causes shouldn't
+grow at all (`held`), so above GROWING it marks a walk of the page on each input, or
+the page sent whole for a change to part of it. Any other reading, and any of an input
+whose result is the whole page (`Input`), may grow with the page, so above
+SUPERLINEAR it marks a step nesting one walk of the page inside another. Fitting the
+cost itself would let fixed work hide that: 30 ms per click plus 20/80/320 ms of
+quadratic work fits 1.4 over 64-256, and its growth fits 2.0. A mark is for the
+reader; nothing passes or fails on it (tests/AGENTS.md, "Results do not depend on
+execution speed").
 
 Each pass reads a page built afresh, so no input meets what another pass or round made
 on the page, and a pass takes the inputs on the page's own content before those that
@@ -60,19 +66,16 @@ readings by page, size and arm (`lowest`).
 
 --profile records a V8 CPU profile (`leaf_dev.profiles`) of each span a reading covers,
 and no more, in the first round. The CPU pass's, at the smallest and largest size, list
-the functions whose time over an input's spans grew superlinearly between them, which
-names a nested walk. The paint pass's, at the largest size, run under a Chrome trace
-too, and say what held the main thread from the input to the last painted goal
-(`attribute`). Profiling slows the page, so read proportions from a profiled run and
-durations from one without.
+the functions whose time over an input's spans grew between them past the input's
+`limit`, which names the walk. The paint pass's, at the largest size, run under a
+Chrome trace too, and say what held the main thread from the input to the last
+painted goal (`attribute`). Profiling slows the page, so read proportions from a
+profiled run and durations from one without.
 
 --browser firefox measures Playwright's Firefox, on macOS, and reads only `cpu`.
 Firefox offers no count of its tasks, so there an input's CPU is the page's main
 thread's as the OS counts it (`ContentClock`), the clock Chromium's thread ticks read.
-Over the same windows in Chromium on 2026-11-05, the OS's count was at most 0.7 ms per
-input above the ticks. Driven alike through geckodriver that day, the Firefox 159 on
-this Mac read about 10% below Playwright's build, Firefox 157, with the same functions
-on top. To name what took Firefox's time, run under the Gecko profiler's variables;
+To name what took Firefox's time, run under the Gecko profiler's variables;
 the browser writes a profile of the whole run as it closes, which
 <https://profiler.firefox.com> reads, and its samples' `threadCPUDelta` sum to the
 OS's count:
@@ -83,10 +86,9 @@ OS's count:
 
 CPU time spreads less than elapsed time on a loaded host, and each exponent compares
 sizes within one run. `event`, `painted`, `answered` and `shown` are elapsed time, which
-a busy host stretches, and so does a run held to the efficiency cores: on 2026-11-05
-`taskpolicy -c utility` read a click's `shown` at 110 to 170 ms on pages the default
-policy showed in 30 to 35. The daily CI run measures the generated pages and charts
-their readings (`.github/workflows/ci.yaml`, `bench`).
+a busy host stretches, and so does a run held to the efficiency cores, as
+`taskpolicy -c utility` holds it. The daily CI run measures the generated pages and
+charts their readings (`.github/workflows/ci.yaml`, `bench`).
 """
 
 import ctypes
@@ -99,10 +101,12 @@ import time
 from collections import Counter
 from collections.abc import (
     Callable,
+    Container,
     Generator,
     Hashable,
     Iterable,
     Iterator,
+    Mapping,
     Sequence,
 )
 from contextlib import contextmanager, nullcontext, suppress
@@ -117,6 +121,7 @@ import psutil
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
+from leaf.data import source_file
 from leaf.render_checks import OUTSTANDING, wait_until_ready
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -141,7 +146,7 @@ from leaf_dev.browser import (
     load,
     tab,
 )
-from leaf_dev.example_data import named_source
+from leaf_dev.example_data import data_file, named_source
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD
 from leaf_dev.main_thread import main_thread
 from leaf_dev.painted import SCRIPT as PAINTED
@@ -172,17 +177,26 @@ BASE = 8
 # An exponent above this is superlinear growth. It stands halfway between linear and
 # quadratic: above BASE, linear growth fits about 1.07 over 64-256, and n log n 1.25.
 SUPERLINEAR = 1.5
+# An exponent above this, halfway between constant and linear, is growth, where a
+# reading shouldn't grow with the page at all (`held`).
+GROWING = 0.5
 # How many of the largest sizes the exponent is fitted over.
 FITTED = 3
 # Where a reading grows by less than its floor above BASE, what little it grew is the
 # host's noise, and its exponent leaves that size out. A floor is a share of the BASE
 # page's load CPU from the same run. A slower machine slows that reading as much as
-# every other, so it fits the same sizes to the same exponent. With the BASE page
-# loading in 150-210 ms on an unloaded M5 Max, the shares put a floor near 10 ms of
-# CPU and near 50 ms of elapsed time. Sizes and counts no machine's speed changes have
+# every other, so it fits the same sizes to the same exponent. Where the BASE page
+# loads in about 200 ms, the shares put a floor near 10 ms of CPU and near 50 ms of
+# elapsed time. Sizes and counts no machine's speed changes have
 # floors of their own.
 FLOOR_SHARES = {"cpu": 0.05, "elapsed": 0.25}
 COUNT_FLOORS = {"KB": 10, "requests": 1}
+# A held reading's floor is this share of its own reading on the BASE page, as a server
+# path's is its own (`server_paths.floors`), and a held count's is at least one. A
+# keystroke's CPU is a few ms, less than the load's share, so a floor from the load
+# would hide its doubling, and a POST's 4 KB answer growing to 20 KB stays under the
+# fixed 10 KB.
+HELD_FLOOR_SHARE = 0.25
 # Root `AGENTS.md`, "Responsiveness": a gesture shows the server's reading within this
 # many ms on the largest page.
 BUDGET_MS = 100
@@ -192,8 +206,10 @@ BUDGET_MS = 100
 DEADLINE_MS = 300_000
 # A notch of a mouse wheel, which Chromium and Firefox here both scroll 100 px.
 NOTCH = 100
-# A wheel or Tab takes RUN steps one way and then as many back, so it stays among the
-# same few rows or stops at every size, the smallest page's included.
+# How far the pointer moves at each step of a hover, about a line of the page's text.
+LINE = 24
+# A wheel, a hover or Tab takes RUN steps one way and then as many back, so it stays
+# among the same few rows or stops at every size, the smallest page's included.
 RUN = 4
 WAYS = (1,) * RUN + (-1,) * RUN
 # A half second in which the page's main thread spends under this is quiet; two in a
@@ -211,6 +227,16 @@ GROWTH_FLOOR_MS = 20
 THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
     f"Earlier conversation paragraph {line + 1}." for line in range(20)
 )
+# The steps each of `side_documents`' sources holds, two lines a step: a few percent of
+# a 4 MB document, long enough that a walk of every document's rows on each tab
+# opened shows at 256, and short enough to keep the daily run to minutes.
+DOCUMENT_STEPS = 1024
+# A word every line of `steps` holds, which `matches` searches for.
+WORD = "value"
+# What the inputs on `side_documents`' pages need: its tab list and first document,
+# bound to a source, by the ids the page gives them, which the inputs find the other
+# tabs and documents by.
+DOCUMENTS = "#docs #d0[source]"
 
 # Leave nothing focused, put the scroller under the window's centre halfway down, less
 # half of `band`: the page, then any scroller inside it there, as a text document's
@@ -231,17 +257,69 @@ HALFWAY = """(band) => {
   if (under && under !== page) halfway(under);
   return [x, y];
 }"""
-# The passage a comment selects, brought into view: the first paragraph after the
-# page's title, or the title where none follows it.
-PASSAGE = """() => {
+# The passage a comment selects, brought into view: the `nth` paragraph drawn after the
+# page's title, past any a comment's editor holds, or the title where none is.
+PASSAGE = """(nth) => {
   const title = document.querySelector("h1");
-  const passage = [...document.querySelectorAll("p")].find(
-    (p) => title.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ) ?? title;
+  const passage = [...document.querySelectorAll("p")].filter(
+    (p) =>
+      title.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING &&
+      !p.closest("[contenteditable]") &&
+      p.checkVisibility(),
+  )[nth] ?? title;
   passage.scrollIntoView({ block: "nearest" });
   const box = passage.getBoundingClientRect();
   return [box.x, box.y];
 }"""
+# The centre of the control of the tab whose panel is `panel`, brought into view.
+TAB_CONTROL = """(panel) => {
+  const control = document.querySelector(`[role=tab][aria-controls="${panel}"]`);
+  control.scrollIntoView({ block: "nearest" });
+  const box = control.getBoundingClientRect();
+  return [box.x + box.width / 2, box.y + box.height / 2];
+}"""
+# The centre of the element `selector` names, or null where none shows yet.
+CENTRE = """(selector) => {
+  const node = document.querySelector(selector);
+  if (!node?.checkVisibility()) return null;
+  const box = node.getBoundingClientRect();
+  return [box.x + box.width / 2, box.y + box.height / 2];
+}"""
+# The centres of the page's first two tab controls, the first brought into view.
+TAB_CENTRES = """() => {
+  const controls = [...document.querySelectorAll("[role=tab]")].slice(0, 2);
+  controls[0].scrollIntoView({ block: "nearest" });
+  return controls.map((control) => {
+    const box = control.getBoundingClientRect();
+    return [box.x + box.width / 2, box.y + box.height / 2];
+  });
+}"""
+# The leaf's menu, its Annotations, and Capture area's row there.
+MENU_ROWS = (
+    ".lf-fp-leaf",
+    '.lf-fp-item[data-lf-row="group:annotate"]',
+    '.lf-fp-item[data-lf-row="command:capture.region.open"]',
+)
+# The number of the document `side_documents` shows, in the tab open now.
+SHOWN_DOCUMENT = """() => Number(document
+  .querySelector('#docs [role=tab][aria-selected="true"]')
+  .getAttribute("aria-controls").slice(1))"""
+# Whether document `d`'s first line shows in its syntax colour.
+COLOURED = """(d) => {
+  const row = document.querySelector(`#d${d} .lf-text-document-run > div`);
+  if (!row?.checkVisibility()) return false;
+  for (const [name, highlight] of CSS.highlights)
+    if (name.startsWith("lf-token-"))
+      for (const range of highlight) if (range.startContainer === row.firstChild) return true;
+  return false;
+}"""
+# How tall the run of a text document's lines at a point stands.
+RUN_HEIGHT = """([x, y]) => document.elementFromPoint(x, y)
+  .closest(".lf-text-document-run").getBoundingClientRect().height"""
+# The target of the margin row whose thread card is open.
+OPEN_ROW = """() => document
+  .querySelector('[aria-controls="lf-margin-preview"][aria-expanded="true"]')
+  ?.closest("[data-lf-margin-for]")?.dataset.lfMarginFor"""
 # The first card not in its board's first column, and the column left of it.
 MOVABLE = """() => {
   for (const card of document.querySelectorAll("lf-card")) {
@@ -307,23 +385,40 @@ OWNERS = 6
 
 
 def ask(g: int, options: int = 4) -> str:
-    """Section `g`: a heading, a paragraph and an `lf-ask` of `options` options."""
+    """Section `g`: a heading, a paragraph and a question section of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose multiple>'
+        f'<lf-group id="q{g}" label="Question {g}"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
-            f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
+            f'<lf-option id="o{g}-{i}" label="Option {i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
             for i in range(1, options + 1)
         )
-        + "</lf-options></lf-ask></section>"
+        + "</lf-options></lf-group></section>"
     )
 
 
+# One file's patch, sixteen lines with four changed, which `lf-diff` draws with a
+# comment control on each line.
+PATCH = (
+    '<lf-diff id="patch"><pre>\n'
+    "diff --git a/steps.py b/steps.py\n--- a/steps.py\n+++ b/steps.py\n"
+    "@@ -1,16 +1,16 @@\n"
+    + "".join(
+        f"-step_{g} = {g}\n+step_{g} = {g} + 1\n"
+        if g % 4 == 3
+        else f" step_{g} = {g}\n"
+        for g in range(16)
+    )
+    + "</pre></lf-diff>"
+)
+
+
 def ask_sections(n: int) -> str:
-    """`n` sections, each an `ask`, so widgets, obligations on the user, headings and
-    margin pins all grow with `n`."""
-    return page("Questions", "".join(ask(g) for g in range(1, n + 1)))
+    """`PATCH`, then `n` sections, each an `ask`, so widgets, obligations on the user,
+    headings and margin pins all grow with `n`. A comment box opened on a line of the
+    patch stands in the page's flow, so opening it moves every section and pin below."""
+    return page("Questions", PATCH + "".join(ask(g) for g in range(1, n + 1)))
 
 
 def board_sections(boards: int, cards: int, done: int = 0) -> str:
@@ -333,8 +428,7 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
         return (
             f'<lf-column id="b{b}-{name}" label="{name.title()}">'
             + "".join(
-                f'<lf-card id="b{b}-{name}{j}"><strong>Card {j}</strong> of board {b}.'
-                "</lf-card>"
+                f'<lf-card id="b{b}-{name}{j}" label="Card {j}"><strong>Card {j}</strong> of board {b}.</lf-card>'
                 for j in range(1, count + 1)
             )
             + "</lf-column>"
@@ -356,9 +450,9 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     sections = "".join(
         f'<section id="s{g}"><h2>Section {g}</h2>'
@@ -370,32 +464,88 @@ def prose_sections(n: int) -> str:
     return page("Prose", question + sections)
 
 
+def steps(count: int, name: str = "") -> str:
+    """`count` steps of Python, two lines each, every line naming `WORD`, and each
+    step's comment naming the file it stands in, `name`."""
+    return "".join(
+        f'def step_{g}(value):  # {name}step {g}\n    return value * {g} + "{g}"\n'
+        for g in range(count)
+    )
+
+
 def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
-    )
-    lines = "".join(
-        f'def step_{g}(value):  # step {g}\n    return value * {g} + "{g}"\n'
-        for g in range(n * 32)
+        "</lf-options></lf-group>"
     )
     document = (
-        '<lf-text-document id="listing" label="steps.py" language="python">'
-        f"<pre>{lines}</pre></lf-text-document>"
+        '<lf-text-document id="listing" label="steps.py">'
+        f'<pre><code class="language-python">{steps(n * 32)}</code></pre>'
+        "</lf-text-document>"
     )
     return page("Document", question + document)
+
+
+def documents(n: int) -> int:
+    """How many documents `side_documents(n)` holds: the one shown, one in a closed
+    tab for each eight of `n`, and one more, so the BASE page has the two closed tabs
+    `reveal` opens and 256 holds about thirty."""
+    return 2 + n // 8
+
+
+def side_documents(n: int) -> str:
+    """A page of a side list of tabs, each holding a text document bound to a
+    source of its own (`document_sources`), the first tab's shown and the rest closed.
+    The documents grow in number and each stays as long, so a cost that grows with
+    the documents the page holds, such as every source sent on a write to one
+    (`data`), grows with `n`, and one that grows with the length of the document
+    opened stays level and shows only beside another arm. The text is Python, whose
+    syntax colour paints most words, as the colour a tab keeps is what `browse`
+    reads."""
+    tabs = "".join(
+        f'<lf-tab id="t{d}" label="Document {d}"><lf-text-document id="d{d}" '
+        f'source="s{d}" label="document_{d}.py" class="language-python"></lf-text-document>'
+        "</lf-tab>"
+        for d in range(documents(n))
+    )
+    return page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+
+
+def side_asks(n: int) -> str:
+    """A side list of `n` tabs, each holding one section's ask, so each tab marks the
+    state of the obligation its panel holds. A click on an option redraws every tab's
+    mark, so the CPU of that click reads what counting each panel's obligations costs
+    (#5722)."""
+    tabs = "".join(
+        f'<lf-tab id="t{g}" label="Tab {g}">{ask(g)}</lf-tab>' for g in range(1, n + 1)
+    )
+    return page("Asks", f'<lf-tabs id="tabs" list="side">{tabs}</lf-tabs>')
+
+
+def document_text(d: int, first: str | None = None) -> str:
+    """Document `d`'s text: DOCUMENT_STEPS steps, with its first line `first` where
+    given, as an agent's write changes one line of it."""
+    text = steps(DOCUMENT_STEPS, f"document {d}, ")
+    if first is None:
+        return text
+    return first + text[text.index("\n") :]
+
+
+def document_sources(n: int) -> dict[str, str]:
+    """Each source `side_documents(n)` binds, by name, with its document's text."""
+    return {f"s{d}": document_text(d) for d in range(documents(n))}
 
 
 def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     rows = "".join(
         f"<tr><td>Row {r}</td><td><code>branch-{r}</code></td><td>{r} days</td>"
@@ -454,6 +604,32 @@ def comment(t: int) -> dict:
     }
 
 
+# The user's comment on the words of `ask_sections`' first paragraph, which the page
+# paints as a passage mark: a highlight range, where a comment on a whole section
+# outlines its element.
+PASSAGE_COMMENT = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "id": "c-passage",
+    "text": "Why these words?",
+    "anchor": {"section": "s1", "quote": "Some words about section 1."},
+}
+
+
+def passage_comment(t: int) -> dict:
+    """The user's comment on the words of section `t` of `prose_sections`, a passage
+    mark like `PASSAGE_COMMENT`."""
+    return {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "id": f"p{t}",
+        "text": f"Why these words in section {t}?",
+        "anchor": {"section": f"s{t}", "quote": f"Some words about section {t},"},
+    }
+
+
 def answer(t: int) -> dict:
     """The agent answering thread `t`."""
     return {
@@ -502,12 +678,13 @@ def exchange(m: int) -> list[dict]:
 
 class Collection(NamedTuple):
     """A page that holds `n` of one collection and a fixed amount of the rest: its
-    authored markup, the events its log holds after it, and how many versions of
-    the page are saved before the log."""
+    authored markup, the events its log holds after it, how many versions of the
+    page are saved before the log, and the value of each source it binds."""
 
     authored: Callable[[int], str]
     log: Callable[[int], list[dict]] = lambda _: []
     versions: Callable[[int], int] = lambda _: 1
+    data: Callable[[int], Mapping[str, object]] = lambda _: {}
 
     def sources(self, n: int) -> list[str]:
         """Each saved version's markup, oldest first: the authored page, its heading
@@ -524,9 +701,17 @@ class Collection(NamedTuple):
 # Every page `leaf-dev bench` generates, by the collection that grows with `n`.
 COLLECTIONS: dict[str, Collection] = {
     "asks": Collection(ask_sections),
+    # The same with one passage mark, whose style every input may restyle page-wide.
+    "asks-marked": Collection(ask_sections, lambda _: [PASSAGE_COMMENT]),
     "document": Collection(document_lines),
     "prose": Collection(prose_sections),
+    # The same with a passage mark in every section.
+    "passages": Collection(
+        prose_sections, lambda n: [passage_comment(t) for t in range(1, n + 1)]
+    ),
     "rows": Collection(table_rows),
+    "documents": Collection(side_documents, data=document_sources),
+    "asktabs": Collection(side_asks),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
     ),
@@ -752,13 +937,13 @@ class BenchPage:
             texts.append(part["text"])
         return json.loads("".join(texts))
 
-    def written(self, *args: str) -> float:
-        """Run the arm's `leaf` with `args` and return when it first changed the
-        page's log, in epoch milliseconds: the write itself, whatever the command
-        spent starting up before it."""
-        log = self.served.directory / "events.jsonl"
+    def written(self, *args: str, file: Path | None = None) -> float:
+        """Run the arm's `leaf` with `args` and return when it first changed `file`,
+        by default the page's log, in epoch milliseconds: the write itself, whatever
+        the command spent starting up before it."""
+        file = file or self.served.directory / "events.jsonl"
         command = [str(self.served.arm / "bin" / "leaf"), *args]
-        before = log.stat().st_mtime_ns
+        before = file.stat().st_mtime_ns
         process = subprocess.Popen(
             command,
             env=environment(XDG_STATE_HOME=str(self.served.state)),
@@ -768,7 +953,7 @@ class BenchPage:
         )
         while True:
             exited = process.poll() is not None
-            written = log.stat().st_mtime_ns
+            written = file.stat().st_mtime_ns
             if written != before or exited:
                 break
             time.sleep(0.0005)
@@ -776,7 +961,7 @@ class BenchPage:
         if process.returncode or written == before:
             raise click.ClickException(
                 f"leaf {' '.join(args)} exited {process.returncode}, "
-                f"{'unchanged' if written == before else 'changed'} events.jsonl:\n"
+                f"{'unchanged' if written == before else 'changed'} {file.name}:\n"
                 f"{output}"
             )
         return written / 1e6
@@ -814,15 +999,23 @@ class Input(NamedTuple):
     for the input's painted goals where it has them, for the POST's answer where they
     include the server's reading of its event (`delivered`), and then `after` ms. The
     paint pass times it `count` times, each after `ready`, where it `paints`, and a
-    page reads the input only where it holds `needs`."""
+    page reads the input only where it holds `needs`. `leave` follows each `ready` once
+    the windows after it end, to take back a mode `ready` entered, so the inputs after
+    it meet the page as they would without it. An `agent` input is an agent's write,
+    which reaches the page only in the server's reading. A `whole` input's result is
+    made of the whole page, as a revision's new document or a search's count of its
+    matches is, so what it costs may grow with the page (`held`)."""
 
     act: Callable[[Tab], float | None]
     count: int = 1
     ready: Callable[[Tab], Goals] = lambda _: {}
+    leave: Callable[[Tab], None] = lambda _: None
     each: bool = True
     paints: bool = False
     after: float = 0
     needs: str = ""
+    agent: bool = False
+    whole: bool = False
 
 
 def aim_at_option(tab: Tab) -> Goals:
@@ -870,14 +1063,118 @@ def tab_step(tab: Tab) -> None:
     tab.page.keyboard.press("Tab" if way > 0 else "Shift+Tab")
 
 
+def walk_step(tab: Tab) -> None:
+    """Step the On Me walk to the next question waiting on the user, or back, from
+    where `halfway` left the reader, so every size walks the same few questions."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("m" if way > 0 else "Shift+m")
+
+
 def halfway(tab: Tab) -> Goals:
-    tab.page.mouse.move(*tab.page.evaluate(HALFWAY, RUN * NOTCH))
+    x, y = tab.page.evaluate(HALFWAY, RUN * NOTCH)
+    tab.target = {"x": x, "y": y}
+    tab.page.mouse.move(x, y)
     tab.quiet(600)
     return {}
 
 
 def wheel_step(tab: Tab) -> None:
     tab.page.mouse.wheel(0, NOTCH * WAYS[tab.sample % len(WAYS)])
+
+
+def hover_step(tab: Tab) -> None:
+    """Move the pointer a LINE down or up the page's text from where `halfway` left
+    it, as a reader's hand drifts over what they read."""
+    lines = sum(WAYS[: tab.sample % len(WAYS) + 1])
+    tab.page.mouse.move(tab.target["x"], tab.target["y"] + LINE * lines)
+
+
+def hold_alt(tab: Tab) -> None:
+    """Hold ⌥ down, which arms the page under the pointer, or let it up."""
+    if tab.sample % 2:
+        tab.page.keyboard.up("Alt")
+    else:
+        tab.page.keyboard.down("Alt")
+
+
+def design_key(tab: Tab) -> None:
+    """Enter Design mode, or leave it."""
+    tab.page.keyboard.press("l")
+
+
+def draw_key(tab: Tab) -> None:
+    """Enter Draw mode, or leave it."""
+    tab.page.keyboard.press("w")
+
+
+def enter_design(tab: Tab) -> Goals:
+    """Leave nothing focused, rest the pointer on the first tab control, in view, with
+    its centre and the second's noted (`TAB_CENTRES`), and enter Design mode."""
+    tab.page.evaluate("() => document.activeElement?.blur()")
+    centres = tab.page.evaluate(TAB_CENTRES)
+    tab.target = {"centres": centres}
+    tab.page.mouse.move(*centres[0])
+    design_key(tab)
+    tab.quiet(600)
+    return {}
+
+
+def inspect_step(tab: Tab) -> None:
+    """Move the pointer onto the other of the two tab controls, each a part Design mode
+    names inside the tabs widget, as #4781's reader moved between its side tabs."""
+    tab.page.mouse.move(*tab.target["centres"][(tab.sample + 1) % 2])
+
+
+def open_picker(tab: Tab) -> Goals:
+    """Enter Design mode as `enter_design` does, open the target picker (`s`), and stand
+    its walk on the last hint in view: on `side_documents`' pages, the last tab the side
+    list shows, a part Design mode names inside the tabs widget."""
+    enter_design(tab)
+    tab.page.keyboard.press("s")
+    tab.page.keyboard.press("Shift+Tab")
+    tab.quiet(600)
+    return {}
+
+
+def pick_step(tab: Tab) -> None:
+    """Walk the picker's hints up from the last and back (`WAYS`), each step announcing
+    the hint it reaches, as #4781's reader heard the side tabs."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("Shift+Tab" if way > 0 else "Tab")
+
+
+def leave_picker(tab: Tab) -> None:
+    """Close the target picker, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    design_key(tab)
+
+
+def leave_composer(tab: Tab) -> None:
+    """Close the comment a press in Design mode opened, which holds no words and so
+    leaves no draft, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    tab.page.keyboard.press("Escape")
+
+
+def open_annotations(tab: Tab) -> Goals:
+    """Rest the pointer halfway down the page (`halfway`), then open the leaf's menu at
+    Annotations, so the next press chooses Capture area. The page finds each row
+    (`CENTRE`), as it finds everything on `side_documents`' pages."""
+    halfway(tab)
+    *doors, row = MENU_ROWS
+    for door in doors:
+        tab.page.mouse.click(*until(tab.page, CENTRE, f"{door} never showed", door))
+    tab.target["row"] = until(tab.page, CENTRE, "Capture area never showed", row)
+    tab.quiet(600)
+    return {}
+
+
+def capture_toggle(tab: Tab) -> None:
+    """Choose Capture area from the menu `open_annotations` opened, or leave it."""
+    if tab.sample % 2:
+        tab.page.keyboard.press("Escape")
+    else:
+        tab.page.mouse.click(*tab.target["row"])
 
 
 def aim_at_title(tab: Tab) -> Goals:
@@ -897,10 +1194,11 @@ def triple_click(tab: Tab) -> None:
         tab.page.mouse.up(click_count=clicks)
 
 
-def write_comment(tab: Tab) -> Goals:
-    """Select the start of the passage (`PASSAGE`), open its comment and write it."""
+def write_comment(tab: Tab, nth: int = 0) -> Goals:
+    """Select the start of the `nth` passage (`PASSAGE`), open its comment and write
+    it."""
     tab.words = f"Bench comment {tab.bench.serial()}."
-    x, y = tab.page.evaluate(PASSAGE)
+    x, y = tab.page.evaluate(PASSAGE, nth)
     tab.page.mouse.move(x + 2, y + 10)
     tab.page.mouse.down()
     tab.page.mouse.move(x + 200, y + 10, steps=8)
@@ -919,8 +1217,53 @@ def write_comment(tab: Tab) -> Goals:
     }
 
 
+def aim_at_line(tab: Tab) -> Goals:
+    """Put away the comment box an earlier sample opened, and rest the mouse over the
+    comment control of one of `PATCH`'s lines, another line each sample."""
+    tab.page.keyboard.press("Escape")
+    until(
+        tab.page,
+        "() => !document.getElementById('patch').shadowRoot.querySelector('.lf-fab-bar')",
+        "the diff's comment box never closed",
+    )
+    tab.page.mouse.move(4, 4)
+    control = tab.page.locator("#patch .lf-diff-line-comment").nth(2 + 3 * tab.sample)
+    control.scroll_into_view_if_needed()
+    box = control.bounding_box()
+    assert box is not None
+    tab.page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    tab.quiet(600)
+    return {"painted": ("composer", "patch")}
+
+
 def send(tab: Tab) -> None:
     tab.page.keyboard.press("ControlOrMeta+Enter")
+
+
+def aim_at_resolve(tab: Tab) -> Goals:
+    """Send a comment as `comment` does, on the next passage so that its row is its
+    thread's alone, wait for the page to take in the server's reading of it, and rest
+    the mouse over Resolve in its thread's card. Resolving takes the thread's row out
+    of the margin, so the row's leaving marks it painted. A card an earlier input left
+    open is put away first, since it can stand over the passage."""
+    for _ in range(2):
+        tab.page.keyboard.press("Escape")
+    tab.page.mouse.move(4, 4)
+    ended(tab.page)
+    write_comment(tab, nth=1)
+    send(tab)
+    resolve = tab.page.locator(".lf-margin-preview .lf-resolve")
+    resolve.wait_for(state="visible")
+    ended(tab.page)
+    target = until(tab.page, OPEN_ROW, "the thread's card names no row")
+    box = resolve.bounding_box()
+    assert box is not None
+    tab.page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    tab.quiet(400)
+    return {
+        "painted": ("rowLeft", target),
+        "shown": ("delivered", {"kind": "resolve"}),
+    }
 
 
 def lift_card(tab: Tab) -> Goals:
@@ -1046,10 +1389,109 @@ def agent_stamp(tab: Tab) -> float:
     return saved
 
 
+def first_line(d: int) -> str:
+    """Document `d`'s first row (`side_documents`), which a tab's opening draws."""
+    return f"#d{d} .lf-text-document-run > div"
+
+
+def aim_at_tab(tab: Tab) -> Goals:
+    """Rest the mouse over the control of the second tab at the first sample and the
+    third at the next, each never opened. The page finds the control
+    (`TAB_CONTROL`), as it finds everything on `side_documents`' pages, since a
+    Playwright locator walks every element of a page for each query."""
+    d = tab.sample + 1
+    tab.page.mouse.move(*tab.page.evaluate(TAB_CONTROL, f"t{d}"))
+    tab.quiet(600)
+    return {"painted": ("shows", [first_line(d), ""])}
+
+
+def open_tabs(tab: Tab) -> Goals:
+    """Put away page search where an earlier input left it open, then open every
+    closed tab in turn, as a reader looks through the documents, each once the last
+    has drawn and coloured its lines in view (`COLOURED`), and ending on the last;
+    then rest the mouse over its listing halfway down (`halfway`), and read how tall
+    a run of its lines stands (`RUN_HEIGHT`), which a step scrolls."""
+    if tab.page.evaluate("() => window.__leafBench.met('searching')"):
+        tab.page.keyboard.press("Escape")
+    count = tab.page.evaluate(
+        "() => document.querySelectorAll('#docs [role=tab]').length"
+    )
+    for d in range(1, count):
+        tab.page.mouse.click(*tab.page.evaluate(TAB_CONTROL, f"t{d}"))
+        until(tab.page, COLOURED, "an opened tab's lines were never coloured", d)
+    ended(tab.page)
+    halfway(tab)
+    tab.target["run"] = tab.page.evaluate(
+        RUN_HEIGHT, [tab.target["x"], tab.target["y"]]
+    )
+    return {}
+
+
+def run_step(tab: Tab) -> None:
+    """Turn the wheel a run's height down or up the listing, so each step draws and
+    colours a run its last didn't."""
+    tab.page.mouse.wheel(0, tab.target["run"] * WAYS[tab.sample % len(WAYS)])
+
+
+def name_change(tab: Tab) -> Goals:
+    """The first line of the document shown, which the agent's next write changes,
+    and the file the write reads its source's new value from."""
+    d = tab.page.evaluate(SHOWN_DOCUMENT)
+    tab.words = f"# Bench change {tab.bench.serial()}"
+    value = tab.bench.served.directory.parent / f"s{d}.json"
+    value.write_text(json.dumps(document_text(d, tab.words)), encoding="utf-8")
+    tab.target = {"source": f"s{d}", "value": str(value)}
+    return {"painted": ("shows", [first_line(d), tab.words])}
+
+
+def agent_data(tab: Tab) -> float:
+    """Set the shown document's source to its text with the first line changed
+    (`leaf data set`), as an agent rewrites a file a page shows."""
+    source = tab.target["source"]
+    return tab.bench.written(
+        "data", "set", tab.bench.directory, source, "--file", tab.target["value"],
+        file=source_file(tab.bench.served.directory, source),
+    )  # fmt: skip
+
+
+def aim_at_search(tab: Tab) -> Goals:
+    """Leave nothing focused, so `/` opens page search."""
+    tab.page.evaluate("() => document.activeElement?.blur()")
+    tab.quiet(400)
+    return {"painted": ("searching", None)}
+
+
+def open_search(tab: Tab) -> None:
+    tab.page.keyboard.press("/")
+
+
+def empty_search(tab: Tab) -> Goals:
+    """Open page search where it isn't open, and empty its field."""
+    if not tab.page.evaluate("() => window.__leafBench.met('searching')"):
+        aim_at_search(tab)
+        open_search(tab)
+        until(
+            tab.page, "() => window.__leafBench.met('searching')", "search never opened"
+        )
+    tab.page.keyboard.press("ControlOrMeta+a")
+    tab.page.keyboard.press("Backspace")
+    tab.quiet(600)
+    return {"painted": ("searched", WORD)}
+
+
+def search_word(tab: Tab) -> None:
+    tab.page.keyboard.insert_text(WORD)
+
+
 # Every input, in the order a pass takes them. Those that open the panel's views or
 # add threads and to-dos to the page come after those on the page's own content, and
 # a selection after any revision, which the runtime holds back while the user's
-# selection stands beside what it changes.
+# selection stands beside what it changes. Design mode, Draw mode and Capture area are
+# each entered and left with the pointer resting on the page's content, or on the
+# menu row that chose the area, before any input adds a mark or opens a tab. Those
+# that open tabs come after every input on the document first shown, and a search
+# before `browse`, since each tab `browse` opens keeps its colour, which every later
+# input would meet.
 INPUTS: dict[str, Input] = {
     "click": Input(
         press,
@@ -1063,18 +1505,83 @@ INPUTS: dict[str, Input] = {
     "key": Input(type_letter, 20, enter_field, each=False, after=60),
     "leave": Input(leave_field, 4, enter_field, after=200),
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
+    "walk": Input(walk_step, 8, halfway, each=False, after=300, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
+    "hover": Input(hover_step, 32, halfway, each=False, after=50),
+    "aim": Input(hold_alt, 8, halfway, each=False, after=100),
+    "design": Input(design_key, 2, halfway, each=False, after=400),
+    "inspect": Input(
+        inspect_step,
+        16,
+        enter_design,
+        leave=design_key,
+        each=False,
+        after=50,
+        needs="[role=tab]",
+    ),
+    "pick": Input(
+        pick_step,
+        16,
+        open_picker,
+        leave=leave_picker,
+        each=False,
+        after=100,
+        needs="[role=tab]",
+    ),
+    "part": Input(
+        press, 4, enter_design, leave=leave_composer, after=400, needs="[role=tab]"
+    ),
+    "draw": Input(draw_key, 2, halfway, each=False, after=400),
+    "capture": Input(capture_toggle, 2, open_annotations, each=False, after=400),
+    "data": Input(
+        agent_data,
+        2,
+        name_change,
+        paints=True,
+        after=600,
+        needs=DOCUMENTS,
+        agent=True,
+    ),
     "revision": Input(
-        agent_revision, 2, name_revision, paints=True, after=600, needs="h1"
+        agent_revision,
+        2,
+        name_revision,
+        paints=True,
+        after=600,
+        needs="h1",
+        agent=True,
+        whole=True,
     ),
     "stamp": Input(
-        agent_stamp, ready=name_revision, paints=True, after=600, needs="h1"
+        agent_stamp,
+        ready=name_revision,
+        paints=True,
+        after=600,
+        needs="h1",
+        agent=True,
+        whole=True,
     ),
     "select": Input(triple_click, 4, aim_at_title, each=False, after=400, needs="h1"),
+    "open": Input(press, 4, aim_at_line, paints=True, after=400, needs="#patch"),
     "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
+    "resolve": Input(press, ready=aim_at_resolve, paints=True, after=400, needs="h1"),
     "move": Input(drop_card, ready=lift_card, paints=True, after=400, needs="lf-card"),
-    "reply": Input(agent_reply, ready=ask_agent, paints=True, after=300),
-    "status": Input(agent_status, ready=name_status, paints=True, after=300),
+    "reply": Input(agent_reply, ready=ask_agent, paints=True, after=300, agent=True),
+    "status": Input(
+        agent_status, ready=name_status, paints=True, after=300, agent=True
+    ),
+    "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=DOCUMENTS),
+    "search": Input(
+        open_search, ready=aim_at_search, after=400, needs="lf-text-document"
+    ),
+    "matches": Input(
+        search_word,
+        ready=empty_search,
+        after=400,
+        needs="lf-text-document",
+        whole=True,
+    ),
+    "browse": Input(run_step, 16, open_tabs, each=False, after=300, needs=DOCUMENTS),
 }
 
 
@@ -1119,8 +1626,10 @@ def told(page: Page) -> None:
 
 
 def holds(tab: Tab, name: str) -> bool:
+    """Whether the page holds what input `name` needs, asked of the document itself,
+    since a Playwright locator walks every element of a large page for each query."""
     needs = INPUTS[name].needs
-    return not needs or tab.page.locator(needs).count() > 0
+    return not needs or tab.page.evaluate("(s) => !!document.querySelector(s)", needs)
 
 
 @contextmanager
@@ -1276,7 +1785,7 @@ def cpu_pass(
             """Wait for two quiet half seconds in a row, or QUIET_TRIES, and return
             the page's CPU per ms over the last two: what it spends with no input
             once the work a load leaves behind has run, such as the view checks the
-            runtime reads after the page settles, which walk the whole page."""
+            runtime reads after the page settles, which walk what the page draws."""
             spent: list[float] = []
             while len(spent) < 2 or (
                 max(spent[-2:]) >= QUIET_MS and len(spent) < QUIET_TRIES
@@ -1349,6 +1858,10 @@ def per_input(tab: Tab, name: str, timed, idle: float) -> dict[str, float]:
         cpu, elapsed = timed(name, partial(run, samples, after))
         spent += cpu - idle * elapsed
         posts += page.evaluate(EVENT_POSTS)[posted:]
+        if each.each:
+            each.leave(tab)
+    if not each.each:
+        each.leave(tab)
     readings = {f"{name} cpu": spent / each.count}
     if posts:
         readings[f"{name} event"] = statistics.median(post["ms"] for post in posts)
@@ -1393,6 +1906,7 @@ def paint_pass(
                 current.sample = sample
                 goals = each.ready(current)
                 windows.append(measure(current, traffic, name, goals, profiles))
+                each.leave(current)
         # Playwright delivers the browser's reports only while it talks to the page.
         page.evaluate("0")
     return windows, missing
@@ -1401,8 +1915,9 @@ def paint_pass(
 def measure(
     tab: Tab, traffic: Traffic, name: str, goals: Goals, profiles: Path | None
 ) -> dict:
-    """Arm the frame sampler for `goals`, make input `name`, and read when each goal was
-    first painted, the long frames up to the last, and the trips the input caused."""
+    """Arm the frame sampler for `goals`, make input `name`, and read when the frame
+    that first painted each goal was laid out, the long frames up to the last, and the
+    trips the input caused."""
     page = tab.page
     page.evaluate(
         "goals => window.__leafBench.arm(goals)",
@@ -1467,8 +1982,8 @@ def traced(page: Page, directory: Path, name: str):
     browser = page.context.browser
     assert browser is not None
     recorded = []
-    # The trace starts first: on 2026-11-05 a profile started before it held no
-    # samples in the window the trace's marks bound.
+    # The trace starts first: a profile started before it can hold no samples in the
+    # window the trace's marks bound.
     browser.start_tracing(page=page, path=str(trace), categories=CATEGORIES)
     try:
         with cpu_profile(page, profile):
@@ -1679,11 +2194,41 @@ def owners(windows: list[dict]) -> list[str]:
     ] + [f"    {render:6.0f}         style, layout and paint after scripts"]
 
 
-def floor(reading: str, base: dict[str, float]) -> float:
+def held(reading: str, readings: Container[str]) -> bool:
+    """Whether `reading`, one of a page's `readings`, is one root `AGENTS.md`,
+    "Responsiveness", holds to what its input changes and what the window shows, so
+    that it doesn't grow with the page: the requests and bytes an input causes, and
+    the main-thread CPU of one the browser answers alone. An input that posted events
+    on the page, which its `event` reading shows, or an agent's write, brings the
+    server's reading of the page, and applying that may grow as computing it may. A
+    `whole` input's result is made of the page, so any of its readings may grow. A
+    reading names its input first, as `click event KB` does, the size of the answer
+    to the click's POST."""
+    words = reading.split()
+    name, measure = words[0], words[-1]
+    each = INPUTS.get(name)
+    if each is None or each.whole:
+        return False
+    if measure in COUNT_FLOORS:
+        return True
+    return measure == "cpu" and not each.agent and f"{name} event" not in readings
+
+
+def limit(reading: str, readings: Container[str]) -> float:
+    """The exponent above which `reading`, one of a page's `readings`, grows faster
+    than root `AGENTS.md`, "Responsiveness", allows."""
+    return GROWING if held(reading, readings) else SUPERLINEAR
+
+
+def floor(reading: str, base: dict[str, float], readings: Container[str]) -> float:
     """`reading`'s noise floor (`exponent`), from `base`, the BASE page's readings of
-    the same run: a share of its load CPU for a time, and a fixed floor for a size or
-    a count. Without the load's CPU, a time has no floor, and so no exponent."""
+    the same run: a share of its own for a held one, at least one of a count, a fixed
+    floor for any other size or count, and a share of the load's CPU for a time.
+    Without the load's CPU, a time has no floor, and so no exponent."""
     measure = reading.rsplit(" ", 1)[-1]
+    if held(reading, readings):
+        own = HELD_FLOOR_SHARE * base[reading]
+        return max(own, 1) if measure in COUNT_FLOORS else own
     if measure in COUNT_FLOORS:
         return COUNT_FLOORS[measure]
     share = FLOOR_SHARES["cpu" if measure == "cpu" else "elapsed"]
@@ -1696,14 +2241,16 @@ def exponent(
     """The least-squares slope of log growth on log size over the `fitted` largest
     sizes, where a cost's growth is what it adds to its cost at the first size,
     BASE. A size whose growth is under `floor` is left out, its growth the host's
-    noise. With fewer than all but one of the fitted sizes left, or fewer than two,
-    there is no exponent: the two largest of four server sizes stand 1.56 apart, and
-    a slope across them reads a loaded host's noise as growth."""
+    noise, and so is one that didn't grow, which a held reading's floor lets through
+    where the input cost nothing on the BASE page. With fewer than all but one of the
+    fitted sizes left, or fewer than two, there is no exponent: the two largest of
+    four server sizes stand 1.56 apart, and a slope across them reads a loaded host's
+    noise as growth."""
     fixed = costs[0]
     pairs = [
         (math.log(n), math.log(c - fixed))
         for n, c in list(zip(sizes, costs, strict=True))[-fitted:]
-        if c - fixed >= floor
+        if c - fixed >= floor and c > fixed
     ]
     if len(pairs) < max(2, fitted - 1):
         return None
@@ -1729,9 +2276,9 @@ def lowest[K: Hashable](readings: Iterable[tuple[K, dict[str, float]]]):
     is the nearest the host lets a reading come to the work alone."""
     least: dict[K, dict[str, float]] = {}
     for key, taken in readings:
-        held = least.setdefault(key, {})
+        kept = least.setdefault(key, {})
         for cost, value in taken.items():
-            held[cost] = min(held.get(cost, math.inf), value)
+            kept[cost] = min(kept.get(cost, math.inf), value)
     return least
 
 
@@ -1747,40 +2294,42 @@ def table(
     title: str,
     columns: list[tuple[str, dict[str, float]]],
     readings: Sequence[str],
-    fits: list[tuple[str, dict[str, float | None]]],
+    fits: Sequence[tuple[str, dict[str, float | None], Container[str]]],
 ) -> str:
     """Each of `readings` a line under its label, with its value in each of `columns`,
-    then its exponent in each of `fits`, marked `!` above SUPERLINEAR."""
+    then its exponent in each of `fits`, marked `!` above its `limit` among the
+    readings that fit's arm read."""
     width = max((len(label(reading)) for reading in readings), default=0) + 1
     lines = [
         title,
-        " " * width + "".join(f"{head:>11}" for head, _ in [*columns, *fits]),
+        " " * width + "".join(f"{head:>11}" for head, *_ in [*columns, *fits]),
     ]
     for reading in readings:
         cells = [
             f"{values[reading]:>11.1f}" if reading in values else f"{'-':>11}"
             for _, values in columns
         ]
-        for _, slopes in fits:
+        for _, slopes, read in fits:
             slope = slopes.get(reading)
-            mark = "!" if slope is not None and slope > SUPERLINEAR else " "
+            mark = "!" if slope is not None and slope > limit(reading, read) else " "
             cells.append(f"{'-' if slope is None else f'{slope:.2f}':>10}{mark}")
         lines.append(f"{label(reading):<{width}}" + "".join(cells))
     return "\n".join(lines)
 
 
 def growth(
-    before: dict[str, float], after: dict[str, float], ratio: float
+    before: dict[str, float], after: dict[str, float], ratio: float, bound: float
 ) -> list[str]:
-    """The functions whose inclusive ms grew superlinearly from `before` to `after`,
-    profiles of the smallest and largest page, whose sizes stand at `ratio`."""
+    """The functions whose inclusive ms grew with an exponent above `bound` from
+    `before` to `after`, profiles of the smallest and largest page, whose sizes stand
+    at `ratio`."""
     grown = []
     for name, ms in after.items():
         if ms < GROWTH_FLOOR_MS or name.startswith(("(root)", "(program)", "(idle)")):
             continue
         was = before.get(name, 0)
         slope = math.log(ms / was) / math.log(ratio) if was else math.inf
-        if slope > SUPERLINEAR:
+        if slope > bound:
             grown.append((ms, was, slope, name))
     return [
         f"  {was:8.0f} -> {ms:8.0f} ms  exponent {slope:5.2f}  {name}"
@@ -1788,12 +2337,16 @@ def growth(
     ]
 
 
-def report_growth(title: str, profiles: dict, ratio: float) -> None:
-    """Echo the functions that grew superlinearly in each of `profiles`, a pair of
-    inclusive ms by function (smallest page, largest) by what was profiled."""
+def report_growth(
+    title: str, profiles: dict, ratio: float, readings: Container[str] = ()
+) -> None:
+    """Echo the functions that grew past the `limit` of what was profiled in each of
+    `profiles`, a pair of inclusive ms by function (smallest page, largest) by what
+    was profiled, on a page of `readings`."""
     for name, (before, after) in profiles.items():
-        if lines := growth(before, after, ratio):
-            click.echo(f"{title} {name}: superlinear functions")
+        bound = limit(f"{name} cpu", readings)
+        if lines := growth(before, after, ratio, bound):
+            click.echo(f"{title} {name}: functions growing with exponent over {bound}")
             click.echo("\n".join(lines) + "\n")
 
 
@@ -1840,6 +2393,8 @@ def serving(name: str, n: int | None, arm_dir: Path, scratch: Path):
         source.write_text(authored)
         for version, markup in enumerate(earlier, 1):
             (source.parent / "versions" / f"page.v{version}.html").write_text(markup)
+        if values := COLLECTIONS[name].data(n):
+            data_file(source).write_text(json.dumps(values))
         if events := COLLECTIONS[name].log(n):
             # Not the source's stem, which would make it the page's own history.
             seed = scratch / "seed.jsonl"
@@ -1927,6 +2482,8 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
         for n in sizes
         for arm in arms
     ]
+    # Each arm's readings at any size, which decide what its limits are (`held`).
+    seen = {arm: {r for n in sizes for r in least[n, arm]} for arm in arms}
     fits = [
         (
             "exponent" if len(arms) == 1 else f"{arm} exp",
@@ -1934,12 +2491,13 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
                 reading: exponent(
                     [n or 0 for n in sizes],
                     [least[n, arm][reading] for n in sizes],
-                    floor(reading, least[sizes[0], arm]),
+                    floor(reading, least[sizes[0], arm], seen[arm]),
                 )
                 for reading in readings
                 if reading != "elements"
                 and all(reading in least[n, arm] for n in sizes)
             },
+            seen[arm],
         )
         for arm in arms
         if len(sizes) > 2
@@ -2005,6 +2563,7 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
                     for each in timed
                 },
                 (sizes[-1] or 1) / (sizes[0] or 1),
+                seen[arm],
             )
     for each in painted:
         by_arm = {
@@ -2044,7 +2603,9 @@ def bench_server(
             for path in paths
         }
         columns = [(str(row["n"]), row) for row in rows]
-        click.echo(table(name, columns, ["events", *paths], [("exponent", fits)]))
+        click.echo(
+            table(name, columns, ["events", *paths], [("exponent", fits, paths)])
+        )
         if why := over_budget(rows):
             click.echo(f"  click: {why}")
         click.echo()

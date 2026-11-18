@@ -39,7 +39,8 @@ import { keeps, layoutPx } from "./keeps.js";
  * @typedef {ReturnType<typeof placement>} Placement
  * @typedef {({anchored: true, origin: null} | {anchored: false, origin: {x: number, y: number}}) & {visibility?: string}} Stood */
 /** @typedef {Element & ElementCSSInlineStyle} PaintNode
- * @typedef {Level & {from: {left: number, top: number}}} PlacedLevel
+ * @typedef {{anchor: Anchor | null, at: Box | null, reading: import("./css-anchors.js").AnchorReading | null}} AnchorLevel
+ * @typedef {Level & AnchorLevel & {from: {left: number, top: number}}} PlacedLevel
  * @typedef {{surface: Element | null, levels: PlacedLevel[]}} SetPlacement
  * @typedef {{node: PaintNode, held?: boolean, anchor?: Anchor | null, plane?: string, cut?: boolean} &
  * ({target?: null, rect: PaintBox} | {target: Element, rect?: PaintBox | ((placed: Placement) => PaintBox)})} PaintItem
@@ -104,22 +105,45 @@ const makeFrame = () => {
   return frame;
 };
 
-// Stands `stand`'s frames over `placed`, anchored where `anchored` says its boxes will be
-// and every frame's holder can be, else where the window holds them, and answers how its
-// boxes stand (`standBox`): anchored, or written from `origin`, the client point the
-// carrier's corner stands at.
-/** @param {PaintStand<(Element & ElementCSSInlineStyle) | null>} stand @param {{levels: Level[]}} placed @param {boolean} anchored @returns {Stood} */
+// Each of `levels` with the anchor that carries its holder's frame for a stand at
+// `root` (`anchoredBy`), null where it has no holder or the anchor cannot carry it, where
+// that anchor stands (`at`, `anchorBox`) and its name (`reading`, `anchorReading`). Read
+// before any write, since each reads style or layout.
+/** @template {Level} L @param {L[]} levels @param {Element} root @param {Map<Element, AnchorLevel>} [anchors] holder → its reading, shared by a pass's levels @returns {(L & AnchorLevel)[]} */
+function anchorLevels(levels, root, anchors = new Map()) {
+  return levels.map((level) => {
+    const { holder } = level;
+    if (!holder) return { ...level, anchor: null, at: null, reading: null };
+    let reading = anchors.get(holder);
+    if (!reading) {
+      const anchor = anchoredBy(holder, root);
+      reading = {
+        anchor,
+        at: anchor && anchorBox(anchor),
+        reading: anchor && anchorReading(anchor),
+      };
+      anchors.set(holder, reading);
+    }
+    return { ...level, ...reading };
+  });
+}
+
+// Stands `stand`'s frames over `placed`, whose levels carry their holders' anchors
+// (`anchorLevels`), anchored where `anchored` says its boxes will be and every frame's
+// holder can be, else where the window holds them, and answers how its boxes stand
+// (`standBox`): anchored, or written from `origin`, the client point the carrier's
+// corner stands at. It reads neither style nor layout, so a pass can stand many stands
+// after its writes begin.
+/** @param {PaintStand<(Element & ElementCSSInlineStyle) | null>} stand @param {{levels: (Level & AnchorLevel)[]}} placed @param {boolean} anchored @returns {Stood} */
 function standIn(stand, placed, anchored) {
   const { levels } = placed;
-  const readings = levels.map((level) => ({
-    ...level,
-    anchor: level.holder ? anchoredBy(level.holder, stand.root) : null,
-  }));
-  anchored &&= readings.every(({ holder, anchor }) => !holder || anchor !== null);
+  anchored &&= levels.every(({ holder, anchor }) => !holder || anchor !== null);
   stand.anchored = anchored;
   stand.frames = cutFrames(
-    readings.map(({ anchor, band, axes }) => ({
+    levels.map(({ anchor, at, reading, band, axes }) => ({
       anchor: anchored ? anchor : null,
+      at: anchored ? at : null,
+      reading: anchored ? reading : null,
       band,
       axes,
     })),
@@ -174,7 +198,8 @@ export function standBox(
 export function standAt(stand, placed) {
   const anchor = anchoredBy(placed.surface, stand.root);
   const at = anchor && anchorBox(anchor);
-  return { ...standIn(stand, placed, Boolean(anchor)), anchor, at };
+  const levels = anchorLevels(placed.levels, stand.root);
+  return { ...standIn(stand, { levels }, Boolean(anchor)), anchor, at };
 }
 
 // A set of paint boxes, each over a target and standing in the frames that cut it
@@ -285,6 +310,8 @@ export function paintSet(root, { onNear = () => {} } = {}) {
   function place(items, clips = new Map()) {
     /** @type {Map<Element, DOMRect>} */
     const holders = new Map();
+    /** @type {Map<Element, AnchorLevel>} */
+    const holderAnchors = new Map();
     /** @type {Set<Element>} */
     const targets = new Set();
     const read = items.map(
@@ -344,8 +371,9 @@ export function paintSet(root, { onNear = () => {} } = {}) {
               axes: { x: false, y: true },
             })),
           };
-        // Capture each holder's reading with the level it positions.
-        const levels = placed.levels.map((level) => {
+        // Capture each holder's reading, and the anchor carrying its frame, with the
+        // level it positions, each read once a pass.
+        const levels = anchorLevels(placed.levels, root, holderAnchors).map((level) => {
           let at;
           if (level.holder) {
             at = holders.get(level.holder);

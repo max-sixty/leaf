@@ -47,8 +47,7 @@ every surface redraws from the new entries. Each entry needs a `key`, a `label`,
 of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
 `module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
 holds rather than what it does). `behavior`, `tone`, `rank` and
-`state` default to an ordinary primary action; `CONTRIBUTION_ENTRY_SCHEMA` lists their
-values and, under `options`, every field an entry accepts.
+`state` default to an ordinary primary action.
 
 Pressing an entry calls `activate(activation, context)`, where an entry's `activation`
 defaults to its key. An entry for one of the widget's declared commands instead sets
@@ -64,7 +63,8 @@ which the registration's `activateReading(id)` calls.
 
 A widget that shows margin entries inside its own content, as the feature gallery does,
 draws its own control as an entry with
-`presentContributionEntry(control, entry, {selected})`, and shows whether the agent is
+`presentContributionEntry(control, entry, {selected, unread})`, where `unread` draws
+the dot for agent words the user hasn't read beside the entry's count, and shows whether the agent is
 working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
 `receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
 
@@ -76,9 +76,9 @@ node. Use the focus query when retaining a focused entry while updating its read
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
-part. It declares the ids' prefixes in `x-visual.prefixes` (here `commit:`) and calls
-`registerVisualParts(source, read, {reveal, label})` once. `read()` returns the parts
-drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
+part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and
+calls `registerVisualParts(source, read, {reveal, label})` once. `read()` returns the
+parts drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
 `reveal(id)` shows a part when someone follows its thread, even if it is visible
 already, so cancel work that would hide it. `label(id)` names a part in Threads without
 changing the visual, or returns `null`. Call the returned `update()` after the parts or
@@ -152,12 +152,6 @@ takes `text`, optionally with `anchor`, `attempt`, `holds`, `about`, `drawing` a
 package's own input keeps its draft as `module-input.md`, "Text entry and drafts",
 describes.
 
-### Starting a thread from a widget
-
-A widget whose entry declares `x-thread-seat` appends the box where the user starts a
-thread about it, built with `threadBox(this, hint)`. It returns `null` in Leaf's
-interface, in quoted markup or in an export.
-
 ### Owning the primary conversation presentation
 
 A package that provides the page's main conversation reader, such as a shelf of
@@ -230,15 +224,21 @@ gallery's `lf-conversation-workspace` is the worked example.
 
 ### Widget-local Thread placement
 
-A widget that declares `"x-thread-surface": true` shows threads beside its own projected
-data, as `lf-diff` does beside lines. Leaf calls its
+A widget whose element has a `threadOutlets` method shows threads inside itself: beside
+its own projected data, as `lf-diff` does beside lines, or about the widget as a whole,
+as a task in `examples/command-hub.page/` does at its foot. The method is the
+declaration, and the registry says nothing. Leaf calls
 `threadOutlets(targets, {signal, collection, onCommit})` whenever placement changes,
-with the threads anchored exactly to its data and the open comment box. Return, in the
-same order, an outlet for each target or `null`, or a promise of that array; an
-asynchronous `threadOutlets` checks `signal` before changing the DOM. A target is
-`{anchor, placement, thread}`, with the datum's element at `placement.datumElement` and
-`thread` `null` for the comment box. Here `this.outletFor` is the widget's own method
-that finds or makes the outlet beside a datum (`lf-diff`'s `threadOutletFor`):
+with the threads anchored exactly to the widget or to its data, and the open comment
+box. Return, in the same order, an outlet for each target or `null`, or a promise of
+that array; an asynchronous `threadOutlets` checks `signal` before changing the DOM. A
+target is `{anchor, placement, thread}`, with `thread` `null` for the comment box. A
+target on a datum names it in `anchor.datum`, with its element at
+`placement.datumElement`. A target with no `anchor.datum` is the widget itself: a
+thread anchored to its element and nothing inside it. A thread on a passage or a visual
+part of the widget is never a target, and stays in the margin. Here `this.outletFor` is
+the widget's own method that finds or makes the outlet beside a datum (`lf-diff`'s
+`threadOutletFor`):
 
 ```js
 threadOutlets(targets, { onCommit }) {
@@ -250,8 +250,12 @@ threadOutlets(targets, { onCommit }) {
 ```
 
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
-stays in the margin. Call `threadSurface(this).update()` after a change that
-only shows or hides data.
+stays in the margin; a widget that seats only its data returns `null` for itself too.
+Call `threadSurface(this).update()` after a change that only shows or hides data.
+
+A thread names its widget by `id`, so a widget that shows threads needs an `id` on
+each instance and should require it in its schema: Leaf reports an instance without
+one as a failure of that widget and registers no surface for it.
 
 The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you
 stop returning may still hold the comment box the user is typing in, so remove outlets
@@ -261,11 +265,20 @@ node holding outlets at another time, such as when its data goes, first calls
 `releaseOutlets(node)`, before any `holdFocus`. If `threadOutlets` throws, Leaf returns
 the widget's threads to the margin until the next pass.
 
-`threadSurface(this).open` is the reactive opener for the comment box on one of the
-widget's data items, or `null` while no surface is registered. Read it while rendering
-and offer comment controls only when it exists; call it with the datum to open its
-outlet. Leaf keeps the draft and the sending. Registration can follow the widget's
-first drawing, and departure retires the opener until the widget returns.
+`threadSurface(this).open` is the reactive opener for the comment box on the widget or
+one of its data items, or `null` while no surface is registered, as in an export, which
+holds no thread and can send none. Read it while rendering and offer comment controls
+only when it exists; call it with the datum, or with the widget itself, to open the box
+in the outlet `threadOutlets` returns for it. Leaf keeps the draft and the sending.
+Registration can follow the widget's first drawing, and departure retires the opener
+until the widget returns.
+
+The comment box standing in an outlet the widget returns for itself can offer a second
+send. Set the outlet's `lfHold` to its words, such as `"Send & pause"`, and the box
+shows a button under those words beside Send, which Tab reaches after Send. Its comment
+carries `holds`, naming the widget, so the widget is held while that thread is open:
+its reading's `thread.heldBy` names the thread (`module-state.md`), and resolving the
+thread releases it.
 
 `threadSurface` and `releaseOutlets` also load through `portable-api.js`. Without a
 registered Leaf surface, there is nothing to update or release, and `open` is `null`.

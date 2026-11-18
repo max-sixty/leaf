@@ -10,49 +10,62 @@ comments read them; `textContent` also returns words a widget generated that pas
 leave out. For text to copy or send, `says(element, {format: "lines"})` keeps rendered
 block boundaries, explicit line breaks and preformatted whitespace. Read a connected
 element so its computed styles supply these boundaries; a closed popover is supported.
-Inline values stay in their sentence, and ordinary HTML source indentation collapses.
-To name one of the widget's own parts, use `wrote(element)`, which returns only the words the
-author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
-blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters.
-A widget that also declares an `x-data` input reads that input's property instead,
-which Leaf sets to the `<pre>`'s text when the markup binds nothing
-(`package-data.md`, "External or derived data").
+Inline values stay in their sentence, and ordinary HTML source indentation collapses. To
+name one of the widget's own parts, use `named(element)`, which returns only the words
+the author wrote, less a popover's, such as a gloss's explanation. Read a widget's
+`<pre>` body with `bodyText(this)`, which trims leading blank lines and trailing
+whitespace. A widget that also declares an input
+(`inputs`) reads that input's property instead, which Leaf sets to the `<pre>`'s
+text when the markup binds nothing (`package-data.md`, "External or derived data").
 
 An agent's message can carry markup that repeats ids on the page, so look up an id
-another element gives within `authoredScope(element)`: the page's `body`, or, for
-markup in an agent's message, that message's own markup. `elementById(id, root)` finds an id within `root`,
-or the whole document, including the shadow trees `getElementById` misses.
-`under(node, root)` says whether `node` is in `root` across shadow boundaries, and
-`inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread reply
-is. A widget that acts on the document around it, as a contents list or a depth dial
-does, reads it with `viewDocument(node)`: the view member holding the node (`x-views`,
-`module-authoring.md`), else the `main` holding it, else null.
+another element gives within `authoredScope(element)`: the page's `body`, or, for markup
+in an agent's message, that message's own markup. `elementById(id, root)` finds an id
+within `root`, or the whole document, including the shadow trees `getElementById`
+misses. `under(node, root)` says whether `node` is in `root` across shadow boundaries,
+and `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread
+reply is. A widget that acts on the document around it, as a contents list or a depth
+dial does, reads it with `viewDocument(node)`: the view member holding the node
+(`views`, `module-authoring.md`), else the `main` holding it, else null.
 
 ### Naming elements
 
 To name an element elsewhere, such as in a feed row, use `addressableLabel(element)`,
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
-named element around it. A registered widget with no name gets
-an empty label, and `addressableWord(element)` gives the word for its kind instead. A
-widget whose title is an attribute, as a column's `label` is, declares it with
-`x-name`.
+named element around it. A registered widget with no name gets an empty label, and
+`addressableWord(element)` gives the word for its kind instead: the fixed word its
+entry declares (`word`), as `lf-visual-review` says "review", else what its element answers
+from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
+says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
+don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
+returns the words that describe it. A
+widget's name is its `label` attribute, as an option card's, a board card's or a
+column's is, which names its element on every widget that takes it (the registry's
+`$attributes`), whether or not the widget draws it.
+`authoredTitle()` is the page's own `<title>`, which `document.title` doesn't give
+while the tab's title counts what waits on the user in front of it.
+
+`titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
+or `article` that opens with it, alone or in that `hgroup`, and a heading inside a
+widget titles only itself. A heading after other content, or opening any other
+element, titles only itself. `lf-toc` links each heading to one of them, and a heading's
+link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
 
 ### Reading declarations
 
-Read the registry rather than repeating it. `declarationFor(element, key)` returns one
-key of the element's entry, and `elementsDeclaring(root, key, {direct})` lists the
-elements under `root`, or only its children, whose entries declare `key`.
-`matchesWhen(element, when)` says whether the element's attributes satisfy a `when`,
-such as an `x-thread-seat`'s. `layerFact(name)` returns a frozen layer-wide `$`
+Read the registry rather than repeating it. `declarationFor(element)` returns the
+widget's entry, each fact under its own name, as `declarationFor(card)?.shows` reads a
+view's `shows`. `matchesWhen(element, when)` says whether the element's attributes
+satisfy a `when`, such as an `awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
 ### Following a reference
 
-Reach another widget through an attribute declared in `x-refers`
+Reach another widget through an attribute declared in `refers`
 ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
 not by looking up the id yourself.
 
@@ -67,14 +80,9 @@ keeps the reader's place and history and shows `missing` in Leaf's notice seat. 
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
-name a datum not yet drawn. Where your key is a source location rather than the datum's
-lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
-element or `null`.
+name a datum not yet drawn.
 
-A URL reaches the same parts. `fragmentUrl(widget, key)` returns this page's URL with
-a fragment naming the part `key` names in `widget`, `#<widget-id>:<key>`, for a
-copy-link control or a link to hand on; `fragmentUrl(element)` names the element alone.
-Loading, following, reloading, or going Back or Forward to that URL draws the part
+A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
 key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
 to its parts.
@@ -83,15 +91,14 @@ to its parts.
 
 ### Markdown
 
-A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
-text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
-block Markdown while the recorded body stays the source. It reads as a Markdown file,
-as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-body`
-and repaint changing prose with `paintMarkdown(body, source)`.
+A widget whose entry declares `text-format: markdown` has its data body arrive
+rendered as block Markdown while the recorded body stays the source. It reads as a
+Markdown file, as `renderMarkdown(text, false)` does (below). Adopt the rendered
+`.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
-An entry declaring `x-prepaint` names the attribute that gives the notation of the
+An entry declaring `prepaint` names the attribute that gives the notation of the
 widget's written `<pre>`. Where that attribute says `markdown`, the `<pre>` arrives with
 its rendering as a file beside it, in a `.lf-markdown-body[data-lf-prepaint]`, so the
 page first paints at that rendering's size. The module still reads the `<pre>`, and
@@ -115,10 +122,15 @@ changing prose repaints then.
 line ends in. `synNodes(tokens)` turns the tokens into nodes, and `tokenLines(tokens)`
 splits them by line. To colour a long text a part at a time, pass each part the state
 the part before it ended in, `syntax(part, lang, state)`, and it is coloured as it would
-be in the whole text. `lang` is a registry `$languages` name; `langForPath(path)` derives
-one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
-`highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language and that wears the reading face
+be in the whole text. `lang` is a registry `$languages` name; `codeLanguage(element)`
+reads one off the `language-…` class a block of code names it by, on a `<code>`, on the
+`<code>` in a widget's `<pre>` body, or else on the widget itself; it is null for a
+language Leaf doesn't colour, and undefined where no class names one, so only the
+latter takes a default; `langForPath(path)` derives one from a file name, and
+`ensureSyntaxLanguage(lang)` loads one ahead of time. `dressCode(root)` colours
+each `pre > code` in `root` whose `language-…` class names a language and that wears
+the reading face, and typesets each formula, a `<code class="language-math">`
+(`page-authoring.md`, "Markup"), leaving a widget's data body to its module
 (`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
@@ -129,22 +141,21 @@ Leaf adds a Copy button to each `pre > code` in the page. A widget block holding
 source text, such as numbered code lines, declares its own: give the block
 `data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
 returns the text to copy. Leaf stands the button right after the block while both are in
-the page, and a page without Leaf shows none. Where the button belongs among the
-widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
-noun)` returns once the block is connected; it copies `source()`. A copy that stands
-among a widget's own controls rather than over a block, such as in a popover's header,
-is `copyControl(className, {label, success, error, role})`, a press of `role`, such as
-`"symbol"` for Copy's symbol; to copy through a press of your own built by its role,
-pass it as `trigger` instead. Set its `value` before it copies, and it reports
-`success` or `error` as a code block's does.
+the page, and a page without Leaf shows none. A widget that draws marks of its own over
+the block, as `lf-code` draws its notes mark and a draft its editing marks, sets the
+block's `lfBar` to the `.lf-mark-bar` it places and shows over the block, and Leaf
+stands Copy last in it. A copy that stands among a widget's own controls rather than
+over a block, such as in a popover's header, is `copyControl(className, {label,
+success, error, role})`, a press of `role`, such as `"symbol"` for Copy's symbol; to
+copy through a press of your own built by its role, pass it as `trigger` instead. Set
+its `value` before it copies, and it reports `success` or `error` as a code block's
+does.
 
 ### Text alignment
 
-`alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
-with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
-up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
-walks its own units with jsdiff, such as a document's lines, passes the same cap.
+A widget that walks its own units with jsdiff, such as a document's lines, gives up
+after `MAX_EDIT_LENGTH` edits and treats the whole text as replaced, as Leaf's own
+alignment does.
 
 ### Media URLs
 
@@ -158,7 +169,7 @@ the drawing needs them.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons,
+`iconTemplate(name, className)` draws Leaf's icons,
 for what something is or holds, such as a kind or a state. A press shows an action's
 symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
 `runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
@@ -171,7 +182,7 @@ tooltip and accessible name, unless `label` or `title` says more.
 face, such as the second of two symbols a press swaps by CSS.
 
 For a Lit control, `actionClass(role, className)` supplies the same face classes as
-`offerAction`; `actionName(action)` supplies the action's accessible name.
+`offerAction`.
 
 ### Time axes
 
@@ -185,7 +196,9 @@ the axis, `--lf-axis-at` on the element, in a box as wide as the axis: each tick
 `span.lf-axis-tick` inside an `.lf-axis-ruler`, with `data-lf-major` and `data-lf-flip`
 as the tick says; a `span.lf-axis-gridline` for each major tick, with its
 `data-lf-flip`, inside an `.lf-axis-grid` you place over the drawing below the ruler;
-and your own marks, labels and playhead with the class `lf-on-axis`.
+and your own marks, labels and playhead with the class `lf-on-axis`. Each of these
+stands at `--lf-axis-x`, its offset from the box's start, which a label can read to
+fit the room on either side of it.
 `AXIS_TICK_SPACING`, `AXIS_LABEL_CHROME` and `AXIS_LABEL_GAP` are the least room
 between major ticks, what a mark's label adds to its words, and the least room between
 two labels in one row. `seconds(ms, digits)` writes a time as seconds, with `digits`
@@ -218,18 +231,18 @@ including those with the agent. Each record looks like this:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | answered_elsewhere | withdrawn
-  end: null,          // a question the agent ended unanswered: {detail, event}
+  status: "answered", // open | answered | withdrawn
   next_actor: null,   // user | agent | null
 }
 ```
 
-A widget's obligation takes its answer and completion from its `x-awaits`
+A widget's obligation takes its answer and completion from its `awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
 show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
-is `null` for authored state. `prompt.target` is where the user goes to answer;
-`prompt.text` is `null` for a widget with no heading and for an update. `thread`
-and `message` name the Thread and message of a widget inside a Thread. A user's answer
+is `null` for authored state. `prompt.target` is where the user goes to answer: the
+innermost named group round the widget, an element whose registry entry declares
+`reading-role: group` such as an `lf-group`, or else the widget itself; `prompt.text`
+is that group's `label`, else the widget's own name, and `null` for an update. `thread` and `message` name the Thread and message of a widget inside a Thread. A user's answer
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:
 
@@ -237,8 +250,9 @@ arrives. Each `source.kind` adds its own facts:
   record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
-  `answered_elsewhere` or `withdrawn` and `end.detail` says why.
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its
+  thread is resolved after it, it stays `open` with no `next_actor`, even when the
+  thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
@@ -251,15 +265,27 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
+`obligationsByRegion(regions, obligations)` answers the same for many regions in one
+pass, as a `Map` from each region to its obligations; a module that marks every card
+or section in one render reads it, since asking `obligationsIn` once per region costs
+the regions times the obligations.
+`regionsAwaiting(regions)` returns the `Set` of `regions` whose markup holds a widget
+declaring `awaits`, whether its obligation has yet to arrive or was withdrawn, as
+`lf-tabs` reads it to keep a row's room for an answer. It reads the captured widgets,
+not the regions' elements, and follows each revision, so ask it rather than
+reading the regions' elements in a render.
 `tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
 open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
 does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
 
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or
-`null`. On me groups its items by it and a link's preview names a place by it, so a
-module that counts items per heading, where no element holds the heading's section,
-climbs it from each item's element to the first heading it counts, as `lf-toc` does.
+`null`. On Me groups its items by it and a link's preview names a place by it. A
+question or section stands in the part around it, past its own heading. A module that
+counts items per heading as the reader moves through them, as `lf-toc` does, gives
+each heading the stretch of the page from the element it titles (`titledElement`,
+"Naming elements") to the next heading's, and counts each item in the stretch holding
+its first word, comparing positions with `compareDocumentPosition`.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation
@@ -268,7 +294,7 @@ Me, and resolves to whether it arrived. A control that calls it prevents `moused
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
-An element declaring `x-shows`, such as a board card, is a view of another widget's
+An element declaring `shows`, such as a board card, is a view of another widget's
 answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
 `shownAnswer(element)` reads it in `render()`, which then redraws with every change to
 that widget's state, and returns `null` where the element shows no answer. Otherwise
@@ -303,20 +329,17 @@ lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and `running
 
 ### Page history and reports
 
-A widget that shows the page's history declares `x-history` and reads
+A widget that shows the page's history declares `history` and reads
 `readHistory()`: `{phase, events}`, the server's rows, newest first, each carrying its
 thread, whether it was undone, the agent's name as `agent`, and a gesture's words. A
 widget restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
 A widget an agent reports on reads reports with `reportSequence(this)`, after checking
-`reportsReady(this)` and returning `noChange` while it is false; outside `render()`,
-`reportsPresented(target)` answers the same question. Each entry has `id`, `target`,
+`reportsReady(this)` and returning `noChange` while it is false. Each entry has `id`, `target`,
 `source`, `action`, `detail`, `text`, `ts` and `disposition`: `effective`, `outranked`
 by a newer report on the same unit and verb, or `settled` by a stamped version. Pass
 `{kind: "thread", id}` for a Thread's reports, or nothing for all of them.
-`saidAt(element)` is when the message holding `element` was sent, or the page
-published, for showing how long a worker has been quiet.
 
 ### Reading version changes
 
@@ -334,6 +357,3 @@ the element the removal emptied of every block. A removal's `at` is in the part 
 page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
 The result's length counts changes as the reader does. Reading it during a
 `LeafElement` render subscribes that render to comparison changes.
-
-`revisionLabel(event.revision)` is the page's name for the version an event was
-recorded in.

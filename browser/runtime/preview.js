@@ -67,11 +67,12 @@
    - A link an author wrote into the page previews the place it names, and what that
      place holds (place-preview.js), since that is what pressing it opens.
    - Whatever supplies it, a reading says only what its target's face doesn't show
-     whole: a line the face shows uncut goes, as does a press whose key chip it draws,
-     and a reading left with only the face's own words shows nothing (`beyondFace`), so
-     a status declaring its words for where its row, or a box around it, cuts them
-     previews only while they're cut. Reading a face stops at a few lines (`FACE`), so a
-     preview over a long section costs what one over a button does.
+     whole: a line the face shows uncut goes, as does a press whose key chip it draws or
+     the command hints label it with (command-hints.js, `drawnKeys`), as a playground's
+     commit wears its `1`, and a reading left with only the face's own words shows
+     nothing (`beyondFace`), so a status declaring its words for where its row, or a box
+     around it, cuts them previews only while they're cut. Reading a face stops at a few
+     lines (`FACE`), so a preview over a long section costs what one over a button does.
 
    Nothing standing open (`aria-expanded="true"`) previews, since what pressing it opens
    is already in front of the user, and the search goes on outward from it, as it does
@@ -116,7 +117,11 @@
    the preview is about (the box it stands by and the declaration's `about`); a box
    around the target is a control there only where a press acts on it, as a card a
    press opens around a chart is and a scrolling box or a widget drawing its own
-   content isn't. For a finger, whose
+   content isn't. Another thread's passage mark is such a control, though it is a range
+   with no element of its own, which its owner finds for the test (`declareRanges`), on
+   the paragraph's other lines too, so a mark's preview doesn't stand over
+   the mark on the next line, where the press the pointer goes on to make only puts the
+   preview away. For a finger, whose
    hand hides what lies below the touch, below holds none. Where it stands now comes
    first, its top corner on the edge it stands by at the same offsets from the box it
    stands by, and it stays there while
@@ -171,7 +176,7 @@
      placement standing in for one (`step`), the cause its mover gives (focus.js,
      `focusDestination`): Tab is the keyboard's pointing, a step to the next control
      the user may press. Leaving the target hides it. Focus any command places shows
-     nothing: a walk or an arrow key landing (`move`), as `m` lands on an On me item's
+     nothing: a walk or an arrow key landing (`move`), as `m` lands on an On Me item's
      margin entry, a surface placing focus as it opens, as the Page Map's first row,
      and focus handed back as a surface closes or as Escape backs the user out
      (`return`). What the user asked a command for is the place it lands on, already in
@@ -225,37 +230,36 @@
    `HELD`).
 
    Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
-   holding the user up; the margin's labels waited 90 ms, the platform's tooltips about a
-   second. A finger's is the platform's long press, since a press let go sooner is a
+   holding the user up, over the margin labels' 90 ms and the platform's tooltips' second.
+   A finger's is the platform's long press, since a press let go sooner is a
    tap, which presses: Android's, as the user set it, and 500 ms where WebKit says
-   nothing, UIKit's default for a long press. Until 5 November 2026 a finger read after
-   the pointer's 200 ms, and its release pressed the target it ended on and put the
-   preview away. That rule was dropped because a finger couldn't read without acting
-   short of sliding off before letting go, which on touch often scrolls instead: one
-   that held a link to read where it went followed it as it let go, and one that held a
-   thread's words opened the thread. A preview says its words whole, wrapping where
-   they run long, where a margin entry's label cut its question to one line. It finds its
-   neighbours by a few hit tests in the room it would take, where the margin's labels
-   each measured every entry on the page to stand clear of them, a page-wide read on
-   every hover. Until 5 November 2026 a preview took no pointer, so a covered neighbour
-   took the pointer through it but the pointer couldn't stay on the preview to read it,
-   and Escape put a preview away and took its own step too, which closed the thread
-   card the user was reading, since the preview covers its first line. Until that day
-   it also took a title off its element as the pointer came, to read it on every route
-   with no second tooltip beside it, which kept words a writer had since removed and
-   left a control its title named unnamed. Until 6 November 2026 a preview that let the
-   pointer through, as one standing over what it covers, went as the pointer left its
-   target for it, though the pointer was on its words and on no other target there; it
-   now stays while the pointer is over it (`onPreview`), so a chart's point's words past
-   the chart's edge and a covering control's words can both be read. Until 7 November
-   2026 every element wearing `data-lf-offer` was a control here, so a thread card
-   previewed its accessible name, its own first words, to a pointer resting in it and to
-   a `t` walk landing on it, where the preview took the Escape that lets go of the
-   thread. Until 9 November 2026 a walk's or an arrow key's landing previewed too, unless
-   it landed in a surface that opened since the user's last input, which a record of
-   each layer's opening input told apart; the `m` walk then previewed the margin entry
-   it landed on, a thread the user was about to read, over the words beside it.
-   Rejected: reading a control off `data-lf-offer` alone, a press marker, which
+   nothing, UIKit's default for a long press. A preview says its words whole, wrapping
+   where they run long. It finds its neighbours by a few hit tests in the room it would
+   take. A preview that lets the pointer through, as one standing over what it covers,
+   stays while the pointer is over it (`onPreview`), so a chart's point's words past
+   the chart's edge and a covering control's words can both be read.
+   Rejected: a finger reading after the pointer's 200 ms, its release pressing the
+   target it ended on and putting the preview away, since a finger then can't read
+   without acting short of sliding off before letting go, which on touch often scrolls
+   instead: one that holds a link to read where it goes follows it as it lets go, and
+   one that holds a thread's words opens the thread; a label that cuts a margin
+   entry's question to one line; measuring every entry on the page to stand clear of
+   them, a page-wide read on every hover; a preview that takes no pointer, so a covered
+   neighbour takes the pointer through it but the pointer can't stay on the preview to
+   read it; Escape putting a preview away and taking its own step too, which closes the
+   thread card the user is reading, since the preview covers its first line; taking a
+   title off its element as the pointer comes, to read it on every route with no second
+   tooltip beside it, which keeps words a writer has since removed and leaves a control
+   its title named unnamed; a preview that lets the pointer through going as the
+   pointer leaves its target for it, though the pointer is on its words and on no other
+   target there; counting every element wearing `data-lf-offer` as a control, so a
+   thread card previews its accessible name, its own first words, to a pointer resting
+   in it and to a `t` walk landing on it, where the preview takes the Escape that lets
+   go of the thread; a walk's or an arrow key's landing previewing too, unless it lands
+   in a surface that opened since the user's last input, which a record of each
+   layer's opening input tells apart, so the `m` walk previews the margin entry it
+   lands on, a thread the user is about to read, over the words beside it;
+   reading a control off `data-lf-offer` alone, a press marker, which
    left out Leaf's own ranges and selects, since they wear an empty one;
    `interestfor`, which gives a control the same three routes natively but ships only
    in Chromium; the platform's
@@ -284,6 +288,7 @@ import {
   showNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
+import { drawnKeys } from "./keyboard/command-hints.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
@@ -339,6 +344,9 @@ const HOLD = 500;
 // exposes `GestureEvent`, desktop Safari's included, where no touch reaches a hold.
 const holdsUntold = () => "GestureEvent" in window;
 const WARM = 400;
+// The timers above, for a reader outside the page that runs the page's clock past one
+// (check-api.js).
+export const PREVIEW_TIMERS = Object.freeze({ DWELL, HOLD, WARM });
 
 // The one element every preview draws in.
 const tip = document.createElement("div");
@@ -551,14 +559,28 @@ const wordsOf = (text) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
-/** @param {Element} control @returns {HTMLLabelElement[]} */
+// The elements labelling a form control: its `<label>`s, and what `aria-labelledby`
+// names, as a playground's words beside its range do.
+/** @param {Element} control @returns {Element[]} */
 function labelsOf(control) {
   const { labels } = /** @type {{labels?: NodeListOf<HTMLLabelElement> | null}} */ (
     control
   );
-  return labels ? [...labels] : [];
+  return [...(labels ?? []), ...labelledBy(control)];
 }
-// The text of the `<label>`s naming a form control, less the control's own where a label
+// The elements a control's `aria-labelledby` names, found by id in its tree. Not its
+// `ariaLabelledByElements`: Firefox's content process crashes once the page and an
+// isolated world, such as Playwright's role locator, have both read that property
+// (https://bugzilla.mozilla.org/show_bug.cgi?id=2090055).
+/** @param {Element} control @returns {Element[]} */
+function labelledBy(control) {
+  const root = /** @type {Document | ShadowRoot} */ (control.getRootNode());
+  if (!("getElementById" in root)) return [];
+  return (control.getAttribute("aria-labelledby") ?? "")
+    .split(/\s+/)
+    .flatMap((id) => (id && root.getElementById(id)) || []);
+}
+// The text of the labels naming a form control, less the control's own where a label
 // holds it, as a select's options: its name, whether or not the label shows, and no more
 // than a face's worth (`FACE`).
 /** @param {Element} control */
@@ -649,7 +671,8 @@ function faceOf(root, skip = null) {
   };
 }
 // What a control and its labels show, or null where it holds more than a face. A select
-// shows the option chosen, not the rest.
+// shows the option chosen, not the rest. Its chips are its own and the keys the command
+// hints label it with, as Done's digit or a playground's commit's `1`.
 /** @param {Element} control @returns {Face | null} */
 function controlFace(control) {
   const chosen =
@@ -675,7 +698,7 @@ function controlFace(control) {
     words: all("words"),
     joined: all("joined"),
     partial: faces.some((face) => face.partial),
-    chips: own.chips,
+    chips: [...own.chips, ...drawnKeys(control)],
   };
 }
 // Whether `face` shows `line` whole, read apart or together.
@@ -703,8 +726,8 @@ const faceSays = (face, name) =>
 function markupName(control) {
   const label = control.getAttribute("aria-label")?.trim();
   if (label) return label;
-  const by = control.ariaLabelledByElements;
-  if (by?.length)
+  const by = labelledBy(control);
+  if (by.length)
     return by
       .map((el) => el.textContent?.trim() ?? "")
       .join(" ")
@@ -1460,7 +1483,8 @@ function stand(record, reading, standing, aim = false) {
       Math.max(0, Math.min(height, at.room, towardSubject(at))),
     );
     if (reach < least) return reach;
-    return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder)));
+    const own = target instanceof Range ? box : holder.getBoundingClientRect();
+    return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder, own)));
   };
   /** @type {Placement | null} */
   let chosen = null;
@@ -1584,10 +1608,11 @@ function stand(record, reading, standing, aim = false) {
 // are about so their previews keep clear of it, since no sampling proves a control
 // absent, which is the grid's limit. A point inside the holder's own box finds the
 // holder or what it holds, which are no other control, so it is not tested, as most of
-// a preview standing over a chart is not, which bounds its cost.
-/** @param {Placement} at @param {number} reach @param {Element} holder */
-function clearRoom(at, reach, holder) {
-  const own = holder.getBoundingClientRect();
+// a preview standing over a chart is not, which bounds its cost. A range's holder, the
+// element holding its words, holds other ranges on its other lines, as a paragraph does
+// other threads' marks, so for a range only its own line (`own`) goes untested.
+/** @param {Placement} at @param {number} reach @param {Element} holder @param {Box} own */
+function clearRoom(at, reach, holder, own) {
   const around = new Set(climb(holder));
   // The boxes around `holder` a press acts on (`targetAt`).
   /** @type {Set<Element>} */
@@ -1607,9 +1632,8 @@ function clearRoom(at, reach, holder) {
     let edge = Infinity;
     for (const x of across) {
       if (holds(own, x, y)) continue;
-      const found = targetAt(x, y, holder, around, taking);
-      if (!found) continue;
-      const hit = found.getBoundingClientRect();
+      const hit = targetAt(x, y, holder, around, taking);
+      if (!hit) continue;
       edge = Math.min(edge, down ? hit.top - at.from : at.from - hit.bottom);
     }
     if (edge < Infinity) return Math.max(0, edge);
@@ -1655,24 +1679,43 @@ function hitAt(x, y) {
     hit = inner;
   return hit;
 }
-// The control other than `holder` and what it holds that must stay reachable at a point
-// of the page beneath the preview, the nearest around what the point finds. A box
+// A range a press acts on, as a thread's passage mark is, has no element of its own for
+// a hit test to find, so its owner says where one lies under a point of the page: the
+// box of its line there, or null. `under` is the page's element at the point, beneath
+// the preview.
+/** @typedef {(x: number, y: number, under: Element) => Box | null} RangesAt */
+/** @type {Set<RangesAt>} */
+const rangeOwners = new Set();
+/** @param {RangesAt} at */
+export function declareRanges(at) {
+  rangeOwners.add(at);
+  return () => void rangeOwners.delete(at);
+}
+// The box of what must stay reachable at a point of the page beneath the preview: the
+// control other than `holder` and what it holds, the nearest around what the point
+// finds, or a range its owner says lies there, which may be in the holder (`declareRanges`).
+// A box
 // around `holder` (`around`) stands under the preview wherever it stands, so it is no
 // control to keep clear of where it takes nothing (widget-elements.js, `aimableAt`),
 // as a scrolling box, a stop Leaf lends code or a tab panel doesn't, nor where it takes
 // the pointer only to be read, as a widget drawing its own content or a box that
 // previews, whose controls are tested for themselves; and is one where a press acts on
-// it (`taking`), as a card a press opens around a chart is. Until 8 November 2026 every
-// box around it that took the pointer counted, so inside `lf-toc`, drawn across the
-// column, no side held a line and a row's preview stood over the next row.
-/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking */
+// it (`taking`), as a card a press opens around a chart is. Rejected: counting every
+// box around it that takes the pointer, so inside `lf-toc`, drawn across the
+// column, no side holds a line and a row's preview stands over the next row.
+/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking @returns {Box | null} */
 function targetAt(x, y, holder, around, taking) {
   const hit = hitAt(x, y);
-  for (const at of hit ? climb(hit) : []) {
-    if (at === holder) return null;
-    if (taking.has(at)) return at;
+  if (!hit) return null;
+  for (const at of climb(hit)) {
+    if (at === holder) break;
+    if (taking.has(at)) return at.getBoundingClientRect();
     if (!around.has(at) && keepsAccess(at))
-      return renderedUnder(at, holder) ? null : at;
+      return renderedUnder(at, holder) ? null : at.getBoundingClientRect();
+  }
+  for (const owner of rangeOwners) {
+    const box = owner(x, y, hit);
+    if (box) return box;
   }
   return null;
 }

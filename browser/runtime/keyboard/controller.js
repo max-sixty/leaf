@@ -33,6 +33,7 @@ import {
   focused,
 } from "../focus.js";
 import { focusPlace } from "../user-place.js";
+import { landForKey } from "../scrolling.js";
 import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
@@ -106,6 +107,10 @@ export function mountKeyboard({
         letGo();
         ev.stopPropagation();
       }
+      // Tab and the paging keys go on to the browser, which moves focus or scrolls from
+      // where the page stands, so the glides under way land first (scrolling.js,
+      // `landForKey`), once the let-go has read where they were headed.
+      landForKey(ev);
       if (away || ev.key.length === 1) press(ev);
     },
     { capture: true },
@@ -114,7 +119,21 @@ export function mountKeyboard({
   const afterControl = (ev) => {
     if (ev.key.length !== 1) press(ev);
   };
-  document.addEventListener("keydown", afterControl);
+  // A key aimed inside `body` whose default is already prevented when it reaches here
+  // is the page's, as role-button-press.js reads a press. Read again here, it would act
+  // at wherever page code had moved focus, such as the trigger a page's menu hands
+  // focus back to. Leaf's chrome stands outside `body`, and a mode armed over the page
+  // with nothing focused reads keys aimed at `body` itself, so those stay Leaf's
+  // whatever a page listener prevents.
+  document.addEventListener("keydown", (ev) => {
+    const { target } = ev;
+    const pages =
+      ev.defaultPrevented &&
+      target instanceof Node &&
+      target !== document.body &&
+      document.body.contains(target);
+    if (!pages) afterControl(ev);
+  });
   // A key typed in a Leaf field stops at the field (field-keys.js), so this
   // pass reads it there.
   readLeavingKeys((ev) => {

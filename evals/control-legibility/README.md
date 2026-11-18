@@ -6,8 +6,8 @@ and quiet"),
 so a reader must tell from the symbol alone what pressing it does. This eval shows a
 model a view with every control numbered, asks what each one does, and has a judge
 compare each reading with what the control does. A control read as another action is
-what it exists to find, as Undo's old arrow, which is Lucide's and VS Code's reply
-arrow, could read as Reply beside a message.
+what it exists to find, as an Undo drawn with Lucide's and VS Code's reply arrow
+could read as Reply beside a message.
 
 ## Run
 

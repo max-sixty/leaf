@@ -243,7 +243,7 @@ TALL_DECK_PAGE = leaf_page(
     + '<lf-deck id="deck">'
     + card("store", "Keep Redis?")
     + '<lf-group id="tall-ask" label="Ship the beta on every platform?">'
-    '<h3 id="tall-ask-h">Ship the beta on every platform?</h3>'
+    "<h3>Ship the beta on every platform?</h3>"
     + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
     + '<lf-options id="tall-choice">'
     '<lf-option id="tall-yes" label="Yes"><strong>Yes</strong></lf-option>'

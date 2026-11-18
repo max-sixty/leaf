@@ -534,11 +534,12 @@ def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Fi
 
 
 def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Each widget that takes its name in `label` but has none, and leads with a
-    <strong> past any chips, as options and board cards were written before they took
-    `label`. The <strong> is a title only the page shows, so Leaf names the widget by
-    all its words, and an option draws as a bare label of bold words. Advice, since bold
-    words may open a label's own words."""
+    """Each widget that takes its name in `label` but has none, and holds a <strong>
+    before any words of its own, whatever elements come first. The <strong> is a title
+    only the page shows, so Leaf names the widget by all its words, and an option draws
+    as a bare label of bold words. Advice, since bold words may open a label's own
+    words. A message has no channel for advice beside its admission
+    (`admission.message_markup_errors`), so this reads only a page's documents."""
     findings = []
     for rec in document.lf_elements:
         properties = (registry.get(rec["tag"]) or {}).get("attributes", {})
@@ -573,7 +574,6 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + addressable_instance_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
         + shown_errors(document, registry)
-        + unnamed_card_advice(document, registry)
     )
 
 

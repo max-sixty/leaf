@@ -2170,9 +2170,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
             "text": "answered",
         },
     ]
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
     source = structure_model.SourceDocument("")
     passages = passages_model.page_passages(source, {})
     document = document_reading_model.DocumentReading(
@@ -2217,9 +2215,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         {"id": "u2", "kind": "undo", "author": "user", "undoes": "r2"},
         {"id": "a1", "kind": "action", "author": "user", "widget": "gone"},
     ]
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
     source = structure_model.SourceDocument("")
     passages = passages_model.page_passages(source, {})
     document = document_reading_model.DocumentReading(

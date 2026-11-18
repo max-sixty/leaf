@@ -27,6 +27,7 @@ from render_harness import (
     page_comment,
     refuse,
     resized,
+    restarting,
     round_trip,
     stored_draft,
     stored_draft_settled,
@@ -43,7 +44,6 @@ from browser.drafts import (
 )
 from leaf import event_log as events_model
 from leaf.findings import Finding
-from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -812,8 +812,8 @@ def _reload_while_writing(page, before_reload=lambda: None):
     page.keyboard.type("ept")
     holding(page, writes, 1, "the write of Ke")
     before_reload()
-    page.reload()
-    wait_until_ready(page)
+    with restarting(page):
+        page.reload()
     return writes, reads
 
 
@@ -915,8 +915,8 @@ def test_words_typed_on_a_reload_stand_over_the_send_it_cut_short(
     holding(page, writes, 2, "the resend")
     out, resend = writes
     refuse(sends[0])
-    page.reload()
-    wait_until_ready(page)
+    with restarting(page):
+        page.reload()
     field = _type_on_arrival(page, " words")
     holding(page, writes, 3, "the second reload's write")
 

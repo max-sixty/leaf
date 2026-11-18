@@ -281,7 +281,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     )
     told(page)
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
-    expect(thread.locator(".lf-margin-count")).to_have_text("2")
+    expect(thread.locator(".lf-badge-count")).to_have_text("2")
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(page.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(thread).to_have_attribute("aria-expanded", "true")
@@ -561,7 +561,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(marker).to_have_count(1)
-    expect(marker.locator(".lf-margin-count")).to_have_count(0)
+    expect(marker.locator(".lf-badge-count")).to_have_count(0)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, "))
     expect(marker).not_to_have_attribute("title", re.compile(".+"))
     more = marker.locator("xpath=..").locator(":scope > .lf-margin-more")
@@ -1518,7 +1518,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
         },
     )
     told(page)
-    expect(marker.locator(".lf-margin-count")).to_have_text("2")
+    expect(marker.locator(".lf-badge-count")).to_have_text("2")
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(page.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(page.locator(".lf-margin-thread")).not_to_contain_text(

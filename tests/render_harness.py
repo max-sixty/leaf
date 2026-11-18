@@ -107,6 +107,7 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     record_run_context,
 )
+from leaf_dev.panel_paint import ink_box
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
@@ -2357,7 +2358,7 @@ def expect_error_waits_in_menu(page, message):
     That is where an error waits that the panel's field cannot say (errors.js): one
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
-    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
     panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
     errors = page.locator(panel_view("errors"))
     expect(errors.locator(".lf-fp-error-words b").first).to_have_text(message)
@@ -3278,17 +3279,10 @@ FOLLOWER_MARK = "#00cc44"
 def marked_tops(image):
     """The topmost rows of `image` painted in `SUBJECT_MARK` and in `FOLLOWER_MARK`,
     each None where the frame shows none. Downsampled frames blend the marks' edges,
-    so each matches a range around its colour."""
-    pixels = image.load()
-    subject, follower = [], []
-    for y in range(image.height):
-        for x in range(image.width):
-            red, green, blue = pixels[x, y]
-            if red > 180 and green < 60 and blue < 130:
-                subject.append(y)
-            if green > 130 and red < 60 and blue < 130:
-                follower.append(y)
-    return (min(subject, default=None), min(follower, default=None))
+    so each matches a wide window of channels around its colour (`ink_box`)."""
+    windows = (((180, 256), (-1, 60), (-1, 130)), ((-1, 60), (130, 256), (-1, 130)))
+    boxes = [ink_box(image, window) for window in windows]
+    return tuple(None if box is None else box[1] for box in boxes)
 
 
 def assert_follows_in_every_frame(page, scroller):

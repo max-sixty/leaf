@@ -388,9 +388,7 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
     registry = readings.registry
     if page_owned:
         reading = readings.page(event["revision"])
-        if record_kind == "position" and (
-            stale := stale_move_error(view, event, spec, reading, readings)
-        ):
+        if record_kind == "position" and (stale := stale_move_error(view, event, spec)):
             return stale
         projection, byid = (
             reading.projection,
@@ -423,7 +421,7 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
     return None
 
 
-def stale_move_error(view, event: dict, spec: dict, reading, readings):
+def stale_move_error(view, event: dict, spec: dict):
     """Why a move made on an older revision cannot land where the user dropped it.
 
     A rank lies among the authored units of its container on the revision the move
@@ -436,11 +434,13 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
         return None
     record = spec["record"]
     owner, container = event["widget"], event["detail"]["value"]
-    registry = readings.registry
-    now = readings.page(newest)
-    if AuthoredOrders(reading.document.by_id, registry).of(owner, record).get(
-        container
-    ) == AuthoredOrders(now.document.by_id, registry).of(owner, record).get(container):
+    # Each revision's markup is read under the vocabulary it captured
+    # (`AuthoredOrders.read`).
+    made_on, now = (
+        AuthoredOrders.read(view.reading(made, view.registry(made))).of(owner, record)
+        for made in (revision, newest)
+    )
+    if made_on.get(container) == now.get(container):
         return None
     return Finding(
         "stale-move",

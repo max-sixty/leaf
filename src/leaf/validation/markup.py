@@ -79,6 +79,63 @@ def language_advice(parser) -> list[Finding]:
     ]
 
 
+# HTML's elements whose text shows as written: code, and text that no markup inside
+# could format, as an option's or the title's.
+LITERAL_TEXT_TAGS = frozenset(
+    {"code", "pre", "kbd", "samp", "script", "style", "textarea", "title", "option"}
+)
+
+
+def markdown_advice(parser: SourceDocument) -> list[Finding]:
+    """Each element whose own text Leaf's Markdown, as a message reads it, would format
+    as a code span, `**` bold or a link, outside the elements whose text
+    shows as written (`LITERAL_TEXT_TAGS`). HTML reads no Markdown, so the page shows
+    the backticks, asterisks and brackets. Agents write Markdown in chat and in every
+    thread message, and carry text from Markdown sources, such as an issue's title or
+    a subagent's report, into a page's HTML, where nothing else in their path reports
+    the syntax left showing. `*` and `_` emphasis is left out, since paths, globs and
+    error text use those marks in their own sense. Advice, since the author may mean
+    the syntax as text, which the words say how to mark.
+
+    This reads the page's words for something other than quoting, anchoring or
+    showing them, an exception to root `AGENTS.md`'s "Read what the page states". It
+    decides no fact Leaf holds about the page and changes nothing the page does."""
+
+    def formats(text: str) -> bool:
+        # Each construct spells one of these, and most text holds none, which saves
+        # the parse.
+        if "`" not in text and "**" not in text and "](" not in text:
+            return False
+        return any(
+            token.type == "code_inline"
+            or (token.type == "strong_open" and token.markup == "**")
+            or (
+                token.type == "link_open"
+                and token.markup not in {"linkify", "autolink"}
+            )
+            for token in markdown_dialect(True).parseInline(text)[0].children or ()
+        )
+
+    elements = []
+
+    def visit(node: dict) -> None:
+        if node["tag"] in LITERAL_TEXT_TAGS:
+            return
+        if any(isinstance(child, str) and formats(child) for child in node["content"]):
+            elements.append({"tag": node["tag"], "line": node["line"]})
+        for child in node["content"]:
+            if isinstance(child, dict):
+                visit(child)
+
+    for node in parser.authoring.content:
+        visit(node)
+    if not elements:
+        return []
+    return [
+        Finding("literal-markdown", values={"elements": elements}, severity="advice")
+    ]
+
+
 def id_errors(parser) -> list[Finding]:
     """What a parsed markup's own names must not do: repeat, hold whitespace, or trespass
     on the runtime's own namespace — its ids, and its markers. One reader, because every

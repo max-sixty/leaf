@@ -179,7 +179,11 @@ from .state import (
 
 def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
     """A line for each page whose working status has stood `STATUS_RENEWAL`,
-    recording the check (`state.status_check_due`)."""
+    recording the check (`state.status_check_due`). A page working with no line
+    from the agent is reminded only while the agent owes it an update: the
+    harness's word that the session is busy reaches every page the session holds,
+    and an open to-do may be one the agent left for later while it works
+    elsewhere."""
     session_file(session_id, STATUS_CHECKED_SUFFIX).touch()
     now = datetime.now().astimezone()
     lines = []
@@ -199,7 +203,7 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
                 f'`leaf task start {plan.page} {source["item"]} --text "<what you '
                 'are doing now>"`, in new words if your work has moved on.'
             )
-        else:
+        elif activity["obligations"]:
             lines.append(
                 f"Leaf: {plan.page} has shown no status line from you for {minutes} "
                 f"min while you work on its updates. Say what you are doing with "
@@ -504,6 +508,19 @@ CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
+
+
+def inline_delivery(context: str) -> dict | None:
+    """The delivery a hook's `context` handed over inline, its opening line
+    (`INLINE_OPENING`) followed by the delivery's JSON, or None where it handed none
+    over: a pointer, a reminder, or a context cut short."""
+    opening, _, rest = context.partition("\n")
+    if opening != INLINE_OPENING:
+        return None
+    try:
+        return json.loads(rest.partition("\n")[0])
+    except ValueError:
+        return None
 
 
 def pointer_opening(delivery: dict) -> str:

@@ -2665,7 +2665,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "revision": 1,
             "text": "Here it is, with the log:\n\n"
             '<lf-sample id="rp-quoted" label="the old copy">\n'
-            '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>\n\n'
+            "<p>Sessions <lf-gloss>draft<span popover>Still under review.</span></lf-gloss> live in Redis.</p></lf-sample>\n\n"
             '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>\n\n'
             '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>\n\n'
             '<lf-options id="rp-choice"><lf-option id="rp-keep">Keep</lf-option></lf-options>',

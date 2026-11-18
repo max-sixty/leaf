@@ -1442,15 +1442,14 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     assert gone.exit_code != 0 and "doesn't say" in gone.output
 
 
-def test_a_widgets_said_attribute_is_quotable_like_any_other_passage(page_dir):
-    """renderSaid puts these words in the DOM, so the anchor pass can find them and this
-    has to offer them — otherwise an attribute's own words are the one thing on the page
-    Claude can't point at. Both edges the registry can give one are here: the option's
-    chip band opens the element, and the gloss's tip closes it."""
+def test_words_a_widget_shows_apart_are_quotable_like_any_other_passage(page_dir):
+    """Words a widget shows apart from the sentence are still the page's, so the anchor
+    pass can find them and this has to offer them: the option's chip band opens the
+    element, and the gloss's explanation, a popover until opened, closes it."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</section>",
-            '  <lf-gloss id="k-visits" tip="312 daily visits">Traffic</lf-gloss>\n'
+            '  <lf-gloss id="k-visits">Traffic<span popover>312 daily visits</span></lf-gloss>\n'
             "</section>",
         )
     )
@@ -1995,6 +1994,22 @@ def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
     ):
         assert code in passages_model.message_markup(kept)
         assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
+
+
+def test_a_widget_sharing_its_opening_line_is_refused_for_its_paragraph_alone(
+    page_dir,
+):
+    """A widget whose opening tag shares its line with its content is inline HTML, so
+    Markdown draws a paragraph around it, and its `<pre>` closes that paragraph. The
+    refusal names that repair alone, not the widget the parser emptied, which the
+    agent wrote whole."""
+    published(page_dir)
+    code = '<lf-code id="snippet">{}<pre><code class="language-python">print(1)</code></pre></lf-code>'
+    refused = comment(page_dir, "--text", "Here:\n\n" + code.format(""))
+    assert refused.exit_code != 0
+    assert [f["code"] for f in json.loads(refused.output)["findings"]] == ["unclosed"]
+    kept = comment(page_dir, "--text", "Here:\n\n" + code.format("\n"))
+    assert kept.exit_code == 0, kept.output
 
 
 def test_data_widget_prose_members_are_quotable_without_admitting_source():

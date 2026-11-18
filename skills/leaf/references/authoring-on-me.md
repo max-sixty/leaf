@@ -99,14 +99,14 @@ answer you receive; Leaf reads the region and its name from that markup, so
 The group is the region `m` selects, so it holds everything the user judges: why the
 question arises, the current state and its evidence, such as a capture of today or a
 measured table. Shared evidence and its limits come before the answering control;
-optional detail follows it. Where a section shows a finding and then asks about it,
-that section is the group and its heading asks; a smaller group round only the heading
+optional detail follows it. Where the page shows a finding and then asks about it,
+the group holds the finding too and its label asks; a smaller group round only the heading
 and options, after the evidence, leaves the evidence outside what `m` selects. Each
 widget in the group that asks is its own question with its own answer.
 
 ```html
 <lf-group id="material-q" label="Which material for the housing?">
-  <h2 id="material-h">Which material for the housing?</h2>
+  <h2>Which material for the housing?</h2>
   <p>Aluminium costs three times as much and halves the weight.</p>
   <table id="material-weights">
     …
@@ -134,7 +134,7 @@ picture that links its original keeps the detail a click away.
 The `lf-options` and `lf-option` instructions give their markup and
 presentation, including when to set option cards side by side with `across`.
 
-## One answer in its section and on a board
+## One answer in its question and on a board
 
 When the user needs answers beside their cases and together on a board, keep one
 answer in both views. Read the `lf-board` instructions for composing those views.
@@ -150,7 +150,7 @@ action and the evidence the user needs in the question's heading and prose:
   id="publish-report-question"
   label="Publish this report to the team workspace?"
 >
-  <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
+  <h2>Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
     <lf-option id="publish-report-keep" label="Keep it private"
@@ -172,7 +172,7 @@ remain a working copy. A playground records its complete values together on subm
 edit and an options pick are independent answers. Choose a composition that keeps the
 approved wording or settings distinct from subsequent edits.
 
-The pick belongs to the `lf-options` and its id, `publish-report`, not to the section
+The pick belongs to the `lf-options` and its id, `publish-report`, not to the `lf-group`
 round it. Unrelated edits and page stamps keep it. If the action or evidence changes
 enough to invalidate the permission, explain the change and mark the `lf-options`
 `restated` before asking again (`authoring-revisions.md`, "Honor user state"). A new

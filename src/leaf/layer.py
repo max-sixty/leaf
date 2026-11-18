@@ -13,7 +13,7 @@ import hashlib
 import json
 import re
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache, cached_property, lru_cache
@@ -145,33 +145,45 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
 
 
 def input_paths(inputs: list[Path]) -> list[Path]:
-    """Every path a layer input reads, including nested symlink targets."""
-    paths = []
-    for root in inputs:
-        paths.append(root.resolve())
-        paths.extend(
-            path.resolve()
-            for name in (KERNEL_FILES if root == ASSETS else PACKAGE_FILES)
-            if ((path := root / name).exists() or path.is_symlink())
-        )
-        paths.extend(
-            imported
-            for sheet in sorted(root.glob("*.css"))
-            for imported in imported_sheets(sheet, root)
-        )
-        for sub in PACKAGE_DIRS:
-            directory = root / sub
-            if not (directory.exists() or directory.is_symlink()):
-                continue
-            paths.append(directory.resolve())
-            if directory.is_dir():
-                entries = (
-                    directory.iterdir()
-                    if sub == INSTRUCTIONS_DIR
-                    else directory.rglob("*")
-                )
-                paths.extend(path.resolve() for path in entries)
-    return paths
+    """Every path the layer inputs read, each symlink resolved to its target:
+    each input's root and its `_input_entries`."""
+    return [path.resolve() for root in inputs for path in (root, *_input_entries(root))]
+
+
+def package_files(root: Path) -> dict[str, bytes]:
+    """The files of package `root` a layer composes (`_input_entries`), by their path
+    in the package. A copy of a package is these files, so a page's copy and an
+    installed one compose as the source does."""
+    root = root.resolve()
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in _input_entries(root)
+        if path.is_file()
+    }
+
+
+def _input_entries(root: Path) -> Iterator[Path]:
+    """What layer input `root` holds that a layer reads (`checked_inputs`): its top
+    files, every sheet one of its sheets imports, wherever in the input that stands
+    (`stylesheet`), and each of its directories with what it holds. Each path is
+    listed whatever its kind, a dangling symlink included; `package_files` keeps the
+    files."""
+    for name in KERNEL_FILES if root == ASSETS else PACKAGE_FILES:
+        path = root / name
+        if not (path.exists() or path.is_symlink()):
+            continue
+        yield path
+        if name.endswith(".css") and path.is_file():
+            yield from imported_sheets(path, root)
+    for sub in PACKAGE_DIRS:
+        directory = root / sub
+        if not (directory.exists() or directory.is_symlink()):
+            continue
+        yield directory
+        if directory.is_dir():
+            yield from sorted(
+                directory.iterdir() if sub == INSTRUCTIONS_DIR else directory.rglob("*")
+            )
 
 
 def overlapping_inputs(inputs: list[Path]):

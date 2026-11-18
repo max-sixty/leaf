@@ -1,11 +1,10 @@
 /* The runtime paint projected onto page-owned elements and words: the layer-owned
-   defaults that declarations make possible, the words the runtime materializes or
-   clips for a user, and the mark an external link wears.
+   defaults that declarations make possible, the words the runtime clips for a user,
+   and the mark an external link wears.
 
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:
 
-   - `renderSaid` turns `says` values into real selectable text.
    - `renderQuiet` gives state provenance a clipped spoken reading.
    - Declared marks expose the width model, inline run, quoting, own height, and
      reading role to the theme: delivery paints a page's document, and `markDeclared`
@@ -25,31 +24,18 @@
    example, a suggestion module may animate its slots and write the visible deletion and
    insertion words. It does not own the general meaning of a settled holder.
 
-   `renderSaid` materializes words that CSS would otherwise paint through `content:
-   attr(...)`. A visible word must exist in a text node if the user can point at it.
-   Module-generated words that cannot be declared by attribute are inserted at the
-   correct edge and marked `data-lf-gen`. Do not place a generated suffix after a control
-   that semantically ends the row.
-
-   The two edges are not mirror images. `after` goes inside the element's own words,
-   because trailing chrome stands beside the last of them and a span past it lands on the
-   far side of the apparatus. `before` goes at the element's start, because leading
-   chrome is not something the words stand beside: a module puts one there to speak for
-   the whole element, and stepping past it renders the element's own opening words
-   underneath a summary of them.
-
    `renderQuiet` handles facts with no local words, such as the provenance of projected
    widget state. These words are clipped, unselectable, excluded from clipboard and
    anchor readings, but available to assistive technology. `quietFacts` derives them
    from the runtime's provenance attributes.
 
-   The runtime may inject its own words inside a widget: a quiet word, or an attribute
-   the registry says aloud. A module reading its slot or body must call `says` so
-   runtime words do not become authored or user content. */
+   The runtime may inject its own words inside a widget, such as a quiet word. A module
+   reading its slot or body must call `says` so runtime words do not become authored or
+   user content. */
 import { isElement } from "./shadow-tree.js";
 
 import { markViews } from "./storage.js";
-import { elementDeclarations, holdsFor, registry, tagsDeclaring } from "./registry.js";
+import { holdsFor, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { dressCode } from "./code-dressing.js";
 import { keeps } from "./keeps.js";
@@ -74,15 +60,12 @@ export const isPagePaint = (name) =>
   Object.values(marks).some((mark) => mark.attribute === name);
 
 // A word for a user listening, silent on screen: real text — the one thing every
-// screen reader announces in every mode — placed at the element's start, after any
-// title its `label` draws, wearing .lf-ui (an invisible word is apparatus the anchor
-// pass must not offer), .lf-quiet (the shared clip), and data-lf-gen (no author wrote
-// it). One writer per element, and the empty word removes what stands: a fact the
-// page has stopped painting must stop being said too, so a caller states the whole of
-// what this element says quietly and never appends to it. Content widgets once
-// hand-copied this idiom before it was one, and the copies had already diverged on
-// whether a stale word was removed first — which is now renderQuiet's to state for
-// every widget that declares it.
+// screen reader announces in every mode — placed at the element's start, wearing .lf-ui
+// (an invisible word is apparatus the anchor pass must not offer), .lf-quiet (the
+// shared clip), and data-lf-gen (no author wrote it). One writer per element, and the
+// empty word removes what stands: a fact the page has stopped painting must stop being
+// said too, so a caller states the whole of what this element says quietly and never
+// appends to it.
 //
 // Which writer an element gets follows from what paints it, and the two sets do not
 // meet: renderQuiet has the elements the runtime paints a provenance on, and a module
@@ -91,8 +74,7 @@ export const isPagePaint = (name) =>
 // user would hear as the element re-reading itself.
 /** @param {Element} el @param {string | null} word */
 function quietWord(el, word) {
-  const title = el.querySelector(':scope > [data-lf-said="label"]');
-  const seat = title ? title.nextSibling : el.firstChild;
+  const seat = el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");
   if (existing) {
     // Nothing to say that isn't already said, in the place it belongs: a screen
@@ -110,7 +92,7 @@ function quietWord(el, word) {
     textContent: word,
   });
   generatedElement(span, { says: false });
-  move(el, span, title ? title.nextSibling : el.firstChild);
+  move(el, span, el.firstChild);
 }
 
 // The quiet word a module declares on a part it builds, as `data-lf-quiet`, such as a
@@ -272,17 +254,16 @@ export function watchNativeContent() {
   finishEarlyContent();
 }
 
-// What an upgraded subtree owes beyond its module's own work: the words a widget says
-// through an attribute rendered as real text, the facts it paints spoken, and its
-// code — and the page's own <pre><code> blocks and formulas, alongside the widgets and
-// for the same reason: the tokenizer and the typesetter are vendored, so a page has
-// them exactly when it has a widget layer at all. Written once because it happens twice, over the page at the upgrade and
-// over each root a live revision brings into it, and a near-copy of it would go stale
-// the day the vocabulary grows a fourth pass. A link's treatment is not among them: it
+// What an upgraded subtree owes beyond its module's own work: the facts it paints
+// spoken, and its code — and the page's own <pre><code> blocks and formulas, alongside
+// the widgets and for the same reason: the tokenizer and the typesetter are vendored, so
+// a page has them exactly when it has a widget layer at all. Written once because it
+// happens twice, over the page at the upgrade and over each root a live revision brings
+// into it, and a near-copy of it would go stale the day the vocabulary grows a third
+// pass. A link's treatment is not among them: it
 // is the link's for as long as it stands, whoever rendered it (`watchNativeContent`).
 /** @param {Scope} root */
 export function paintDeclaredWords(root) {
-  renderSaid(root);
   renderQuiet(root);
   return dressCode(root);
 }
@@ -326,8 +307,7 @@ export function paintDeclaredWords(root) {
 // keeps an `end` bound on its newest entry), and `reading-role`, the structure the
 // theme and the workspace Layout lay out, so every package's pane takes the same rules.
 //
-// An attribute, because the theme cannot read the registry — the same arrangement
-// `says` already has with data-lf-said. Which declarations are marks, the attribute
+// An attribute, because the theme cannot read the registry. Which declarations are marks, the attribute
 // each is painted as, the attribute an occurrence overrides it with, and whether it
 // holds in a message are one table, the kernel registry's `$marks`, which this runtime
 // imports from `kernel-facts.js`. A page's document arrives painted from it: delivery
@@ -378,89 +358,6 @@ export function markDeclared(root) {
       for (const el of elementsIn(root, `[${authored}]`))
         if (mark.authored_on !== "declared" || tags.includes(el.localName))
           keeps(el, attribute, el.getAttribute(authored));
-  }
-}
-
-// Words a widget says through an attribute — a metric's number, a chronology entry's
-// time, an option's chip band — rendered as text the user can reach. The theme renders
-// the same words with `content: attr()`, and a pseudo-element's glyphs are in no text
-// node: no selection can cover them, so no comment can be anchored on them, and the
-// page shows text you can read and can't point at. Not the widget author's to remember,
-// either: the registry names the attributes (`says`) and one pass renders them, so
-// a widget cannot render a word the user can't quote.
-//
-// Each value goes at the edge its pseudo-element occupied (before = first child, after =
-// last) — the only placement a pseudo could ever have had, and so the line past which a
-// widget writes its own (a dashboard's labels may form a list mid-element;
-// lf-column's heading is its list's accessible name, which this pass knows nothing
-// about). Those write the same data-lf-said span, and the guard below means the two
-// compose rather than race. The pass runs after the upgrades, so a module that rebuilds
-// its own body can't wipe a span put there first.
-//
-// The theme's pseudo rules stay as the no-script fallback; they stand down where this
-// pass has been, asked by :has(), so the two are never both on. The span is data-lf-gen
-// and not .lf-ui: no source holds it, so the authored reading leaves it out, and the
-// user must be able to quote it.
-//
-// data-lf-said names the attribute here and stands bare on a label generatedElement
-// wrote, because the two are one claim — these words are the page's, whoever rendered
-// them. The anchor pass reads the marker alone; the value is for whoever means one
-// attribute in particular, which is this pass (so it writes no second span over its
-// own) and the theme, whose every rule names the attribute it styles rather than
-// matching the bare marker.
-/** @param {Scope} root */
-export function renderSaid(root) {
-  for (const [tag, entry] of elementDeclarations()) {
-    if (!entry.says) continue;
-    for (const el of elementsIn(root, tag))
-      for (const [attr, edge] of Object.entries(entry.says)) {
-        const text = el.getAttribute(attr);
-        const existing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
-        // A live revision may change or drop the attribute under a span already
-        // standing for it; the span follows the attribute rather than the first word
-        // it ever said.
-        if (existing) {
-          if (text === null) existing.remove();
-          else if (existing.textContent !== text) existing.textContent = text;
-          continue;
-        }
-        if (text === null) continue;
-        const span = document.createElement("span");
-        span.dataset.lfSaid = attr;
-        generatedElement(span, { says: true });
-        span.textContent = text;
-        // The two edges are not mirror images, because the chrome at them is not the same
-        // kind of thing.
-        //
-        // After: inside the element's own words rather than past them. Trailing chrome
-        // stands *beside* the last of them and runs to the line's end, so a span placed
-        // at the element's true end lands on the far side of it — an option's risk chip
-        // came out past the pick mark that ends a compact row, and on the far side of it
-        // from where the file's reading of that same version has it.
-        //
-        // Before: the element's own start. Leading chrome is not something the words
-        // stand beside; a module puts it there to speak *for* the whole element, so an
-        // authored attribute declared at this edge must precede it.
-        //
-        // Each edge skips what the other keeps, which is the whole of the difference:
-        // trailing chrome is passed over by looking for the last authored node, leading
-        // chrome by looking for the first node this pass has not already written. The
-        // second reading also settles the order of two attributes declared at this edge,
-        // though no shipped declaration names two.
-        const pastTrailingChrome = [...el.childNodes].filter(
-          (n) => !(isElement(n) && n.getAttribute("data-lf-gen")),
-        );
-        const beforeLeadingChrome = [...el.childNodes].find(
-          (n) => !(isElement(n) && n.getAttribute("data-lf-said")),
-        );
-        move(
-          el,
-          span,
-          (edge === "before"
-            ? beforeLeadingChrome
-            : pastTrailingChrome.at(-1)?.nextSibling) ?? null,
-        );
-      }
   }
 }
 

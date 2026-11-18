@@ -412,8 +412,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   color: var(--lf-muted);
 }
 /* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
-   the On Me mark and the folded leaf. A margin entry draws the same dot on its corner
-   (base.css, `[data-lf-unread]`), where it can wear no class. */
+   the On Me mark, the folded leaf and a margin entry. */
 .lf-unread-dot {
   width: 6px;
   height: 6px;
@@ -424,6 +423,57 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    the user put away (floating-panel.js, `keptDrafts`). */
 .lf-unread-dot[data-lf-drafts] {
   background: var(--lf-muted);
+}
+/* A control's badges: a count, and dots for news and for an error, on the top edge of
+   the folded leaf and of a margin entry. They stand in one row, so no badge covers
+   another whichever show. The count holds a corner, the dots stand side by side at the
+   other corner, and where no count shows the dots take the count's corner. The user
+   chose that arrangement for the folded leaf. Rejected: a rule per badge seating it on
+   a corner of its own, which let one badge cover another wherever two rules chose the
+   same corner, as the unread dot covered a margin entry's count.
+
+   The row runs left to right whatever the page's direction, since its carriers stand
+   at the window's right and a pin keeps its count off the window's edge. A carrier
+   places the row along its top edge, where a lone dot stands, and says how far past
+   that corner its count reaches (`--lf-badge-reach`); a pin's count takes the left
+   corner (annotation-theme.css). Each badge keeps its size. Where the badges together
+   are wider than their carrier, as a two-digit count, news and an error are on the
+   folded leaf, the row runs past its left end rather than squeeze them.
+
+   Each badge wears one face whichever control carries it, since a count or a dot
+   means the same on both: the folded leaf's, which the user chose in the panel's
+   design review. A count is a 17px pill, a dot is a size up from a reply's so it
+   reads beside a count, and a paper ring parts each from what it stands over. A count
+   is ink unless what it counts has a colour, as the folded leaf's count of what is On
+   me wears the user's turn (floating-panel.css). */
+.lf-badges {
+  display: flex;
+  direction: ltr;
+  justify-content: flex-end;
+  align-items: start;
+  gap: 2px;
+}
+.lf-badges > * {
+  flex: none;
+  box-shadow: 0 0 0 2px var(--lf-paper);
+}
+.lf-badges > .lf-badge-count {
+  margin: calc(-1 * var(--lf-badge-reach, 0px)) calc(-1 * var(--lf-badge-reach, 0px)) 0
+    auto;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  font: var(--lf-font-count);
+}
+.lf-badges > .lf-unread-dot {
+  width: 8px;
+  height: 8px;
 }
 /* An unread reply wears the unread dot beside its time, and says New only to a screen reader, which reads it with the
    head. It stands with the time rather than among the head's annotations, so where a
@@ -1300,65 +1350,38 @@ wa-copy-button.lf-icon-action {
 .lf-margin-face[aria-disabled="true"] {
   cursor: default;
 }
-/* Unread agent content marks the entry the way it marks the Threads toggle: a dot
-   painted inside the box the entry already reserves, so it adds no width. It sits on
-   the entry's corner, over its border, so a paper ring parts the two. */
-.lf-margin-face[data-lf-unread]::after {
-  content: "";
+/* An entry's badges (`.lf-badges`, above), its unread dot and count, stand on its
+   top edge inside the box the entry already reserves, so they add no width: a lone
+   dot on the entry's corner, over its border, where its paper ring parts the two, and
+   the count 6px further out, so its pill stands past the corner as far as the folded
+   leaf's does. */
+.lf-margin-face > .lf-badges {
   position: absolute;
-  inset-block-start: 0;
-  inset-inline-end: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--lf-news);
-  box-shadow: 0 0 0 2px var(--lf-paper);
+  inset: 0 0 auto;
+  --lf-badge-reach: 6px;
 }
 .lf-margin-entry-glyph {
   line-height: 1;
 }
 /* An entry's label is its preview (runtime/preview.js, declared by
    contribution-controls.js), standing over the page beside the entry. In the margin's
-   projection its glyph, unread dot and count share its one grid cell, the dot and count
-   standing in its corner by alignment as their insets stand them elsewhere, so no face
-   is a positioned box: Chromium's hit test visits every positioned box on every call,
-   and a page holds a face for each question. */
+   projection its glyph and badges share its one grid cell, the badges' row standing
+   along its top edge by alignment as its insets stand it elsewhere, so no face is a
+   positioned box: Chromium's hit test visits every positioned box on every call, and a
+   page holds a face for each question. */
 .lf-margin-projection .lf-margin-face {
   position: static;
   display: inline-grid;
   place-content: normal;
   place-items: center;
 }
-.lf-margin-projection .lf-margin-face > *,
-.lf-margin-projection .lf-margin-face[data-lf-unread]::after {
+.lf-margin-projection .lf-margin-face > * {
   grid-area: 1 / 1;
 }
-.lf-margin-projection .lf-margin-face[data-lf-unread]::after {
+.lf-margin-projection .lf-margin-face > .lf-badges {
   position: static;
   align-self: start;
-  justify-self: end;
-}
-.lf-margin-projection .lf-margin-face > .lf-margin-count {
-  position: static;
-  align-self: start;
-  justify-self: right;
-  margin: -7px -7px 0 0;
-}
-.lf-margin-count {
-  position: absolute;
-  top: -7px;
-  right: -7px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  box-sizing: border-box;
-  border-radius: 999px;
-  border: 1px solid var(--lf-paper);
-  background: var(--lf-ink);
-  color: var(--lf-paper);
-  display: grid;
-  place-items: center;
-  font: var(--lf-font-count);
+  justify-self: stretch;
 }
 /* Margin and Page Map share the same attention reading, in the colours of what each
    says (tokens.css, at `--lf-turn`): the agent's work on an entry that holds no thread, a
@@ -1739,10 +1762,12 @@ wa-copy-button.lf-icon-action {
 :where(button).lf-inline-action[data-lf-tone="warn"] {
   color: var(--lf-warn-ink);
 }
-/* One standing among a box's empty words (`data-lf-hint`), as a passing notice's Undo
-   does at the floating panel field's end, wears their face, as the word and key that
-   enter the box do, and says by its pointer alone that it takes a press: the user chose
-   that the right side of a box holds its shortcut in one format. */
+/* One standing among quieter words (`data-lf-hint`) wears their face: a passing
+   notice's Undo among a box's empty words at the floating panel field's end, as the
+   word and key that enter the box do, saying by its pointer alone that it takes a
+   press, since the user chose that the right side of a box holds its shortcut in one
+   format; and a summary's count at its head (surfaces.css), which a hovering pointer
+   underlines as it does any inline press. */
 .lf-inline-action[data-lf-hint] {
   color: inherit;
   font: inherit;

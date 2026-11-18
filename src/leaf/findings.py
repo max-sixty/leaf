@@ -668,9 +668,6 @@ _TEXT = {
         )
     ),
     "verbatim": _verbatim,
-    "silent-word": lambda at, v: (
-        f'{at} declares {v["attr"]} as `says` and never says "{v["value"]}"'
-    ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
         " declare it as a verb's record form (`verbs`) if a version is meant to carry"
@@ -1140,6 +1137,12 @@ _TEXT = {
         + ", and short names for them such as py and sh, and typesets LaTeX in"
         ' class="language-math" as a formula'
     ),
+    "literal-markdown": lambda at, v: (
+        "Markdown shown as typed — HTML reads no Markdown, so the page shows the"
+        " backticks, ** or brackets of a code span, bold or link in"
+        f" {_blocks(v)}; write each as <code>, <strong> or <a href>, or, where the"
+        " syntax is itself the text, put it in <code>, <samp> or <pre>"
+    ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
         f" run {v['run']}, but that source now holds run {v['current_run']}"
@@ -1539,13 +1542,6 @@ _TEXT = {
     "record-undeclared": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records undeclared attribute `{v['attr']}`"
-        )
-    ),
-    "record-says": _declared(
-        lambda v: (
-            f"verb `{v['verb']}` (`verbs`) records `says` attribute"
-            f" `{v['attr']}`, whose value is words the user sees — declared state may not"
-            " move the page's words"
         )
     ),
     "record-type": _declared(

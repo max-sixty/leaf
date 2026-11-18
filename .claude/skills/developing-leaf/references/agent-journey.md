@@ -9,19 +9,19 @@ is part of the change.
 The suite only stands in for each harness, so run the journey on the harness a change
 touches:
 
-- `claude-code` (`journey_claude_code.py`): after a change to `hooks/hooks.json`,
+- `claude-code` (`commands/journey/_claude_code.py`): after a change to `hooks/hooks.json`,
   `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
   in `session.py`. Add `--sandbox` after a change to `bridge.py`, the README's "Agent
   sandboxes" settings, or what a `leaf` command needs from outside its page directory,
   and `--forks` after a change to `forks.py` or the module's `lineFork`, and
   `--fork-work` after one to `holding.py` or its `workFork`.
-- `codex-app-server` and `codex-queue` (`journey_codex.py`), both: after a change to
+- `codex-app-server` and `codex-queue` (`commands/journey/_codex.py`), both: after a change to
   `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
   in `service.py`. Add `--preview` for a change to preview startup or lifetime, and
   `--sandbox` for a change to `codex_tool.py`, the MCP server in
   `.codex-plugin/plugin.json`, or what a `leaf` command needs from outside its page
   directory.
-- `pi` (`journey_pi.py`): after a change to `hooks/pi.ts`, `PiHarness`, `hooks.py`, or
+- `pi` (`commands/journey/_pi.py`): after a change to `hooks/pi.ts`, `PiHarness`, `hooks.py`, or
   the watch between turns in `session.py`.
 
 For the website, `tests/AGENTS.md`, "Run what the change needs", says which delivery
@@ -33,7 +33,7 @@ To benchmark replies, run each harness's journey a few times, with and without
 `--case working`, and tabulate the samples with `leaf-dev journey chart --replies`;
 `leaf-dev logs response-times` measures retained pages and sorts each pickup's wait
 by what ended it, which shows the waits only long real sessions have
-(`dev/leaf_dev/commands/logs/response_times.py`). The benchmark is the whole reply's time,
+(`dev/leaf_dev/page_timings.py`). The benchmark is the whole reply's time,
 which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands and hooks,
 the harness, the model's wait and generation, and the agent's other tools. Model time
 varies widely from run to run, so compare a phase Leaf owns directly, and the whole

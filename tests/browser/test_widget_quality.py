@@ -173,7 +173,7 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
         expect(page.locator(f"#{id}")).to_be_visible()
     expect(page.locator("#drawing input")).to_have_count(5)
     expect(page.locator("#drawing lf-playground-output")).to_contain_text("Field note")
-    expect(page.locator("#faces-one .margin-entry-gallery-item")).to_have_count(22)
+    expect(page.locator("#faces-one .margin-entry-gallery-item")).to_have_count(23)
     expect(page.locator("html")).not_to_have_attribute("data-lf-live", "")
 
     # An export whose runtime cannot start retains readable authored content.

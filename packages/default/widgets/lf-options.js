@@ -132,19 +132,19 @@ import {
   reachedForWords,
   rowWalk,
   worksInside,
-  wrote,
+  named,
   focusDestination,
   scrollIntoView,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
-// own words, which are all it has. `wrote` rather than `says`, because a picked option's
+// own words, which are all it has. `named` rather than `says`, because a picked option's
 // mark is the page speaking and belongs to what the user can point at — not to the
 // option's name, which is what every caller here wants. A settled title's answer to an
 // option with neither is to say "Settled" rather than name an id nobody wrote.
 /** @param {Element} option */
-const label = (option) => option.getAttribute("label")?.trim() || wrote(option);
+const label = (option) => option.getAttribute("label")?.trim() || named(option);
 
 // The option the page advises is `recommended`, and the group says so wherever the
 // option is answered away from its card.

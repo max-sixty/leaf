@@ -52,6 +52,14 @@ const where = (found) =>
     : found?.kind === "element"
       ? found.element
       : null;
+// Whether two placements (`where`) stand on the same nodes, at the same offsets.
+/** @param {unknown} a @param {unknown} b */
+const samePlace = (a, b) =>
+  a === b ||
+  (Array.isArray(a) &&
+    Array.isArray(b) &&
+    a.length === b.length &&
+    a.every((segment, at) => segment.every((part, i) => part === b[at][i])));
 // The page, with its stage holding its words in a declared shadow tree.
 const load = () => {
   document.body.innerHTML = PAGE;
@@ -188,6 +196,10 @@ test("placement stands where a fresh resolution does, after every change", async
       },
     };
     const kinds = Object.keys(changes);
+    const placedNow = () =>
+      threads.map((thread) => where(placement.placedAt(thread.id)));
+    let placedBefore = placedNow();
+    let versionBefore = placement.placementVersion();
     for (let step = 0; step < 400; step++) {
       const kind = /** @type {keyof typeof changes} */ (pick(kinds));
       changes[kind]();
@@ -199,6 +211,14 @@ test("placement stands where a fresh resolution does, after every change", async
           where(fresh(anchors[at] ?? thread.anchor)),
           `seed ${seed}, step ${step} (${kind}), thread ${at}`,
         );
+      // A reading derived from placement keeps what it derived while the version
+      // stands, so the version moves whenever a thread's placement does.
+      const placed = placedNow();
+      const version = placement.placementVersion();
+      if (placed.some((place, at) => !samePlace(place, placedBefore[at])))
+        assert.notEqual(version, versionBefore, `seed ${seed}, step ${step} (${kind})`);
+      placedBefore = placed;
+      versionBefore = version;
       assert.deepEqual(
         where(placement.pendingAt()),
         where(fresh(drafted)),

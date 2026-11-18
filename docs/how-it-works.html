@@ -470,9 +470,7 @@ leaf server start ./review</code></pre>
                   id="queue-question"
                   label="When the queue fills, what should happen?"
                 >
-                  <h3 id="queue-question-h">
-                    When the queue fills, what should happen?
-                  </h3>
+                  <h3>When the queue fills, what should happen?</h3>
                   <lf-options id="queue-policy">
                     <lf-option id="block-producer" label="Pause the producer"
                       ><strong>Pause the producer</strong> Keep every queued record;
@@ -626,7 +624,8 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   <code>$events.answering</code>. Leaf combines the applicable clauses
                   in the batch's <code>handling</code> object. The agent follows those
                   clauses and reads current state before answering: a newer update may
-                  already have settled the response the captured batch requested.
+                  already have settled the response the captured batch requested. The
+                  excerpt below is illustrative, with the batch's other fields omitted.
                 </p>
                 <lf-sample
                   id="handling-example"
@@ -1869,7 +1868,7 @@ flowchart TD
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
               <lf-group id="ship-ask" label="When should this ship?">
-                <h2 id="ship-ask-h">When should this ship?</h2>
+                <h2>When should this ship?</h2>
                 <lf-options id="ship">
                   <lf-option id="ship-now" label="Now"
                     ><strong>Now</strong> Today, behind the flag.</lf-option
@@ -2288,9 +2287,7 @@ flowchart TD
                 id="sample-publish-report-decision"
                 label="Publish the sample report?"
               >
-                <h2 id="sample-publish-report-decision-h">
-                  Publish the sample report?
-                </h2>
+                <h2>Publish the sample report?</h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
                   <lf-option id="sample-publish-report-keep" label="Keep it private"
@@ -2462,8 +2459,8 @@ flowchart TD
               </li>
               <li id="progress-done">
                 <time>2m</time> <small>observation</small> <strong>Answered</strong> The
-                revision goes live, the agent's reply reports it, and the status returns
-                to <em>Claude awaits</em>.
+                revision goes live, the agent's reply reports it, and once its turn ends
+                the status returns to <em>Claude awaits</em>.
               </li>
             </ol>
           </section>
@@ -2600,9 +2597,9 @@ flowchart TD
                 <strong>The turn.</strong> The harness integration records when a turn
                 starts and ends. Leaf treats it as active while its opening, a start, a
                 status declaration, or a reported step is less than 15 minutes old.
-                Claude Code also reports the session's activity directly, including
-                permission dialogs and interrupted turns. An interruption can therefore
-                mark the turn ended as soon as the user presses Escape.
+                Claude Code also reports the session's activity directly: whether it is
+                busy, a permission dialog, and an interrupted turn. An interruption can
+                therefore mark the turn ended as soon as the user presses Escape.
               </li>
               <li id="updates-fact-watcher">
                 <strong>The watcher.</strong> Claude Code's watch hook,
@@ -2645,13 +2642,16 @@ flowchart TD
             </figure>
             <p id="updates-believed">
               Leaf shows work as active when a start is still current, when the harness
-              reports a step in an active turn, or when that turn has received input
-              requiring an answer. The freshness rules above determine when a start or
-              turn stops counting as active. Input is stalled if it remains queued for
-              two minutes, or if the turn that received it ends without answering. The
-              status doesn't date the agent's line: its hooks remind it to restate a
-              line that has stood two minutes, and the menu's full status says when the
-              line was written.
+              reports a step in an active turn or that the session is busy, or when that
+              turn has received input requiring an answer. Claude Code reports a running
+              turn as busy outside its permission and input dialogs, so an open page
+              reads <em>Working</em> for as long as the turn runs, whatever the agent
+              has started or still owes. The freshness rules above determine when a
+              start or turn stops counting as active. Input is stalled if it remains
+              queued for two minutes, or if the turn that received it ends without
+              answering. The status doesn't date the agent's line: its hooks remind it
+              to restate a line that has stood two minutes, and the menu's full status
+              says when the line was written.
             </p>
             <table id="updates-readings">
               <thead>
@@ -2682,8 +2682,9 @@ flowchart TD
                 <tr id="updates-reading-awaits">
                   <td>Claude awaits</td>
                   <td>
-                    The agent is taking input. An update still on its way to the agent
-                    says so on its own label, and the menu's full status counts it.
+                    The agent is taking input, and nothing says it is working. An update
+                    still on its way to the agent says so on its own label, and the
+                    menu's full status counts it.
                   </td>
                 </tr>
                 <tr id="updates-reading-ended">
@@ -3328,10 +3329,10 @@ EOF</code></pre>
             <h2>Summaries</h2>
             <p id="summaries-fold">
               <code>leaf thread summarize</code> folds a run of consecutive messages in
-              one thread under a disclosure labelled “Earlier discussion” or a label the
-              agent chooses, with a summary of their decisions, reasoning, and open
-              questions. The original messages stay in the log and unfold from the
-              disclosure. A range may take in earlier summaries, which the new one
+              one thread under a summary of their decisions, reasoning, and open
+              questions, led by a name the agent may give the range. The original
+              messages stay in the log and unfold from the summary's “5 earlier
+              messages”. A range may take in earlier summaries, which the new one
               replaces. A summary answers nothing and closes nothing. Leaf refuses a
               range that would leave any message but the thread's first in full above a
               summary, and names a wider range it accepts.

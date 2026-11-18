@@ -941,7 +941,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     glyph = sample("glyph face")
     expect(glyph.locator(".lf-margin-entry-glyph")).to_have_text("🤔")
     count = sample("count badge")
-    expect(count.locator(":scope > .lf-margin-count")).to_have_text("3")
+    expect(count.locator(":scope > .lf-badges > .lf-badge-count")).to_have_text("3")
     label = sample("label + context")
     label.hover()
     preview = page.locator(PREVIEW)

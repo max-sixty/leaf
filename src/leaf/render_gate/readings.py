@@ -312,17 +312,13 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     # side is the settled projection, so a page that never applied that projection is
     # already reported by the readiness wait and supplies no comparison.
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
-    silent = []
     undeclared_attrs = []
     relative = []
-    # Behind the caught-up wait: a report moves a declared attribute, so a reading
-    # taken any earlier asks after a word the page has not been asked to say yet. A
-    # page that never caught up is already reported there and read no further.
+    # Behind the caught-up wait, because reconciliation is one of the two writers: a
+    # widget's render states one declared fact whole, and a record form is exactly the
+    # attribute it may state that fact in. A page that never caught up is already
+    # reported there and read no further.
     if replayed:
-        silent = evaluate_probe(page, "silentWords", declarations)
-        # Behind the same wait, because reconciliation is one of the two writers: a
-        # widget's render states one declared fact whole, and a record form is
-        # exactly the attribute it may state that fact in.
         undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
         # Last: render the complete state again to prove idempotence, against the
         # same settled projection the read-only probes before it observed.
@@ -338,7 +334,6 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
     found += map(Finding.read, unreachable)
     found += dishonest_verbatim
-    found += map(Finding.read, silent)
     # One mistake is on every instance, so one finding per tag and attribute.
     found += {(u["tag"], u["attr"]): Finding.read(u) for u in undeclared_attrs}.values()
     found += map(Finding.read, relative)

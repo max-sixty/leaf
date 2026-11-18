@@ -135,7 +135,7 @@
         </aside>
 
         <lf-group id="pr-approval-decision" label="Approve PR #3865?">
-          <h2 id="pr-approval-decision-h">Approve PR #3865?</h2>
+          <h2>Approve PR #3865?</h2>
           <p id="pr-approval-premise">
             Approval accepts revision <code>9ca8f78b</code> as it stands; the benchmark
             and the dry-run gap become follow-up issues rather than blockers.
@@ -222,8 +222,11 @@
                   <td>
                     Untracked files enter while the
                     <lf-gloss
-                      tip="The integration test reads the real index before and after preview computation and requires the bytes to match exactly."
-                      >real index remains byte-identical</lf-gloss
+                      >real index remains byte-identical<span popover
+                        >The integration test reads the real index before and after
+                        preview computation and requires the bytes to match
+                        exactly.</span
+                      ></lf-gloss
                     >.
                   </td>
                 </tr>
@@ -286,8 +289,10 @@ max-sixty/worktrunk #3865
             The behavior view keeps the picker path fixed and changes the default
             preview in place. The call view is a scoped
             <lf-gloss
-              tip="CallDiff is syntax-derived. Trait dispatch, subprocess behavior, and runtime scheduling can add edges the static tree cannot see."
-              >static analysis</lf-gloss
+              >static analysis<span popover
+                >CallDiff is syntax-derived. Trait dispatch, subprocess behavior, and
+                runtime scheduling can add edges the static tree cannot see.</span
+              ></lf-gloss
             >
             of the orchestration file. Its source coordinates open lines included in the
             exact patch; unchanged lines outside its hunks stay in this call view.

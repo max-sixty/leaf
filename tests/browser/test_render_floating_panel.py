@@ -73,7 +73,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import panel_tab
-from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, settled
+from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, near, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
@@ -3240,7 +3240,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     }"""
     panel = page.locator(".lf-floating-panel")
     cover = page.locator(".lf-fp-field .lf-compose-error")
-    dot = page.locator(".lf-fp-leaf > .lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
     value = "node => node.value"
     page.evaluate(raise_error, ["Couldn't load v1", False])
     page.evaluate(raise_error, ["That reaction target is no longer available", False])
@@ -3522,7 +3522,7 @@ def test_folding_from_the_menu_draws_the_panel_folded_at_once(browser, serve):
         "async () => (await window.__lfWidgetApi()).raiseError('Link not copied')"
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
-    dot = page.locator(".lf-fp-leaf > .lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
     expect(dot).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     expect(dot).to_be_visible()
@@ -3809,14 +3809,14 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
             .crop((0, top, page.viewport_size["width"], page.viewport_size["height"]))
         )
         box["y"] -= top
-        mark = ink_box(pixels, colours["mark"])
+        mark = ink_box(pixels, near(colours["mark"]))
         assert mark is not None, (route, action)
         mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
         assert mark_center == pytest.approx(
             (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2), abs=2
         ), (route, action, mark, box)
         if route == "keyboard":
-            ring = ink_box(pixels, colours["ring"])
+            ring = ink_box(pixels, near(colours["ring"]))
             assert ring is not None, action
             assert ring[0] <= mark[0] < mark[2] <= ring[2], (action, mark, ring)
             assert ring[1] <= mark[1] < mark[3] <= ring[3], (action, mark, ring)

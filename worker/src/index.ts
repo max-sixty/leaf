@@ -199,14 +199,14 @@ export class LeafWebsiteSession extends Container<Env> {
           : null;
     const response = await super.fetch(request);
     if (response.status < 500) return response;
-    const source = await errorSource(response);
-    const retry = source === "disconnected" && replay !== null;
-    logHttpError(request, response, source, retry);
+    const failure = await httpFailure(response);
+    const retry = failure.source === "disconnected" && replay !== null;
+    logHttpError(request, response, failure, retry);
     if (!retry) return response;
     await response.body?.cancel();
     const second = await super.fetch(replay);
     if (second.status >= 500) {
-      logHttpError(request, second, await errorSource(second), false);
+      logHttpError(request, second, await httpFailure(second), false);
     }
     return second;
   }
@@ -240,22 +240,30 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 }
 
-// The Containers SDK converts connection loss into an ordinary 500 without
-// logging an exception. Python stamps its own answers and logs page_fault;
-// retain the missing proxy evidence, never the body or private request URL.
-async function errorSource(response: Response): Promise<string> {
-  if (response.headers.has("Leaf-Release")) return "adapter";
+interface HttpFailure {
+  source: "adapter" | "disconnected" | "unclassified";
+  detail?: string;
+}
+
+// The Containers SDK turns a failed attempt to reach the container into an ordinary
+// 500, and that 500's body is the SDK's sentence about the failure, such as a
+// connection lost mid-request or a container that did not accept one. The SDK logs
+// the exception behind some of those, not reliably with its message, and none for a
+// lost connection. Python stamps its own answers and logs page_fault. Retain the
+// SDK's sentence as `detail`, and add neither Python's body nor the request URL.
+async function httpFailure(response: Response): Promise<HttpFailure> {
+  if (response.headers.has("Leaf-Release")) return { source: "adapter" };
   const body = await readBoundedText(response.clone(), 1024).catch(() => null);
   return body === "Container suddenly disconnected, try again" ||
     body?.startsWith("Error proxying request to container:")
-    ? "disconnected"
-    : "unclassified";
+    ? { source: "disconnected", detail: body }
+    : { source: "unclassified" };
 }
 
 function logHttpError(
   request: Request,
   response: Response,
-  source: string,
+  failure: HttpFailure,
   retried: boolean,
 ): void {
   console.error({
@@ -263,7 +271,7 @@ function logHttpError(
     event: "http_error",
     method: request.method,
     status: response.status,
-    source,
+    ...failure,
     retried,
   });
 }

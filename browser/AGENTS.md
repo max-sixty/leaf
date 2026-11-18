@@ -145,9 +145,9 @@ rule draws at once is drawn.
   share the floating panel's field, the container sets its dimensions from a theme token
   and each mode's controls fill it. It grows only for content, such as typed words, or
   an explicit action, such as More room. A one-line control's visible height is
-  `--lf-line` (`base.css`), and its touch target meets the minimum `surfaces.css` sets;
-  a control that derives its height from its font or the touch minimum instead changes
-  the height of every container that holds it. Checks:
+  `--lf-line` (`styles/tokens.css`), and its touch target meets the minimum
+  `surfaces.css` sets; a control that derives its height from its font or the touch
+  minimum instead changes the height of every container that holds it. Checks:
   `test_whatever_the_field_holds_the_row_keeps_its_line` compares the row's height with
   its token in each mode, since a check that controls fit the row would pass a row that
   grew to fit them, and `tests/swap_watch.js` fails a flex row whose height follows a
@@ -386,8 +386,9 @@ widget that also runs off Leaf only its part any document loads,
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
-`.dependency-cruiser.mjs` enforces these boundaries and rejects cycles, so imports use
-literal paths; only the widget and interaction loaders compute theirs.
+`.dependency-cruiser.mjs` enforces these boundaries and knip (`knip.config.js`) rejects
+import cycles, so imports use literal paths; only the widget and interaction loaders
+compute theirs.
 
 Entry points per concern (paths under `runtime/`; each header owns the details):
 
@@ -540,9 +541,10 @@ holds the measurement.
   bands, the reading measure a Layout sets, and each widget's duty to fill the box it
   gets, declare its minimum, and never widen its container.
 - **A Layout, a style and a widget never read one another.** A Layout sets where boxes
-  go and how large they are, a style (`base.css`) sets type, spacing and form as tokens,
-  and a widget reads only its own box and the theme's tokens. A widget therefore behaves
-  the same in a shipped Layout as on a hand-written page that gives it the same box.
+  go and how large they are, a style (`base.css`, with its tokens in
+  `styles/tokens.css`) sets type, spacing and form as tokens, and a widget reads only
+  its own box and the theme's tokens. A widget therefore behaves the same in a shipped
+  Layout as on a hand-written page that gives it the same box.
   Where one must react to another, the owner sets a token describing the box, such as
   `--lf-full-height`, and the reader matches it with a style query; a width needs no
   token, since a size query on the reader's container answers it. Before adding a token,
@@ -575,7 +577,7 @@ holds the measurement.
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
   `test_the_kernel_styles_no_class_a_page_coins`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--lf-raise-1` to `--lf-raise-3` (`base.css`). Check:
+  heights, `--lf-raise-1` to `--lf-raise-3` (`styles/tokens.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 
 ### The browser answers first
@@ -677,6 +679,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
+| The obligation the user is in, answered or not, and the question a thread's view asks them            | `current-target.js` `obligationIn`, `questionAsked`                                |
 | Which of two nodes the reader reaches first, across shadow trees, alone or in a sort                  | `shadow-tree.js` `renderedOrder`, `renderedOrdering`, `byRenderedOrder`            |
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
@@ -696,7 +699,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                    |
-| What the user sees of a node where the glides under way leave it                                      | `scroll-containers.js` `seenGlided`, `seenAhead`                                   |
+| What the user sees of a node where the glides under way leave it, or as they carry it toward the view | `scroll-containers.js` `seenGlided`, `seenLanded`, `seenAhead`                     |
 | Land the glides under way for a key whose work reads the page where it stands                         | `scrolling.js` `landGlides`                                                        |
 | Whether a size change there would move what is seen                                                   | `geometry.js` `growthIsSeen`, `growthAfterIsSeen`                                  |
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
@@ -766,7 +769,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
-| Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
+| Which reading of the page stands, its words, ids and part names, for what is derived from it          | `passages.js` `pageReadingVersion`                                                 |
+| Which placement of the threads stands, for what is derived from it (its `placementVersion`)           | `anchor-placement.js` `createAnchorPlacement`                                      |
 
 ### Facts both runtimes know
 
@@ -825,9 +829,10 @@ layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
 
 Python models only the text changes the registry declares. A module that changes text
-in a way the file can't reproduce is fenced, and browser capture stops at the fence, so
-a selection across it never becomes a quote the file can't confirm. Declare words Python
-can model with `says` or `content`.
+in a way the file can't reproduce is fenced, and words a module generates are a passage
+cell of their own, so browser capture stops at the fence and a selection across it
+never becomes a quote the file can't confirm. Words Python should model belong in the
+markup, where the file reads them (`content`).
 
 ## Render gates
 

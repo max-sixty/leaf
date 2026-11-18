@@ -88,8 +88,8 @@ script", lists.
   hold each connection's listeners, observers and registrations in `whileConnected`
   ("Upgrade", "Connection lifetimes").
 - Check `quoted()` before wiring anything that sends input back ("Upgrade").
-- Read the page's words with `says()` or `wrote()`, never `textContent`
-  (`module-reading.md`, "Reading the page").
+- Read the page's words with `says()`, and name a part with `named()`,
+  never with `textContent` (`module-reading.md`, "Reading the page").
 - Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
   that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
   mark the words they write with `generatedElement()` ("Generated controls").
@@ -361,7 +361,10 @@ time, not a new arrow.
 
 Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
 unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
-the page plays.
+the page plays. Have its callback schedule a paint from `frameFor` rather than draw:
+a drawing that settles inside a size delivery lets Leaf present the page there, which
+moves boxes the browser has just measured, and the browser reports a ResizeObserver
+loop that `page check` counts as a fault.
 
 ### Writes that change nothing
 
@@ -467,8 +470,8 @@ writes, such as a count after an authored sentence or a generated control's labe
 their element with `generatedElement(node, {says})`. Set `says: true` where the words
 are the page speaking, as a pick mark reading "selected" does, `false` for an action
 word, and `"echo"` for a copy of words the page shows elsewhere, such as a worker's
-name; in a template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them out,
-and a comment's quote doesn't run across them into the author's words. Don't write the
+name; in a template, write `<h2 ${generated({ says: true })}>`. `named()` then
+leaves them out, and a comment's quote doesn't run across them into the author's words. Don't write the
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take

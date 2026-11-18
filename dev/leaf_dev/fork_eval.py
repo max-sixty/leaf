@@ -1,7 +1,8 @@
-"""Replay Leaf's two conversation forks on short constructed conversations, and score
-each answer: the turn-end check (`leaf.clerk`) and the fork that writes the agent's
-working line on a thread message before Leaf hands it to the session (`leaf.forks`). Claude Code makes both forks, so
-every case runs on that harness alone.
+"""Replay Leaf's conversation forks on short constructed conversations, and score
+each answer: the turn-end check (`leaf.clerk`), the fork that writes the agent's
+working line on a thread message before Leaf hands it to the session (`leaf.forks`),
+and the fork beside it that summarizes a long thread (`leaf.summary_fork`). Claude
+Code makes every fork, so every case runs on that harness alone.
 
 A case in `workflows/fork_eval.yaml` is a conversation written for one decision a
 fork's prompt asks about, the page the session holds (an authored source with the
@@ -15,7 +16,7 @@ command (`Leaf`). The executor builds the page in a throwaway state home, opens 
 turn for a fresh session id and claims the page as that session
 (`CLAUDE_CODE_SESSION_ID`, with this process as `CLAUDE_PID`). It asks `leaf hook
 --fork` for the prompt as `forkStep` in `hooks/claude-code.ts` does, and hands it
-the answer the same way. For a line fork, a process of the arm's holds the session's
+the answer the same way. For a line or summary fork, a process of the arm's holds the session's
 forks lane (`forks.take_lane`) from before the user's waiting messages are admitted,
 as the event endpoint admits them (`KEEP`), until the answer is taken, as the pages
 follower holds it, and asks about the thread the follower would list
@@ -80,10 +81,13 @@ from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
+    arm_python,
+    blocks,
     build_source,
     claude_child,
     environment,
     read_trace,
+    run_leaf,
     trace_result,
 )
 from leaf_dev.eval_cases import definition
@@ -308,20 +312,17 @@ class Leaf:
         )
 
     def run(self, *args: str, stdin: dict | None = None, check: bool = True):
-        result = subprocess.run(
-            [str(self.payload / "bin/leaf"), *args],
-            input=json.dumps({"session_id": self.session, **stdin}) if stdin else None,
-            capture_output=True,
-            text=True,
+        return run_leaf(
+            self.payload,
+            None,
+            *args,
             env=self.env,
-            check=False,
+            check=check,
+            error=RuntimeError,
+            input_text=json.dumps({"session_id": self.session, **stdin})
+            if stdin
+            else None,
         )
-        if check and result.returncode:
-            raise RuntimeError(
-                f"leaf {' '.join(args)} exited {result.returncode}: "
-                + result.stderr.strip()
-            )
-        return result
 
     def fork(self, payload: dict, *, check: bool = True):
         """One step of a fork, as `forkStep` runs it: what it printed, or with
@@ -340,7 +341,7 @@ class Leaf:
     def python(self, program: str, *args: str, stdin: str = "") -> Any:
         """What `program` prints, as JSON, run by the arm's Python."""
         result = subprocess.run(
-            [str(self.payload / ".venv/bin/python"), "-I", "-c", program, *args],
+            [*arm_python(self.payload), "-c", program, *args],
             input=stdin,
             capture_output=True,
             text=True,
@@ -355,7 +356,7 @@ class Leaf:
     def lane(self):
         """Hold the session's forks lane, as its pages follower does."""
         holder = subprocess.Popen(
-            [str(self.payload / ".venv/bin/python"), "-I", "-c", LANE, self.session],
+            [*arm_python(self.payload), "-c", LANE, self.session],
             env=self.env,
             text=True,
             stdin=subprocess.PIPE,
@@ -591,11 +592,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
     trace = read_trace(stream)
     result = trace_result(trace)
     calls = [
-        block["name"]
-        for record in trace
-        if record.get("type") == "assistant"
-        for block in record["message"].get("content", [])
-        if block.get("type") == "tool_use"
+        block["name"] for block in blocks(trace) if block.get("type") == "tool_use"
     ]
     text = result.get("result") if result.get("subtype") == "success" else None
     failed = (

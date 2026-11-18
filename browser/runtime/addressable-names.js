@@ -90,9 +90,9 @@ export function addressableSays(addressable) {
 // the page states"): HTML calls h1–h6 "headings for their sections" without saying
 // which element is the section, and an element that opens with its heading is the case
 // where the two agree. No other element is named by a heading inside it, and a <strong>
-// names nothing. The words are the ones the author wrote (the `wrote` reading), so a
-// gloss's tip the page draws beside its phrase is no part of a heading's name, and
-// generated chrome names nothing: chrome inside the element, asked about the element's
+// names nothing. The words are the ones the author wrote less a popover's (the `named`
+// reading), so a gloss's explanation is no part of a heading's name, and generated
+// chrome names nothing: chrome inside the element, asked about the element's
 // own insides, since a section an agent sent in a reply stands inside the floating
 // panel's chrome and its heading is still its name. An element the contract gives no
 // name answers "". The server names an obligation's element by the same rule off the
@@ -169,17 +169,13 @@ export function titlingHeading(element) {
 function declaredName(element) {
   return (registered(element) && element.getAttribute("label")?.trim()) || "";
 }
-// Where a name comes from: an attribute's words, or an element whose words are the name,
-// read by the reading the rule names. A reader that reads names as something else draws
+// Where a name comes from: an attribute's words, or an element whose words, in the
+// `named` reading, are the name. A reader that reads names as something else draws
 // them, as a preview reads them as the page draws them, reads the same source.
-/** @typedef {{words: string} | {by: Element, reading: "wrote" | "says"}} Naming */
+/** @typedef {{words: string} | {by: Element}} Naming */
 /** @param {Naming | null} naming @returns {string} */
 const namingWords = (naming) =>
-  !naming
-    ? ""
-    : "words" in naming
-      ? naming.words
-      : elementReading(naming.by, naming.reading);
+  !naming ? "" : "words" in naming ? naming.words : elementReading(naming.by, "named");
 // What `addressableName` reads, by the rule above: its declared attribute, else its
 // leading title.
 /** @param {Element} element @returns {Naming | null} */
@@ -187,9 +183,7 @@ function addressableNaming(element) {
   const declared = declaredName(element);
   if (declared) return { words: declared };
   const title = leadingTitle(element);
-  return title && elementReading(title, "wrote")
-    ? { by: title, reading: "wrote" }
-    : null;
+  return title && elementReading(title, "named") ? { by: title } : null;
 }
 /** @param {Element | null | undefined} element */
 export const addressableName = (element) =>
@@ -215,7 +209,7 @@ const captionNaming = (element) => {
       (child) => child.matches("figcaption, caption") && !uiInside(child, element),
     ),
   );
-  return caption && elementReading(caption) ? { by: caption, reading: "says" } : null;
+  return caption && elementReading(caption, "named") ? { by: caption } : null;
 };
 // A form control's caption is its <label>.
 /** @param {Element & Partial<Pick<HTMLInputElement, "labels" | "alt">>} element
@@ -224,7 +218,7 @@ function accessibleNaming(element) {
   const label = element.getAttribute("aria-label")?.trim();
   if (label) return { words: label };
   const labelled = element.labels?.[0];
-  if (labelled && elementReading(labelled)) return { by: labelled, reading: "says" };
+  if (labelled && elementReading(labelled, "named")) return { by: labelled };
   const alt = element.alt?.trim();
   return alt ? { words: alt } : null;
 }
@@ -264,8 +258,8 @@ export function addressableLabel(element) {
 // named by the question, a chart by its section. The chrome's label for an element
 // reads it (`addressableLabel`); a place's name, which follows headings inside the
 // holder too, is thread/placement.js's `partOver`. The page's column is `main`, beside the
-// body's other content; its leading heading titles the page, not each unnamed element in
-// it.
+// body's other content; a name its author gives it, such as an `aria-label`, names the
+// page, not each unnamed element in it.
 /** @param {Element} element @returns {Naming | null} */
 function holderNaming(element) {
   const scope = authoredScope(element);

@@ -1406,17 +1406,6 @@ def _report_undeclared_attr(registry):
     registry["lf-test-task"]["verbs"]["status"]["record"]["attr"] = "phase"
 
 
-def _report_says_attr(registry):
-    task = registry["lf-test-task"]
-    task["attributes"]["required"].append("owner")
-    task["says"] = {"owner": "before"}
-    task["verbs"]["status"] = {
-        "writer": "agent",
-        "unit": "widget",
-        "record": {"kind": "value", "attr": "owner"},
-    }
-
-
 def _report_authored_detail(registry):
     registry["lf-test-task"]["verbs"]["status"]["detail"] = {
         "type": "object",
@@ -2536,21 +2525,6 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
             packages_model.starter_widget_module(tag)
         )
     return declaration
-
-
-@pytest.fixture
-def declared_reading_package(tmp_path, monkeypatch):
-    """A module-free vocabulary for the shared said-word contract."""
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / ".leaf"
-    add_test_widget(package, "lf-reading")
-    registry_path = package / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    reading = registry["lf-reading"]
-    reading["attributes"]["properties"].update({"label": {"type": "string"}})
-    reading["says"] = {"label": "before"}
-    registry_path.write_text(json.dumps(registry))
-    return "./.leaf"
 
 
 def with_modules(registry: dict, *tags: str) -> dict:

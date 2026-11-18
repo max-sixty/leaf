@@ -9,8 +9,8 @@ inventory (`obligations`) also retains finished records, whatever their `status`
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
 agent recovers what it owes without the delivery. Each thread's `holder` names who
-holds it (`holding.py`): the main thread, a fork with whether its turn runs, closed or
-lapsed, or the line fork while Leaf keeps its messages back; and each obligation
+holds it (`holding.py`): the main thread, a line turn or a working fork, with whether
+that turn runs, closed or lapsed; and each obligation
 record's `holder` who on the agent's side owes it now (`holding.owed_by`), null for a
 record the agent doesn't owe. `source` states whether a document
 is live and whether an invalid source save leaves the last valid version active. Its
@@ -32,6 +32,7 @@ from .delivery import current_responses
 from .document_reading import DocumentReading
 from .event_facts import EventFacts
 from .events import bare_reaction, is_reaction
+from .file_bindings import granted_files
 from .files import revision_path
 from .passages import page_passages
 from .projection import ThreadMarkupReading, retirement_outcomes
@@ -145,6 +146,8 @@ def _base_state(
             else {}
         ),
         "measurement_lag": [],
+        # The files the page's editors edit, each by its binding (`granted_files`).
+        "files": granted_files(page_dir),
         # What is on the user (On Me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; the agent's plan, which arranges them (`plans`); and the complete

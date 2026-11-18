@@ -529,17 +529,26 @@ The records to read first:
 | `container_continuation_receipted`                                       | The container wrote `startup_failed` for a waiting message it could not start, and whether that settled it                                                                   |
 | `thread_title_generated`, `thread_title_skipped`, `thread_title_failed`  | The title request for an untitled thread                                                                                                                                     |
 | `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
+| `container_stalled`                                                      | Nothing in the adapter ran for `stalledMs`, with the CPU, steal and stall time the container's VM spent meanwhile (`worker/leaf_website/stalls.py`)                          |
+| `container_unresponsive`                                                 | The adapter ran, but its server took `durationMs` to answer a health check, with the serving thread's frames (`worker/leaf_website/stalls.py`)                               |
 
 The session's `component=leaf-container`, `event=http_error` records identify
 forwarded HTTP 5xx responses by status, method, `source` and `retried`:
 `adapter` means the response carried Python's `Leaf-Release` stamp;
 `disconnected` means it matched one of the Containers SDK's proxy-failure
 responses; `unclassified` means neither was established. A `disconnected`
-`GET`, `HEAD` or `POST` to `api/user-view` is sent once more (`retried: true`),
-and the visitor sees the second answer; no other write is resent. These records retain no URL or response
-body. Use their native trace ID to join the request's invocation records. A
-`disconnected` response identifies the proxy boundary, not why its container
-connection was lost.
+record's `detail` is the SDK's sentence, which names the failure:
+`Container suddenly disconnected, try again` for a connection lost mid-request,
+`…taking too long to accept the connection…` for a container that answered
+nothing, and `…client disconnected.` for a visitor who left while their
+container started. A `disconnected` `GET`, `HEAD` or `POST` to `api/user-view`
+is sent once more (`retried: true`), and the visitor sees the second answer; no
+other write is resent. Apart from `detail`, which carries the runtime's error
+message as the SDK's own log line does, these records retain no URL or response
+body. Use their native trace ID to join the request's invocation
+records, and the container's `container_stalled` and `container_unresponsive`
+records (below) to tell a container the host stopped running from one whose
+server stopped answering.
 
 The page's private `observations.jsonl` also records these hosted-turn boundaries.
 Only that private diagnostic stream retains the complete published reply updates,

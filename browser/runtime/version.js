@@ -513,7 +513,8 @@ registerPageControl({
 registerPageControl({
   key: "latest",
   rank: PAGE_CONTROL_RANK.latest,
-  label: () => versionsReading().latest.label,
+  // Read only while offered, when the latest reading has words.
+  label: () => versionsReading().latest.label ?? "",
   offered: () => versionsReading().latest.news,
   disabled: () => versionsReading().latest.disabled,
   urgent: "new",
@@ -652,15 +653,7 @@ function diffBlocks(root) {
     if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
     if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
       continue; // leaf blocks only, excluding opaque children on both sides
-    let key = comparisonWords(b, opaque);
-    // A `says` value is the page's words at the element's edge (renderSaid), so it
-    // belongs to what this block says: folded into the key at its declared edge, a
-    // version that moves a metric's number or an event's time marks though no prose
-    // changed. Both sources hold the attribute, so the key reads it on both sides.
-    for (const [attr, edge] of Object.entries(registry[b.localName]?.says ?? {})) {
-      const said = b.getAttribute(attr);
-      if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
-    }
+    const key = comparisonWords(b, opaque);
     if (key) pairs.push([b, key]);
   }
   // Opaque widgets key by identity, not body, since the user reads their module's

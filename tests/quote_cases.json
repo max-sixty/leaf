@@ -1,5 +1,5 @@
 {
-  "about": "Quote resolution's cases, which the browser's findQuote (passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, the browser rendering each `says` value it declares, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there, or `true` to stage the host's own children.",
+  "about": "Quote resolution's cases, which the browser's findQuote (passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there, or `true` to stage the host's own children.",
   "cases": [
     {
       "id": "a copy a fence parts is passed by, and the next starts past it",
@@ -261,32 +261,8 @@
       "before": null
     },
     {
-      "id": "a said label stands apart from its element's words",
-      "markup": "<div id=\"s\"><lf-said-label label=\"Head\">body words</lf-said-label></div>",
-      "registry": {
-        "lf-said-label": {
-          "says": {
-            "label": "before"
-          }
-        }
-      },
-      "anchor": {
-        "section": "s",
-        "quote": "Head body"
-      },
-      "before": 0
-    },
-    {
-      "id": "a said tip stands apart from its phrase in a text block",
-      "markup": "<p id=\"s\">lead <lf-said-tip tip=\"Tip\">gloss</lf-said-tip> tail</p>",
-      "registry": {
-        "lf-said-tip": {
-          "says": {
-            "tip": "after"
-          },
-          "inline": true
-        }
-      },
+      "id": "a popover's words stand after the words before it in a text block",
+      "markup": "<p id=\"s\">lead <span>gloss<span popover>Tip</span></span> tail</p>",
       "anchor": {
         "section": "s",
         "quote": "gloss Tip"
@@ -349,25 +325,6 @@
         "suffix": "."
       },
       "before": 27
-    },
-    {
-      "id": "an empty inline widget's said values read apart from each other",
-      "markup": "<div id=\"s\"><lf-said-pair head=\"MARK\" tail=\"one\"></lf-said-pair> <lf-said-pair head=\"MARK\" tail=\"two\"></lf-said-pair></div>",
-      "registry": {
-        "lf-said-pair": {
-          "says": {
-            "head": "before",
-            "tail": "after"
-          },
-          "inline": true
-        }
-      },
-      "anchor": {
-        "section": "s",
-        "quote": "MARK",
-        "suffix": "one MARK two"
-      },
-      "before": 0
     },
     {
       "id": "a character only Python calls whitespace is a letter of the word",

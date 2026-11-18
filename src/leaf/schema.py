@@ -397,11 +397,6 @@ FACTS: dict[str, dict] = {
     },
     "refers": REFERENCE_SCHEMA,
     "reading-role": {"enum": ["pane", "group"]},
-    "says": {
-        "type": "object",
-        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-        "additionalProperties": {"enum": ["before", "after"]},
-    },
     "verbatim": {"const": True},
     "shadow": {"const": True},
     "inline": {"const": True},
@@ -624,7 +619,7 @@ LAYER_FACTS = {
 # attribute, and sharing a spelling is no reason to share a check. `awaits` and
 # `inputs` name attributes too and keep their own loops, having more to say about each
 # than that it exists.
-ATTRIBUTE_FACTS = ("prepaint", "refers", "says", "unique")
+ATTRIBUTE_FACTS = ("prepaint", "refers", "unique")
 
 # The kernel compiled from ASSETS's modules (`runtime_selection.read_runtime`).
 KERNEL = PLUGIN_ROOT / "dist" / "kernel"
@@ -641,9 +636,16 @@ LAYER_TOP_FILES = (
     "registry.json",
     "icon.svg",
 )
-# The kernel's sheets, each composed into its own cascade tier
-# (`layer.composed_sheets`), and every file of the kernel's a layer reads.
-KERNEL_STYLES = ("shadow.css", "base.css", "layouts.css", "state.css")
+# The kernel's sheets that `layer.composed_sheets` reads, and every file of the
+# kernel's a layer names (`layer.input_paths`).
+KERNEL_STYLES = (
+    "shadow.css",
+    "base.css",
+    "layouts.css",
+    "state.css",
+    "styles/control-face.css",
+    "styles/shadow-leading.css",
+)
 KERNEL_FILES = (*KERNEL_STYLES, "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.

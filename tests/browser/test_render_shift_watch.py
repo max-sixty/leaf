@@ -4903,6 +4903,45 @@ motion.pause();motion.currentTime=150;
     assert names_move(errors, "button#control") == fault, errors
 
 
+# Leaf's preview, warm, moves to the next target the pointer reaches by closing and
+# showing again in one task, so no frame reads it gone.
+@pytest.mark.parametrize("reopened", [True, False])
+def test_a_popover_shown_again_by_another_anchor_arrives_there(browser, reopened):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+#tip { position:fixed;inset:auto;margin:0;position-anchor:auto;
+  left:anchor(left);top:anchor(bottom) }</style><body style="margin:0">
+<button id="first" style="position:absolute;left:100px;top:100px">First</button>
+<button id="second" style="position:absolute;left:300px;top:100px">Second</button>
+<div id="tip" popover=manual><button id="control">Attached control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>tip.showPopover({source: first})</script></body>""")
+    )
+    paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    before = page.locator("#control").bounding_box()
+    page.evaluate(
+        """(reopened) => {
+          if (reopened) {
+            tip.hidePopover();
+            tip.showPopover({source: second});
+          } else tip.style.marginLeft = '200px';
+          trigger.style.left = '40px';
+        }""",
+        reopened,
+    )
+    paint(page)
+    after = page.locator("#control").bounding_box()
+    assert after["x"] - before["x"] == pytest.approx(200)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert names_move(errors, "p#trigger"), errors
+    assert names_move(errors, "button#control") != reopened, errors
+
+
 def test_immediate_native_opening_and_typing(browser):
     page = gesture_motion_page(browser)
     page.evaluate(

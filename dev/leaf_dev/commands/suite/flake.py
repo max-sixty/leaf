@@ -4,7 +4,7 @@
 
 Repeating a test serially reruns it on the machine that already passes it; a browser
 test that passed 20 serial runs failed twice in 18 concurrent ones. So this runs the
-selection (`leaf_dev.suite`) as `COPIES` copies, `WORKERS` at a time, from the working
+selection (`_runs`) as `COPIES` copies, `WORKERS` at a time, from the working
 tree as it stands, uncommitted edits included, captured once before collection.
 Each copy runs in a private checkout of that snapshot, so fixed output paths and
 later edits to the source checkout cannot change another copy's result. Installed
@@ -33,13 +33,13 @@ import sys
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from pathlib import Path
 
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.suite import checkout, collect, run, snapshot
+from leaf_dev.arms import run_directory
+from leaf_dev.commands.suite._runs import checkout, collect, run, snapshot
 
 COPIES = 18
 WORKERS = 6
@@ -66,9 +66,7 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
     copy's output stays under .tmp/flake/. On macOS the copies run at background
     priority. Exits 1 unless every copy of every test passed.
     """
-    OUT.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
-    out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
+    out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-flake-") as directory:
         scratch = Path(directory)
         candidate = scratch / "snapshot"

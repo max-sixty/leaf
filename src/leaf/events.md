@@ -219,7 +219,6 @@ event. Every `action` and `report` records:
   nothing.
 - `creates`, the tag of the child a `creates` verb adds. The child is the action's
   unit, so it lasts as long as the action does, whether or not a document holds it.
-- `among`, on a position move ("Position moves").
 
 Recorded effects own their payload schema (`registry.contract.detail_schema`), and
 every payload is a closed object. Both writers share the applicability gates: selected
@@ -231,8 +230,7 @@ name page widgets; user actions may also name widgets in thread markup.
 
 A position record places its unit by a rank key rather than an index, so undoing or
 superseding one unit's move never moves another. The key lies among the container's
-authored units on the move's revision, which admission records in order as
-`meaning.among`.
+authored units on the move's revision, read from that revision's document.
 
 A revision that authors the container differently absorbs the move
 (`projection.move_absorbed`), and `page check` holds that revision and every later one
@@ -387,7 +385,7 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   widen it, so a summary that follows it replaces those summaries with one and is
   never refused. A delivery leaves it out for a thread whose newest delivered
   message Leaf kept back for a line fork, since a fork beside that line fork
-  summarizes the thread (`summary_fork`). `text` may be empty and `label` defaults to “Earlier discussion”.
+  summarizes the thread (`summary_fork`). `text` may be empty, and an optional `label` names the range.
   `events.active_summaries` says which summaries stand. A summary answers, resolves,
   settles and marks read nothing.
 - An agent `reply` with `ephemeral: true` is progress. It carries no `responds`,

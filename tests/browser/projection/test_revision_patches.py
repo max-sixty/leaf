@@ -5,7 +5,6 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_harness import (
-    EXAMPLE_PACKAGES,
     expect_obligations_answered,
     latest_press,
     leaf_page,
@@ -539,13 +538,13 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
         '<p class="tm-line">The first account.</p></template>\n'
         '<template id="tl-held" data-sample>\n'
         '  <p class="tl-line">The first line.</p>\n'
-        '  <p class="tl-line">The <lf-gloss tip="held inside">second</lf-gloss>'
+        '  <p class="tl-line">The <lf-gloss>second<span popover>held inside</span></lf-gloss>'
         " line.</p>\n"
         '  <p class="tl-line">The third line.</p>\n'
         "</template>\n"
-        '<p id="tl-after">A <lf-gloss tip="after the template">term</lf-gloss> the'
+        '<p id="tl-after">A <lf-gloss>term<span popover>after the template</span></lf-gloss> the'
         " template does not hold.</p>\n"
-        '<p id="nm-kept">A <lf-gloss tip="the cutover of the store">cutover</lf-gloss>'
+        '<p id="nm-kept">A <lf-gloss>cutover<span popover>the cutover of the store</span></lf-gloss>'
         " the user is asking about.</p>\n"
         '<p id="nm-edited">The store has not moved.</p>\n'
         '<lf-sample id="qt-spec" label="an inert pick">\n'
@@ -560,7 +559,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
     second = (
         first.replace("Patched first", "Patched second")
         .replace("The first account.", "The second account, rewritten.")
-        .replace("second</lf-gloss> line.", "second</lf-gloss> line, rewritten.")
+        .replace("inside</span></lf-gloss> line.", "inside</span></lf-gloss> line, ok.")
         .replace("The store has not moved.", "The store moved.")
         .replace(">Beta<", ">Beta, rewritten<")
         .replace(
@@ -629,7 +628,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
     assert kept == {
         "words": [
             "The first line.",
-            "The second line, rewritten.",
+            "The secondheld inside line, ok.",
             "The third line.",
         ],
         "kept": [True, True, True],
@@ -648,31 +647,25 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
     }, "the rewritten widget arrived unquoted"
 
 
-def test_a_word_the_revision_adds_to_a_surviving_element_is_said(
-    browser, serve, declared_reading_package
-):
-    """A newly authored label is readable and pointable on a surviving node."""
+def test_a_label_a_revision_changes_is_drawn_anew(browser, serve):
+    """A board column's heading, which the board's module draws from its label, follows
+    a revision that changes the label."""
     first = leaf_page(
-        "Said first",
-        '<h1 id="sd-title">Said</h1>'
-        '<lf-reading id="sd-reading"><p>Checks complete.</p></lf-reading>',
+        "Renamed first",
+        '<h1 id="rn-title">Renamed</h1>'
+        '<lf-board id="rn-board"><lf-column id="rn-col" label="To do">'
+        '<lf-card id="rn-card" label="Feeder"><strong>Feeder</strong></lf-card>'
+        "</lf-column></lf-board>",
     )
-    second = first.replace("Said first", "Said second").replace(
-        'id="sd-reading"', 'id="sd-reading" label="Release checks"'
+    second = first.replace("Renamed first", "Renamed second").replace(
+        'label="To do"', 'label="Next up"'
     )
-    page = open_page(
-        browser,
-        live_url(serve(first, packages=(*EXAMPLE_PACKAGES, declared_reading_package))),
-    )
-    page.evaluate("window.__sample = document.getElementById('sd-reading')")
+    page = open_page(browser, live_url(serve(first)))
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Said second")
-    expect(page.locator('#sd-reading [data-lf-said="label"]')).to_have_text(
-        "Release checks"
-    )
-    assert page.evaluate("window.__sample === document.getElementById('sd-reading')")
+    expect(page).to_have_title("Renamed second")
+    expect(page.locator("#rn-col > .lf-column-name")).to_have_text("Next up")
 
 
 def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(

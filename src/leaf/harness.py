@@ -1095,7 +1095,7 @@ def claude_code_entered(transcript: Path) -> set[str]:
     transcript runs to hundreds of MB, so this maps the file and parses only the
     lines holding Leaf's opening: 34 ms on a 200 MB transcript, where reading and
     splitting it took 105 ms and 500 MB of memory."""
-    from .hook_transport import INLINE_OPENING
+    from .hook_transport import INLINE_OPENING, inline_delivery
 
     marker = INLINE_OPENING.encode()
     lines = []
@@ -1123,18 +1123,12 @@ def claude_code_entered(transcript: Path) -> set[str]:
         except ValueError:
             continue
         for content in attachment.get("content") or []:
-            opening, _, rest = content.partition("\n")
-            if opening != INLINE_OPENING:
-                continue
-            try:
-                delivery = json.loads(rest.partition("\n")[0])
-            except ValueError:
-                continue
-            entered.update(
-                event["id"]
-                for batch in delivery["batches"]
-                for event in batch["events"]
-            )
+            if (delivery := inline_delivery(content)) is not None:
+                entered.update(
+                    event["id"]
+                    for batch in delivery["batches"]
+                    for event in batch["events"]
+                )
     return entered
 
 
@@ -1262,8 +1256,8 @@ def claude_code_live_turn(records: list[dict]) -> dict | None:
     ends a turn without running the Stop hook, and the record turns `idle` at that
     moment (measured at Claude Code 2.1.283). `busy` is weaker: a background job's
     record stays `busy` across turn endings while its background work runs, so it
-    does not prove a turn is running; after a turn ends, it says work continues
-    (`activity.Turn.background`). The record belongs to the worker hosting the
+    does not prove a turn is running. It says the session works, in its turn or,
+    after the turn ends, in the background (`activity.Turn.busy`). The record belongs to the worker hosting the
     session's current sitting, so a background job whose worker has retired has
     none."""
     record = claude_code_current_record(records)

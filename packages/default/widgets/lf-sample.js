@@ -1,6 +1,10 @@
 /* lf-sample: inline content (quoted by default, interactive on the parent page
- * when declared), or a complete live page authored in a template. The inline modes
- * need no controller; the registry owns their quotation semantics.
+ * when declared), or a complete live page authored in a template. Its `label` is its
+ * name wherever Leaf names it, and nothing draws it: the page introduces a sample in
+ * its own words, and a caption it shows is the author's HTML, such as a `<figure>`'s
+ * `<figcaption>`. The user chose this, as for option and board cards (lf-options.js):
+ * a name Leaf reads is data apart from any title the page shows. The inline modes need
+ * no controller; the registry owns their quotation semantics.
  * The shared host owns the child page and its independent event log. The frame
  * takes its child's height, so the surrounding page scrolls the sample like any
  * other block and focus moves into it the way it moves into any iframe. A `window`
@@ -355,7 +359,7 @@ export class Sample extends HTMLElement {
       else {
         // The frame never moves in the DOM: reparenting it destroys its browsing
         // context. Native modality supplies focus containment and parent isolation.
-        // The label stays in flow; reserve only the controls and frame leaving it.
+        // Reserve the height of the controls and frame leaving the flow.
         const height =
           this.#frame.getBoundingClientRect().bottom -
           controls.getBoundingClientRect().top;

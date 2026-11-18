@@ -1063,6 +1063,13 @@ def tab_step(tab: Tab) -> None:
     tab.page.keyboard.press("Tab" if way > 0 else "Shift+Tab")
 
 
+def walk_step(tab: Tab) -> None:
+    """Step the On Me walk to the next question waiting on the user, or back, from
+    where `halfway` left the reader, so every size walks the same few questions."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("m" if way > 0 else "Shift+m")
+
+
 def halfway(tab: Tab) -> Goals:
     x, y = tab.page.evaluate(HALFWAY, RUN * NOTCH)
     tab.target = {"x": x, "y": y}
@@ -1498,6 +1505,7 @@ INPUTS: dict[str, Input] = {
     "key": Input(type_letter, 20, enter_field, each=False, after=60),
     "leave": Input(leave_field, 4, enter_field, after=200),
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
+    "walk": Input(walk_step, 8, halfway, each=False, after=300, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
     "hover": Input(hover_step, 32, halfway, each=False, after=50),
     "aim": Input(hold_alt, 8, halfway, each=False, after=100),
@@ -2246,10 +2254,7 @@ def exponent(
     ]
     if len(pairs) < max(2, fitted - 1):
         return None
-    mean_x = sum(x for x, _ in pairs) / len(pairs)
-    mean_y = sum(y for _, y in pairs) / len(pairs)
-    spread = sum((x - mean_x) ** 2 for x, _ in pairs)
-    return sum((x - mean_x) * (y - mean_y) for x, y in pairs) / spread
+    return statistics.linear_regression(*zip(*pairs, strict=True)).slope
 
 
 def interleaved[K](rounds: int, keys: Sequence[K]) -> Iterator[tuple[int, K]]:

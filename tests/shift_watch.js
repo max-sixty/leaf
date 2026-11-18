@@ -185,10 +185,12 @@
 // permission (append growth, widening, reflow) is asked only of one frame's step, since
 // two permitted transitions need not form one from the first frame to the last, and
 // the run's comparison takes away what each step it permitted moved. Append growth's
-// permission stands whether or not the node shows at its step, since a carry can
-// keep the run going until a later frame shows it. A landmark first
-// read during the run, or read again after it left the page, is compared from the
-// frame that read it then.
+// permission stands whether or not the node shows at its step, since a carry can keep
+// the run going until a later frame shows it. A landmark first read during the run,
+// read again after it left the page, or held by a popover that opened since the frame
+// before, is compared from the frame that read it then. A popover closed and shown
+// again in one task, as a preview that stands by the next target the pointer reaches
+// is, never reads as gone, but what it shows is a new appearance, not a move.
 //
 // A landmark held by a box whose scroll offset changed in a frame, the root's
 // included, is judged on that frame's step alone, and from where that frame left it.
@@ -645,12 +647,17 @@
   // opens the popover sets its anchor: one made while it stands open, or one that
   // throws, leaves the anchor the browser kept.
   const implicitAnchors = new WeakMap();
+  // When each popover last opened, for `reopened`.
+  const openedAt = new WeakMap();
+  let lastOpened = -Infinity;
   for (const method of ["showPopover", "togglePopover"]) {
     const native = HTMLElement.prototype[method];
     HTMLElement.prototype[method] = function (options) {
       const wasOpen = this.matches(":popover-open");
       const result = native.call(this, options);
       if (!wasOpen && this.matches(":popover-open")) {
+        lastOpened = nativePerformance.now();
+        openedAt.set(this, lastOpened);
         const source = options instanceof Object ? options.source : null;
         if (source instanceof Element) implicitAnchors.set(this, source);
         else implicitAnchors.delete(this);
@@ -658,6 +665,16 @@
       return result;
     };
   }
+  // Whether the popover holding `node` opened after `since` (the header's "Runs of
+  // motion").
+  const reopened = (node, since) => {
+    if (lastOpened <= since) return false;
+    for (let box = node; box; box = up(box)) {
+      const at = openedAt.get(box);
+      if (at !== undefined) return at > since;
+    }
+    return false;
+  };
   const implicitAnchor = (node, style) =>
     style.positionAnchor === "auto" && node.matches(":popover-open")
       ? (implicitAnchors.get(node) ?? null)
@@ -4352,10 +4369,12 @@
       }
       return false;
     };
-    // A node first read during the run, read again after it left the page, or moved by
-    // a scroll this frame is judged from the frame that read it then.
+    // A node first read during the run, read again after it left the page or in a
+    // popover that opened again, or moved by a scroll this frame is judged from the
+    // frame that read it then.
+    const fresh = (node) => !readIn(before, node) || reopened(node, before.at);
     for (const node of after.nodes)
-      if (!readIn(before, node) || scrolls(node)) {
+      if (fresh(node) || scrolls(node)) {
         arrived.set(node, after);
         permitted.delete(node);
       }
@@ -4364,7 +4383,7 @@
     // moved, on Chrome's report. On the run's first frame it is the run's own
     // comparison too.
     protectedMotion(after, {
-      from: () => before,
+      from: (node) => (fresh(node) ? null : before),
       animations,
       step: before,
       judged: (node) => from === before || scrolls(node),

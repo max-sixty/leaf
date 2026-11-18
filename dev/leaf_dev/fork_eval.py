@@ -204,7 +204,7 @@ def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     if scenario["fork"] == "line":
         return ["answered", "lined", "judged"]
     if scenario["fork"] == "summary":
-        return ["answered", "summarized"]
+        return ["answered", "declined" if scenario.get("declines") else "summarized"]
     expect = scenario.get("labels", {}).get("expect", [])
     return [
         "answered",
@@ -809,18 +809,23 @@ def score_summary(
         [*scenario["log"], *scenario["waiting"]], indent=1, ensure_ascii=False
     )
     basis = asked["basis"]
+    # The range the summary folds, as the note records it: the fork's choice, or on a
+    # Leaf whose fork folds the suggestion, the suggestion itself.
+    folded = note if "from" in note else basis
     return {
         "checks": {
             "answered": bool(note) and note.get("outcome") != "failed",
             "summarized": note.get("outcome") == "summarized",
+            "declined": note.get("outcome") == "declined",
         },
         "outcome": note.get("outcome"),
         "note": note,
         "texts": {
             "summary": f"<conversation>\n{conversation_text(turns)}\n"
-            f"</conversation>\n\n<thread>\n{thread}\n</thread>\n\n<range>\n"
-            f"{basis['from']} through {basis['through']}\n</range>\n\n<summary>\n"
-            f"{written or '(no summary)'}\n</summary>",
+            f"</conversation>\n\n<thread>\n{thread}\n</thread>\n\n"
+            f"<suggested>\n{basis['from']} through {basis['through']}\n</suggested>"
+            f"\n\n<range>\n{folded['from']} through {folded['through']}\n</range>"
+            f"\n\n<summary>\n{written or '(no summary)'}\n</summary>",
         },
     }
 

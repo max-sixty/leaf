@@ -294,11 +294,11 @@ def summaries_written(page_dir) -> list[tuple]:
 
 def test_a_long_thread_is_summarized_by_a_fork_beside_its_line_fork(claimed):
     """A message Leaf keeps back in a thread long enough to suggest a range to
-    summarize gets a second fork beside the line fork, asked to summarize that range
-    from the whole thread by the agent's guidance. Its answer goes in as the agent's
-    summary of the range, which the agent hears of as its own. That message's delivery
-    leaves the suggestion out, since the fork has it, while the delivery of one Leaf
-    didn't keep back still carries it."""
+    summarize gets a second fork beside the line fork, offered that range and asked to
+    choose its own and summarize it from the whole thread by the agent's guidance. Its
+    answer goes in as the agent's summary, which the agent hears of as its own. That
+    message's delivery leaves the suggestion out, since the fork has it, while the
+    delivery of one Leaf didn't keep back still carries it."""
     _, later, newest, summary = summary_beside(claimed)
     with PageTransaction(claimed) as page:
         [forked] = delivery_model.batch_data(claimed, page, [newest])["threads"]
@@ -311,9 +311,10 @@ def test_a_long_thread_is_summarized_by_a_fork_beside_its_line_fork(claimed):
     )
     assert summary["prompt"].startswith("<leaf-summary-fork>")
     assert "Follow-up 1?" in summary["prompt"]
+    assert "> Fold what compresses most" in summary["prompt"]
     assert "> A summary gives the range's decisions" in summary["prompt"]
 
-    outcome = summarized(summary, {"text": "The TTL went to ten, then five."})
+    outcome = summarized(summary, {**hint, "text": "The TTL went to ten, then five."})
     assert outcome["outcome"] == "summarized"
     assert summaries_written(claimed) == [
         (hint["from"], hint["through"], "The TTL went to ten, then five.")
@@ -325,6 +326,63 @@ def test_a_long_thread_is_summarized_by_a_fork_beside_its_line_fork(claimed):
     assert outcome["summary"] in told and "> The TTL went to ten, then five." in told
     [noted] = read_interactions(claimed, types=("summary_fork",))
     assert noted["outcome"] == "summarized"
+
+
+@pytest.mark.parametrize("withdrawn", [False, True])
+def test_the_fork_folds_the_range_it_chose(claimed, withdrawn):
+    """The fork chooses what to fold, with Leaf's range as a suggestion: here it keeps
+    the opening message in full and folds past the suggestion's end, up to the
+    agent's last answer, and Leaf writes that range. It does so though the
+    suggestion's last message no longer stands, as when the user took it back."""
+    opened, later, _, summary = summary_beside(claimed)
+    basis_ = summary["basis"]
+    assert (basis_["from"], basis_["through"]) == (opened["id"], later[-2]["id"])
+    if withdrawn:
+        summary = {**summary, "basis": {**basis_, "through": "taken-back"}}
+    chosen = {"from": later[0]["id"], "through": later[-1]["id"]}
+    outcome = summarized(summary, {**chosen, "text": "The TTL went to ten."})
+    assert outcome["outcome"] == "summarized"
+    assert summaries_written(claimed) == [
+        (chosen["from"], chosen["through"], "The TTL went to ten.")
+    ]
+    [noted] = read_interactions(claimed, types=("summary_fork",))
+    assert noted["suggested"] == {
+        "from": basis_["from"],
+        "through": summary["basis"]["through"],
+    }
+    assert (noted["from"], noted["through"]) == (chosen["from"], chosen["through"])
+
+
+def test_the_fork_may_fold_nothing(claimed):
+    """Where nothing compresses without losing wording the current exchange turns on,
+    the fork folds nothing: Leaf writes no summary and hands the agent nothing."""
+    *_, summary = summary_beside(claimed)
+    assert summarized(summary, {"fold": False}) == {"outcome": "declined"}
+    assert summaries_written(claimed) == []
+    assert clerk_model.queued("s1") == []
+
+
+@pytest.mark.parametrize("shape", ["the newest message", "backwards", "a gap"])
+def test_a_range_leaf_cant_take_hands_the_suggestion_to_the_agent(claimed, shape):
+    """Leaf takes the fork's range only where it runs forward over the thread's spoken
+    messages, ends before the user's newest messages, which the main session answers,
+    and leaves no message but the opening one in full above a summary. Otherwise it
+    writes nothing and hands the agent the suggested range."""
+    opened, later, newest, summary = summary_beside(claimed)
+    chosen = {
+        "the newest message": {"from": opened["id"], "through": newest["id"]},
+        "backwards": {"from": later[4]["id"], "through": later[2]["id"]},
+        "a gap": {"from": later[4]["id"], "through": later[6]["id"]},
+    }[shape]
+    outcome = summarized(summary, {**chosen, "text": "The fork's."})
+    assert outcome["outcome"] == "failed"
+    assert ("summary would leave" if shape == "a gap" else "its range") in outcome[
+        "why"
+    ]
+    assert summaries_written(claimed) == []
+    [handed] = clerk_model.queued("s1")
+    basis_ = summary["basis"]
+    assert f"`summary_hint` of {basis_['from']} through {basis_['through']}." in handed
 
 
 def test_a_failed_summary_fork_hands_the_range_to_the_agent(claimed):
@@ -361,7 +419,12 @@ def test_a_change_in_its_range_meanwhile_drops_the_forks_summary(claimed, meanwh
                 "text": "Follow-up 1, put another way?",
             },
         )
-    assert summarized(summary, {"text": "The fork's."}) == {"outcome": "dropped"}
+    answer = {
+        "from": summary["basis"]["from"],
+        "through": summary["basis"]["through"],
+        "text": "The fork's.",
+    }
+    assert summarized(summary, answer) == {"outcome": "dropped"}
     assert "The fork's." not in [text for *_, text in summaries_written(claimed)]
     assert clerk_model.queued("s1") == []
 

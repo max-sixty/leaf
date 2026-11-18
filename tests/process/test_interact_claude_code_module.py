@@ -607,7 +607,9 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
                 "<leaf-line-fork>": json.dumps(
                     {"line": "Checking", "work": "hand_over"}
                 ),
-                "<leaf-summary-fork>": json.dumps({"text": "The earlier discussion."}),
+                "<leaf-summary-fork>": json.dumps(
+                    {"from": "q0", "through": "q5", "text": "The earlier discussion."}
+                ),
             }
         },
     )
@@ -616,7 +618,10 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
-    opened = admitted(page_dir, {"kind": "comment", "author": "user", "text": "Q0?"})
+    # Ids the fork's answer names as the range it chose.
+    opened = admitted(
+        page_dir, {"kind": "comment", "author": "user", "id": "q0", "text": "Q0?"}
+    )
     thread_model.post_reply(page_dir, {"responds": opened["id"]}, "A0.")
     for n in range(1, 6):
         asked = admitted(
@@ -625,6 +630,7 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
                 "kind": "reply",
                 "author": "user",
                 "parent": opened["id"],
+                "id": f"q{n}",
                 "text": f"Q{n}?",
             },
         )
@@ -660,8 +666,9 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
         for event in events_model.read_events(page_dir)
         if event["kind"] == "summary"
     ]
-    assert (summary["thread"], summary["text"]) == (
-        opened["id"],
+    assert (summary["from"], summary["through"], summary["text"]) == (
+        "q0",
+        "q5",
         "The earlier discussion.",
     )
     [note] = read_interactions(page_dir, types=("summary_fork",))

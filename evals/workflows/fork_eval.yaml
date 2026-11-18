@@ -83,13 +83,17 @@ rubrics:
       The input is the line "The fork gave no usable answer.", which fails, or a
       conversation between a user and a coding agent, a thread on the agent's page as
       its log holds it (a `summary` event folds the messages from `from` through
-      `through`), the range of the thread a fork of that conversation was asked to
-      summarize, and the summary Leaf posted from the fork's answer as the agent's,
-      which reads "(no summary)" when Leaf posted none, which fails. Pass only if the summary is Markdown prose that gives the range's
+      `through`), the range of the thread Leaf suggested a fork of that conversation
+      summarize, the range the summary folds, and the summary Leaf posted from the
+      fork's answer as the agent's, which reads "(no summary)" when Leaf posted none,
+      which fails. Pass only if the summary is Markdown prose that gives the range's
       decisions, their reasons where the thread gives them, and its open questions,
       correctly and from the original messages, including those an earlier summary
       in the range folded; holds every decision the range made; and answers nothing
-      the thread's newest message asks, which is the agent's to answer.
+      the thread's newest message asks, which is the agent's to answer. The range
+      must fold the settled earlier discussion, and each message the thread keeps
+      after it must read on from the summary: where a kept message answers a
+      question the range folds, the summary states that question.
 
 # The words a guardrail and its positive case share.
 words:
@@ -1485,3 +1489,63 @@ cases:
         text: Could we keep serving the old results during a rebuild instead?
     assert:
       - *summary
+  # A thread long enough that Leaf suggests folding its first five messages, whose
+  # exact claims the user's newest message asks the agent to walk through, so the
+  # fork folds nothing (`{"fold": false}`). From the agent's own case,
+  # thread-summary-preserves-needed-exchange.
+  summary-keeps:
+    fork: summary
+    declines: true
+    page: turn-end-check/pages/cache.html
+    log:
+      - kind: comment
+        author: user
+        revision: 1
+        id: ttl-one
+        text: The feed updates every ten minutes. What TTL follows?
+        anchor:
+          section: cache-lede
+          quote: TTL at five minutes
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: ttl-one
+        responds: ttl-one
+        id: ttl-two
+        text: Ten minutes, if expiry starts at the feed's publication.
+      - kind: reply
+        author: user
+        parent: ttl-one
+        id: ttl-three
+        text: It starts at the request, which can precede publication by five minutes.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: ttl-one
+        responds: ttl-three
+        id: ttl-four
+        text: Then five minutes caps the stale interval at ten.
+      - kind: reply
+        author: user
+        parent: ttl-one
+        id: ttl-five
+        text: But a request just after publication gets almost fifteen minutes that way.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: ttl-one
+        responds: ttl-five
+        id: ttl-six
+        text: You're right. I mixed up the expiry origin and the staleness origin.
+    conversation:
+      - from: cache
+      - *cache-reply
+    thread: ttl-one
+    waiting:
+      - kind: reply
+        author: user
+        parent: ttl-one
+        id: ttl-seven
+        text: Walk through those two claims against my counterexample.
+    # The `declined` check is the whole score: there is no summary to judge.
+    assert: []

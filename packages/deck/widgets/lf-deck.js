@@ -131,9 +131,6 @@ customElements.define(
     #again = offerAction("word", "lf-deck-again");
     /** @type {HTMLElement[]} */
     #cards = [];
-    // Each card's obligations by the last inventory read (`#readings`).
-    /** @type {{all: ReturnType<typeof readObligations>["all"], held: ReturnType<typeof obligationsByRegion>} | null} */
-    #held = null;
     // The open card, or null once the pass is over.
     /** @type {import("@preact/signals-core").Signal<HTMLElement | null>} */
     #open = signal(null);
@@ -224,18 +221,12 @@ customElements.define(
 
     // Each card's obligations, or null until the page's first reading is in: what the
     // cards hold by the one rule every count of a region reads, filed in one pass over
-    // the inventory (`obligationsByRegion`) and kept until the inventory changes, rather
-    // than again for each mark, word and row a render draws.
+    // the inventory (`obligationsByRegion`).
     /** @returns {DeckReadings | null} */
     #readings() {
       const items = readObligations();
       if (items.phase !== "ready") return null;
-      if (this.#held?.all !== items.all)
-        this.#held = {
-          all: items.all,
-          held: obligationsByRegion(this.#cards, items.all),
-        };
-      const { held } = this.#held;
+      const held = obligationsByRegion(this.#cards, items.all);
       return (/** @type {HTMLElement} */ card) => held.get(card) ?? [];
     }
 
@@ -270,7 +261,9 @@ customElements.define(
       this.#landing?.(next);
       const card = this.#open.value;
       if (next === card) return this.#show(next);
-      const carry = this.#carry(card ?? this.#end);
+      // Once the pass is over the forward control goes too, the end frame's step back in
+      // standing for it.
+      const carry = this.#carry([card ?? this.#end, ...(next ? [] : [this.#forward])]);
       const before = parseFloat(getComputedStyle(this).height);
       const arriving = next ?? this.#end;
       const back = side === "back";
@@ -353,6 +346,9 @@ customElements.define(
       }
       keepsHidden(this.#end, Boolean(next));
       this.#open.value = next;
+      // The end frame holds its words and its record of the pass before the deck
+      // measures the height it grows to.
+      if (!next) this.#drawEnd(this.#readings());
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
@@ -456,24 +452,28 @@ customElements.define(
     }
 
     // What becomes of the user on what the deck puts away: the open card, a control
-    // standing for it such as a suggestion's margin entry or its thread's reply box, or
-    // the end frame once a step back in leaves it. One who was there by keyboard arrives
-    // at the card that comes up as `m` would, on what waits there, so its own keys
-    // answer it, or at the step back in once the pass is over; one who pressed lets go
-    // of what is hidden, and Tab goes on from where it was. After an answer the arrival
-    // waits until the card has settled, so a key pressed twice answers one card. Read
-    // before `leaving` goes.
-    /** @param {HTMLElement} leaving */
+    // standing for it such as a suggestion's margin entry or its thread's reply box, the
+    // forward control as the pass ends, or the end frame once a step back in leaves it.
+    // One who was there by keyboard arrives at the card that comes up as `m` would, on
+    // what waits there, so its own keys answer it, or at the step back in once the pass
+    // is over; one who pressed lets go of what is hidden, and Tab goes on from where it
+    // was. After an answer the arrival waits until the card has settled, so a key
+    // pressed twice answers one card. Read before `leaving` goes.
+    /** @param {HTMLElement[]} leaving */
     #carry(leaving) {
       const here = focused();
       const place = here && placeOf(here);
-      const inside =
-        currentLocationIn(leaving) || Boolean(place && under(place, leaving));
+      const inside = leaving.some(
+        (each) => currentLocationIn(each) || Boolean(place && under(place, each)),
+      );
       const keyed = inside && here !== null && here.matches(":focus-visible");
       return (/** @type {HTMLElement | null} */ next, wait = 0) => {
         // A caret or selection left in the hidden card would start the next walk there.
         const selection = getSelection();
-        if (selection?.rangeCount && under(selection.anchorNode, leaving))
+        if (
+          selection?.rangeCount &&
+          leaving.some((each) => under(selection.anchorNode, each))
+        )
           selection.removeAllRanges();
         if (!inside) return;
         if (
@@ -673,6 +673,7 @@ customElements.define(
           }`,
         this.#end,
       );
+      keepsText(this.#again, this.#forwardWord());
     }
 
     // What became of a card's question, and who says it: the answers given, in the
@@ -694,7 +695,6 @@ customElements.define(
       keeps(this.#forward, "hidden", this.#open.value ? null : "");
       const readings = this.#readings();
       keepsHidden(this.#end, Boolean(this.#open.value));
-      if (!this.#open.value) keepsText(this.#again, word);
       if (!readings || this.#drag) return;
       const card = this.#open.value;
       const waiting = this.#cards.filter((each) => waitsOn(readings(each)));

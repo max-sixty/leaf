@@ -322,3 +322,59 @@ def test_by_keyboard_back_from_the_end_of_the_pass_keeps_stepping_back(browser, 
     expect(page.locator("#notes-ask")).to_be_focused()
     page.keyboard.press("ArrowLeft")
     open_card(page, "beta-ask")
+
+
+def test_by_keyboard_the_forward_control_hands_over_to_the_step_back_in(browser, serve):
+    """Later pressed from the bar on the last card ends the pass and hides the bar's
+    forward control; the user lands on the end frame's step back in, which stands for
+    it, rather than on the page."""
+    page = open_page(browser, serve(DECK_PAGE))
+    page.keyboard.press("m")
+    for name in ["store", "beta"]:
+        expect(page.locator(f"#{name}-ask")).to_be_focused()
+        page.keyboard.press("1")
+        round_trip(page)
+    expect(page.locator("#notes-ask")).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    forward_control = page.locator("lf-deck .lf-deck-forward")
+    expect(forward_control).to_be_focused()
+    page.keyboard.press("Enter")
+    end = page.locator("lf-deck .lf-deck-end")
+    expect(end.get_by_role("button", name="Go through the 1 left")).to_be_focused()
+
+
+# The height each motion of the deck's own box ends at, recorded as it starts.
+RECORD_RESIZES = """() => {
+  window.lfDeckResizes = [];
+  const animate = Element.prototype.animate;
+  Element.prototype.animate = function (frames, options) {
+    if (this.localName === 'lf-deck' && Array.isArray(frames) && frames.at(-1)?.height)
+      window.lfDeckResizes.push(parseFloat(frames.at(-1).height));
+    return animate.call(this, frames, options);
+  };
+}"""
+
+
+def test_the_deck_grows_to_the_end_frame_it_lands_on(browser, serve):
+    """The last answer brings up the end frame with its record of the pass, and the
+    deck's height glides to the frame's whole height rather than to an empty frame's
+    and then jumps."""
+    page = open_page(browser, serve(DECK_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    page.evaluate(RECORD_RESIZES)
+    for name, option in [
+        ("store", "store-yes"),
+        ("beta", "beta-no"),
+        ("notes", "notes-no"),
+    ]:
+        open_card(page, f"{name}-ask")
+        answer(page, option)
+    expect(page.locator("lf-deck .lf-deck-recap > li")).to_have_count(3)
+    page.wait_for_function(
+        "() => !document.querySelector('lf-deck[data-lf-deck-flying]')"
+    )
+    landed = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.querySelector('lf-deck')).height)"
+    )
+    resizes = page.evaluate("() => window.lfDeckResizes")
+    assert resizes and abs(resizes[-1] - landed) <= 1, (resizes, landed)

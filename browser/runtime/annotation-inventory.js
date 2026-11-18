@@ -58,6 +58,7 @@ import { agentSays, leafSays } from "./voice.js";
 import { renderedOrdering, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
+import { hasObligationSource } from "./obligations/source.js";
 import { scrollBehavior } from "./motion.js";
 import {
   changeAccount,
@@ -120,7 +121,7 @@ export const annotationSelection = (root) => ({
   todos: root.authoritative?.browser.todos ?? null,
 });
 
-/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
+/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
@@ -653,10 +654,6 @@ export function createAnnotationInventory({
     }
     // A widget's obligation has a place on the page (obligations/place.js); the rest
     // have no node.
-    /** @param {import("./framework/application.js").ObligationRecord} item
-     * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
-    const hasPlace = (item) => Boolean(obligationPlace(item).node);
-    const placed = () => readObligations().user.filter(hasPlace);
     for (const item of readObligations().user) {
       const id = item.id;
       const target = obligationPlace(item).node;
@@ -672,9 +669,8 @@ export function createAnnotationInventory({
         // glyph already shows: the widget's name.
         label: labelOf(target) || null,
         activate: () => {
-          const items = placed();
-          const next = items.find((candidate) => candidate.id === id);
-          if (next) goToObligation(next, items);
+          const next = readObligations().byId.get(id);
+          if (hasObligationSource(next, "widget")) goToObligation(next);
         },
       });
     }

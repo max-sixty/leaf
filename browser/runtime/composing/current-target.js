@@ -1,7 +1,9 @@
 /* The semantic target a comment or reaction at current browser focus acts on.
 
    Pointer and focus share aimTargetAt, which reads the deepest focus: a datum is in the
-   shadow tree, while its host is only the enclosing addressable element. Chrome owners
+   shadow tree, while its host is only the enclosing addressable element. Focus on a
+   visual that holds focus on a part of its own, as a chart on the point its keys
+   reached, names that part (`focusTargetAt`). Chrome owners
    translate their controls through placeOf. A focused thread belongs to its own reply
    route, and chrome with no page target leaves only a general page comment.
 
@@ -18,7 +20,7 @@
    obligation is open. */
 import { focused } from "../focus.js";
 import { inChrome } from "../passages.js";
-import { aimTargetAt } from "../anchor-resolution.js";
+import { aimTargetAt, focusTargetAt } from "../anchor-resolution.js";
 import { placeOf } from "../current-target.js";
 import { heldThread } from "../thread/focus.js";
 import { under } from "../shadow.js";
@@ -58,7 +60,7 @@ export function createCurrentTarget({ currentLocationIn }) {
     if (place !== held) return aimTargetAt(place);
     const working = held.matches(OBLIGATION_CONTROL) ? currentLocationIn() : null;
     if (working) return aimTargetAt(working);
-    const aim = aimTargetAt(held);
+    const aim = focusTargetAt(held);
     if (!aim || aim.anchor.datum || aim.anchor.visual || aim.element === held)
       return aim;
     const group = groupHolding(held);

@@ -45,7 +45,7 @@ from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import SourceDocument
-from leaf_dev import ROOT
+from leaf_dev import ROOT, arms
 from leaf_dev.commands import preview as preview_model
 from leaf_dev.example_data import named_source
 
@@ -667,7 +667,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     )
     assert not service_model.claim_is_active(service_model.page_claim(directory))
     wait_for(
-        lambda: leases_model.lock_is_held(preview_model.preview_lease(directory)),
+        lambda: leases_model.lock_is_held(arms.preview_lease(directory)),
         lambda held: not held,
         failure="the ended session left its preview running",
     )

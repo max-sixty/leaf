@@ -84,6 +84,25 @@ already, so cancel work that would hide it. `label(id)` names a part in Threads 
 changing the visual, or returns `null`. Call the returned `update()` after the parts or
 their positions change.
 
+A visual with too many parts to list, such as a chart's points, also passes `find` and
+`at`, and its `read()` may return none, since `read()` is what the target picker and a
+screen reader's list offer. `find(id)` returns the part an id names in the current
+state, drawing an element for it if it must, or `null` where the state holds none; Leaf
+asks it for a comment's part rather than searching `read()`, and a part it doesn't find
+stands on the whole visual, since the visual may draw it once it can. `at(node)` returns
+the part a node of the visual stands for where no element `read()` returns holds it, or
+`null`: Leaf asks it for a hit inside the visual, such as the pointer over a line
+through the data, and asks it for the visual itself when focus on the visual names a
+target, such as the point its arrow keys reached.
+
+Leaf puts the user on a part's `element` when they travel to it or leave a comment box
+on it. A visual whose parts are no places to stand, such as the marks round a chart's
+points, also passes `focus` and takes focus for its parts itself. Leaf calls `focus(id)`
+as it places focus on the visual for a part, and at no other time, and the visual
+settles on the part, as a chart moves its reading to the point even where it holds
+focus already. So leaving a comment box, or travel the user cancels, changes nothing
+the visual shows.
+
 ## Threads
 
 ### Reading and opening Threads from a widget

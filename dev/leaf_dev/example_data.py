@@ -87,7 +87,7 @@ def named_source(name: str, *, root: Path = ROOT) -> Path:
         names = sorted({path.stem for path in sources})
         raise ValueError(f"no source named {name}; available: {', '.join(names)}")
     if found[0] == root / CORPUS:
-        from leaf_dev.commands.generate.corpus import generate
+        from leaf_dev.corpus import generate
 
         return generate(root)
     return found[0]

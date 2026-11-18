@@ -1518,17 +1518,18 @@ def test_a_constrained_target_carries_its_row_through_scroll(
     carries the row in the first frame after every scroll with no pass to reseat it.
 
     Sticky constraints can belong to the target or an ancestor, and a fixed target
-    stays put through the document's scroll. Firefox draws a stuck target's row where
-    the target would stand unstuck, and WebKit moves a fixed target's row with the
-    document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
-    "An anchor under a fixed box in WebKit"). Chromium also reads the compositor's frames,
-    which only it traces; WebKit checks the rectangles after each scroll.
+    stays put through the document's scroll. A fixed scroller, such as a page of parts'
+    title column, stays put too, and its row rides what its own scroll carries. Firefox
+    draws a stuck target's row where the target would stand unstuck
+    (notes/browser-support.md, "A stuck sticky anchor in Firefox"). Chromium also reads
+    the compositor's frames, which only it traces; WebKit checks the rectangles after
+    each scroll.
     """
     page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)
     # Each case adds its own scroller and row, replacing the case before; the fixed
-    # target, which also lengthens the document, goes last.
-    for position in ("sticky", "sticky-ancestor", "fixed"):
+    # cases, which also lengthen the document, go last.
+    for position in ("sticky", "sticky-ancestor", "fixed", "fixed-scroller"):
         with subtests.test(position=position):
             # The last case left the pointer where this case's target will stand.
             page.mouse.move(0, 0)
@@ -1553,15 +1554,20 @@ def test_a_constrained_target_carries_its_row_through_scroll(
                   document.querySelector('main').prepend(host);
                   const target = host.querySelector('p');
                   if (position === 'sticky') host.querySelector('#constraint').replaceWith(target);
-                  const constrained = position === 'sticky-ancestor'
-                    ? host.querySelector('#constraint') : target;
-                  constrained.style.position = position === 'fixed' ? 'fixed' : 'sticky';
-                  constrained.style.top = position === 'fixed' ? '300px' : '0';
+                  const constrained = {sticky: target, fixed: target,
+                    'sticky-ancestor': host.querySelector('#constraint'),
+                    'fixed-scroller': host}[position];
+                  const fixed = position.startsWith('fixed');
+                  constrained.style.position = fixed ? 'fixed' : 'sticky';
+                  constrained.style.top = fixed ? '300px' : '0';
+                  if (fixed) {
+                    constrained.style.left = '180px';
+                    document.body.style.minHeight = '2000px';
+                  }
                   if (position === 'fixed') {
-                    target.style.left = '180px'; target.style.width = '300px';
+                    target.style.width = '300px';
                     document.querySelector('main').append(target);
                     host.remove();
-                    document.body.style.minHeight = '2000px';
                   }
                   const contribution = registerContribution({key: 'nonlinear', target,
                     read: () => ({entries: [contributionEntry({key: 'nonlinear',
@@ -1589,8 +1595,12 @@ def test_a_constrained_target_carries_its_row_through_scroll(
                 page.evaluate(
                     """scroll => {
                       const {host, position} = window.__nonlinear;
-                      if (position === 'fixed') window.scrollTo(0, scroll);
-                      else host.scrollTop = scroll;
+                      // The document scrolls under a fixed box. The fixed target has
+                      // left its host; a fixed scroller scrolls a third as far,
+                      // keeping the target inside it.
+                      if (position.startsWith('fixed')) window.scrollTo(0, scroll);
+                      if (position !== 'fixed')
+                        host.scrollTop = position === 'fixed-scroller' ? scroll / 3 : scroll;
                     }""",
                     scroll,
                 )

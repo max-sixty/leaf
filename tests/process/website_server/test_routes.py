@@ -30,8 +30,8 @@ from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
 from leaf_dev.commands.journey import _journey as journey
-from leaf_dev.commands.site import verify as verify_site
 from leaf_dev.page_fixtures import example_media
+from leaf_dev.website import activation_url
 from process.website_server import (
     FakeCodexHarness,
     get,
@@ -456,9 +456,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "private, max-age=31536000, immutable"
         )
 
-        raw_view, _ = get(
-            verify_site.activation_url(f"{root}/examples/decision/", state)
-        )
+        raw_view, _ = get(activation_url(f"{root}/examples/decision/", state))
         view = json.loads(raw_view)
         revision = state["active"]["revision"]
         assert view["document"]["revision"] == revision

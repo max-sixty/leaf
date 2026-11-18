@@ -28,7 +28,7 @@ from browser.margin import (
 )
 from leaf.render_checks import rendered
 from leaf_dev.browser import WINDOWS
-from leaf_dev.commands.placement import pins as pin_cases
+from leaf_dev.commands.placement import _pin_cases as pin_cases
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

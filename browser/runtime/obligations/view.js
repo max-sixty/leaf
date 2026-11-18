@@ -54,12 +54,12 @@ import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { ownedObligationControl } from "./answer.js";
-import { obligationAt, placeOf } from "../current-target.js";
+import { obligationIn } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
-import { hostIn, under, upFrom } from "../shadow.js";
+import { under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
 import { revealAddressed } from "../anchor-resolution.js";
@@ -240,7 +240,8 @@ export function createObligationView({
     return false;
   }
   // The obligation the user is in: the one holding the focus, or the one a control
-  // hoisted into the margin decides, or the one a thread about it holds the focus for.
+  // hoisted into the margin decides, or the one a thread asking or about it holds the
+  // focus for (`obligationIn`).
   //
   // The unanswered obligations rather than the user's list, because being in an obligation is
   // about where the user is working and not about what they owe. The two part on a widget
@@ -255,20 +256,18 @@ export function createObligationView({
   // the same numeric action route so they can revise the recorded answer.
   function currentLocationObligation(held = focused()) {
     if (!held || held === document.body) return null;
-    const record = obligationAt(held);
+    const record = obligationIn(held);
     if (!record) return null;
     if (readObligations().unanswered.some((item) => item.id === record.id))
       return record;
     // An answered obligation is the current location only on an explicit review route: the obligation element,
-    // or chrome that stands at that element (`placeOf`), as an On card, a thread's view
+    // or chrome that stands for it from outside it, as an On card, a margin entry, a thread's view
     // or a control on a widget in its reply does. A widget host can be the document's retargeted focus without being the
     // obligation itself; treating that as an arrival would make an ordinary click on a chosen
     // option steal the option's own semantics.
     const answered = record;
     const item = obligationNode(answered);
-    return held === item ||
-      (inChrome(held) && placeOf(held) === item) ||
-      hasReviewedFocus()
+    return held === item || (inChrome(held) && !under(held, item)) || hasReviewedFocus()
       ? answered
       : null;
   }
@@ -316,19 +315,19 @@ export function createObligationView({
         }),
     );
   }
-  // The commands that answer where `origin` stands: the obligation there, which is a
-  // widget's, since only a widget's obligation has a place (`obligationPlace`).
+  // The commands that answer where `origin` stands: the obligation the user there is in
+  // (`obligationIn`), which is a widget's, since only a widget's obligation has a place.
   /** @param {Element | null} origin */
   function obligationContext(origin) {
     if (!origin) return null;
-    const record = obligationAt(placeOf(hostIn(origin, document)));
+    const record = obligationIn(origin);
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
     /** @type {Element | null} */
     let node = origin;
     for (; record && node; node = upFrom(node)) {
-      if (obligationAt(node)?.id !== record.id) break;
+      if (obligationIn(node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }

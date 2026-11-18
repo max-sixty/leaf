@@ -847,8 +847,7 @@ summary {
   inherits: false;
   initial-value: 0;
 }
-/* A message and the working message's face arrive in one tint (messages.js,
-   `arrivalTint`). */
+/* A message and a progress run's face arrive in one tint (messages.js, `arrivalTint`). */
 .lf-msg,
 .lf-thread-working {
   --lf-msg-rest-ground: transparent;

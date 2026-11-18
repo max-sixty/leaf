@@ -731,7 +731,7 @@ export function messageReading(
  * reaction: ConstructorParameters<typeof ReactionStripView>[0],
  * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"]}} MessageCommands */
 
-// The tint a turn arrives in, a message or the working message's face (transcript.js):
+// The tint a turn arrives in, a message or a progress run's face (transcript.js):
 // one phase drives its ground and its sticky head (surfaces.css, `--lf-msg-arrival`).
 // CSS resolves the tint and resting colour at the node after insertion; Firefox's Web
 // Animations interpolates a var() colour keyframe discretely. The shared motion gate

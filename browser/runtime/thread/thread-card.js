@@ -118,7 +118,7 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  moveScrollerBy,
+  glideTo,
   SCROLL_SLACK,
   scrollGoal,
   scrollLimit,
@@ -1032,10 +1032,10 @@ export class ThreadView {
     // longer stands where this read it: the browser can apply a wheel's scroll before the
     // page hears the wheel or the scroll, as it does for macOS's precise wheels.
     // A glide this placement set going toward the end, which a growth arriving before
-    // it lands finds under way, still stands the user there (`scrollGoal`).
-    const stood = scroller.scrollTop;
-    const atEnd =
-      !readerScrolls(scroller) && before.limit - scrollGoal(scroller) <= SCROLL_SLACK;
+    // it lands finds under way, still stands the user there: where the box stands is
+    // where it is headed (`scrollGoal`).
+    const stood = scrollGoal(scroller);
+    const atEnd = !readerScrolls(scroller) && before.limit - stood <= SCROLL_SLACK;
     const pad = Number.parseFloat(getComputedStyle(scroller).paddingTop);
     const from = () =>
       turn.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pad;
@@ -1067,15 +1067,17 @@ export class ThreadView {
         !atEnd ||
         !turn.isConnected ||
         readerScrolls(scroller) ||
-        scroller.scrollTop !== stood
+        scrollGoal(scroller) !== stood
       )
         return;
       // The user's turn stands wholly in sight, between the box's top edge and New
-      // reply's ground, its head first where it is taller than that.
+      // reply's ground, its head first where it is taller than that, measured where the
+      // box is headed: New reply sticks at the box's foot, and the turn rises by what
+      // the glide has yet to move. The box glides there, as it glides to the end.
+      const ahead = stood - scroller.scrollTop;
       const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
-      const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
-      const by = Math.min(Math.max(below, 0), from());
-      moveScrollerBy(scroller, by);
+      const below = foot ? turn.getBoundingClientRect().bottom - ahead - foot.top : 0;
+      glideTo(scroller, stood + Math.min(Math.max(below, 0), from() - ahead));
     });
   }
 

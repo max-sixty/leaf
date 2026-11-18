@@ -731,6 +731,15 @@ export function messageReading(
  * reaction: ConstructorParameters<typeof ReactionStripView>[0],
  * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"]}} MessageCommands */
 
+// The tint a turn arrives in, a message or a progress run's face (transcript.js):
+// one phase drives its ground and its sticky head (surfaces.css, `--lf-msg-arrival`).
+// CSS resolves the tint and resting colour at the node after insertion; Firefox's Web
+// Animations interpolates a var() colour keyframe discretely. The shared motion gate
+// answers for restoration and reduced motion.
+/** @param {Element} node */
+export const arrivalTint = (node) =>
+  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], flashDuration());
+
 export class MessageView {
   #commands;
   /** @type {PresentedMessage | null} */
@@ -1004,18 +1013,9 @@ export class MessageView {
     dressCode(this.node);
     // The drawing these widgets left draws the way here instead.
     displaced?.present(displaced.model);
-    if (!prior && (model.pending || arrived)) {
-      // One phase drives the message's ground and its sticky header. CSS resolves
-      // the tint and resting colour at this message after insertion; Firefox's
-      // Web Animations interpolates a var() colour keyframe discretely.
-      // The shared motion gate answers for restoration and reduced motion; the
-      // delivery receipt and busy cursor remain independent of the arrival tint.
-      this.#arrivalMotion = motion(
-        this.node,
-        [{ "--lf-msg-arrival": 1, offset: 0 }],
-        flashDuration(),
-      );
-    }
+    // The delivery receipt and busy cursor remain independent of the arrival tint.
+    if (!prior && (model.pending || arrived))
+      this.#arrivalMotion = arrivalTint(this.node);
     // Whether this message can be rewritten may have moved, which the reply box's ↑
     // reads (`threadRewrites`).
     messageDrawn();

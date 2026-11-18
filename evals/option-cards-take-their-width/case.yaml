@@ -1,4 +1,4 @@
-# A session's user found three option cards set `across` in an lf-ask "quite thin"
+# A session's user found three option cards set `across` in a question's lf-group "quite thin"
 # at 1728px: `across` shares the group's width, the question keeps the 720px column,
 # so each card got 229px and its four-word title broke in two. Other pages that set
 # cards across gave the group no `data-width` either.

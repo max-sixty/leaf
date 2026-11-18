@@ -36,6 +36,7 @@ import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import { readingOrder, readingPlace, targetSegments } from "./resolved-target.js";
 import { resolveAnchor } from "./anchor-resolution.js";
+import { focusedVisualPart } from "./visual-parts.js";
 import { draftAnchor, draftSends, draftsReading } from "./drafts.js";
 import { kept } from "./kept.js";
 import { projectionOrigins } from "./projection/model.js";
@@ -478,19 +479,47 @@ export function createAnnotationInventory({
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same
-  // resolved record as collection, navigation and paint.
+  // resolved record as collection, navigation and paint. A thread on a part of a
+  // picture, which stands at the picture, is about that part alone: it is at a node
+  // inside the part, or at the picture itself where focus there stands on that part,
+  // as a chart's keys stand on a point (`focusedVisualPart`), and at no other place in
+  // the picture. There it outranks a thread on the whole picture, as a pointed row
+  // does, since it is about where the user stands.
   /** @param {Node | null} node */
   function threadIdsAt(node) {
     const place = placeOf(node);
+    /** @type {string | null | undefined} */
+    let standsOn;
+    // How a thread on part `element` of picture `target` stands at the place: 3 where
+    // it is about where the user stands, null where it is about another part, and
+    // undefined for any other thread.
+    /** @param {ThreadRecord} thread @param {Element} element @param {Element} target */
+    const partRank = ({ anchor }, element, target) => {
+      if (!anchor?.visual || element === target) return undefined;
+      if (place && under(place, element)) return 3;
+      if (place !== target) return null;
+      if (standsOn === undefined) standsOn = focusedVisualPart(target)?.id ?? null;
+      return standsOn === anchor.visual ? 3 : null;
+    };
     let best = null;
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread)) continue;
       const placement = placedAt(thread.id);
       const target = placement?.place;
       if (!target || !under(place, target)) continue;
+      const part =
+        placement.kind === "element"
+          ? partRank(thread, placement.element, target)
+          : undefined;
+      if (part === null) continue;
       const point = livePoint(target, placement.point);
-      const rank = !point ? 1 : under(place, point) ? 2 : 0;
-      if (best && target === best.target && point === best.point) {
+      const rank = part ?? (!point ? 1 : under(place, point) ? 2 : 0);
+      if (
+        best &&
+        target === best.target &&
+        point === best.point &&
+        rank === best.rank
+      ) {
         best.ids.push(thread.id);
         continue;
       }

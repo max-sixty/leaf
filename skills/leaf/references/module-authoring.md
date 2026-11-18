@@ -361,7 +361,10 @@ time, not a new arrow.
 
 Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
 unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
-the page plays.
+the page plays. Have its callback schedule a paint from `frameFor` rather than draw:
+a drawing that settles inside a size delivery lets Leaf present the page there, which
+moves boxes the browser has just measured, and the browser reports a ResizeObserver
+loop that `page check` counts as a fault.
 
 ### Writes that change nothing
 

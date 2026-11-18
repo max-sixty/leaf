@@ -49,7 +49,7 @@ The optional bundled packages are:
 | `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.                                                                     |
 | `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                                                                           |
 | `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines, and `lf-worktree-diffs` for a set of worktree snapshots. |
-| `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                                                                          |
+| `file-editor`   | `lf-file-editor`, a CodeMirror editor for bound local text files, one open at a time, listing them for a navigator.                                         |
 | `file-tree`     | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys.                           |
 | `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.                                                                  |
 | `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                                             |
@@ -283,14 +283,14 @@ check` requires its value to name an element the page holds.
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 
-| Fact           | Shipped example                                                |
-| -------------- | -------------------------------------------------------------- |
-| `reading-role` | `lf-pane`                                                      |
-| `visual`       | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
-| `bound`        | `lf-activity`                                                  |
-| `height`       | `lf-chart`                                                     |
-| `history`      | `lf-activity`                                                  |
-| `views`        | `lf-tabs`                                                      |
+| Fact           | Shipped example                                                                      |
+| -------------- | ------------------------------------------------------------------------------------ |
+| `reading-role` | `lf-pane`                                                                            |
+| `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
+| `bound`        | `lf-activity`                                                                        |
+| `height`       | `lf-chart`                                                                           |
+| `history`      | `lf-activity`                                                                        |
+| `views`        | `lf-tabs`                                                                            |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's

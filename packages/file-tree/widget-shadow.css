@@ -24,3 +24,9 @@
 :host(lf-file-tree) [role="treeitem"][data-lf-focus]::before {
   display: none;
 }
+/* Trees' search field stands 1px below the top of the same clipping viewport, so no
+ * outside ring fits: its ring stands one band inside its edge, over the border it
+ * replaces. */
+:host(lf-file-tree) [data-file-tree-search-input] {
+  --lf-ring-at: var(--lf-focus-ring-inset);
+}

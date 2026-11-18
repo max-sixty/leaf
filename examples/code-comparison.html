@@ -74,8 +74,11 @@
         font-weight: 600;
       }
 
+      /* Each card's one column is the card's width, so a candidate the viewport
+         slider sizes wider than the card is held to it by its max-width. */
       .treatment {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         min-width: 0;
         font: var(--lf-font-ui);
         border: 1px solid var(--lf-rule);
@@ -313,9 +316,7 @@
             id="code-comparison-ask"
             label="Which code-reader treatment should the agent keep?"
           >
-            <h2 id="code-comparison-ask-h">
-              Which code-reader treatment should the agent keep?
-            </h2>
+            <h2>Which code-reader treatment should the agent keep?</h2>
             <lf-playground
               id="code-comparison-playground"
               contract="code-comparison-values"

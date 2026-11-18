@@ -1,6 +1,7 @@
 """Named browser probes, and the waits built on them, shared by the render gate and the
 test suite."""
 
+import time
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -19,17 +20,20 @@ RENDER_VIEWPORT = {"width": 1280, "height": 720}
 # different place each run and pass alone, and re-running a red run whole adds the load
 # that failed it. A longer bound costs only a slower failure for a real hang.
 SERVED_TIMEOUT_MS = 120_000
-# How long a whole page handover may take before the page counts as wedged: the wait,
-# from navigation, for the page to state every readiness fact (`wait_until_ready`).
+# How long a page handover may go without progress before the page counts as wedged.
+# A handover is the wait, from navigation, for the page to state every readiness fact
+# (`wait_until_ready`), and `HandoverProgress` says what counts as progress.
 # `SERVED_TIMEOUT_MS` bounds one request or one probe, and a handover is all of a
-# page's work at once. The corpus is the heaviest page that work is read on: idle, it
-# reaches readiness in 16-18s; a 4-vCPU runner driving four browsers took it past 30s;
-# and on an oversubscribed 18-core host, plain `page check` saw it upgrade for 46s and
-# reach readiness at 48s. A shorter deadline fails a slow page that would have arrived,
-# so an agent checking its page on a busy machine reads a false failure. Waiting longer
-# weakens no claim, since the readiness facts say the same whenever they arrive; the
-# deadline only separates a page that never arrives from a machine that has not got
-# there yet.
+# page's work at once. The bound is on progress rather than on the whole handover,
+# because the whole grows with the page: each live sample a check starts loads a page
+# of its own, three at a time (`MAX_LOADING_SAMPLES` in runtime/sample.js), so a
+# gallery of them on a starved machine takes minutes while its samples keep landing.
+# A bound on the whole would fail such a page on any machine slow enough, and an agent
+# checking it on a busy machine would read a false failure. A bound on progress need
+# only outlast the page's slowest arrival, such as one sample's whole page, which counts
+# as one arrival of the page holding it until it has arrived. Waiting longer weakens no
+# claim, since the readiness facts say the same whenever they arrive; the bound only
+# separates a page that has stopped from a machine that has not got there yet.
 HANDOVER_DEADLINE_MS = 240_000
 # How often a probe wait re-reads its fact. The waits poll on a timer rather than on
 # animation frames (see `_load_probes`), and most waits are a frame or a settle, so the
@@ -303,15 +307,19 @@ def rendered(page, *, facts: tuple[str, ...] | None = None) -> None:
     )
 
 
-# The page's own readiness reading (`pageReadiness` in runtime/presentation.js), read
-# off the entry script so a bundled entry answers too. A page whose entry has not run
-# yet has no reading, and starting is the first stage it owes. `answering` is the one
-# stage read from out here: a page too busy to say which stage it is at.
-_READINESS = """({held, through}) => {
-  const readiness = document.querySelector('script[data-lf-entry]')?.lfReadiness;
-  return readiness ? readiness(held, through ?? undefined) : 'started';
+# Where the page stands on its way to readiness: 'ready', or the first stage it has yet
+# to state (`pageReadiness` in runtime/presentation.js) with how many arrivals it has
+# yet to land (`arrivalsOutstanding`), read off the entry script so a bundled entry
+# answers too. A page whose entry has not run yet has no reading, and starting is the
+# first stage it owes. `answering` is the one stage read from out here: a page too busy
+# to say which stage it is at. A reader without Playwright's waits, such as the iOS
+# probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
+STANDING = """({held, through}) => {
+  const entry = document.querySelector('script[data-lf-entry]');
+  if (!entry?.lfReadiness) return ['started', 0];
+  const stage = entry.lfReadiness(held, through ?? undefined);
+  return stage === null ? 'ready' : [stage, entry.lfArrivalsOutstanding()];
 }"""
-_READY = f"asked => ({_READINESS})(asked) === null"
 # The reason a page declared it cannot start (an incomplete startup fault, prepaint.js),
 # or null. Such a page upgrades nothing more until a replacement server reloads it
 # (bootstrap.js).
@@ -320,11 +328,18 @@ _REFUSED = """() => {
   return root.hasAttribute('data-lf-startup-error')
     && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
 }"""
-_READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
 _PROBE_OR_REFUSED = f"call => ({_PROBE})(call) || ({_REFUSED})() !== null"
-# The stage the page has yet to state, or 'ready'. A reader without Playwright's waits,
-# such as the iOS probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
-OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
+# The page's standing once it differs from `last`, with 'refused' for a page that
+# declared it cannot start where the caller's server will not replace it.
+_STANDING_MOVED = f"""({{asked, refusable, last}}) => {{
+  const now = refusable && ({_REFUSED})() !== null ? 'refused' : ({STANDING})(asked);
+  return JSON.stringify(now) !== JSON.stringify(last) && now;
+}}"""
+# The stage the page has yet to state, or 'ready'.
+OUTSTANDING = f"""asked => {{
+  const standing = ({STANDING})(asked);
+  return standing === 'ready' ? standing : standing[0];
+}}"""
 # How a failure words each stage `pageReadiness` names. `state` fails only against an
 # answer the caller holds.
 UNREADY = {
@@ -348,6 +363,23 @@ class PageNotReady(TimeoutError):
     def __init__(self, stage: str, message: str):
         super().__init__(message)
         self.stage = stage
+
+
+class HandoverProgress:
+    """Whether each standing a wait reads (`STANDING`) moves the page's handover on: a
+    stage the wait has not yet seen it at, or fewer arrivals left at its stage than at
+    any reading there before. Arrivals that land only for others to take their place,
+    or a stage that swings back and forth, move it no further, so such a page's wait
+    still ends (`HANDOVER_DEADLINE_MS`)."""
+
+    def __init__(self):
+        self._fewest: dict[str, int] = {}
+
+    def moved(self, stage: str, left: int) -> bool:
+        if stage in self._fewest and left >= self._fewest[stage]:
+            return False
+        self._fewest[stage] = left
+        return True
 
 
 def asked_again(url: str) -> str:
@@ -377,7 +409,8 @@ def wait_until_ready(
     later meets it as well. `through` names the last stage the caller needs, for a
     caller that wants the answer taken in while the page is still mid-gesture. Finite
     animation is not readiness; the render gate asks `pageSettled` for that on its own.
-    The deadline is `HANDOVER_DEADLINE_MS` unless the caller states one.
+    The wait gives up once the page has gone `HANDOVER_DEADLINE_MS` without progress,
+    or `timeout_ms` where the caller states one.
 
     A caller whose server nothing replaces while it waits, such as a check reading a
     preview of one candidate, passes `fixed_server`: a page that declares it cannot
@@ -397,16 +430,29 @@ def wait_until_ready(
         "through": through,
     }
     timeout_ms = timeout_ms or HANDOVER_DEADLINE_MS
-    try:
-        page.wait_for_function(
-            _READY_OR_REFUSED if fixed_server else _READY, arg=asked, timeout=timeout_ms
-        )
-    except PlaywrightTimeout:
-        pass
-    else:
-        if fixed_server:
-            _refuse_unstarted(page)
-        return
+    progress = HandoverProgress()
+    standing = None
+    stalls = time.monotonic() + timeout_ms / 1000
+    left = timeout_ms
+    # Playwright reads a zero timeout as none, so the wait ends before one.
+    while left > 0:
+        try:
+            standing = page.wait_for_function(
+                _STANDING_MOVED,
+                arg={"asked": asked, "refusable": fixed_server, "last": standing},
+                timeout=left,
+            ).json_value()
+        except PlaywrightTimeout:
+            break
+        if standing in ("ready", "refused"):
+            if fixed_server:
+                _refuse_unstarted(page)
+            return
+        if progress.moved(*standing):
+            stalls = time.monotonic() + timeout_ms / 1000
+            left = timeout_ms
+        else:
+            left = round((stalls - time.monotonic()) * 1000)
     # Read the stage through a bounded wait too, since `evaluate` takes no deadline: a
     # page whose own code holds its main thread answers neither.
     try:
@@ -418,7 +464,7 @@ def wait_until_ready(
     if stage == "ready":
         return
     words = UNREADY[stage].format_map(asked["held"] or {})
-    raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
+    raise PageNotReady(stage, f"{words}: no progress in {timeout_ms}ms")
 
 
 def _refuse_unstarted(page) -> None:

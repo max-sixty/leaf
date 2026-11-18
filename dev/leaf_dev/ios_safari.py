@@ -22,7 +22,13 @@ import click
 from selenium import webdriver
 from selenium.common.exceptions import JavascriptException
 
-from leaf.render_checks import HANDOVER_DEADLINE_MS, OUTSTANDING, UNREADY, PageNotReady
+from leaf.render_checks import (
+    HANDOVER_DEADLINE_MS,
+    STANDING,
+    UNREADY,
+    HandoverProgress,
+    PageNotReady,
+)
 
 # The bound on one script, as `SERVED_TIMEOUT_MS` bounds one Playwright probe.
 SCRIPT_TIMEOUT_S = 120
@@ -137,17 +143,23 @@ def load(driver, address: str, leaf: bool = True) -> None:
     # can take the first one's port, so the old document is marked as left.
     driver.execute_script("window.__leafProbeLeft = true")
     driver.get(address)
-    deadline = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
-    stage = (
-        f"({OUTSTANDING})({{held: null, through: null}})"
+    stalls = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
+    progress = HandoverProgress()
+    standing = (
+        f"({STANDING})({{held: null, through: null}})"
         if leaf
-        else "document.readyState === 'complete' ? 'ready' : 'started'"
+        else "document.readyState === 'complete' ? 'ready' : ['started', 0]"
     )
-    stage_now = f"() => window.__leafProbeLeft ? 'started' : {stage}"
-    while (reached := evaluate(driver, stage_now)) != "ready":
-        if time.monotonic() > deadline:
-            words = UNREADY[reached] if leaf else "the page never loaded"
-            raise PageNotReady(reached, f"{words} within {HANDOVER_DEADLINE_MS}ms")
+    standing_now = f"() => window.__leafProbeLeft ? ['started', 0] : {standing}"
+    while (reached := evaluate(driver, standing_now)) != "ready":
+        if progress.moved(*reached):
+            stalls = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
+        elif time.monotonic() > stalls:
+            stage = reached[0]
+            words = UNREADY[stage] if leaf else "the page never loaded"
+            raise PageNotReady(
+                stage, f"{words}: no progress in {HANDOVER_DEADLINE_MS}ms"
+            )
         time.sleep(0.1)
     if leaf:
         evaluate(driver, SETTLED)

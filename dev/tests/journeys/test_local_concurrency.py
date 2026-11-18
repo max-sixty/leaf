@@ -8,8 +8,7 @@ from pathlib import Path
 
 from interact_support import STATED_TIMEOUT, wait_for
 
-from leaf_dev import ROOT
-from leaf_dev.commands.site import verify as verify_site
+from leaf_dev import ROOT, website
 
 
 def test_local_worker_wrapper_announces_independent_bound_ports(tmp_path, spawn):
@@ -43,7 +42,7 @@ def test_local_worker_wrapper_announces_independent_bound_ports(tmp_path, spawn)
             process = spawn(
                 [
                     "node",
-                    str(Path(verify_site.__file__).with_name("wrangler_server.mjs")),
+                    str(Path(website.__file__).with_name("wrangler_server.mjs")),
                     str(root),
                     str(config),
                     str(root / "state"),
@@ -57,7 +56,7 @@ def test_local_worker_wrapper_announces_independent_bound_ports(tmp_path, spawn)
 
             def announced(process=process, log=log):
                 assert process.poll() is None, log.read_text()
-                return verify_site.announced_origin(log, "local_worker_ready")
+                return website.announced_origin(log, "local_worker_ready")
 
             origins.append(wait_for(announced, bool, failure=log.read_text))
         assert origins[0] != origins[1]

@@ -628,6 +628,26 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
     )
 
 
+def test_a_reply_admits_an_option_that_leads_with_a_strong_and_no_label(
+    tmp_path, initialized_page
+):
+    """An option with no `label` that leads with a <strong> is a compact option the
+    registry allows. `page check` advises a `label` for it on a page, but a message has no
+    channel for advice, so its admission takes the option as written."""
+    page_dir = initialized_page(tmp_path / "page", ())
+    check_markup(
+        page_dir,
+        "reply",
+        '<lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
+        '<lf-options id="pick"><lf-option id="a"><strong>A</strong> first.</lf-option>'
+        '<lf-option id="b"><strong>B</strong> second.</lf-option></lf-options></lf-group>',
+        [],
+        publication=revision_publication(
+            page_dir, files_model.latest_revision(page_dir)
+        ),
+    )
+
+
 def test_reply_validates_typed_references_against_the_page(page_dir):
     """Reply markup naming a page element of the wrong role never enters the log, nor
     does a command naming the page's seat, which it would fill from another document."""

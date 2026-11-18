@@ -21,7 +21,7 @@ User previews resume the page in their slot, preserving its feedback and authore
 revisions. Plain previews build fresh from the fixture. A start into a slot another
 preview is serving is refused. The slot is a page directory under
 `LEAF_PREVIEWS_ROOT` (default `.tmp/previews/`), marked by its `preview.json`, with
-its lease at `<slot>.lock` beside it.
+its lease at `<slot>.lock` beside it (`arms.preview_lease`).
 
 A product document is served as builders read it, with the parts other sources own
 composed in (`page_fixtures.authored_markup`), and an edit to one of those owners
@@ -87,7 +87,13 @@ from leaf.publishing import authored_digest, authored_files, write_authored_file
 from leaf.refusals import Refused
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
-from leaf_dev.arms import base_option
+from leaf_dev.arms import (
+    STOP_SIGNALS,
+    arm_python,
+    base_option,
+    preview_lease,
+    terminated,
+)
 from leaf_dev.example_data import (
     capture_file,
     data_companion,
@@ -123,7 +129,6 @@ WATCH_INTERVAL_MS = 250
 # A refused bind is retried without requiring the author to edit the page. Keep
 # starts apart while the port is occupied; repeat diagnostics only when they change.
 REVIVE_INTERVAL_SECS = 1
-STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
 def worker_inputs(runtime: Path) -> list[Path]:
@@ -262,14 +267,6 @@ def preview_directory(source: Path, slot: str | None, user: bool) -> Path:
 
 
 WATCHER_NOTE = "server   preview (no task claim; stops with this process)"
-
-
-def preview_lease(page: Path) -> Path:
-    """The lock a running preview holds on its slot: beside the page, not in it,
-    since a discard removes the page and a lock on a removed inode excludes nobody.
-    """
-    page.parent.mkdir(parents=True, exist_ok=True)
-    return page.with_name(f"{page.name}.lock")
 
 
 def copy_media(media: Path, page: Path) -> None:
@@ -983,15 +980,7 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     SIGTERM, which `uv run` forwards — reaches the preview itself.
     """
     command = [
-        "uv",
-        "run",
-        "-q",
-        "--no-dev",
-        "--project",
-        str(runtime),
-        "--with-editable",
-        str(runtime / "dev"),
-        "python",
+        *arm_python(runtime, dev=runtime / "dev"),
         "-m",
         "leaf_dev.commands.preview",
         "--source",
@@ -1013,17 +1002,6 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
         command.append("--user")
     os.chdir(runtime)
     os.execvp(command[0], command)
-
-
-def terminated(signum, _frame) -> None:
-    """Begin shutdown once and let its cleanup finish despite later stop signals.
-
-    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
-    interrupt the watcher or service cleanup.
-    """
-    for stop_signal in STOP_SIGNALS:
-        signal.signal(stop_signal, signal.SIG_IGN)
-    raise SystemExit(128 + signum)
 
 
 def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> None:

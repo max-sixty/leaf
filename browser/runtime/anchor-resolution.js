@@ -31,9 +31,11 @@ import {
   registeredVisualPart,
   registeredVisualPartLabel,
   revealRegisteredVisualPart,
-  revealsVisualParts,
+  drawsAbsentParts,
   registeredVisualPartAt,
   registeredVisualParts,
+  focusedVisualPart,
+  visualPartFocus,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -169,6 +171,15 @@ export function addressedElements(source, key) {
   const datum = projectedDatum(source, key) ?? suppliedDatum(source, key);
   return datum ? [datum] : [];
 }
+
+// Where focus goes for what a key addresses under a widget: a visual part's destination
+// (`visualPartFocus`), which a chart settles on its point only as focus is placed, else
+// the first element the key addresses. Naming it changes nothing.
+/** @param {Element} source @param {string} key */
+export const addressedFocus = (source, key) =>
+  (admitsVisualPart(source, key) ? visualPartFocus(source, key) : null) ??
+  addressedElements(source, key)[0] ??
+  null;
 
 // Travel's half of that key space: ask the widget to draw what a key addresses before
 // anything reads it. A visual part drawn only in another state is drawn now, as
@@ -771,17 +782,32 @@ function designTargetAt(
 export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
   if (design) return designTargetAt(node, marginTargetAt);
   const visual = visualAt(node, { unclaimed: false });
-  if (visual?.part)
-    return {
-      anchor: { section: visual.id, visual: visual.part.id },
-      element: visual.part.element,
-      label: aimLabel(visual.seat, visual.part.label),
-      surface: visual.part.surface,
-    };
+  if (visual?.part) return partTarget(visual, visual.part);
   const datum = closestAcross(node, DATUM);
   if (datum) return datumAimTarget(datum);
   const addressable = addressableAt(node);
   return addressable ? addressableAimTarget(addressable) : null;
+}
+
+/** @param {NonNullable<ReturnType<typeof visualAt>>} visual
+ * @param {import("./visual-parts.js").VisualPart} part @returns {AimTarget} */
+const partTarget = (visual, part) => ({
+  anchor: { section: visual.id, visual: part.id },
+  element: part.element,
+  label: aimLabel(visual.seat, part.label),
+  surface: part.surface ?? null,
+});
+
+// The target focus on `node` names: the part a visual holding focus stands on, as a
+// chart on the point its keys reached (`focusedVisualPart`), else the target a press
+// on `node` takes. Only focus asks the visual itself, so a reading of the picture as
+// a whole, as the target picker's, keeps it whole.
+/** @param {Element} node @returns {AimTarget | null} */
+export function focusTargetAt(node) {
+  const visual = visualAt(node, { unclaimed: false });
+  const admits = visual?.element === node ? visualAdmission(node) : null;
+  const part = admits && focusedVisualPart(node, (found) => admits(found.id));
+  return visual && part ? partTarget(visual, part) : aimTargetAt(node);
 }
 
 // A target as a comment takes it: a Design mode control part with its passage
@@ -946,8 +972,8 @@ export function resolveAnchor(anchor) {
         surface: found.surface,
       });
     // A declared part the visual draws only in another state stands in for the whole
-    // visual, as a lazy datum does, until travel reveals it.
-    return admitsVisualPart(section, anchor.visual) && revealsVisualParts(section)
+    // visual, as a lazy datum does, until travel reveals it or the visual draws it.
+    return admitsVisualPart(section, anchor.visual) && drawsAbsentParts(section)
       ? {
           ...resolvedElement({
             element: section,

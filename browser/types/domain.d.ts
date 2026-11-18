@@ -96,9 +96,8 @@ export interface Thread {
   seat: string | null;
   summaries: readonly (Pick<
     EventMap["summary"],
-    "id" | "seq" | "from" | "through" | "text"
+    "id" | "seq" | "from" | "through" | "text" | "label"
   > & {
-    label: string;
     covers: readonly string[];
     protected: readonly string[];
   })[];

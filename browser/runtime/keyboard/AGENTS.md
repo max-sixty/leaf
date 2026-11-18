@@ -100,7 +100,9 @@ on its row; every other command leaves the control it was pressed on where it st
 screen (`bindings.js`). A surface
 may reuse a page key for the same intent with a nearer destination. While the user is
 on an obligation, or its margin or thread representative, core forwards only the
-widget's declared `contextKeys`, and widgets assign their own `1`–`9`.
+widget's declared `contextKeys`, and widgets assign their own `1`–`9`. A thread's
+view represents the question still open that the agent's latest message in it asks,
+before the one the thread is about (`current-target.js`, `questionAsked`).
 
 ## Touch routes
 
@@ -125,9 +127,9 @@ element, so it can't be the only place a state's reason or the rest of a cut wor
 said. A state says its word on the surface that holds it (`quoteReading`), a panel
 row's cut words stand whole where no pointer can hover (`floating-panel.css`), and
 whatever previews, a control's word and keys among it, shows its preview to a finger
-holding it. The hold reads and its release presses nothing, while a tap still presses;
-until 5 November 2026 the release pressed, so a finger couldn't read without acting
-short of sliding off, which on touch often scrolls instead (`preview.js`).
+holding it. The hold reads and its release presses nothing, while a tap still presses,
+so a finger reads without acting and without sliding off, which on touch often scrolls
+instead (`preview.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the

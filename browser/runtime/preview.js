@@ -166,9 +166,11 @@
      target within `WARM` of the last one shows the next at once, so reading along a row
      of controls waits once. Leaving the target hides it, and so do a press and any key
      but Escape, as the platform's tooltip goes, while the key does its own work; the
-     target then stays quiet until the pointer comes back to it. A target that arrives
-     under a pointer the user hasn't moved shows nothing, so news landing under a
-     resting pointer never covers what the user reads, and nor does one a pointer
+     target then stays quiet until the pointer comes back to it. A modifier alone is
+     half a press rather than a key (control-selectors.js, `MODIFIER_KEYS`), so ⌥ held
+     to aim a comment leaves standing the preview of the point it aims at. A target that
+     arrives under a pointer the user hasn't moved shows nothing, so news landing under
+     a resting pointer never covers what the user reads, and nor does one a pointer
      reaches while it carries a press, as in a drag. A tab the user leaves takes its
      preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
@@ -176,7 +178,7 @@
      placement standing in for one (`step`), the cause its mover gives (focus.js,
      `focusDestination`): Tab is the keyboard's pointing, a step to the next control
      the user may press. Leaving the target hides it. Focus any command places shows
-     nothing: a walk or an arrow key landing (`move`), as `m` lands on an On me item's
+     nothing: a walk or an arrow key landing (`move`), as `m` lands on an On Me item's
      margin entry, a surface placing focus as it opens, as the Page Map's first row,
      and focus handed back as a surface closes or as Escape backs the user out
      (`return`). What the user asked a command for is the place it lands on, already in
@@ -311,7 +313,7 @@ import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
 import { aimableAt, PRESSABLE } from "./widget-elements.js";
-import { PRESSES, WORKS } from "./control-selectors.js";
+import { MODIFIER_KEYS, PRESSES, WORKS } from "./control-selectors.js";
 import {
   clippedContents,
   clippedRect,
@@ -2103,7 +2105,8 @@ export function mountPreviews(chrome) {
     if (node && cause === "step") showFocus(node);
   });
   // Escape is the preview's own step while one shows, ahead of every other, which does
-  // nothing else; any other key puts a pointer's away and goes on to its work. A
+  // nothing else; any other key but a modifier alone puts a pointer's away and goes on
+  // to its work. A
   // suspended focus reading shows nothing to put away, so Escape goes on to its work
   // and leaves the reading to come back with its subject. The step is rooted where the
   // preview shows, so inside a modal dialog, which makes every scope rooted outside it
@@ -2157,7 +2160,11 @@ export function mountPreviews(chrome) {
           event.preventDefault();
           quieten();
         }
-      } else if (shown?.route === "pointer" || !shown) quieten();
+      } else if (
+        (shown?.route === "pointer" || !shown) &&
+        !MODIFIER_KEYS.includes(event.key)
+      )
+        quieten();
     },
     { capture: true },
   );

@@ -417,8 +417,8 @@ def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
     [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
     [fold] = thread["summaries"]
     assert fold == agent_fold
-    assert (fold["label"], fold["text"], fold["covers"]) == (
-        label if label is not None else "Earlier discussion",
+    assert (fold.get("label"), fold["text"], fold["covers"]) == (
+        label,
         "",
         [root["id"], reply["id"]],
     )

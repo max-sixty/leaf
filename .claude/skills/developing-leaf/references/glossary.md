@@ -71,8 +71,8 @@ and places too, since the interface's upright face would read as the agent's.
 Neither they nor Leaf's italic words narrate the agent from outside (“Claude is
 working”, “Waiting for Claude”), which puts a third party between the user and the
 agent; Leaf names the agent only where the agent isn't the one acting, as in “Queued
-for Claude”, and in the panel's resting line, “Claude awaits”, which the user chose on
-16 November 2026 over “Ready” alone.
+for Claude”, and in the panel's resting line, “Claude awaits”, which the user chose
+over “Ready” alone.
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
 as an author, **Waiting on me** and **On Me**, **my change**, and commands such as
@@ -209,7 +209,7 @@ A row is *withheld* while no part of its target shows in its region, as inside a
 In a document's sidebar holding nothing else, under a mouse, it shows the **contents
 spine** instead, which spreads the headings over the document's height, and the
 sidebar narrows to it. Each row's **section marks** say whether its
-section holds open threads, On me items and, while the changes view is on, changes;
+section holds open threads, On Me items and, while the changes view is on, changes;
 its link's preview counts them.
 
 ## Keyboard interactions

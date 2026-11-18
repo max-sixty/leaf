@@ -79,7 +79,10 @@ rule draws at once is drawn.
   answer the user waits for (`floating-panel.js`) does. Where news grows a thread's own
   box, the panel's view or a margin card, the growth may carry the box's secondary
   controls, such as Resolve or a message's pencil, from under a pointer resting on one;
-  the words the user is writing and their Send stay (the user's choice).
+  the words the user is writing and their Send stay (the user's choice). What news moves
+  there travels to its new place rather than jumping, as the user chose: a view that
+  scrolls glides to its end (`thread/thread-card.js`) and one that grows carries its
+  parts (`box-motion.js`).
   Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
@@ -262,16 +265,15 @@ playable").
   keyboard focus Tab or Shift+Tab moved at once, since Tab is the keyboard's pointing,
   and a finger by a long press, the touch form of pointing, whose release presses
   nothing and leaves the preview standing until the next press, while a tap still
-  presses (until 5 November 2026 the release pressed, so a finger couldn't read without
-  acting short of sliding off, which on touch often scrolls instead); where a surface
+  presses, so a finger reads without acting and without sliding off, which on touch
+  often scrolls instead; where a surface
   can't take a hold, it says the words at rest, as a panel row's cut words stand whole.
   So no fact is said to hover alone. A command's landing reads nothing: a walk such as
   `m`, an arrow key, a surface placing focus as it opens or handing it back as it
   closes. What the user asked a command for is the place it lands on, already in front
   of them, so a preview there would cover it and take their next Escape, and `K` reads
-  it there on demand, inside a modal dialog too, as an editor's hover key does; until 9
-  November 2026 a walk's landing previewed, and `m`'s covered the words beside the
-  margin entry it reached (check:
+  it there on demand, inside a modal dialog too, as an editor's hover key does
+  (check:
   `test_a_walk_s_landing_previews_nothing_and_tab_reads_it`). A preview the user put
   away stays away until they aim again, whatever the element declares meanwhile. A `title` is its writer's: the
   browser's tooltip shows it to a pointer, and Leaf's preview to focus and a finger,
@@ -287,9 +289,9 @@ playable").
   short, the target's or one around it, aren't shown, so their preview reads them whole.
   What has nothing more to say previews nothing. The browser's tooltip answers to the same rule: a `title` or an SVG
   `<title>` shows over everything inside it, so Leaf names a drawing for a reader who
-  can't see it with `aria-label`, as `lf-diagram` does with Mermaid's `accTitle` (until
-  9 November 2026 every diagram showed its name as a tooltip; check: the `lf-diagram`
-  case in `tests/smoke/test_plain_page.py`).
+  can't see it with `aria-label`, as `lf-diagram` does with Mermaid's `accTitle`, so no
+  diagram shows its name as a tooltip (check: the `lf-diagram` case in
+  `tests/smoke/test_plain_page.py`).
 - **One owner shows every preview.** An element adds to what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
   word and keys come from its name and the register, a link an author wrote into the
@@ -676,6 +678,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
+| The obligation the user is in, answered or not, and the question a thread's view asks them            | `current-target.js` `obligationIn`, `questionAsked`                                |
 | Which of two nodes the reader reaches first, across shadow trees, alone or in a sort                  | `shadow-tree.js` `renderedOrder`, `renderedOrdering`, `byRenderedOrder`            |
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |

@@ -2,6 +2,7 @@
 clear of one another at any width with each label's stroke at its event's moment, and
 prints whole. The step is tab-local view state."""
 
+import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import leaf_page, open_page, select, told
@@ -165,6 +166,34 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect(position).to_have_text("Step 3 of 6 · 1 s")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_leaving_a_comment_on_an_event_keeps_the_timeline_at_its_step(
+    engine, request, serve
+):
+    """A comment box opened on an event another step shows, and put away again,
+    hands the reader back to the event and leaves the playhead where it was."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Race", RACE), packages=("timeline",)),
+    )
+    position = page.locator("#race .lf-timeline-position")
+    page.locator("#race .lf-timeline-step").first.focus()
+    page.keyboard.press("End")
+    expect(position).to_have_text("Step 6 of 6 · 5.2 s")
+    label = page.locator('[data-lf-event="a-read"] .lf-timeline-label')
+    page.keyboard.down("Alt")
+    label.click()
+    page.keyboard.up("Alt")
+    composer = page.locator(".lf-composer")
+    expect(composer).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("Job A: Reads balance")
+    expect(position).to_have_text("Step 6 of 6 · 5.2 s")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    expect(page.locator('[data-lf-event="a-read"]')).to_be_focused()
+    expect(position).to_have_text("Step 6 of 6 · 5.2 s")
 
 
 def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):

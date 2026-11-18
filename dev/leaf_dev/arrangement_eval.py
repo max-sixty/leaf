@@ -51,6 +51,7 @@ from leaf_dev.arms import (
     now,
     observed_sum,
     pages,
+    phase_traces,
     read_page_state,
     read_trace,
     resumed,
@@ -839,19 +840,6 @@ def comment_answer(run: Run, reply: str, page: Path) -> str:
     )
 
 
-def phase_traces(trace: list[dict]) -> dict[int, list[dict]]:
-    """The session's records split at the harness's `eval_phase` marks."""
-    split: dict[int, list[dict]] = {}
-    current = None
-    for record in trace:
-        if record.get("type") == "eval_phase":
-            current = record["phase"]
-            split[current] = []
-        elif current is not None:
-            split[current].append(record)
-    return split
-
-
 def replies(trace: list[dict]) -> str:
     """Every turn's closing message in a phase, in order."""
     return "\n\n".join(
@@ -992,7 +980,11 @@ def execute_scenario(
     except Exception as error:
         failure = "".join(traceback.format_exception(error))
     trace = read_trace(work / "stream.jsonl")
-    split = phase_traces(trace)
+    split = {
+        records[0]["phase"]: records
+        for records in phase_traces(trace)
+        if records[0].get("type") == "eval_phase"
+    }
     order = list(phases(case))
     session = dict(
         zip(

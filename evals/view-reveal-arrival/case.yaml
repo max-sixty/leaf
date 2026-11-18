@@ -11,8 +11,8 @@ vars:
   prompt: |
     I'm writing a Leaf widget with two mutually exclusive panels. It listens for
     navigation to an anchor inside a hidden panel. Opening the panel changes its
-    visibility synchronously, then layoutChanged returns a promise while its
-    descendants finish arranging. A sibling details-style disclosure opens
+    visibility synchronously, and its descendants finish arranging after the panel
+    opens. A sibling details-style disclosure opens
     additional content without replacing a panel.
 
     Show the navigation handlers for these two

@@ -20,10 +20,10 @@ from pathlib import Path
 
 import yaml
 
+from leaf.anchor_capture import capture_anchor
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.passages import SourceReading
 from leaf.registry.kernel import kinds_declaring
 from leaf.service import requires_agent_attention
 from leaf.state import turn_open
@@ -34,12 +34,14 @@ from leaf_dev.arms import (
     LiveChild,
     LiveSession,
     PageClient,
+    arm_python,
     blocks,
     completed,
     environment,
     now,
     observed_sum,
     pages,
+    phase_traces,
     read_page_state,
     read_trace,
     resumed,
@@ -99,17 +101,11 @@ class Run:
 
     def traces(self) -> list[list[dict]]:
         """Keep each chat phase distinct within the continuous native session."""
-        phases = []
-        for path in sorted(self.dir.glob("stream-*.jsonl")):
-            phase = []
-            for record in read_trace(path):
-                if record["type"] == "eval_phase" and phase:
-                    phases.append(phase)
-                    phase = []
-                phase.append(record)
-            if phase:
-                phases.append(phase)
-        return phases
+        return [
+            phase
+            for path in sorted(self.dir.glob("stream-*.jsonl"))
+            for phase in phase_traces(read_trace(path))
+        ]
 
     def usable(self) -> bool:
         """Whether the native author finished the requested phases."""
@@ -128,15 +124,7 @@ def arm_fixture(run: Run, action: str, *args: str) -> None:
     """Run the fixture module with the selected arm's Leaf and isolated state."""
     subprocess.run(
         [
-            "uv",
-            "run",
-            "-q",
-            "--no-dev",
-            "--project",
-            str(run.payload),
-            "--with",
-            str(ROOT / "dev"),
-            "python",
+            *arm_python(run.payload, dev=ROOT / "dev"),
             "-m",
             "leaf_dev.usability_fixture",
             action,
@@ -235,23 +223,10 @@ def build_layout_shifts(run: Run, page: Path) -> None:
     )  # fmt: skip
 
 
-def said(html: str) -> dict[str, str]:
-    """id → the words the element says, in Leaf's own reading of the markup: the
-    text a user selects and an anchor quotes."""
-    reading = SourceReading(SourceDocument(html), None)
-    return {element: spoken.words for element, spoken in reading.spoken.items()}
-
-
 def anchor(html: str, element: str, quote: str) -> dict:
-    """A comment anchor on `quote` inside the element with id `element`."""
-    text = said(html)[element]
-    at = text.index(quote)
-    return {
-        "section": element,
-        "quote": quote,
-        "prefix": text[max(0, at - 24) : at],
-        "suffix": text[at + len(quote) : at + len(quote) + 24],
-    }
+    """A comment anchor on `quote` inside the element with id `element`, with the
+    context Leaf captures for a selection (`anchor_capture.capture_anchor`)."""
+    return capture_anchor(SourceDocument(html), None, quote, element)
 
 
 def build_resume(run: Run, page: Path) -> None:

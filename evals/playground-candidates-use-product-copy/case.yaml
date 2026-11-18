@@ -1,17 +1,14 @@
-# From Codex session 01a0fa53-301d-7b33-aac5-c7b630c59ee3: a comment-growth
-# sketch added authoring-status text inside the simulated thread after reading
-# the playground instructions. Scores product copy and useful exploration controls.
-# The short copy-pass fixture passed both wordings when the guidance was read,
-# so it is a guardrail. Copy-inventory replays of the full pre-authoring Codex
-# context produced prototype-status labels in 2/2 baseline outputs and 0/2 with
-# the final paragraph. These score authored strings, not animation behavior.
-# A removal survey exposed inconsistent grading of retained outer controls. Judge
-# partial revisions by what they change and explicitly preserve, not repeated markup.
+# A Codex session's comment-growth sketch added authoring-status text inside the
+# simulated thread after reading the playground instructions. Scores product copy
+# and useful exploration controls. The short copy-pass fixture is a guardrail. Its
+# metrics score authored strings, not animation behavior. The judgment accepts no
+# partial revision, since the author writes every control.
 description: playground-candidates-use-product-copy
 metadata:
   purpose:
     "Playground: candidates use realistic product content; exploration commentary stays around
     the interface."
+  page: [playground]
   tags:
     - playground
 vars:
@@ -25,11 +22,9 @@ vars:
     \ obey the layouts. Seeing the sketch will help me think about where it's\nviable to try further.\"\
     \n\nLeaf's current composer has an editable message and Send. Its thread has the\npassage being discussed,\
     \ the message, a reaction, Undo, Resolve, and Reply.\nTry smooth outward growth and a piece-by-piece\
-    \ build, with slow motion and\nreplay so the user can inspect the transition.\n\nThe page uses the\
-    \ playground package; read its author instructions at\n`../../packages/playground/instructions/author.md`\
-    \ relative to the leaf skill's base\ndirectory, the directory that holds its `references/`.\nThe first\
+    \ build, with slow motion and\nreplay so the user can inspect the transition.\n\nThe first\
     \ draft has been written. The two motions work and a browser check\nmeasured zero text movement. Its\
-    \ preview markup is:\n\n<lf-playground-preview>\n  <div class=\"stage\" id=\"animation-stage\">\n\
+    \ preview markup is:\n\n<div class=\"preview\">\n  <div class=\"stage\" id=\"animation-stage\">\n\
     \    <p class=\"passage\">A comment starts small.\n      <mark>The thread needs room for context and\
     \ replies.</mark></p>\n    <div class=\"seat\" id=\"comment-seat\">\n      <div class=\"shell\" aria-hidden=\"\
     true\"></div>\n      <div class=\"draft-frame\" aria-hidden=\"true\"></div>\n      <div class=\"header\"\
@@ -46,12 +41,11 @@ vars:
     \ the agent</div>\n      </div>\n      <div class=\"guides\" hidden aria-hidden=\"true\"></div>\n\
     \    </div>\n  </div>\n  <div class=\"transport\">\n    <button class=\"replay\">Replay</button>\n\
     \    <button class=\"reset-draft\">Edit again</button>\n    <label>Progress <input aria-label=\"Animation\
-    \ progress\" type=\"range\"\n      min=\"0\" max=\"100\" value=\"0\"></label>\n  </div>\n</lf-playground-preview>\n\
+    \ progress\" type=\"range\"\n      min=\"0\" max=\"100\" value=\"0\"></label>\n  </div>\n</div>\n\
     \nIts Resolve handler currently sets:\nseat.querySelector('.tail').textContent = on\n  ? 'Resolved\
-    \ \xB7 sketch only'\n  : 'Illustrative thread \xB7 no comment sent to the agent';\n\nFinish the draft\
-    \ for handoff. Keep the working motions and simplify copy\nthat does not help the user understand\
-    \ or operate it. The page directory is\nnot reachable here, so reply with the revised playground HTML\
-    \ and the relevant\nscript handlers. You can omit the unchanged animation implementation and CSS.\n"
+    \ \xB7 sketch only'\n  : 'Illustrative thread \xB7 no comment sent to the agent';\n\nWrite the page from\
+    \ that draft and finish it for handoff, simplifying copy\nthat does not help the user understand\
+    \ or operate it. A placeholder can stand\nfor the animation implementation and its CSS.\n"
 assert:
   - type: llm-rubric
     metric: judgment
@@ -68,7 +62,5 @@ assert:
       2. The user can send a message, compare the two motions, slow them down, and
          replay them through controls with meaningful labels. The copy rule must
          not remove useful exploration controls around the simulated interface.
-         This revises a working draft: a partial replacement may explicitly retain
-         its existing outer controls and handlers without repeating their markup.
          Merely promising new controls, or removing existing ones, does not count.
       Fail if either does not hold.

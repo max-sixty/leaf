@@ -30,6 +30,7 @@
  * row without an empty disclosure, and a file-type replacement keeps one file identity.
  * Author notes use the same source coordinate resolver as cross-widget navigation;
  * their authored nodes move into the stage, never copied into generated data rows. */
+import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
   DISCLOSE,
   announce,
@@ -41,10 +42,6 @@ import {
   generated,
   generatedElement,
   holdFocus,
-  html,
-  nothing,
-  keyed,
-  render,
   inChrome,
   nameAction,
   keeps,
@@ -1040,8 +1037,8 @@ customElements.define(
     inlineSource = "";
     unplacedNotes = document.createElement("div");
     // The patch text or file manifest, set by whoever hosts the widget: Leaf from the
-    // bound source (the registry's `x-data.document.property`), or from the written
-    // `<pre>`; null while a bound source has none.
+    // bound source (the registry's `inputs.document.property`), or from the
+    // written `<pre>`; null while a bound source has none.
     static properties = { value: { attribute: false } };
 
     constructor() {
@@ -1483,7 +1480,7 @@ customElements.define(
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value: source } }));
     }
 
-    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
+    // The widget's thread surface: Leaf asks for one outlet, or null, per target it hands over, and
     // the outlets this placement no longer uses come down once it commits.
     /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets @param {import("/runtime/thread/surfaces.js").OutletContext} context */
     threadOutlets(targets, { onCommit }) {
@@ -1504,6 +1501,8 @@ customElements.define(
 
     /** @param {import("/runtime/thread/surfaces.js").OutletTarget} target */
     threadOutletFor({ anchor, placement }) {
+      // A thread about the diff as a whole names no datum, and stays in the margin.
+      if (!anchor.datum) return null;
       const coordinate = readDiffCoordinate(anchor.datum);
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!coordinate || !entry || entry.filtered) return null;

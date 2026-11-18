@@ -391,9 +391,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
     A subagent the session spawns runs its shell commands in the session's own
     environment, with nothing that names the subagent (measured at 2.1.317), so a
     command it runs acts for the session; only a hook's payload names it
-    (`agent_id`, `state.worker_tool_batch`). Leaf's PreToolUse hook marks the `leaf`
-    commands of a fork Leaf gave a thread's work with its agent id, so they act in
-    that fork's own turn (`hooks.agent_command`)."""
+    (`agent_id`, `state.worker_tool_batch`). A fork Leaf gave a thread's work names
+    its own turn in its `leaf` commands, as Leaf's prompt tells it, so they act in
+    that turn (`state.acting_agent_turn`)."""
 
     job: str | None = None
 
@@ -790,9 +790,10 @@ class CodexHarness(EnvironmentHarness):
         reach Stop without running another tool. Stop offers only where no adapter
         will start a turn of its own for the input over App Server
         (`later_turn_takes_input`), and the turn would continue for it
-        (`hook_transport.stop_continues`). The tool hook offers only input the
-        cursor has not passed, and Stop also an update the session holds no usable
-        reference for (`delivery.deliverable`). The tool hook also carries the
+        (`hook_transport.stop_continues`). The tool hook offers input the cursor
+        has not passed, and input the cursor passed that no pickup names, which a
+        Codex session's receipts never leave, and Stop also an update the session
+        holds no usable reference for (`delivery.deliverable`). The tool hook also carries the
         reminder of a status line left standing (`hook_transport.status_reminders`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
@@ -1261,8 +1262,8 @@ def claude_code_live_turn(records: list[dict]) -> dict | None:
     ends a turn without running the Stop hook, and the record turns `idle` at that
     moment (measured at Claude Code 2.1.283). `busy` is weaker: a background job's
     record stays `busy` across turn endings while its background work runs, so it
-    does not prove a turn is running; after a turn ends, it says work continues
-    (`activity.Turn.background`). The record belongs to the worker hosting the
+    does not prove a turn is running. It says the session works, in its turn or,
+    after the turn ends, in the background (`activity.Turn.busy`). The record belongs to the worker hosting the
     session's current sitting, so a background job whose worker has retired has
     none."""
     record = claude_code_current_record(records)

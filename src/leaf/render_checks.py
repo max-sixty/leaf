@@ -1,7 +1,6 @@
 """Named browser probes, and the waits built on them, shared by the render gate and the
 test suite."""
 
-from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -13,12 +12,12 @@ from .schema import RENDER_CHECKS_DIR
 # (`render_gate.command.desktop_viewport`).
 RENDER_VIEWPORT = {"width": 1280, "height": 720}
 
-# The bound on one probe or request, sized for an oversubscribed host rather than an idle
-# one: it separates a wedged preview, which it turns into a useful failure rather than
-# an unbounded evaluate, from a machine that has not got there yet. At Playwright's own
-# 30s, browser tests on a host stacked with other sessions' suites timed out in a
-# different place each run and passed alone, and each red run was re-run whole, adding
-# the load that failed it. A longer bound costs only a slower failure for a real hang.
+# The bound on one probe or request, sized for an oversubscribed host rather than an
+# idle one: it separates a wedged preview, which it turns into a useful failure rather
+# than an unbounded evaluate, from a machine that has not got there yet. At Playwright's
+# own 30s, browser tests on a host stacked with other sessions' suites can time out in a
+# different place each run and pass alone, and re-running a red run whole adds the load
+# that failed it. A longer bound costs only a slower failure for a real hang.
 SERVED_TIMEOUT_MS = 120_000
 # How long a whole page handover may take before the page counts as wedged: the wait,
 # from navigation, for the page to state every readiness fact (`wait_until_ready`).
@@ -66,6 +65,16 @@ _RENDERING_SETTLED = """facts => {
   const state = globalThis.__leafRenderDriver.renderingState();
   return (facts ?? Object.keys(state)).every(fact => state[fact]);
 }"""
+
+
+def open_render_page(opener, **options):
+    """A new page from `opener`, a browser or a context, opened with Playwright's
+    `new_page` `options`, whose every Playwright wait that names no deadline, its
+    navigations included, takes `SERVED_TIMEOUT_MS` rather than Playwright's own 30s,
+    which a page's `load` overruns on a starved host."""
+    page = opener.new_page(**options)
+    page.set_default_timeout(SERVED_TIMEOUT_MS)
+    return page
 
 
 def _timeout(page, timeout_ms: int | None) -> int:
@@ -212,31 +221,20 @@ def evaluate_probe(page, name: str, *args):
     return page.evaluate(_PROBE, {"name": name, "args": list(args)})
 
 
-@contextmanager
-def observe_probe(page, name: str, *args):
-    """Own a probe's native finish closure; fill its records when the scope ends.
-
-    JSON evaluation cannot carry a browser function. Its JSHandle keeps the
-    observation in this document and disconnects it even if the caller's work fails.
-    """
-    _load_probes(page, _timeout(page, None))
-    handle = page.evaluate_handle(_PROBE, {"name": name, "args": list(args)})
-    records = []
-    try:
-        yield records
-    finally:
-        try:
-            records.extend(handle.evaluate("finish => finish()"))
-        finally:
-            handle.dispose()
-
-
-def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> None:
+def wait_for_probe(
+    page,
+    name: str,
+    *args,
+    timeout_ms: int | None = None,
+    fixed_server: bool = False,
+) -> None:
     """Wait until one named browser probe returns a truthy value.
 
     The default patience suits a reading that arrives once the page settles. A caller
     waiting on work the page is doing on its behalf states its own budget, because the
-    page answers nothing at all while that work holds its main thread.
+    page answers nothing at all while that work holds its main thread. A caller whose
+    server nothing replaces passes `fixed_server`, as `wait_until_ready` takes it: a
+    page that declares it cannot start then raises `PageNotReady` at once.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -244,7 +242,7 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
     _load_probes(page, timeout_ms)
     try:
         page.wait_for_function(
-            _PROBE,
+            _PROBE_OR_REFUSED if fixed_server else _PROBE,
             arg={"name": name, "args": list(args)},
             timeout=timeout_ms,
             polling=PROBE_POLL_MS,
@@ -253,6 +251,8 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
         raise PlaywrightTimeout(
             f"Leaf wait probe {name} did not become true within {timeout_ms}ms"
         ) from error
+    if fixed_server:
+        _refuse_unstarted(page)
 
 
 def _wait_for_driver(page, fact: str, arg, missing: str) -> None:
@@ -321,6 +321,7 @@ _REFUSED = """() => {
     && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
 }"""
 _READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
+_PROBE_OR_REFUSED = f"call => ({_PROBE})(call) || ({_REFUSED})() !== null"
 # The stage the page has yet to state, or 'ready'. A reader without Playwright's waits,
 # such as the iOS probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
 OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
@@ -349,6 +350,14 @@ class PageNotReady(TimeoutError):
         self.stage = stage
 
 
+def asked_again(url: str) -> str:
+    """`url` as the document startup recovery asks the server for once more
+    (`_leaf-recovered`, bootstrap.js). A page opened there that cannot start waits for
+    another server rather than reloading itself from this one, so a reader that judges
+    the document it opened, such as a check against a fixed server, opens it here."""
+    return f"{url}{'&' if '?' in url else '?'}_leaf-recovered"
+
+
 def wait_until_ready(
     page,
     state: dict | None = None,
@@ -373,7 +382,9 @@ def wait_until_ready(
     A caller whose server nothing replaces while it waits, such as a check reading a
     preview of one candidate, passes `fixed_server`: a page that declares it cannot
     start is then refused at once, as stage `refused` with the page's own reason,
-    rather than at the deadline, since the reload it waits for never comes.
+    rather than at the deadline, since the reload it waits for never comes. Such a
+    caller opens the page at `asked_again`, or the page's one reload from the same
+    server replaces the document the caller is still reading.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -393,8 +404,8 @@ def wait_until_ready(
     except PlaywrightTimeout:
         pass
     else:
-        if fixed_server and (reason := page.evaluate(_REFUSED)) is not None:
-            raise PageNotReady("refused", f"the runtime could not start: {reason}")
+        if fixed_server:
+            _refuse_unstarted(page)
         return
     # Read the stage through a bounded wait too, since `evaluate` takes no deadline: a
     # page whose own code holds its main thread answers neither.
@@ -408,6 +419,13 @@ def wait_until_ready(
         return
     words = UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
+
+
+def _refuse_unstarted(page) -> None:
+    """Raise `PageNotReady` as stage `refused`, with the page's own reason, where the
+    page declared it cannot start."""
+    if (reason := page.evaluate(_REFUSED)) is not None:
+        raise PageNotReady("refused", f"the runtime could not start: {reason}")
 
 
 def start_near_work(page, state: dict | None = None, **ready) -> None:

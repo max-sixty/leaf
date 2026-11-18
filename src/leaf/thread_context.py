@@ -1,4 +1,4 @@
-"""Thread identity, frozen markup, and bounded delivery context."""
+"""Thread identity, message markup, and bounded delivery context."""
 
 from collections.abc import Callable
 from functools import lru_cache
@@ -13,9 +13,11 @@ from leaf.events import (
     event_coordinate,
     progress_completions,
     retractions,
+    spoken_turns,
+    summary_range,
     taken_back,
 )
-from leaf.passages import enclosing_ids
+from leaf.passages import enclosing_ids, holds_html, message_markup
 from leaf.registry.kernel import kinds_declaring
 from leaf.structure import SourceDocument
 
@@ -107,7 +109,7 @@ def id_subject(
     widget on the page, `{"kind": "thread", "id"}` for a thread. None where it names
     neither.
 
-    A thread is named by its own id, any message in it, a widget frozen into its
+    A thread is named by its own id, any message in it, a widget in its
     markup, or any other event whose history it is part of
     (`thread_memberships`). An event on a page widget, an action or a worker's report,
     names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
@@ -178,39 +180,93 @@ class ThreadStructure(NamedTuple):
     ids: set
     by_id: dict
     fragments: dict
+    # Every id any wording of an agent's message held → that message.
+    holders: dict
+    # Each agent message → the logged events that worded it, in force and in log
+    # order: the message, then each edit of it.
+    wordings: dict
 
 
-def logged_fragment(event: dict) -> SourceDocument:
-    """The parse of one logged event's frozen markup, shared read-only.
+def logged_fragment(event: dict) -> SourceDocument | None:
+    """The parse of the markup a logged agent message, or an agent's edit of one, draws
+    where its Markdown holds HTML (`passages.holds_html`, `passages.message_markup`),
+    shared read-only; None for any other event.
 
-    The log is append-only and a logged event is never rewritten, so its markup is
-    one immutable fragment for the page's lifetime, and every reader of the log
-    takes this one parse of it. The parse is a function of the markup alone, so it
-    is held by that text, which names it exactly whichever page and log it came
-    from. Markup a writer hands in has not been admitted yet and is another fact:
-    its gate parses it afresh (`validation.admission.check_markup`)."""
-    return _fragment(event["markup"])
+    The log is append-only, so each wording is one immutable fragment for the page's
+    lifetime, and every reader of the log takes this one parse of it. The parse is a
+    function of the text alone, so it is held by that text, which names it exactly
+    whichever page and log it came from. Text a writer hands in has not been admitted
+    yet and is another fact: its gate parses it afresh
+    (`validation.admission.check_markup`)."""
+    if (
+        event["kind"] in ("comment", "reply", "edit")
+        and event.get("author") == "agent"
+        and "text" in event
+    ):
+        return _fragment(event["text"])
+    return None
 
 
-@lru_cache(maxsize=4096)
-def _fragment(markup: str) -> SourceDocument:
-    return SourceDocument(markup)
+@lru_cache(maxsize=16384)
+def _fragment(text: str) -> SourceDocument | None:
+    return SourceDocument(message_markup(text)) if holds_html(text) else None
 
 
 def thread_structure(events: list) -> ThreadStructure:
-    """Each logged markup fragment (`logged_fragment`) as the panel's id universe."""
-    ids, by_id, fragments = set(), {}, {}
+    """Each agent message's markup as it now reads, as the panel's id universe: its
+    latest edit still in force, else the words it was sent with, the words
+    `build_threads` shows. `fragments` is ordered by when each message's current
+    wording was written, and `wordings` keeps the ones before it, which a reading of
+    an earlier moment takes (`message_wording`).
+
+    `holders` keeps every id any of a message's wordings held, a withdrawn edit's
+    included, so no other message or revision takes it (`check_markup`,
+    `validation.source`): a gesture the user made on that id would otherwise land on
+    another element. The message itself may take it back in a later edit, which is
+    how an answered widget keeps its answer."""
+    withdrawn = taken_back(events)
+    wordings, holders, latest = {}, {}, {}
     for e in events:
-        if e.get("markup"):
-            fragment = logged_fragment(e)
-            fragments[e["id"]] = fragment
+        if e["kind"] == "edit":
+            message = e["message"]
+            if message not in wordings:
+                continue
+        elif (
+            e["kind"] in ("comment", "reply")
+            and e.get("author") == "agent"
+            and "text" in e
+        ):
+            message = e["id"]
+            wordings[message] = []
+        else:
+            continue
+        fragment = logged_fragment(e)
+        if fragment:
+            for identity in fragment.ids:
+                holders.setdefault(identity, message)
+        if e["kind"] != "edit" or e["id"] not in withdrawn:
+            wordings[message].append(e)
+            latest.pop(message, None)
+            latest[message] = fragment
+    ids, by_id, fragments = set(), {}, {}
+    for message, fragment in latest.items():
+        if fragment:
+            fragments[message] = fragment
             ids.update(fragment.ids)
             by_id.update(fragment.by_id)
-    return ThreadStructure(ids, by_id, fragments)
+    return ThreadStructure(ids, by_id, fragments, holders, wordings)
+
+
+def message_wording(structure: ThreadStructure, message: str, seq: int) -> dict:
+    """The event whose words `message` said when the log stood at `seq`: the one a
+    gesture logged then was made on, so what it chose is read in the words the user
+    saw (`gesture_words`). A gesture names no wording, so one a tab made before an
+    edit reached it reads in the edit's words."""
+    return [e for e in structure.wordings[message] if e["seq"] <= seq][-1]
 
 
 def widget_messages(structure: ThreadStructure) -> dict:
-    """Widget id → the message whose immutable markup declares it."""
+    """Widget id → the message whose current markup declares it."""
     return {
         widget: message
         for message, fragment in structure.fragments.items()
@@ -219,9 +275,9 @@ def widget_messages(structure: ThreadStructure) -> dict:
 
 
 def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
-    """Widget id → the thread whose frozen markup holds it.
+    """Widget id → the thread whose message markup holds it.
 
-    The relation on its own, apart from `frozen_thread_reading`, which carries it
+    The relation on its own, apart from `thread_markup_reading`, which carries it
     alongside the records and words a vocabulary supplies. A caller needing only
     this relation does not load a registry to reach it. It takes the two readings
     rather than the log, so the caller that already holds them does not parse
@@ -242,8 +298,8 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
     of that relation, so a delivery and a projection cannot put the same event
     in different threads.
 
-    An action on a sent widget belongs to the thread that supplied
-    its frozen contract. An action also belongs to the thread it settles,
+    An action on a sent widget belongs to the thread whose markup
+    supplied its contract. An action also belongs to the thread it settles,
     which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
     shipped settling verb is `lf-suggestion`'s decide, whose widget stands on the
@@ -320,9 +376,11 @@ def thread_memberships(
     return memberships
 
 
-# What one message is, to a wait consumer holding no page: who said it, what they said,
-# the widget they sent with it, and the id an answer names. `seq` is the log
-# position, which is also what marks a message as already delivered. A
+# What one message is, to a wait consumer holding no page: who said it, when, what they
+# said, any widget in it included, and the id an answer names. `seq` is the log
+# position, which is also what marks a message as already delivered. `ts` is when it
+# was said: a reply says what was true when it was sent ("I'm building it now"), so a
+# reader needs its moment as well as its order. A
 # `suggestion` is the user proposing exact replacement words rather than
 # describing a change, and the loop owes it a different answer — taken verbatim,
 # or declined with a reason — so a digest that dropped the flag rendered it as
@@ -330,6 +388,7 @@ def thread_memberships(
 MESSAGE_FIELDS = (
     "id",
     "seq",
+    "ts",
     "author",
     "agent",
     "text",
@@ -338,7 +397,6 @@ MESSAGE_FIELDS = (
     # grew out of a mark reads as the mark it started from rather than as a
     # message with nothing in it.
     "token",
-    "markup",
     "drawing",
     "suggestion",
     # What the user had on screen as they wrote a message with no passage, which is
@@ -360,7 +418,9 @@ MESSAGE_FIELDS = (
 # grows with the thread until it alone outgrows the output it prints
 # into. That is the one shape acknowledgement cannot recover from: the ack rule
 # says to rerun with more capacity, and a rerun prints the same oversize header,
-# so nothing can ever be acked and the wait repeats forever.
+# so nothing can ever be acked and the wait repeats forever. A fork's prompt has no
+# such output to outgrow and the fork can't page, so it takes each thread whole
+# (`batch_threads`).
 SHOWN = 8
 
 # What one gesture on a sent widget is, unfolded. `author` for the same reason a
@@ -385,18 +445,23 @@ def ends_kept(items: list, pin: frozenset = frozenset()) -> list:
 
 
 def thread_digest(
-    thread: dict, omit: frozenset = frozenset(), pin: frozenset = frozenset()
+    thread: dict,
+    omit: frozenset = frozenset(),
+    pin: frozenset = frozenset(),
+    *,
+    whole: bool = False,
 ) -> dict:
     """One thread as a reader away from the panel needs it: its current page
     location or prior anchor when detached, who closed it, and what was said.
 
     `omit` drops messages by log sequence, which is how a delivery carries the
     exchange its own events land in without printing them twice. `pin` keeps a
-    message the bound would otherwise drop. `elided` says how many went, so a
-    reader can tell a short thread from a shortened one and knows to
-    page through the rest with `leaf page state <page> <message> --after`."""
+    message the bound would otherwise drop, and `whole` keeps every one. `elided`
+    says how many went, so a reader can tell a short thread from a shortened one
+    and knows to page through the rest with `leaf page state <page> <message>
+    --after`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
-    shown = ends_kept(kept, pin)
+    shown = kept if whole else ends_kept(kept, pin)
     return {
         "id": thread["id"],
         "title": thread["title"],
@@ -412,7 +477,77 @@ def thread_digest(
     }
 
 
-def batch_threads(events: list, batch: list, within: dict) -> list:
+def summary_hint(thread: dict, summaries: list) -> dict | None:
+    """The range Leaf suggests summarizing in `thread`, whose summaries in force are
+    `summaries`, as `{"from", "through"}`, or None where none is worth suggesting.
+
+    It keeps the newest exchange verbatim, and is offered for the earliest run of
+    uncovered messages before it that is long enough to suggest. Completed progress
+    is not drawn, so a run folds it; pending progress is still being said, so a run
+    stops at it. The hint spans that run and every summary in force among the older
+    messages, so a summary that follows it replaces them and the thread keeps one
+    summary of its earlier discussion, rather than gaining one more beside the last
+    each time a run grows long enough. A fold of progress alone counts too. Its ends
+    are messages the thread still says, which a summary's own `from` may no longer
+    be once the user took that message back. The hint is the range admission takes
+    (`events.summary_range`), read as admission reads it, against the summaries that
+    stand once it replaces those it overlaps whole: widened over any message it
+    would leave in full above a summary. So following it is never refused, and a
+    short stretch a retired summary left above a later one doesn't stop every later
+    hint."""
+    covered = {identity for summary in summaries for identity in summary["covers"]}
+    prefix = {message["id"] for message in conversation_turns(thread)[:-2]}
+    completed = progress_completions(thread)
+    ids = [message["id"] for message in thread["msgs"]]
+    at = {identity: index for index, identity in enumerate(ids)}
+    runs = []
+    run = []
+    for message in thread["msgs"]:
+        if message["id"] in covered or (
+            message.get("ephemeral") and message["id"] not in completed
+        ):
+            if run:
+                runs.append(run)
+                run = []
+        elif message["id"] in prefix:
+            run.append(message)
+    if run:
+        runs.append(run)
+    candidate = next(
+        (
+            run
+            for run in runs
+            if len(run) >= 2
+            and (
+                len(run) >= 4
+                or sum(len(message.get("text", "")) for message in run) >= 2000
+            )
+        ),
+        [],
+    )
+    if not candidate:
+        return None
+    inside = covered | {message["id"] for message in candidate}
+    bound = max(at[identity] for identity in prefix)
+    span = [
+        message["id"]
+        for message in spoken_turns(thread)
+        if message["id"] in inside and at[message["id"]] <= bound
+    ]
+    start, end = span[0], span[-1]
+    folded = {"covers": ids[at[start] : at[end] + 1]}
+    standing = [
+        summary
+        for summary in summaries
+        if not set(summary["covers"]).intersection(folded["covers"])
+    ]
+    start, end = summary_range(thread, [*standing, folded], start, end)
+    return {"from": start, "through": end}
+
+
+def batch_threads(
+    events: list, batch: list, within: dict, *, whole: bool = False
+) -> list:
     """The threads a delivered batch lands in, with what was said before it.
 
     Every named thread carries its current metadata, even when the batch
@@ -443,9 +578,14 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     told it was answered, and neither side can see the disagreement.
 
     The actions are unfolded because folding wants the declarations that say
-    what a verb's unit is, and they need no window: thread markup is
-    frozen, so no version bounds it and no retraction floor reaches it, and undo
-    is the whole of what unseats one."""
+    what a verb's unit is, and they need no window: no version bounds thread
+    markup and no retraction floor reaches it, and undo is the whole of what
+    unseats one.
+
+    `whole` carries every message and gesture, for a reader that can't page
+    through the rest, as a fork can't (`forks.line_prompt`)."""
+    from leaf.delivery import pickup_receipts
+
     names = thread_names(events)
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)
@@ -484,59 +624,30 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     # action naming ids nothing in the envelope spells out, which is the defect
     # this whole reading exists to fix, surviving in the long-thread case.
     summaries_for = active_summaries(events, threads)
+    kept = {
+        identity
+        for receipt in pickup_receipts(events, phase="held")
+        for identity in receipt["events"]
+    }
     carried = []
     for t in named:
         if t not in threads:
             continue
-        acted = ends_kept(gestures.get(t, []))
+        acted = gestures.get(t, []) if whole else ends_kept(gestures.get(t, []))
         spoken_for = {a["widget"] for a in acted} | acted_in.get(t, set())
         pin = frozenset(
             sent for widget in spoken_for for sent in declaring.get(widget, ())
         )
-        digest = thread_digest(threads[t], delivered, pin)
+        digest = thread_digest(threads[t], delivered, pin, whole=whole)
         summaries = summaries_for[t]
         digest["summaries"] = summaries
-        covered = {identity for summary in summaries for identity in summary["covers"]}
-        # Keep the newest exchange verbatim. The suggested range is one exact,
-        # contiguous uncovered run before it, so following the hint can never hide
-        # a new message or create a summary on top of one already in force.
-        # Completed progress is not drawn, so a run folds it; pending
-        # progress is still being said, so a run stops at it. The earliest run that
-        # qualifies is suggested, so a summary never leaves older discussion in
-        # full above it when an older run would do.
-        prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
-        completed = progress_completions(threads[t])
-        runs = []
-        run = []
-        for message in threads[t]["msgs"]:
-            if message["id"] in covered or (
-                message.get("ephemeral") and message["id"] not in completed
-            ):
-                if run:
-                    runs.append(run)
-                    run = []
-            elif message["id"] in prefix:
-                run.append(message)
-        if run:
-            runs.append(run)
-        candidate = next(
-            (
-                run
-                for run in runs
-                if len(run) >= 2
-                and (
-                    len(run) >= 4
-                    or sum(len(message.get("text", "")) for message in run) >= 2000
-                )
-            ),
-            [],
-        )
-        if candidate:
+        # A thread whose newest message in the batch Leaf kept back for a line fork
+        # is one a fork beside that line fork summarizes (`summary_fork`), so the
+        # hint is the fork's, and the session isn't asked to spend a step on it too.
+        newest = [event["id"] for event in batch if t in memberships[event["id"]]][-1]
+        if newest not in kept and (hint := summary_hint(threads[t], summaries)):
             # The range only: what the agent does with it is a `handling` clause.
-            digest["summary_hint"] = {
-                "from": candidate[0]["id"],
-                "through": candidate[-1]["id"],
-            }
+            digest["summary_hint"] = hint
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted
         carried.append(digest)
@@ -549,7 +660,7 @@ def unsent_at_messages(
     """Input id → the unsent work in force when the user wrote it, on each widget
     their words were about, for the batch's messages and edits that had any.
 
-    Unsent work (`$state.unsent`) asks for nothing, so no batch carries it, and a
+    Unsent work (`$verbs.unsent`) asks for nothing, so no batch carries it, and a
     message about a playground's preview would reach the agent without the settings
     the preview showed; current state may hold later ones. `unsent` says whether an
     action's verb declares it, which takes the page's vocabulary.

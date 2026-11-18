@@ -2,14 +2,12 @@
 under zoom and short windows, and the chrome's rules staying apart from page and package
 styles."""
 
-import io
 import json
 import re
 from datetime import datetime, timedelta
 
 import pytest
 from interact_support import PLUGIN_ROOT, append_carried_log_record
-from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -38,7 +36,6 @@ from browser.threads import (
     append_agent_reply,
     open_panel_thread,
     paste_image,
-    summarize_thread,
 )
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered
@@ -124,7 +121,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
 def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):
     """A margin card's heads end short of its edge, where the first message's head
     leaves the thread's actions their room, so Copy at a later message's head end
-    stood mid-card. It stands at the card's edge, in the actions' column, and copies
+    would stand mid-card. It stands at the card's edge, in the actions' column, and copies
     the message's Markdown source; with nothing selected, the copy key in the thread
     presses the Copy of the message whose words the user clicked."""
     url = serve(PANEL_PAGE)
@@ -222,7 +219,7 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     browser, serve, subtests
 ):
     """A message's Edit and Copy show only under the pointer or focus, and its head
-    lends their room to its words while they hide: a card's head that held it read
+    lends their room to its words while they hide: a card's head that held it would read
     "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
     queued message says its whole receipt; under the pointer the controls stand over
     the receipt's end, which neither moves nor changes its size. A head too narrow for
@@ -232,8 +229,14 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     "Me ju… · Que…", and each gives all it can before the head reaches nothing. The
     user's queued message holds each part."""
     url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
-    # The margin at this width caps the card short of the head's words and controls.
+    # A comment that stands taller than it is wide widens the card from its least
+    # width, and the margin at this width caps it short of the head's words and
+    # controls.
+    panel_comment(
+        serve.page_dir,
+        "Can it wait until the ceiling is settled? " * 16,
+        {"section": "lede"},
+    )
     context = browser.new_context(viewport={"width": 1456, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
@@ -316,12 +319,16 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         page.context.close()
 
 
-def test_a_message_says_its_age_only_where_it_changes(browser, serve):
-    """A thread says each message's age only where that age, as displayed, differs
-    from the message above, the first always saying it: three messages written on one
-    day three days ago read one age, and a reply written now reads its own."""
+def test_every_message_says_when_it_was_said(browser, serve):
+    """Every message in a thread says when it was said (presence.js, `saidAt`): replies
+    hours apart three days ago each read their own time of day and day, as the reader's
+    locale writes them, where an age would read "3d ago" over all of them, and a reply
+    written now reads "just now", where its time of day would read like any other."""
     url = serve(PANEL_PAGE)
-    then = datetime.now().astimezone() - timedelta(days=3)
+    # Local wall times, each with its own offset, so a change of daylight saving
+    # between them moves no clock reading.
+    now = datetime.now()
+    then = (now - timedelta(days=3)).replace(hour=15, minute=29, second=0).astimezone()
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -333,31 +340,37 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve):
             "anchor": {"section": "lede"},
         },
     )["id"]
-    for at, (author, text) in enumerate(
-        [("agent", "Yes, three tries."), ("user", "Then park it after.")], start=1
-    ):
+    for text, at in [
+        ("Yes, three tries; I'm parking it now.", then + timedelta(minutes=6)),
+        ("Parked after the third.", then + timedelta(hours=2, minutes=23)),
+    ]:
         append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": author,
-                **({"agent": "Claude"} if author == "agent" else {}),
+                "author": "agent",
+                "agent": "Claude",
                 "parent": root,
                 "revision": 1,
                 "text": text,
-                "ts": (then + timedelta(minutes=at)).isoformat(),
+                "ts": at.isoformat(),
             },
         )
-    append_agent_reply(serve.page_dir, root, "Parked after the third.")
-    page = open_page(browser, url)
+    append_agent_reply(serve.page_dir, root, "And the backoff doubles.")
+    context = browser.new_context(locale="en-US")
+    page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     card = page.locator(".lf-margin-preview .lf-page-thread")
     expect(card).to_be_visible()
-    ages = card.locator(".lf-msg-head")
-    expect(ages).to_have_count(4)
-    assert ages.evaluate_all(
-        "heads => heads.map((head) => head.querySelector('time')?.textContent ?? null)"
-    ) == ["3d ago", None, None, "just now"]
+    times = card.locator(".lf-msg-head > .lf-msg-meta > time")
+    expect(times).to_have_count(4)
+    day = f"{then:%b} {then.day}" + ("" if then.year == now.year else f", {then.year}")
+    assert [" ".join(time.split()) for time in times.all_text_contents()] == [
+        f"{day} 3:29 PM",
+        f"{day} 3:35 PM",
+        f"{day} 5:52 PM",
+        "just now",
+    ]
 
 
 # Where a message's words may run to, and the thread's inset before its words.
@@ -375,9 +388,9 @@ WORDS_END = """message => {
 def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     """The user's own message runs to the thread's column, as the agent's under it
     does, keeping at its end only the inset its words start with, where its rewrite's
-    frame stands. In the panel the user's lines stopped 86px short of the agent's, and
-    41px in a thread on the page, the room Send takes in the field they were typed in,
-    so every message the user sent wrapped narrower than the reply under it."""
+    frame stands. Keeping the room Send takes in the field they were typed in, the
+    user's lines would stop short of the agent's, so every message the user sent would
+    wrap narrower than the reply under it."""
     words = (
         "Check that these balance robust interfaces with code simplicity, deferring "
         "to standards and the browser wherever they can, and keeping the code simple."
@@ -409,9 +422,9 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
     """The picker floats from its message corner without moving the thread.
 
-    A reaction list used to add forty pixels to its thread only while open. That moved
-    every later message under the pointer and made choosing a reaction change the
-    layout being acted on. The next message is the single-factor neighbor: opening the
+    A reaction list that added room to its thread only while open would move every
+    later message under the pointer and make choosing a reaction change the layout
+    being acted on. The next message is the single-factor neighbor: opening the
     picker is the only change between these two frames."""
     url = serve(PANEL_PAGE)
     first = panel_comment(serve.page_dir, "Keep the route visible.")
@@ -547,8 +560,8 @@ def test_a_sheet_a_page_script_writes_later_stops_at_the_chrome(browser, serve):
     """A CSS framework such as Tailwind builds its sheet in the head after the page
     loads and rewrites it as classes change, and each rewrite is a new sheet. Its
     element rules reach the page's prose and stop at the chrome, as the page's own
-    stylesheet's and its imports' do: Tailwind's reset once took the family of every
-    chrome button."""
+    stylesheet's and its imports' do: Tailwind's reset would otherwise take the family
+    of every chrome button."""
     url = serve(
         leaf_page(
             "t",
@@ -602,12 +615,13 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             {
                 "lf-theme-box": {
                     "description": "A widget beside a page-wide theme.",
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                    "additionalProperties": False,
-                    "x-content": "markup",
-                    "x-upgrade": False,
+                    "attributes": {
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                        "additionalProperties": False,
+                    },
+                    "content": "markup",
                 }
             }
         )
@@ -653,7 +667,8 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     """Every declared shadow tree receives the layer's composed shadow sheet in every
     engine, so a package's `widget-shadow.css` rule naming its host, `:host(lf-own-tree)
     span`, dresses that widget's tree and not another package's. Each engine reads the
-    composed sheet itself: Firefox once applied none of a generated `:host` scope."""
+    composed sheet itself: Firefox can apply none of a generated `:host` scope, which
+    Leaf doesn't write."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"
@@ -697,8 +712,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
     package = tmp_path / "chrome-look"
     package.mkdir()
     (package / "chrome.css").write_text(
-        '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
-        'html & [part~="card"] { --r-l: 5px; }'
+        '[part~="panel"] { font-family: cursive; --lf-r-l: 0px; }'
+        'html & [part~="card"] { --lf-r-l: 5px; }'
         '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
         "p { color: rgb(255, 0, 0); }"
         "body:has(&) { border-top: 9px solid rgb(255, 0, 0); }"
@@ -711,8 +726,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
                     "t",
                     "<h1>t</h1><p>Words.</p>",
                     head='<style>[part~="panel"] { font-family: fantasy;'
-                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }"
-                    '[part~="composer"] { --sans: monospace; }</style>',
+                    " color: rgb(0, 128, 0); --lf-ink: rgb(1, 2, 3); }"
+                    '[part~="composer"] { --lf-sans: monospace; }</style>',
                 ),
                 packages=(package,),
             )
@@ -727,9 +742,9 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
             corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
             composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
             font: cs(document.querySelector('[part~="composer"]'))
-                .getPropertyValue('--font-message').trim().split(' ').at(-1),
+                .getPropertyValue('--lf-font-message').trim().split(' ').at(-1),
             card: cs(document.querySelector('.lf-chrome [part~="card"]'))
-                .getPropertyValue('--r-l').trim(),
+                .getPropertyValue('--lf-r-l').trim(),
             parts: [...new Set([...document.querySelectorAll('.lf-chrome [part]')]
                 .flatMap(e => e.getAttribute('part').split(' ')))].sort(),
             prose: cs(document.querySelector('main p')).color,
@@ -755,8 +770,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of
-    them: lf-tabs once marked itself lf-live — the chrome's name for its
-    visually-hidden live region — and every tabbed page clipped to a pixel. An
+    them: lf-tabs marking itself lf-live — the chrome's name for its
+    visually-hidden live region — would otherwise clip every tabbed page to a pixel. An
     element in the page wearing every private class at once must render exactly as
     its unclassed twin.
 
@@ -898,7 +913,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
     assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
     # At the scroll limit a sliver of the previous author can precede a clear gap,
-    # with the next turn's own visible name below it (the known edge from #1763).
+    # with the next turn's own visible name below it (a known edge).
     assert landed["under"] == landed["named"] or (
         landed["under"] == -1 and landed["endGap"]
     ), landed
@@ -998,132 +1013,6 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             assert cue["heads"][0]["bottom"] <= cue["top"], cue
             assert cue["fade_top"] == pytest.approx(cue["top"], abs=1), cue
         assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
-
-
-@pytest.mark.parametrize("forced", [False, True])
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
-    engine, forced, request, serve
-):
-    """Wherever the card's transcript is scrolled, its stuck head stands on the line
-    of the card's actions, and the focus-ring room above that line shows no words,
-    in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
-    scroller's edge, past the room, so the name stood 6px above the actions and words
-    showed over Resolve; in Chromium they showed above the name. Nor do words show
-    beneath the actions, a summary's included, and the head row holding the line
-    lends them its ground: an arriving message's tint runs behind them, where the
-    actions' own paper box used to cut it whenever the card was scrolled."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
-    )
-    turns = [
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "agent" if turn % 2 else "user",
-                "parent": root,
-                "text": f"Turn {turn}. " + LANDING_WORDS,
-            },
-        )
-        for turn in range(1, 10)
-    ]
-    # A summary's words have no head of their own, and pass beneath the actions too.
-    summarize_thread(serve.page_dir, turns[0]["id"], turns[1]["id"], LANDING_WORDS)
-    page = open_page(request.getfixturevalue(engine), url)
-    resized(page, 1200, 600)
-    if forced:
-        page.emulate_media(forced_colors="active")
-    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
-    transcript = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
-        " > .lf-thread-transcript"
-    )
-    expect(transcript).to_be_visible()
-    rendered(page)
-    travel = transcript.evaluate("box => box.scrollHeight - box.clientHeight")
-    # Through the first messages, including where one pushes the last one's head off.
-    assert travel > 300, travel
-    actions = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
-        " > .lf-margin-thread-controls"
-    )
-
-    def shot(clip, hidden=None):
-        toggle = "row => { for (const c of row.children) c.style.visibility = '%s'; }"
-        if hidden:
-            hidden.evaluate(toggle % "hidden")
-        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        if hidden:
-            hidden.evaluate(toggle % "")
-        return image
-
-    def spread(image):
-        low, high = image.convert("L").getextrema()
-        return high - low
-
-    for scroll in range(0, 300, 7):
-        transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
-        rendered(page)
-        reading = transcript.evaluate(
-            r"""box => {
-              const controls = box.parentElement
-                .querySelector(':scope > .lf-margin-thread-controls');
-              const edge = box.getBoundingClientRect().top + box.clientTop;
-              const head = [...box.querySelectorAll('.lf-msg-head')]
-                .find(head => head.getBoundingClientRect().bottom > edge + 1);
-              const at = head.getBoundingClientRect();
-              const card = box.parentElement.getBoundingClientRect();
-              return {edge, head: at.top, left: card.left, right: card.right,
-                pushed: at.bottom >= head.parentElement.getBoundingClientRect().bottom - 1,
-                line: controls.getBoundingClientRect().top,
-                actions: controls.getBoundingClientRect().toJSON(),
-                // The focus-ring room, which the transcript's landings also keep.
-                ring: parseFloat(getComputedStyle(box).scrollPaddingTop),
-                event: head.parentElement.dataset.lfEvent};
-            }"""
-        )
-        # A head the next message pushes off rises with it; every other stands on the
-        # actions' line or below it.
-        assert reading["pushed"] or reading["head"] >= reading["line"] - 0.5, (
-            scroll,
-            reading,
-        )
-        assert reading["line"] - reading["edge"] >= reading["ring"], reading
-        # Beneath the controls, with the paper their row lays under the heads.
-        beneath = {
-            side: reading["actions"][side] for side in ("x", "y", "width", "height")
-        }
-        ground = shot(beneath, hidden=actions)
-        assert spread(ground) < 40, (scroll, reading)
-        # Where no head holds the line, as over a summary, words run to the edge as
-        # they do anywhere a transcript is cut.
-        if reading["head"] > reading["line"] + 0.5:
-            continue
-        if not forced and not reading["pushed"]:
-            # The head holding the line lends its arrival tint to the actions' track.
-            held = transcript.locator(f'.lf-msg[data-lf-event="{reading["event"]}"]')
-            held.evaluate("m => m.style.setProperty('--lf-msg-arrival', '1')")
-            rendered(page)
-            tinted = shot(beneath, hidden=actions)
-            held.evaluate("m => m.style.removeProperty('--lf-msg-arrival')")
-            rendered(page)
-            assert spread(tinted) < 40, (scroll, reading)
-            blue = ImageStat.Stat(ground).mean[2] - ImageStat.Stat(tinted).mean[2]
-            assert blue > 20, (scroll, blue, reading)
-        room = reading["head"] - reading["edge"]
-        if room < 1:
-            continue
-        band = shot(
-            {
-                "x": reading["left"],
-                "y": reading["edge"],
-                "width": reading["right"] - reading["left"],
-                "height": room,
-            }
-        )
-        assert spread(band) < 40, (scroll, reading)
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (1400, True)])

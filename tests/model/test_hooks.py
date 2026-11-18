@@ -17,6 +17,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
     acknowledged_through,
@@ -1326,6 +1327,68 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     assert hook("PostToolBatch") == ""
 
 
+def test_a_busy_turn_is_reminded_of_a_missing_line_only_where_it_owes_an_answer(
+    claimed, capsys
+):
+    """Claude Code says busy of a session for the whole of its turn, and every page
+    the session holds reads working by it. A page the agent owes no answer is not
+    asking for a line, so its tool boundaries stay quiet however long the turn
+    runs, even with an open to-do the agent may have left for later while it works
+    elsewhere. Once the page holds an update the agent owes, a boundary asks the
+    agent to say what it is doing."""
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        return capsys.readouterr().out
+
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+    cleanup_model.write_json(
+        registry / f"{os.getpid()}.json",
+        {
+            "pid": os.getpid(),
+            "sessionId": "s1",
+            "status": "busy",
+            "statusUpdatedAt": int(time.time() * 1000),
+        },
+    )
+    mark = cleanup_model.session_file("s1", cleanup_model.STATUS_CHECKED_SUFFIX)
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+
+    def check_due():
+        os.utime(mark, (stood.timestamp(), stood.timestamp()))
+
+    hook("UserPromptSubmit")
+    assert hook("PostToolBatch") == ""
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    record_claim(
+        claimed, **{**claim, "turn_opened": stood.isoformat(timespec="seconds")}
+    )
+    assert activity_reading(claimed)["kind"] == "working"
+    check_due()
+    assert hook("PostToolBatch") == ""
+
+    opened = CliRunner().invoke(
+        cli_model.cli, ["task", "create", str(claimed), "page", "--title", "Fit S"]
+    )
+    assert opened.exit_code == 0, opened.output
+    check_due()
+    assert hook("PostToolBatch") == ""
+
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Fit S too."}
+    )
+    check_due()
+    context = json.loads(hook("PostToolBatch"))["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert f"Leaf: {claimed} has shown no status line from you for 3 min" in context
+
+
 def test_a_tool_boundary_with_nothing_new_answers_from_the_log(
     claimed, monkeypatch, capsys
 ):
@@ -1505,10 +1568,10 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
 
 
 def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
-    """A compaction can drop the leaf skill, whose rules, such as putting every
-    question for the user on On Me, the agent follows while it holds a page. The
-    SessionStart after one names the skill to read again; no other start or prompt
-    does."""
+    """A compaction removes the Leaf instructions the agent had read, whose rules,
+    such as putting every question for the user on On Me, it follows while it holds
+    a page. The SessionStart after one names the skill to read again; no other start
+    or prompt does."""
 
     def start_context(source: str) -> str:
         hooks_model.cmd_hook(
@@ -1534,7 +1597,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     opens hands the move over. That turn ends without answering it, so the watch
     wakes another, whose prompt names the answer it owes."""
     page = claimed
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     (page / "index.html").write_text(source)
     publish(page)
     session_model.cmd_waiting(page)
@@ -1551,8 +1614,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
         result = CliRunner().invoke(cli_model.cli, ["page", "close", str(page)])
         return {
             "exit": result.exit_code,
-            "stdout": result.stdout,
-            "stderr": said(result.stderr),
+            "stdout": said(result.stdout),
         }
 
     # The turn ends over the page, and Leaf watches it from here.
@@ -2025,33 +2087,6 @@ def test_a_checkout_leaves_its_session_alone_for_a_page_the_session_doesnt_hold(
 
     assert session_runtime_model.selected_launcher("s1") == other
     assert started == []
-
-
-@pytest.mark.parametrize("command", ["page init", "renewal"])
-def test_a_checkout_that_takes_over_a_held_page_starts_its_sessions_delivery_again(
-    claimed, tmp_path, monkeypatch, command
-):
-    """A checkout's init or renewal of a page its session holds makes the checkout
-    the session's Leaf, then starts the session's delivery again, since a Codex
-    task's adapter running from the former Leaf leaves once another is selected.
-    Doing it again changes no selection, so it leaves the running delivery alone."""
-    select_another_leaf(tmp_path)
-    started = deliveries_started(monkeypatch)
-    own = session_runtime_model.own_launcher()
-
-    def take_over():
-        if command == "page init":
-            vendoring_model.cmd_init(claimed)
-        else:
-            vendored_at_another_protocol(claimed)
-            vendoring_model.renew_layer(
-                claimed, harness_model.session_harness(), command=True
-            )
-
-    take_over()
-    assert started == [own]
-    take_over()
-    assert started == [own]
 
 
 @pytest.mark.parametrize("command", ["page claim", "server start", "server run"])

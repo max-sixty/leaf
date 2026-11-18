@@ -1,9 +1,8 @@
-# Added with the floating panel's Plan tab, which draws `leaf task plan`'s outline:
-# work of several steps, some waiting on the user, is laid out as one plan whose
-# owed steps name their to-dos and obligations. Scores conversation-loop.md, "When to
-# write". At base f2efd3152, which has no plan instruction, Claude Code passed 0 of 2
-# runs, opening separate to-dos; the change passed 2 of 2. Earlier runs whose
-# instruction gave no step shape invented fields such as `waits_on`.
+# The floating panel's Plan tab draws `leaf task plan`'s outline: work of several
+# steps, some waiting on the user, is laid out as one plan whose owed steps name their
+# to-dos and obligations. Scores conversation-loop.md, "When to write". Without a plan
+# instruction, agents can open separate to-dos; an instruction that gives no step
+# shape can lead them to invent fields such as `waits_on`.
 description: plan-shows-multi-step-work
 metadata:
   purpose:
@@ -23,7 +22,7 @@ vars:
     the page when you get there. After the patch I'll try the build on a laptop that
     sleeps, since only I have one. Then write the release note."
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page before you start reproducing the
     drop.
 assert:

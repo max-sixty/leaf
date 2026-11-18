@@ -3,11 +3,10 @@
 // escaped source immediately and await this only when their own rendering needs it.
 import { describeFailure } from "./exception.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-import { elementsDeclaring, declarationFor } from "./registry.js";
+import { declarationFor, declaredElements } from "./registry.js";
 import { alignText } from "./text-alignment.js";
 import { dataBody } from "./widget-upgrade.js";
 import { generatedElement } from "./element-markers.js";
-import { isElement } from "./shadow-tree.js";
 import { offerContentElement } from "./element-markers.js";
 
 /** @typedef {import("markdown-it").Token} NativeToken
@@ -37,6 +36,8 @@ const escapedSource = (text) => escapeHtml(text);
 let render = escapedSource;
 /** @type {(text: string, message?: boolean) => string} */
 let renderInline = escapedSource;
+/** @type {(text: string) => string} */
+let renderAuthored = escapedSource;
 /** @type {((source: string, message: boolean) => NativeToken[]) | null} */
 let tokenize = null;
 /** @type {Promise<void> | undefined} */
@@ -54,6 +55,15 @@ let ready;
 // reads as a file.
 /** @param {string} text @param {boolean} [message] */
 export const renderMarkdown = (text, message = true) => render(text, message);
+// An agent's message holding HTML (`html` on its served message) reads as a message
+// that keeps the raw HTML in it, as Python checked it (`leaf.passages.message_markup`).
+// Every other reading shows a tag as the words that spell it, since what the user
+// types is no markup Leaf checked. The HTML reads by CommonMark's rules, as GitHub
+// reads a comment's, which agents already write to. Rejected: a widget's block running
+// past blank lines to its closing tag, and a `<code>` holding its words as written,
+// since no author knows either rule from Markdown.
+/** @param {string} text */
+export const renderAuthoredMarkdown = (text) => renderAuthored(text);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 // With `imageAlt`, an image counts as the words its control is named by, its alt text,
@@ -90,29 +100,28 @@ export function inlineMarkdownFragment(text, message = true) {
   return parsed.content;
 }
 
-// The written files in `scope` whose `x-prepaint` attribute names Markdown and that
+// The written files in `scope` whose `prepaint` attribute names Markdown and that
 // hold no rendering yet: a revision's or a message's, since delivery renders only the
 // first document's (`revision_delivery.mark_declared`).
 /** @param {Element | Document | DocumentFragment} scope */
-const unpaintedFiles = (scope) => {
-  const elements = elementsDeclaring(scope, "x-prepaint");
-  if (isElement(scope) && declarationFor(scope, "x-prepaint")) elements.unshift(scope);
-  return elements.filter(
+const unpaintedFiles = (scope) =>
+  declaredElements(scope, (entry) => entry.prepaint).filter(
     (element) =>
-      element.getAttribute(String(declarationFor(element, "x-prepaint"))) ===
-        "markdown" &&
+      element.getAttribute(String(declarationFor(element)?.prepaint)) === "markdown" &&
       element.querySelector(":scope > pre") &&
       !element.querySelector(":scope > [data-lf-prepaint]"),
   );
-};
+
+// A declaration whose data body is Markdown words (`text-format`).
+/** @param {import("../types/contract.js").WidgetDeclaration} entry */
+const wordsAreMarkdown = (entry) => entry["text-format"] === "markdown";
 
 // Registry text formatting belongs to the layer, so a package declaration cannot
 // make file-side passages read words the browser leaves as raw Markdown.
 /** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
   if (
-    !(isElement(scope) && declarationFor(scope, "x-text-format")) &&
-    !elementsDeclaring(scope, "x-text-format").length &&
+    !declaredElements(scope, wordsAreMarkdown).length &&
     !unpaintedFiles(scope).length
   )
     return;
@@ -124,42 +133,28 @@ export async function loadDeclaredMarkdown(scope) {
     );
 }
 
-// Only presentation nodes are formatted. Source documents stay intact for typed state,
-// revision patching and provenance; arrivals call this after capture, before connection.
-// Their import preparation has already made the parser ready, so this step is synchronous.
+// Each element declaring `text-format` shows its data body's rendering in place
+// of its `<pre>`. Only presentation nodes are formatted. Source documents stay intact
+// for typed state, revision patching and provenance; arrivals call this after capture,
+// before connection. Their import preparation has already made the parser ready, so
+// this step is synchronous.
 /** @param {Element | Document | DocumentFragment} scope */
 export function formatDeclaredMarkdown(scope) {
-  const elements = elementsDeclaring(scope, "x-text-format");
-  if (isElement(scope) && declarationFor(scope, "x-text-format"))
-    elements.unshift(scope);
+  const elements = declaredElements(scope, wordsAreMarkdown);
   if (!elements.length) return;
   if (!tokenize)
     throw new Error("leaf: Markdown formatting requires its loaded renderer");
   for (const element of elements) {
-    if (declarationFor(element, "x-text-format") === "markdown") {
-      const pre = element.querySelector(":scope > pre");
-      if (!pre) continue;
-      const body =
-        element.querySelector(":scope > .lf-markdown-body") ??
-        document.createElement("div");
-      if (body.className !== "lf-markdown-body") body.className = "lf-markdown-body";
-      paintMarkdown(body, dataBody(element));
-      body.removeAttribute("data-lf-prepaint");
-      body.removeAttribute("data-lf-gen");
-      pre.replaceWith(body);
-      continue;
-    }
-    for (const node of [...element.childNodes]) {
-      if (!(node instanceof Text) || !node.data.trim()) continue;
-      const parsed = inlineMarkdownFragment(node.data, false);
-      if (!parsed.firstElementChild && parsed.textContent === node.data) continue;
-      const words = document.createElement("span");
-      words.className = "lf-markdown-words";
-      words.dataset.lfMarkdownWords = "";
-      words.dataset.lfSourceWords = node.data;
-      words.append(parsed);
-      node.replaceWith(words);
-    }
+    const pre = element.querySelector(":scope > pre");
+    if (!pre) continue;
+    const body =
+      element.querySelector(":scope > .lf-markdown-body") ??
+      document.createElement("div");
+    if (body.className !== "lf-markdown-body") body.className = "lf-markdown-body";
+    paintMarkdown(body, dataBody(element));
+    body.removeAttribute("data-lf-prepaint");
+    body.removeAttribute("data-lf-gen");
+    pre.replaceWith(body);
   }
 }
 // A written Markdown file first paints as its rendering beside the `<pre>` its module
@@ -713,12 +708,13 @@ function sourcePositions(markdown) {
 // The blocks the parser emits whole, with no opening and closing pair.
 const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
 
-// The parser for a reading (`renderMarkdown`). passages.py reads the same two dialects,
-// short of `fence_words`, since it reads no fence in a message.
-/** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message */
-export function makeMarkdown(module, message) {
+// The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`), which
+// passages.py reads the same (`markdown_dialect`).
+/** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message
+ * @param {boolean} [html] */
+export function makeMarkdown(module, message, html = false) {
   const markdown = new module.MarkdownIt({
-    html: false,
+    html,
     breaks: message,
     linkify: true,
   }).use(module.taskLists, { enabled: false });
@@ -851,6 +847,10 @@ export function loadMarkdown(onError = null) {
       message ? markdown : (file ??= makeMarkdown(module, false));
     render = (text, message) => dialect(message).render(text);
     renderInline = (text, message) => dialect(message).renderInline(text);
+    /** @type {MarkdownIt | undefined} */
+    let authored;
+    renderAuthored = (text) =>
+      (authored ??= makeMarkdown(module, true, true)).render(text);
     /** @type {Map<boolean, MarkdownIt>} */
     const positioned = new Map();
     tokenize = (text, message) => {

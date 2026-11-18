@@ -133,8 +133,10 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "author": "agent",
             "parent": root["id"],
             "revision": 1,
-            "text": "Filter the files in this patch.",
-            "markup": """<lf-diff id="reply-patch" data-height="151"><pre>
+            "text": """Filter the files in this patch.
+
+<lf-diff id="reply-patch" data-height="151">
+<pre>
 diff --git a/reading.py b/reading.py
 --- a/reading.py
 +++ b/reading.py
@@ -347,7 +349,7 @@ def opened_by_a_click(browser, serve, threads):
 def test_the_caret_an_opening_places_begins_no_reply(browser, serve, threads):
     """The caret a click's opening leaves in an empty box is no reply being written, so
     an agent's Resolve does what it does to a reader's card: at a passage of three the
-    card moves on to the next thread, and at a solo passage it closes. It used to stand
+    card moves on to the next thread, and at a solo passage it closes. It doesn't stand
     on the resolved thread over its empty box (replies.js)."""
     page, card, _box, roots = opened_by_a_click(browser, serve, threads)
     events_model.append_event(
@@ -548,7 +550,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         expect(field).to_be_visible()
         page.locator("#p3").click(position={"x": 10, "y": 10})
         expect(field).not_to_be_visible()
-        expect(page.locator('[data-lf-margin-for="p3"]')).to_have_count(0)
+        # The resolved thread leaves the margin, and its unsent reply stands there as
+        # a draft.
+        margin = page.locator('[data-lf-margin-for="p3"]')
+        expect(margin.locator('[data-lf-kinds~="comment"]')).to_have_count(0)
+        expect(margin.locator('[data-lf-kinds="draft"]')).to_have_count(1)
         assert stored_draft_text(page, f"reply:{root}") == words
 
 

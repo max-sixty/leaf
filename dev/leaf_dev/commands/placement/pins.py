@@ -27,6 +27,7 @@ A full run takes about 10s, and 20s with `--base`.
 """
 
 import json
+import os
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -42,10 +43,10 @@ from leaf_dev.browser import (
     QUOTE_RANGE,
     WINDOWS,
     headless_shell,
+    linux_font_environment,
     load,
     screenshot,
     tab,
-    use_linux_fonts,
 )
 
 OUT = ROOT / ".tmp" / "pins"
@@ -93,17 +94,17 @@ MORE = (
 
 def _cards(prefix: str, count: int) -> str:
     return "".join(
-        f'<section id="{prefix}{i}" style="border:1px solid var(--rule);'
-        'background:var(--card);margin:0;height:44px">'
-        '<div style="background:var(--chip);height:44px">'
-        f'<button class="lf-btn" style="float:right">Action</button></div></section>'
+        f'<section id="{prefix}{i}" style="border:1px solid var(--lf-rule);'
+        'background:var(--lf-card);margin:0;height:44px">'
+        '<div style="background:var(--lf-chip);height:44px">'
+        f'<button style="float:right">Action</button></div></section>'
         for i in range(count)
     )
 
 
 def _tiles(prefix: str, count: int) -> str:
     tiles = "".join(
-        f'<div id="{prefix}{i}" style="border:1px solid var(--rule);padding:8px">'
+        f'<div id="{prefix}{i}" style="border:1px solid var(--lf-rule);padding:8px">'
         f"<strong>Tile {i}</strong><p style='margin:4px 0 0'>Twelve open, three late, "
         "one blocked on review.</p></div>"
         for i in range(count)
@@ -248,7 +249,7 @@ CASES = (
         "A full-width row with its buttons at the right edge.",
         '<div id="toolbar-row" style="display:flex;gap:8px;align-items:center">'
         "<strong>Filters</strong><span style='flex:1'></span>"
-        '<button class="lf-btn">Reset</button><button class="lf-btn">Apply</button>'
+        "<button>Reset</button><button>Apply</button>"
         "</div>",
         ({"section": "toolbar-row"},),
     ),
@@ -274,7 +275,7 @@ CASES = (
         + "".join(
             f'<lf-column id="board-{column}" label="{label}">'
             + "".join(
-                f'<lf-card id="board-{column}-{i}"><strong>{title}</strong> Cosmetic'
+                f'<lf-card id="board-{column}-{i}" label="{title}"><strong>{title}</strong> Cosmetic'
                 " for most, wrong-day for UTC+13.</lf-card>"
                 for i, title in enumerate(titles)
             )
@@ -305,7 +306,7 @@ CASES = (
     Case(
         "scroll-pane",
         "A narrow paragraph at the top of a short bounded block, which scrolls.",
-        '<div data-bound="start" style="height:120px;border:1px solid var(--rule)">'
+        '<div data-bound="start" style="height:120px;border:1px solid var(--lf-rule)">'
         f'<p id="scroll-pane-p" style="max-width:260px">{WORDS}</p>'
         f"<p>{WORDS}</p></div>",
         ({"section": "scroll-pane-p"},),
@@ -313,7 +314,7 @@ CASES = (
     Case(
         "scroll-pane-cut",
         "A narrow paragraph a short bounded block shows only the top of, below another.",
-        '<div data-bound="start" style="height:120px;border:1px solid var(--rule)">'
+        '<div data-bound="start" style="height:120px;border:1px solid var(--lf-rule)">'
         "<p>Placement reads the room.</p>"
         f'<p id="scroll-pane-cut-p" style="max-width:260px">{WORDS} {MORE}</p>'
         f"<p>{WORDS}</p></div>",
@@ -345,7 +346,7 @@ CASES = (
         "A target made wholly of buttons, edge to edge, right under a paragraph.",
         f'<p style="margin:0">{WORDS} {MORE}</p>'
         '<div id="keypad-d" style="display:grid;grid-template-columns:repeat(4,1fr)">'
-        + "".join(f'<button class="lf-btn">{key}</button>' for key in "123456789*0#")
+        + "".join(f"<button>{key}</button>" for key in "123456789*0#")
         + "</div>",
         ({"section": "keypad-d"},),
     ),
@@ -710,7 +711,7 @@ add its shape here as a case.</p>
 @base_option()
 def pins(base) -> None:
     """Seat every pin case on this working tree, and write a Leaf page of crops."""
-    use_linux_fonts()
+    os.environ.update(linux_font_environment())
     OUT.mkdir(parents=True, exist_ok=True)
     out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-pins-") as built:

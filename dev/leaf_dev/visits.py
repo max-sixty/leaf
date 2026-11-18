@@ -15,9 +15,9 @@ warnings. Safari on the iOS simulator answers a reading as a Playwright page doe
 (`ios_safari.Tab`), but takes no input, so a state with an input is refused there
 before its page is built; in place of a console, an arm there reports the errors the
 runtime logged to the page. A state that holds the runtime (`State.activated`) is
-refused in every engine but Chromium: on 2026-11-03 Playwright 1.64's Firefox (build
-1555) and WebKit (build 2370) never resolved `document.fonts.ready` while the entry
-module was held, and their screenshots wait for it, and WebDriver holds no request.
+refused in every engine but Chromium: Playwright 1.64's Firefox (build 1555) and
+WebKit (build 2370) never resolve `document.fonts.ready` while the entry module is
+held, and their screenshots wait for it, and WebDriver holds no request.
 """
 
 from collections.abc import Callable, Generator, Iterator, Sequence

@@ -17,6 +17,13 @@ silently into something the user relies on, such as an admitted event or a
 stored decision. Every check, option and special case costs every later
 maintainer, so remove one that buys nothing the agent's next attempt would not.
 
+A reasonable choice is the agent's to make. Leaf helps it choose well and
+reflects back what a choice does, and refuses only input that would break a
+guarantee whatever the agent meant. Where a choice harms the user only in some
+cases, as an edit that relabels an option the user already picked does, Leaf
+accepts it and tells the agent what it did, rather than refusing every choice
+of that kind to stop the worst one.
+
 ## Stage
 
 Leaf has no users, deployment, database or persisted state that constrains new
@@ -84,23 +91,22 @@ cost grows with the page.
 ## Pages across Leaf updates
 
 A page records its authored content, its log and the packages it selects. The Leaf
-that serves, checks or exports it supplies everything else: the runtime, and the
-layer (registry, theme, widgets and package modules) it composes from the page's
-selection. So what changes with Leaf ships together, and what crosses the gap
-between Leaf versions is only what a page keeps: its event log and the records kept
-outside it.
+that serves, checks or exports it supplies everything else: the runtime and the
+state the server sends it, the layer (registry, theme, widgets and package
+modules) it composes from the page's selection, and how it parses and draws what
+the page keeps. So only the event log and the records Leaf keeps outside a page
+cross between Leaf versions.
 
-- **A protocol bump** changes the kernel registry's `$events.protocol`, and every
-  page at another number is refused until the session holding it takes it to the
-  new number, which it does itself on its first command or hook naming the page.
-  Bump it only for a change a Leaf at the same number would misread in the log or
-  in a record kept outside a page. A change to the runtime, the served state, the
-  bundled widgets and their registry entries, the theme or the public package API
-  (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
-  Leaf's only version, so a record kept outside a page, such as a browser draft,
-  carries the protocol at which its own shape last changed (`layer-registry.md`,
-  "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
-  commits. Once Leaf is released, only a bump may break an existing page.
+- **The page protocol**, the kernel registry's `$events.protocol`, is Leaf's only
+  version: a Leaf serves and writes only pages at its own number. The build refuses
+  any change to a logged event's schema until the number moves. Bump it also where a
+  Leaf at the current number would misread an event or record that another Leaf at
+  that number wrote, such as a logged value given a new meaning. A change to what the
+  serving Leaf supplies keeps the number, even where a logged message or a comment's
+  quote then draws or resolves differently. Bumps are rare, perhaps one in five
+  hundred commits, and once Leaf is released only a bump may break an existing page.
+  `layer-registry.md`, "Page protocol", says how the number is enforced and how
+  records carry it.
 - **A page's own code**, its widgets and scripts, and an installed package's
   modules call the public package API across Leaf versions. While Leaf is in alpha
   an update may change that API without a bump, since a bump would not repair code
@@ -137,7 +143,7 @@ The repository is the plugin: `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json` name `./` as the payload, and
 `package.json`'s `pi` key makes it a Pi package. The payload is the whole
 repository, whether a harness copies it into a cache or loads it in place.
-Read an area's `AGENTS.md` before changing it.
+Read an area's `AGENTS.md` before changing or reviewing it.
 
 The **plugin root** is the installation and execution boundary: manifests register
 harness components there, and `bin/leaf` runs its uv project. The **skill root**,
@@ -191,21 +197,46 @@ for agents that use Leaf or extend its package interface.
 ### Where instructions live
 
 The sections above **Repository map**, and the `SOUL.md` they import, are the
-maintainer's direction; change them only when the user asks. An `AGENTS.md` holds what an agent needs before changing
-its area: goals, invariants that span modules, who owns what, and the gates to
-run. A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A contract several modules
-share goes in the protocol reference for that boundary, which says what each side
-relies on, not how one side provides it. A header also records
-the product decisions its module embodies and the alternatives they rejected; a
-change that reverses one rewrites that record and says so in its commit. A
-maintainer's workflow for one kind of task goes in a project skill such as
-`/developing-leaf`, not in the shipped `/leaf` skill.
+maintainer's direction; change them only when the user asks.
+
+Place an instruction by who must act on it and what missing it costs. Every
+session in the repository reads this file, subagents and Tend's runs included, and
+one that changes or reviews an area reads that area's `AGENTS.md`; a skill reaches
+only the sessions that load it, and subagents and Tend's runs often don't. So an
+`AGENTS.md` holds what a change could break by missing: goals, invariants that span
+modules, who owns what, the criteria a change or review is judged by, and the gates
+to run, stated as goals rather than steps. How to do one kind of task, such as
+previewing a page, proving a visible change or landing, goes in a project skill such
+as `/developing-leaf`, not in the shipped `/leaf` skill, since missing it makes the
+task slower or worse but breaks nothing; a procedure for a rarer task goes in that
+skill's `references/`, behind a pointer that names the task. `running-tend` holds
+only what Tend's jobs alone do.
+
+A contract one module owns goes in that module's header, a helper's in its
+docstring. A contract several modules share goes in the protocol reference for that
+boundary, which says what each side relies on, not how one side provides it. A
+header also states the product decisions its module embodies, each with its reason,
+whether the user made it, and any alternative a later change might reach for, with
+why that alternative fails. A change that reverses a decision rewrites its statement
+and says so in its commit.
+
+Text in the tree, comments, tests and eval cases included, says what holds now
+rather than how it came to be. The date of a decision or change, the request or
+incident behind it, the measurements that settled it and the versions before it go
+in the commit message, where `git log -L` finds them.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
 `vendor.mjs`; point to it, so a new member needs no edit. Where the prose must
 list them, a test holds the list to the code's copy (`tests/AGENTS.md`, "Put
 each assertion at the boundary that owns it").
+
+In shipped text (the references, `--help`, UI strings, `SKILL.md`) and in agent
+instructions (the `AGENTS.md` files and project skills), these prose defects are
+public surface traps: mechanism written for a reader other than the one the text
+addresses, a second copy of a rule another text owns, a coined term used without its
+definition, and, in maintainer guidance, a sentence that says how the diff's code
+works rather than what other code must rely on, which belongs in the module header,
+or how a rule came to be, which belongs in the commit message.
 
 ### Use dependencies
 
@@ -274,8 +305,8 @@ components read through selectors and never write, holding no renderer nodes,
 promises or DOM attributes. Widgets draw the complete state, unset and undecided
 values included, and undo never rebuilds widgets or replays authored actions
 into the DOM. A page widget's state is bounded by
-the document version; a widget frozen into a thread message is bounded by its
-thread's window.
+the document version; a widget in a thread message is bounded by its thread's
+window.
 
 A renderer repaints only when something it read through a selector has changed,
 or when whoever changes an input outside the state, such as a draft, calls its
@@ -292,11 +323,13 @@ thread the user opens, the user's own reply and its wait for an answer, and the
 resend a refused send leaves. A refusal restores the
 server's state.
 
-Focus, scroll, selection, open disclosures, a draft being typed, a drag and
-layout stay with the browser until a gesture makes them part of the page's
-state. The log doesn't record them, so they live only as long as their DOM node:
-code that replaces a node carries that state to the new node, matched by the key
-the replacement already uses.
+Focus, scroll, selection, open disclosures, a drag and layout stay with the
+browser until a gesture makes them part of the page's state. The log doesn't
+record them, so they live only as long as their DOM node: code that replaces a
+node carries that state to the new node, matched by the key the replacement
+already uses. A draft being typed stays out of the log too, until Send, but
+outlives its node: the page's server keeps it for every tab and device
+(`src/leaf/drafts.py`), and the agent never reads it.
 
 Python decides where the agent's work stands: `activity.py` for the whole page,
 read by the Leaf panel, and `workflows.py` for each update
@@ -305,7 +338,8 @@ Stop hook; thread attention also reads the user's outstanding obligations. A bus
 doesn't mean every message is being worked on. The browser adds its own unsent
 gestures but never ages or reclassifies a workflow. Other pages read a page's
 activity only from the row `server_rows.py` writes and whether its server is
-alive.
+alive, and only into their list of other pages (`/api/pages`), which no page's
+own state or reading takes.
 
 The page directory is the durable record and the unit of deployment
 (`src/leaf/page-storage.md`).
@@ -333,6 +367,18 @@ same event, or the message as it now reads, under the same name and from the sam
 (`event_facts.py`). A fact about the past, such as the settings the user had open
 when they wrote, is derived from the log and never stored as a second copy.
 
+### Read what the page states
+
+Leaf takes each fact about a page from where the page states it: the structure HTML
+defines, including the relations it gives its own elements, or a declaration in an
+author's attribute, a registry entry or the event log. A declaration on a plain
+element uses a standard attribute that means the same to every reader; one on Leaf's
+own element uses Leaf's attribute, such as `label`, since no standard defines that
+element. Leaf takes no fact from how content looks or what it says, and reads words
+only to quote, anchor and show them, so restyling a page changes no fact Leaf holds
+and rewording it changes only its words. Any other reading of markup is an exception
+the maintainer agrees to.
+
 ### Keep the layer open
 
 No code outside a content widget's module names it, so a new widget family needs
@@ -350,15 +396,90 @@ budget, which every step under it shares, and it sits at least ten times above
 the work on a loaded machine. Where a slower path exists, expiry takes it rather
 than failing.
 
+## Weigh what a change adds
+
+Whoever writes or reviews a change asks whether what it adds is worth what later
+changes and users pay for it, by the bar "Regular maintenance" sets for code already
+there. Size says little: a two-line selector can reach every page.
+
+- **What it adds**: a mode, branch or special case; one more member of a set,
+  allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
+  state that may not come; a reliance on a dependency's internals.
+- **What it repeats**: code the change writes may already exist under another name, in
+  another directory, language or package. Search for the question each new helper,
+  constant, selector, style rule or inline check answers, not for its name. A copy is a
+  second home even when a comment names its source. Where the change couldn't reach
+  the owner, export, move or generate the owner rather than copy it.
+- **What it puts between the author and HTML**: be hesitant to add anything there,
+  such as a tag, class, attribute or key for what an HTML element, attribute or CSS
+  property already says, a rule that reads meaning out of the author's markup ("Read
+  what the page states"), or a pass that rewrites it. Authors and agents already write HTML well, and each such
+  layer is one more thing every author learns and every later change keeps working.
+  Add one only for what HTML can't say.
+- **What it buys**: a behavior a user sees, a request the maintainer made, or a
+  measured cost. A green test buys what the test protects, so name that.
+- **Where its cost lands**: read the change's reach rather than its claim, such as a
+  selector's or guard's scope against the condition it names, what else inherits from
+  or sits in the box it changes, and how often a guard fires on a correct setup. Then
+  compare who pays with who gains: a cost paid in every state or on every page to fix
+  one transition usually outweighs it.
+- **The cheaper change**: a platform or dependency primitive, the fix in the owner
+  rather than a caller, the stale copy deleted, or the gap left open with an issue.
+  When `git log -L` shows earlier changes compensating for the same gap, ask whether
+  the mechanism is the wrong primitive and the cheaper change its general form.
+
+Keep an addition whose benefit is concrete when no cheaper change buys it, as with a
+fix in a primitive every caller gains from; otherwise make the cheaper change, or ask
+for it in review. When the fix for a finding would add another branch, flag or
+condition, first ask whether the finding is about the approach.
+
+## Regular maintenance
+
+Whenever a survey, a review or the nightly sweep reads a file, look for code that
+makes Leaf harder to develop than it is worth:
+
+- **A mechanism users wouldn't miss.** Ask who would notice it gone and what it costs
+  the changes around it. Code woven into the core runtime, the server or a shared
+  contract costs every nearby change, so it must clear a much higher bar. Signs it
+  doesn't: a hold, carry or special case for one widget or gesture spread across
+  several owners; a public API whose only callers are tests or a single example; a
+  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
+  history stops at its last move). Code in its own module, such as a
+  package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
+  it only when it is large and unused. Keep anything users would notice losing,
+  including Leaf's interface guarantees. Taking a feature away is the maintainer's
+  call, so propose the removal with what users lose and what it deletes, measured
+  as `/developing-leaf`'s "Measure a removal" says.
+- **Several implementations of one capability.** Consolidate them into one home and
+  move every caller to it ("Fix the underlying issue"). The other copies seldom sit
+  beside the file you're reading, so search for them as **What it repeats** says.
+- **A mechanism a dependency or the platform already provides.** Delegate it ("Use
+  dependencies").
+
 ## Working on the repository
 
 When the user is to choose among designs, show the candidates side by side and
-let them select one (`/developing-leaf`, "Explore an open design").
+let them select one (`/developing-leaf`, "Explore an open design"). A choice about
+how something looks or moves can't be judged from a description, so every UI option
+you leave to the user carries a picture of its result: a still pair, a sketch, a
+diagram or a live sample. That includes the calls a PR body leaves to the user, and
+the decisions a page relays from it.
+
+Before writing words the user sees, such as a label, status line or placeholder, or
+naming anything they operate or an identifier for one, read
+`.claude/skills/developing-leaf/references/glossary.md`, Leaf's canonical vocabulary
+and guidance for visible text. A control may need no words at all
+(`browser/AGENTS.md`, "Controls are few and quiet"). Before changing anything Leaf
+draws, read that file's "Leaf's interface".
+
+The user judges a UI change by using it and by looking at it, so whoever hands one
+over or reviews it does both (`/developing-leaf`, "Review a UI change"), with a
+`/ui-sweep` pass for a theme or shared-control change.
 
 Before finishing a feature:
 
 - Give every result a pointer reaches a keyboard route and a touch route
-  (`runtime/keyboard/AGENTS.md`, "Touch routes"), without a page-level binding
+  (`browser/runtime/keyboard/AGENTS.md`, "Touch routes"), without a page-level binding
   for each. The route is owed to the result, not each gesture: ask what a user
   could no longer see, reach or decide without the gesture. Dragging a thread
   card aside needs no route, since Escape also uncovers the passage beneath it.
@@ -367,8 +488,13 @@ Before finishing a feature:
   `skills/leaf/SKILL.md` or the one reference that owns the workflow, and point
   other references at that section. Shipped instructions set goals for the user's
   experience and name the surface they read on, leaving format and phrasing to
-  the agent. Where an agent could read the change more than one way, score it with
-  `evals/` before and after (`/developing-leaf`, "Score an instruction change").
+  the agent.
+
+Score any change to agent instructions that an agent could read more than one way,
+such as a new or reworded rule, a goal that competes with another or a cut that may
+have carried a behavior, before and after (`/developing-leaf`, "Score an instruction
+change"). Deleting a description of an input that can no longer arrive, or correcting
+a fact, needs no score.
 
 Several sessions share one machine, so local compute is often the bottleneck.
 Before handing over, run the tests that cover what the change touches, and
@@ -389,15 +515,14 @@ landing paths run them too. The website's delivery checks (the site build, the
 Worker's dry-run deploy, `leaf-dev site verify website-worker`) run on a pull
 request and in `publish-site`, but not in `wt merge`.
 
-For a change that can alter browser startup, compare base and head: served
-previews for a runtime change, `leaf-dev site verify website-worker` for site
-delivery, Worker routing or containers. Read the comparison by phase (the
-document arriving, widgets upgrading, the page first showing the server's
-state), and compare the requests and bytes loaded before that last phase
-directly; elapsed time is only diagnostic. A change that adds work on that path
-says what the user gains and why it can't wait. Bytes off the path, such as a
-lazy module, a vendored file or the install's size, are not alone a reason for a
-change.
+A change to how a harness runs Leaf, such as its hooks or sandbox, runs the agent
+journey on that harness (`/developing-leaf`, "Run the agent journey").
+
+Compare base and head for a change that can alter browser startup
+(`/developing-leaf`, "Compare checkout versions"). A change that adds work before the
+page first shows the server's state says what the user gains and why it can't wait.
+Bytes off that path, such as a lazy module, a vendored file or the install's size,
+are not alone a reason for a change.
 
 Land through a GitHub pull request, which squash-merges to `main`; use `wt merge`
 only when the user asks for it. For now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`,

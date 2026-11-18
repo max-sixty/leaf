@@ -9,8 +9,10 @@
   </head>
   <body>
     <main class="layout-column">
-      <p class="eyebrow">heating review · next retrofit</p>
-      <h1>Book the loft hatch first</h1>
+      <hgroup>
+        <p>heating review · next retrofit</p>
+        <h1>Book the loft hatch first</h1>
+      </hgroup>
       <p class="lede" id="heat-lede">
         The survey estimates 265 W of heat loss through the hatch, slightly more than
         through the floor. Sealing it costs £180, takes an afternoon, and can happen
@@ -18,7 +20,7 @@
         costs £1,180 and has a three-week lead time.
       </p>
 
-      <section id="heat-fabric" class="layout-flow">
+      <section id="heat-fabric">
         <h2>The bay window has the largest estimated loss</h2>
         <p id="heat-fabric-note">
           These estimates use a 20°C difference between inside and outside. They compare
@@ -41,7 +43,7 @@
         {element: "front door and letterbox", loss: 155},
         {element: "chimney with no cap", loss: 120},
       ],
-      {x: "loss", y: "element", fill: "var(--series-1)", sort: {y: "-x"}},
+      {x: "loss", y: "element", fill: "var(--lf-series-1)", sort: {y: "-x"}},
     ),
     Plot.ruleX([0]),
   ],
@@ -50,27 +52,27 @@
         </lf-chart>
       </section>
 
-      <lf-ask id="heat-first-decision">
-        <h2>Which measure should be booked first?</h2>
+      <lf-group id="heat-first-decision" label="Which measure should be booked first?">
+        <h2 id="heat-first-decision-h">Which measure should be booked first?</h2>
         <p id="heat-decision-basis">
           The three jobs below have current installer access and quotes. Rank their
           estimated loss against cost, lead time, and disruption — not as promised
           savings.
         </p>
-        <lf-options id="heat-first" choose>
-          <lf-option id="heat-opt-hatch">
+        <lf-options id="heat-first">
+          <lf-option id="heat-opt-hatch" label="Seal and insulate the loft hatch">
             <strong>Seal and insulate the loft hatch</strong>
             <small class="tag">£180</small>
             <small class="tag ok">one afternoon</small>
             <p>Estimated loss: 265 W. The installer can do it next week.</p>
           </lf-option>
-          <lf-option id="heat-opt-window">
+          <lf-option id="heat-opt-window" label="Add secondary glazing to the bay">
             <strong>Add secondary glazing to the bay</strong>
             <small class="tag">£1,180</small>
             <small class="tag">three-week lead</small>
             <p>Estimated loss: 410 W. The internal panel leaves the sash untouched.</p>
           </lf-option>
-          <lf-option id="heat-opt-floor">
+          <lf-option id="heat-opt-floor" label="Insulate under the floorboards">
             <strong>Insulate under the floorboards</strong>
             <small class="tag">£2,100</small>
             <small class="tag warn">room closed for a week</small>
@@ -79,9 +81,9 @@
             </p>
           </lf-option>
         </lf-options>
-      </lf-ask>
+      </lf-group>
 
-      <section id="heat-weather" class="layout-flow">
+      <section id="heat-weather">
         <h2>The January draught-proofing may already be helping</h2>
         <p id="heat-weather-note">
           Four weeks after the 12 January work sit below five earlier weeks at similar
@@ -102,7 +104,7 @@
   color: {
     legend: true,
     domain: ["before", "after"],
-    range: ["var(--series-1)", "var(--series-2)"],
+    range: ["var(--lf-series-1)", "var(--lf-series-2)"],
   },
   marks: [
     Plot.dot(

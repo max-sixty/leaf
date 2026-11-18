@@ -53,7 +53,7 @@ ACTION_ON_OBLIGATION = {
         "state": {
             "origin": "lf-options",
             "unit": "widget",
-            "record": {"kind": "attribute", "attr": "chosen"},
+            "record": {"kind": "attribute", "attr": "selected"},
             "creates": None,
             "decides": False,
             "detail": {

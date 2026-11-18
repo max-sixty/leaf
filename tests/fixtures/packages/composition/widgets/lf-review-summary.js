@@ -1,7 +1,7 @@
+import { html } from "/vendor/lit.js";
 import {
   LeafElement,
   el,
-  html,
   offer,
   quoted,
   commandsChanged,

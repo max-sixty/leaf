@@ -7,7 +7,11 @@ import pytest
 from interact_support import append_carried_log_record
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_OBLIGATION_PAGE, panel_comment
+from render_cases_interaction import (
+    SEATED_OBLIGATION_PAGE,
+    open_seat_box,
+    panel_comment,
+)
 from render_cases_navigation import (
     JOURNEY_V1,
     NOTED_PAGE,
@@ -19,7 +23,6 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     draft_control,
-    draft_key,
     expect_error_waits_in_menu,
     expect_panel_says,
     holding,
@@ -34,6 +37,7 @@ from render_harness import (
     select_words,
     stored_draft,
     stored_draft_text,
+    until_draft_settled,
     write,
 )
 
@@ -107,11 +111,8 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(draft.locator("leaf-text")).to_have_count(0)
 
     page.evaluate("window.releaseDraftSend()")
-    page.wait_for_function(
-        """key => !document.getElementById('draft-ops').hasAttribute('aria-busy')
-          && JSON.parse(localStorage.getItem(key))?.settled === true""",
-        arg=draft_key(page, "edit:draft-ops"),
-    )
+    expect(draft).not_to_have_attribute("aria-busy", "true")
+    until_draft_settled(page, "edit:draft-ops")
     events = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -270,7 +271,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     # until the user's first key or press there, and the leaf's dot waits for it.
     cover = page.locator(".lf-fab-bar .lf-compose-error")
     expect(cover).to_have_text("Couldn't take this — refused before append")
-    expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_hidden()
     # The first Enter only lifts the cover, with the caret at the words' end, so the
     # words are never sent unseen; the error waits in the leaf's menu.
     page.keyboard.press("Enter")
@@ -303,8 +304,7 @@ def test_a_refused_detached_comment_reopens_beside_its_words(held_events, serve)
     """Only the browser's selection knew where a detached comment's words stand, and
     nothing beside them draws its thread, so the send opens that thread in the panel.
     A refusal brings the box back beside the words, where the user wrote, and the
-    thread's view goes with the thread. The box once came back in the window's corner,
-    under a view saying the thread was not on the page."""
+    thread's view goes with the thread."""
     browser, held = held_events
     page = open_page(browser, serve(FENCED_PAGE))
     words = "Why this colour?"
@@ -364,7 +364,7 @@ def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve
     refuse(page, held)
     box = page.locator(".lf-fab-input")
     cover = page.locator(".lf-fab-bar .lf-compose-error")
-    dot = page.locator(".lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
     expect(cover).to_have_text("Couldn't take this — refused before append")
     expect(dot).to_be_hidden()
     assert cover.evaluate(COVER_LINE_REMAINDER) == pytest.approx(0, abs=0.01)
@@ -435,7 +435,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
         )
     # The field holds the later words, so it cannot say an error about nothing in
     # particular: the refusal waits in the leaf's menu, its dot on the leaf.
-    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
     expect(page.locator(".lf-fab-input")).not_to_be_visible()
 
     page.keyboard.press("Escape")
@@ -505,13 +505,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     ], "a gesture reached the wire naming a thread the log never took"
     # The thread went with its parent, so the reply's words wait in the parent's draft.
     assert stored_draft_text(page, f"reply:{attempt}") is None
-    assert (
-        page.evaluate(
-            "([read, ctx]) => read(ctx)?.held ?? null",
-            [stored_draft(page), "general"],
-        )
-        == reply
-    )
+    assert (stored_draft(page, "general") or {}).get("held") == reply
 
     # The refusal covers the words it gave back until the user comes back to them.
     cover = page.locator(".lf-fp-field .lf-compose-error")
@@ -526,7 +520,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", parent)
     expect(cover).to_be_hidden()
-    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
         len(parent),
         len(parent),
@@ -561,12 +555,12 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     )
 
 
-def test_a_refused_comments_reply_travels_with_it_to_another_passage(
+def test_a_refused_anchored_comments_reply_comes_back_with_its_resend(
     held_events, serve
 ):
-    """The reply a refusal hands back is part of the comment's draft, so whatever moves
-    the draft moves the reply: carried with Alt-click to another passage and sent from
-    there, the comment's new thread has the reply back in its box."""
+    """The reply a refusal hands back is part of the comment's draft on its passage, so
+    resumed there and sent again, the comment's new thread has the reply back in its
+    box."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     parent = "The anchored parent the server will refuse."
@@ -580,6 +574,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
     card.get_by_role("button", name="Send", exact=True).click()
 
     attempt = held[0].request.post_data_json["attempt"]
+    anchor = held[0].request.post_data_json["anchor"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held.pop(0).fulfill(
             status=400,
@@ -598,12 +593,8 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", parent)
-    page.locator("#p5").scroll_into_view_if_needed()
-    page.locator("#p5").click(modifiers=["Alt"])
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", parent)
     page.keyboard.press("Enter")
-    holding(page, held, 1, "the parent sent from its new passage")
+    holding(page, held, 1, "the parent sent again")
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -612,7 +603,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == parent
     )
-    assert sent["anchor"]["section"] == "p5"
+    assert sent["anchor"] == anchor
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
     consume_browser_errors(page, http_error_console(400))
@@ -680,9 +671,8 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     browser, held = held_events
     page = open_page(browser, serve(SEATED_OBLIGATION_PAGE))
     live = page.locator(".lf-live")
-    seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
-    field = seat.locator("leaf-text")
-    press = seat.get_by_role("button", name="Send", exact=True)
+    seat, field = open_seat_box(page, "#jobs")
+    press = seat.locator(".lf-compose-submit")
     write(field, "A remark whose arrival nothing else will say.")
     press.click()
     # Held: the gesture is the only thing that can have written the region, and the
@@ -934,13 +924,13 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     earlier send becomes a thread behind it.
 
     Held rather than raced: the window is one request's flight, and a machine quick
-    enough closes it before the next gesture. A loaded CI runner is not, and it said so
-    as a 💬 that never came up for the passage picked out after a send.
+    enough closes it before the next gesture. A loaded one leaves it open, where the 💬
+    for the passage picked out after a send would never come up.
 
     The next passage is the one above the first, because the sent comment's card stands
     under its passage, over whatever follows it. The card is placed and revealed some
-    frames after the send, so a passage below was reachable only on a machine quick
-    enough to press it before the card arrived."""
+    frames after the send, so a passage below would be reachable only on a machine
+    quick enough to press it before the card arrived."""
     browser, held = held_events
     page = open_page(browser, serve(NOTED_PAGE))
     select_words(page, "#p2")

@@ -3,7 +3,6 @@
 import json
 import re
 import threading
-import time
 
 import pytest
 from interact_support import STATED_TIMEOUT, append_carried_log_record
@@ -17,15 +16,12 @@ from journeys.test_render_read_state import (
     _on_me_mark,
     _read_events,
     _said,
-    _select_new_route,
     _thread_row,
 )
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_layout import overlapped_words
-from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
-    RELEASE_FOCUS,
     CutOff,
     _traffic,
     expect_preview_words,
@@ -47,14 +43,12 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import data as data_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import http as http_model
 from leaf import thread as thread_model
 from leaf.findings import Finding
 from leaf.render_checks import (
-    SERVED_TIMEOUT_MS,
     rendered,
     wait_until_ready,
 )
@@ -109,12 +103,12 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
         None,
         None,
         None,
-        "Choose the next step.",
-        '<lf-ask id="read-decision"><h3>Which way?</h3>'
-        '<lf-options id="read-choice" choose>'
+        "Choose the next step.\n\n"
+        '<lf-group id="read-decision" label="Which way?">\n<h3 id="read-decision-h">Which way?</h3>'
+        '<lf-options id="read-choice">'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )["id"]
     page = open_page(browser, url)
     with sending(page, "the shown body's read"):
@@ -153,11 +147,11 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         None,
         None,
         None,
-        "Choose this answer.",
-        '<lf-ask id="read-refusal"><h3>Choose</h3>'
-        '<lf-options id="read-refusal-options" choose>'
+        "Choose this answer.\n\n"
+        '<lf-group id="read-refusal" label="Choose">\n<h3 id="read-refusal-h">Choose</h3>'
+        '<lf-options id="read-refusal-options">'
         '<lf-option id="read-refusal-yes">Yes</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )["id"]
     page = open_page(browser, url)
     cut = CutOff().hold(page)
@@ -415,7 +409,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     url = serve(PANEL_PAGE)
     user = panel_comment(serve.page_dir, "The earlier user thread.")
     original = thread_model.cmd_comment(
-        serve.page_dir, None, None, None, "Original answer.", None
+        serve.page_dir, None, None, None, "Original answer."
     )
     root = original["id"]
     page = open_page(browser, url)
@@ -496,89 +490,6 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     )
 
 
-@pytest.mark.parametrize("opening", ["notice", "return"])
-def test_a_reply_in_a_diff_thread_draws_where_the_user_is_and_waits_elsewhere(
-    browser, serve, opening
-):
-    """A reply landing in the diff thread the user had just written draws at once, as
-    in a chat: the user stands on the thread their send left them on, and its reply box
-    stays where it stood while the reply takes room above it. Once they leave the
-    thread for the file's header before it, the next reply would grow the thread at its
-    foot, on screen, and move everything after the diff down the page. It waits behind
-    a notice in the thread's control row, which appears without changing the thread's
-    height, and stays unread while none of it has shown. A press on the notice
-    ("notice") or walking back with t ("return") shows it, and the reply's body, drawn
-    inside the widget's shadow tree, is read once shown. Both moves stay inside the
-    widget's shadow tree, where the document hears no focus event."""
-    url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
-    page = open_page(browser, url)
-    page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
-    _select_new_route(page)
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
-    with sending(page, "diff comment"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    root = next(
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    )
-    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
-    box = thread.locator(":scope > .lf-thread-reply leaf-text")
-    expect(thread).to_be_visible()
-    rendered(page)
-    stood = box.bounding_box()["y"]
-    thread_model.post_reply(
-        serve.page_dir, {"responds": root}, "The route-line answer is ready."
-    )
-    told(page)
-    expect(thread.locator(".lf-msg")).to_have_count(2)
-    rendered(page)
-    assert box.bounding_box()["y"] == pytest.approx(stood, abs=1)
-
-    box.click()
-    page.keyboard.press("Escape")
-    expect(thread).to_be_focused()
-    page.keyboard.press("Shift+Tab")
-    assert thread.evaluate(
-        """thread => {
-          const at = thread.getRootNode().activeElement;
-          return Boolean(at) && !thread.contains(at);
-        }"""
-    ), "Shift+Tab left the widget's shadow tree, so the return proves nothing"
-    height = _box_height(thread)
-    reply = thread_model.post_reply(
-        serve.page_dir, {"parent": root}, "And the old route can go."
-    )
-    told(page)
-    news = thread.locator(":scope > .lf-thread-content").get_by_role(
-        "button", name="1 new", exact=True
-    )
-    expect_preview_words(news, "1 new reply")
-    expect(thread.locator(".lf-msg")).to_have_count(2)
-    assert _box_height(thread) == pytest.approx(height, abs=0.5)
-    assert all(
-        message["message"] != reply["id"]
-        for event in _read_events(serve.page_dir)
-        for message in event["messages"]
-    )
-    with sending(page, "opened diff reply read"):
-        if opening == "notice":
-            news.click()
-        else:
-            page.keyboard.press("t")
-        expect(news).to_have_count(0)
-        body = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-msg-body')
-        expect(body).to_be_visible()
-        assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
-        body.scroll_into_view_if_needed()
-    _expect_news(page, False)
-    assert _read_events(serve.page_dir)[-1]["messages"] == [
-        {"message": reply["id"], "version": reply["id"]}
-    ]
-
-
 @pytest.mark.parametrize(
     ("end", "engine"),
     [
@@ -617,7 +528,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         },
     )["id"]
     page = open_page(request.getfixturevalue(engine), url)
-    thread = page.locator(f'.lf-thread-seat .lf-page-thread[data-lf-thread="{root}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     thread.evaluate(
         """thread => document.scrollingElement.scrollBy({
           top: thread.getBoundingClientRect().top - innerHeight / 3,
@@ -679,16 +590,16 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         stood = box.bounding_box()["y"]
         box.click()
         expect(thread.locator(".lf-msg")).to_have_count(3)
-        # Chrome hides a shift for half a second after a click, so the watch can't see
-        # the box leave the pointer.
+        # The click owns every move its rendering makes, so the watch would credit the
+        # box leaving the pointer.
         assert box.bounding_box()["y"] == pytest.approx(stood, abs=1)
         write(box, "Then the roof first.")
         with sending(page, "the user's reply"):
             page.keyboard.press("Enter")
     elif end == "tabbed":
-        # The seat's comment box stands below the thread, so Shift+Tab from it arrives
-        # in the thread's reply row, which the replies draw above.
-        page.locator(".lf-thread-seat > .lf-say leaf-text").click()
+        # The task's Comment control stands below the thread, so Shift+Tab from it
+        # arrives in the thread's reply row, which the replies draw above.
+        page.locator("#jobs > .lf-test-comment").focus()
         row = thread.locator(":scope > .lf-thread-reply")
         stood = row.bounding_box()["y"]
         page.keyboard.press("Shift+Tab")
@@ -701,89 +612,6 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     assert events[:3] == [root, *replies]
     if end == "replied":
         expect(shown.last).to_contain_text("Then the roof first.")
-
-
-@pytest.mark.parametrize("under_panel", [True, False])
-def test_a_page_seat_the_open_panel_stands_over_is_not_read(
-    browser, serve, under_panel
-):
-    """Exposure counts a message read once all of it has been shown. The open panel's
-    view stands over the window's foot, so an answer in a page-side seat that reaches
-    under it has not been shown whole, however much of it is clear: scrolled so the
-    diff's thread outlet runs under the open Threads view, it earns no receipt until the
-    view closes. Scrolled clear above it, the same answer is read with the view open.
-    Threads lists rows rather than messages, so the page seat is the only copy in view.
-    The answer arrives below the window's foot, where it is drawn at once."""
-    url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
-    page = open_page(browser, url)
-    page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
-    _select_new_route(page)
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
-    with sending(page, "diff comment"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    root = next(
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    )
-    # The user lets go of the thread the send left them on and scrolls back up, so the
-    # whole thread stands below the window and the answer joining it moves nothing they
-    # see: it is drawn at once rather than held.
-    page.evaluate(RELEASE_FOCUS)
-    page.evaluate(
-        """thread => scrollBy(0, thread.getBoundingClientRect().top - innerHeight - 40)""",
-        page.locator("lf-diff .lf-page-thread").element_handle(),
-    )
-    open_threads(page)
-    reply = thread_model.post_reply(
-        serve.page_dir,
-        {"responds": root},
-        "The route-line answer is ready.",
-    )
-    told(page)
-    body = page.locator(
-        f'lf-diff .lf-diff-thread-outlet .lf-msg[data-lf-event="{reply["id"]}"]'
-        " .lf-msg-body"
-    )
-    expect(body).to_have_count(1)
-    # The answer's foot 20px under the open view's top edge, or 20px above it.
-    page.evaluate(
-        """([body, card, under]) => scrollBy(0, body.getBoundingClientRect().bottom
-            - card.getBoundingClientRect().top + (under ? -20 : 20))""",
-        [
-            body.element_handle(),
-            page.locator(".lf-fp-card").element_handle(),
-            under_panel,
-        ],
-    )
-    read = [{"message": reply["id"], "version": reply["id"]}]
-
-    def receipt():
-        return any(event["messages"] == read for event in _read_events(serve.page_dir))
-
-    body_bottom = body.evaluate("element => element.getBoundingClientRect().bottom")
-    panel_top = page.locator(".lf-fp-card").bounding_box()["y"]
-    assert (body_bottom > panel_top) == under_panel, (
-        f"the fixture put the seat's foot at {body_bottom} against the panel's "
-        f"{panel_top}, so it does not test what it names"
-    )
-    if under_panel:
-        # The pass the scroll set off has run, and whatever it sent has come back.
-        rendered(page)
-        round_trip(page)
-        assert not receipt(), "a message partly under the open panel was marked read"
-        page.locator(".lf-fp-close").click()
-        panel_settled(page, open=False)
-        rendered(page)
-        round_trip(page)
-        assert receipt(), "the view closing off the answer set off no reading"
-        return
-    deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
-    while not receipt() and time.monotonic() < deadline:
-        page.wait_for_timeout(100)
-    assert receipt(), "the answer shown whole was never marked read"
 
 
 import pytest

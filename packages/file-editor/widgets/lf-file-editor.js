@@ -29,7 +29,7 @@
  * could be read at all, the status reads "Unavailable" and the empty editor shows
  * why, as its placeholder.
  * The comparison of both versions opens below the editor only on the reader's
- * Compare, and shares the editing room with it. Rejected (2026-10-14): a pane below
+ * Compare, and shares the editing room with it. Rejected: a pane below
  * the editor holding the error, the choices and the comparison, which took the
  * editor's room as each problem arrived, and room held empty for that pane, which
  * every reader would pay for the rare one who meets a conflict. Each failure and
@@ -38,6 +38,7 @@
  * lifetime pauses the file watch and listeners while retaining the editor, its
  * history and in-flight receipt.
  */
+import { html, nothing, render } from "/vendor/lit.js";
 import {
   allButCommandReference,
   announce,
@@ -51,14 +52,11 @@ import {
   focusDestination,
   focused,
   handBack,
-  html,
   iconTemplate,
   isNativeLayer,
   LeafElement,
-  nothing,
   offered,
   offeredAction,
-  render,
   rove,
   rowWalk,
   shadowStage,

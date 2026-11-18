@@ -51,7 +51,7 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
     )
     newer = freeze_events(page_dir, [first, second])
     runner = CliRunner()
-    missing = runner.invoke(cli_model.cli, ["delivery", "ack", "00000000"])
+    missing = runner.invoke(cli_model.cli, ["delivery", "ack", "0000000000000000"])
     assert missing.exit_code == 1
     assert "unknown delivery" in missing.output
     assert acknowledged_through(page_dir) == 0
@@ -261,8 +261,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
                 page_dir,
                 {
                     "exit": result.exit_code,
-                    "stdout": result.stdout,
-                    "stderr": said(result.stderr),
+                    "stdout": said(result.stdout),
                 },
             ),
         )
@@ -293,8 +292,7 @@ def test_ack_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot):
                 page_dir,
                 {
                     "exit": result.exit_code,
-                    "stdout": result.stdout,
-                    "stderr": said(result.stderr),
+                    "stdout": said(result.stdout),
                 },
             ),
         )
@@ -341,9 +339,9 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     service_model.claim_page(page_dir)
 
     out, err = waiting.communicate(input="continue\n", timeout=STATED_TIMEOUT)
-    assert (waiting.returncode, out) == (2, ""), err
-    assert f"stopped watching {page_dir}: this session no longer owns it" in err
-    assert "the page closed" not in err
+    assert waiting.returncode == 2, out + err
+    assert f"stopped watching {page_dir}: this session no longer owns it" in out
+    assert "the page closed" not in out
     claim_record_5 = service_model.page_claim(page_dir)
     assert claim_record_5 is not None
     assert claim_record_5["id"] == "successor"
@@ -355,8 +353,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
                 page_dir,
                 {
                     "exit": waiting.returncode,
-                    "stdout": out,
-                    "stderr": said(err),
+                    "stdout": said(out),
                 },
             ),
         )
@@ -437,7 +434,9 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
             reading = session_model.PageTick(
                 claimed, page.status, [event], True, "watching", False, None, page
             )
-            output = session_model.delivery_json(reading, None)
+            output = events_model.jsonl_line(
+                session_model.delivery_record(reading, None)
+            )
         payload = delivery_model.read_delivery(json.loads(output)["id"])
     assert len(output.encode("utf-8")) <= 24000
     first = json.loads(output)

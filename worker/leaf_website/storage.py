@@ -6,6 +6,12 @@ together to the container's Durable Object before acknowledging the write. The
 record overlays this release's immutable image on startup; captured responses are
 disposable delivery output and never an input to a fold. Responses retain their
 exact bytes: the separately bundled public assets are a different module graph.
+
+The user's drafts move no page reading (`reading.UNWATCHED`), so a commit carries
+them only beside a change of its own. A container that stops, as one does after
+`sleepAfter` idle, first publishes each page whose drafts moved since (`save_drafts`),
+so the next container restores the words typed since a page's last commit, and a tab
+opened while the session sleeps shows them.
 """
 
 from __future__ import annotations
@@ -37,12 +43,15 @@ import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
+from leaf.drafts import read_drafts
 from leaf.files import latest_revision, revision_path
+from leaf.http import assets_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
+    MEDIA_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
@@ -124,10 +133,12 @@ class _BlobSet:
             return self.buffer.read(length)
 
 
-def restore(site_root: Path) -> None:
-    """Restore before serving, from the snapshot contract in worker/src/storage.ts."""
+def restore(site_root: Path) -> bool:
+    """Restore before serving, from the snapshot contract in worker/src/storage.ts, and
+    say whether a page store backs the site, as the container then declares its
+    commits are published there (`PUBLISHER`)."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
-        return
+        return False
     from leaf_website import SITE_MANIFEST, elapsed_ms, log_agent
 
     started = time.monotonic()
@@ -191,7 +202,7 @@ def restore(site_root: Path) -> None:
             chunks=len(blobs.offsets),
             bytes=sum(length for _, length in blobs.offsets.values()),
         )
-    os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
+    return True
 
 
 def _upload(blobs: _BlobSet, digest: str) -> None:
@@ -259,24 +270,27 @@ def _responses(
         transaction=page,
         process=False,
     )
-    snapshot = replace(snapshot, source_error=source_error)
-    paths = {"", "api/state", "api/news", "registry.json"}
+    # The drafts answer with the page while its container sleeps, as the replacement
+    # restores them, so a tab opened then neither wakes it nor writes over them.
+    snapshot = replace(
+        snapshot, source_error=source_error, frozen_drafts=read_drafts(page.page_dir)
+    )
+    paths = {"", "api/state", "api/news", "api/drafts", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
     published = set(map(int, manifest["pages"][root]["states"]))
     for item, artifact in snapshot.artifacts.items():
         if item in published:
             continue
-        name = snapshot.revision_names[item]
-        paths.add(f"revisions/{name}")
-        # Where the container serves the revision's resources: under the identity of
-        # the runtime and layer it executes (`http.PageEndpoint._named_root`).
-        served = (
-            f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
-        )
+        paths.add(f"revisions/{snapshot.revision_names[item]}")
+        # Where the container serves the revision's resources, which the revisions
+        # that differ only in their document share. Media answers at the page root
+        # (below), never there.
+        served = assets_path(execution_identity(artifact)).lstrip("/")
         for logical in set(executing(artifact).resources) | set(
             artifact.widget_aliases
         ):
-            paths.add(f"{served}{logical}")
+            if not logical.startswith(f"/{MEDIA_DIR}/"):
+                paths.add(f"{served}{logical}")
     paths.update(
         f"versions/v{version['version']}.html" for version in snapshot.context.versions
     )
@@ -351,22 +365,41 @@ PUBLISHED = Record(
                     "The page reading the publication was made from "
                     "(`record_reading`).",
                     STRING,
-                )
+                ),
+                "drafts": described(
+                    "The version of the page's drafts it carried (`drafts.py`).",
+                    {"type": "integer", "minimum": 0},
+                ),
             }
         ),
     ),
-    since=13,
+    since=46,
 )
 
 
-def publish(page: PageTransaction) -> None:
-    """Publish under the caller's append lease; failure remains a failed commit."""
-    if not os.environ.get("LEAF_PAGE_STORE_URL"):
-        return
+# The page commit provider (`leaf.service`) a container declares once it has restored
+# its pages, so every transaction its leaf processes finish publishes its record.
+PUBLISHER = "leaf_website.storage:publish"
+
+
+def _published(page_dir: Path) -> Path:
+    return state_home() / "website-publications" / f"{page_key(page_dir)}.json"
+
+
+def _site() -> tuple[Path, dict]:
     from leaf_website import SITE_MANIFEST
 
     site_root = Path(os.environ["LEAF_SITE_ROOT"]).resolve()
-    manifest = json.loads((site_root / SITE_MANIFEST).read_text())
+    return site_root, json.loads((site_root / SITE_MANIFEST).read_text())
+
+
+def publish(page: PageTransaction, *, drafts: bool = False) -> None:
+    """Publish under the caller's append lease; failure remains a failed commit. A
+    commit publishes a page whose reading moved since its last publication; `drafts`
+    publishes one whose drafts alone moved too (`save_drafts`)."""
+    if not os.environ.get("LEAF_PAGE_STORE_URL"):
+        return
+    site_root, manifest = _site()
     root = next(
         (
             root
@@ -379,8 +412,14 @@ def publish(page: PageTransaction) -> None:
         return
     activation = activate_source(page.page_dir, transaction=page)
     fingerprint = record_reading(page.page_dir)
-    token = state_home() / "website-publications" / f"{page_key(page.page_dir)}.json"
-    if (published := PUBLISHED.read(token)) and published["fingerprint"] == fingerprint:
+    token = _published(page.page_dir)
+    published = PUBLISHED.read(token)
+    unchanged = published is not None and published["fingerprint"] == fingerprint
+    if unchanged and not drafts:
+        return
+    # Read before the record, so a draft written while it publishes is saved again.
+    version = read_drafts(page.page_dir)["version"]
+    if unchanged and published["drafts"] == version:
         return
     files = _record_files(
         page.page_dir, set(map(int, manifest["pages"][root]["states"]))
@@ -405,4 +444,34 @@ def publish(page: PageTransaction) -> None:
         with _request("/publication", {"root": root, "identity": prepared["identity"]}):
             pass
     token.parent.mkdir(parents=True, exist_ok=True)
-    PUBLISHED.write(token, {"fingerprint": fingerprint})
+    PUBLISHED.write(token, {"fingerprint": fingerprint, "drafts": version})
+
+
+def save_drafts() -> None:
+    """Publish each page whose drafts moved since this container last published it,
+    or since it started where it hasn't. A container stopping calls it once serving
+    has ended (`close_on_signal`), so no write races it. A page this container
+    restored with drafts and never published is published again, which costs only
+    the stop."""
+    if not os.environ.get("LEAF_PAGE_STORE_URL"):
+        return
+    from leaf_website import elapsed_ms, fault_fields, log_agent
+
+    started = time.monotonic()
+    site_root, manifest = _site()
+    saved = 0
+    for value in manifest["pages"].values():
+        page_dir = (site_root / value["directory"]).resolve()
+        published = PUBLISHED.read(_published(page_dir))
+        if read_drafts(page_dir)["version"] == (
+            published["drafts"] if published else 0
+        ):
+            continue
+        try:
+            with PageTransaction(page_dir) as page:
+                publish(page, drafts=True)
+        except OSError as error:
+            log_agent("drafts_save_failed", **fault_fields(error))
+            continue
+        saved += 1
+    log_agent("drafts_saved", durationMs=elapsed_ms(started), pages=saved)

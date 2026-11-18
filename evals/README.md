@@ -31,7 +31,8 @@ pnpm run eval:view
 - **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Author
   models use `MODELS` in `dev/leaf_dev/arms.py`; judging uses the separate
   `JUDGE_MODELS` pins. The hill-climbing playbook owns judge selection. `--model MODEL`
-  selects one Codex author model for every selected condition in that run.
+  selects the author model in place of the harness's pin, for every selected condition
+  in that run, such as `--harness claude-code --model claude-fable-5-2`.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
@@ -293,13 +294,17 @@ flowchart TD
           file="/absolute/path/to/change.diff"
           label="Exact retained change"
         ></lf-eval-cite>
-        <lf-ask id="keyboard-review">
-          <h4>Keep the keyboard change?</h4>
-          <lf-options id="keyboard" choose>
-            <lf-option id="keyboard-approve"><strong>Approve change</strong></lf-option>
-            <lf-option id="keyboard-revisit"><strong>Revisit change</strong></lf-option>
+        <lf-group id="keyboard-review" label="Keep the keyboard change?">
+          <h4 id="keyboard-review-h">Keep the keyboard change?</h4>
+          <lf-options id="keyboard">
+            <lf-option id="keyboard-approve" label="Approve change"
+              ><strong>Approve change</strong></lf-option
+            >
+            <lf-option id="keyboard-revisit" label="Revisit change"
+              ><strong>Revisit change</strong></lf-option
+            >
           </lf-options>
-        </lf-ask>
+        </lf-group>
       </section>
     </section>
     <section id="experiments-rejected">
@@ -397,7 +402,7 @@ Each section keeps what its reader needs to judge it:
   rather than inferring causality from timestamps. Order cases and steps as the campaign
   took them, not by score or file time, and leave parallel lanes unordered against each
   other. Keep the original grades when explaining a change to an evaluation contract.
-- Only a change selected for the user's decision gets an `lf-ask`, with a scoped exact
+- Only a change selected for the user's decision gets a question section, with a scoped exact
   diff to read. Scores never make that decision, and existing authorization and landing
   rules still govern what follows from it. Link a change to an experiment only where
   one tested it; a grading or report change has none.
@@ -458,14 +463,20 @@ for source and reading probes; Claude Code receives a request to use the plugin'
 skill. These probes may only read (Claude Code's Skill and Read tools; Codex's
 read-only sandbox), so a prompt that needs a page asks for its HTML in the reply,
 and one that grades what the
-agent would do asks for the commands it would run. The runner tells such a probe
+agent would do asks for the commands it would run. They may also ask the arm's Leaf
+what a page's packages tell an author: Claude Code runs `leaf page instructions` and
+`leaf page vocabulary`, and Codex runs any `leaf` command through the plugin's `leaf`
+tool. A case that declares `metadata.page`, the packages its page takes beside the
+defaults (`[]` for none), gives its probe that page, initialized, and the prompt names
+it (`page_prompt` in `workflows/eval.yaml`). The runner tells such a probe
 the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
 the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
-prompt asking for its tool calls with their JSON input. The leading comment records
-where the case came from and what it measured, `metadata.purpose` the behavior it
-pins, and `metadata.tags` its area. `description` is the short task name shown in
-reports (for example, "CSS cascade survey"); the directory address remains the case
-ID used for selection and grouping.
+prompt asking for its tool calls with their JSON input. The leading comment says
+what situation the case reproduces and the failure it invites, `metadata.purpose`
+the behavior it pins, and `metadata.tags` its area; where the case came from and what
+its runs measured go in the commit that adds or changes it. `description` is the
+short task name shown in reports (for example, "CSS cascade survey"); the directory
+address remains the case ID used for selection and grouping.
 
 A short case that needs real authoring declares `metadata.authoring: true`.
 Its agent has native file and command tools, an initialized writable page, the
@@ -494,9 +505,11 @@ transformed images. The judge can read only copied images under the run's
 screenshot tree; the assertion
 supplies authored HTML to identify the references, without the author's trace.
 
-Use authoring cases for media preparation, widget markup and checking or repairing
-rendering. Keep source and reading probes for decisions that need no writable
-artifact. Use complete tasks for revisions, user feedback and delivery rounds.
+Use authoring cases for media preparation and checking or repairing rendering. Keep
+source and reading probes for decisions that need no rendered page: those whose rules
+the skill's references hold, and, with `metadata.page`, widget markup whose rules an
+author reads through `leaf page instructions --use`. Use complete tasks for
+revisions, user feedback and delivery rounds.
 Authoring adds page initialization, tool turns and a render check to each sample;
 `setup_seconds`, native trace accounting and Promptfoo's `latencyMs` expose those
 costs separately. Each sample has its own temp directory. Native tool permissions
@@ -504,8 +517,9 @@ match the complete-task executors: Codex allows native tools without approval;
 on macOS, Claude Code's sandbox prevents writes to shared temporary paths while
 allowing its owned directories, as described under **Isolation**.
 
-Internal instruction cases exercise developing Leaf itself; `/developing-leaf`,
-"Score an instruction change", owns when to use one. They declare
+Internal instruction cases exercise developing Leaf itself;
+`.claude/skills/developing-leaf/references/instruction-changes.md`, "Score an
+instruction change", owns when to use one. They declare
 `metadata.instructions`, a source path in
 that arm. The agent receives its contents and source file location as
 system/developer context, retaining the origin of its linked references;

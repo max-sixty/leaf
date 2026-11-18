@@ -26,7 +26,7 @@
    outward while the full reference groups the same scopes for reading.
 
    Scopes stand wherever their element does, but this module follows only the trees
-   arrivals.js observes: the document, open shadow trees, and stages (`x-shadow`,
+   arrivals.js observes: the document, open shadow trees, and stages (`shadow`,
    `shadowStage`). In a closed tree that isn't a stage, a scope still answers its keys,
    but `commandsWithin` doesn't find it, and once the tree's host leaves the page a
    button outside it that the scope names keeps showing that command's availability
@@ -72,7 +72,7 @@ import {
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { composedParentNode, renderedParent } from "../shadow.js";
-import { isElement, renderedChildElements } from "../shadow-tree.js";
+import { eachRenderedElement, isElement } from "../shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";
@@ -1234,22 +1234,16 @@ const markScopedIn = (node) =>
     mark(element);
     dirtyButtons.add(element);
   });
-// Each element at or under `node` as it renders: down the step `renderedParent` takes
-// up (`renderedChildElements`), and into a closed stage by its host (`stageOf`). A
-// widget's scopes and a paint's marks are found by the same steps.
+// Each element at or under `node` as it renders (`eachRenderedElement`), into a closed
+// stage by its host (`stageOf`) too. `node` may be a painted shadow root, or a text
+// node a move carries. A widget's scopes and a paint's marks are found by the same steps.
 /** @param {Node} node @param {(element: Element) => void} visit */
 function eachRendered(node, visit) {
-  if (!isElement(node)) {
-    // A painted shadow root, or a text node a move carries.
-    const { children = [] } = /** @type {Partial<ParentNode>} */ (node);
-    for (const child of children) eachRendered(child, visit);
-    return;
-  }
-  visit(node);
-  for (const child of renderedChildElements(node)) eachRendered(child, visit);
-  if (!node.shadowRoot)
-    for (const child of stageOf(node)?.children ?? []) eachRendered(child, visit);
+  if (isElement(node)) visit(node);
+  eachRenderedElement(node, (child) => eachRendered(child, visit), stagedRoot);
 }
+/** @param {Element} host */
+const stagedRoot = (host) => host.shadowRoot ?? stageOf(host);
 function claimPaintedRoots() {
   if (!paintedRoots.size) return;
   // Whether a node is a painted root or stands in one, remembered for every node a climb

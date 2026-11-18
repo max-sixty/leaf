@@ -142,6 +142,9 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @property {() => unknown} armChanged
  * @property {(reading: {input: typeof pageSearchInput, controls: readonly HTMLElement[], open: boolean}) => unknown} searchInPanel
  */
+// A letter or digit, which a word runs on through.
+const WORD = /[\p{L}\p{N}]/u;
+
 /** @param {TargetPickerOptions} options */
 export function createTargetPicker({
   scrollToPassage,
@@ -638,14 +641,28 @@ export function createTargetPicker({
     repaint();
   }
 
+  // The match in the words around it. A match inside a word, as "the" in "rather",
+  // joins its neighbours with no space put between, so it reads back as the word; one
+  // at a text node's edge is parted by a space, as words in separate nodes most often
+  // are.
   /** @param {Match} segments */
   function matchDescription(segments) {
     const { before, after } = contextAround(
       readingHolding(segments[0]?.node ?? document.body),
       segments,
     );
+    const first = segments[0];
+    const last = segments.at(-1);
+    const inWord = /** @param {string | undefined} a @param {string | undefined} b */ (
+      a,
+      b,
+    ) => Boolean(a && b && WORD.test(a) && WORD.test(b));
+    const joinsBefore =
+      first && inWord(first.node.data[first.start - 1], first.node.data[first.start]);
+    const joinsAfter =
+      last && inWord(last.node.data[last.end - 1], last.node.data[last.end]);
     const phrase = quoteFrom(segments);
-    return `${before ? `…${before} ` : ""}${phrase}${after ? ` ${after}…` : ""}`;
+    return `${before ? `…${before}${joinsBefore ? "" : " "}` : ""}${phrase}${after ? `${joinsAfter ? "" : " "}${after}…` : ""}`;
   }
 
   /** @param {PickerTarget} candidate */

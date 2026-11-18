@@ -194,17 +194,17 @@ export const obligationIn = (node) => questionAsked(node) ?? obligationAt(node);
 
 // The question a thread asks the user at `node`, where `node` is in a view of the thread
 // outside any obligation drawn there: of the questions drawn in the agent's latest
-// message in it, the first still open, else the last. A thread and the question it
-// asks are one target, as an obligation and the thread about it are, and the question
-// comes before the obligation the thread is about: it is what the thread asks of the
-// user now, drawn where they are reading, while the obligation stands on the page, where
-// they answer it. Answering sends no message, so a lone question keeps the user through
-// their answer and a second digit changes it, while a message asking several moves them
-// on to the next one still open, as a form does, and stays on the last once all are
-// answered. Once the agent says anything more, the
-// thread asks it no longer: a digit there would otherwise revise an answer the agent has
-// acted on, or take the one meant for the obligation the thread is about. `m` and Tab
-// still reach the question.
+// message in it, the first still open, else the one the user answered last. A thread and
+// the question it asks are one target, as an obligation and the thread about it are, and
+// the question comes before the obligation the thread is about: it is what the thread
+// asks of the user now, drawn where they are reading, while the obligation stands on the
+// page, where they answer it. Answering sends no message, so a lone question keeps the
+// user through their answer and a second digit changes it, while a message asking
+// several moves them on to the next one still open, as a form does. Once all are
+// answered, a digit revises the answer the user gave last, never one they gave before
+// it. Once the agent says anything more, the thread asks it no longer: a digit there
+// would otherwise revise an answer the agent has acted on, or take the one meant for the
+// obligation the thread is about. `m` and Tab still reach the question.
 /** @param {Node | null | undefined} node */
 export function questionAsked(node) {
   const view = closestAcross(node ?? null, THREAD);
@@ -223,8 +223,18 @@ export function questionAsked(node) {
     obligationsIn(whole, asked),
     (item) => obligationPlace(item, all).source,
   );
-  return drawn.find((item) => item.status === "open") ?? drawn.at(-1) ?? null;
+  if (!drawn.length) return null;
+  return (
+    drawn.find((item) => item.status === "open") ??
+    drawn.reduce((last, item) => (answeredAt(item) > answeredAt(last) ? item : last))
+  );
 }
+
+// Where the user's answer to `item` stands in the log, an answer the server hasn't read
+// yet being the latest.
+/** @param {import("./framework/application.js").ObligationRecord} item */
+const answeredAt = (item) =>
+  item.answer ? (item.answer.event?.seq ?? Infinity) : -Infinity;
 
 /** @param {Node | null | undefined} node @param {Set<Element>} visited
  * @param {boolean} countBeside @returns {Element | null} */

@@ -2,7 +2,7 @@
 and an obligation's digits and thread."""
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
@@ -1607,6 +1607,54 @@ def test_a_thread_takes_the_digits_of_the_question_it_asks(browser, serve):
     expect(page.locator(".lf-fp-field .lf-compose-dictate")).to_be_focused()
     page.keyboard.press("1")
     expect(page.locator("#second-send")).to_have_attribute("selected", "")
+
+
+def test_a_digit_revises_only_the_answer_given_last_in_a_thread(browser, serve):
+    """A message asking two questions, the second answered before the first, keeps the
+    user on the first through its answer: the next digit revises the answer just given,
+    never the one given before it."""
+    source = leaf_page(
+        "Chart export",
+        '<section id="export"><h2 id="export-h">Export</h2><p>The charts.</p></section>',
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "id": "ask",
+            "anchor": {"section": "export"},
+            "text": "Two choices. Format?\n\n"
+            '<lf-options id="qa"><lf-option id="qa-png">PNG</lf-option>'
+            '<lf-option id="qa-svg">SVG</lf-option></lf-options>\n\nWho runs it?\n\n'
+            '<lf-options id="qb"><lf-option id="qb-me">Me</lf-option>'
+            '<lf-option id="qb-you">You</lf-option></lf-options>',
+        },
+    ]
+    url = serve(source, events=events)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "qb",
+            "action": "choose",
+            "detail": {"value": ["qb-me"]},
+        },
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("t")
+    expect(page.locator("#qa")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("1")
+    expect(page.locator("#qa-png")).to_have_attribute("selected", "")
+    round_trip(page)
+    expect(page.locator("#qa")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("2")
+    expect(page.locator("#qa-svg")).to_have_attribute("selected", "")
+    round_trip(page)
+    expect(page.locator("#qb-me")).to_have_attribute("selected", "")
 
 
 OBLIGATION_IN_A_PANE_PAGE = leaf_page(

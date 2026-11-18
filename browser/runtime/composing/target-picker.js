@@ -167,7 +167,7 @@ export function createTargetPicker({
   // that arrives with no key, as a paste does, offers the arrows all the same.
   /** @type {import("@preact/signals-core").Signal<Match[]>} */
   const matches = signal([]);
-  /** @type {object | null} */
+  /** @type {number | null} */
   let matchesIn = null; // the page reading `matches` were found in (`pageReadingVersion`)
   let matchesFor = ""; // the query they match
   let active = -1;

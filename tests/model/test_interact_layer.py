@@ -74,6 +74,7 @@ from leaf.registry.contract import DECLARED_WORDS
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf.thread import fit_title
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     authored_sources,
@@ -597,7 +598,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     for command, rejected_kind in (
         (
-            ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
+            ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "\n"],
             "reply",
         ),
         (
@@ -611,6 +612,29 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             rejected_kind,
         )
         assert events_model.read_events(page_dir) == before
+
+    # A title too long or broken over lines breaks nothing, so it is fitted rather
+    # than refused, and the command says what the thread is named.
+    words = "Which store the cache should use,\nweighed by its write amplification and its recovery time"
+    posted = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "create",
+            str(page_dir),
+            "--text",
+            "and recovery?",
+            "--title",
+            words,
+        ],
+    )
+    assert posted.exit_code == 0, posted.output
+    fitted = json.loads(posted.output)
+    [cut] = fitted.pop("findings")
+    assert fitted == logged(fitted)
+    assert fitted["title"] == fit_title(words) and fitted["title"].endswith("…")
+    assert (cut["code"], cut["severity"]) == ("title-fitted", "advice")
+    assert repr(fitted["title"]) in cut["text"]
 
     # A reply's --title names only a thread nothing has named, so a name the harness
     # gave the thread while the agent worked stands; edit renames one.

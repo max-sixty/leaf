@@ -1432,8 +1432,8 @@ def _title_option(command):
     return click.option(
         "--title",
         help=(
-            "name the thread for the panel unless it has a name: a few words, at "
-            f"most {title_limit()} characters"
+            "name the thread for the panel unless it has a name: a few words; one "
+            f"past {title_limit()} characters is cut at a word"
         ),
     )(command)
 
@@ -1583,8 +1583,8 @@ def thread_reply(
 @click.option(
     "--title",
     help=(
-        "rename MESSAGE's thread for the panel: a few words, at most "
-        f"{title_limit()} characters"
+        "rename MESSAGE's thread for the panel: a few words; one past "
+        f"{title_limit()} characters is cut at a word"
     ),
 )
 def thread_edit(

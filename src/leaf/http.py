@@ -573,9 +573,7 @@ class PageEndpoint:
         answer = (
             scoped
             if self.page_snapshot is not None
-            else tail_answer(
-                scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
-            )
+            else tail_answer(scoped, self.headers.get("Leaf-Held-Basis"), self.page_dir)
         )
         if "since" not in answer and (
             self.headers.get("Leaf-Data-Version") == answer["data"]["version"]

@@ -31,7 +31,7 @@
  * centre, while depth also changes the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
  * The open and paper forms retain the complete words.
- * A section's mark for its On me items or threads is a haloed dot on the outline's
+ * A section's mark for its On Me items or threads is a haloed dot on the outline's
  * rule, or a halo round its marker on the map's spine, and its changes are its stretch
  * of that rule or spine; paper leaves them out. */
 lf-toc {
@@ -147,9 +147,9 @@ lf-toc a:hover,
 lf-toc a[data-lf-focus] {
   color: var(--lf-accent);
 }
-/* A section's mark (toc-view.js) says it holds an On me item, in the user's turn's
+/* A section's mark (toc-view.js) says it holds an On Me item, in the user's turn's
  * colour, or else an open thread, in a thread's (tokens.css, at `--lf-turn`); its link's
- * preview counts both. It is a small ring of its colour. An On me item's ring also
+ * preview counts both. It is a small ring of its colour. An On Me item's ring also
  * stands in a soft disc of its colour (`--lf-toc-halo`), so what waits on the user
  * differs from a thread by its shape as well as its colour, which some readers can't
  * tell apart at this size (tokens.css, at `--lf-turn`); the user chose this over discs
@@ -439,7 +439,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     /* The spine is the map's rule, and its markers stand on it, so a section's mark is
        its marker, which shows at rest too: a ring of the mark's colour, where a
        subsection's point grows to such a ring. Where you are keeps its accent fill,
-       inside the disc for an On me item. A changed section's stretch of the spine runs
+       inside the disc for an On Me item. A changed section's stretch of the spine runs
        from its marker to the next one, under the lens, so the lens still shows the part
        in view. Its caps run half its width past each marker, as the outline's run past
        each row (above), so every end lies under a marker. */
@@ -561,7 +561,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     forced-color-adjust: none;
     background: CanvasText;
   }
-  /* An On me item's disc can't be a tint here, so it is a second ring the colours
+  /* An On Me item's disc can't be a tint here, so it is a second ring the colours
      keep. */
   lf-toc [data-lf-toc-mark] {
     --lf-toc-mark: CanvasText;

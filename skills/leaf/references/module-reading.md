@@ -280,7 +280,7 @@ does, such as "2 left to answer · 1 on Claude", so every count of a queue reads
 
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or
-`null`. On me groups its items by it and a link's preview names a place by it. A
+`null`. On Me groups its items by it and a link's preview names a place by it. A
 question or section stands in the part around it, past its own heading. A module that
 counts items per heading as the reader moves through them, as `lf-toc` does, gives
 each heading the stretch of the page from the element it titles (`titledElement`,

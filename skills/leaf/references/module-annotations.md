@@ -80,9 +80,11 @@ part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and
 calls `registerVisualParts(source, read, {reveal, label})` once. `read()` returns the
 parts drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
 `reveal(id)` shows a part when someone follows its thread, even if it is visible
-already, so cancel work that would hide it. `label(id)` names a part in Threads without
-changing the visual, or returns `null`. Call the returned `update()` after the parts or
-their positions change.
+already, so cancel work that would hide it. `label(id)` names a part in Threads, in its
+margin entry and in Page Map without changing the visual, or returns `null`. Call the
+returned `update()` after the parts or their positions change: a part's margin entry
+stands level with the part, and Leaf learns that a part moved inside the visual only
+from `update()`.
 
 A visual with too many parts to list, such as a chart's points, also passes `find` and
 `at`, and its `read()` may return none, since `read()` is what the target picker and a

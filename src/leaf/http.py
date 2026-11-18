@@ -222,7 +222,8 @@ def page_delivery(
 
     The document is addressed at `page_root` and `asset_root` (`DeliveryAddress`),
     and starts under the import map its layer modules resolve through and the runtime
-    bootstrap with its server incarnation probe, so historical
+    bootstrap with its server incarnation probe, beside the floating panel's row the
+    bootstrap stands from the first paint, so historical
     sources inherit the current delivery boundary without carrying delivery markup
     themselves. A keyed top-level page declares its share address here, including
     on a bare-URL reload. Disposable samples and public website documents have no
@@ -237,7 +238,14 @@ def page_delivery(
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
-    runtime = runtime_settings(
+    # The floating panel's row, which the bootstrap stands after `body` from the first
+    # paint until the panel takes it over (build/panel-row.mjs), inert in a template.
+    row = runtime_element(
+        "template",
+        {"data-lf-panel-row": True},
+        resources["/runtime/panel-row.html"].data.decode(),
+    )
+    runtime = row + runtime_settings(
         resources["/runtime/bootstrap.js"].data.decode(),
         layer=layer_id,
         page_root=page_root,

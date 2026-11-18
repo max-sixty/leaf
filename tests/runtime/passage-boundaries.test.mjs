@@ -48,7 +48,8 @@ import {
   segmentsIn,
   trackQuotes,
 } from "/runtime/passages.js";
-import { declaredRoot, upFrom } from "/runtime/shadow.js";
+import { declaredRoot } from "/runtime/shadow.js";
+import { upFrom } from "/runtime/shadow-tree.js";
 import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
 
 // The elements the page reading treats as blocks, each once, in reading order.

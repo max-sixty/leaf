@@ -10,7 +10,7 @@ import { registry } from "./registry.js";
 import { authoredScope, elementReading, HEADING, readsElement } from "./passages.js";
 import { keptEach } from "./kept.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
-import { uiInside, upFrom } from "./shadow.js";
+import { uiInside, upFrom } from "./shadow-tree.js";
 import { excerptWords } from "./words.js";
 
 /** @type {Record<string, string>} */

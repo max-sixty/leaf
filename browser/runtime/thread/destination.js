@@ -73,7 +73,7 @@ import { surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { closestAcross } from "../passages.js";
-import { renderedUnder } from "../shadow.js";
+import { renderedUnder } from "../shadow-tree.js";
 import { deleted, discussed, editable } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";

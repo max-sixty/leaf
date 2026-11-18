@@ -5,11 +5,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { composedParentNode, renderedUnder, under, upFrom } from "/runtime/shadow.js";
 import {
   eachRenderedChild,
   eachRenderedElement,
   renderedParent,
+  composedParentNode,
+  renderedUnder,
+  under,
+  upFrom,
 } from "/runtime/shadow-tree.js";
 
 test("a climb crosses a shadow root to its host", () => {

@@ -86,6 +86,11 @@ import {
   isHTML,
   skipped,
   skipper,
+  inUi,
+  renderedOrder,
+  renderedParent,
+  under,
+  upFrom,
 } from "./shadow-tree.js";
 import {
   blockAt,
@@ -126,7 +131,6 @@ import {
   placeKept,
   scrollToEnd,
 } from "./scrolling.js";
-import { inUi, renderedOrder, renderedParent, under, upFrom } from "./shadow.js";
 import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";

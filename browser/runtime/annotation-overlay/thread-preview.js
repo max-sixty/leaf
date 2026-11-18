@@ -185,7 +185,7 @@ import {
 import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi, floatingGeometry } from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
-import { renderedOrder, renderedUnder, under } from "../shadow.js";
+import { renderedOrder, renderedUnder, under } from "../shadow-tree.js";
 import { keys } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
 import { openingPart, threadFocusDestination } from "../thread/focus.js";

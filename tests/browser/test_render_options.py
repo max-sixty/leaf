@@ -873,18 +873,22 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
         # Keep hover labels clear of the pixels whose ring thickness is measured.
         page.locator("h1").click()
         rendered(page)
-        # Painted on a canvas, since the settled colours compute in the oklab their
-        # steps are written in, not as rgb().
-        ok, tint = page.evaluate(
+        # The ring's colour and the picked cell's ground, painted on a canvas, since they
+        # compute in the oklab their steps are written in, not as rgb().
+        ok, ground = page.evaluate(
             """() => {
                  const context = document.createElement('canvas')
                    .getContext('2d', {willReadFrequently: true});
-                 return ['--lf-settled', '--lf-settled-tint'].map(name => {
-                   const probe = document.body.appendChild(document.createElement('i'));
-                   probe.style.color = `var(${name})`;
-                   context.fillStyle = getComputedStyle(probe).color;
+                 const probe = document.body.appendChild(document.createElement('i'));
+                 probe.style.color = 'var(--lf-settled)';
+                 const paints = [
+                   getComputedStyle(probe).color,
+                   getComputedStyle(document.querySelector('#c-redis')).backgroundColor,
+                 ];
+                 probe.remove();
+                 return paints.map(paint => {
+                   context.fillStyle = paint;
                    context.fillRect(0, 0, 1, 1);
-                   probe.remove();
                    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
                  });
                }"""
@@ -898,7 +902,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             # A pixel is the ring's where it stands nearer the ring than half the way to
             # the cell's ground, so the edge pixel the ring mostly covers counts.
             inked = [
-                distance(px, ok) < distance(tint, ok) / 2 for px in rgb_pixels(shot)
+                distance(px, ok) < distance(ground, ok) / 2 for px in rgb_pixels(shot)
             ]
 
             # The ring's two edges along this line: from each of the cell's edges, which

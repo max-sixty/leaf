@@ -625,6 +625,13 @@ class AuthoredOrders:
             if held is not None and held[0] is holder:
                 self._orders[held[1], holder["tag"]][holder["attrs"]["id"]].append(uid)
 
+    @classmethod
+    def read(cls, reading: SourceReading) -> "AuthoredOrders":
+        """The orders one document states under its own vocabulary. A revision's
+        markup is read with the registry it was captured with, since a later one
+        can declare positions on a tag that revision only used as a wrapper."""
+        return cls(reading.document.by_id, reading.registry)
+
     def of(self, owner: str, record: dict) -> dict[str, list[str]]:
         """Container id → the ids of its units in markup order, for each
         `record["within"]` container `owner` records positions in."""
@@ -852,9 +859,7 @@ def page_reading(
             revision,
             withdrawn=withdrawn,
             revision_orders=(
-                lambda made_on: AuthoredOrders(
-                    revision_reader(made_on).document.by_id, reading.registry
-                )
+                lambda made_on: AuthoredOrders.read(revision_reader(made_on))
             )
             if revision_reader is not None
             else None,

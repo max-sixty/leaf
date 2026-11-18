@@ -1093,6 +1093,78 @@ def test_the_position_fold_matches_the_browser_cases(case):
     assert order == case["order"]
 
 
+def test_a_moves_revision_is_read_under_its_own_vocabulary():
+    """Revision 1 nests column `c` in a wrapper that records no positions, so `c`
+    belongs to the board. Revision 2 lifts `c` directly under the board and gives
+    the wrapper's tag a position declaration of its own. The board authors `c` the
+    same way in both, so a move made on revision 1 stands; reading revision 1 under
+    revision 2's vocabulary would hand `c` to the wrapper and absorb the move."""
+    from leaf.registry.contract import state_definition
+
+    record = {"kind": "position", "within": "lf-column"}
+    then = model_layer()
+    now = {
+        **then,
+        "lf-wrap": {
+            "verbs": {
+                "move": {
+                    "unit": "unit",
+                    "record": record,
+                }
+            }
+        },
+    }
+    column = '<lf-column id="c" label="C"><lf-card id="k1">K1</lf-card><lf-card id="k2">K2</lf-card></lf-column>'
+    readings = {
+        1: passages_model.SourceReading(
+            structure_model.SourceDocument(
+                f'<main><lf-board id="board"><lf-wrap id="w">{column}</lf-wrap></lf-board></main>'
+            ),
+            then,
+        ),
+        2: passages_model.SourceReading(
+            structure_model.SourceDocument(
+                f'<main><lf-board id="board">{column}<lf-wrap id="w"></lf-wrap></lf-board></main>'
+            ),
+            now,
+        ),
+    }
+    spec = now["lf-board"]["verbs"]["move"]
+    move = {
+        "kind": "action",
+        "id": "a-move",
+        "author": "user",
+        "revision": 1,
+        "widget": "board",
+        "action": "move",
+        "detail": {"unit": "k2", "value": "c", "rank": "0i"},
+        "meaning": {
+            "unit": "k2",
+            "depends": ["board", "k2", "c"],
+            "scope": "page",
+            "state": state_definition("lf-board", now["lf-board"], spec),
+        },
+        "seq": 1,
+    }
+
+    page = projection_model.page_reading(
+        readings[2],
+        [move],
+        2,
+        revisions=(1, 2),
+        revision_reader=readings.__getitem__,
+    )
+
+    assert page.projection.absorbed == frozenset()
+    assert projection_model.folded_positions(
+        "board",
+        "move",
+        record,
+        projection_model.AuthoredOrders.read(readings[2]),
+        page.projection,
+    ) == {"c": ["k2", "k1"]}
+
+
 def test_a_position_is_never_read_as_one_actions_markup_value():
     """A unit's place is read against the whole fold (`recorded_state`); reading it
     the way a pick or a value is read would fall through to the unit's words."""

@@ -106,7 +106,7 @@ widget in the group that asks is its own question with its own answer.
 
 ```html
 <lf-group id="material-q" label="Which material for the housing?">
-  <h2 id="material-h">Which material for the housing?</h2>
+  <h2>Which material for the housing?</h2>
   <p>Aluminium costs three times as much and halves the weight.</p>
   <table id="material-weights">
     …
@@ -150,7 +150,7 @@ action and the evidence the user needs in the question's heading and prose:
   id="publish-report-question"
   label="Publish this report to the team workspace?"
 >
-  <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
+  <h2>Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
     <lf-option id="publish-report-keep" label="Keep it private"

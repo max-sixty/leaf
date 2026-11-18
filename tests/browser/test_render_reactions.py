@@ -1468,7 +1468,7 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
         == "40px"
     )
     # An unnamed drawing takes the name of the section holding it (addressableLabel).
-    assert accessible_details(page, "#pic") == ["Responses to svg · Gallery"]
+    assert accessible_details(page, "#pic") == ["Responses to figure · Gallery"]
     assert control.evaluate(
         "button => button.closest('.lf-chrome') !== null && button.tabIndex === -1"
     )

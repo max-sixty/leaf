@@ -16,7 +16,7 @@ the CPU each of the server's `PATHS` takes on each page, least of `RUNS`:
 - `activate`: making a changed source the next revision (`activate_source`).
 
 It runs this checkout's `leaf`, with `XDG_STATE_HOME` in the scratch directory for
-the duration (`scratch_state`). A page server keeps a page's readings between
+the duration. A page server keeps a page's readings between
 requests (`page_memory`), and so does this process, so each path is timed as a
 server takes it again, with the readings of what didn't change kept. A `leaf`
 command starts with none kept, so `agent`, `thread` and a hook's `delivery` cost a
@@ -38,9 +38,9 @@ import os
 import re
 import shutil
 import time
-from collections.abc import Callable, Generator, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from unittest.mock import patch
 
 from leaf_dev.commands.bench import (
     BUDGET_MS,
@@ -70,22 +70,6 @@ def floors(rows: list[dict]) -> dict[str, float]:
     fixed cost sets the floor, so a cheap path's growth isn't judged against a dearer
     one's fixed work."""
     return {path: rows[0][path] for path in PATHS if path in rows[0]}
-
-
-@contextmanager
-def scratch_state(directory: Path) -> Generator[None]:
-    """Point Leaf's state home into `directory` while the pages are built and read,
-    so claims, deliveries and presence stay out of the machine's own."""
-    directory.mkdir(parents=True, exist_ok=True)
-    was = os.environ.get("XDG_STATE_HOME")
-    os.environ["XDG_STATE_HOME"] = str(directory)
-    try:
-        yield
-    finally:
-        if was is None:
-            del os.environ["XDG_STATE_HOME"]
-        else:
-            os.environ["XDG_STATE_HOME"] = was
 
 
 def build(collection: Collection, sizes: list[int], directory: Path) -> dict[int, Path]:
@@ -315,7 +299,10 @@ def measure(
     revision."""
     from leaf.event_log import read_events
 
-    with scratch_state(directory / "state"):
+    # The pages' claims, deliveries and presence stay out of the machine's own.
+    state = directory / "state"
+    state.mkdir(parents=True, exist_ok=True)
+    with patch.dict(os.environ, XDG_STATE_HOME=str(state)):
         pages = build(collection, sizes, directory)
         held = {n: len(read_events(pages[n])) for n in sizes}
         calls = {n: server_paths(pages[n], collection.log(n)) for n in sizes}

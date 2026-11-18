@@ -900,8 +900,7 @@ class WebsiteCodexHarness:
                         log_agent(
                             "turn_correction_start_failed",
                             **agent_event_fields(turn.event_ids),
-                            error=type(error).__name__,
-                            detail=str(error),
+                            **fault_fields(error),
                         )
                 if not restarted:
                     if turn.correction is not None:

@@ -7,13 +7,13 @@ import {
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings, and each
  * section's marks (toc-marks.js). A row wears one mark, `data-lf-toc-mark`: `on-me`
- * where its section holds an On me item, else `thread` where it holds an open thread.
+ * where its section holds an On Me item, else `thread` where it holds an open thread.
  * While the changes view is on, `data-lf-toc-changed` marks a changed section. toc.css
  * draws both on the outline's rule or the contents spine; the start row's go on the
  * outline's head too, its toggle or its label, which stands where that row would where
  * the row is left out. A row's mark stands beside its link rather than in it, so it
  * still shows while the map rests with its labels faded out. The marks are aria-hidden
- * and take no room; what they count, threads and On me items alike, the row's link
+ * and take no room; what they count, threads and On Me items alike, the row's link
  * previews (`lfPreview`) in place of its name, which its face already says, and that
  * preview describes the link to a screen reader where focus lands on it. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
@@ -25,7 +25,7 @@ import { marksWords } from "./toc-marks.js";
 /** @typedef {import("./toc-marks.js").SectionMarks} SectionMarks */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
-// The one mark a row wears, an On me item outranking a thread, and the dot the outline
+// The one mark a row wears, an On Me item outranking a thread, and the dot the outline
 // draws it with on its rule (toc.css), where the map draws it round the row's marker.
 /** @param {SectionMarks | undefined} marks */
 const markKind = (marks) =>

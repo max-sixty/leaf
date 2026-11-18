@@ -47,7 +47,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from functools import partial
 from html.parser import HTMLParser
 from pathlib import Path
@@ -66,14 +66,13 @@ from leaf.schema import (
     SESSION_ROUTE_DIRS,
 )
 from leaf.structure import FRAME_ANCESTORS_CSP
-from leaf_dev import LEAF_COMMAND, ROOT, docs
-from leaf_dev.arms import environment
+from leaf_dev import ROOT, docs
+from leaf_dev.arms import run_leaf
 from leaf_dev.commands.site.distribution import prepare
 from leaf_dev.docs import catalog_preview, media_url, product_route, product_sources
 from leaf_dev.example_data import catalog_sources, document_metadata, published_sources
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
-    fixture_environment,
     package_selection_args,
     prepare_page,
     read_fixture,
@@ -203,23 +202,6 @@ def check_links(out: Path) -> None:
         )
 
 
-def leaf(
-    command: Sequence[str], env: dict, *args: str, input_text: str | None = None
-) -> None:
-    """A leaf command, quiet unless it fails, and then exiting with what it said."""
-    done = subprocess.run(
-        [*command, *args],
-        cwd=ROOT,
-        env=fixture_environment(env),
-        capture_output=True,
-        text=True,
-        input=input_text,
-        check=False,
-    )
-    if done.returncode:
-        sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
-
-
 def product_page(out: Path, source_name: str) -> Path:
     """The independent page directory behind one product source's public route."""
     return out / "_leaf" / "pages" / Path(source_name).stem
@@ -240,9 +222,10 @@ def install_tree(out: Path) -> Path:
 
 def checkout_leaf() -> Callable:
     """Run `leaf` commands from this checkout, whose pages run its runtime's source
-    modules."""
-    # `environment()` keeps the builder's harness session out of published version notes.
-    return partial(leaf, LEAF_COMMAND, environment())
+    modules, quiet unless one fails, and then exiting with what it said. They run
+    without the builder's harness session (`run_leaf`), which would otherwise sign
+    the published version notes."""
+    return partial(run_leaf, None, None, check=True, error=SystemExit)
 
 
 def prepared_leaf(out: Path) -> Callable:
@@ -250,7 +233,7 @@ def prepared_leaf(out: Path) -> Callable:
     install = install_tree(out)
     shutil.rmtree(install, ignore_errors=True)
     prepare(install)
-    return partial(leaf, [str(install / "bin" / "leaf")], environment())
+    return partial(run_leaf, install, None, check=True, error=SystemExit)
 
 
 def social_images(assets: Path) -> dict[str, str]:

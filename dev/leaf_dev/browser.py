@@ -115,7 +115,17 @@ ENGINES = ("chromium", "firefox", "webkit", "ios")
 # that asks for reduced motion, every smooth scroll lands in one step while the page
 # reads no preference, and a test that needs a scroll under way never has one. So
 # Firefox answers no preference, as the page's context does.
-FIREFOX_PREFS = {"ui.prefersReducedMotion": 0}
+#
+# Bounce-tracking protection classifies a host the tab passed through without user
+# activation, after the host stored state, as a tracker, and logs a console warning on
+# the page then showing. Tests serve every page from 127.0.0.1 and navigate by script,
+# so any test can trip it, and the browser fixtures fail a test on that warning as on
+# one the page raised. Mode 0 (`nsIBounceTrackingProtection.MODE_DISABLED`) leaves the
+# feature off.
+FIREFOX_PREFS = {
+    "ui.prefersReducedMotion": 0,
+    "privacy.bounceTrackingProtection.mode": 0,
+}
 
 
 def engine_option(command):

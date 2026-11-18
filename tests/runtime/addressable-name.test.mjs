@@ -1,8 +1,7 @@
 /* What names an element: the one reading of the name the authoring contract gives it.
 
    A section or article is named by the heading it opens with, a disclosure by its
-   summary, a registered widget's titled member by its leading <strong>, and a
-   registered widget that takes a `label` by that attribute. Anything else, a bold line
+   summary, and a registered widget that takes a `label` by that attribute. Anything else, a bold line
    in prose included, has no name, and the caller decides what stands in for one. The
    words come through the passage reader, so generated chrome inside an element names
    nothing.
@@ -56,12 +55,12 @@ test("no element has no name", () => {
 });
 
 test("generated chrome names nothing, and does not hide the title behind it", () => {
-  declare({ "lf-card": {} });
   assert.equal(
-    named('<lf-card id="it"><strong class="lf-ui">6 · 🎯</strong>Words.</lf-card>'),
-    "",
+    named(
+      '<section id="it"><h2>Title<span class="lf-ui"> · 3 open</span></h2></section>',
+    ),
+    "Title",
   );
-  declare();
   assert.equal(
     named(
       '<section id="it"><strong class="lf-ui">6 · 🎯</strong><h2>Real title</h2></section>',
@@ -92,6 +91,17 @@ test("the chrome names an element by its name before its words", () => {
   assert.equal(
     labelled('<div id="it" aria-label="Latency"><p>12 ms</p></div>'),
     "Latency",
+  );
+});
+
+test("a caption or label names its element without a gloss's explanation", () => {
+  // A popover's words stand apart until shown, so they name nothing.
+  const gloss = '<lf-gloss>p99<span popover="hint">the slowest 1%</span></lf-gloss>';
+  const figure = `<figure id="it"><img alt=""><figcaption>${gloss} by hour</figcaption></figure>`;
+  assert.equal(labelled(figure), "p99 by hour");
+  assert.equal(
+    labelled(`<label for="it">${gloss} budget</label><input id="it">`),
+    "p99 budget",
   );
 });
 

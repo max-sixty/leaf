@@ -1137,6 +1137,12 @@ _TEXT = {
         + ", and short names for them such as py and sh, and typesets LaTeX in"
         ' class="language-math" as a formula'
     ),
+    "literal-markdown": lambda at, v: (
+        "Markdown shown as typed — HTML reads no Markdown, so the page shows the"
+        " backticks, ** or brackets of a code span, bold or link in"
+        f" {_blocks(v)}; write each as <code>, <strong> or <a href>, or, where the"
+        " syntax is itself the text, put it in <code>, <samp> or <pre>"
+    ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
         f" run {v['run']}, but that source now holds run {v['current_run']}"

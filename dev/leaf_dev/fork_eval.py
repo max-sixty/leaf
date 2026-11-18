@@ -80,10 +80,13 @@ from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
+    arm_python,
+    blocks,
     build_source,
     claude_child,
     environment,
     read_trace,
+    run_leaf,
     trace_result,
 )
 from leaf_dev.eval_cases import definition
@@ -308,20 +311,17 @@ class Leaf:
         )
 
     def run(self, *args: str, stdin: dict | None = None, check: bool = True):
-        result = subprocess.run(
-            [str(self.payload / "bin/leaf"), *args],
-            input=json.dumps({"session_id": self.session, **stdin}) if stdin else None,
-            capture_output=True,
-            text=True,
+        return run_leaf(
+            self.payload,
+            None,
+            *args,
             env=self.env,
-            check=False,
+            check=check,
+            error=RuntimeError,
+            input_text=json.dumps({"session_id": self.session, **stdin})
+            if stdin
+            else None,
         )
-        if check and result.returncode:
-            raise RuntimeError(
-                f"leaf {' '.join(args)} exited {result.returncode}: "
-                + result.stderr.strip()
-            )
-        return result
 
     def fork(self, payload: dict, *, check: bool = True):
         """One step of a fork, as `forkStep` runs it: what it printed, or with
@@ -340,7 +340,7 @@ class Leaf:
     def python(self, program: str, *args: str, stdin: str = "") -> Any:
         """What `program` prints, as JSON, run by the arm's Python."""
         result = subprocess.run(
-            [str(self.payload / ".venv/bin/python"), "-I", "-c", program, *args],
+            [*arm_python(self.payload), "-c", program, *args],
             input=stdin,
             capture_output=True,
             text=True,
@@ -355,7 +355,7 @@ class Leaf:
     def lane(self):
         """Hold the session's forks lane, as its pages follower does."""
         holder = subprocess.Popen(
-            [str(self.payload / ".venv/bin/python"), "-I", "-c", LANE, self.session],
+            [*arm_python(self.payload), "-c", LANE, self.session],
             env=self.env,
             text=True,
             stdin=subprocess.PIPE,
@@ -591,11 +591,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
     trace = read_trace(stream)
     result = trace_result(trace)
     calls = [
-        block["name"]
-        for record in trace
-        if record.get("type") == "assistant"
-        for block in record["message"].get("content", [])
-        if block.get("type") == "tool_use"
+        block["name"] for block in blocks(trace) if block.get("type") == "tool_use"
     ]
     text = result.get("result") if result.get("subtype") == "success" else None
     failed = (

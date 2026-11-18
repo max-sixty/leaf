@@ -436,10 +436,16 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    at the window's right and a pin keeps its count off the window's edge. A carrier
    places the row along its top edge, where a lone dot stands, and says how far past
    that corner its count reaches (`--lf-badge-reach`); a pin's count takes the left
-   corner (annotation-theme.css). Each badge keeps its own face and size. Where the
-   badges together are wider than their carrier, as a two-digit count, news and an
-   error are on the folded leaf, the row runs past its left end rather than squeeze
-   them. */
+   corner (annotation-theme.css). Each badge keeps its size. Where the badges together
+   are wider than their carrier, as a two-digit count, news and an error are on the
+   folded leaf, the row runs past its left end rather than squeeze them.
+
+   Each badge wears one face whichever control carries it, since a count or a dot
+   means the same on both: the folded leaf's, which the user chose in the panel's
+   design review. A count is a 17px pill, a dot is a size up from a reply's so it
+   reads beside a count, and a paper ring parts each from what it stands over. A count
+   is ink unless what it counts has a colour, as the folded leaf's count of what is On
+   me wears the user's turn (floating-panel.css). */
 .lf-badges {
   display: flex;
   direction: ltr;
@@ -449,13 +455,25 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 }
 .lf-badges > * {
   flex: none;
+  box-shadow: 0 0 0 2px var(--lf-paper);
 }
 .lf-badges > .lf-badge-count {
   margin: calc(-1 * var(--lf-badge-reach, 0px)) calc(-1 * var(--lf-badge-reach, 0px)) 0
     auto;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  font: var(--lf-font-count);
 }
 .lf-badges > .lf-unread-dot {
-  box-shadow: 0 0 0 2px var(--lf-paper);
+  width: 8px;
+  height: 8px;
 }
 /* An unread reply wears the unread dot beside its time, and says New only to a screen reader, which reads it with the
    head. It stands with the time rather than among the head's annotations, so where a
@@ -1335,11 +1353,12 @@ wa-copy-button.lf-icon-action {
 /* An entry's badges (`.lf-badges`, above), its unread dot and count, stand on its
    top edge inside the box the entry already reserves, so they add no width: a lone
    dot on the entry's corner, over its border, where its paper ring parts the two, and
-   the count 7px further out. */
+   the count 6px further out, so its pill stands past the corner as far as the folded
+   leaf's does. */
 .lf-margin-face > .lf-badges {
   position: absolute;
   inset: 0 0 auto;
-  --lf-badge-reach: 7px;
+  --lf-badge-reach: 6px;
 }
 .lf-margin-entry-glyph {
   line-height: 1;
@@ -1363,19 +1382,6 @@ wa-copy-button.lf-icon-action {
   position: static;
   align-self: start;
   justify-self: stretch;
-}
-.lf-margin-count {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  box-sizing: border-box;
-  border-radius: 999px;
-  border: 1px solid var(--lf-paper);
-  background: var(--lf-ink);
-  color: var(--lf-paper);
-  display: grid;
-  place-items: center;
-  font: var(--lf-font-count);
 }
 /* Margin and Page Map share the same attention reading, in the colours of what each
    says (tokens.css, at `--lf-turn`): the agent's work on an entry that holds no thread, a

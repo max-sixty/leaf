@@ -134,6 +134,9 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "label": {
+          "type": "string"
+        },
         "status": {
           "enum": ["planned", "active", "blocked", "review", "stalled", "done"]
         },

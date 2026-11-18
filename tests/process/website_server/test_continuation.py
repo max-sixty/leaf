@@ -233,7 +233,8 @@ def test_a_refused_correction_receipt_still_hands_the_page_on(
 ):
     """A correction turn that cannot restart receipts what it owed, and the page can
     refuse that receipt while a reply is still held. The refusal is recorded and
-    the page's next move is still started."""
+    the page's next move is still started. A restart that fails with App Server's
+    whole log as its message records only the log's bounded tail."""
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
@@ -243,8 +244,10 @@ def test_a_refused_correction_receipt_still_hands_the_page_on(
     turn = unfollowed_turn(harness, page_dir)
     turn.correction = {"source": "index.html"}
 
+    log = "App Server starting\n" * 200 + "exited: no App Server"
+
     def no_server():
-        raise RuntimeError("no App Server")
+        raise RuntimeError(log)
 
     def refused_receipt():
         raise Refused("failure receipts wait for this turn to release the answer")
@@ -258,11 +261,12 @@ def test_a_refused_correction_receipt_still_hands_the_page_on(
     harness._run_follow_turn(turn)
 
     assert continued == [comment["id"]]
-    [record] = [
-        json.loads(line)
-        for line in capsys.readouterr().out.splitlines()
-        if json.loads(line)["event"] == "turn_receipt_refused"
-    ]
+    records = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    [start] = [r for r in records if r["event"] == "turn_correction_start_failed"]
+    assert start["error"] == "RuntimeError"
+    assert start["detail"] == website_server.bounded_detail(log)
+    assert start["detail"].endswith("exited: no App Server")
+    [record] = [r for r in records if r["event"] == "turn_receipt_refused"]
     assert (
         record["detail"] == "failure receipts wait for this turn to release the answer"
     )

@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import {
   addressableLabel,
   addressableName,
+  sectionLabel,
   titledElement,
   titlingHeading,
 } from "/runtime/addressable-names.js";
@@ -94,6 +95,13 @@ test("the chrome names an element by its name before its words", () => {
     labelled('<div id="it" aria-label="Latency"><p>12 ms</p></div>'),
     "Latency",
   );
+});
+
+test("a drawing's part is a figure, named by its aria-label", () => {
+  // SVG's element names, such as `g`, mean nothing to the reader.
+  document.body.innerHTML =
+    '<main><figure id="fig"><svg viewBox="0 0 10 10"><g id="it" aria-label="Bar for K"><path d="M0 0L5 0"/></g></svg><figcaption>Sensitivity</figcaption></figure></main>';
+  assert.equal(sectionLabel(document.querySelector("#it")), "figure · Bar for K");
 });
 
 test("an element whose words are its own is named by them, cut short", () => {

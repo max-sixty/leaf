@@ -32,7 +32,6 @@
 // terminal's band last drawn; what a press copies prints as `{"copied": <text>}`,
 // and a toast as `{"toast": <text>}`.
 import { spawn } from "node:child_process";
-import * as fs from "node:fs";
 import * as path from "node:path";
 import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -142,12 +141,6 @@ const $ = {
   },
   env: {
     get: async (name) => options.env?.[name],
-  },
-  fs: {
-    read: async (file, { as } = {}) =>
-      as === "bytes"
-        ? { base64: fs.readFileSync(file).toString("base64") }
-        : fs.readFileSync(file, "utf8"),
   },
   clock: {
     now: async () => Date.now(),

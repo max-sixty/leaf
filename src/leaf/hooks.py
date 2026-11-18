@@ -277,9 +277,7 @@ def cmd_pages(payload: dict) -> None:
     native notifications cannot replace this timer. It waits on the session's
     requests (`completions.watch`), so it lists one as it is written.
 
-    A payload asking for `forks`, from a hooks module this Leaf ships (its `module`,
-    the digest of the module's source as it loaded, `session_runtime.module_current`),
-    makes the follower the session's forks lane
+    A payload asking for `forks` makes the follower the session's forks lane
     (`forks.take_lane`) while it runs, and gives each page the threads a line turn
     holds (`kept_back`), each as the `thread`, `inputs` and `turn` the module asks a
     line fork about (`forks.look`). Between presence reads it waits on each page's
@@ -300,16 +298,13 @@ def cmd_pages(payload: dict) -> None:
 
     The module that reads the list stays the one the session loaded until
     `/reload-plugins`, so a follower under a newer Leaf may print it to a module
-    that reads kept-back threads by an older contract, which would ask no line fork
-    for them. So a follower whose module isn't this Leaf's keeps nothing back, and
-    the session's messages reach it as they would without forks.
+    that reads kept-back threads by an older contract; `session_runtime`'s header
+    says what then becomes of them.
 
-    The follower notes its verdict once in each page it holds
-    (`interaction_log.record_follower`): whether the module asked for forks, the
-    module's digest, and whether that module is this Leaf's. So a message admission
-    found with no lane (`forks.kept_from_main_at_admission`) says whether forks were
-    off, the module stale, or the follower that held the lane gone
-    (`leaf-dev logs timeline`)."""
+    The follower notes once in each page it holds whether the module asked for
+    forks (`interaction_log.record_follower`), so a message admission found with no
+    lane (`forks.kept_from_main_at_admission`) says whether forks were off or the
+    follower that held the lane had gone (`leaf-dev logs timeline`)."""
     sid = payload.get("session_id") or ""
     from .harness import ClaudeCodeHarness
     from .leases import mark_module
@@ -326,12 +321,11 @@ def cmd_pages(payload: dict) -> None:
     from .file_changes import FileChanges, wait
     from .interaction_log import record_follower
     from .presence import PRESENCE_CACHE_S, live_leaves
-    from .session_runtime import module_current
 
     queued = watch(sid)
-    asked, current = bool(payload.get("forks")), module_current(payload.get("module"))
-    forking = asked and current
-    # The pages this follower has noted its verdict in, each once.
+    asked = bool(payload.get("forks"))
+    forking = asked
+    # The pages this follower has made its note in (`record_follower`), each once.
     noted: set = set()
     if forking:
         from .file_changes import page_changes
@@ -351,13 +345,7 @@ def cmd_pages(payload: dict) -> None:
                 # EX_TEMPFAIL: the module starts it again, under that Leaf.
                 raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
-            record_follower(
-                sorted(held - noted),
-                sid,
-                module=payload.get("module"),
-                forks=asked,
-                current=current,
-            )
+            record_follower(sorted(held - noted), sid, forks=asked)
             noted |= held
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process

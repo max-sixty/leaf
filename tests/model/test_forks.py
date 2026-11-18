@@ -3,7 +3,6 @@ moves through (`forks.py`'s table), what Leaf keeps back from the session meanwh
 the message reads once a fork has posted the agent's working line and handed the
 thread over."""
 
-import hashlib
 import json
 import os
 import re
@@ -59,14 +58,8 @@ from leaf.service import PageTransaction
 from leaf.state import session_file
 
 # What Leaf's Claude Code hooks module gives the pages follower of session s1, asking
-# for forks from the module this Leaf ships, by its source's digest (`hooks.cmd_pages`).
-FOLLOWER = {
-    "session_id": "s1",
-    "forks": True,
-    "module": hashlib.sha256(
-        (state_model.PLUGIN_ROOT / "hooks" / "claude-code.ts").read_bytes()
-    ).hexdigest(),
-}
+# for forks (`hooks.cmd_pages`).
+FOLLOWER = {"session_id": "s1", "forks": True}
 
 
 def take_lane():
@@ -2811,47 +2804,6 @@ def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
         }
     ]
     assert nudged == []
-
-
-def test_a_follower_for_another_copies_module_keeps_nothing_back(
-    claimed, monkeypatch, capsys
-):
-    """The session keeps the hooks module it loaded while its hooks run a newer
-    Leaf, and that module may read kept-back threads by an older contract, so a
-    follower whose module's source, as it loaded, isn't this Leaf's takes no lane
-    and keeps nothing back: the session's messages reach it as they would without
-    forks. It notes that verdict once in the page, however often it reads, so the
-    page says why no message had a lane."""
-    older = (state_model.PLUGIN_ROOT / "hooks" / "claude-code.ts").read_bytes()
-    stale = hashlib.sha256(older + b"\n// an older contract\n").hexdigest()
-    serving(claimed, 1)
-    server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
-
-    class Stopped(Exception):
-        pass
-
-    waited = []
-
-    def wait(_marks, _timeout):
-        assert not forks_model.lane_up("s1"), "the follower took the lane"
-        if waited:
-            raise Stopped
-        waited.append(True)
-
-    monkeypatch.setattr(file_changes_model, "wait", wait)
-    with pytest.raises(Stopped):
-        hooks_model.cmd_pages({**FOLLOWER, "module": stale})
-    [listed] = [
-        json.loads(line)["pages"] for line in capsys.readouterr().out.splitlines()
-    ]
-    assert "kept_back" not in listed[0]
-    [noted] = read_interactions(claimed, types=("follower",))
-    assert (noted["session"], noted["module"], noted["forks"], noted["current"]) == (
-        "s1",
-        stale,
-        True,
-        False,
-    )
 
 
 @pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])

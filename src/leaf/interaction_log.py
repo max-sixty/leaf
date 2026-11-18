@@ -164,23 +164,12 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
     _record_in(pages, record)
 
 
-def record_follower(
-    pages: list[Path], session: str, *, module: object, forks: bool, current: bool
-) -> None:
+def record_follower(pages: list[Path], session: str, *, forks: bool) -> None:
     """Record in each page a Claude Code session's pages follower starts listing
-    (`hooks.cmd_pages`) whether its hooks module asked for forks (`forks`), the
-    digest the module loaded with (`module`), and whether that module is this
-    Leaf's (`current`, `session_runtime.module_current`): the follower keeps threads
-    back for line forks only where both hold. Dropped where the page can't be
+    (`hooks.cmd_pages`) whether its hooks module asked for forks (`forks`), without
+    which it keeps no thread back for a line fork. Dropped where the page can't be
     written, as `record_command` is."""
-    record = {
-        "source": "cli",
-        "type": "follower",
-        "session": session,
-        "module": module,
-        "forks": forks,
-        "current": current,
-    }
+    record = {"source": "cli", "type": "follower", "session": session, "forks": forks}
     _record_in(pages, record)
 
 

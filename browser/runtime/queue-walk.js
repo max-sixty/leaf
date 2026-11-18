@@ -90,7 +90,7 @@ import {
 } from "./current-target.js";
 import { readingBlock } from "./reading-place.js";
 import { readingRegionFor } from "./reading-regions.js";
-import { closestAcross, inChrome, pageReadingVersion } from "./passages.js";
+import { closestAcross, inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
@@ -104,6 +104,7 @@ import { drawnThreadId } from "./thread/selectors.js";
 import { partOver } from "./thread/placement.js";
 import { addressableLabel } from "./addressable-names.js";
 import { userChoice } from "./storage.js";
+import { kept, keptEach } from "./kept.js";
 import { agentName } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -206,7 +207,6 @@ const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
  * arriveAtRecord: ReturnType<typeof import("./obligations/view.js").createObligationView>["arriveAtRecord"],
  * arriveAtThread: ReturnType<typeof import("./navigation.js").createNavigation>["arriveAtThread"],
  * threadPlace: (id: string) => Element | null,
- * placementVersion: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placementVersion"],
  * prepareNavigationStep: Travel["prepareNavigationStep"], arrive: Travel["arrive"],
  * announce: typeof import("./notifications.js").announce,
  * }} dependencies */
@@ -214,7 +214,6 @@ export function createQueueWalk({
   arriveAtRecord,
   arriveAtThread,
   threadPlace,
-  placementVersion,
   prepareNavigationStep,
   arrive,
   announce,
@@ -237,45 +236,22 @@ export function createQueueWalk({
     return at?.isConnected && !inChrome(at) ? at : null;
   };
 
-  // On Me's reading of the page: each item's stop, the element the stop stands at
-  // (`pagePlace`) and the heading over that element (`partOver`), and the walk's stops
-  // in On Me's order and in page order. It is derived once and kept until one of its
-  // inputs changes: the lists and obligations the server read, the plan, the user's
-  // grouping, the page's reading (`pageReadingVersion`), which moves with the ids and
-  // part names its elements bear too, and the threads' placement (`placementVersion`).
-  // A press of `m`, the position it announces and the On Me view then look items up
-  // rather than reading the page for each item (AGENTS.md, "Responsiveness").
-  /** @typedef {{key: readonly unknown[], seats: WeakMap<QueueItem, Seat>,
-   * stops: PlacedStop[] | null, pageStops: PlacedStop[] | null}} Kept */
-  /** @type {Kept | null} */
-  let kept = null;
-  function reading() {
-    const key = [
-      readQueues(),
-      readObligations().all,
-      readPlan(),
-      chosenGrouping.read(),
-      pageReadingVersion(),
-      placementVersion(),
-    ];
-    if (!kept || key.some((part, at) => part !== kept?.key[at]))
-      kept = { key, seats: new WeakMap(), stops: null, pageStops: null };
-    return kept;
-  }
-  // Each item's seat, its stop, place and heading, in the kept reading.
-  function seats() {
-    const { seats: held } = reading();
-    return (/** @type {QueueItem} */ item) => {
-      let seat = held.get(item);
-      if (!seat) {
-        const stop = queueStop(item);
-        const place = pagePlace(stop);
-        seat = { stop, place, heading: place ? partOver(place) : null };
-        held.set(item, seat);
-      }
-      return seat;
-    };
-  }
+  // An item's seat: its stop, the element the stop stands at (`pagePlace`) and the
+  // heading over that element (`partOver`).
+  /** @param {QueueItem} item @returns {Seat} */
+  const seatFor = (item) => {
+    const stop = queueStop(item);
+    const place = pagePlace(stop);
+    return { stop, place, heading: place ? partOver(place) : null };
+  };
+  // On Me's reading of the page: each item's seat, made when the item is first asked
+  // about (`seats`), and the walk's stops in On Me's order and in page order (`stops`,
+  // `pageStops`). Each is kept until something it read changes (kept.js), the lists, the
+  // obligations and the plan the server read, the user's grouping, the page's reading
+  // and the threads' placement among them, so a press of `m`, the position it announces
+  // and the On Me view look items up rather than reading the page for each item
+  // (AGENTS.md, "Responsiveness").
+  const seats = keptEach(seatFor);
 
   // Items of any list in the walk's order: by where each is arrived at on the page, and
   // those with no place there after, in the list's own order.
@@ -428,21 +404,16 @@ export function createQueueWalk({
     return list;
   }
   // The walk's stops in On Me's order, and in page order whatever On Me's grouping.
-  const stops = () => {
-    const held = reading();
-    return (held.stops ??= stopsAmong(
+  const stops = kept(() =>
+    stopsAmong(
       onMeGroups(readQueues().on_user).flatMap((group) => group.items),
       seats(),
-    ));
-  };
-  const pageStops = () => {
-    const held = reading();
+    ),
+  );
+  const pageStops = kept(() => {
     const seatOf = seats();
-    return (held.pageStops ??= stopsAmong(
-      inWalkOrder(readQueues().on_user, seatOf),
-      seatOf,
-    ));
-  };
+    return stopsAmong(inWalkOrder(readQueues().on_user, seatOf), seatOf);
+  });
 
   // The stops of a walk within `region`: the obligations waiting on the user it holds,
   // in page order whatever On Me's grouping, as the region is read on the page.

@@ -3,6 +3,7 @@
  * documents use native scoped storage, whose refusal never prevents reading. */
 import { registry } from "./registry.js";
 import { keeps } from "./keeps.js";
+import { reads } from "./kept.js";
 import { marks } from "./kernel-facts.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
@@ -85,12 +86,18 @@ export const userStore = window.lfStorage.userStore;
 // Which of a view's arrangements the user chose, such as On Me's grouping, kept for
 // every page as the chrome they arrange is: the stored value while it is one of
 // `values`, else null, as a store that refuses reads, so the caller's default stands.
+// A reading kept from it (kept.js) is made again when the choice changes.
 /** @template {string} T @param {string} key @param {readonly T[]} values */
-export const userChoice = (key, values) =>
-  Object.freeze({
+export const userChoice = (key, values) => {
+  const chosen = () => {
+    const value = userStore.get(key);
+    return values.find((candidate) => candidate === value) ?? null;
+  };
+  return Object.freeze({
     read: () => {
-      const value = userStore.get(key);
-      return values.find((candidate) => candidate === value) ?? null;
+      reads(chosen);
+      return chosen();
     },
     write: (/** @type {T | null} */ value) => userStore.set(key, value),
   });
+};

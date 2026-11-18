@@ -15,7 +15,7 @@ sends the user's comments at the journey's user end. It reads the page's log and
 claim in process, and stops at the first check that fails.
 
 The steps, in order; `setup`, `release` and `mid-turn` are those more than one
-harness takes, as `journey.Terminal` has them, with the task's adapter as what
+harness takes, as `_journey.Terminal` has them, with the task's adapter as what
 listens for the task between turns:
 
 - `setup`, serving the page connecting delivery through this journey's transport.
@@ -45,7 +45,7 @@ listens for the task between turns:
   started it again, and a comment sent afterwards is answered.
 
 After each step the journey requires what every harness must hold between steps
-(`journey.Terminal.between`), with the task's adapter as what listens for the task,
+(`_journey.Terminal.between`), with the task's adapter as what listens for the task,
 over every comment but the rich ones; and that the page's claim names the task's
 last turn, by App Server's id for it, so the prompt hook and the adapter agree on
 one identity, and that the page answers at the keyed URL it had after setup
@@ -83,6 +83,7 @@ from leaf.thread_context import logged_fragment
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
+    blocks,
     codex_home,
     environment,
     install_codex_plugin,
@@ -90,7 +91,7 @@ from leaf_dev.arms import (
     run_leaf,
 )
 from leaf_dev.codex_task import Task, trust_plugin_hooks
-from leaf_dev.commands.journey.run import (
+from leaf_dev.commands.journey._journey import (
     Isolation,
     Terminal,
     User,
@@ -306,12 +307,7 @@ def setup(
     )
     if sandbox:
         require(
-            any(
-                block.get("name") == "mcp__leaf__run"
-                for record in codex.trace
-                if record["type"] == "assistant"
-                for block in record["message"]["content"]
-            ),
+            any(block.get("name") == "mcp__leaf__run" for block in blocks(codex.trace)),
             "the sandboxed task ran no `leaf` command through the plugin's MCP server",
         )
 

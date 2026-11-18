@@ -1056,14 +1056,12 @@ def test_the_position_fold_matches_the_browser_cases(case):
         ("board", move["card"], "move"): (
             {
                 "seq": seq,
+                "id": f"move-{seq}",
                 "detail": {
                     "unit": move["card"],
                     "value": move["to"],
                     "rank": move["rank"],
                 },
-                # A move is absorbed where the markup authors its container unlike
-                # the units it was made among.
-                "meaning": {"among": []} if move.get("absorbed") else {},
                 "widget": "board",
             },
             spec,
@@ -1076,8 +1074,14 @@ def test_the_position_fold_matches_the_browser_cases(case):
         desired=desired,
         report_settlements={},
         classified={},
-        absorbed=frozenset(),
         in_force=frozenset(),
+        # A move is absorbed where the markup authors its container unlike the
+        # revision it was made on.
+        absorption=lambda: frozenset(
+            f"move-{seq}"
+            for seq, move in enumerate(case["moves"], start=1)
+            if move.get("absorbed")
+        ),
     )
     order = projection_model.folded_positions(
         "board",
@@ -1087,6 +1091,78 @@ def test_the_position_fold_matches_the_browser_cases(case):
         projection,
     )
     assert order == case["order"]
+
+
+def test_a_moves_revision_is_read_under_its_own_vocabulary():
+    """Revision 1 nests column `c` in a wrapper that records no positions, so `c`
+    belongs to the board. Revision 2 lifts `c` directly under the board and gives
+    the wrapper's tag a position declaration of its own. The board authors `c` the
+    same way in both, so a move made on revision 1 stands; reading revision 1 under
+    revision 2's vocabulary would hand `c` to the wrapper and absorb the move."""
+    from leaf.registry.contract import state_definition
+
+    record = {"kind": "position", "within": "lf-column"}
+    then = model_layer()
+    now = {
+        **then,
+        "lf-wrap": {
+            "verbs": {
+                "move": {
+                    "unit": "unit",
+                    "record": record,
+                }
+            }
+        },
+    }
+    column = '<lf-column id="c" label="C"><lf-card id="k1">K1</lf-card><lf-card id="k2">K2</lf-card></lf-column>'
+    readings = {
+        1: passages_model.SourceReading(
+            structure_model.SourceDocument(
+                f'<main><lf-board id="board"><lf-wrap id="w">{column}</lf-wrap></lf-board></main>'
+            ),
+            then,
+        ),
+        2: passages_model.SourceReading(
+            structure_model.SourceDocument(
+                f'<main><lf-board id="board">{column}<lf-wrap id="w"></lf-wrap></lf-board></main>'
+            ),
+            now,
+        ),
+    }
+    spec = now["lf-board"]["verbs"]["move"]
+    move = {
+        "kind": "action",
+        "id": "a-move",
+        "author": "user",
+        "revision": 1,
+        "widget": "board",
+        "action": "move",
+        "detail": {"unit": "k2", "value": "c", "rank": "0i"},
+        "meaning": {
+            "unit": "k2",
+            "depends": ["board", "k2", "c"],
+            "scope": "page",
+            "state": state_definition("lf-board", now["lf-board"], spec),
+        },
+        "seq": 1,
+    }
+
+    page = projection_model.page_reading(
+        readings[2],
+        [move],
+        2,
+        revisions=(1, 2),
+        revision_reader=readings.__getitem__,
+    )
+
+    assert page.projection.absorbed == frozenset()
+    assert projection_model.folded_positions(
+        "board",
+        "move",
+        record,
+        projection_model.AuthoredOrders.read(readings[2]),
+        page.projection,
+    ) == {"c": ["k2", "k1"]}
 
 
 def test_a_position_is_never_read_as_one_actions_markup_value():
@@ -1571,6 +1647,29 @@ def test_check_advises_on_a_language_class_nothing_will_colour(page_dir):
         ("<code>", "pythn", "advice"),
         ("<lf-text-document>", "haskell", "advice"),
     ]
+
+
+def test_check_advises_on_markdown_the_page_shows_as_typed(page_dir):
+    """HTML reads no Markdown, so a code span, `**` bold or link written in a page's
+    text shows its syntax to the reader, as an issue title carried into a heading
+    does. The check names each element holding one and refuses nothing. Text in
+    <code>, <samp> or <pre> shows as written, and `_` or `*` emphasis is left alone,
+    since paths and globs use those marks."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>\n"
+            "<h3>Require `test` on `main` again</h3>\n"
+            "<p>See [the issue](https://example.com/4045), <strong>**now**</strong>.</p>\n"
+            "<p>Run <code>`x`</code>, <samp>`y`</samp> and leaf/__init__.py on *.py,"
+            " or see https://example.com.</p>",
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    [finding] = found(findings, "literal-markdown")
+    assert finding.severity == "advice"
+    assert [e["tag"] for e in finding.values["elements"]] == ["h3", "p", "strong"]
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():

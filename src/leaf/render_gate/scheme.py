@@ -210,12 +210,12 @@ def collect_page_exceptions(page, errors: list[Finding]) -> None:
     page.on("pageerror", lambda error: errors.append(exception_finding(error)))
 
 
-def collect_page_errors(page, errors: list[Finding]) -> None:
-    """Collect the page's console errors and native exceptions, from every document,
-    as findings."""
+def collect_page_errors(page, errors: list[Finding], *, warnings: bool = False) -> None:
+    """Collect the page's console errors, and its warnings with `warnings`, and its
+    native exceptions, from every document, as findings (`console_finding`)."""
 
     def heard(message):
-        if (error := console_finding(message, warnings=False)) is not None:
+        if (error := console_finding(message, warnings=warnings)) is not None:
             errors.append(error)
 
     page.on("console", heard)

@@ -331,7 +331,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
 
     def echoed():
         page.clock.run_for(20)
-        return page.locator(".lf-held-keys kbd").all_text_contents()
+        return page.locator(".lf-held-key").all_text_contents()
 
     wait_for(
         echoed,
@@ -370,4 +370,4 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
             )
             == 1
         )
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)

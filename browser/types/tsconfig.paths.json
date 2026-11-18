@@ -31,6 +31,9 @@
       "/vendor/extensions.esm.js": [
         "../../build/entries/file-editor/entry.mjs"
       ],
+      "/vendor/codemirror-yaml.esm.js": [
+        "../../build/entries/file-editor/yaml.mjs"
+      ],
       "/vendor/floating-ui.esm.js": [
         "../../build/entries/floating-ui/entry.mjs"
       ],

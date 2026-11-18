@@ -425,13 +425,12 @@ async function clerk($: EngineInterface, session: string) {
 // The main thread's last request, which `$.model.fork` resends: the model and
 // effort the main thread named, how many messages it carried and the newest row
 // stored as it went out (`turn.step`, `sent`), with the newest row stored by the time
-// of the fork (`row`), each the transcript's id from `session.append`, which skips
-// attachments, hook context and compaction summaries. The fork reads the
-// conversation as it would next go out: with a tool call running, to `sent`, since
-// the call's tool_use can't go out before its result; otherwise to `row`, a turn's
-// final reply included (`notes/fork-replies.md`, under the fork probes).
-// Each fork hands this to Leaf, so a fork's diagnostics say where a replay cuts the
-// conversation.
+// of the fork (`row`), each the transcript's id from `session.append` on the doors
+// `register` names. The fork reads the conversation as it would next go out: with a
+// tool call running, to `sent`, since the call's tool_use can't go out before its
+// result; otherwise to `row`, a turn's final reply included (`notes/fork-replies.md`,
+// under the fork probes). Each fork hands this to Leaf, so a fork's diagnostics say
+// where a replay cuts the conversation.
 let lastStep:
   | { model: string; effort?: string | number; messages: number; sent?: string }
   | undefined;
@@ -858,13 +857,17 @@ export const register: Register = (on) => {
   // context, compaction summaries and notices are left to the plugins that rewrite
   // them, and Claude Code tells the user when one of those sends a row past a
   // handler beneath it; a queue record is no row of the conversation (read at
-  // 2.1.322, whose doors `tsc -p tsconfig.json` checks this list against).
+  // 2.1.322, whose doors `tsc -p tsconfig.json` checks this list against). The
+  // model reads `tool-message` rows too, but on a machine with managed settings
+  // `cc-plugin-sec-default` sends the body a Skill call loads on that door past a
+  // person's plugins, so a handler there drew that notice at each session's first
+  // Skill call (read and measured at 2.1.327). `row` stays on a tool's result until
+  // the model next answers.
   for (const door of [
     "prompt",
     "command",
     "response",
     "tool-result",
-    "tool-message",
     "delivery",
     "note",
   ] as const)

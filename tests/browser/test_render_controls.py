@@ -92,10 +92,10 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
         resized(page, width, 900)
         expect(entry).to_have_attribute("data-lf-place", place)
         badges = entry.locator(".lf-margin-marker > .lf-badges")
-        expect(badges.locator(".lf-margin-count")).to_have_text("12")
+        expect(badges.locator(".lf-badge-count")).to_have_text("12")
         expect(badges.locator(".lf-unread-dot")).to_be_visible()
         assert _whole_and_apart(
-            badges.locator(".lf-margin-count"), badges.locator(".lf-unread-dot")
+            badges.locator(".lf-badge-count"), badges.locator(".lf-unread-dot")
         )
 
     resized(page, 1440, 900)

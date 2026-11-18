@@ -117,6 +117,11 @@
     "name": "Deploy a walking skeleton"
   },
   {
+    "id": "a popover is named by its own heading",
+    "markup": "<section id=\"it\" popover><h2>Help</h2><p>Body words.</p></section>",
+    "name": "Help"
+  },
+  {
     "id": "a widget's leading strong names nothing",
     "registry": {
       "lf-option": {}

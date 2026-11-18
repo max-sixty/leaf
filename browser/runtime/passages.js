@@ -765,9 +765,11 @@ function walk(
   };
   // A declared tree handed in as the root reads where its host stands, its tree-local
   // facts starting over as they do when the walk crosses into it; the document starts
-  // with nothing over it.
+  // with nothing over it. A popover counts from below the root, so a heading inside
+  // one is still named by its words (`named`), as Python reads a name's own subtree.
   const host = shadowHost(root);
-  if (isElement(root)) enterElement(root, contextAt(root, frame));
+  if (isElement(root))
+    enterElement(root, { ...contextAt(root, frame), popover: false });
   else visit(root, host ? crossed(contextAt(host, frame)) : NO_CONTEXT);
 }
 // The step up the tree `walk` comes down, from any node, read or not. A slot is that step

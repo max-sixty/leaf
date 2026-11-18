@@ -170,7 +170,8 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page.touchscreen.tap(mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
     expect(box).to_be_hidden()
     expect(next_match).to_be_hidden()
-    expect(comment).to_have_attribute("placeholder", "Match 2 of 3 · “mounts”")
+    # The match's position leads the quote only for its step's moment.
+    expect(comment).to_have_attribute("placeholder", re.compile("“mounts”$"))
     assert page.evaluate("getSelection().toString()") == "mounts"
     page.evaluate("getSelection().removeAllRanges()")
     expect(comment).to_be_hidden()

@@ -1787,7 +1787,10 @@ const isPair = (raw, i) =>
 // assignment, and `name` assigns only on a `<slot>`: a chrome that rewrites the
 // `name` of its `<details>` rows on every paint says nothing about any words. `id` says
 // nothing about them either, but an anchor's section is found by it, so its changes
-// are heard and reported apart from the reading (`hear`).
+// are heard and reported apart from the reading (`hear`). The attributes a part of the
+// page is named by (addressable-names.js, `ownNaming`) say nothing about the words
+// either, and are heard only for which names the page bears (`names`).
+const NAMING_ATTRIBUTES = ["label", "aria-label", "alt", "for", "type"];
 const READING_MARKERS = [
   "class",
   "data-lf-said",
@@ -1799,6 +1802,7 @@ const READING_MARKERS = [
   "name",
   "contenteditable",
   "id",
+  ...NAMING_ATTRIBUTES,
 ];
 const WATCH_READING = {
   subtree: true,
@@ -1862,7 +1866,7 @@ const changesTheReading = (record, reads) => {
   if (record.type === "characterData") return reads(target.parentNode);
   // A marker moved on `target` itself, so its own markers are what is changing and only
   // its place and its labels answer — including a label it has just stopped being.
-  if (!isElement(target) || record.attributeName === "id") return false;
+  if (!isElement(target) || renames(record)) return false;
   if (record.attributeName === "class") {
     const was = /(^|\s)lf-ui(\s|$)/.test(record.oldValue ?? "");
     if (was === target.classList.contains("lf-ui")) return false;
@@ -2025,20 +2029,43 @@ function touch(record, beneath) {
 /** @param {Node} node */
 const holdsSlot = (node) =>
   isElement(node) && (node.localName === "slot" || node.querySelector("slot") !== null);
-/** Which reading of the page stands: a new value each time the page's is forgotten, so a
- * reading derived from the page's own nodes, as the visual responses are, keeps what it
- * derived while this stands. It holds nothing of the reading itself.
+// Which ids and part names the page's elements bear: a new value each time an element's
+// id, or an attribute a part of the page is named by (addressable-names.js,
+// `ownNaming`), changes outside Leaf's surfaces, or an element bearing an id comes or
+// goes. None of these moves the reading of the words, and a reading of the page's nodes
+// may read any of them, so the version those readers keep against moves with them
+// (`pageReadingVersion`). `type` is among them because it decides whether a control
+// takes a `<label>`'s name (`labels`).
+/** @type {object} */
+let names = {};
+// Whether a record changes an element's id or an attribute a part is named by.
+/** @param {MutationRecord} record */
+const renames = (record) =>
+  record.attributeName === "id" ||
+  NAMING_ATTRIBUTES.includes(record.attributeName ?? "");
+/** @type {WeakMap<object, {names: object, token: object}>} */
+const versions = new WeakMap();
+/** Which reading of the page stands: a new value each time the page's is forgotten, or
+ * an id or a part's name changes (`names`), so a reading derived from the page's own
+ * nodes, as the visual responses, On Me's places and the parts conversations stand in
+ * are, keeps what it derived while this stands. It holds nothing of the reading itself.
  * @returns {object} */
 export function pageReadingVersion() {
   catchUpReading();
-  return documentReading(pageDocument()).token;
+  const { token } = documentReading(pageDocument());
+  let version = versions.get(token);
+  if (version?.names !== names) versions.set(token, (version = { names, token: {} }));
+  return version.token;
 }
 /** What a reader derives from the reading of the document `scope` (`authoredScope`) and
  * keeps while that reading stands, under the reader's own `owner`: made by `make` for
  * each new reading and dropped with the old one, so an answer holding the document's
- * nodes keeps none past a change that removes them. A document the watcher doesn't
- * hear, such as a message body no longer in this document, detached or in another,
- * is answered afresh each time.
+ * nodes keeps none past a change that removes them. It lasts as long as the reading of
+ * the words, as the layout of the words on screen does (reading-place.js), so it
+ * outlives an id or a part's name changing; a reading of the page's nodes keys on
+ * `pageReadingVersion`, which moves with those too. A document the watcher doesn't
+ * hear, such as a message body
+ * no longer in this document, detached or in another, is answered afresh each time.
  * @template T @param {Element} scope @param {object} owner @param {() => T} make
  * @returns {T} */
 export function keptWithReading(scope, owner, make) {
@@ -2074,8 +2101,10 @@ function hear(records) {
     if (node.id) ids.add(node.id);
     for (const named of queryAllUnder(node, "[id]")) ids.add(named.id);
   };
+  let renaming = false;
   for (const record of records) {
     const { target } = record;
+    if (renames(record) && !leafSurface(target)) renaming = true;
     if (hearers.size && !leafSurface(target)) {
       if (record.attributeName === "id" && isElement(target)) {
         if (record.oldValue) ids.add(record.oldValue);
@@ -2107,6 +2136,7 @@ function hear(records) {
   }
   forgetPartsBeneath(beneath);
   for (const scope of moved) forget(scope);
+  if (renaming || ids.size) names = {};
   if (moved.has(page) || ids.size) tellHearers({ written, ids, renamed });
 }
 // A change no record reports, to what the walk reads at `node` and under it: the reading

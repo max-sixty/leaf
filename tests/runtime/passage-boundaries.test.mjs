@@ -32,6 +32,7 @@ import {
   findEach,
   findQuote,
   inChrome,
+  keptWithReading,
   neighbourhood,
   pageReadingVersion,
   pageText,
@@ -375,6 +376,35 @@ test("a forgotten reading is held by no key or kept answer that outlives it", as
   await new Promise((done) => setTimeout(done));
   collect();
   assert.equal(forgotten.deref(), undefined);
+});
+
+// A reading of the page's nodes finds an element by its id and names a part by its
+// label, though neither changes the page's words, so the version it keeps against moves
+// with both. What is kept with the words, as their layout on screen is, stays. A class
+// that isn't Leaf's moves neither.
+test("the page's reading version moves with an id or a part's name, though its words stay", () => {
+  document.body.innerHTML =
+    '<main><section id="part"><p id="words">Alpha</p></section></main>';
+  const owner = {};
+  const kept = () => keptWithReading(document.body, owner, () => ({}));
+  let version = pageReadingVersion();
+  const answer = kept();
+  const part = /** @type {HTMLElement} */ (document.getElementById("part"));
+  for (const change of [
+    () => part.setAttribute("aria-label", "Pricing"),
+    () => part.setAttribute("label", "Terms"),
+    () => (part.id = "renamed"),
+  ]) {
+    change();
+    assert.notEqual(pageReadingVersion(), version, String(change));
+    assert.equal(kept(), answer, String(change));
+    version = pageReadingVersion();
+  }
+  part.classList.add("plain");
+  assert.equal(pageReadingVersion(), version);
+  /** @type {HTMLElement} */ (document.getElementById("words")).textContent = "Beta";
+  assert.notEqual(kept(), answer);
+  document.body.replaceChildren();
 });
 
 // Startup refuses a module's bare text before anything reads the page, so it has to

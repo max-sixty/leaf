@@ -25,8 +25,8 @@ export function ownedObligationControl(source, commandSource) {
   return !selector || closestAcross(commandSource, selector) === source;
 }
 
-/* What a row calls an obligation on the user's list: a widget's own word, so lf-options
-   reads Options. */
+/* What On Me's By kind groups call an obligation on the user's list: a widget's own
+   word, so lf-options reads Options. */
 /** @param {AnswerableObligation} item */
 export function obligationWord(item) {
   if (answeredInWords(item)) return "Reply";

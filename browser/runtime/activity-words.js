@@ -376,7 +376,7 @@ export function pageStatus(state, options = {}) {
 // The page's two queues (`served_state.queues`), as the status's explanation names
 // them: each side's kinds and each open to-do's title. The floating panel counts what
 // waits on the user on its On Me mark. What a widget registered is counted as what is
-// left to answer, since only a row names it by its widget (`obligationWord`).
+// left to answer, since only On Me's By kind names it by its widget (`obligationWord`).
 // A question asked in a message is counted with them, so kinds that share words share
 // one count.
 const TO_ANSWER = Object.freeze(/** @type {const} */ (["to answer", "to answer"]));

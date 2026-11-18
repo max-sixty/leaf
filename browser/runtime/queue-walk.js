@@ -5,9 +5,9 @@
    On Me groups its items one of three ways, which the user picks at the view's foot
    and the browser keeps for every page (storage.js, `userChoice`): By place, under what
    names the part of the page each stands in (thread/placement.js, `partOver`); By kind,
-   under the word each one's row leads with (`queueStop`); and By <agent>, under the
-   goals of the agent's plan whose steps name them, those no goal names last. Until the
-   user picks, a plan that gives the user a step groups By <agent>, else By place. The walk steps
+   under a word for what each is (`queueStop`); and By <agent>, under the goals of the
+   agent's plan whose steps name them, those no goal names last. Until the user picks, a
+   plan that gives the user a step groups By <agent>, else By place. The walk steps
    through the groups' items in the list's one order (`onMeGroups`), so successive
    presses reach successive rows. The user chose these groupings over Leaf
    ordering by what the plan waits on, an agent's note with picks, and a priority on
@@ -173,8 +173,8 @@ const stopOf = (item) =>
         };
 
 // An item as the walk reads it: where it is arrived at, the key the walk's position
-// names that stop by, and the word its On Me row leads with, which By kind groups by. An
-// On Me card reads the same, so it knows when the walk stands on it.
+// names that stop by, and the word By kind groups it under. An On Me card reads the
+// same, so it knows when the walk stands on it.
 /** @param {QueueItem} item @returns {QueueStop} */
 export function queueStop(item) {
   const stop = stopOf(item);

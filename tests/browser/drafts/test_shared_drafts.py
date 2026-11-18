@@ -2,6 +2,7 @@
 attempt, edit generations, settlement, a server out of reach, and a draft outliving its
 tab."""
 
+from collections import defaultdict
 from urllib.parse import urlsplit
 
 import pytest
@@ -797,24 +798,38 @@ def test_words_typed_while_a_write_is_out_survive_the_page_going_away(
     )
 
 
+def _says(route):
+    """What a held write of the page comment's draft says: its words, marked as a
+    page's resend as it goes where it names more generations than one."""
+    body = route.request.post_data_json
+    words = body["record"].get("text")
+    return f"resent {words}" if len(body["expect"]) > 1 else words
+
+
 def _reload_while_writing(page, before_reload=lambda: None):
     """Type "Kept" after the "K" the page comment's box holds, and reload while the
     write of "Ke" is out. The page resends "Kept" as it goes, which a Chromium page's
     routes don't see, so the resend reaches the server after the reload is served "K".
     Every draft write and every read of the drafts is held until the test lands it, so
     the reload hears what the server holds only through its writes' answers. Returns
-    the held writes and reads."""
+    the held writes, in the order the pages sent them and by what each says (`_says`),
+    and the held reads."""
     write(page_comment(page), "K")
     assert stored_draft_text(page, "general") == "K"
-    writes, reads = [], []
-    page.route("**/api/draft", lambda route: writes.append(route))
+    writes, says, reads = [], defaultdict(list), []
+
+    def hold(route):
+        writes.append(route)
+        says[_says(route)].append(route)
+
+    page.route("**/api/draft", hold)
     page.route("**/api/drafts", lambda route: reads.append(route))
     page.keyboard.type("ept")
-    holding(page, writes, 1, "the write of Ke")
+    holding(page, says["Ke"], 1, "the write of Ke")
     before_reload()
     with restarting(page):
         page.reload()
-    return writes, reads
+    return writes, says, reads
 
 
 def _land(route):
@@ -834,13 +849,24 @@ def _land_in_order(page, writes, reads):
         route.continue_()
 
 
+def _send_cut_short(page):
+    """Send the page comment's words, holding the send until the test refuses it as
+    the reload that follows cuts it short; returns the held send."""
+    sends = []
+    page.route("**/api/event", lambda route: sends.append(route))
+    page.locator(".lf-fp-send").click()
+    holding(page, sends, 1, "the send")
+    page.unroute("**/api/event")
+    return sends
+
+
 def _type_on_arrival(page, words):
-    """Put the user in the page comment's box as they arrive, type `words`, and return
-    the box."""
+    """Put the user in the page comment's box as they arrive, add `words` at its caret
+    as one input, so the reload writes them in one generation, and return the box."""
     field = page.locator('.lf-fp-field leaf-text[name="comment"]')
     page.keyboard.press("c")
     expect(field).to_be_focused()
-    page.keyboard.type(words)
+    page.keyboard.insert_text(words)
     return field
 
 
@@ -852,7 +878,7 @@ def test_words_typed_on_a_reload_stand_over_the_resend_of_the_page_it_left(
     words that page held and counts its writes as its own, so the words typed after
     the reload stand, though the resend reaches the server before them."""
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
-    writes, reads = _reload_while_writing(page)
+    writes, _, reads = _reload_while_writing(page)
     wait_for(
         lambda: drafts_on_server(page)["general"]["text"],
         lambda text: text == "Kept",
@@ -874,19 +900,21 @@ def test_words_typed_on_a_reload_stand_however_late_the_page_it_left_writes(
     that was out lands, the server turns the reload's first write away over it, and the
     resend lands before the reload's write of the words typed on arrival."""
     page = open_page(firefox_browser, serve(LONG_PAGE))
-    writes, reads = _reload_while_writing(page)
-    holding(page, writes, 3, "the resend and the reload's first write")
-    out, resend, first = writes
+    _, says, reads = _reload_while_writing(page)
+    holding(page, says["resent Kept"], 1, "the resend")
+    holding(page, says["Kept"], 1, "the reload's first write")
     field = _type_on_arrival(page, " words")
 
-    _land(out)
-    _land(first)
-    holding(page, writes, 4, "the reload's write of the words typed on it")
-    _land(resend)
+    _land(says["Ke"][0])
+    for first in says["Kept"]:
+        _land(first)
+    holding(page, says["Kept words"], 1, "the reload's write of the words typed on it")
+    for resend in says["resent Kept"]:
+        _land(resend)
     assert drafts_on_server(page)["general"]["text"] == "Kept"
     page.unroute("**/api/draft")
     page.unroute("**/api/drafts")
-    _land(writes[3])
+    _land(says["Kept words"][0])
     for route in reads:
         route.continue_()
     assert stored_draft_text(page, "general") == "Kept words"
@@ -904,28 +932,23 @@ def test_words_typed_on_a_reload_stand_over_the_send_it_cut_short(
     Chromium's don't see."""
     page = open_page(firefox_browser, serve(LONG_PAGE))
     sends = []
-
-    def send():
-        page.route("**/api/event", lambda route: sends.append(route))
-        page.locator(".lf-fp-send").click()
-        holding(page, sends, 1, "the send")
-        page.unroute("**/api/event")
-
-    writes, reads = _reload_while_writing(page, before_reload=send)
-    holding(page, writes, 2, "the resend")
-    out, resend = writes
+    _, says, reads = _reload_while_writing(
+        page, before_reload=lambda: sends.extend(_send_cut_short(page))
+    )
+    holding(page, says["resent Kept"], 1, "the resend")
     refuse(sends[0])
     with restarting(page):
         page.reload()
     field = _type_on_arrival(page, " words")
-    holding(page, writes, 3, "the second reload's write")
+    holding(page, says["K words"], 1, "the second reload's write")
 
-    refuse(out)
-    _land(resend)
+    refuse(says["Ke"][0])
+    for resend in says["resent Kept"]:
+        _land(resend)
     assert drafts_on_server(page)["general"]["text"] == "Kept"
     page.unroute("**/api/draft")
     page.unroute("**/api/drafts")
-    _land(writes[2])
+    _land(says["K words"][0])
     for route in reads:
         route.continue_()
     assert stored_draft_text(page, "general") == "K words"
@@ -941,31 +964,26 @@ def test_words_typed_on_a_reload_stand_over_a_resend_landing_after_a_rewrite(
     routes hold the resend, which Chromium's don't see."""
     page = open_page(firefox_browser, serve(LONG_PAGE))
     sends = []
-
-    def send():
-        page.route("**/api/event", lambda route: sends.append(route))
-        page.locator(".lf-fp-send").click()
-        holding(page, sends, 1, "the send")
-        page.unroute("**/api/event")
-
-    writes, reads = _reload_while_writing(page, before_reload=send)
-    holding(page, writes, 2, "the resend")
-    out, resend = writes
+    _, says, reads = _reload_while_writing(
+        page, before_reload=lambda: sends.extend(_send_cut_short(page))
+    )
+    holding(page, says["resent Kept"], 1, "the resend")
     refuse(sends[0])
     (serve.page_dir / "drafts.json").unlink()
     page.unroute("**/api/drafts")
     for route in reads:
         route.continue_()
-    holding(page, writes, 3, "the reload giving back the words the server lost")
-    _land(writes[2])
+    holding(page, says["K"], 1, "the reload giving back the words the server lost")
+    _land(says["K"][0])
     field = _type_on_arrival(page, " words")
-    holding(page, writes, 4, "the reload's write of the words typed on it")
+    holding(page, says["K words"], 1, "the reload's write of the words typed on it")
 
-    refuse(out)
-    _land(resend)
+    refuse(says["Ke"][0])
+    for resend in says["resent Kept"]:
+        _land(resend)
     assert drafts_on_server(page)["general"]["text"] == "Kept"
     page.unroute("**/api/draft")
-    _land(writes[3])
+    _land(says["K words"][0])
     assert stored_draft_text(page, "general") == "K words"
     expect(field).to_have_js_property("value", "K words")
 
@@ -984,7 +1002,7 @@ def test_words_sent_just_before_a_reload_do_not_come_back_with_it(
         page.locator(".lf-fp-send").click()
         round_trip(page)
 
-    writes, reads = _reload_while_writing(page, before_reload=send)
+    writes, _, reads = _reload_while_writing(page, before_reload=send)
     field = page.locator('.lf-fp-field leaf-text[name="comment"]')
     expect(field).to_have_js_property("value", "")
 

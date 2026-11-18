@@ -670,7 +670,7 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(page.locator("#tab-feeders")).to_have_attribute("hidden", re.compile(".*"))
     page.keyboard.press("ArrowLeft")
     expect(tabs.first).to_be_focused()
-    expect_walk_position(page, "Tab 1 of 2")
+    expect_walk_position(page, "1 of 2")
 
 
 def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve):
@@ -823,7 +823,8 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("Tab")
     first_code = address_code(page, "Link", "first")
-    expect_walk_position(page, "Target 1 of 2")
+    # Every hint stands on screen, the heard one marked, so the walk says no position.
+    expect_walk_position(page, None)
     expect(page.locator(".lf-live")).to_have_text(
         f"Hint {first_code}: Link, First destination. Press Enter to go there."
     )
@@ -832,7 +833,6 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     )
 
     page.keyboard.press("Tab")
-    expect_walk_position(page, "Target 2 of 2")
     page.keyboard.press("Enter")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
@@ -858,7 +858,9 @@ def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, ser
     codes = {n: address_code(page, "Link", f"l{n}") for n in range(1, 6)}
     for _ in range(3):
         page.keyboard.press("Tab")
-    expect_walk_position(page, "Target 3 of 5")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l3"]')).to_have_class(
+        re.compile(r"\blf-current\b")
+    )
 
     added = '<p>New words with <a id="new" href="#top">a new link</a>.</p>'
     (serve.page_dir / "index.html").write_text(source.replace(heading, heading + added))
@@ -870,5 +872,7 @@ def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, ser
         re.compile(r"\blf-current\b")
     )
     page.keyboard.press("Tab")
-    expect_walk_position(page, "Target 4 of 5")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l4"]')).to_have_class(
+        re.compile(r"\blf-current\b")
+    )
     expect(page.locator(".lf-live")).to_contain_text("Destination 4")

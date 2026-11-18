@@ -276,12 +276,13 @@ customElements.define(
       );
     }
     // n and Shift+n walk the cases, coming round at either end, and say where the
-    // landing stands among them as every walk does.
+    // landing stands among them as every walk does: its place alone, "2 of 7", since
+    // the queue beside the case lists them all.
     /** @param {-1 | 1} delta */
     #step(delta) {
       const ids = () => this.#cases.map(({ record }) => record.id);
       this.#select(cycledRow(ids(), this.#selected?.record.id, delta), true);
-      beginWalk("visual-case", "Case", () =>
+      beginWalk("visual-case", null, () =>
         listWalkPosition(ids(), this.#selected?.record.id),
       );
     }

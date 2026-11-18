@@ -150,7 +150,7 @@ needs nothing: Leaf fades its content at any edge with more beyond.
 
 Leaf rings every box that holds visible focus, at a control's gap outside it. A box
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
-its kind (`base.css`, "Where it stands"): `--lf-focus-region-gap` for a block of the page,
+its kind (`styles/tokens.css`, "Where it stands"): `--lf-focus-region-gap` for a block of the page,
 `0` for a box that draws its own edge, and `--lf-focus-ring-inset` for a row packed edge to
 edge with others or a box whose clip leaves no room outside it. Leaf draws every mark
 on a box as the box's own outline there, over any outline your rules give the box while

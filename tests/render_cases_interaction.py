@@ -300,18 +300,17 @@ SETTLED_OBLIGATION_PAGE = OBLIGATION_PAGE.replace(
 EXHIBIT_EXTENT = """
 (id) => {
   const el = document.getElementById(id);
-  const label = el.querySelector(':scope > [data-lf-said="label"]');
   let top = Infinity, bottom = -Infinity;
   const walk = (n) => {
     for (const c of n.children) {
-      if (c === label || c.classList.contains('lf-ui')) continue;
+      if (c.classList.contains('lf-ui')) continue;
       const r = c.getBoundingClientRect();
       if (r.height) { top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); }
       else walk(c);
     }
   };
   walk(el);
-  return {top, bottom, note: label ? label.getBoundingClientRect().bottom : null};
+  return {top, bottom};
 }
 """
 

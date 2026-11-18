@@ -212,15 +212,11 @@ test("the contents drawing keeps its native state and keyed rows through revisio
 test("generated words declare whether they are said, echoed or apparatus", () => {
   const heading = generatedElement(document.createElement("h2"), { says: true });
   const name = generatedElement(document.createElement("span"), { says: "echo" });
-  const declared = document.createElement("span");
-  declared.dataset.lfSaid = "label";
-  generatedElement(declared, { says: true });
   assert.throws(() => generatedElement(document.createElement("p"), {}), TypeError);
   const markers = (node) =>
     ["data-lf-gen", "data-lf-said", "data-lf-echo"].map((a) => node.getAttribute(a));
   assert.deepEqual(markers(heading), ["1", "", null]);
   assert.deepEqual(markers(name), ["1", null, ""]);
-  assert.deepEqual(markers(declared), ["1", "label", null]);
   generatedElement(name, { says: false });
   assert.deepEqual(markers(name), ["1", null, null]);
 });

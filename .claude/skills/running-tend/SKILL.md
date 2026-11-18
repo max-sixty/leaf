@@ -201,6 +201,13 @@ which GitHub records as a cancelled run whose `test` job has no runner (`runner_
 0); that is not a regression. A `test` that held a runner and still ended cancelled
 hit its timeout, and that is a failure.
 
+A scheduled run runs every test a push runs, so main's push and schedule `ci` reports
+share most of their failures. When both need diagnosis, the push report owns each
+failure a push run also shows. The schedule report's diagnosis covers what pushes
+don't run, the `journeys` and `nightly` tests and `test-macos`, and links the push
+report's diagnosis and cause issues for the rest instead of rerunning or bisecting
+those tests itself.
+
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
 can't reproduce, and it takes four to five hours. For a failure only that job shows, the
 failing run is the evidence from before the fix, and the next scheduled run on main,
@@ -334,12 +341,11 @@ compared, whether or not anything grew.
 ## Weekly: test tier budgets
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
-`test` job's summary lists the tests over their directory's budget and the journeys
-within the browser budget (`leaf-dev suite profile`). A test over budget in two daily
-runs either moves to `tests/journeys/` or gets faster; a journey within the browser
-budget in both moves to `tests/browser/` when its boundary is one page. A single
-reading moves nothing, since one run's time includes contention. Open one pull
-request with the moves, listing each test and the times behind it.
+`test` job's summary lists the tests over their directory's budget (`leaf-dev
+suite profile`). A test over budget in two daily runs either moves to
+`tests/journeys/` or gets faster. A single reading moves nothing, since one run's time
+includes contention. Open one pull request with the moves, listing each test and the
+times behind it.
 
 ## Weekly: interface sweep
 

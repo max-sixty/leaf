@@ -742,7 +742,6 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             heading = page.locator(f"#{item} > :is(h1, h2, h3, h4, h5, h6)")
             expect(heading).to_have_count(1)
             expect(heading).to_have_text(question)
-            expect(page.locator(f"#{item} > [data-lf-said='label']")).to_have_count(0)
             assert heading.evaluate(
                 "el => el.getBoundingClientRect().bottom"
             ) < page.locator(f"#{group}").evaluate(
@@ -792,8 +791,8 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
                                 || /rgba\(0,\s*0,\s*0,\s*0\)/.test(v);
                        return {
                          kind: c.tagName.toLowerCase(),
-                         what: c.tagName.toLowerCase() + (c.dataset.lfSaid
-                                ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
+                         what: c.tagName.toLowerCase()
+                                + (c.className ? '.' + c.className.trim().split(/\s+/)[0] : ''),
                          opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
                          ground: clear(s.backgroundColor)
                            ? getComputedStyle(el).backgroundColor : s.backgroundColor,
@@ -1124,14 +1123,11 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     page = open_page(browser, url)
     assert page.locator(".lf-error").count() == 0
 
-    # The exhibit rendered: the gutter's caption, and cards with real size. The label is
-    # the page's own word, so the runtime says it as text a user can quote; only the
-    # "quoted · " in front of it is the theme's, and only that is still pseudo-content.
-    label = page.locator('#spec > [data-lf-said="label"]')
-    assert label.text_content() == "a decision"
+    # The exhibit rendered: the gutter's note, the theme's "quoted", and cards with real
+    # size. The sample's label is its name, which nothing draws.
     assert (
-        label.evaluate("el => getComputedStyle(el, '::before').content")
-        == '"quoted · "'
+        page.locator("#spec").evaluate("el => getComputedStyle(el, '::before').content")
+        == '"quoted"'
     )
     assert page.locator("#quoted-group lf-option").count() == 2
     assert (
@@ -2416,14 +2412,13 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
         view.locator('#rp-live .lf-pick[role="checkbox"]').first
     ).to_be_attached()  # the reply's widgets upgraded
 
-    # The gutter renders in the panel: the sample rules aren't scoped to the
-    # document's column, and neither is the label, which the sample's module draws in
-    # a reply as on the page.
-    label = view.locator('#rp-spec > [data-lf-said="label"]')
-    assert label.text_content() == "the April thread"
+    # The gutter and its note render in the panel: the sample rules aren't scoped to the
+    # document's column.
     assert (
-        label.evaluate("el => getComputedStyle(el, '::before').content")
-        == '"quoted · "'
+        view.locator("#rp-spec").evaluate(
+            "el => getComputedStyle(el, '::before').content"
+        )
+        == '"quoted"'
     )
     gutter = view.locator("#rp-spec").evaluate(
         "el => [getComputedStyle(el).borderLeftWidth,"

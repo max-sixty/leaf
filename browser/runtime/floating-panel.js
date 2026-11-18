@@ -384,7 +384,7 @@ import {
   rove,
   currentLocationIn,
 } from "./focus.js";
-import { rowWalk } from "./walk-position.js";
+import { rowWalk, walkWords } from "./walk-position.js";
 import {
   capitalized,
   COMMENT_HINT,
@@ -490,7 +490,9 @@ const groupOf = (entry) =>
 // What passes in the panel's one seat for words that pass: a notice while one shows,
 // else the Go-to filter's word while its sequence waits for a key, or a walk's position
 // ("1 of 3 waiting on me") for a notice's moment after each step
-// (notifications.js, `answerStep`). The user asked that
+// (notifications.js, `answerStep`), in the words the screen lacks
+// (walk-position.js, `walkWords`): the page field says where the user stands first
+// (`standing`). The user asked that
 // whatever is not anchored to the page stand at the panel rather than against the
 // window.
 function passing() {
@@ -502,7 +504,7 @@ function passing() {
 }
 function navigationWords() {
   const { goTo, walk } = statusContextReading();
-  return goTo ?? (answeringStep() ? walk?.text : null) ?? "";
+  return goTo ?? (walk && answeringStep() ? walkWords(walk, true) : null) ?? "";
 }
 // An age the panel shows, which previews the clock time behind it as every age does
 // (presence.js, `agePreview`): short, in a room of its own (`.lf-fp-age`) at a line's
@@ -1425,10 +1427,13 @@ export function createFloatingPanel({
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
   // walk's position. The thread walk standing on this thread says only its place,
-  // "11 of 11", since the view names the thread. The agent's own line, a to-do's title
-  // or a start's, stays in the thread, where the working message says it. A notice or
-  // the Go-to word, which pass in a moment, take the reply's place. The thread's word
-  // is the one its view draws (`drawn`), held news included, as its Resolve says it.
+  // "11 of 11", since the view names the thread; any other walk says what the screen
+  // lacks with no words standing before it (walk-position.js, `walkWords`), so a
+  // comparison's changes are named here, "Change 1 of 5 since v2". The agent's own
+  // line, a to-do's title or a start's, stays in the thread, where the working message
+  // says it. A notice or the Go-to word, which pass in a moment, take the reply's place.
+  // The thread's word is the one its view draws (`drawn`), held news included, as its
+  // Resolve says it.
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread} drawn */
   function turnLead(key, input, drawn) {
@@ -1438,8 +1443,8 @@ export function createFloatingPanel({
     const position = !walk
       ? ""
       : walk.kind === "thread" && walk.target === thread?.id
-        ? `${walk.position} of ${walk.total}`
-        : walk.text;
+        ? walk.place
+        : walkWords(walk, false);
     // A walk gone on to the page, leaving the thread's view open above the stop it
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.

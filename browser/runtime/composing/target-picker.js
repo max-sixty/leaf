@@ -633,10 +633,8 @@ export function createTargetPicker({
     presentSearchStatus();
     showMatch();
     const query = searchQuery();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query));
-    announce(
-      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(selected)}.`,
-    );
+    const said = beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    announce(`${said}: ${matchDescription(selected)}.`);
     repaint();
   }
 
@@ -663,14 +661,13 @@ export function createTargetPicker({
     settle();
     const segments = matches.value[active];
     if (!segments) return;
-    const quote = quoteFrom(segments);
     repeatedSearch = { query: searchQuery(), index: active };
     // Closing the prompt transfers the match to a native selection. Its position stays
     // live until that selection is left, just as a subsequent n/N landing does.
     setTargetPicker(false);
-    landOnMatch(segments, repeatedSearch.query);
+    const said = landOnMatch(segments, repeatedSearch.query);
     announce(
-      `Selected match: ${quote}. ${
+      `${said}, selected: ${matchDescription(segments)}. ${
         coarsePointer.matches || !bindingEnabled("c")
           ? "A press on the comment field comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
@@ -685,7 +682,7 @@ export function createTargetPicker({
     const last = segments.at(-1);
     if (first && last) selectEnds([first.node, first.start], [last.node, last.end]);
     updateFab();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    return beginWalk("page-search", "Match", () => matchWalkPosition(query));
   }
 
   /** @param {import("../keyboard/bindings.js").Step} direction */
@@ -710,10 +707,8 @@ export function createTargetPicker({
     active = found.indexOf(selected);
     repetition.index = active;
     showMatch();
-    landOnMatch(selected, repetition.query);
-    announce(
-      `Match ${active + 1} of ${matches.value.length}: ${matchDescription(selected)}.`,
-    );
+    const said = landOnMatch(selected, repetition.query);
+    announce(`${said}: ${matchDescription(selected)}.`);
   }
 
   function back() {

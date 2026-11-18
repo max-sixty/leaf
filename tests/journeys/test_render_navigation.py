@@ -1388,7 +1388,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         {
             "command": "navigation.target.filter.threads",
             "keys": ["g", "t"],
-            "action": "Show only visible Thread controls",
+            "action": "Show only visible threads",
         },
         {
             "command": "navigation.target.filter.hyperlinks",

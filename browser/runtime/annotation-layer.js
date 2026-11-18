@@ -25,7 +25,7 @@ import { signal } from "/runtime/framework.js";
 import { tabStore } from "./tab-store.js";
 import { chromeRoot } from "./chrome.js";
 import { pageCommand } from "./keyboard/register.js";
-import { notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { coarsePointer } from "./pointer.js";
 
 import { ANNOTATIONS_KEY } from "./restore-state.js";
@@ -48,9 +48,12 @@ export function mountAnnotationControls() {
     title: () => (hidden.value ? "show annotations" : "hide annotations"),
     touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",
+    // The marks going or coming back, and the field's standing "Annotations hidden"
+    // (floating-panel.js, `standing`), show the press's result, so a listener alone
+    // hears it.
     run: () => {
       setAnnotationsHidden(!hidden.value);
-      notice(
+      announce(
         !hidden.value
           ? "Annotations shown"
           : coarsePointer.matches

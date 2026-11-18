@@ -80,6 +80,7 @@ import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
 import { landGlides } from "../scrolling.js";
+import { counted } from "../words.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -93,6 +94,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @typedef {{key: number, className: string, hintCode: string, kind: string, marginEntryKey: string | null,
  * targetId: string | null, commandId: null, address: null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
  * @typedef {{id: string, key: string, word: string, matches: (target: TargetMember) => boolean}} TargetFilter
+ * `word` names one target it keeps, which takes an s for many.
  * @typedef {Object} GoToOptions
  * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "leaves">} doors
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
@@ -272,13 +274,13 @@ export function createGoToSequence({
     {
       id: "margin-entries",
       key: "m",
-      word: "margin targets",
+      word: "margin target",
       matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
     },
     {
       id: "threads",
       key: "t",
-      word: "Thread controls",
+      word: "thread",
       matches: ({ kind, member }) =>
         kind === MARGIN_TARGET_KIND &&
         marginEntries?.marginEntryKind(member) === "comment",
@@ -286,13 +288,13 @@ export function createGoToSequence({
     {
       id: "hyperlinks",
       key: "h",
-      word: "hyperlinks",
+      word: "hyperlink",
       matches: ({ kind }) => kind === "Link",
     },
     {
       id: "folds",
       key: "f",
-      word: "folds",
+      word: "fold",
       matches: ({ kind }) => kind === "Fold",
     },
   ];
@@ -467,7 +469,7 @@ export function createGoToSequence({
     // to exactly the user who cannot see them.
     hints.arm((found) =>
       announce(
-        `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+        `Go to — ${found.length ? `${counted(found.length, "visible target")}; ${hearThem(found.length)}. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
       ),
     );
     repaint();
@@ -486,17 +488,20 @@ export function createGoToSequence({
     const found = hints.narrow();
     announce(
       found.length
-        ? `${found.length} visible ${chosen.word}; type a hint or press Tab to hear them.`
-        : `No visible ${chosen.word}`,
+        ? `${counted(found.length, `visible ${chosen.word}`)}; ${hearThem(found.length)}.`
+        : `No visible ${chosen.word}s`,
     );
   }
+  /** @param {number} count */
+  const hearThem = (count) =>
+    `type a hint or press Tab to hear ${count === 1 ? "it" : "them"}`;
 
   // An empty active filter is useful state, not a four-second event. The candidate map is
   // the reading the hint session already holds; using it here keeps the shortcut repaint
   // out of the expensive visibility and hit-test pass.
   function goToStatus() {
     if (!goToActive || !targetFilter || hints.candidates().length) return null;
-    return `No visible ${targetFilter.word}`;
+    return `No visible ${targetFilter.word}s`;
   }
 
   // The sequence is one scope: generated visible targets, named global destinations, structural
@@ -607,7 +612,7 @@ export function createGoToSequence({
         routes: TARGET_FILTERS.map(({ id, key, word }) => ({
           id: `navigation.target.filter.${id}`,
           binding: key,
-          title: `Show only visible ${word}`,
+          title: `Show only visible ${word}s`,
         })),
         label: FILTER_KEYS.join(" / "),
         sequenceSteps: ["kind"],

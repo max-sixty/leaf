@@ -670,7 +670,8 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(page.locator("#tab-feeders")).to_have_attribute("hidden", re.compile(".*"))
     page.keyboard.press("ArrowLeft")
     expect(tabs.first).to_be_focused()
-    expect_walk_position(page, "1 of 2")
+    # Both tabs stand in view around the ring, so the step declares no position.
+    expect_walk_position(page, None)
 
 
 def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve):

@@ -154,6 +154,7 @@ export function createSinceSeen({ markSeen }) {
       if (n && holds())
         notice(`${counted(n, "change")} since v${since.version} — v shows them`, {
           background: true,
+          stands: holds,
         });
       return;
     }

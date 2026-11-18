@@ -96,7 +96,7 @@ export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus
 export { retainUserIntent } from "./user-intent.js";
 export { scrollIntoView } from "./landing-scroll.js";
 export { inChrome } from "./shadow-tree.js";
-export { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-declaration.js";
+export { beginWalk, listWalkPosition } from "./walk-declaration.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 export { move } from "./dom-move.js";
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";

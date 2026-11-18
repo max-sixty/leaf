@@ -132,6 +132,11 @@ For a change to thread-card placement, also run `uv run leaf-dev placement cards
 a gallery of cards across subjects, messages, routes, windows and page Layouts, and add
 a case to its `CASES` for each new shape a reader meets.
 
+For a change to what the panel says in passing, a notice, a walk's position or the
+words standing in its field, run `uv run leaf-dev words --base`, a table of what the
+seat says and a listener hears after each press on a set of pages, and read each
+changed row beside its capture.
+
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live
 preview may accompany the pairs but doesn't replace them. Show a difference once, in

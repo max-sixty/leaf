@@ -113,7 +113,7 @@ import { savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
-import { gesture, notice } from "./notifications.js";
+import { announce, gesture, notice } from "./notifications.js";
 import { counted } from "./words.js";
 import { backgroundFlash, flashDuration } from "./motion.js";
 import {
@@ -1486,8 +1486,10 @@ export async function showComparison(base) {
   commitDiff(diff);
   diffSavedAfter = loaded.savedAfter;
   setDiff(true, base);
+  // The field's standing words say the comparison as it starts ("5 changes since v2",
+  // floating-panel.js, `standing`), so a listener alone hears it.
   const n = diff.changes.length;
-  notice(
+  announce(
     n
       ? `${counted(n, "change")} since ${base.name}`
       : `No text changes since ${base.name}`,
@@ -1531,11 +1533,12 @@ export async function changesSince(base) {
   if (!loaded || !wanted()) return null;
   return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
 }
-// A press that ends a comparison says so, as `o` does when it hides annotations, so a
-// screen reader hears the marks go rather than keeping the comparison's count.
+// A press that ends a comparison says so to a listener, as `o` does when it hides
+// annotations, so a screen reader hears the marks go rather than keeping the
+// comparison's count; the eye sees them go, and the field's standing words with them.
 export const endComparison = () => {
   setDiff(false);
-  notice("Changes hidden");
+  announce("Changes hidden");
 };
 // A press names one stamped version, so pressing the current one again is the way off
 // it: Compare is a toggle where it is lit and a switch of base where it isn't. `v` is

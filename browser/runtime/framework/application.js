@@ -1039,7 +1039,9 @@ export function createSemanticApplication({ presentation } = {}) {
     // pending action's definition itself, so it draws while the shown declaration
     // still defines the same one; the server validates the durable payload. An undo
     // draws while its target draws: in the server's reading of this document, under
-    // the id the log gave it, or as a pending action by the rule above.
+    // the id the log gave it, or as a pending action by the rule above, and withdraws
+    // it under the id it draws under, so a target the log has answered but no reading
+    // holds yet goes by its pending id.
     /** @param {ProjectionEntry["e"]} e */
     const drawsAction = (e) => {
       const descriptor = document.descriptors.get(e.widget);
@@ -1053,7 +1055,8 @@ export function createSemanticApplication({ presentation } = {}) {
         if (projection.kind !== "undo")
           return drawsAction(projection.e) ? [projection] : [];
         const { target } = projection;
-        const targetId = admittedId(entry.undoTarget, unresolved, events);
+        const logged = admittedId(entry.undoTarget, unresolved, events);
+        const targetId = logged !== null && classifiedIds.has(logged) ? logged : null;
         const pending = !Number.isInteger(target.e.seq);
         const draws =
           classifiedIds.has(targetId ?? target.e.id) ||

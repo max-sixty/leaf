@@ -86,7 +86,7 @@ from leaf import schema as schema_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
-from leaf_dev.browser import PANEL_THREAD, threads_tab
+from leaf_dev.browser import PANEL_THREAD, panel_view, threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
@@ -249,9 +249,8 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
 
 def test_z_takes_back_a_reply_the_user_sent(browser, serve):
     """`z` takes back the user's newest gesture, a reply they sent included, and doesn't
-    stop at the reply as said rather than unsaid. The reply's thread is out
-    of view, so the first press opens it and says what the next takes; the second
-    takes the reply back."""
+    stop at the reply as said rather than unsaid. The reply's thread is out of view,
+    so the press takes the reply back and then opens the thread it left."""
     url = serve(LONG_PAGE, comments=3)
     second = [
         event["id"]
@@ -263,15 +262,13 @@ def test_z_takes_back_a_reply_the_user_sent(browser, serve):
         {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
     )
     page = open_page(browser, url)
-    undo_offered(page)
-    page.keyboard.press("z")
-    expect(page.locator(".lf-live")).to_contain_text(
-        "Press again to undo: replied “And this?”"
-    )
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
+    expect(page.locator(".lf-live")).to_contain_text("Undid: replied “And this?”")
     taken = events_model.read_events(serve.page_dir)[-1]
     assert (taken["kind"], taken["undoes"]) == ("undo", reply["id"])
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{second}"]')
+    expect(thread).to_be_in_viewport()
+    expect(thread.locator(".lf-msg")).not_to_contain_text(["And this?"])
 
 
 def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
@@ -310,13 +307,11 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     row = panel_control(page, "command:history.undo")
     expect(row.locator(".lf-fp-label")).to_have_text("Undo: resolved “Rollout safety”")
     expect(row.locator(".lf-fp-value")).to_have_text("21d ago")
-    resolved = "resolved “Rollout safety” · 21d ago"
-    # The thread is out of view, so the first press shows it (Show, then take).
-    row.click()
-    expect(page.locator(".lf-live")).to_have_text(f"Press again to undo: {resolved}")
     with sending(page, "the withdrawal"):
-        panel_control(page, "command:history.undo").click()
-    expect(page.locator(".lf-live")).to_have_text(f"Undid: {resolved}")
+        row.click()
+    expect(page.locator(".lf-live")).to_have_text(
+        "Undid: resolved “Rollout safety” · 21d ago"
+    )
 
     append_command(
         serve.page_dir,
@@ -373,114 +368,26 @@ def _old_resolve_below_the_fold(serve):
     return url, comment, resolve["id"]
 
 
-def _shown(page, thread):
-    """The thread's transcript, open and in the window."""
-    expect(
-        page.locator(f'.lf-fp-messages > .lf-page-thread[data-lf-thread="{thread}"]')
-    ).to_be_in_viewport()
-
-
-ARMED = "Press again to undo: resolved “Feeder” · 21d ago"
-
-
-def test_z_shows_an_old_resolve_out_of_view_before_taking_it(browser, serve):
-    """A thread resolved weeks ago below the fold is reopened only once the user has
-    seen it: the first `z` opens the thread and says that the next press takes it back,
-    writing nothing; the second press withdraws the resolve."""
+@pytest.mark.parametrize("route", ["key", "menu"])
+def test_z_takes_an_old_resolve_out_of_view_then_opens_its_thread(
+    browser, serve, route
+):
+    """A thread resolved weeks ago below the fold is reopened by one press of `z` or of
+    the leaf's menu row, which then opens the thread, so the user sees what the press
+    took back, and the notice says what it was and how old."""
     url, thread, resolve = _old_resolve_below_the_fold(serve)
     page = open_page(browser, url)
-    undo_offered(page)
-    page.keyboard.press("z")
-    expect(page.locator(".lf-live")).to_have_text(ARMED)
-    _shown(page, thread)
-    told(page)
-    assert _undos(serve.page_dir) == []
-
-    with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
+    if route == "key":
+        undo(page)
+    else:
+        with sending(page, "the withdrawal"):
+            panel_control(page, "command:history.undo").click()
     assert _undos(serve.page_dir) == [resolve]
     expect(page.locator(".lf-live")).to_have_text("Undid: resolved “Feeder” · 21d ago")
-
-
-def test_the_menus_undo_shows_then_takes_too(browser, serve):
-    """A finger's way to Undo is the leaf's menu row, and it goes the same two steps:
-    the first press opens the thread, and pressing the row again takes it back, the
-    presses on the leaf to reach it keeping what the first one showed."""
-    url, thread, resolve = _old_resolve_below_the_fold(serve)
-    page = open_page(browser, url)
-    panel_control(page, "command:history.undo").click()
-    expect(page.locator(".lf-live")).to_have_text(ARMED)
-    _shown(page, thread)
-    told(page)
-    assert _undos(serve.page_dir) == []
-    with sending(page, "the withdrawal"):
-        panel_control(page, "command:history.undo").click()
-    assert _undos(serve.page_dir) == [resolve]
-
-
-def test_a_key_between_ends_what_the_shown_gesture_promised(browser, serve):
-    """The press that showed an old Resolve promises the next `z` that Resolve, even
-    over a newer gesture, but only while the user stays on it. Once another key comes
-    between, the next press starts again from the newest gesture, here another tab's
-    Resolve, and leaves the shown one alone, though it is still in view."""
-    url, thread, _resolve = _old_resolve_below_the_fold(serve)
-    page = open_page(browser, url)
-    undo_offered(page)
-    page.keyboard.press("z")
-    expect(page.locator(".lf-live")).to_have_text(ARMED)
-    _shown(page, thread)
-    newer = panel_comment(serve.page_dir, "Who signs off the rollout?")
-    append_carried_log_record(
-        serve.page_dir, {"kind": "resolve", "author": "user", "parent": newer}
-    )
-    told(page)
-    page.keyboard.press("ArrowRight")
-    _shown(page, thread)
-    page.keyboard.press("z")
-    expect(page.locator(".lf-live")).to_contain_text("Who signs off the rollout?")
-    told(page)
-    assert _undos(serve.page_dir) == []
-
-
-def test_a_modifier_between_keeps_what_the_shown_gesture_promised(browser, serve):
-    """A modifier alone, such as Shift reached for on the way to the next key, is not
-    the user looking elsewhere: the next `z` still takes the Resolve the first showed,
-    over another tab's newer one."""
-    url, thread, resolve = _old_resolve_below_the_fold(serve)
-    page = open_page(browser, url)
-    undo_offered(page)
-    page.keyboard.press("z")
-    expect(page.locator(".lf-live")).to_have_text(ARMED)
-    _shown(page, thread)
-    newer = panel_comment(serve.page_dir, "Who signs off the rollout?")
-    append_carried_log_record(
-        serve.page_dir, {"kind": "resolve", "author": "user", "parent": newer}
-    )
-    told(page)
-    page.keyboard.press("Shift")
-    with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
-    assert _undos(serve.page_dir) == [resolve]
-
-
-def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve):
-    """Two presses of `z` in one task, before the first has opened what it shows, take
-    nothing back: the second press arrives before the gesture reached the screen, so
-    it shows again rather than withdrawing what the user never saw."""
-    url, _thread, _resolve = _old_resolve_below_the_fold(serve)
-    page = open_page(browser, url)
-    undo_offered(page)
-    page.evaluate(
-        """() => {
-          for (let i = 0; i < 2; i++)
-            document.activeElement.dispatchEvent(
-              new KeyboardEvent("keydown", { key: "z", code: "KeyZ", bubbles: true }),
-            );
-        }"""
-    )
-    expect(page.locator(".lf-live")).to_have_text(ARMED)
-    told(page)
-    assert _undos(serve.page_dir) == []
+    # Open again, the thread opens in its card beside its passage, as a route to it
+    # opens it.
+    card = page.locator(f'.lf-margin-thread .lf-page-thread[data-lf-thread="{thread}"]')
+    expect(card).to_be_in_viewport()
 
 
 def test_z_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
@@ -539,12 +446,9 @@ FAR_CHOICE_PAGE = leaf_page(
 )
 
 
-def test_a_scroll_away_puts_the_shown_gesture_back_to_showing(browser, serve):
-    """The second press takes the gesture back only while the user is still on what
-    the first showed: scrolling it out of view means the next `z` shows it again, and
-    scrolling with it still in view keeps it. Another key between ends the arm too
-    (`test_a_key_between_ends_what_the_shown_gesture_promised`), though with the
-    choice in view the next press takes it either way."""
+def test_z_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
+    """A choice out of view is taken back by one press, which then travels to it as a
+    link to it would, so Back returns the user to where they pressed."""
     url = serve(FAR_CHOICE_PAGE)
     choice = append_command(
         serve.page_dir,
@@ -558,76 +462,142 @@ def test_a_scroll_away_puts_the_shown_gesture_back_to_showing(browser, serve):
         },
     )
     page = open_page(browser, url)
-    undo_offered(page)
     picks = page.locator("#picks")
     expect(picks).not_to_be_in_viewport()
-
-    def pressed_without_taking():
-        page.keyboard.press("z")
-        expect(picks).to_be_in_viewport()
-        # A scroll clears the arm only once the arm has seen what the press showed: its
-        # travel finished and the next pass read it in view. The user is on it from
-        # then, so a scroll before it would be one no user could make.
-        page.wait_for_function("() => !navigation.transition")
-        rendered(page)
-        told(page)
-        assert _undos(serve.page_dir) == []
-
-    pressed_without_taking()
-
-    page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
-    scroll_settled(page)
-    expect(picks).not_to_be_in_viewport()
-    # The arm reads the scroll in the pass after the window moves.
-    rendered(page)
-    pressed_without_taking()
-
-    page.mouse.move(400, 300)
-    page.mouse.wheel(0, -20)
-    scroll_settled(page)
-    expect(picks).to_be_in_viewport()
-    with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
+    undo(page)
     assert _undos(serve.page_dir) == [choice["id"]]
+    expect(picks).to_be_in_viewport()
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
+    page.go_back()
+    expect(picks).not_to_be_in_viewport()
 
 
-def test_a_quick_second_z_waits_for_a_fragments_trip(browser, serve):
-    """A widget is shown by travelling to it as a fragment, which scrolls after the
-    press returns: a second `z` before the choice is in view shows it again rather
-    than taking back what the user has not seen."""
-    url = serve(FAR_CHOICE_PAGE)
-    choice = append_command(
-        serve.page_dir,
+NEAR_CHOICE_PAGE = leaf_page(
+    "undo-near",
+    """
+<h1 id="h">Near</h1>
+{before}
+<lf-group id="picks-decision" label="Should we keep the mounts?"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
+<lf-options id="picks">
+  <lf-option id="opt-a">Keep the mounts</lf-option>
+  <lf-option id="opt-b" selected>Replace the mounts</lf-option>
+</lf-options></lf-group>
+{after}
+""",
+).format(
+    before="\n".join(
+        f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 40 + "</p>" for i in range(3)
+    ),
+    after="\n".join(
+        f"<p id='q{i}'>Paragraph {i}. " + "Filler. " * 40 + "</p>" for i in range(30)
+    ),
+)
+
+
+def _choose(page_dir, option="opt-a"):
+    return append_command(
+        page_dir,
         {
             "kind": "action",
             "author": "user",
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"value": ["opt-a"]},
+            "detail": {"value": [option]},
         },
     )
-    page = open_page(browser, url)
-    undo_offered(page)
-    expect(page.locator("#picks")).not_to_be_in_viewport()
-    page.evaluate(
-        """async () => {
-          const z = () =>
-            document.activeElement.dispatchEvent(
-              new KeyboardEvent("keydown", { key: "z", code: "KeyZ", bubbles: true }),
-            );
-          z();
-          await Promise.resolve();
-          await Promise.resolve();
-          z();
-        }"""
+
+
+def test_z_as_escape_closes_a_view_over_the_choice_takes_it_where_it_stands(
+    browser, serve
+):
+    """A fast user closes the panel's thread view, which stood over their choice, and
+    presses `z` in the frames before the view has gone. The press reads the page the
+    closing leaves, so it takes the choice back where it stands and moves nothing,
+    rather than travelling to a choice it read as covered."""
+    url = serve(NEAR_CHOICE_PAGE)
+    question = panel_comment(serve.page_dir, "Can the mounts wait?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": question,
+            "text": "\n\n".join(
+                ["A long answer that fills the thread view. " * 5] * 10
+            ),
+        },
     )
-    told(page)
-    assert _undos(serve.page_dir) == []
-    expect(page.locator("#picks")).to_be_in_viewport()
+    choice = _choose(serve.page_dir)
+    page = open_page(browser, url)
+    open_threads(page)
+    page.locator(f"{panel_view('threads')} .lf-fp-thread").first.click()
+    panel_settled(page, view="thread")
+    # The first Escape leaves the reply box for its thread; the second closes the view.
+    page.keyboard.press("Escape")
+    undo_offered(page)
     with sending(page, "the withdrawal"):
+        page.keyboard.press("Escape")
         page.keyboard.press("z")
     assert _undos(serve.page_dir) == [choice["id"]]
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
+    assert page.evaluate("() => [scrollY, location.hash]") == [0, ""]
+
+
+def test_a_second_z_while_the_first_is_on_its_way_takes_nothing_more(browser, serve):
+    """Two quick presses of `z` take back one gesture: the second finds the first's
+    withdrawal still on its way, so the list's head is still the gesture the first
+    took, and it waits rather than take the one before it, which the user hasn't seen
+    the first press's result to judge."""
+    url = serve(NEAR_CHOICE_PAGE)
+    _choose(serve.page_dir, "opt-a")
+    newer = _choose(serve.page_dir, "opt-b")
+    page = open_page(browser, url)
+    undo_offered(page)
+    held = []
+
+    def hold(route):
+        held.append(route)
+
+    page.route("**/api/event", hold)
+    page.keyboard.press("z")
+    holding(page, held, 1, "the first withdrawal")
+    page.keyboard.press("z")
+    held[0].continue_()
+    round_trip(page)
+    assert _undos(serve.page_dir) == [newer["id"]]
+
+
+def test_z_takes_a_comment_back_without_opening_its_thread(browser, serve):
+    """Taking back a comment nobody has answered removes its thread, so the press
+    leaves the user at the passage it was on and never opens the thread it is
+    removing."""
+    url = serve(LONG_PAGE, anchored=(("p3", "Paragraph 3."),))
+    [comment] = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.evaluate(
+        """(id) => {
+          window.__lfOpened = false;
+          new MutationObserver(() => {
+            if (document.querySelector(`.lf-page-thread[data-lf-thread="${id}"]`))
+              window.__lfOpened = true;
+          }).observe(document.documentElement, {subtree: true, childList: true});
+        }""",
+        comment,
+    )
+    undo(page)
+    expect(page.locator(".lf-live")).to_contain_text("Undid: commented")
+    round_trip(page)
+    assert _undos(serve.page_dir) == [comment]
+    assert not page.evaluate("() => window.__lfOpened"), (
+        "the press opened the thread it was taking back"
+    )
+    assert page.evaluate("() => [scrollY, location.hash]") == [0, ""]
 
 
 def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, serve):
@@ -737,13 +707,14 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
 
 
-def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
+def test_z_takes_the_move_the_log_has_not_taken_yet(browser, serve):
     """The walk finds the last thing the user did by reading the log, so while the
     page holds a gesture the log has not taken it would name the gesture *before*
     that one — and take the wrong thing back, with the card they had just moved
-    left where it was. A machine quick enough closes that window before the next
-    press can land in it, so the send is stopped in the wire and the press made
-    while it is still there."""
+    left where it was. The press takes the move still on its way by its attempt
+    instead, as a misclick caught at once needs. A machine quick enough closes that
+    window before the press can land in it, so the send is stopped in the wire and
+    the press made while it is still there."""
     page = open_page(browser, serve(BOARD_PAGE))
     move = ["Enter", "ArrowRight", "Enter"]
     page.locator("#card-heater .lf-grip").focus()
@@ -767,19 +738,22 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     for key in move:
         page.keyboard.press(key)
     holding(page, held, 1, "the move it was asked for")
-    undo_offered(page, offered=False)
+    undo_offered(page)
     page.keyboard.press("z")
+    # The press shows its result at once; the undo waits in the ledger behind the move
+    # it names.
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     assert _traffic(page).sends == 2, (
-        "the press took back a gesture read off a log missing the one before it"
+        "the press sent a withdrawal before the log had what it withdraws"
     )
 
     held[0].continue_()
     round_trip(page)
-    undo(page)
-    # The newest move, which is the one the user would have meant — and the older
-    # one still stands, where taking back the wrong gesture would have reversed it.
+    # The newest move, which is the one the user meant — and the older one still
+    # stands, where taking back the wrong gesture would have reversed it.
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    assert len(_undos(serve.page_dir)) == 1
 
 
 def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
@@ -2939,7 +2913,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
     assert not [event for event in posts if event.get("kind") == "undo"]
 
-    # With the thread put away, nothing covers the suggestion, so one press takes it.
+    # With the thread put away, one press takes the decision back.
     page.keyboard.press("Escape")
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
     undo(page)

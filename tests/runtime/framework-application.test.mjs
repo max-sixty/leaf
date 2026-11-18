@@ -1051,6 +1051,16 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   assert.equal(app.entry("undo").event.undoes, "e1");
 });
 
+test("an undo of an action the log has answered but no reading holds withdraws it at once", () => {
+  const app = setup();
+  const first = app.enqueue(action("first"), "now");
+  app.accept("first", { ...action("first"), id: "e1", seq: 1 });
+  assert.equal(app.entry("first").state, "accepted");
+  assert.equal(decision(app), "accept");
+  app.enqueue({ kind: "undo", undoes: first.localId, attempt: "undo" }, "now");
+  assert.equal(decision(app), null);
+});
+
 // Each step is a signal and the entry's state after it: `null` once it has left. What
 // the page draws follows the state: the gesture until a reading logs it, the log's
 // event after, and neither once refused.

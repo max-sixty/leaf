@@ -141,7 +141,8 @@ export function el(tag, cls, text) {
 // the hand up and puts it down, and puts it down in `disconnectedCallback` too, since a
 // widget that leaves with the hand up would hold every waiter for the rest of the
 // page's life. The hand holds back what would replace or take back the nodes under it,
-// a new revision and an undo (`unaccountedGesture`, composing/engagement.js); the
+// a new revision and an undo (`unaccountedGesture`, composing/engagement.js, and the
+// undo of an action still in the ledger, undo.js's `travelling`); the
 // widget holds its own drawing through its controller's `defer()`, and every other
 // widget goes on drawing.
 //

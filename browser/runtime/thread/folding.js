@@ -14,8 +14,7 @@
    to the thread asks the primary first. The log
    refusing the gesture takes the way back
    here, while the user has not acted since; undo.js keeps the reader for `z` and the
-   notice's Undo (`retainGesture`), and the landing arms `z` to take the gesture in
-   one press (`landedAway`).
+   notice's Undo (`retainGesture`).
 
    A sent settlement says what it did in the notice seat, since its landing may carry the
    user away from the thread and leave nothing on screen to say it was resolved, and
@@ -74,7 +73,7 @@ const nextStep = (resolving, undo) =>
  * reader?: import("../undo.js").Reader,
  * pendingEntries: ReturnType<typeof import("../pending/state.js").createPendingLedger>["snapshot"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "reopen" | "resolve">,
- * undo: Pick<ReturnType<typeof import("../undo.js").createUndo>, "landedAway" | "offerUndo" | "retainGesture" | "returnToThread">,
+ * undo: Pick<ReturnType<typeof import("../undo.js").createUndo>, "offerUndo" | "retainGesture" | "returnToThread">,
  * }} dependencies */
 export async function settleThread({
   parent,
@@ -102,7 +101,6 @@ export async function settleThread({
       ? `Resolved ${named}`
       : "All threads resolved";
   notice(said, { press: nextStep(!resolved, undo.offerUndo(attempt)) });
-  if (land) undo.landedAway(attempt);
   await landGesture({
     land,
     answer,

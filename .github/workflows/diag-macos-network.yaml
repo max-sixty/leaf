@@ -1,0 +1,32 @@
+name: diag-macos-network
+on:
+  push:
+    branches: [firefox-bounce-tracking]
+jobs:
+  watch:
+    runs-on: macos-15
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install Chromium
+        run: uv run --with playwright playwright install chromium-headless-shell
+      - name: Describe the network
+        run: |
+          sw_vers; uptime; networksetup -listallnetworkservices; scutil --nwi; ifconfig -a
+          scutil --dns | head -40
+          sysctl net.inet6.ip6.use_tempaddr net.inet6.ip6.temppltime net.inet6.ip6.tempvltime || true
+          ipconfig getpacket en0 || true
+      - name: Watch for network changes
+        run: |
+          mkdir -p out
+          log stream --style compact --predicate 'process == "configd" OR subsystem == "com.apple.IPConfiguration"' > out/configd.log 2>&1 &
+          uv run --with playwright python .github/diag/network_watch.py 320 out 2>&1 | tee out/watch.log || true
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: network-watch
+          path: out/

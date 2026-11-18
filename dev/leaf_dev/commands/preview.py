@@ -85,6 +85,7 @@ from leaf.file_changes import FileChanges
 from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
+from leaf.runtime_selection import forget_tree, read_runtime
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -403,11 +404,7 @@ class PreviewService:
                 yield
             return
         self._close_temporary()
-        from leaf.layer import forget_layers
-        from leaf.runtime_selection import serving_runtime
-
-        serving_runtime.cache_clear()
-        forget_layers()
+        forget_tree()
         try:
             yield
         except Exception:
@@ -490,23 +487,6 @@ def source_roots(source: Path, page: Path, runtime: Path) -> list[Path]:
     )
 
 
-def serving_identity(runtime: Path) -> str:
-    """What a page server of `runtime` serves: its serving code, and every browser
-    file it serves or composes into a page's layer, the kernel's stylesheets and the
-    sheets they import included. A server holds the layer it composed for as long as
-    it runs, so an edit to any of them needs a new server."""
-    from leaf.layer import files_identity, payload_server_inputs
-
-    paths = [*payload_server_inputs(runtime), *sorted((runtime / "browser").rglob("*"))]
-    return files_identity(
-        {
-            path.relative_to(runtime).as_posix(): path.read_bytes()
-            for path in paths
-            if path.is_file()
-        }
-    )
-
-
 def refresh_preview(
     source: Path,
     page: Path,
@@ -559,7 +539,8 @@ def refresh_preview(
         )
         # A page composes its layer from the Leaf serving it, so a runtime or
         # package edit needs a server that read it as much as a new selection does.
-        serving = serving_identity(runtime)
+        # This process runs in the selected checkout, so its runtime is `runtime`.
+        serving = read_runtime().identity
         if planned["changed"] or serving != state.get("serving"):
             with service.replacing(planned["changed"]):
                 if planned["changed"]:
@@ -849,7 +830,7 @@ def serve_preview(
     service = None
     changes = None
     try:
-        state["serving"] = serving_identity(runtime)
+        state["serving"] = read_runtime().identity
         prepared_page = None
         if resumed:
             service = PreviewService(page, user, prepared_claim)

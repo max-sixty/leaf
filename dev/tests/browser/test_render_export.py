@@ -1,6 +1,7 @@
-"""Developer tooling checks; run explicitly from dev/tests."""
+"""Developer tooling checks."""
 
 from contextlib import ExitStack
+from pathlib import Path
 
 from interact_support import (
     COMPOSITE_TIMEOUT,
@@ -77,12 +78,21 @@ def test_preview_watches_source_without_losing_user_state(browser, watched_previ
 EDITED_THEME = "\n:root { --runtime-edit: 1; }\n"
 
 
+def edit_sheet(sheet: Path) -> None:
+    """Append `EDITED_THEME` to `sheet` by replacing it, as an editor saves."""
+    updated = sheet.with_name(sheet.name + ".next")
+    updated.write_text(sheet.read_text() + EDITED_THEME)
+    updated.replace(sheet)
+
+
 def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     """A runtime edit replaces the server, and every tab of the page follows it.
 
-    An open tab takes the new layer with the user's state and log intact. A tab whose
-    start failed hears the replacement too: supervision precedes the kernel and
-    registry requests. One restart serves them all at the recorded port.
+    The edit is to a bundled package, whose files the server composes into the
+    page's layer rather than serves as they stand. An open tab takes the new layer
+    with the user's state and log intact. A tab whose start failed hears the
+    replacement too: supervision precedes the kernel and registry requests. One
+    restart serves them all at the recorded port.
     """
     _, runtime, directory, _, url, _ = watched_preview
     open_tab = open_page(browser, url)
@@ -122,13 +132,9 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
             expect(status).to_be_visible()
             pages[resource] = (page, status, documents, len(documents))
         # A changed layer replaces the server. An invalid input is now refused
-        # before that replacement, so change a valid theme to test recovery. A custom
-        # property no layer sets says which layer a tab runs.
+        # before that replacement, so change a valid theme to test recovery.
         replaced.append(True)
-        theme = runtime / "browser" / "base.css"
-        updated = runtime.parent / "base.css.next"
-        updated.write_text(theme.read_text() + EDITED_THEME)
-        updated.replace(theme)
+        edit_sheet(runtime / "packages" / "reading" / "defaults.css")
         expect(open_tab.locator("html")).to_have_css(
             "--runtime-edit", "1", timeout=HANDOVER_DEADLINE_MS
         )
@@ -140,6 +146,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
             expect(status).not_to_be_visible(timeout=HANDOVER_DEADLINE_MS)
     for resource, (page, _, documents, failed) in pages.items():
         assert len(documents) > failed, resource
+        expect(page.locator("html")).to_have_css("--runtime-edit", "1")
         expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     expect(open_tab.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -184,10 +191,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         # makes must find a server that answers.
         if not interrupted:
             interrupted.append(True)
-            theme = runtime / "browser" / "base.css"
-            updated = runtime.parent / "base.css.next"
-            updated.write_text(theme.read_text() + EDITED_THEME)
-            updated.replace(theme)
+            edit_sheet(runtime / "browser" / "base.css")
             route.abort("failed")
         else:
             route.continue_()

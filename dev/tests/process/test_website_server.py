@@ -1,4 +1,4 @@
-"""Developer tooling checks; run explicitly from dev/tests."""
+"""Developer tooling checks."""
 
 import itertools
 import json

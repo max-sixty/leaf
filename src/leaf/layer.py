@@ -711,12 +711,12 @@ _compositions: dict = {}
 
 
 def forget_layers() -> None:
-    """Drop every layer and vocabulary this process holds (`selected_layer`), so the
-    next server it starts composes them from the tree as it stands. Only a process
-    between servers drops them, as a preview does when it replaces its own: a server
-    still running would answer with bytes it did not start with."""
+    """Drop every layer and vocabulary this process holds (`selected_layer`), and the
+    Leaf it read itself to be (`running_leaf`), which a layer names as its producer
+    (`runtime_selection.forget_tree`)."""
     _vocabularies.clear()
     _compositions.clear()
+    running_leaf.cache_clear()
 
 
 def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:

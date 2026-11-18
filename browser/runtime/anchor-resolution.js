@@ -35,7 +35,7 @@ import {
   registeredVisualPartAt,
   registeredVisualParts,
   focusedVisualPart,
-  focusOnVisualPart,
+  visualPartFocus,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -168,13 +168,12 @@ export function addressedElements(source, key) {
   return datum ? [datum] : [];
 }
 
-// Where focus goes for what a key addresses under a widget, asked only as Leaf puts the
-// user there, since a visual settles on its part as it answers: the element the visual
-// names for its part (`focusOnVisualPart`), as a chart, its reading moved to a point,
-// names itself, else the first element the key addresses.
+// Where focus goes for what a key addresses under a widget: a visual part's destination
+// (`visualPartFocus`), which a chart settles on its point only as focus is placed, else
+// the first element the key addresses. Naming it changes nothing.
 /** @param {Element} source @param {string} key */
 export const addressedFocus = (source, key) =>
-  (admitsVisualPart(source, key) ? focusOnVisualPart(source, key) : null) ??
+  (admitsVisualPart(source, key) ? visualPartFocus(source, key) : null) ??
   addressedElements(source, key)[0] ??
   null;
 

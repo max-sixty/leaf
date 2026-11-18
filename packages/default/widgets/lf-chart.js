@@ -566,9 +566,9 @@ customElements.define(
       return { id, element: mark, label: pointWords(point) };
     }
 
-    // Puts the reader on the point an id names, for Leaf, which asks as it puts focus
-    // on the point, travelling to a comment on it or handing the reader back from one,
-    // and takes that focus itself, since a mark is no place to stand. The reading moves
+    // Puts the reader on the point an id names, as Leaf places focus on the chart for
+    // it, travelling to a comment on it or handing the reader back from one: the chart
+    // takes that focus itself, since a mark is no place to stand. The reading moves
     // now, since the chart may hold focus already, as it does when a link to another
     // of its points is followed, and focus it holds arrives as no new focus.
     /** @param {string} id */
@@ -579,7 +579,6 @@ customElements.define(
           ? datumPoint(reading, id.slice(POINT.length))
           : null;
       if (point) this.#choose(point, "focus");
-      return this;
     }
 
     // The point a node of the chart stands for: for a node of the drawing, the point

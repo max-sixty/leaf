@@ -97,10 +97,11 @@ target, such as the point its arrow keys reached.
 
 Leaf puts the user on a part's `element` when they travel to it or leave a comment box
 on it. A visual whose parts are no places to stand, such as the marks round a chart's
-points, also passes `focus`: `focus(id)` settles the visual on the part and returns the
-element of the visual that takes focus, as a chart moves its reading to the point, even
-where it holds focus already, and returns itself. Leaf asks it only at that moment, so
-nothing else the visual shows changes when the user leaves a comment box.
+points, also passes `focus` and takes focus for its parts itself. Leaf calls `focus(id)`
+as it places focus on the visual for a part, and at no other time, and the visual
+settles on the part, as a chart moves its reading to the point even where it holds
+focus already. So leaving a comment box, or travel the user cancels, changes nothing
+the visual shows.
 
 ## Threads
 

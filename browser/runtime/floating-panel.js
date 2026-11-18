@@ -342,6 +342,7 @@ import { pagePresented } from "./page-paint.js";
 import {
   claimReleaseClick,
   focusDestination,
+  focusElement,
   focused,
   holdFocus,
   inputCount,
@@ -5484,7 +5485,7 @@ export function createFloatingPanel({
     if (
       doors.queue.shows() &&
       focus !== false &&
-      onMe.lists(focus ?? placeHolder(where))
+      onMe.lists(focus ? focusElement(focus) : placeHolder(where))
     )
       return;
     if (standsOver(where, landed)) close();

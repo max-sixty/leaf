@@ -10,10 +10,10 @@
  *
  * Leaf puts the user on a part's element as it travels to the part or hands them back
  * from a comment on it. A visual whose parts are no places to stand, as the marks round
- * a chart's points are not, names `focus(id)`, which Leaf asks at that moment and no
- * other: the visual settles on the part, as a chart moves its reading to the point even
- * where it holds focus already, and returns the node of itself to focus, as the chart
- * returns itself.
+ * a chart's points are not, names `focus(id)` and takes that focus itself: Leaf calls
+ * `focus(id)` as it places focus on the visual and at no other time (focus.js,
+ * `FocusDestination`), and the visual settles on the part, as a chart moves its
+ * reading to the point even where it holds focus already.
  *
  * A visual whose parts are too many to list, such as a chart's points, answers both
  * directions itself, so neither takes longer as the visual holds more. `find(id)`
@@ -50,7 +50,7 @@ import { layoutChanged } from "./widget-upgrade.js";
  * label: ((id: string) => string | null | undefined) | null,
  * find: ((id: string) => VisualPart | null | undefined) | null,
  * at: ((node: Element) => VisualPart | null | undefined) | null,
- * focus: ((id: string) => Element | null | undefined) | null}} Registration
+ * focus: ((id: string) => void) | null}} Registration
  * @typedef {{reveal?: Registration["reveal"], label?: Registration["label"],
  * find?: Registration["find"], at?: Registration["at"],
  * focus?: Registration["focus"]}} RegistrationOptions */
@@ -69,8 +69,7 @@ const registrations = new WeakMap();
  * part `id` in the current state, or null, in place of a search of `read()`.
  * `at(node)`, when given, returns the record for the part a node of the visual stands
  * for where no element `read()` registers holds it, or null. `focus(id)`, when given,
- * settles the visual on part `id` and returns the node of it to focus, asked only as
- * Leaf puts the user on the part.
+ * settles the visual on part `id` as Leaf places focus on the visual for it.
  */
 /** @param {Element} source @param {() => Iterable<VisualPart>} read
  * @param {RegistrationOptions} [options] */
@@ -201,16 +200,15 @@ export function registeredVisualPartAt(source, target, admits = () => true) {
   return target && target !== source ? namedAt(source, target, admits) : null;
 }
 
-/** The element to put the user on for part `id`, asked only as Leaf puts them there:
- * the node of itself the visual's `focus(id)` settles on, else the part's element. */
-/** @param {Element} source @param {string} id */
-export function focusOnVisualPart(source, id) {
+/** Where Leaf puts the user for part `id`: its element, or the visual itself, settled
+ * on the part by its `focus(id)` as focus is placed there.
+ * @param {Element} source @param {string} id
+ * @returns {import("./focus.js").FocusDestination | null} */
+export function visualPartFocus(source, id) {
   const part = registeredVisualPart(source, id);
-  if (!part) return null;
-  const named = registrations.get(source)?.focus?.(id);
-  if (named && !under(named, source))
-    throw new TypeError(`A visual source focuses part ${id} outside itself`);
-  return named ?? part.element;
+  const focus = registrations.get(source)?.focus;
+  if (!part || !focus) return part?.element ?? null;
+  return { element: source, settle: () => focus(id) };
 }
 
 /** The part a visual holding focus stands on, as a chart's keys put the reader on a

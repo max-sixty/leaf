@@ -175,10 +175,20 @@ export const tabStops = (root) =>
 //
 // Placements never ask the browser to reveal their target: native focus scrolling
 // crosses browsing contexts. A caller needing reveal uses document-local scrolling.
+//
+// A destination may be an element its owner settles as the user lands on it,
+// `{element, settle}`, as a chart moves its reading to the point Leaf puts the user on
+// (visual-parts.js, `focus`). `settle` runs here, as focus is placed, and nowhere else,
+// so a route that names a destination it never lands on, or a hand-back that passes
+// it by, changes nothing the owner shows.
 export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 /** @typedef {[start: number, end: number, direction?: "forward" | "backward" | "none"]} Caret
- * @param {Element} destination @param {"move" | "step" | "return" | "press"} cause
+ * @typedef {Element | {element: Element, settle: () => void}} FocusDestination */
+/** The element a destination puts the user on. @param {FocusDestination} destination */
+export const focusElement = (destination) =>
+  destination instanceof Element ? destination : destination.element;
+/** @param {FocusDestination} destination @param {"move" | "step" | "return" | "press"} cause
  * @param {{caret?: Caret | null}} [options] */
 export function focusDestination(
   destination,
@@ -190,6 +200,7 @@ export function focusDestination(
   if (unexpected.length)
     throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
   if (!canPlaceFocus()) return;
+  const element = focusElement(destination);
   // Firefox otherwise inherits a pointer arrival's invisible focus through a
   // keyboard route, including a composer return. Ask the platform to show that
   // destination; pointer routes keep its own visibility heuristic.
@@ -198,10 +209,11 @@ export function focusDestination(
     ...(!pressLed() && { focusVisible: true }),
   };
   placed(cause, () => {
-    nativeFocusTarget(destination).focus(options);
-    if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
+    if (!(destination instanceof Element)) destination.settle();
+    nativeFocusTarget(element).focus(options);
+    if (!landedOn(element) && lendable(element)) lendStop(element, options);
   });
-  if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
+  if (caret && holdsCaret(element)) element.setSelectionRange(...caret);
 }
 // The cause of the placement running now, null outside one. The outermost placement
 // names it, since whatever focus runs inside it is part of the same act.
@@ -1801,24 +1813,25 @@ export function letGo(from = focused()) {
 // that frame keeps its place: a user who moved on, or a caller that landed them itself,
 // said the newer word. That is the placement count every hold reads, so a move between
 // two nodes of one shadow tree counts as well.
-/** @param {(Element | null | undefined)[]} destinations */
+/** @param {(FocusDestination | null | undefined)[]} destinations */
 export function handBack(...destinations) {
-  const places = destinations.flatMap((node) =>
-    node && node !== document.body ? [node] : [],
+  const places = destinations.flatMap((place) =>
+    place && focusElement(place) !== document.body ? [place] : [],
   );
   // A reader of a landing that moved the user elsewhere said a newer word, and no
   // later destination lands over it.
   const landed = () => {
     const at = placements;
-    return places.some((node) => {
+    return places.some((place) => {
       if (placements !== at) return true;
+      const node = focusElement(place);
       if (!drawn(node)) return false;
-      focusDestination(node, "return");
+      focusDestination(place, "return");
       return landedOn(node);
     });
   };
   if (landed()) return;
-  if (!places.some((node) => node.isConnected)) {
+  if (!places.some((place) => focusElement(place).isConnected)) {
     letGo();
     return;
   }

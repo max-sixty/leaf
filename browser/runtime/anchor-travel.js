@@ -41,6 +41,7 @@
  * open?: () => void | (() => void), present?: () => unknown, hasContent?: boolean}} EditorDestination */
 
 import { selectEnds } from "./native-selection.js";
+import { focusElement } from "./focus.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { fragmentUrl } from "./anchor-coordinate.js";
 import {
@@ -96,7 +97,7 @@ export const fragmentShown = (address) =>
  * @typedef {import("./user-intent.js").UserIntent} UserIntent
  * @typedef {import("./focus.js").Caret} Caret
  * @typedef {{at: Destination, align?: Destination, block?: ScrollLogicalPosition | "fragment", behavior?: ScrollBehavior, when?: () => boolean}} ScrollPlacement
- * @typedef {{where: Destination, focus?: Element | null | false, caret?: Caret | null,
+ * @typedef {{where: Destination, focus?: import("./focus.js").FocusDestination | null | false, caret?: Caret | null,
  * selection?: {range: Range, backward: boolean}, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
  * @typedef {{plan: (where: Destination | null | undefined, options?: {there?: (readable: (where: Destination) => boolean) => boolean}) => boolean, commit: () => void}} NavigationStep
  * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions
@@ -613,14 +614,14 @@ export function createAnchorTravel({
             ? threadFocusTarget(id, { part, page: true })
             : (anchor?.visual && source && addressedFocus(source, anchor.visual)) ||
               (targetElement(placement) ?? targetPlace(placement));
+        const at = target && focusElement(target);
         /** @type {ScrollPlacement[]} */
         const scroll = [];
-        if (target) scroll.push({ at: target, block: "nearest" });
+        if (at) scroll.push({ at, block: "nearest" });
         // Then the place lands unless it already shows. A part inside a place taller
         // than its room, as a seat's thread can be inside its element, skips that
         // landing, since landing the place would scroll the part back out of view.
-        const inside =
-          target !== where && where instanceof Element && under(target, where);
+        const inside = at !== where && where instanceof Element && under(at, where);
         scroll.push({
           at: where,
           when: () =>

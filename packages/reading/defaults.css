@@ -284,12 +284,7 @@ td.num {
    figure follows the palette as the prose does, which an SVG loaded as an image cannot.
    Its words take the two drawing sizes (tokens.css, `--lf-drawing-size`), which are in the
    drawing's own units and scale with its viewBox. One without a width of its own fills
-   its figure; a thumbnail states one.
-
-   TODO: revisit whether this set is too specific. It ships as taken from one page's
-   drawings of Leaf's own layout, less the marks only that subject used (its rail, pins
-   and suggestion tints). If later pages leave most of it unused, or keep adding local
-   classes beside it, trim it to the text defaults and let each page draw its own. */
+   its figure; a thumbnail states one. */
 svg.drawing {
   display: block;
   height: auto;

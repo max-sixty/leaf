@@ -1111,8 +1111,7 @@ def test_taking_back_a_message_puts_its_words_back_in_its_box(browser, serve):
     """Undo takes a sent message back to draft rather than discarding it. A reply's
     words go back to its thread's reply box, and those of the comment that opened the
     thread to the page's field it was written in, where Resume writing goes. The thread
-    went with the comment, and its reply went with the comment's draft, so sending the
-    comment again brings back the thread with the reply in its box."""
+    went with the comment, so the words in its reply box follow the comment's there."""
     page = open_page(browser, serve(LONG_PAGE))
     comment, reply = "The comment that opens a thread.", "A reply under it."
     write(page_comment(page), comment)
@@ -1127,15 +1126,14 @@ def test_taking_back_a_message_puts_its_words_back_in_its_box(browser, serve):
     undo(page)
     box = panel_field(page)
     expect(box).to_have_attribute("name", "comment")
-    expect(box).to_have_js_property("value", comment)
-    assert [record["text"] for record in stored_drafts(page).values()] == [comment]
+    expect(box).to_have_js_property("value", f"{comment}\n\n{reply}")
+    assert [record["text"] for record in stored_drafts(page).values()] == [
+        f"{comment}\n\n{reply}"
+    ]
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(box).to_be_focused()
-    with sending(page, "the comment again"):
-        page.keyboard.press("Enter")
-    expect(page.locator(PANEL_REPLY)).to_have_js_property("value", reply)
 
 
 @pytest.mark.parametrize("gesture", ["comment", "rewrite"])

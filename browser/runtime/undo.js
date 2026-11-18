@@ -71,12 +71,14 @@
    redo brings it back (`writtenIn`; drafts.js, `giveBackWords`): a comment's words, and
    its drawing, go back to its passage's draft or the page's, a reply's to its thread's
    reply box, and a rewrite's to the message's rewrite, and Resume writing goes to them.
-   A comment whose thread goes with it takes the words of the thread's reply box along
-   (`keepReplyWith`), as a refused one does, so sending it again brings back the thread
-   and the reply. The log's answer decides the undo, so the words come back with it, in
-   the box the press leaves the user at. Rejected: leaving the words only in the log,
-   which no reading shows once nothing stands on the message taken back (the user's
-   decision). */
+   A comment whose thread goes with it brings the words of that thread's reply box
+   along, after its own, so nothing the user wrote is left in a box that no longer
+   stands. The log's answer decides the undo, so the words come back with it, in the box
+   the press leaves the user at. Rejected: leaving the words only in the log, which no
+   reading shows once nothing stands on the message (the user's decision); and holding
+   the reply unseen with the comment's draft until it is sent again, as a refused
+   comment does (`keepRefusedWords`), which carried it under whatever was sent from
+   that box next. */
 import { notice } from "./notifications.js";
 import {
   applicationState,
@@ -101,13 +103,7 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { eventSource } from "./pointer.js";
 import { raiseError } from "./errors.js";
-import {
-  giveBackWords,
-  keepReplyWith,
-  PAGE_DRAFT,
-  replyContext,
-  rewriteContext,
-} from "./drafts.js";
+import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
 import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "./thread/model.js";
 
@@ -352,13 +348,15 @@ export function createUndo({
     return post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
         notice(`Undid: ${taken}`);
-        if (written) {
-          giveBackWords(written.ctx, written.text, written.payload);
-          // The answer brings the reading that holds the withdrawal, in which the
-          // thread is gone unless something stands on its first message.
-          if (written.under && !threadNamed(event.id))
-            keepReplyWith(written.ctx, written.under);
-        }
+        // The answer brings the reading that holds the withdrawal, in which a
+        // comment's thread is gone unless something stands on the comment.
+        if (written)
+          giveBackWords(
+            written.ctx,
+            written.text,
+            written.payload,
+            written.under && !threadNamed(event.id) ? written.under : null,
+          );
         if (event.attempt) gestures.delete(event.attempt);
       }
       return accepted;

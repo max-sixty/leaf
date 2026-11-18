@@ -383,11 +383,12 @@ jobs:
             pytest tests -n 4 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
             2>&1 | tee .tmp/test-results/output.log
 
-      # The named tests as concurrent copies, which starve one another of the three
-      # cores as the suite's workers do; `--copies` and `--workers` set how many run
-      # and how many at once. The step's log ends with each test's count per outcome
-      # and every failure's message, and the artifact holds each copy's whole log.
-      # xargs splits the input as a shell would, quotes included, without running it.
+      # The named tests as copies starved of the runner's three cores, as the suite's
+      # workers starve each other: `--copies` sets how many run, `--workers` how many
+      # at once and `--load` how many busy loops spin beside them. The step's log ends
+      # with each test's count per outcome and every failure's message, and the
+      # artifact holds each copy's whole log. xargs splits the input as a shell would,
+      # quotes included, without running it.
       - name: Run the named tests as copies under load
         if: ${{ inputs.flake }}
         env:

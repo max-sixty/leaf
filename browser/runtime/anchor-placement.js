@@ -425,8 +425,9 @@ export function createAnchorPlacement() {
     },
     // Where the saved comment draft with this context stands, placed as a thread is.
     savedAt: (/** @type {string} */ context) => {
-      placement();
-      reads(placement);
+      settle(false);
+      version.value;
+      placements.read();
       return placed.get(SAVED + context);
     },
     pendingAt: () => {

@@ -31,7 +31,7 @@
  * however many entries have arrived since. A box standing at its start is read from its
  * top: its own box returns to its start, across a resize or a revision, so a page read
  * from its top keeps its title in view, and only a box its words are handed to takes
- * the landmark. The user chose this on 2026-10-25 over keeping the first line at the
+ * the landmark. The user chose this over keeping the first line at the
  * edge, which scrolls the title away where a header fixed beside that line drops into
  * the flow above it as the window narrows.
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
@@ -93,7 +93,7 @@ import {
   HEADING,
   inChrome,
   pageDocument,
-  keptWithPageReading,
+  keptWithReading,
   pageRuns,
   quoteFrom,
   rangeOf,
@@ -132,7 +132,13 @@ import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusPlace, readingAt } from "./user-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { heldTravel, holderOf, seenAhead, seenGlided } from "./scroll-containers.js";
+import {
+  heldTravel,
+  holderOf,
+  seenAhead,
+  seenGlided,
+  seenLanded,
+} from "./scroll-containers.js";
 import { shifted, union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 
@@ -203,8 +209,7 @@ const QUOTABLE = 24;
 // `contents` has no box and shows through its children. A part the browser skips while it
 // is far from the window (`content-visibility: auto`) shows its words as it nears it, so
 // it may. A part the page skips, as in a closed tab, is asked nothing more: asking its box
-// or its style has the browser style everything it holds, 240 ms for the 29 closed
-// documents of #4781's page in Chromium.
+// or its style has the browser style everything it holds.
 /** @param {Element} part */
 const showsWords = (part) =>
   part.checkVisibility() || [...part.children].some((child) => child.checkVisibility());
@@ -238,8 +243,8 @@ const textEnvelope = (block, segments, range) => {
 // Where each run's words stood the last time a reading of the screen laid the page out,
 // so a later reading measures only the runs that stood in its band rather than every
 // block of the page on each scroll, key and focus. An observer of every block would read
-// them all itself on each frame of a scroll: on 2026-11-14, 8,000 observed paragraphs
-// cost Chromium 4 ms of main thread a wheel step.
+// them all itself on each frame of a scroll, a cost on every wheel step that grows
+// with the page.
 //
 // The page is laid out in frames: boxes whose runs keep their places relative to the box
 // as anything scrolls, each laid out in its own coordinates (`originOf`). The box a
@@ -261,7 +266,7 @@ const textEnvelope = (block, segments, range) => {
 // flow at or above the band's foot moves one of those. A box moved by none of these, such
 // as a paragraph a script transforms or one an anchor places, stays where the layout has
 // it until a change lays the page out again. Any widget's notice lays out every frame
-// again, as a reading of every block did before.
+// again.
 /** @typedef {{run: BlockRun, order: number}} Member
  * @typedef {{top: number, bottom: number, left: number, right: number}} Span
  * @typedef {Span & ({member: Member, byBox: boolean} | {frame: Element, at: Element})} Entry
@@ -271,11 +276,11 @@ const textEnvelope = (block, segments, range) => {
  * @typedef {{key: string, blocks: Set<Element>, holdsBlocks: WeakSet<Element>, holding: WeakSet<Element>}} BlockIndex
  * @typedef {{frames: WeakMap<Element, Frame>, shown: ShownRuns | null, index: BlockIndex | null}} Kept */
 // The layout, the runs shown and their blocks hold the page's nodes, so they are kept with
-// the page's reading (passages.js, `keptWithPageReading`) and go with it: a revision that
+// the page's reading (passages.js, `keptWithReading`) and go with it: a revision that
 // removes a block leaves none of them holding it.
 /** @returns {Kept} */
 const kept = () =>
-  keptWithPageReading(kept, () => ({
+  keptWithReading(pageDocument(), kept, () => ({
     frames: new WeakMap(),
     shown: null,
     index: null,
@@ -355,22 +360,22 @@ const wordsBox = (segments, range) =>
 // content lays it out. `drawn` keeps each parent's answer across the calls sharing it.
 /** @param {Segment[]} segments @param {Range} range @param {Map<Element | null, boolean>} [drawn] @returns {Generator<[Segment, DOMRect[]] | null>} */
 function* drawnSegments(segments, range, drawn = new Map()) {
-  /** @type {Element | null} */
-  let hidden = null;
   // Whether a null already stands for the segments since the last drawn one, so a long
   // run of skipped lines yields once.
   let broken = false;
-  for (const segment of segments) {
+  for (let at = 0; at < segments.length; at++) {
+    const segment = /** @type {Segment} */ (segments[at]);
     const { node, start, end } = segment;
     let rects = null;
-    if (!hidden?.contains(node)) {
-      const parent = renderedParent(node);
-      if (!drawn.has(parent)) drawn.set(parent, drawsText(parent));
-      if (drawn.get(parent)) {
-        range.setStart(node, start);
-        range.setEnd(node, end);
-        rects = [...range.getClientRects()].filter((rect) => rect.width && rect.height);
-      } else hidden = parent && skipper(parent);
+    const parent = renderedParent(node);
+    if (!drawn.has(parent)) drawn.set(parent, drawsText(parent));
+    if (drawn.get(parent)) {
+      range.setStart(node, start);
+      range.setEnd(node, end);
+      rects = [...range.getClientRects()].filter((rect) => rect.width && rect.height);
+    } else {
+      const hidden = parent && skipper(parent);
+      if (hidden) at = lastHeld(segments, at, hidden);
     }
     if (rects?.length) {
       broken = false;
@@ -380,6 +385,28 @@ function* drawnSegments(segments, range, drawn = new Map()) {
       yield null;
     }
   }
+}
+// The last of `segments` from `at` on that `box` holds. A walk meets what a box holds
+// together, so they are found by doubling a step past `at` and then halving it, and a
+// long text document's skipped lines cost a few questions a run of them rather than one
+// a line. A segment `box` draws without
+// holding it, as a slot draws what is assigned to it, can stand among those it holds.
+// The search may stop at it, and `drawnSegments` asks it its own question, or step over
+// it, which gives it the same answer: whatever a skipped box draws is undrawn too.
+/** @param {readonly Segment[]} segments @param {number} at @param {Element} box */
+function lastHeld(segments, at, box) {
+  /** @param {number} i */
+  const holds = (i) => box.contains(/** @type {Segment} */ (segments[i]).node);
+  let low = at;
+  let step = 1;
+  for (; low + step < segments.length && holds(low + step); step *= 2) low += step;
+  let high = Math.min(low + step, segments.length);
+  while (high - low > 1) {
+    const middle = (low + high) >> 1;
+    if (holds(middle)) low = middle;
+    else high = middle;
+  }
+  return low;
 }
 // The page's runs the user may see, in reading order, with what names that reading of
 // the page: its words and the parts shown, read again only when either changes. A reading
@@ -802,6 +829,42 @@ const shownAtLine = () => {
   return node && node !== document.body ? node : null;
 };
 export const pageReadingBlock = () => pageReading({ bodies: false });
+
+// Whether the reader sees a node where they read `block` (`readingBlock`): in its
+// reading region, on screen where the glides under way leave it, and passing each test
+// `readingBlock` chose the block by, so outside a stuck box unless the block stands in
+// one, as it does where every block on screen rides a fixed shell, and across the
+// reader's column wherever the block stands across it. A walk asks it of its stops,
+// which need hold no words (current-target.js, `stepFrom`). The block's own readings
+// are taken once, for every node asked. The block is on screen, so a node a window's
+// height or more above or below it is off screen however the glides under way move the
+// region holding both. Such a node is judged by its box alone, without measuring what
+// clips it, since a walk asks this of every stop the page holds.
+/** @param {Element} block @returns {(node: Element) => boolean} */
+export function seenWhereRead(block) {
+  const region = readingRegionFor(block) ?? null;
+  const box = region?.body ?? null;
+  const stuck = Boolean(stuckBox(block, box));
+  const bounds = readingBounds(region);
+  const body = box ?? pageDocument();
+  const reader = bounds && body ? readerColumn(bounds, body) : null;
+  const read = shownBox(block);
+  const column = reader !== null && spans(block, read, reader) ? reader : null;
+  /** @param {DOMRect} shown */
+  const afar = (shown) =>
+    (shown.width > 0 || shown.height > 0) &&
+    (shown.bottom <= read.top - innerHeight || shown.top >= read.bottom + innerHeight);
+  return (node) => {
+    if (readingRegionFor(node)?.id !== region?.id) return false;
+    const shown = shownBox(node);
+    return (
+      !afar(shown) &&
+      seenLanded(node) &&
+      (stuck || !stuckBox(node, box)) &&
+      (column === null || spans(node, shown, column))
+    );
+  };
+}
 
 // The sections whose words or pictures the user sees, by id in page order: the
 // addressable element around each text block and each drawing on screen, on the page

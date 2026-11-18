@@ -1,20 +1,9 @@
-# Historical replays: command review failed 2/2 before guidance, passed 2/2 after.
-# Appearance scope failed 2/2 before, passed 2/2 after; fidelity passed 1/2 before
-# and 2/2 after. Ordering separated intermediate and final wording. Motion handoff
-# failed 2/2 before, passed 2/2 after. These score decisions, not executed artifacts.
-# Active-option follow-up (2026-10-07): explicit pointer/keyboard-target inspection
-# passed 2/2 menu plans against 0/2 on 89b38eee1. Drag-preview and interaction-fix
-# guards passed 2/2 each on both arms; the drag case is synthetic generalization
-# coverage, not a reconstruction of a live rectangle-tool failure.
-# Native fixed-output grader controls passed 3/3: reject an archived open/focus
-# plan, accept active-row inspection and a pointer-based equivalent. Scratch
-# calibration rejected five historical incomplete plans the old rubric accepted.
-# Capture first-reading reconstruction (2026-10-09): plans passed 0/2 on
-# 40f9aca26 and 2/2 with task-information comparison; resize and useful-ghost
-# controls passed 2/2 each on both arms. A separate blinded browser review
-# caught the original obstruction; plan scores alone did not establish that.
-# After integrating b0a015f42, explicit smallest-to-largest size coverage passed
-# 2/2 capture plans against 0/2 on that base; both controls still passed 2/2.
+# This case's contexts score decisions, not executed artifacts. The drag case is synthetic
+# generalization coverage, not a reconstruction of a live rectangle-tool failure.
+# Native fixed-output grader controls reject an archived open/focus plan and accept
+# active-row inspection and a pointer-based equivalent.
+# Capture first-reading reconstruction, with resize and useful-ghost controls: plan
+# scores alone don't establish that a capture avoids the original obstruction.
 description: review-shows-the-change
 metadata:
   purpose: "Maintainer review: user reviews the change; agent verifies preservation."
@@ -490,8 +479,6 @@ variants:
           evidence, gives only a general promise to inspect every state without
           identifying the temporary preview, or asks Max to do missing verification.
 
-  # The 2026-10-07 Claude Code comparisons missed guideline review on the base
-  # and followed it on the head; documentation-only review passed both arms.
   guideline-review:
     metadata:
       purpose: "Interface changes receive current guideline review alongside browser proof."
@@ -520,8 +507,6 @@ variants:
           Fail if green focused tests replace this review or Max is asked to
           verify unchanged behavior. Do not require exact wording or filenames.
 
-  # One 2026-10-07 Claude Code run per arm offered external perspectives on
-  # the head, omitted them on the base, and kept documentation review on both.
   # This scores the route, not the external tools' ability to detect defects.
   review-selection:
     metadata:

@@ -24,6 +24,7 @@ from playwright.sync_api import expect
 from render_cases_layout import token_colour
 from render_harness import (
     LONG_PAGE,
+    all_pages_offered,
     expect_preview_words,
     open_page,
     panel_settled,
@@ -321,6 +322,7 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
     expect(page.locator(LEAF)).to_have_attribute("data-lf-tone", "working")
 
     page.locator("body").focus()
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     this_page = page.locator(f"{panel_view('leaves')} .lf-fp-page").first
@@ -375,7 +377,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     expect(work_button).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
     )
-    expect(work_line).to_have_css("color", token_colour(page, "--muted"))
+    expect(work_line).to_have_css("color", token_colour(page, "--lf-muted"))
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect_status_says(page, page_work)
@@ -399,7 +401,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     expect(work_line).to_have_text("Gone quiet")
     expect(work_line.locator("time")).to_have_count(0)
     assert work_line.evaluate("node => getComputedStyle(node).color") == token_colour(
-        page, "--muted"
+        page, "--lf-muted"
     )
     expect_status_says(page, page_work)
     work_line = workflow_of(open_panel_thread(page, held), held)
@@ -447,5 +449,5 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(inline.locator(".lf-msg-sending")).to_have_css(
-        "color", token_colour(page, "--muted")
+        "color", token_colour(page, "--lf-muted")
     )

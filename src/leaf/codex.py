@@ -81,8 +81,8 @@ draft withheld, so Stop lets the turn end on its own answer rather than continui
 it over the update. As the turn ends it releases the reservation,
 and a completed joined turn's final message is refused, so `TurnFold.commit`
 offers the update again as a correction (`prepare_reply_correction`), answered in
-a turn of its own. Rejected: queueing each delivery with `thread/queue/add`
-(#3357, reverted), which put every delivery in the transcript as a user message.
+a turn of its own. Rejected: queueing each delivery with `thread/queue/add`, which
+puts every delivery in the transcript as a user message.
 
 Codex's hooks import this module between steps and before Stop
 (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
@@ -118,7 +118,6 @@ from .delivery import (
     batch_refs,
     current_responses,
     deliverable,
-    delivery_path,
     delivery_pointer_prompt,
     freeze_delivery,
     new_delivery_id,
@@ -2043,14 +2042,11 @@ class PreparedDelivery:
 
 
 def _readdress_record(path: Path) -> Path:
-    """Give a collecting record a fresh identity after a delivery collision."""
-    while True:
-        candidate = new_delivery_id()
-        replacement = path.with_name(f"{candidate}.json")
-        if replacement.exists() or delivery_path(candidate).exists():
-            continue
-        path.replace(replacement)
-        return replacement
+    """Give a collecting record a fresh identity where its id's envelope already
+    holds other input."""
+    replacement = path.with_name(f"{new_delivery_id()}.json")
+    path.replace(replacement)
+    return replacement
 
 
 @dataclass(frozen=True)
@@ -2140,11 +2136,7 @@ def append_batch(
     """Append fresh events to the task's one collecting record."""
     current = _collecting_record(session_id)
     if current is None:
-        while True:
-            delivery_id = new_delivery_id()
-            path = record_path(session_id, delivery_id)
-            if not path.exists() and not delivery_path(delivery_id).exists():
-                break
+        path = record_path(session_id, new_delivery_id())
         path.parent.mkdir(parents=True, exist_ok=True)
         record = Collecting(time.time(), ())
     else:
@@ -2424,14 +2416,18 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
                 only_if_unclaimed=False,
                 claimed_session=session_id,
             )
+        # The failed pickup names every input the receipt passes, as every receipt's
+        # pickup does, so input the cursor passed that no pickup names is input a
+        # holder kept from the main thread (`delivery.deliverable`). On an input the
+        # failure answer settled it changes nothing: only an action still owed reads
+        # a failed pickup (`workflows`).
         with (
             PageTransaction(page_dir) as page,
             receive_batch(page, batch, session_id=session_id) as events,
         ):
-            owed = current_responses(page_dir, page.events)
             record_pickup(
                 page,
-                [event for event in events if event["id"] in owed],
+                list(events),
                 phase="failed",
                 session=session_id,
                 failure=UNCONFIRMED_DELIVERY,

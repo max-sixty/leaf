@@ -9,48 +9,48 @@
     <style>
       #lp-current-state > strong {
         display: block;
-        margin-bottom: var(--sp-1);
-        font: 650 var(--t-3) / 1.2 var(--sans);
+        margin-bottom: var(--lf-sp-1);
+        font: 650 var(--lf-t-3) / 1.2 var(--lf-sans);
       }
 
       #lp-release-facts {
-        margin-block: var(--sp-3);
+        margin-block: var(--lf-sp-3);
       }
 
       #lp-checks-table {
-        margin-top: var(--sp-2);
-        font-size: var(--t-5);
+        margin-top: var(--lf-sp-2);
+        font-size: var(--lf-t-5);
       }
 
       .release-check-result {
-        font: 650 var(--t-6) / 1.2 var(--sans);
+        font: 650 var(--lf-t-6) / 1.2 var(--lf-sans);
       }
 
       .release-check-result[data-status="pass"] {
-        color: var(--ok-ink);
+        color: var(--lf-ok-ink);
       }
 
       .release-check-result[data-status="fail"] {
-        color: var(--danger-ink);
+        color: var(--lf-danger-ink);
       }
 
       #lp-log-note,
       #lp-checks-note {
         margin-top: 0;
-        color: var(--muted);
-        font-family: var(--sans);
-        font-size: var(--t-5);
+        color: var(--lf-muted);
+        font-family: var(--lf-sans);
+        font-size: var(--lf-t-5);
       }
 
       #lp-code-changes {
-        margin-top: var(--sp-3);
+        margin-top: var(--lf-sp-3);
       }
 
       /* The checks beside the log wherever each keeps 14rem. */
       #lp-evidence {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-        gap: var(--sp-4);
+        gap: var(--lf-sp-4);
       }
     </style>
   </head>
@@ -161,7 +161,7 @@
         </section>
       </div>
 
-      <section id="lp-release" class="layout-flow">
+      <section id="lp-release">
         <h2>Release</h2>
         <dl class="facts" id="lp-release-facts">
           <dt>Environment</dt>
@@ -208,25 +208,25 @@
           <summary>Release owners · 5</summary>
           <section id="lp-owners">
             <section id="lp-agent-deployer">
-              <p class="eyebrow">working</p>
+              <p>working</p>
               <strong>deployer</strong> Expanding candidate traffic while guardrails
               stay green.
             </section>
             <section id="lp-agent-ledger">
-              <p class="eyebrow">working</p>
+              <p>working</p>
               <strong>ledger</strong> Comparing candidate and stable order counts.
             </section>
             <section id="lp-agent-finance">
-              <p class="eyebrow">waiting</p>
+              <p>waiting</p>
               <strong>finance</strong> Ready to inspect the first complete export batch.
             </section>
             <section id="lp-agent-observer">
-              <p class="eyebrow">working</p>
+              <p>working</p>
               <strong>observer</strong> Sampling error rate and latency during canary
               expansion.
             </section>
             <section id="lp-agent-builder">
-              <p class="eyebrow">done</p>
+              <p>done</p>
               <strong>builder</strong> Signed the candidate and recorded its provenance.
             </section>
           </section>
@@ -234,7 +234,7 @@
 
         <details id="lp-rollback-procedure">
           <summary>Rollback procedure · 3 steps</summary>
-          <ol class="steps">
+          <ol>
             <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
             <li>Drain the candidate after active sessions finish.</li>
             <li>Verify order counts and finance-export isolation.</li>

@@ -2,8 +2,8 @@
 
    The server names each active contiguous range with the exact message ids it covers.
    This module only places those ranges into message order and keeps disclosure
-   mechanical. Original message nodes remain connected inside their range, so frozen
-   authored widgets, direct arrivals, and focus identities keep their native lifetime.
+   mechanical. Original message nodes remain connected inside their range, so the
+   widgets in messages, direct arrivals, and focus identities keep their native lifetime.
    Pending progress is gathered the same way (`withPendingProgress`); completed
    progress is omitted from the presentation before ranges are built. The
    working message stands among the ranges where its words were said (`workingPlace`). */

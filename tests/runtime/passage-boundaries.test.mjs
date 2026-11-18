@@ -32,6 +32,7 @@ import {
   findEach,
   findQuote,
   inChrome,
+  keptWithReading,
   neighbourhood,
   pageReadingVersion,
   pageText,
@@ -41,7 +42,6 @@ import {
   quoteFrom,
   quotesChanged,
   refuseBareText,
-  runsIntoLine,
   says,
   segmentsIn,
   trackQuotes,
@@ -59,20 +59,15 @@ test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(undefined, "main"), null);
 });
 
-test("a title's line and a quote across its end read one phrasing rule", () => {
-  // Where a title meets the next words inside an element a line runs through, it runs
-  // into that line (`runsIntoLine`), and a quote across the edge reads with a space or
-  // without (`scan`); where the next words stand in an element outside phrasing, the
-  // title ends its line and the edge is a gap a quote must keep.
+test("a quote across a title's end reads by the phrasing rule", () => {
+  // Where a title meets the next words inside an element a line runs through, a quote
+  // across the edge reads with a space or without (`scan`); where the next words stand
+  // in an element outside phrasing, the edge is a gap a quote must keep.
   document.body.innerHTML =
     '<main><p id="inline"><strong>Title</strong><span>words follow</span></p>' +
     '<div id="block"><strong>Heading</strong><div>words below</div></div></main>';
   const inline = /** @type {Element} */ (document.getElementById("inline"));
   const block = /** @type {Element} */ (document.getElementById("block"));
-  const title = (/** @type {Element} */ el) =>
-    /** @type {Element} */ (el.querySelector("strong"));
-  assert.equal(runsIntoLine(title(inline), inline), true);
-  assert.equal(runsIntoLine(title(block), block), false);
   const reading = pageText();
   for (const quote of ["Title words", "Titlewords"])
     assert.equal(quoteFrom(findQuote(reading, quote, {}, inline)), "Titlewords", quote);
@@ -81,6 +76,26 @@ test("a title's line and a quote across its end read one phrasing rule", () => {
     "Heading words",
   );
   assert.deepEqual(findQuote(reading, "Headingwords", {}, block), []);
+});
+
+// Outside a text block, two elements' words that meet show a space, as a chip beside its
+// title or a title above its description is drawn, but none before a closing mark or
+// after an opening one, so an inline title's sentence reads as its author punctuated it
+// in a thread's name. A straight quote opening a title is no closing mark, so the chip
+// before it still reads apart. passages.py's `_write` shows the same words.
+test("an edge outside prose shows a space, but none before closing or after opening punctuation", () => {
+  document.body.innerHTML =
+    '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps ' +
+    "<code>Foo</code>'s place (<code>beta</code>).</lf-option>" +
+    '<lf-option id="chipped"><small class="tag">recommended</small><strong>Apply</strong>' +
+    "Ship it.</lf-option>" +
+    '<lf-option id="quoted"><small class="tag">recommended</small>' +
+    '<strong>"Update" for mixed input</strong></lf-option></main>';
+  assert.equal(
+    says(document.querySelector("main")),
+    "Leave it; the send keeps Foo's place (beta). recommended Apply Ship it. " +
+      'recommended "Update" for mixed input',
+  );
 });
 
 test("a text node answers from the element holding it", () => {
@@ -266,7 +281,9 @@ test("a label declared inside the chrome is the page's, arriving and leaving", (
     '<main><p>Alpha</p></main><div class="lf-ui" id="panel"></div>';
   pageText();
   const panel = document.querySelector("#panel");
-  panel.insertAdjacentHTML("beforeend", '<span data-lf-said="label">Tab</span>');
+  // The marker carries a value because happy-dom reports an empty attribute's old value
+  // as null (its MutationRecord takes `oldValue || null`), where a browser reports "".
+  panel.insertAdjacentHTML("beforeend", '<span data-lf-said="1">Tab</span>');
   assert.match(pageText().raw, /Tab/, "a label is read wherever it stands");
   panel.querySelector("span").removeAttribute("data-lf-said");
   assert.doesNotMatch(
@@ -293,7 +310,9 @@ test("a widget fenced after a reading was taken is in the next one", () => {
 
 test("a declared shadow tree's words are read, and its changes are seen", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-doors" },
   });
   document.body.innerHTML = "<main><p>Alpha</p><lf-staged></lf-staged></main>";
@@ -309,7 +328,9 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
 
 test("each document's reading is forgotten alone: the page's and a reply's", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-documents" },
   });
   document.body.innerHTML = "<main><p>Alpha</p></main>";
@@ -359,11 +380,42 @@ test("a forgotten reading is held by no key or kept answer that outlives it", as
   assert.equal(forgotten.deref(), undefined);
 });
 
+// A reading of the page's nodes finds an element by its id and names a part by its
+// label, though neither changes the page's words, so the version it keeps against moves
+// with both. What is kept with the words, as their layout on screen is, stays. A class
+// that isn't Leaf's moves neither.
+test("the page's reading version moves with an id or a part's name, though its words stay", () => {
+  document.body.innerHTML =
+    '<main><section id="part"><p id="words">Alpha</p></section></main>';
+  const owner = {};
+  const kept = () => keptWithReading(document.body, owner, () => ({}));
+  let version = pageReadingVersion();
+  const answer = kept();
+  const part = /** @type {HTMLElement} */ (document.getElementById("part"));
+  for (const change of [
+    () => part.setAttribute("aria-label", "Pricing"),
+    () => part.setAttribute("label", "Terms"),
+    () => (part.id = "renamed"),
+  ]) {
+    change();
+    assert.notEqual(pageReadingVersion(), version, String(change));
+    assert.equal(kept(), answer, String(change));
+    version = pageReadingVersion();
+  }
+  part.classList.add("plain");
+  assert.equal(pageReadingVersion(), version);
+  /** @type {HTMLElement} */ (document.getElementById("words")).textContent = "Beta";
+  assert.notEqual(kept(), answer);
+  document.body.replaceChildren();
+});
+
 // Startup refuses a module's bare text before anything reads the page, so it has to
 // reach every root the reading would cross into, a stage inside another stage included.
 test("startup refuses bare text staged inside another widget's root", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-nested-bare" },
   });
   document.body.innerHTML = "<main><lf-staged id=outer></lf-staged></main>";
@@ -391,7 +443,9 @@ test("startup refuses bare text staged inside another widget's root", () => {
 // sibling widgets.
 test("startup's refusal sweep asks each of many sibling stages once", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-flat-sweep" },
   });
   const count = 200;
@@ -432,7 +486,9 @@ test("an undeclared shadow tree is opaque, and its host reads by its children", 
 // stands, not where its slot does.
 test("chrome over a declared tree stops at its root, and not for what it slots", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-contexts" },
   });
   document.body.innerHTML =
@@ -455,7 +511,9 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
 
 test("a line break assigned to a shadow slot separates its words", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-slotted-break" },
   });
   document.body.innerHTML = "<main><lf-staged></lf-staged></main>";
@@ -473,7 +531,9 @@ test("a line break assigned to a shadow slot separates its words", () => {
 // words of a span would; a widget's own words stand apart from those beside it.
 test("words a slot draws run into the words around the slot", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-slotted-words" },
   });
   document.body.innerHTML = "<main><p>Before<lf-staged></lf-staged>after</p></main>";
@@ -488,7 +548,9 @@ test("words a slot draws run into the words around the slot", () => {
 
 test("a selection in nested slots keeps exactly the rendered words it covers", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-nested-slots" },
   });
   document.body.innerHTML =
@@ -596,7 +658,9 @@ test("a selection in an undeclared host that reorders its children keeps its wor
 // A range from any word to any later one covers exactly the reading's words between them.
 test("the reading's words stand in the order a selection is compared in", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-reading-order" },
   });
   const nodes = (html) => {
@@ -679,7 +743,7 @@ test("a selection's words are found from its ends, not by asking every word", ()
 
 test("a declared label inside chrome is read down to its last word", () => {
   document.body.innerHTML =
-    '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said="tab"><b>Tab</b> label</span></div>';
+    '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said><b>Tab</b> label</span></div>';
   assert.match(pageText().raw, /Tab.*label/s);
 });
 
@@ -756,7 +820,9 @@ test("telling a quote's copies apart reads only around them", () => {
 // those a change came near.
 test("a kept quote answers each change as a fresh pass over the page does", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "quote-index" },
   });
   document.body.innerHTML =

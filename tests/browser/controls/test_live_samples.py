@@ -24,7 +24,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 # The focus ring's colour, as the page computes it.
 ACCENT = """() => {
   const probe = document.body.appendChild(document.createElement("i"));
-  probe.style.color = "var(--accent)";
+  probe.style.color = "var(--lf-accent)";
   const color = getComputedStyle(probe).color;
   probe.remove();
   return color;
@@ -34,12 +34,12 @@ ACCENT = """() => {
 REPLY_SAMPLE = """<lf-sample id="reply-practice" label="Practice in a reply">
   <template id="reply-practice-source" data-sample>
     <h1 id="reply-child-heading">Practice from a reply</h1>
-    <lf-ask id="reply-child-ask"><h2>Which approach?</h2>
-      <lf-options id="reply-child-options" choose>
+    <lf-group id="reply-child-ask" label="Which approach?"><h2 id="reply-child-ask-h">Which approach?</h2>
+      <lf-options id="reply-child-options">
         <lf-option id="reply-child-a">First approach</lf-option>
         <lf-option id="reply-child-b">Second approach</lf-option>
       </lf-options>
-    </lf-ask>
+    </lf-group>
   </template>
 </lf-sample>"""
 
@@ -57,9 +57,7 @@ def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
             "--done",
             response_reference(serve.page_dir, question),
             "--text",
-            "Try it here:",
-            "--markup",
-            REPLY_SAMPLE,
+            "Try it here:" + "\n\n" + (REPLY_SAMPLE),
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -94,13 +92,13 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
                 """
       <h1>Delivery</h1>
       <lf-sample id="working" interactive label="Working choices">
-        <lf-options id="delivery" choose>
+        <lf-options id="delivery">
           <lf-option id="standard">Standard</lf-option>
           <lf-option id="express">Express</lf-option>
         </lf-options>
       </lf-sample>
       <lf-sample id="quoted" label="Quoted choices">
-        <lf-options id="quoted-delivery" choose>
+        <lf-options id="quoted-delivery">
           <lf-option id="quoted-standard">Standard</lf-option>
         </lf-options>
       </lf-sample>
@@ -109,12 +107,10 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
         ),
     )
     sample = page.locator("#working")
-    # A working sample's note is its label alone; a quoted one opens with "quoted".
-    prefix = """sample => getComputedStyle(
-      sample.querySelector(':scope > [data-lf-said="label"]'), '::before'
-    ).content"""
-    assert sample.evaluate(prefix) == '""'
-    assert page.locator("#quoted").evaluate(prefix) == '"quoted · "'
+    # A working sample wears no note; a quoted one says "quoted".
+    note = "sample => getComputedStyle(sample, '::before').content"
+    assert sample.evaluate(note) == "none"
+    assert page.locator("#quoted").evaluate(note) == '"quoted"'
     expect(sample.locator("iframe")).to_have_count(0)
     expect(page.locator("#quoted").get_by_role("checkbox")).to_have_count(0)
     choice = sample.locator("#express").get_by_role("checkbox")

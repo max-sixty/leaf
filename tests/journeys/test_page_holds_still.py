@@ -166,9 +166,11 @@ def thread_page(serve):
     read = append_agent_reply(
         d, notes, "A short first paragraph.\n\nThe paragraph being read. " + WORDS * 2
     )["id"]
+    # The first two steps take a line each, so with `read` at the reading line the
+    # last message starts inside the window and the reply box below it.
     for n in range(4):
         user(notes, f"And then {n}?")
-        append_agent_reply(d, notes, f"Then step {n}. " + WORDS)
+        append_agent_reply(d, notes, f"Then step {n}. " + (WORDS if n > 1 else ""))
     long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
     user(long, "Show me the lines.")
     lines = append_agent_reply(d, long, LINES)["id"]
@@ -291,9 +293,9 @@ DECISIONS_PAGE = leaf_page(
     + "</section>"
     + "".join(
         f'<section id="ask-{n}"><h2>Part {n}</h2>{paragraphs(n * 3, 2)}'
-        f'<lf-ask id="decide-{n}"><h3>Ask {n}: which way should part {n} go?</h3>'
-        f'<lf-options id="ways-{n}" choose><lf-option id="north-{n}">North</lf-option>'
-        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-ask></section>'
+        f'<lf-group id="decide-{n}" label="Ask {n}: which way should part {n} go?"><h3 id="decide-{n}-h">Ask {n}: which way should part {n} go?</h3>'
+        f'<lf-options id="ways-{n}"><lf-option id="north-{n}">North</lf-option>'
+        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-group></section>'
         for n in range(1, ASKS + 1)
     ),
 )
@@ -490,21 +492,24 @@ def put_pin(page, built):
     page.locator(PIN).first.hover()
 
 
-# The pin the thread the user works in stands at in the margin, by its seat's head.
-JOBS_PIN = '[data-lf-margin-for="jobs"] .lf-margin-marker'
+# Resolve at the head of the thread the user works in. The task seats the thread, so
+# the margin holds no pin for it.
+JOBS_RESOLVE = (
+    '.lf-page-thread[data-lf-thread="$jobs"] button[aria-label="Resolve thread"]'
+)
 
 
-def put_typing_pin(page, built):
-    """Type in the reply box, then rest the pointer on its thread's margin pin, in sight
+def put_typing_on_resolve(page, built):
+    """Type in the reply box, then rest the pointer on its thread's Resolve, in sight
     above it, as a user glancing at the thread does; focus stays in the box."""
     type_in_reply(page, built)
-    pin = page.locator(JOBS_PIN).first
-    assert pin.evaluate(
-        "(pin, box) => pin.getBoundingClientRect().bottom > 0"
-        " && pin.getBoundingClientRect().bottom < box.getBoundingClientRect().top",
+    resolve = page.locator(ids_in(JOBS_RESOLVE, built))
+    assert resolve.evaluate(
+        "(resolve, box) => resolve.getBoundingClientRect().bottom > 0"
+        " && resolve.getBoundingClientRect().bottom < box.getBoundingClientRect().top",
         page.locator(ids_in(reply_box("jobs"), built)).element_handle(),
-    ), "the pin doesn't stand in sight above the reply box"
-    pin.hover()
+    ), "Resolve doesn't stand in sight above the reply box"
+    resolve.hover()
 
 
 # Over the page's right edge, past the column: its background, no control and no words.
@@ -1009,9 +1014,9 @@ PLACES = [
         {"thread above": "jobs"},
     ),
     Place(
-        "typing-pin",
+        "typing-on-resolve",
         "thread",
-        put_typing_pin,
+        put_typing_on_resolve,
         Found(reply_box("jobs")),
         {"thread above": "jobs"},
     ),
@@ -1723,7 +1728,7 @@ DIFF_READING = (
 )
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
-    "the glide; Chromium held it before #5397"
+    "the glide"
 )
 
 # The cases the runtime fails today, with what each measured: a fix flips one to a
@@ -1758,12 +1763,12 @@ MOVES_ON_MAIN = {
 EMPTY_REPLY = (
     "a card grows down past the empty reply box a send or an opening left the caret "
     "in, 239px, so the answer shows under the words read (thread-preview.js, the "
-    "user's choices of 5 and 9 November 2026)"
+    "user's choices)"
 )
 # News that grows a thread's box may carry its secondary controls from under a resting
 # pointer, while the words the user is writing and their Send stay (browser/AGENTS.md,
 # "News moves what the reader reads only in the thread they are in").
-SECONDARY = " (browser/AGENTS.md, the user's choice of 14 November 2026)"
+SECONDARY = " (browser/AGENTS.md, the user's choice)"
 RESOLVE_IN_PANEL = (
     "the panel's view grows from its top edge for the answer the user waits for and "
     "carries Resolve 216px up from under the pointer resting on it, where a message's "

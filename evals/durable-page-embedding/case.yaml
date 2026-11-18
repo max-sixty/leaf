@@ -1,4 +1,4 @@
-# Added with ordinary-page same-origin framing. Guards durable history and the
+# Covers ordinary-page same-origin framing. Guards durable history and the
 # distinction between a browser origin and a hostname shared by local ports.
 description: durable-page-embedding
 metadata:

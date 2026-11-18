@@ -1,8 +1,6 @@
-# Added after the obligations API audit: task end already settles message
-# obligations, but its help described only to-dos and widget questions. This
-# probe checks using that operation without erasing a separate pending decision.
-# At a9b34d60a, Codex base and head each passed 1/1 after reading their
-# conversation-loop reference: regression coverage, not a measured improvement.
+# Checks settling questions the user answered in chat without erasing a separate
+# pending decision. Since the agent ends such a question by resolving its thread,
+# the rubric asks for that.
 description: settle-conversational-obligations
 metadata:
   purpose: "End questions answered elsewhere or withdrawn, preserving questions still owed."
@@ -24,19 +22,19 @@ vars:
     the staging copy entirely, so the region question no longer applies. Leave the
     production decision for me to make on the page. Update what waits on me."
 
-    Read whatever Leaf instructions you need. The page is unreachable in this
+    The page is unreachable in this
     exercise, so write out the commands you would run and your short closing reply.
 assert:
   - type: llm-rubric
     metric: conversational-settlement
     value: |
-      Pass only if the commands use leaf task end on message:budget-question with
-      outcome done and a detail locating the user's answer in chat, and on
-      message:region-question with outcome dropped and a reason reflecting that
-      staging is cancelled. The page path is ~/.local/state/leaf/pages/deploy-review.
-      Closing threads, editing the page, or merely saying the questions are settled
-      does not replace ending these obligations. It must not forge user-authored
-      replies or conflate the message obligation ids with their thread ids.
+      Pass only if the commands resolve both questions' threads with leaf thread
+      resolve, naming budget-thread or the message budget-question, and
+      region-thread or region-question, on the page
+      ~/.local/state/leaf/pages/deploy-review. A reply in either thread before its
+      resolve, saying how the question ended, is fine. Editing the page or merely
+      saying the questions are settled does not replace resolving them. It must not
+      forge user-authored replies.
   - type: llm-rubric
     metric: preserve-pending-decision
     value: |

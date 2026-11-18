@@ -50,6 +50,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.http import assets_path
 from leaf.registry import storage as registry_storage
 from leaf.runtime_selection import executing, execution_identity, serving_runtime
 from leaf_dev.page_fixtures import package_selection_args
@@ -58,7 +59,8 @@ from leaf_dev.page_fixtures import package_selection_args
 def test_authored_recordings_are_served_with_seekable_captured_bytes(
     server, page_dir, tmp_path
 ):
-    """Author admission, MIME and ranges work before and after revision capture.
+    """Author admission, MIME and ranges work for media a revision names, which
+    answers at the page root.
 
     The author chooses the type; these deliberately arbitrary bytes exercise transport
     independently from codec support, which the browser playback test owns.
@@ -80,51 +82,40 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
     publish(page_dir)
-    captured = revision_root(page_dir, 1)
     for path, mime in paths:
-        for route in (path, captured + path):
-            conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
-            try:
-                for requested, status, expected, content_range in [
-                    (None, 200, data, None),
-                    ("bytes=2-5", 206, data[2:6], "bytes 2-5/10"),
-                ]:
-                    headers = {"Range": requested} if requested else {}
-                    conn.request("GET", route + f"?t={TOKEN}", headers=headers)
-                    answer = conn.getresponse()
-                    assert (answer.status, answer.read()) == (status, expected)
-                    assert answer.getheader("Content-Type") == mime
-                    assert answer.getheader("Accept-Ranges") == "bytes"
-                    assert answer.getheader("Content-Range") == content_range
-                conn.request(
-                    "GET",
-                    route + f"?t={TOKEN}",
-                    headers={"Range": "bytes=2-5", "If-Range": '"other"'},
-                )
+        conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
+        try:
+            for requested, status, expected, content_range in [
+                (None, 200, data, None),
+                ("bytes=2-5", 206, data[2:6], "bytes 2-5/10"),
+            ]:
+                headers = {"Range": requested} if requested else {}
+                conn.request("GET", path + f"?t={TOKEN}", headers=headers)
                 answer = conn.getresponse()
-                assert (answer.status, answer.read()) == (200, data)
-                conn.request(
-                    "HEAD", route + f"?t={TOKEN}", headers={"Range": "bytes=2-5"}
-                )
-                answer = conn.getresponse()
-                assert (
-                    answer.status,
-                    answer.read(),
-                    answer.getheader("Content-Length"),
-                ) == (206, b"", "4")
-                conn.request("GET", route)
-                answer = conn.getresponse()
-                assert answer.status == 401
-                answer.read()
-            finally:
-                conn.close()
-    # Historical media must use its capture even if the page's mutable file changes.
-    path, _ = paths[0]
-    (page_dir / path.lstrip("/")).write_bytes(b"changed")
-    assert fetch(server + captured + path, headers={"Range": "bytes=2-5"}) == (
-        206,
-        data[2:6],
-    )
+                assert (answer.status, answer.read()) == (status, expected)
+                assert answer.getheader("Content-Type") == mime
+                assert answer.getheader("Accept-Ranges") == "bytes"
+                assert answer.getheader("Content-Range") == content_range
+            conn.request(
+                "GET",
+                path + f"?t={TOKEN}",
+                headers={"Range": "bytes=2-5", "If-Range": '"other"'},
+            )
+            answer = conn.getresponse()
+            assert (answer.status, answer.read()) == (200, data)
+            conn.request("HEAD", path + f"?t={TOKEN}", headers={"Range": "bytes=2-5"})
+            answer = conn.getresponse()
+            assert (
+                answer.status,
+                answer.read(),
+                answer.getheader("Content-Length"),
+            ) == (206, b"", "4")
+            conn.request("GET", path)
+            answer = conn.getresponse()
+            assert answer.status == 401
+            answer.read()
+        finally:
+            conn.close()
 
 
 def test_server_round_trip(server, page_dir):
@@ -134,7 +125,7 @@ def test_server_round_trip(server, page_dir):
     source = page_dir / "index.html"
     source.write_text(
         source.read_text()
-        .replace("</section>", registry["lf-board"]["x-example"] + "\n</section>")
+        .replace("</section>", registry["lf-board"]["example"] + "\n</section>")
         .replace(
             "</head>",
             '<style>.probe::before { content: "</head>"; }</style>\n</head>',
@@ -759,7 +750,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     assert not server_rows_model.row_path(neighbor).exists()
 
 
-def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
+def test_pages_lists_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """Both discovery homes supply compact publications of live server owners.
 
     Dead servers stay out; a corrupt neighbor cannot make this page parse its
@@ -802,8 +793,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
 
     for directory in (pages / "live", malformed, scratch):
         server_rows_model.RowPublisher(directory, "fixture-server").refresh()
-    state = json.loads(fetch(f"{server}/api/state")[1])
-    rows = {row["title"]: row for row in state["others"]}
+    rows = {row["title"]: row for row in json.loads(fetch(f"{server}/api/pages")[1])}
     assert list(rows) == [
         "A corrupted page",
         "Malformed stream",
@@ -953,7 +943,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     )
     try:
         assert started.exit_code == 0, started.output
-        assert started.stderr == ""
+        assert "findings" not in json.loads(started.stdout)
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -979,6 +969,65 @@ def test_server_start_names_the_running_payload(page_dir):
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
+
+
+def test_a_start_serves_the_page_with_its_own_leaf(page_dir, persistent_server):
+    """`server start` serves the page with the Leaf that runs it, the one whose
+    `page check` the agent read. A running server this Leaf started is handed back
+    as it is. One another Leaf started, here one whose record names another
+    checkout, is restarted under this Leaf at the same URL, unless this Leaf can't
+    serve the page, which is refused while the other Leaf goes on serving it."""
+    from leaf.registry.storage import LAYER, layer_record
+
+    runner = CliRunner()
+
+    def start():
+        return runner.invoke(
+            cli_model.cli,
+            ["server", "start", "--lifetime", "persistent", str(page_dir)],
+        )
+
+    def running():
+        server = server_model.running_server(page_dir)
+        assert server is not None
+        return server
+
+    def started_by_another_leaf():
+        service = read_record(page_dir / "service.json")
+        another = {**service["runtime"], "path": "/elsewhere/leaf", "commit": "0" * 12}
+        write_record(page_dir / "service.json", {**service, "runtime": another})
+
+    first = persistent_server(page_dir)
+    serving = running()
+    leaf = {key: serving["runtime"][key] for key in ("path", "commit")}
+    try:
+        kept = start()
+        assert kept.exit_code == 0, kept.output
+        assert running()["server_id"] == serving["server_id"]
+
+        started_by_another_leaf()
+        restarted = start()
+        assert restarted.exit_code == 0, restarted.output
+        replaced = running()
+        assert replaced["server_id"] != serving["server_id"]
+        assert json.loads(restarted.stdout)["url"] == serving["url"]
+        assert {key: replaced["runtime"][key] for key in leaf} == leaf
+        first.wait(timeout=STATED_TIMEOUT)
+
+        # A page selecting a package this Leaf doesn't have, as a newer Leaf's might.
+        record = layer_record(page_dir)
+        assert record is not None
+        (page_dir / schema_model.LAYER_FILE).unlink()
+        LAYER.write(
+            page_dir / schema_model.LAYER_FILE, {**record, "packages": ["absent"]}
+        )
+        started_by_another_leaf()
+        refused = start()
+        assert refused.exit_code != 0, refused.output
+        assert "absent" in refused.output
+        assert running()["server_id"] == replaced["server_id"]
+    finally:
+        hosting_model.cmd_stop(page_dir)
 
 
 def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_dir):
@@ -1451,11 +1500,11 @@ def test_a_frozen_preview_keeps_package_bytes_and_addresses_after_reinit(tmp_pat
         '<body><main><p>Frozen</p><template id="practice" data-sample>'
         "<h1>Frozen child</h1><p>Words</p></template></main></body></html>"
     )
-    original = artifact_model.capture_artifact(
-        page, document, registry_storage.load_registry(page)
-    )
+    (page / "index.html").write_bytes(document.data)
+    assert revisioning_model.activate_source(page).revision == 1
+    original = artifact_model.read_artifact(page, 1)
     snapshot = page_snapshot_model.capture_page_snapshot(
-        page, document, 1, url="/", artifact=original, process=False
+        page, document, 1, url="/", process=False
     )
     identity = execution_identity(original)
     frozen_sheet = executing(original).resources["/theme.css"].data
@@ -1469,14 +1518,17 @@ def test_a_frozen_preview_keeps_package_bytes_and_addresses_after_reinit(tmp_pat
     with hosting_model.TemporaryPageServer(
         page, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
-        root = (
-            "/revisions/"
-            + snapshot.revision_names[1].removesuffix(".html")
-            + f"/{identity}"
-        )
+        root = assets_path(identity)
         status, document = fetch(preview.origin + "/")
         assert status == 200
         assert (root + "/theme.css").encode() in document
+        # A live server in the same process serves the same revision under the
+        # replaced copy, at another address, and the preview keeps its own.
+        name = files_model.revision_path(page, 1).name
+        with hosting_model.TemporaryPageServer(page, token=TOKEN) as live:
+            status, served = fetch(f"{live.origin}/revisions/{name}")
+        assert status == 200
+        assert (root + "/theme.css").encode() not in served
         assert fetch(preview.origin + root + "/theme.css") == (200, frozen_sheet)
         status, registry = fetch(preview.origin + root + "/registry.json")
         assert status == 200

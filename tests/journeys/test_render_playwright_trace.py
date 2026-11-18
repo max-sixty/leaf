@@ -3,6 +3,8 @@
 import importlib.util
 import json
 import re
+import time
+from functools import partial
 from html import escape
 from itertools import pairwise
 from pathlib import Path
@@ -18,6 +20,7 @@ from browser.test_render_playwright_trace import (
 from browser.threads import open_panel_thread
 from playwright.sync_api import expect
 from render_harness import (
+    held_frames,
     holding,
     leaf_page,
     open_page,
@@ -29,7 +32,7 @@ from render_harness import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 
@@ -41,7 +44,7 @@ def said_by_marks(scope):
     adds nothing now (null), as a caption with no words, is no mark."""
     scope.evaluate(
         """async (scope) => {
-          const {render} = await window.__lfWidgetApi();
+          const {render} = await window.__lfVendorImport('lit.js');
           for (const mark of scope.querySelectorAll('*')) {
             if (typeof mark.lfPreview !== 'function') continue;
             const said = mark.lfPreview();
@@ -75,6 +78,27 @@ def expect_moment(root, number, label=None):
     expect(
         root.locator('.lf-trace-bookmark[aria-current="true"]')
     ).to_have_accessible_name(re.compile(f"^{name}"))
+
+
+def played_through(widget, press):
+    """Play the recording from `press`, a press on Play, to its end on held frames
+    (`held_frames`), then wait for the page to render.
+
+    Playback keeps time by `performance.now()`. On a host that draws few frames,
+    real-time playback steps over the gaps between captures, and can end before
+    Playwright sees it start. Held, each frame moves the clock one frame's length on,
+    however long the host takes to draw it, so playback stands on the same points on
+    every host."""
+    page = widget.page
+    play = widget.get_by_role("button", name="Play", exact=True)
+    with held_frames(page) as step:
+        press()
+        expect(widget.get_by_role("button", name="Pause", exact=True)).to_be_visible()
+        deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
+        while not play.is_visible():
+            assert time.monotonic() < deadline, "playback never reached its end"
+            step(10)
+    rendered(page)
 
 
 def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
@@ -592,7 +616,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     user.close()
     data_model.cmd_data_set(directory, "release-trace", record)
     exported = tmp_path / "recording.html"
-    exporting_model.cmd_export(directory, exported, None)
+    exporting_model.cmd_export(directory, exported, None, runtime=True)
     offline = browser.new_page()
     offline.goto(exported.as_uri(), wait_until="load")
     wait_until_ready(offline)
@@ -1315,8 +1339,6 @@ def test_trace_page_scrolling_preserves_playback(browser, serve):
 
 def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serve):
     """Playback, empty points and renderer replacement retain the user's inspection."""
-    from render_harness import scroll_settled
-
     source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     # A second recorded tab has no captured calls yet. It still distinguishes
@@ -1447,10 +1469,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
             "() => {inspectionFrames.length = 0; inspectionWindows.length = 0}"
         )
         play = widget.get_by_role("button", name="Play", exact=True)
-        play.tap() if touch else play.click()
-        expect(widget.get_by_role("button", name="Pause", exact=True)).to_be_visible()
-        expect(play).to_be_visible()
-        rendered(user)
+        played_through(widget, play.tap if touch else play.click)
         samples = user.evaluate(
             "() => {watchInspection = false; return inspectionFrames}"
         )
@@ -1511,12 +1530,13 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         tree = widget.locator(".lf-trace-tree")
         summary = tree.locator("summary")
         summary.click()
-        summary.focus()
-        summary.press("PageDown")
-        user.wait_for_function(
-            "document.querySelector('lf-trace .lf-trace-tree').scrollTop > 0"
+        rendered(user)
+        # A page down in the tree, made by script: on a starved host Chromium dropped
+        # the scroll a PageDown on the summary asked for, with no scroll on any box.
+        tree.evaluate(
+            "node => node.scrollBy({top: node.clientHeight, behavior: 'instant'})"
         )
-        scroll_settled(user, ".lf-trace-tree")
+        assert tree.evaluate("node => node.scrollTop") > 0
         rendered(user)
         widget.locator(".lf-trace-phase").scroll_into_view_if_needed()
         rendered(user)
@@ -1527,8 +1547,8 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
           watchInspection = false;
           sampleInspection();
         }""")
-        # Real-time playback can skip a short checkpoint between frames. Visit
-        # both saved trees explicitly so their layout comparison always runs.
+        # Playback can pass a short checkpoint between two frames. Visit both
+        # saved trees explicitly so their layout comparison always runs.
         navigate_at(timeline, 0)
         for phase in ("before", "after"):
             target = f"trace-{archive}-phase-{first['id']}-{phase}"
@@ -1561,10 +1581,9 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
             "(node, point) => node.contains(document.elementFromPoint(...point))",
             [x, y],
         )
-        user.touchscreen.tap(x, y) if touch else user.mouse.click(x, y)
-        expect(widget.get_by_role("button", name="Pause", exact=True)).to_be_visible()
-        expect(play).to_be_visible()
-        rendered(user)
+        played_through(
+            widget, partial(user.touchscreen.tap if touch else user.mouse.click, x, y)
+        )
         expanded = user.evaluate(
             "() => {watchInspection = false; return inspectionTargets}"
         )

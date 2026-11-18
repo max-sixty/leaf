@@ -1,6 +1,10 @@
 /* lf-sample: inline content (quoted by default, interactive on the parent page
- * when declared), or a complete live page authored in a template. The inline modes
- * need no controller; the registry owns their quotation semantics.
+ * when declared), or a complete live page authored in a template. Its `label` is its
+ * name wherever Leaf names it, and nothing draws it: the page introduces a sample in
+ * its own words, and a caption it shows is the author's HTML, such as a `<figure>`'s
+ * `<figcaption>`. The user chose this, as for option and board cards (lf-options.js):
+ * a name Leaf reads is data apart from any title the page shows. The inline modes need
+ * no controller; the registry owns their quotation semantics.
  * The shared host owns the child page and its independent event log. The frame
  * takes its child's height, so the surrounding page scrolls the sample like any
  * other block and focus moves into it the way it moves into any iframe. A `window`
@@ -37,7 +41,7 @@
  * though not a wheel or touch that scrolls past it; a resize after Reset or Return to
  * page, or one of a frame the reader saw as it mounted or as it started, as when a
  * tab, a link or a jump brings it into view, is theirs and applies at once. The user
- * chose on 14 November 2026 to fit a frame they bring into view to its page as soon
+ * chose to fit a frame they bring into view to its page as soon
  * as the page draws, over keeping its placeholder height until they look away or
  * click into it, which left a short page standing in a blank frame. A load that
  * waited on its server arrives as news, held the same way, whoever asked for it:

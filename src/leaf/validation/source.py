@@ -24,6 +24,7 @@ from leaf.revision_artifact import (
     resource_type,
 )
 from leaf.sample_content import initial_sample_events
+from leaf.server import another_leaf_serving
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     placed_thread,
@@ -34,6 +35,8 @@ from leaf.thread_context import (
 from leaf.validation.instances import (
     inert_allocation_advice,
     instance_errors,
+    pane_advice,
+    question_errors,
     reference_errors,
     suggestion_errors,
 )
@@ -41,6 +44,8 @@ from leaf.validation.markup import (
     authored_allocation_errors,
     document_declaration_errors,
     id_errors,
+    language_advice,
+    markdown_advice,
     page_boundary_errors,
     structure_errors,
     unanswered_media,
@@ -116,7 +121,9 @@ def _instance_errors(
     if registry is None:
         return []
     errors = instance_errors(parser, registry)
+    errors.extend(question_errors(parser, registry))
     errors.extend(inert_allocation_advice(parser, registry))
+    errors.extend(pane_advice(parser, registry))
     errors.extend(
         reference_errors(
             parser.lf_elements,
@@ -127,7 +134,7 @@ def _instance_errors(
         )
     )
     errors.extend(suggestion_errors(parser.lf_elements, registry))
-    taken = sorted(parser.ids & thread_structure(events).ids)
+    taken = sorted(parser.ids & thread_structure(events).holders.keys())
     if taken:
         errors.append(Finding("ids-taken-by-messages", values={"ids": taken}))
     return errors
@@ -286,11 +293,12 @@ def moved_threads(
 
 
 def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
-    """The source's non-blocking drift, which `page check` and the first reply on
-    a revision (`thread._revision_advice`) report beside what `check_source` found.
-    It is read apart from the check, which every reply and activation runs, because
-    judging the page's recorded data can take a cold process about 200 ms on a large
-    page."""
+    """What `page check` and the first reply on a revision
+    (`thread._revision_advice`) advise beside what `check_source` found: the
+    source's non-blocking drift, and a live server running another Leaf
+    (`server.another_leaf_serving`). It is read apart from the check, which every
+    reply and activation runs, because judging the page's recorded data can take a
+    cold process about 200 ms on a large page."""
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
     return [
@@ -306,6 +314,9 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
             if "error" in reading
         ),
         *unpointable_blocks(parser),
+        *language_advice(parser),
+        *markdown_advice(parser),
+        *another_leaf_serving(page_dir),
     ]
 
 

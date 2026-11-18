@@ -45,9 +45,8 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     RELEASE_FOCUS,
-    CutOff,
     Traffic,
-    _until,
+    all_pages_offered,
     any_draft_control,
     any_owner_entry,
     expect_panel_says,
@@ -64,6 +63,7 @@ from render_harness import (
     panel_says,
     panel_settled,
     panel_view,
+    refuse,
     resized,
     root_overflow,
     round_trip,
@@ -71,7 +71,6 @@ from render_harness import (
     sending,
     show_resolved,
     stamp_page,
-    told,
     write,
 )
 
@@ -147,8 +146,8 @@ def _sample_containment_page():
    {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
     "text":"Checking the nested reading region."},
    {"kind":"reply","author":"agent","parent":"question",
-    "text":"The destination is inside the nested reading region.",
-    "markup":"<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
+    "revision":1,
+    "text":"The destination is inside the nested reading region.\\n\\n<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
 </script>
 <script type="module">
   const sample = document.querySelector('#practice');
@@ -180,32 +179,33 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-old>Keep the broad sweep.</lf-old>
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
-<lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
-<lf-options id="stable-options" choose>
+<lf-group id="stable-options-decision" label="Which control should stay?"><h2 id="stable-options-decision-h">Which control should stay?</h2>
+<lf-options id="stable-options">
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
 </lf-tabs>
 
-<lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
+<lf-group id="stable-playground-decision" label="How should the release card look?"><h2 id="stable-playground-decision-h">How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
-  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-    value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
-  </lf-playground-control>
-  <lf-playground-preview id="stable-playground-preview">
+  <aside>
+    <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
+    <fieldset id="tone"><legend>Tone</legend>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
+    </fieldset>
+  </aside>
+  <div id="stable-playground-preview">
     <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
-  </lf-playground-preview>
+  </div>
   <lf-playground-output id="stable-playground-instruction">Use a
-    <lf-playground-value for="radius"></lf-playground-value> corner radius and a
-    <lf-playground-value for="tone"></lf-playground-value> tone.
+    <output for="radius"></output>px corner radius and a
+    <output for="tone"></output> tone.
   </lf-playground-output>
-</lf-playground></lf-ask>
+</lf-playground></lf-group>
 <lf-diff id="stable-diff"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -273,9 +273,7 @@ CONTROL_ARCHETYPES = (
 
 # The layer's focus floor (surfaces.css), which rings every box holding visible focus
 # where no carrier wears the ring for it: the panel's own controls and rows among them.
-FLOOR_RING = (
-    "[data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])"
-)
+FLOOR_RING = "[data-lf-focus-visible]:not([data-lf-projected-mark], [data-lf-projected-location])"
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served
@@ -300,7 +298,12 @@ RING_CASES = (
                 (".lf-grip", FLOOR_RING),
                 (".lf-fp-leaf", FLOOR_RING),
                 (".lf-fp-on-user", FLOOR_RING),
-                (".lf-fp-field leaf-text", ".lf-fp-field .lf-compose-field"),
+                # The field's slot wears the ring, so Send in the editor's corner
+                # stays put (floating-panel.css).
+                (
+                    ".lf-fp-field leaf-text",
+                    "[data-lf-control-focus-visible] > .lf-fp-field",
+                ),
             ),
             "feature-gallery": (
                 (".lf-tab-btn", ".lf-tab-btn"),
@@ -314,12 +317,15 @@ RING_CASES = (
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
-            # Working density, where a choice's gap is narrowest beside the next face.
-            "notification-playground": (
+            # The rail's working density, where a choice's gap is narrowest beside the
+            # next face, and a candidate's radio in its card: each is the page's own
+            # label, which wears the plain choice face's ring (page-controls.css).
+            "notification-playground": tuple(
                 (
-                    "lf-playground input[type=radio]",
-                    ".lf-choice[data-lf-control-focus-visible]",
-                ),
+                    f"#{field} input[type=radio]",
+                    ":not([data-lf-offer]))[data-lf-control-focus-visible]",
+                )
+                for field in ("tone", "format")
             ),
             "pr-walkthrough": (
                 ("#pr-path-tree > summary", "[data-lf-mark]"),
@@ -750,17 +756,17 @@ AIM_PAGE = leaf_page(
   <lf-tab id="aim-first" label="First">
     <lf-board id="aim-board">
       <lf-column id="aim-todo" label="Todo">
-        <lf-card id="aim-card"><strong>Heated perch</strong></lf-card>
-        <lf-card id="aim-other"><strong>Squirrel baffle</strong></lf-card>
+        <lf-card id="aim-card" label="Heated perch"><strong>Heated perch</strong></lf-card>
+        <lf-card id="aim-other" label="Squirrel baffle"><strong>Squirrel baffle</strong></lf-card>
       </lf-column>
       <lf-column id="aim-done" label="Done"></lf-column>
     </lf-board>
-    <lf-ask id="aim-ask"><h2>Which jobs?</h2>
-      <lf-options id="aim-jobs" choose multiple>
+    <lf-group id="aim-ask" label="Which jobs?"><h2 id="aim-ask-h">Which jobs?</h2>
+      <lf-options id="aim-jobs" multiple>
         <lf-option id="aim-mounts">Replace the mounts</lf-option>
         <lf-option id="aim-bath">Heat the bird bath</lf-option>
       </lf-options>
-    </lf-ask>
+    </lf-group>
     <p>Start at <lf-suggestion id="aim-change"><lf-old>nine.</lf-old><lf-new>ten.</lf-new>
     </lf-suggestion></p>
   </lf-tab>
@@ -873,7 +879,8 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     anchored = views["you"].locator(".lf-margin-preview")
     expect(anchored).to_be_visible()
     expect(anchored).to_have_attribute(
-        "aria-label", "Thread for Agenda and room photo."
+        "aria-label",
+        re.compile(r"^Thread for § paragraph · Agenda and room photo\. Practice"),
     )
     expect(anchored.locator(".lf-msg")).to_have_count(3)
     expect(anchored.locator("leaf-text")).to_be_visible()
@@ -1090,6 +1097,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
     second_url, _ = live_leaf("second", "Middle leaf")
     _, other_dir = live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -1099,7 +1107,6 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
     page.evaluate("window.focusedLeaf = document.activeElement")
 
     live_leaf("first", "A first leaf")
-    told(page)
     expect(rows).to_have_count(3)
     expect(rows.nth(2).locator(".lf-fp-label")).to_have_text("The other leaf")
     assert page.evaluate(
@@ -1107,7 +1114,6 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
     )
 
     declare(other_dir, "idle")
-    told(page)
     expect(rows).to_have_count(2)
     expect(rows.nth(1).locator(".lf-fp-label")).to_have_text("Middle leaf")
     assert page.locator(LEAVES).evaluate(
@@ -1181,7 +1187,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page = open_page(browser, url)
     resized(page, width, 900)
     page.emulate_media(color_scheme=color_scheme)
-    told(page, until=lambda state: bool(state["others"]))
+    all_pages_offered(page)
 
     def sweep(where):
         violations, report = serious_axe_violations(page)
@@ -1456,6 +1462,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 row.focus()
                 page.keyboard.press("Enter")
         page_at_rest(page)
+        all_pages_offered(page)
 
         for scope, keys, cases in RING_CASES:
             if (samples := cases.get(name)) is None:
@@ -1624,8 +1631,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     # above, and every reading that credits a ring an ancestor wears, rest on telling a
     # ring rule from a contour that paints the same pixels.
     assert not undrawn, (
-        "the corpus paints a focus ring on boxes no rule draws with --focus-ring or "
-        "--focus-shadow, so no reading can tell it from pointer feedback: "
+        "the corpus paints a focus ring on boxes no rule draws with --lf-focus-ring or "
+        "--lf-focus-shadow, so no reading can tell it from pointer feedback: "
         + ", ".join(sorted(undrawn))
     )
 
@@ -1636,7 +1643,7 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
 ):
     """A press the user cannot land on is a capability the page does not have.
 
-    Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
+    Measured before --lf-aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction chips stood at 20 and 22 pixels tall, the old banner's page preview at 23, and a
     version's Compare, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,
@@ -1734,6 +1741,7 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -2532,6 +2540,7 @@ def test_all_pages_opens_a_neighbour_in_a_tab_of_its_own(
         cwd=str(tmp_path / "self-work"),
     )
     page = open_page(browser, url, context=one_user)
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -2564,6 +2573,7 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     back to the drawer."""
     old_url, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -2572,15 +2582,10 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     row.focus()
     page.evaluate("window.focusedLeaf = document.activeElement")
 
-    # The page hears nothing from the old server stopping until the new one has
-    # published its row, so its next reading moves the neighbour from one address to
-    # the other.
-    reads = CutOff().hold(page)
-    _until(
-        page,
-        lambda traffic: traffic.asked == traffic.heard,
-        "heard every state read it asked before the cut",
-    )
+    # The page hears nothing of other pages from the old server stopping until the new
+    # one has published its row: its news looks are refused meanwhile, so the next
+    # list it reads moves the neighbour from one address to the other.
+    page.route("**/api/news*", refuse)
     # The recovery a taken port's refusal names: with the service record deleted, the
     # restarted server derives its address again, and binds past the port still taken.
     hosting_model.cmd_stop(other_dir)
@@ -2595,13 +2600,8 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
         lambda urls: [url.split("?")[0] for url in urls] == [new_url],
         failure="the restarted neighbour never published its row",
     )
-    reads.restore()
-    told(
-        page,
-        until=lambda state: (
-            [entry["url"].split("?")[0] for entry in state["others"]] == [new_url]
-        ),
-    )
+    page.unroute("**/api/news*", refuse)
+    expect(row).to_have_attribute("href", re.compile(rf"^{re.escape(new_url)}\?t="))
 
     destination = row.get_attribute("href")
     assert destination is not None and destination.startswith(f"{new_url}?t=")

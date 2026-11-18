@@ -75,10 +75,7 @@ profiled run and durations from one without.
 --browser firefox measures Playwright's Firefox, on macOS, and reads only `cpu`.
 Firefox offers no count of its tasks, so there an input's CPU is the page's main
 thread's as the OS counts it (`ContentClock`), the clock Chromium's thread ticks read.
-Over the same windows in Chromium on 2026-11-05, the OS's count was at most 0.7 ms per
-input above the ticks. Driven alike through geckodriver that day, the Firefox 159 on
-this Mac read about 10% below Playwright's build, Firefox 157, with the same functions
-on top. To name what took Firefox's time, run under the Gecko profiler's variables;
+To name what took Firefox's time, run under the Gecko profiler's variables;
 the browser writes a profile of the whole run as it closes, which
 <https://profiler.firefox.com> reads, and its samples' `threadCPUDelta` sum to the
 OS's count:
@@ -89,10 +86,9 @@ OS's count:
 
 CPU time spreads less than elapsed time on a loaded host, and each exponent compares
 sizes within one run. `event`, `painted`, `answered` and `shown` are elapsed time, which
-a busy host stretches, and so does a run held to the efficiency cores: on 2026-11-05
-`taskpolicy -c utility` read a click's `shown` at 110 to 170 ms on pages the default
-policy showed in 30 to 35. The daily CI run measures the generated pages and charts
-their readings (`.github/workflows/ci.yaml`, `bench`).
+a busy host stretches, and so does a run held to the efficiency cores, as
+`taskpolicy -c utility` holds it. The daily CI run measures the generated pages and
+charts their readings (`.github/workflows/ci.yaml`, `bench`).
 """
 
 import ctypes
@@ -189,9 +185,9 @@ FITTED = 3
 # Where a reading grows by less than its floor above BASE, what little it grew is the
 # host's noise, and its exponent leaves that size out. A floor is a share of the BASE
 # page's load CPU from the same run. A slower machine slows that reading as much as
-# every other, so it fits the same sizes to the same exponent. With the BASE page
-# loading in 150-210 ms on an unloaded M5 Max, the shares put a floor near 10 ms of
-# CPU and near 50 ms of elapsed time. Sizes and counts no machine's speed changes have
+# every other, so it fits the same sizes to the same exponent. Where the BASE page
+# loads in about 200 ms, the shares put a floor near 10 ms of CPU and near 50 ms of
+# elapsed time. Sizes and counts no machine's speed changes have
 # floors of their own.
 FLOOR_SHARES = {"cpu": 0.05, "elapsed": 0.25}
 COUNT_FLOORS = {"KB": 10, "requests": 1}
@@ -199,8 +195,7 @@ COUNT_FLOORS = {"KB": 10, "requests": 1}
 # path's is its own (`server_paths.floors`), and a held count's is at least one. A
 # keystroke's CPU is a few ms, less than the load's share, so a floor from the load
 # would hide its doubling, and a POST's 4 KB answer growing to 20 KB stays under the
-# fixed 10 KB. In the daily runs of 2026-11-12 to 14, an input's CPU differed between
-# two rounds by a median of 4%, and by 18% at the 90th percentile.
+# fixed 10 KB.
 HELD_FLOOR_SHARE = 0.25
 # Root `AGENTS.md`, "Responsiveness": a gesture shows the server's reading within this
 # many ms on the largest page.
@@ -233,9 +228,8 @@ THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
     f"Earlier conversation paragraph {line + 1}." for line in range(20)
 )
 # The steps each of `side_documents`' sources holds, two lines a step: a few percent of
-# one of #4781's 4 MB documents, long enough that a walk of every document's rows on
-# each tab opened (#5996) shows at 256, and short enough to keep the daily run to
-# minutes.
+# a 4 MB document, long enough that a walk of every document's rows on each tab
+# opened shows at 256, and short enough to keep the daily run to minutes.
 DOCUMENT_STEPS = 1024
 # A word every line of `steps` holds, which `matches` searches for.
 WORD = "value"
@@ -284,6 +278,28 @@ TAB_CONTROL = """(panel) => {
   const box = control.getBoundingClientRect();
   return [box.x + box.width / 2, box.y + box.height / 2];
 }"""
+# The centre of the element `selector` names, or null where none shows yet.
+CENTRE = """(selector) => {
+  const node = document.querySelector(selector);
+  if (!node?.checkVisibility()) return null;
+  const box = node.getBoundingClientRect();
+  return [box.x + box.width / 2, box.y + box.height / 2];
+}"""
+# The centres of the page's first two tab controls, the first brought into view.
+TAB_CENTRES = """() => {
+  const controls = [...document.querySelectorAll("[role=tab]")].slice(0, 2);
+  controls[0].scrollIntoView({ block: "nearest" });
+  return controls.map((control) => {
+    const box = control.getBoundingClientRect();
+    return [box.x + box.width / 2, box.y + box.height / 2];
+  });
+}"""
+# The leaf's menu, its Annotations, and Capture area's row there.
+MENU_ROWS = (
+    ".lf-fp-leaf",
+    '.lf-fp-item[data-lf-row="group:annotate"]',
+    '.lf-fp-item[data-lf-row="command:capture.region.open"]',
+)
 # The number of the document `side_documents` shows, in the tab open now.
 SHOWN_DOCUMENT = """() => Number(document
   .querySelector('#docs [role=tab][aria-selected="true"]')
@@ -369,16 +385,16 @@ OWNERS = 6
 
 
 def ask(g: int, options: int = 4) -> str:
-    """Section `g`: a heading, a paragraph and an `lf-ask` of `options` options."""
+    """Section `g`: a heading, a paragraph and a question section of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose multiple>'
+        f'<lf-group id="q{g}" label="Question {g}"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
-            f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
+            f'<lf-option id="o{g}-{i}" label="Option {i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
             for i in range(1, options + 1)
         )
-        + "</lf-options></lf-ask></section>"
+        + "</lf-options></lf-group></section>"
     )
 
 
@@ -412,8 +428,7 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
         return (
             f'<lf-column id="b{b}-{name}" label="{name.title()}">'
             + "".join(
-                f'<lf-card id="b{b}-{name}{j}"><strong>Card {j}</strong> of board {b}.'
-                "</lf-card>"
+                f'<lf-card id="b{b}-{name}{j}" label="Card {j}"><strong>Card {j}</strong> of board {b}.</lf-card>'
                 for j in range(1, count + 1)
             )
             + "</lf-column>"
@@ -435,9 +450,9 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     sections = "".join(
         f'<section id="s{g}"><h2>Section {g}</h2>'
@@ -462,13 +477,14 @@ def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     document = (
-        '<lf-text-document id="listing" label="steps.py" language="python">'
-        f"<pre>{steps(n * 32)}</pre></lf-text-document>"
+        '<lf-text-document id="listing" label="steps.py">'
+        f'<pre><code class="language-python">{steps(n * 32)}</code></pre>'
+        "</lf-text-document>"
     )
     return page("Document", question + document)
 
@@ -476,12 +492,12 @@ def document_lines(n: int) -> str:
 def documents(n: int) -> int:
     """How many documents `side_documents(n)` holds: the one shown, one in a closed
     tab for each eight of `n`, and one more, so the BASE page has the two closed tabs
-    `reveal` opens and 256 holds about #4781's thirty."""
+    `reveal` opens and 256 holds about thirty."""
     return 2 + n // 8
 
 
 def side_documents(n: int) -> str:
-    """#4781's page: a side list of tabs, each holding a text document bound to a
+    """A page of a side list of tabs, each holding a text document bound to a
     source of its own (`document_sources`), the first tab's shown and the rest closed.
     The documents grow in number and each stays as long, so a cost that grows with
     the documents the page holds, such as every source sent on a write to one
@@ -491,11 +507,22 @@ def side_documents(n: int) -> str:
     reads."""
     tabs = "".join(
         f'<lf-tab id="t{d}" label="Document {d}"><lf-text-document id="d{d}" '
-        f'source="s{d}" label="document_{d}.py" language="python"></lf-text-document>'
+        f'source="s{d}" label="document_{d}.py" class="language-python"></lf-text-document>'
         "</lf-tab>"
         for d in range(documents(n))
     )
     return page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+
+
+def side_asks(n: int) -> str:
+    """A side list of `n` tabs, each holding one section's ask, so each tab marks the
+    state of the obligation its panel holds. A click on an option redraws every tab's
+    mark, so the CPU of that click reads what counting each panel's obligations costs
+    (#5722)."""
+    tabs = "".join(
+        f'<lf-tab id="t{g}" label="Tab {g}">{ask(g)}</lf-tab>' for g in range(1, n + 1)
+    )
+    return page("Asks", f'<lf-tabs id="tabs" list="side">{tabs}</lf-tabs>')
 
 
 def document_text(d: int, first: str | None = None) -> str:
@@ -516,9 +543,9 @@ def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     rows = "".join(
         f"<tr><td>Row {r}</td><td><code>branch-{r}</code></td><td>{r} days</td>"
@@ -684,6 +711,7 @@ COLLECTIONS: dict[str, Collection] = {
     ),
     "rows": Collection(table_rows),
     "documents": Collection(side_documents, data=document_sources),
+    "asktabs": Collection(side_asks),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
     ),
@@ -971,14 +999,17 @@ class Input(NamedTuple):
     for the input's painted goals where it has them, for the POST's answer where they
     include the server's reading of its event (`delivered`), and then `after` ms. The
     paint pass times it `count` times, each after `ready`, where it `paints`, and a
-    page reads the input only where it holds `needs`. An `agent` input is an agent's
-    write, which reaches the page only in the server's reading. A `whole` input's
-    result is made of the whole page, as a revision's new document or a search's
-    count of its matches is, so what it costs may grow with the page (`held`)."""
+    page reads the input only where it holds `needs`. `leave` follows each `ready` once
+    the windows after it end, to take back a mode `ready` entered, so the inputs after
+    it meet the page as they would without it. An `agent` input is an agent's write,
+    which reaches the page only in the server's reading. A `whole` input's result is
+    made of the whole page, as a revision's new document or a search's count of its
+    matches is, so what it costs may grow with the page (`held`)."""
 
     act: Callable[[Tab], float | None]
     count: int = 1
     ready: Callable[[Tab], Goals] = lambda _: {}
+    leave: Callable[[Tab], None] = lambda _: None
     each: bool = True
     paints: bool = False
     after: float = 0
@@ -1032,6 +1063,13 @@ def tab_step(tab: Tab) -> None:
     tab.page.keyboard.press("Tab" if way > 0 else "Shift+Tab")
 
 
+def walk_step(tab: Tab) -> None:
+    """Step the On Me walk to the next question waiting on the user, or back, from
+    where `halfway` left the reader, so every size walks the same few questions."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("m" if way > 0 else "Shift+m")
+
+
 def halfway(tab: Tab) -> Goals:
     x, y = tab.page.evaluate(HALFWAY, RUN * NOTCH)
     tab.target = {"x": x, "y": y}
@@ -1049,6 +1087,94 @@ def hover_step(tab: Tab) -> None:
     it, as a reader's hand drifts over what they read."""
     lines = sum(WAYS[: tab.sample % len(WAYS) + 1])
     tab.page.mouse.move(tab.target["x"], tab.target["y"] + LINE * lines)
+
+
+def hold_alt(tab: Tab) -> None:
+    """Hold ⌥ down, which arms the page under the pointer, or let it up."""
+    if tab.sample % 2:
+        tab.page.keyboard.up("Alt")
+    else:
+        tab.page.keyboard.down("Alt")
+
+
+def design_key(tab: Tab) -> None:
+    """Enter Design mode, or leave it."""
+    tab.page.keyboard.press("l")
+
+
+def draw_key(tab: Tab) -> None:
+    """Enter Draw mode, or leave it."""
+    tab.page.keyboard.press("w")
+
+
+def enter_design(tab: Tab) -> Goals:
+    """Leave nothing focused, rest the pointer on the first tab control, in view, with
+    its centre and the second's noted (`TAB_CENTRES`), and enter Design mode."""
+    tab.page.evaluate("() => document.activeElement?.blur()")
+    centres = tab.page.evaluate(TAB_CENTRES)
+    tab.target = {"centres": centres}
+    tab.page.mouse.move(*centres[0])
+    design_key(tab)
+    tab.quiet(600)
+    return {}
+
+
+def inspect_step(tab: Tab) -> None:
+    """Move the pointer onto the other of the two tab controls, each a part Design mode
+    names inside the tabs widget, as #4781's reader moved between its side tabs."""
+    tab.page.mouse.move(*tab.target["centres"][(tab.sample + 1) % 2])
+
+
+def open_picker(tab: Tab) -> Goals:
+    """Enter Design mode as `enter_design` does, open the target picker (`s`), and stand
+    its walk on the last hint in view: on `side_documents`' pages, the last tab the side
+    list shows, a part Design mode names inside the tabs widget."""
+    enter_design(tab)
+    tab.page.keyboard.press("s")
+    tab.page.keyboard.press("Shift+Tab")
+    tab.quiet(600)
+    return {}
+
+
+def pick_step(tab: Tab) -> None:
+    """Walk the picker's hints up from the last and back (`WAYS`), each step announcing
+    the hint it reaches, as #4781's reader heard the side tabs."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("Shift+Tab" if way > 0 else "Tab")
+
+
+def leave_picker(tab: Tab) -> None:
+    """Close the target picker, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    design_key(tab)
+
+
+def leave_composer(tab: Tab) -> None:
+    """Close the comment a press in Design mode opened, which holds no words and so
+    leaves no draft, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    tab.page.keyboard.press("Escape")
+
+
+def open_annotations(tab: Tab) -> Goals:
+    """Rest the pointer halfway down the page (`halfway`), then open the leaf's menu at
+    Annotations, so the next press chooses Capture area. The page finds each row
+    (`CENTRE`), as it finds everything on `side_documents`' pages."""
+    halfway(tab)
+    *doors, row = MENU_ROWS
+    for door in doors:
+        tab.page.mouse.click(*until(tab.page, CENTRE, f"{door} never showed", door))
+    tab.target["row"] = until(tab.page, CENTRE, "Capture area never showed", row)
+    tab.quiet(600)
+    return {}
+
+
+def capture_toggle(tab: Tab) -> None:
+    """Choose Capture area from the menu `open_annotations` opened, or leave it."""
+    if tab.sample % 2:
+        tab.page.keyboard.press("Escape")
+    else:
+        tab.page.mouse.click(*tab.target["row"])
 
 
 def aim_at_title(tab: Tab) -> Goals:
@@ -1360,9 +1486,12 @@ def search_word(tab: Tab) -> None:
 # Every input, in the order a pass takes them. Those that open the panel's views or
 # add threads and to-dos to the page come after those on the page's own content, and
 # a selection after any revision, which the runtime holds back while the user's
-# selection stands beside what it changes. Those that open tabs come after every
-# input on the document first shown, and a search before `browse`, since each tab
-# `browse` opens keeps its colour, which every later input would meet.
+# selection stands beside what it changes. Design mode, Draw mode and Capture area are
+# each entered and left with the pointer resting on the page's content, or on the
+# menu row that chose the area, before any input adds a mark or opens a tab. Those
+# that open tabs come after every input on the document first shown, and a search
+# before `browse`, since each tab `browse` opens keeps its colour, which every later
+# input would meet.
 INPUTS: dict[str, Input] = {
     "click": Input(
         press,
@@ -1376,8 +1505,34 @@ INPUTS: dict[str, Input] = {
     "key": Input(type_letter, 20, enter_field, each=False, after=60),
     "leave": Input(leave_field, 4, enter_field, after=200),
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
+    "walk": Input(walk_step, 8, halfway, each=False, after=300, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
     "hover": Input(hover_step, 32, halfway, each=False, after=50),
+    "aim": Input(hold_alt, 8, halfway, each=False, after=100),
+    "design": Input(design_key, 2, halfway, each=False, after=400),
+    "inspect": Input(
+        inspect_step,
+        16,
+        enter_design,
+        leave=design_key,
+        each=False,
+        after=50,
+        needs="[role=tab]",
+    ),
+    "pick": Input(
+        pick_step,
+        16,
+        open_picker,
+        leave=leave_picker,
+        each=False,
+        after=100,
+        needs="[role=tab]",
+    ),
+    "part": Input(
+        press, 4, enter_design, leave=leave_composer, after=400, needs="[role=tab]"
+    ),
+    "draw": Input(draw_key, 2, halfway, each=False, after=400),
+    "capture": Input(capture_toggle, 2, open_annotations, each=False, after=400),
     "data": Input(
         agent_data,
         2,
@@ -1416,9 +1571,15 @@ INPUTS: dict[str, Input] = {
         agent_status, ready=name_status, paints=True, after=300, agent=True
     ),
     "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=DOCUMENTS),
-    "search": Input(open_search, ready=aim_at_search, after=400, needs=DOCUMENTS),
+    "search": Input(
+        open_search, ready=aim_at_search, after=400, needs="lf-text-document"
+    ),
     "matches": Input(
-        search_word, ready=empty_search, after=400, needs=DOCUMENTS, whole=True
+        search_word,
+        ready=empty_search,
+        after=400,
+        needs="lf-text-document",
+        whole=True,
     ),
     "browse": Input(run_step, 16, open_tabs, each=False, after=300, needs=DOCUMENTS),
 }
@@ -1697,6 +1858,10 @@ def per_input(tab: Tab, name: str, timed, idle: float) -> dict[str, float]:
         cpu, elapsed = timed(name, partial(run, samples, after))
         spent += cpu - idle * elapsed
         posts += page.evaluate(EVENT_POSTS)[posted:]
+        if each.each:
+            each.leave(tab)
+    if not each.each:
+        each.leave(tab)
     readings = {f"{name} cpu": spent / each.count}
     if posts:
         readings[f"{name} event"] = statistics.median(post["ms"] for post in posts)
@@ -1741,6 +1906,7 @@ def paint_pass(
                 current.sample = sample
                 goals = each.ready(current)
                 windows.append(measure(current, traffic, name, goals, profiles))
+                each.leave(current)
         # Playwright delivers the browser's reports only while it talks to the page.
         page.evaluate("0")
     return windows, missing
@@ -1816,8 +1982,8 @@ def traced(page: Page, directory: Path, name: str):
     browser = page.context.browser
     assert browser is not None
     recorded = []
-    # The trace starts first: on 2026-11-05 a profile started before it held no
-    # samples in the window the trace's marks bound.
+    # The trace starts first: a profile started before it can hold no samples in the
+    # window the trace's marks bound.
     browser.start_tracing(page=page, path=str(trace), categories=CATEGORIES)
     try:
         with cpu_profile(page, profile):
@@ -2088,10 +2254,7 @@ def exponent(
     ]
     if len(pairs) < max(2, fitted - 1):
         return None
-    mean_x = sum(x for x, _ in pairs) / len(pairs)
-    mean_y = sum(y for _, y in pairs) / len(pairs)
-    spread = sum((x - mean_x) ** 2 for x, _ in pairs)
-    return sum((x - mean_x) * (y - mean_y) for x, y in pairs) / spread
+    return statistics.linear_regression(*zip(*pairs, strict=True)).slope
 
 
 def interleaved[K](rounds: int, keys: Sequence[K]) -> Iterator[tuple[int, K]]:

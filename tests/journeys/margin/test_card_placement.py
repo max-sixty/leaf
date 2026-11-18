@@ -357,7 +357,8 @@ SWEEP_CHROME = 72
 # move it by `where` pixels: over the box that scrolls the row, or with `outer` the box
 # around that one, at a spot where that box takes the wheel, or over the page's margin.
 # A reader's wheel, since Leaf puts back a scroll no input made while a card's thread
-# holds focus.
+# holds focus. Where no spot takes it, `covered` says whether the card stands over the
+# box (`scroll-covers`).
 SWEEP_AIM = """([id, where, outer]) => {
   const row = document.getElementById(id);
   const scrolls = (node) => /auto|scroll/.test(getComputedStyle(node).overflowY);
@@ -379,8 +380,10 @@ SWEEP_AIM = """([id, where, outer]) => {
     'top-near': r.top - frame.top - 14,
     'foot-near': r.top - frame.bottom + 14,
   }[where];
+  let covered = false;
   const takes = (x, y) => {
     const hit = document.elementFromPoint(x, y);
+    if (hit?.closest('.lf-margin-preview')) covered = true;
     if (!hit || hit.closest('.lf-margin-preview, .lf-chrome, .lf-margin-cluster')) return false;
     let at = hit;
     while (at && at !== document.body && !scrolls(at)) at = at.parentElement;
@@ -391,7 +394,7 @@ SWEEP_AIM = """([id, where, outer]) => {
   for (let y = area.top + 6; y < area.bottom - 4; y += 10)
     for (let x = area.left + 8; x < area.right - 4; x += 30)
       if (takes(x, y)) return {box: box?.id ?? null, by, x, y};
-  return {box: box?.id ?? null, by, x: null, y: null};
+  return {box: box?.id ?? null, by, x: null, y: null, covered};
 }"""
 
 
@@ -404,7 +407,9 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
     for the margin rail, the narrowest that opens a card (a narrower one opens the
     thread in the floating panel), through the scrolls that carry the row to the
     window's foot and out of the box that scrolls it, against each rule
-    placement-rules.json says it sweeps."""
+    placement-rules.json says it sweeps. Where the card covers all of that box, the
+    sweep closes it to wheel the box, as `scroll-covers` has the reader do, and opens
+    it again for the next state."""
     assert set(SWEEP_RULE) == SWEEP_REPORTS, (
         "rules name findings the sweep never reports",
         set(SWEEP_RULE) - SWEEP_REPORTS,
@@ -424,20 +429,9 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
     page = open_page(browser, url)
     resized(page, width, 900)
     findings = []
+    card = page.locator(".lf-margin-preview")
 
-    def scrolled(target, where, outer=False):
-        aim = page.evaluate(SWEEP_AIM, [target, where, outer])
-        if aim is None:
-            return None
-        assert aim["x"] is not None, f"no spot takes the wheel for {target}"
-        if abs(aim["by"]) >= 1:
-            page.mouse.move(aim["x"], aim["y"])
-            page.mouse.wheel(0, aim["by"])
-            scroll_settled(page, f"#{aim['box']}" if aim["box"] else None)
-        rendered(page)
-        return aim["box"]
-
-    for target in targets:
+    def opened(target):
         page.evaluate(
             "(id) => document.getElementById(id)"
             ".scrollIntoView({block: 'center', behavior: 'instant'})",
@@ -445,41 +439,82 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
         )
         scrolled(target, "middle")
         page.locator(f'[data-lf-margin-for="{target}"] .lf-margin-marker').click()
-        card = page.locator(".lf-margin-preview")
         expect(card.locator(".lf-msg")).to_have_count(2)
         rendered(page)
-        opened = page.evaluate(SWEEP_READ, target)
+
+    def closed():
+        # A click on the marker lands in the reply (thread/focus.js, `openingPart`);
+        # Escape stands the user on the thread, from which the next takes the card down.
+        expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        expect(card).to_be_hidden()
+
+    # Where the card covers all of the box the wheel is aimed at, the reader closes it
+    # to scroll the box (`scroll-covers`), so `scrolled` does too and says so.
+    covered = object()
+
+    def scrolled(target, where, outer=False):
+        aim = page.evaluate(SWEEP_AIM, [target, where, outer])
+        if aim is None:
+            return None
+        if aim["x"] is None:
+            assert aim["covered"], f"no spot takes the wheel for {target}"
+            closed()
+            scrolled(target, where, outer)
+            return covered
+        if abs(aim["by"]) >= 1:
+            page.mouse.move(aim["x"], aim["y"])
+            page.mouse.wheel(0, aim["by"])
+            scroll_settled(page, f"#{aim['box']}" if aim["box"] else None)
+        rendered(page)
+        return aim["box"]
+
+    def restored(target):
+        """The row back at the middle of its box, with its card open."""
+        if page.evaluate(SWEEP_READ, target) is not None:
+            scrolled(target, "middle")
+        if page.evaluate(SWEEP_READ, target) is None:
+            opened(target)
+
+    for target in targets:
+        opened(target)
+        at_open = page.evaluate(SWEEP_READ, target)
         case = (kind, width, target)
-        findings += [(*case, "open", *f) for f in sweep_findings(opened)]
-        findings += [(*case, "open", *f) for f in sweep_room(opened)]
+        findings += [(*case, "open", *f) for f in sweep_findings(at_open)]
+        findings += [(*case, "open", *f) for f in sweep_room(at_open)]
         boxed = scrolled(target, "middle")
         states = ["low"] + (["top-crossed", "top-gone", "foot-gone"] if boxed else [])
         # The box around the row's own scroller, where the wheel can reach it.
         if (page.evaluate(SWEEP_AIM, [target, 0, True]) or {}).get("x") is not None:
             states.append("outer-top-gone")
         for state in states:
-            scrolled(target, "middle")
+            restored(target)
             if state == "outer-top-gone":
-                scrolled(target, "top-gone", outer=True)
+                moved = scrolled(target, "top-gone", outer=True)
             else:
-                scrolled(target, state)
+                moved = scrolled(target, state)
+            if moved is covered:
+                continue
             read = page.evaluate(SWEEP_READ, target)
             if read is None:
                 findings.append((*case, state, CLOSED))
                 break
             findings += [(*case, state, *f) for f in sweep_findings(read)]
-            if read["side"] != opened["side"]:
+            if read["side"] != at_open["side"]:
                 findings.append(
-                    (*case, state, SIDE_CHANGED, opened["side"], read["side"])
+                    (*case, state, SIDE_CHANGED, at_open["side"], read["side"])
                 )
         # Beside its row, the card moves with it a few pixels at a time as the row
         # crosses the top or the foot of the box that scrolls it.
         for near, step in [("top-near", 4), ("foot-near", -4)] if boxed else []:
-            scrolled(target, "middle")
-            scrolled(target, near)
+            restored(target)
+            if scrolled(target, near) is covered:
+                continue
             before = page.evaluate(SWEEP_READ, target)
             for _ in range(7):
-                scrolled(target, step)
+                if scrolled(target, step) is covered:
+                    break
                 after = page.evaluate(SWEEP_READ, target)
                 if after is None or before is None:
                     findings.append((*case, near, CLOSED))
@@ -487,15 +522,7 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
                 findings += [(*case, near, *f) for f in sweep_motion(before, after)]
                 before = after
         if page.evaluate(SWEEP_READ, target) is not None:
-            # A click on the marker lands in the reply (thread/focus.js,
-            # `openingPart`); Escape stands the user on the thread, from which the
-            # next takes the card down.
-            expect(
-                card.get_by_role("textbox", name="Reply", exact=True)
-            ).to_be_focused()
-            page.keyboard.press("Escape")
-            page.keyboard.press("Escape")
-            expect(card).to_be_hidden()
+            closed()
     assert not findings, sweep_report(findings)
 
 
@@ -580,7 +607,9 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
     expect(preview).to_be_visible()
-    expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
+    expect(preview).to_have_attribute(
+        "aria-label", "Thread for “One reconnect in about 40”"
+    )
     expect(thread.locator(".lf-msg[data-lf-author=user]").first).to_be_visible()
     # The card draws the reply's interactive widgets in place.
     expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()

@@ -300,7 +300,7 @@ export function rankAt({ value, ranks }, container, index, unit) {
 // A reader made by `widgetStateReader` keeps each widget's folded state (`kept.js`)
 // and folds it again only where its authored state or an entry in force on it has
 // changed, so every widget nothing touched keeps the very state it had, and a reader
-// of one, such as a thread holding a frozen widget, can tell it unchanged by identity.
+// of one, such as a thread holding a widget, can tell it unchanged by identity.
 /** @typedef {{state: import("../../types/domain.js").AuthoredWidget["state"], entries: ProjectionEntry[], specs: ReadonlyMap<string, import("../../types/domain.js").ActionSpec>}} FoldedWidget */
 export function widgetStateReader() {
   /** @type {ReturnType<typeof keptReadings<FoldedWidget>>} */

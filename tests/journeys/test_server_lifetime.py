@@ -54,12 +54,8 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     page_dir, tmp_path, spawn, changed
 ):
     """`page init` on a served page restarts its server itself, so the session's
-    `leaf wait` carries on watching it.
-
-    Re-vendoring a served page used to be three commands, and the first,
-    `server stop`, disabled the service: a wait watching the page read that as a
-    page it had lost, and ended. The comment after the re-vendor is the proof: only
-    a wait still watching delivers it.
+    `leaf wait` carries on watching it. The comment after the re-vendor is the
+    proof: only a wait still watching delivers it.
     """
     publish(page_dir)
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
@@ -221,7 +217,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
 
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()
-    (project_layer / "overrides.css").write_text(":root { --accent: red; }\n")
+    (project_layer / "overrides.css").write_text(":root { --lf-accent: red; }\n")
     revendored = CliRunner().invoke(
         cli_model.cli,
         [
@@ -441,10 +437,11 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
 
     refused = start_server_command(page_dir, "--host", "devbox.corp.example")
     assert refused.returncode != 0
-    assert "already serving at" in refused.stderr
-    assert "server stop" in refused.stderr
-    # Nothing on stdout, so a caller reading the URL there reads no URL.
-    assert not refused.stdout.strip()
+    said = json.loads(refused.stdout)
+    assert "already serving at" in said["error"]
+    assert "server stop" in said["error"]
+    # A refusal, so a caller reading the URL there reads no URL.
+    assert "url" not in said
     assert service_model.page_claim(page_dir) is None
 
 

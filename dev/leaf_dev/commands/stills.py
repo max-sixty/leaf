@@ -15,8 +15,6 @@ so only the runtime, theme and server differ between the two stills of a state. 
 (`leaf_dev.arms.own_source`), so changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
 change another state's initial condition.
-Message delivery belongs to thread_journey and test_render_thread_snapshots, whose
-held checkpoints capture a send before its POST completes; a still cannot hold one.
 
 `--viewport`, `--scheme` and `--touch` set the window of every state a run captures;
 a state that names its own window keeps it unless `--viewport` gives another, and

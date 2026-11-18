@@ -54,6 +54,7 @@ import {
   inChrome,
   quotesChanged,
   rangeOf,
+  segmentBounds,
   trackQuotes,
 } from "./passages.js";
 import { under } from "./shadow-tree.js";
@@ -120,19 +121,20 @@ function heldIn(anchor, threads) {
 // A range over each of a passage's segments, which the anchor paint paints: the last
 // reading's own where they still stand where this reading resolved the passage, so a
 // reading that moves nothing keeps the ranges the anchor paint painted and indexed.
-/** @param {Placement | undefined} was @param {readonly import("./passages.js").Segment[]} segments */
+/** @param {ResolvedTarget | null | undefined} was @param {readonly import("./passages.js").Segment[]} segments */
 function liveRanges(was, segments) {
   const ranges = was?.kind === "passage" ? was.ranges : undefined;
   const stand =
     ranges?.length === segments.length &&
     ranges.every((range, at) => {
       const segment = segments[at];
+      if (segment === undefined) return false;
+      const [startNode, startOffset, endNode, endOffset] = segmentBounds(segment);
       return (
-        segment !== undefined &&
-        range.startContainer === segment.node &&
-        range.startOffset === segment.start &&
-        range.endContainer === segment.node &&
-        range.endOffset === segment.end
+        range.startContainer === startNode &&
+        range.startOffset === startOffset &&
+        range.endContainer === endNode &&
+        range.endOffset === endOffset
       );
     });
   return stand && ranges ? ranges : segments.map((segment) => rangeOf([segment]));
@@ -171,6 +173,10 @@ export function createAnchorPlacement() {
   let stale = false;
   // The version of the page's index of quotes placement last read changes up to.
   let seen = 0;
+  // A count of changes to the threads' placements, moved as soon as one changes. The
+  // version signal moves only when those who hear are told, which for a read inside a
+  // script waits until after it (`settle`).
+  let placements = 0;
   /** @type {Set<string>} */
   const renamedIds = new Set();
   /** @type {Set<Element>} */
@@ -233,6 +239,17 @@ export function createAnchorPlacement() {
     });
   }
 
+  // The draft's anchor as it resolves now, a passage over the ranges `was` had where
+  // they still stand, as a thread's is (`place`), so the anchor paint marks the draft's
+  // words from ranges a reading that moves nothing keeps, as it marks a thread's.
+  /** @param {ReturnType<typeof resolveAnchor>} was */
+  function placePending(was) {
+    const resolved = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
+    if (resolved?.kind === "passage")
+      resolved.ranges = liveRanges(was, resolved.segments);
+    return resolved;
+  }
+
   /** @param {{threads: readonly Thread[], draft: ThreadDraft, actionAnchor: Anchor | null}} options */
   function read({ threads: all, draft, actionAnchor }) {
     if (!anchoringIsReady()) return null;
@@ -279,7 +296,7 @@ export function createAnchorPlacement() {
           pointWords: point.words,
         });
     }
-    const resolvedDraft = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
+    const resolvedDraft = placePending(pendingPlaced);
     pendingPlaced = resolvedDraft;
     note(DRAFT, resolvedDraft, true);
     const active = draft.open ? null : actionAnchor;
@@ -292,8 +309,10 @@ export function createAnchorPlacement() {
     if (
       before.size !== placed.size ||
       [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))
-    )
+    ) {
+      placements += 1;
       tick(version);
+    }
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
   // Bring placement to the page as it is now, the changes the watcher hasn't delivered
@@ -328,7 +347,7 @@ export function createAnchorPlacement() {
         if (id === DRAFT) {
           const was = pendingPlaced;
           note(DRAFT, was, false);
-          pendingPlaced = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
+          pendingPlaced = placePending(was);
           note(DRAFT, pendingPlaced, true);
           if (!samePlacement(was ?? undefined, pendingPlaced ?? undefined))
             unheard.add(DRAFT);
@@ -346,7 +365,9 @@ export function createAnchorPlacement() {
         if (placement) placed.set(id, placement);
         else placed.delete(id);
         note(id, placement, true);
-        if (!samePlacement(was, placement)) unheard.add(id);
+        if (samePlacement(was, placement)) continue;
+        unheard.add(id);
+        placements += 1;
       }
       if (unheard.size && !heardNow) afterScript(tell);
     }
@@ -372,6 +393,15 @@ export function createAnchorPlacement() {
       settle(false);
       version.value;
       return id == null ? undefined : placed.get(names.get(id)?.id ?? id);
+    },
+    // Which placement of the threads stands, for a reading derived from it to keep until
+    // this changes, as readings of the page keep theirs against `pageReadingVersion`
+    // (passages.js). A view that reads it while drawing draws again when placement
+    // changes, as one reading `placedAt` does.
+    placementVersion: () => {
+      settle(false);
+      version.value;
+      return placements;
     },
     pendingAt: () => {
       settle(false);

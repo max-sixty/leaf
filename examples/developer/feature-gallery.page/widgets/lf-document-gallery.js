@@ -1,5 +1,6 @@
 // Publish a document through Leaf's shared output binding; the reader owns its views.
-import { html, LeafElement, publishOutput } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement, publishOutput } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-document-gallery",

@@ -1,10 +1,4 @@
 # Guards a widget's readings across removal independently of native resources.
-# One base/head run distinguished teardown/recreation from retained subscriptions.
-# One run per arm retained the three lifecycle passes; only the head passed
-# renderer-owned placement with shared datum provenance (20261006-135659-8dka43l3).
-# The first two rubrics moved from controller.subscribe and watchData to LeafElement's
-# render reads when those routes were deleted, and from this.data and projectData to
-# the bound property and drawn marks when those were.
 description: widget-controller-lifetime
 metadata:
   purpose: A widget keeps its semantic and data readings across removal and reinsertion.
@@ -21,7 +15,7 @@ vars:
     page's history. Those readings must catch up when it returns with whatever
     changed while it was absent.
 
-    Read the public references and use Leaf's supported semantic widget API. The
+    Use Leaf's supported semantic widget API. The
     widget also registers a native window resize listener to measure its local
     inspector; keep that listener active only while the element is connected.
     The external source contains a list of {id, label} build records. Show each label

@@ -18,6 +18,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     owed_answers,
     page_state,
@@ -40,8 +41,9 @@ from leaf.files import revision_path
 from leaf.render_checks import OUTSTANDING
 from leaf.state import session_record
 from leaf_dev import ROOT, startup
+from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.commands.journey import chart as journey_chart
-from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.journey import run as journey_run
 from leaf_dev.commands.site import previews as refresh_previews
 from leaf_dev.commands.site import verify as verify_site
 from leaf_dev.reply_phases import turn_phases
@@ -514,10 +516,10 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         session = SimpleNamespace(context=Context(), url=origin, pause=time.sleep)
         return session, release or "served"
 
-    monkeypatch.setattr(journey, "local_adapter", local)
-    monkeypatch.setattr(journey, "local_worker", worker)
-    monkeypatch.setattr(journey, "headless_shell", browser)
-    monkeypatch.setattr(journey, "website_session", session)
+    monkeypatch.setattr(journey_run, "local_adapter", local)
+    monkeypatch.setattr(journey_run, "local_worker", worker)
+    monkeypatch.setattr(journey_run, "headless_shell", browser)
+    monkeypatch.setattr(journey_run, "website_session", session)
     monkeypatch.setattr(
         journey,
         "run_journey",
@@ -527,7 +529,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         },
     )
     runner = CliRunner()
-    local_result = runner.invoke(journey.journey, ["website-adapter"])
+    local_result = runner.invoke(journey_run.journey, ["website-adapter"])
     assert local_result.exit_code == 0, local_result.output
     sample = json.loads(local_result.stdout)
     [step] = sample.pop("steps")
@@ -542,15 +544,15 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     }
     assert (step["step"], step["comments"]) == ("release", {})
     # A harness's options belong to its harness alone.
-    refused = runner.invoke(journey.journey, ["website-adapter", "--http"])
+    refused = runner.invoke(journey_run.journey, ["website-adapter", "--http"])
     assert refused.exit_code == 2
     assert "a website's journey is its page in a browser" in refused.output
     for target in ("website-adapter", "claude-code", "pi"):
-        refused = runner.invoke(journey.journey, [target, "--preview"])
+        refused = runner.invoke(journey_run.journey, [target, "--preview"])
         assert refused.exit_code == 2
         assert "--preview is an option of the codex targets" in refused.output
     # A remote journey needs no local build: the origin names its release.
-    remote_result = runner.invoke(journey.journey, ["https://leaf-dev.example/"])
+    remote_result = runner.invoke(journey_run.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
     assert {
         key: value
@@ -563,7 +565,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         "version": "served",
     }
     # Through the local Worker the journey holds the container to the built release.
-    worker_result = runner.invoke(journey.journey, ["website-worker"])
+    worker_result = runner.invoke(journey_run.journey, ["website-worker"])
     assert worker_result.exit_code == 0, worker_result.output
     assert lifecycle == ["start", "stop", "worker"]
     # Each journey closes the browser context its session opened.
@@ -859,11 +861,10 @@ def test_a_refused_answer_carries_what_the_server_said_about_it():
 def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     """A hosted turn's pace is the model's, so the wait reads the page's own account.
 
-    `publish-site` failed three deployments in one morning with `agent published but
-    did not reply` — a turn that had edited the page and was still working when the
-    gate's fixed five minutes ran out. The gate now extends its wait only while the
-    page still names an outstanding obligation and a turn on it, so a slow turn is
-    given the time and a settled one ends the wait whatever the clock says.
+    A fixed wait can run out on a turn that has edited the page and is still working.
+    The gate extends its wait only while the page still names an outstanding obligation
+    and a turn on it, so a slow turn is given the time and a settled one ends the wait
+    whatever the clock says.
     """
     comment = append_event(
         page_dir,
@@ -1337,17 +1338,14 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
 
-    `publish-site` deployed release `4ef93dd9…` and then failed on the reload after a
-    healthy turn: `never presented, reaching no startup milestone`. The pages the
-    release pass walks come from the edge and present in about a second, which is what
-    the default bound is for. The reloaded one is answered by a container that has just
-    run a hosted model turn, whose first `/api/state` read costs seconds rather than
-    milliseconds — measured against the live deployment, 123 ms before a turn and
-    2252-3918 ms after one, on the same session and page.
+    The pages the release pass walks come from the edge and can present in about a
+    second, which is what the default bound is for. The reloaded one is answered by a
+    container that has just run a hosted model turn, whose first `/api/state` read can
+    cost seconds rather than milliseconds.
 
     The gate gives the reload that bound both to present and, after presentation, to
-    follow the revision its first read brings back. The second wait is required now that
-    presentation no longer implies the read has answered.
+    follow the revision its first read brings back. The second wait is required because
+    presentation does not imply the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
     recorded = f"Deployment {release[:8]} verified"
@@ -1413,7 +1411,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             SimpleNamespace(monotonic=iter([39.0, 39.5, 40.0, 42.5]).__next__),
         )
         benchmark = run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(container),
                 None,
                 origin="https://leaf.page",
@@ -1509,7 +1507,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     refused = _DeployedPage(recorded, revision=2, presented_at=28444.0, reload_ok=False)
     with pytest.raises(RuntimeError, match="did not reload after its agent turn"):
         run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(_DeployedContainer(release, refused)),
                 release,
                 origin="https://leaf.page",
@@ -1524,7 +1522,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     )
     with pytest.raises(RuntimeError, match="did not finish presenting it"):
         run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(_DeployedContainer(release, pending)),
                 release,
                 origin="https://leaf.page",
@@ -1592,7 +1590,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     )
     with pytest.raises(RuntimeError) as reported:
         run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(_DeployedContainer(release, offline)),
                 release,
                 origin="https://leaf.page",
@@ -1616,7 +1614,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     )
     with pytest.raises(RuntimeError) as named:
         run_browser_journey(
-            journey.website_session(
+            journey_run.website_session(
                 _DeployedSite(_DeployedContainer(release, told)),
                 release,
                 origin="https://leaf.page",
@@ -1634,7 +1632,7 @@ def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(
 ):
     """Run the exact container fixture through its real admission API."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="heat-first" choose>').replace(
+        PAGE.replace(PAGE_GROUP, '<lf-options id="heat-first">').replace(
             'id="backfill-first"', 'id="heat-opt-window"'
         )
     )

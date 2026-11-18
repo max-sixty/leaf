@@ -1,10 +1,7 @@
-# Added with optional summary labels and explicit empty summary text. This measures
-# command selection from the shipped thread instructions, not automatic progress
-# lifecycles or execution of the returned command.
-# Against dd9304c34, each harness scored 0/1 by using the label as summary prose;
-# the head scored 1/1 on each harness with --label and explicit empty --text.
-# Reworded by #2329 (label "Previous progress messages", the reference's own
-# example); at 3fe3eb0af it passed 1/1 on Claude Code.
+# This measures command selection from the shipped thread instructions, not automatic
+# progress lifecycles or execution of the returned command. The failure uses the label
+# as summary prose rather than --label and explicit empty --text. The label is
+# "Previous progress messages", the reference's own example.
 description: thread-fold-without-summary-prose
 metadata:
   purpose: Fold earlier progress messages under a requested label without summary prose, preserving their originals.
@@ -24,8 +21,7 @@ vars:
     progress messages". Do not add retrospective summary prose. Keep both originals
     retrievable and leave the user's request and final answer visible.
 
-    Nothing here can execute writes. Read the relevant Leaf instructions, then
-    reply with the exact one-line CLI command you would run.
+    Nothing here can execute writes, so reply with the exact one-line CLI command you would run.
 assert:
   - type: llm-rubric
     metric: folds-original-messages-without-prose

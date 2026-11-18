@@ -1,17 +1,17 @@
-/* Which section of the contents each open thread, On me item and change counts in
+/* Which section of the contents each open thread, On Me item and change counts in
    (toc-marks.js), and the words a row's link previews them in. How the marks draw, and
    that the widget reads them again as the readings change, is the browser's to show
    (`tests/browser/widgets/test_contents_and_glosses.py`). */
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
 import { drawToc } from "../../packages/default/widgets/toc-view.js";
 import { marksWords, sectionMarks } from "../../packages/default/widgets/toc-marks.js";
 
 // The contents of `markup` as lf-toc lists them, and each section's marks, by the words
 // of the heading leading it ("" for an untitled start), from threads about the elements
-// `threads` names (`{id, resolved}`), On me items at the widgets `onMe` names, and
+// `threads` names (`{id, resolved}`), On Me items at the widgets `onMe` names, and
 // changes over the blocks each of `changes` names, or a removal whose gap stands
 // `before`, `after` or `in` the element `at` names.
 /** @param {string} markup
@@ -151,14 +151,14 @@ test("a thread about a whole question or card counts in the row of the heading t
   assert.deepEqual(
     marked(
       `<h1>Plan</h1><p id="lede">Why.</p>
-      <section id="decision"><lf-ask id="ask">
+      <section id="decision"><section id="ask">
         <hgroup id="ask-title"><p>Decision 1</p><h2>Which store?</h2></hgroup>
         <p id="ask-context">Two stores fit.</p>
-      </lf-ask></section>
-      <lf-ask id="bare-ask">
+      </section></section>
+      <section id="bare-ask">
         <hgroup><p>Decision 2</p><h2>Which region?</h2></hgroup>
         <p>One region fits.</p>
-      </lf-ask>
+      </section>
       <h2>Cards</h2>
       <article id="card"><h3>First card</h3><p>Its words.</p></article>`,
       {
@@ -195,10 +195,10 @@ test("what follows a question before the next heading counts in the question's r
   assert.deepEqual(
     marked(
       `<h1>Plan</h1><h2>Context</h2><p>Why.</p>
-      <lf-ask id="ask"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
-        <p>Two fit.</p></lf-ask>
+      <section id="ask"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
+        <p>Two fit.</p></section>
       <p id="after">A note after the question.</p>
-      <section id="s"><lf-ask><h2>Which region?</h2></lf-ask>
+      <section id="s"><section><h2>Which region?</h2></section>
         <h3>Notes</h3><p id="notes">Its words.</p></section>`,
       {
         threads: [{ id: "after" }, { id: "s" }, { id: "notes" }],

@@ -1,6 +1,5 @@
 """What the render pass reads and what it tells. A version the agent hands over is read
-once, one reading at a time on the machine, a failure wakes the agent, and advice goes
-with what next reaches it."""
+once, a failure wakes the agent, and advice goes with what next reaches it."""
 
 import json
 import os
@@ -32,11 +31,9 @@ from leaf import state as state_model
 from leaf.event_log import read_events
 from leaf.files import latest_revision
 from leaf.findings import Finding
-from leaf.leases import release_lease, take_lease
 from leaf.render_gate import handover_pass as handover_pass_model
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
-from leaf.state import state_home
 from leaf.validation.source import check_source
 
 FAILURE: dict[str, Any] = {
@@ -65,7 +62,7 @@ def pass_page(claimed, monkeypatch):
     monkeypatch.setattr(
         handover_pass_model.HandoverPass,
         "_read",
-        lambda self: reads.append(self) or True,
+        lambda self, _digest: reads.append(self),
     )
     return SimpleNamespace(
         dir=claimed, passes=handover_pass_model.HandoverPass(claimed), reads=reads
@@ -228,56 +225,54 @@ def test_a_page_its_agent_closed_has_nobody_to_tell(pass_page):
     assert pass_page.reads == []
 
 
-def test_the_machine_runs_one_reading_at_a_time(pass_page, monkeypatch):
-    """A reading finding another under way reads nothing, and its server asks again."""
-    save(pass_page.dir, "queued")
-    state_model.close_session_turn("s1")
-    lease = take_lease(state_home() / handover_pass_model.LEASE)
-    try:
-        assert handover_pass_model.read_and_tell(pass_page.dir) is False
-    finally:
-        release_lease(lease)
-    asked = []
-    monkeypatch.setattr(
-        handover_pass_model.HandoverPass,
-        "_read",
-        lambda self: asked.append(self) and len(asked) > 1,
-    )
-    pass_page.passes.look()
-    pass_page.passes.look()
-    assert len(asked) == 2
+def test_a_reading_beside_another_of_its_version_tells_nothing_twice(
+    claimed, monkeypatch
+):
+    """A server started again mid-reading may read that version a second time, and a
+    reading taken at another viewport may find otherwise. The first reading to tell
+    tells the version; the other tells nothing."""
+    save(claimed, "read twice")
+    first = checking([FAILURE])
+
+    def beside_another(page_dir, **options):
+        monkeypatch.setattr("leaf.validation.command.check_page", first)
+        handover_pass_model.read_and_tell(page_dir)
+        return checking([ADVICE])(page_dir, **options)
+
+    monkeypatch.setattr("leaf.validation.command.check_page", beside_another)
+    handover_pass_model.read_and_tell(claimed)
+    [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
+    assert [f["text"] for f in event["findings"]] == [FAILURE["text"]]
 
 
-def test_a_server_started_again_mid_reading_reads_nothing_twice(claimed, monkeypatch):
-    """The second reading waits on the first for the lease, then finds it read."""
-    activate_source(claimed)
-    leave_reading(claimed, [FAILURE])
-
-    def read_again(*_args, **_kwargs):
-        raise AssertionError("read a version a reading had read")
-
-    monkeypatch.setattr("leaf.validation.command.check_page", read_again)
-    assert handover_pass_model.read_and_tell(claimed) is True
-    assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
-
-
-def test_a_page_too_heavy_to_read_costs_its_deadline_once(claimed, monkeypatch):
-    """A reading its alarm ended stops its server's pass."""
+def test_a_reading_its_alarm_ended_is_told_as_a_failure_and_costs_it_once(
+    claimed, monkeypatch
+):
+    """A page whose script never stops is told it couldn't be read, its version isn't
+    read again, and its next version is."""
     ran = []
 
     def overran(*args, **_kwargs):
         ran.append(args)
         return subprocess.CompletedProcess(args, -signal.SIGALRM)
 
-    monkeypatch.delenv(handover_pass_model.VARIABLE)
-    monkeypatch.setattr(handover_pass_model, "LOOK_S", 0)
     monkeypatch.setattr(handover_pass_model, "QUIET_S", 0)
     monkeypatch.setattr(handover_pass_model.subprocess, "run", overran)
     state_model.prompt_turn("s1")
-    save(claimed, "heavy")
+    save(claimed, "loops")
     state_model.close_session_turn("s1")
-    handover_pass_model.HandoverPass(claimed).run()
+    handover_pass_model.HandoverPass(claimed).look()
+    handover_pass_model.HandoverPass(claimed).look()
     assert len(ran) == 1
+    [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
+    [finding] = event["findings"]
+    assert finding["severity"] == "error"
+    assert "after 30 minutes" in finding["text"]
+    state_model.prompt_turn("s1")
+    save(claimed, "fixed")
+    state_model.close_session_turn("s1")
+    handover_pass_model.HandoverPass(claimed).look()
+    assert len(ran) == 2
 
 
 def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir):
@@ -389,15 +384,8 @@ def test_only_what_the_last_reading_did_not_hold_is_told(claimed, told):
 def test_a_finding_naming_no_element_is_not_told_again_for_its_measurements(
     claimed, told
 ):
-    """A layout shift's words carry when it started, and a sideways scroll's how far,
-    and neither names an element, so another reading that measures them anew holds
-    nothing the agent hasn't heard."""
-    shift = {
-        "code": "startup-layout-shift",
-        "severity": "advice",
-        "values": {"cls": 0.12, "entries": [{"at": 812.4, "value": 0.12}]},
-        "text": "startup CLS 0.1200 before first settled presentation; …812.4…",
-    }
+    """A sideways scroll's words carry how far it scrolls and names no element, so
+    another reading that measures it anew holds nothing the agent hasn't heard."""
     scrolls = {
         "code": "page-scrolls",
         "severity": "error",
@@ -405,21 +393,14 @@ def test_a_finding_naming_no_element_is_not_told_again_for_its_measurements(
         "values": {"past": 206},
         "text": "at 360–480px wide, the page scrolls sideways by 206px",
     }
-    assert len(told([shift, scrolls])) == 1
-    remeasured = [
-        {
-            **shift,
-            "values": {"cls": 0.12, "entries": [{"at": 905.1, "value": 0.12}]},
-            "text": "startup CLS 0.1200 before first settled presentation; …905.1…",
-        },
-        {
-            **scrolls,
-            "widths": [360, 400],
-            "values": {"past": 190},
-            "text": "at 360–400px wide, the page scrolls sideways by 190px",
-        },
-    ]
-    assert len(told(remeasured)) == 1
+    assert len(told([scrolls])) == 1
+    remeasured = {
+        **scrolls,
+        "widths": [360, 400],
+        "values": {"past": 190},
+        "text": "at 360–400px wide, the page scrolls sideways by 190px",
+    }
+    assert len(told([remeasured])) == 1
 
 
 def test_console_errors_are_told_apart_by_their_words(claimed, told):

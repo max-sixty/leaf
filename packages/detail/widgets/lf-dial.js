@@ -1,21 +1,34 @@
-/* lf-dial: how much of the page to show, from each section's gist to every detail.
+/* lf-dial: how much of the page to show, from the author's gists to every detail.
  *
  * Three depths, each showing all the one before it shows and more, so turning the
  * dial only ever adds or removes text and never swaps one wording for another:
- * Skim shows the headings, the lede and each block the author marked `.gist`; Read
- * shows the page as written; Everything also opens every closed `details`. Which
- * depth stands is this tab's view of the page, as a tab set's open panel is
+ * Skim shows the lede, each block the author marked `.gist` and the headings above
+ * them; Read shows the page as written; Everything also opens every closed `details`.
+ * Which depth stands is this tab's view of the page, as a tab set's open panel is
  * (`tabStore`): no event records it, and a reload comes back to it. Read is the
  * default, so a page shows as authored until the reader turns the dial.
  *
  * Skim folds the rest with `hidden="until-found"`, so find-in-page, a fragment, the On
  * walk and travel to a comment still reach folded text and open the run holding it
- * (`beforematch`, `lf-reveal`). Folding walks the dial's document (the view or `main`
+ * (`beforematch`). Folding walks the dial's document (the view or `main`
  * holding it, as `lf-toc`'s outline does) and descends only into plain structure that
- * holds a heading or a gist. A Leaf element is folded or kept whole, never entered,
- * since its children are its own. Each run of folded blocks gets a quiet ⋯ after the
- * block it follows, which unfolds that run alone. The dial writes only what it folded:
- * an element already hidden, such as an inactive tab, is never touched, the margin is
+ * holds the lede, a gist or a heading that stands. A heading stands at Skim when a lede
+ * or gist follows it in document order before the next heading of its rank or above,
+ * so a section the author gave no gist folds whole, heading included. Keeping every
+ * heading was rejected: it made Skim a fixed cut of every section, whether or not one
+ * had anything for a skimmer. A Leaf element is folded or kept whole, never entered,
+ * since its children are its own.
+ *
+ * Skim draws one quiet ⋯ for each gap in what it shows, after the block the gap
+ * follows, and pressing it unfolds that gap alone. A gap is every block between two
+ * kept ones in document order, whatever structure holds them, so a section folded whole
+ * joins the folded rest of the section before it, and nested sections fold as flat
+ * ones do. A ⋯ at a section's end and another for the gist-less section after it was
+ * rejected: two marks stood for one gap. A ⋯ whose gap holds a heading previews the
+ * outermost headings in it (`lfPreview`), so a skimmer can tell which sections lie
+ * behind it before pressing. Writing those names on the page was rejected, since Skim
+ * shows only the passages the author chose. The dial writes only what it folded: an
+ * element already hidden, such as an inactive tab, is never touched, the margin is
  * never folded, and leaving Skim takes back exactly the folds and markers it made.
  *
  * Turning the dial keeps the reader's place. The block at the reading line, a quarter
@@ -35,6 +48,7 @@
  * where keeping their place matters. */
 import {
   actionClass,
+  addressableLabel,
   authoredScope,
   focusDestination,
   foldDuration,
@@ -55,12 +69,14 @@ import {
 import "/vendor/webawesome-views.js";
 
 const DEPTHS = [
-  { name: "skim", label: "Skim", title: "Headings and each section's gist" },
+  { name: "skim", label: "Skim", title: "The page's argument and what it asks of you" },
   { name: "read", label: "Read", title: "The page as written" },
   { name: "all", label: "Everything", title: "With every closed detail open" },
 ];
-const HEADING = "h1, h2, h3, h4, h5, h6, hgroup";
-const KEPT = `${HEADING}, .lede, .gist`;
+const RANKED = "h1, h2, h3, h4, h5, h6";
+const HEADING = `${RANKED}, hgroup`;
+// What Skim keeps for its own sake; a heading stands for the ones it heads.
+const SUMMARY = ".lede, .gist";
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
@@ -69,10 +85,56 @@ const MOVING = 120;
 
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
+/** @param {Element} heading */
+const rank = (heading) =>
+  Number(
+    (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
+      7,
+  );
+// Whether a lede or gist follows a heading in `scope`, in document order, before the
+// next heading of its rank or above. Reading past the heading's parent lets a heading
+// inside a `header` or other wrapper head the section it opens.
+/** @param {Element} heading @param {Element} scope */
+const heads = (heading, scope) => {
+  const own = rank(heading);
+  const walker = heading.ownerDocument.createTreeWalker(
+    scope,
+    NodeFilter.SHOW_ELEMENT,
+    (node) =>
+      /** @type {Element} */ (node).matches(STANDS)
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT,
+  );
+  walker.currentNode = heading;
+  // Step past the heading's own content.
+  while (!walker.nextSibling()) if (!walker.parentNode()) return false;
+  /** @type {Node | null} */
+  let node = walker.currentNode;
+  for (; node; node = walker.nextNode()) {
+    const element = /** @type {Element} */ (node);
+    if (element.matches(SUMMARY)) return true;
+    if (element.matches(RANKED) && rank(element) <= own) return false;
+  }
+  return false;
+};
+// The headings in `blocks` that no earlier one among them outranks: the sections a run
+// folds, rather than each of their subsections.
+/** @param {Element[]} blocks */
+const outermost = (blocks) => {
+  const found = [];
+  let top = 7;
+  for (const block of blocks)
+    for (const heading of [block, ...block.querySelectorAll(RANKED)]) {
+      if (!heading.matches(RANKED) || rank(heading) > top) continue;
+      top = rank(heading);
+      found.push(heading);
+    }
+  return found;
+};
 /** @param {Element} node */
 const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
 
-/** @typedef {{container: Element, after: Element | null, blocks: Element[]}} FoldRun */
+/** @typedef {{after: Element | null, blocks: Element[]}} FoldRun */
 
 customElements.define(
   "lf-dial",
@@ -81,8 +143,8 @@ customElements.define(
     #depths = null;
     #depth = "read";
     // Each fold this dial made: the run's marker, mapped to the blocks it folded and
-    // the block they follow (or their container, where nothing kept precedes them).
-    /** @type {Map<HTMLElement, Omit<FoldRun, "container">>} */
+    // the block they follow.
+    /** @type {Map<HTMLElement, FoldRun>} */
     #runs = new Map();
     // The disclosures Everything opened, which leaving it closes again.
     /** @type {Set<HTMLDetailsElement>} */
@@ -216,32 +278,33 @@ customElements.define(
     // Whether a child is kept whole at Skim, and whether the dial descends into it.
     /** @param {Element} child */
     #kept(child) {
-      return child === this || child.matches(KEPT);
+      return (
+        child === this ||
+        child.matches(SUMMARY) ||
+        (child.matches(HEADING) && this.#heads(child))
+      );
     }
     /** @param {Element} child */
     #holds(child) {
       if (isLeafElement(child)) return Boolean(child.querySelector(".gist"));
-      return child.contains(this) || Boolean(child.querySelector(KEPT));
+      return (
+        child.contains(this) ||
+        Boolean(child.querySelector(SUMMARY)) ||
+        [...child.querySelectorAll(HEADING)].some((heading) => this.#heads(heading))
+      );
+    }
+    /** @param {Element} heading */
+    #heads(heading) {
+      const scope = this.#scope;
+      return scope ? heads(heading, scope) : false;
     }
 
-    // The blocks the dial lays out: each child of the document, and the children of
-    // the plain structure it descends into in place of that structure.
+    // The blocks the dial lays out, in document order: each child of the document, and
+    // the children of the plain structure it descends into in place of that structure,
+    // leaving out an element already hidden. A snapshot of each container's children,
+    // since folding puts its markers among them as the walk goes.
     /** @param {Element} container @returns {Generator<Element>} */
     *#blocks(container) {
-      for (const child of container.children) {
-        if (child.matches(STANDS)) continue;
-        if (!this.#kept(child) && !isLeafElement(child) && this.#holds(child))
-          yield* this.#blocks(child);
-        else yield child;
-      }
-    }
-
-    // The runs Skim folds within `container`: each a list of blocks, and the kept block
-    // they follow, or null where nothing kept precedes them.
-    /** @param {Element} container @returns {Generator<FoldRun>} */
-    *#runsIn(container) {
-      /** @type {FoldRun} */
-      let run = { container, after: null, blocks: [] };
       for (const child of [...container.children]) {
         if (child.matches(STANDS)) continue;
         if (
@@ -250,28 +313,30 @@ customElements.define(
           !child.hasAttribute(FOLDED)
         )
           continue;
-        if (this.#kept(child)) {
-          // A heading starts a run of its own; a gist straight after it, or after
-          // another gist, extends what the run follows.
-          if (child.matches(HEADING) || run.blocks.length) {
-            if (run.blocks.length) yield run;
-            run = { container, after: child, blocks: [] };
-          } else run.after = child;
-          continue;
-        }
-        if (this.#holds(child)) {
+        if (!this.#kept(child) && !isLeafElement(child) && this.#holds(child))
+          yield* this.#blocks(child);
+        else yield child;
+      }
+    }
+
+    // The runs Skim folds in `scope`: each the blocks between two it keeps, and the kept
+    // block they follow, or null where nothing kept precedes them. A Leaf element
+    // holding a gist stays whole.
+    /** @param {Element} scope @returns {Generator<FoldRun>} */
+    *#runsIn(scope) {
+      /** @type {FoldRun} */
+      let run = { after: null, blocks: [] };
+      for (const block of this.#blocks(scope)) {
+        if (this.#kept(block) || (isLeafElement(block) && this.#holds(block))) {
           if (run.blocks.length) yield run;
-          if (!isLeafElement(child)) yield* this.#runsIn(child);
-          run = { container, after: child, blocks: [] };
-          continue;
-        }
-        run.blocks.push(child);
+          run = { after: block, blocks: [] };
+        } else run.blocks.push(block);
       }
       if (run.blocks.length) yield run;
     }
 
     /** @param {FoldRun} run @param {AbortSignal} signal */
-    #foldRun({ container, after, blocks }, signal) {
+    #foldRun({ after, blocks }, signal) {
       const marker = offer("div", "lf-dial-more");
       const button = offerAction("symbol", "lf-dial-unfold", "Show the rest", {
         action: "more",
@@ -279,8 +344,20 @@ customElements.define(
       button.addEventListener("click", () =>
         this.#unfoldRun(marker, { pressed: true }),
       );
+      button.lfPreview = () => {
+        const names = outermost(blocks).map(addressableLabel).filter(Boolean);
+        return names.length
+          ? {
+              list: {
+                items: names,
+                more: (/** @type {number} */ count) => `and ${count} more`,
+              },
+            }
+          : null;
+      };
       marker.append(button);
-      move(container, marker, blocks[0]);
+      const [first] = blocks;
+      if (first?.parentElement) move(first.parentElement, marker, first);
       for (const block of blocks) {
         block.setAttribute(FOLDED, "");
         block.setAttribute("hidden", "until-found");
@@ -288,7 +365,6 @@ customElements.define(
         block.addEventListener("beforematch", () => this.#unfoldRun(marker), {
           signal,
         });
-        block.addEventListener("lf-reveal", () => this.#unfoldRun(marker), { signal });
       }
       this.#runs.set(marker, { after, blocks });
     }
@@ -321,7 +397,7 @@ customElements.define(
       /** @type {Map<Element, Element>} */
       const owner = new Map();
       for (const run of this.#runsIn(scope))
-        for (const block of run.blocks) owner.set(block, run.after ?? run.container);
+        for (const block of run.blocks) owner.set(block, run.after ?? scope);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
       // The block holding the words at the line, since a fold replaces whole blocks:
       // its gist lands where the block's top stood, line for line. A block that began

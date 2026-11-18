@@ -1,5 +1,5 @@
-# Added for the 2026-10-02 actual-view context capability. This case asks about
-# the shipped reading, without supplying its fields or a preferred layout.
+# Covers the actual-view context capability. This case asks about the shipped
+# reading, without supplying its fields or a preferred layout.
 description: user-view-context
 metadata:
   purpose: "Handoff: explains the available actual browser context while leaving composition to its author."
@@ -15,7 +15,6 @@ vars:
     user may have two visible browser windows, and you have revised the report
     since the first handover. Do not invent an observed width.
 
-    Use the leaf skill and read the instructions that own this workflow.
     Only Skill and Read run here; write the requested answer in your reply.
 assert:
   - type: llm-rubric

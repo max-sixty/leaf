@@ -1,6 +1,6 @@
 /* Immutable obligation selections from the application publisher.
 
-   Python folds the page and frozen-thread obligation readings under the page transaction
+   Python folds the page and thread-markup obligation readings under the page transaction
    that answers each state read, and the publisher carries them; nothing here or under
    the publisher folds those declarations again. This module is only the public
    selection boundary. DOM resolution belongs to the views that need controls, words,
@@ -15,7 +15,7 @@ export const readObligations = readPart((root) => root.effective.obligations);
 /** @param {import("../framework/application.js").ObligationRecord | null | undefined} obligation */
 export const obligationEntry = (obligation) =>
   obligation?.source.kind === "widget"
-    ? registry[obligation.source.tag]?.["x-awaits"]
+    ? registry[obligation.source.tag]?.awaits
     : undefined;
 // An agent message's obligation is answered in words: in its thread, it reads and is
 // answered as a message.

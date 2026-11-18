@@ -1,19 +1,9 @@
-# From `leaf-dev journey run codex` (2026-10): on a stamped page, Codex read "Operate"
-# step 3 ("Quick pages and records") as owed before each reply and ran the render
-# check, a review and a stamp before answering a heading edit (reply 65-125 s);
-# Claude Code ran only `page check` (~8 s). The change scopes a record's render
-# check, reading and stamp to checkpoints the user names. Base at bff833ee2 rendered
-# and stamped before the reply on both harnesses (0 of 3 each); the change replied
-# after `page check` and stamped at sign-off (3 of 3 each). Against base bb97a2801,
-# after the skill's core principles landed, the scores held: base 0 of 3 and the
-# change 3 of 3 on each harness, and the final wording 2 of 2. Base fails the
-# sign-off criterion only because it already stamped before the first reply. The
-# split of step 3 into "Check the page" and "Review and stamp a record" held it:
-# base 96100077f and the split each scored 3 of 3 on both harnesses and metrics.
-# Then the reply became the revision's only check (2026-10-20), and the first
-# criterion fails any `page check` in the first turn. Base 124fb8de2 ran one before
-# the reply in 5 of 5 Claude Code and 2 of 2 Codex samples; the change ran none in
-# 5 of 5 and 2 of 2, and kept the render check and stamp at sign-off throughout.
+# In a `leaf-dev journey run codex`, on a stamped page, Codex read "Operate" step 3
+# ("Quick pages and records") as owed before each reply and ran the render check, a
+# review and a stamp before answering a heading edit, slowing the reply. A record's
+# render check, reading and stamp are scoped to checkpoints the user names, and the
+# reply is the revision's only check, so the first criterion fails any `page check`
+# in the first turn.
 description: record-reply-before-its-stamp
 metadata:
   purpose:
@@ -37,7 +27,7 @@ vars:
     in the same thread: "That's right now. I'm done with this page, thanks." Its
     answer is `{kind: reply, writer: agent, ref: "7f20c3da:0:51be90a4"}`.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run in the first turn, through its final message,
     and then each one you would run in the later turn.
 assert:

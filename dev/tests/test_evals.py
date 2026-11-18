@@ -206,31 +206,72 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
     assert trace == activities
 
 
-def test_fork_replay_hands_the_answer_through_the_arms_leaf(tmp_path, monkeypatch):
+# What a stand-in fork answers in each case, the checks the grader then passes, and
+# words the judge reads: a stale lede's fix, which lands on the page, and a decision
+# asked as a choice of the answers the agent offered, which the user presses.
+REPLAYED = {
+    "stale-edit": (
+        {
+            "asks": [],
+            "findings": [
+                {
+                    "kind": "stale",
+                    "page": "{page}",
+                    "summary": "The lede still says 2 of 5 shards are rebuilt.",
+                    "quote": "all 5 shards rebuilt; alias search -> search-v7",
+                    "edit": {
+                        "words": "2 of 5 shards are rebuilt",
+                        "replacement": "all 5 shards are rebuilt",
+                    },
+                }
+            ],
+        },
+        {"answered": True, "labels-found": True, "edits-land": True},
+        "all 5 shards are rebuilt",
+    ),
+    "ask-choice": (
+        {
+            "asks": [
+                {
+                    "page": "{page}",
+                    "title": "When to rebuild production",
+                    "text": "Both regions pass the preflight. When should I run the "
+                    "production rebuild?\n\n"
+                    '<lf-options id="rebuild-when">\n'
+                    '<lf-option id="rebuild-tonight" label="Rebuild tonight" '
+                    "recommended><strong>Rebuild tonight</strong></lf-option>\n"
+                    '<lf-option id="rebuild-now" label="Rebuild now">'
+                    "<strong>Rebuild now</strong> p95 up 30%</lf-option>\n"
+                    '<lf-option id="rebuild-saturday" label="Rebuild on Saturday">'
+                    "<strong>Rebuild on Saturday</strong></lf-option>\n</lf-options>",
+                    "passage": "",
+                    "again": "",
+                    "quote": "I'd go tonight.",
+                }
+            ],
+            "findings": [],
+        },
+        {"answered": True, "labels-found": True, "choices-right": True},
+        "<strong>Rebuild on Saturday</strong>",
+    ),
+}
+
+
+@pytest.mark.parametrize("case", REPLAYED)
+def test_fork_replay_hands_the_answer_through_the_arms_leaf(
+    case, tmp_path, monkeypatch
+):
     # No model runs: a stand-in for Claude Code reads the turn-end check's prompt
     # and answers it, so this shows the question reaching the fork and the answer
-    # reaching the grader through the arm's Leaf, its edit landing on the page.
+    # reaching the grader through the arm's Leaf.
     import os
 
     from leaf_dev import ROOT, fork_eval
 
     work = tmp_path / "work"
     asked = tmp_path / "prompt"
-    answer = {
-        "asks": [],
-        "findings": [
-            {
-                "kind": "stale",
-                "page": str(work / "page"),
-                "summary": "The lede still says 2 of 5 shards are rebuilt.",
-                "quote": "all 5 shards rebuilt; alias search -> search-v7",
-                "edit": {
-                    "words": "2 of 5 shards are rebuilt",
-                    "replacement": "all 5 shards are rebuilt",
-                },
-            }
-        ],
-    }
+    answer, checks, judged = REPLAYED[case]
+    answer = json.loads(json.dumps(answer).replace("{page}", str(work / "page")))
     result = {"type": "result", "subtype": "success", "result": json.dumps(answer)}
     program = (
         f"import sys; open({str(asked)!r}, 'w').write(sys.stdin.read()); "
@@ -246,16 +287,12 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(tmp_path, monkeypatc
         }
 
     monkeypatch.setattr(fork_eval, "claude_child", child)
-    response = fork_eval.execute_scenario("stale-edit", ROOT, work)
+    response = fork_eval.execute_scenario(case, ROOT, work)
     metadata = response["metadata"]
-    assert metadata["checks"] == {
-        "answered": True,
-        "labels-found": True,
-        "edits-land": True,
-    }
+    assert metadata["checks"] == checks
     assert "<leaf-fork-check>" in asked.read_text()
     assert (work / "transcript.jsonl").is_file()
-    assert "all 5 shards are rebuilt" in metadata["texts"]["judge"]
+    assert judged in metadata["texts"]["judge"]
 
 
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
@@ -795,9 +832,9 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
             f'<a id="handoff" href="{urls[handoff]}#result">Open handoff</a>'
             '<a id="external" href="https://example.com/">External</a>'
             f'<p id="quoted">The original address was {urls[handoff]}</p>'
-            '<lf-ask id="question"><h2>Keep this decision?</h2>'
-            '<lf-options id="answer" choose><lf-option id="keep">Keep</lf-option>'
-            "</lf-options></lf-ask></main></body></html>"
+            '<lf-group id="question" label="Keep this decision?"><h2 id="question-h">Keep this decision?</h2>'
+            '<lf-options id="answer"><lf-option id="keep">Keep</lf-option>'
+            "</lf-options></lf-group></main></body></html>"
         )
         with headless_shell() as browser, tab(browser) as view:
             load(view, urls[main])

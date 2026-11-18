@@ -625,7 +625,6 @@ dev = [
     { name = "playwright" },
     { name = "pre-commit" },
     { name = "pytest" },
-    { name = "pytest-image-snapshot", extra = ["pixelmatch"] },
     { name = "pytest-regtest" },
     { name = "pytest-xdist" },
     { name = "pyyaml" },
@@ -670,7 +669,6 @@ dev = [
     { name = "playwright", specifier = ">=1.65" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=9.1" },
-    { name = "pytest-image-snapshot", extras = ["pixelmatch"], specifier = ">=0.5.3" },
     { name = "pytest-regtest", specifier = ">=2.7" },
     { name = "pytest-xdist", specifier = ">=3" },
     { name = "pyyaml", specifier = ">=6" },
@@ -1007,15 +1005,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pixelmatch"
-version = "0.4.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b5/ef/d69a0c50f812326d3b54f8aea0536733d650cc2fb47c6510a2abe54df81d/pixelmatch-0.4.0.tar.gz", hash = "sha256:80a9ae1084941569f0e8cc7fe70b50c02312b4dbaf4b37b710e0f75f9667fa32", size = 7224, upload-time = "2026-03-07T08:55:54.81Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/7e/8958796e5077a2473780c9368a0d7f360d1de62c96608b84170c916e4b23/pixelmatch-0.4.0-py3-none-any.whl", hash = "sha256:d40e49e05eab0531bc7665f40309d90f5708c3edd121b3fd63385864005b81a8", size = 9728, upload-time = "2026-03-07T08:55:53.212Z" },
-]
-
-[[package]]
 name = "platformdirs"
 version = "4.11.7"
 source = { registry = "https://pypi.org/simple" }
@@ -1258,24 +1247,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/79/42/bb4641652e58dedeac2ec51abc1f8cae4fee4ec63899a0999016229a0f2a/pytest-9.2.0.tar.gz", hash = "sha256:97c4f3b1f3c7414aa36465e09b8220f1d03627993bd51b1282e193753c80557b", size = 1797555, upload-time = "2026-10-27T21:30:20.728Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/51/39/1f5d8c8877a0fa327db959c19341d4be61660de1ab6b7391f9eb805bcd67/pytest-9.2.0-py3-none-any.whl", hash = "sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588", size = 411776, upload-time = "2026-10-27T21:30:19.131Z" },
-]
-
-[[package]]
-name = "pytest-image-snapshot"
-version = "0.5.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pillow" },
-    { name = "pytest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/1c/8d47a75f2dd3b725bd4cd285d0d359a9e00188322d1e6153beb87abdb686/pytest_image_snapshot-0.5.3.tar.gz", hash = "sha256:415832cf17482df640ecd73215d80275c55e10d1a8374653d84106fbc63fac4e", size = 7479, upload-time = "2026-06-02T16:54:15.877Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/95/77d78dbaadb5eca7559d5662e72ddee9710136cc06b7da92251e695170a9/pytest_image_snapshot-0.5.3-py3-none-any.whl", hash = "sha256:69f87614e5c0d22db6ddd56e607deeacbeaaf84ae73bf51f07b53b81bed8a8a8", size = 6555, upload-time = "2026-06-02T16:54:14.54Z" },
-]
-
-[package.optional-dependencies]
-pixelmatch = [
-    { name = "pixelmatch" },
 ]
 
 [[package]]

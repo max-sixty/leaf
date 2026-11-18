@@ -104,7 +104,7 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
         staging = tmp_path / f"staging-{name}"
         staging.mkdir()
         checkout = leaf_assets.stage(directory, files, staging)
-        publisher(checkout.path)
+        publisher(checkout)
         return checkout
 
     def published(revision):

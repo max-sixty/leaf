@@ -1,14 +1,11 @@
-# Added when `page state` stopped copying each to-do into its On list row and into
-# its thread's `attention`: a row names its to-do by `id`, and the record, with its
-# `title` and `running` start, is in `todos`. Scores conversation-loop.md, "The On
-# lists", reading those rows. The reading below lists `todos` in another order than
-# the rows, so only a join by id puts each to-do on its side. On Claude Code the merge
-# base passed 2 of 2 on the shrunk reading, both at 45ee9550e and again at b734b68b2
-# after items became obligations, and the change passed 2 of 2 each time.
-# The owed reply's row was rewritten at 6a66b9b7b as `page state` prints it: an
-# `update` row naming its obligation record, which joins `obligations`. Not
-# rescored. When to-dos on the user went (2026-11-03), the phone build became a
-# question in a thread and to-dos lost their `owner`. Not rescored.
+# `page state` doesn't copy each to-do into its On list row or into its thread's
+# `attention`: a row names its to-do by `id`, and the record, with its `title` and
+# `running` start, is in `todos`. Scores conversation-loop.md, "The On lists",
+# reading those rows. The reading below lists `todos` in another order than the
+# rows, so only a join by id puts each to-do on its side.
+# The owed reply's row is as `page state` prints it: an `update` row naming its
+# obligation record, which joins `obligations`. To-dos carry no `owner` and none is
+# on the user, so the phone build is a question in a thread.
 description: on-lists-read-todo-records
 metadata:
   purpose: "Conversation loop: the agent reads On Me and its own list from `page state`,
@@ -83,7 +80,7 @@ vars:
     }
     ```
 
-    Read whatever instructions you need. Only Skill and Read run here, so write the
+    Only Skill and Read run here, so write the
     reply you would give the user in the terminal now.
 assert:
   - type: llm-rubric

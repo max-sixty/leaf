@@ -9,15 +9,17 @@
   </head>
   <body>
     <main class="layout-column">
-      <p class="eyebrow">release 3.2</p>
-      <h1>Review the 3.2 release packet</h1>
+      <hgroup>
+        <p>release 3.2</p>
+        <h1>Review the 3.2 release packet</h1>
+      </hgroup>
       <p class="lede" id="rn-lede">
         Review four notes for users and operators. Edit any draft that needs different
         wording, accept or reject the proposed changes, then decide whether to publish
         the finished set.
       </p>
 
-      <section id="rn-cli-section" class="layout-flow">
+      <section id="rn-cli-section">
         <h2>CLI</h2>
         <lf-draft id="rn-cli">
           <pre>
@@ -25,7 +27,7 @@ Adds `--dry-run` to every command that changes state. Existing scripts continue 
         </lf-draft>
       </section>
 
-      <section id="rn-api-section" class="layout-flow">
+      <section id="rn-api-section">
         <h2>API</h2>
         <p id="rn-api-why">
           The v1 header is <span class="tag">deprecated</span> and keeps working until
@@ -42,7 +44,7 @@ Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now 
         </lf-draft>
       </section>
 
-      <section id="rn-console-section" class="layout-flow">
+      <section id="rn-console-section">
         <h2>Console</h2>
         <p id="rn-console-why">
           The status column is the
@@ -65,7 +67,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
         </lf-draft>
       </section>
 
-      <section id="rn-ops-section" class="layout-flow">
+      <section id="rn-ops-section">
         <h2>Operations</h2>
         <p id="rn-ops-why">
           Staging migrated 1.1 million rows in 45–75 seconds on a warm cache.
@@ -82,21 +84,21 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
           <pre>Run the online schema migration before deploying.</pre>
         </lf-draft>
       </section>
-      <lf-ask id="rn-publication-decision">
+      <lf-group id="rn-publication-decision" label="Publish these release notes?">
         <h2>Publish these release notes?</h2>
         <p>
           Publishing takes the wording shown on this page for release 3.2. Later edits
           need a new request.
         </p>
-        <lf-options id="rn-publication" choose>
-          <lf-option id="rn-publication-hold"
+        <lf-options id="rn-publication">
+          <lf-option id="rn-publication-hold" label="Keep them as a draft"
             ><strong>Keep them as a draft</strong></lf-option
           >
-          <lf-option id="rn-publication-publish"
+          <lf-option id="rn-publication-publish" label="Publish them for release 3.2"
             ><strong>Publish them for release 3.2</strong></lf-option
           >
         </lf-options>
-      </lf-ask>
+      </lf-group>
     </main>
   </body>
 </html>

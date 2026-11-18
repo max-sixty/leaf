@@ -240,7 +240,7 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
                 {
                     selector: {
                         "description": "d",
-                        "x-example": '<p class="hazard">Warning</p>',
+                        "example": '<p class="hazard">Warning</p>',
                         **declaration,
                     }
                 }
@@ -255,12 +255,34 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
         result = init(selector, {}, "plain")
         assert result.exit_code == 0, result.output
     for selector, declaration, page in (
-        (".hazard", {"x-inline": True}, "inline"),
-        (".hazard", {"x-space": "wide"}, "room"),
+        (
+            ".hazard",
+            {
+                "inline": True,
+            },
+            "inline",
+        ),
+        (
+            ".hazard",
+            {
+                "space": "wide",
+            },
+            "room",
+        ),
         (".hazard::before", {}, "pseudo"),
         (".hazard[", {}, "invalid-selector-without-marks"),
-        (".hazard", {"x-example": ""}, "empty-example"),
-        (".hazard", {"x-instructions": " "}, "empty-instructions"),
+        (
+            ".hazard",
+            {
+                "example": "",
+            },
+            "empty-example",
+        ),
+        (
+            ".hazard",
+            {"example": '<p class="hazard">Warning</p>', "instructions": " "},
+            "empty-instructions",
+        ),
     ):
         result = init(selector, declaration, page)
         assert result.exit_code != 0
@@ -579,7 +601,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
-    assert f"leaf page init {claimed}" in replied.stderr
+    assert f"leaf page init {claimed}" in json.loads(replied.stdout)["error"]
     read = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(claimed)],
         capture_output=True,
@@ -600,6 +622,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
             str(claimed),
             "--out",
             str(tmp_path / "export.html"),
+            "--runtime",
         ],
         capture_output=True,
         text=True,
@@ -618,8 +641,8 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
             check=False,
         )
         assert ran.returncode == 0, ran.stderr
-        assert "re-initialized" not in ran.stderr
-        assert "older page protocol" not in ran.stderr
+        assert "re-initialized" not in ran.stdout + ran.stderr
+        assert "older page protocol" not in ran.stdout + ran.stderr
     assert fetch(f"{server}/api/state")[0] == 200
 
 
@@ -686,8 +709,7 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
 
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-unfinished"]["x-upgrade"] = True
-    registry["lf-unfinished"]["x-verbatim"] = True
+    registry["lf-unfinished"]["verbatim"] = True
     registry_path.write_text(json.dumps(registry))
 
     for args in (

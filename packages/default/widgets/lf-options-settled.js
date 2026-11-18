@@ -3,14 +3,12 @@
  * Options remain the host's direct children, the boundary its selection, replay and
  * page-authored layout selectors read. A native details wrapper would reparent them,
  * so this disclosure owns their hidden state without changing that boundary. */
+import { html, nothing, render } from "/vendor/lit.js";
 import {
   DISCLOSE,
   comparisonChanges,
   keeps,
   generated,
-  html,
-  nothing,
-  render,
   selectableOffer,
   tabStore,
   commandsChanged,
@@ -83,12 +81,12 @@ export class SettledOptions {
       keeps(el, "hidden", this.#isOpen ? null : "until-found");
 
     const names = options
-      .filter((option) => option.hasAttribute("chosen"))
+      .filter((option) => option.hasAttribute("selected"))
       .map(this.#label)
       .filter(Boolean);
     const changes = comparisonChanges(this.#host).length;
     // The row names only the outcome: its disclosure marker already says the
-    // alternatives are inside. The user chose this on 2026-10-26 over a right-aligned
+    // alternatives are inside. The user chose this over a right-aligned
     // count of the options.
     render(
       html`<span ${generated({ says: true })}

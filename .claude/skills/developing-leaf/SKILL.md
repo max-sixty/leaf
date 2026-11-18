@@ -9,12 +9,6 @@ Resolve the repository root three directories above this `SKILL.md`, check that
 `<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
 absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-Before writing words the user sees, such as a label, status line or placeholder, or
-naming anything they operate or an identifier for one, read `references/glossary.md`,
-Leaf's canonical vocabulary and guidance for visible text. A control may
-need no words at all (`<root>/browser/AGENTS.md`, "Controls are few and quiet"). Before
-changing anything Leaf draws, read that file's "Leaf's interface".
-
 ## Take a backlog item
 
 Pick an issue labelled `backlog`, assigned to nobody, that no pull request links
@@ -34,30 +28,22 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   browser/registry.json packages/*/registry.json
 ```
 
-A fact both runtimes use has one home (`browser/AGENTS.md`, "Facts both
-runtimes know"). When a change adds a parity fixture, or a test that scans one
-language's source for the other's names, ask why the fact isn't generated.
-
-Before adding tests for developer tooling or benchmarks, or selecting checks for
-them, read `dev/AGENTS.md`, "Tests"; `tests/` holds product behavior.
-
 ## Review a UI change
 
 Record browser API and rendering support gaps in
 [`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
 assessing a gap" section says.
 
-The user judges a UI change by using it and by looking at it, so review both before
-handing it over. Whoever reviews it, you or an independent reviewer, first uses the
+Whoever reviews a UI change, you or an independent reviewer, first uses the
 live candidate cold for the user's task, before reading its code or the author's
 account, reaching each result by every route Leaf gives to it and capturing each state
 those routes leave. A reviewer's brief gives the task and the candidate and asks for
 that pass before any code review. An agent that has driven, measured or read the
 change sees the screen through that work and misses flaws a first look catches; a
 fresh agent given only the captures and the user's request, and asked what looks
-wrong, is one way to get that look. For a theme or shared-control change, also run
-`/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a design system" section covers it
-and whose "External review" section says when to use the skills below.
+wrong, is one way to get that look. The `/ui-sweep` pass (`../ui-sweep/SKILL.md`) a
+theme or shared-control change gets follows its "Review a design system" section, and
+its "External review" section says when to use the skills below.
 
 ### External UI skills
 
@@ -75,20 +61,15 @@ an authoring agent.
 
 ## Explore an open design
 
-When the user is to choose among designs for a visual or interaction question, show
-the candidates side by side for them to try and pick from, as
-`references/explore-a-design.md` says.
+To build the side-by-side choice root `AGENTS.md` asks for when the user is to choose
+among designs, follow `references/explore-a-design.md`.
 
 ## Choose what the user reviews
 
 Prefer outputs the user can review quickly. Do the reviews you can do as well as the
 user, and report the results. Choose the decisions the page puts to the user from
-their request, and show visible and interaction changes with the proof below.
-
-A choice about how something looks or moves can't be judged from a description, so
-every UI option you leave to the user carries a picture of its result: a still pair, a
-sketch, a diagram or a live sample. That includes the calls a PR body leaves to the
-user, and the decisions a page relays from it.
+their request, and show visible and interaction changes with the proof below,
+including the picture root `AGENTS.md` asks for with each UI option you leave to them.
 
 ## Prove and hand off a visible change
 
@@ -148,8 +129,8 @@ never one per scheme, size or pointer, which a run chooses with `--scheme`,
 `--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
 For a change to thread-card placement, also run `uv run leaf-dev placement cards --base`,
-a gallery of cards across subjects, messages, routes and windows, and add a case to its
-`CASES` for each new shape a reader meets.
+a gallery of cards across subjects, messages, routes, windows and page Layouts, and add
+a case to its `CASES` for each new shape a reader meets.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live
@@ -170,9 +151,8 @@ or serve a scratch page.
 ## Run the agent journey
 
 `uv run --project <root> leaf-dev journey run TARGET` runs one user's journey against a
-real agent. Run it on each harness a change touches, such as a change to how that
-harness runs Leaf's hooks or sandbox; `references/agent-journey.md` names the target
-for each file, and covers benchmarking replies and tracing one message.
+real agent. `references/agent-journey.md` names the target for each file a harness
+change touches, and covers benchmarking replies and tracing one message.
 
 ## Compare checkout versions
 
@@ -180,6 +160,12 @@ for each file, and covers benchmarking replies and tracing one message.
 in the foreground as a preview runs (`references/previews.md`); `--help` lists the flags. Keep
 the default shared source for a runtime change, pass `--authored` when the authored
 content changed, and pass `--user` only when the URLs go to the user.
+
+For a change that can alter browser startup, compare served previews for a runtime
+change, and `leaf-dev site verify website-worker` for site delivery, Worker routing or
+containers. Read the comparison by phase (the document arriving, widgets upgrading,
+the page first showing the server's state), and compare the requests and bytes loaded
+before that last phase directly; elapsed time is only diagnostic.
 
 ## Author or revise a page
 
@@ -211,21 +197,19 @@ review checks whether the user can work it without the author's knowledge.
 
 ## Score an instruction change
 
-Score an instruction change when you can't be sure how an agent will read it: a new
-or reworded rule, a goal that competes with another, or a cut that may have carried a
-behavior. Before changing the instructions an authoring agent follows, or scoring any
-change, read `references/instruction-changes.md`.
+Before changing the instructions an authoring agent follows, or scoring a change as
+root `AGENTS.md` asks, read `references/instruction-changes.md`.
+
+## Measure a removal
+
+Measure a removal or consolidation that root `AGENTS.md`'s "Regular maintenance"
+finds by making the change in a scratch worktree: `git diff --numstat` gives what it
+deletes, and a probe or capture of the affected journey shows what users lose. A count
+read off the code overstates the saving.
 
 ## Land a change
 
-Before handing over a change that adds to an area `AGENTS.md`, ask of each addition
-whether one module owns it; if one does, the rule goes in that module's header (root
-`AGENTS.md`, "Where instructions live").
-
-The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
-(issue #4046, "Resume the thread appearance gate"), so a thread appearance change needs
-no snapshot run before landing. `tests/AGENTS.md`, "Selecting checks", says what the
-landing gates run and what a failure there means. `wt merge` checks the rebased tree
+`tests/AGENTS.md`, "Selecting checks", says what the landing gates run and what a failure there means. `wt merge` checks the rebased tree
 and lands it; `✗ Can't push to local main branch` means a fast-forward failed.
 
 Installed sessions load harness caches, not the checkout, and follow `main`: Claude

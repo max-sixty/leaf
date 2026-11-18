@@ -1,6 +1,7 @@
 """Selection, passage, syntax, and version-travel tests."""
 
 import json
+import math
 import re
 from html import escape
 from pathlib import Path
@@ -87,7 +88,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
+from leaf.render_checks import evaluate_probe, rendered
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source, patch_manifest
 
@@ -219,7 +220,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     looks like a busy page rather than like a bug."""
     page = open_page(browser, live_url(serve(SAID_PAGE)))
 
-    heading = page.locator('lf-column#col-now > [data-lf-said="label"]')
+    heading = page.locator("lf-column#col-now > .lf-column-name")
     box = heading.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
@@ -293,11 +294,11 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         source = FENCED_CAPTURE_PAGE.replace("week-1", "week-2")
     stamp_page(serve.page_dir, source, "Refresh the document")
     wait_for_revision(page, 2)
-    expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
+    expect(page.locator("#gate-milestone > .lf-column-name")).to_have_count(1)
     registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
-        ("#gate-milestone strong", "Build feeders", "gate-milestone"),
-        ("#gate-milestone", "Two classic models.", "gate-milestone"),
+        ("#gate-card strong", "Build feeders", "gate-card"),
+        ("#gate-card", "Two classic models.", "gate-card"),
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
@@ -497,13 +498,13 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     """Neither a pane nor the obligation inside it turns visible prose into separate
     quotation islands."""
     content = """<div id="split">
-      <lf-pane id="decision-pane" label="Decision"><lf-ask id="decision">
+      <lf-pane id="decision-pane" label="Decision"><lf-group id="decision" label="Which plan should lead?">
         <h2 id="question">Which plan should lead?</h2>
-        <lf-options id="plans" choose>
+        <lf-options id="plans">
           <lf-option id="steady">Keep the steady plan.</lf-option>
           <lf-option id="fast">Try the faster plan.</lf-option>
         </lf-options>
-      </lf-ask></lf-pane>
+      </lf-group></lf-pane>
       <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
     </div>"""
     markup = leaf_page(
@@ -585,8 +586,8 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     the theme paints stands down the moment the strip exists — so if the strip's button
     can't be quoted, the user can read the tab's name and never point at it.
 
-    That is what a user hit, twice, on a draft's heading: the words were the page's
-    and the row holding them was marked as the runtime's. `.lf-ui` is a look, and
+    A draft's heading is such a case: the words are the page's and the row holding
+    them is marked as the runtime's. `.lf-ui` is a look, and
     anchoring's question is whose words these are — so the label answers it where it is
     written (relabel), and the nearest answer wins over the box around it.
 
@@ -1015,8 +1016,9 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
         f"the composer quotes something the document does not hold: {quote!r}"
     )
     # The three readings of one passage: what the box says it is about, what the page
-    # paints, and what the field is called. A capture that ran past the document moved
-    # all three together, so any one of them alone would pass on a page it had ruined.
+    # paints, and what the field is called. A capture that ran past the document would
+    # move all three together, so any one of them alone would pass on a page it had
+    # ruined.
     assert pending_text(page).replace(" ", "") == quote.replace(" ", ""), (
         f"the mark and the quote disagree: {pending_text(page)!r} against {quote!r}"
     )
@@ -1142,11 +1144,12 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
 
 def test_a_click_on_a_mark_decides_once(browser, serve):
     """Opening a thread surface rewrites page-attached chrome, so anything that hit-tests
-    the page afterward is testing geometry that may already have moved. When two handlers
-    each asked where the pointer was, the second missed the mark the first had just opened and
-    raised the response bar on top of it — and the element anchor that left behind reads
-    as composition in progress, which is what stops a page following new versions. The
-    panel starts shut here because a panel already open is the case with no reflow."""
+    the page afterward is testing geometry that may already have moved. Were two handlers
+    each to ask where the pointer was, the second would miss the mark the first had just
+    opened and raise the response bar on top of it — and the element anchor that leaves
+    behind reads as composition in progress, which is what stops a page following new
+    versions. The panel starts shut here because a panel already open is the case with
+    no reflow."""
     version_url = serve(INLINE_PAGE)
     url = live_url(version_url)
     page = open_page(browser, url)
@@ -1240,71 +1243,6 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
-def test_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:hover, :focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    page = open_page(browser, live_url(serve(source)))
-    card = page.locator("#card")
-    actions = page.locator("#actions")
-    pre = page.locator("#source")
-    copy = page.locator(".lf-chrome .lf-code-copy").get_by_role("button")
-
-    expect(actions).to_be_hidden()
-    pre.hover()
-    expect(actions).to_be_visible()
-    copy.hover()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    assert not card.evaluate("node => node.matches(':hover')")
-
-    page.mouse.move(2, 300)
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-    pre.hover()
-    copy.focus()
-    page.mouse.move(2, 300)
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").focus()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
-def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Touch copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, live_url(serve(source)), context=context)
-    pre = page.locator("#source")
-    actions = page.locator("#actions")
-    pre.tap(position={"x": 30, "y": 20})
-    expect(actions).to_be_visible()
-    page.locator(".lf-chrome .lf-code-copy").get_by_role("button").tap()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").tap()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
 def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     """Copy is a mark, one size on every block, compact or tall, and its reach keeps
     the aim floor."""
@@ -1320,10 +1258,10 @@ def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     )
     page = open_page(browser, url)
     mark = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mark-size'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-mark-size'))"
     )
     floor = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-aim-floor'))"
     )
     for index, block in enumerate(("#compact", "#tall")):
         page.locator(block).hover()
@@ -1519,7 +1457,7 @@ def test_resizing_closed_code_sections_does_not_lay_out_each_hidden_section(
     browser, serve
 ):
     """Previously viewed code stays skipped when its disclosure closes and the window
-    resizes. Reading every block's header cuts used to force one layout per hidden
+    resizes. Reading every block's header cuts would force one layout per hidden
     section; never-opened sections conceal that cost because they have no old layout."""
     sections = "".join(
         f"<details open><summary>Example {i}</summary>"
@@ -1690,20 +1628,20 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         # The string token crosses the mark's end, so both pieces keep its colour.
         assert marked.evaluate("""code => {
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--syn-string)')
-            && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--syn-string)');
+          return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--lf-syn-string)')
+            && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--lf-syn-string)');
         }""")
         # A different language repaints Leaf's tokens inside the same annotations.
         assert page.evaluate("""async () => {
-          const {highlightBlocks} = await window.__lfWidgetApi();
+          const {dressCode} = await window.__lfWidgetApi();
           const code = document.querySelector('#marked code');
           const mark = code.querySelector('mark');
           const target = code.querySelector('#target');
           const previous = [...code.querySelectorAll('[data-lf-syn]')];
           code.className = 'language-javascript';
-          await highlightBlocks(code);
+          await dressCode(code);
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          await highlightBlocks(code);
+          await dressCode(code);
           return code.querySelector('mark') === mark
             && code.querySelector('#target') === target
             && mark.textContent === 'f load(path):\\n    return "rea'
@@ -1718,16 +1656,16 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
         text = page.evaluate(
             """async () => {
-              const {highlightBlocks} = await window.__lfWidgetApi();
+              const {dressCode} = await window.__lfWidgetApi();
               const code = document.createElement('code');
               code.className = 'language-python';
               code.textContent = 'old = 1';
               document.querySelector('#later').after(
                 Object.assign(document.createElement('pre'), {id: 'rewritten'}));
               document.querySelector('#rewritten').append(code);
-              const first = highlightBlocks(code);
+              const first = dressCode(code);
               code.textContent = 'new = 2';
-              await Promise.all([first, highlightBlocks(code)]);
+              await Promise.all([first, dressCode(code)]);
               return code.textContent;
             }"""
         )
@@ -1742,9 +1680,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
-    One pass serves both shapes a page has for code, lf-code's `language` and a plain
-    <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread create`
+    One pass serves both shapes a page has for code, a plain <pre><code class="language-*">
+    and the same block inside lf-code, and neither guesses: a lf-code with no
+    `language-*` class stays the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -1758,15 +1696,15 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       return { widget: at('#walk-code'), plain: at('#walk pre > code'),
                undeclared: at('#plain-code') };
     }""")
-    assert ["var(--syn-keyword)", "def", "normal"] in colors["widget"]
-    assert ["var(--syn-name)", "bucket_key", "normal"] in colors["widget"]
+    assert ["var(--lf-syn-keyword)", "def", "normal"] in colors["widget"]
+    assert ["var(--lf-syn-name)", "bucket_key", "normal"] in colors["widget"]
     assert {color for color, _, _ in colors["widget"]} >= {
-        "var(--syn-keyword)",
-        "var(--syn-string)",
-        "var(--syn-name)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+        "var(--lf-syn-name)",
     }, colors["widget"]
     assert [
-        "var(--syn-comment)",
+        "var(--lf-syn-comment)",
         "# apply the migration, then run the marked suite",
         "italic",
     ] in colors["plain"]
@@ -1812,21 +1750,25 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       const line = document.querySelector('#walk-code .lf-code-line');
       const note = document.querySelector('#walk-code pre > lf-note');
       const noteStyle = getComputedStyle(note);
+      const card = getComputedStyle(note, '::before');
       const blockRect = block.getBoundingClientRect();
       const noteRect = note.getBoundingClientRect();
       return {
         page: channels(getComputedStyle(document.body).backgroundColor),
         block: channels(getComputedStyle(block).backgroundColor),
+        blockImage: getComputedStyle(block).backgroundImage,
+        gutterColor: getComputedStyle(line, '::before').backgroundColor,
         gutter: channels(getComputedStyle(line, '::before').backgroundColor),
-        note: channels(noteStyle.backgroundColor),
-        noteBorderBlock: noteStyle.borderBlock,
-        noteBorderLeftWidth: noteStyle.borderLeftWidth,
-        noteRadius: noteStyle.borderRadius,
+        card: channels(card.backgroundColor),
+        cardBorder: card.borderTopWidth,
+        cardRadius: card.borderTopLeftRadius,
         noteFont: noteStyle.fontFamily,
+        noteSize: parseFloat(noteStyle.fontSize),
+        codeSize: parseFloat(getComputedStyle(line).fontSize),
         sansFont: getComputedStyle(document.documentElement)
-          .getPropertyValue('--sans').trim().replace(/\s+/g, ' '),
+          .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
-          left: noteRect.left - blockRect.left,
+          left: noteRect.left - parseFloat(noteStyle.marginInlineStart) - blockRect.left,
           right: blockRect.right - noteRect.right,
         },
       };
@@ -1839,12 +1781,19 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         )
     ), f"the code canvas is not whiter than the document: {appearance}"
     assert appearance["gutter"] != appearance["block"], appearance
-    assert appearance["note"] == appearance["block"], appearance
-    assert appearance["noteBorderBlock"].startswith("1px solid"), appearance
-    assert appearance["noteBorderLeftWidth"] == "0px", appearance
-    assert appearance["noteRadius"] == "0px", appearance
+    # The gutter's ground runs the block's whole height, past the note beside it.
+    assert appearance["gutterColor"] in appearance["blockImage"], appearance
+    # The note is a card in the block's own chrome, the gutter's ground, with its words
+    # in the interface face a size below the code's.
+    assert appearance["card"] == appearance["gutter"], appearance
+    assert appearance["cardBorder"] == "1px", appearance
+    assert appearance["cardRadius"] != "0px", appearance
     assert appearance["noteFont"] == appearance["sansFont"], appearance
-    assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
+    assert appearance["noteSize"] < appearance["codeSize"], appearance
+    # The card stands inside the frame, sized to its words. Its line's indent is the
+    # note's inline-start margin, so the margin box is what meets the frame.
+    assert appearance["noteInset"]["left"] == pytest.approx(1, abs=0.1), appearance
+    assert appearance["noteInset"]["right"] >= 1, appearance
 
     # A quote spans the command name and its argument tokens.
     post_event(
@@ -1900,7 +1849,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             f"""
 <h1 id="t">Shell commands</h1>
 <pre id="shell-plain"><code class="language-bash">{escape(source)}</code></pre>
-<lf-code id="shell-widget" language="bash"><pre>{escape(source)}</pre></lf-code>
+<lf-code id="shell-widget"><pre><code class="language-bash">{escape(source)}</code></pre></lf-code>
 <lf-diff id="shell-diff"><pre>diff --git a/check.sh b/check.sh
 --- a/check.sh
 +++ b/check.sh
@@ -1938,18 +1887,18 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             ("type", "$OUTPUT"),
         ):
             assert any(
-                token["style"] == f"var(--syn-{color})" and text in token["text"]
+                token["style"] == f"var(--lf-syn-{color})" and text in token["text"]
                 for token in tokens
             ), (surface, color, text, tokens)
         assert any(
-            token["style"] == "var(--syn-string)" and "page" in token["text"]
+            token["style"] == "var(--lf-syn-string)" and "page" in token["text"]
             for token in tokens
         )
         assert (
             "".join(
                 token["text"]
                 for token in tokens
-                if token["style"] == "var(--syn-comment)"
+                if token["style"] == "var(--lf-syn-comment)"
                 and token["fontStyle"] == "italic"
             ).strip()
             == "# inspect"
@@ -1967,7 +1916,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
       const tokens = roots.map(root => [...root.querySelectorAll('[data-lf-syn]')]
         .find(token => token.textContent === 'leaf'));
       const before = tokens.map(token => getComputedStyle(token).color);
-      document.documentElement.style.setProperty('--syn-name', '#a12345');
+      document.documentElement.style.setProperty('--lf-syn-name', '#a12345');
       return {before, after: tokens.map(token => getComputedStyle(token).color),
         connected: tokens.every(token => token.isConnected)};
     })""")
@@ -2048,12 +1997,12 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
       return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(
-        token["style"].get("color") == "var(--syn-string)"
+        token["style"].get("color") == "var(--lf-syn-string)"
         and "leaf is literal text" in token["text"]
         for token in heredoc
     )
     assert not any(
-        token["style"].get("color") == "var(--syn-name)" and "leaf" in token["text"]
+        token["style"].get("color") == "var(--lf-syn-name)" and "leaf" in token["text"]
         for token in heredoc
     )
 
@@ -2151,7 +2100,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
-      const { says, wrote } = await window.__lfWidgetApi();
+      const { says, named } = await window.__lfWidgetApi();
       const { textNodesUnder } = await window.__lfCheckApi();
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
@@ -2172,9 +2121,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return {
         segmentCount: segments.length,
         saysPath: says(document).includes('gateway/limits.py'),
-        wrotePath: wrote(document).includes('gateway/limits.py'),
+        namedPath: named(document).includes('gateway/limits.py'),
         saysStat: says(document).includes(statText),
-        wroteStat: wrote(document).includes(statText),
+        namedStat: named(document).includes(statText),
         lineNumberWords: segments
           .filter(({node}) => node.parentElement?.closest('.lf-diff-line-comment'))
           .map(({node}) => node.data),
@@ -2195,8 +2144,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
     # The parser supplies the visible file path; it was not written into the page.
-    assert reading["saysPath"] and not reading["wrotePath"], reading
-    assert reading["saysStat"] and not reading["wroteStat"], reading
+    assert reading["saysPath"] and not reading["namedPath"], reading
+    assert reading["saysStat"] and not reading["namedStat"], reading
     assert reading["lineNumberWords"] == [], (
         f"line number chrome entered the page reading: {reading}"
     )
@@ -2212,19 +2161,21 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 
     py = by_path["gateway/limits.py"]
     assert any(
-        ["var(--syn-keyword)", "if", "normal"] in line["colors"] for line in py
+        ["var(--lf-syn-keyword)", "if", "normal"] in line["colors"] for line in py
     ), py
     assert {color for line in py for color, _, _ in line["colors"]} >= {
-        "var(--syn-keyword)",
-        "var(--syn-string)",
-        "var(--syn-name)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+        "var(--lf-syn-name)",
     }
 
     # Docstrings keep the theme's comment color and italic style on both sides.
     doc = [line for line in py if "Called on logout" in line["text"]]
     assert len(doc) == 2, [line["text"] for line in py]
     for line in doc:
-        assert {color for color, _, _ in line["colors"]} == {"var(--syn-comment)"}, line
+        assert {color for color, _, _ in line["colors"]} == {"var(--lf-syn-comment)"}, (
+            line
+        )
         assert {style for _, _, style in line["colors"]} == {"italic"}, line
         assert "".join(text for _, text, _ in line["colors"]) == line["text"], line
 
@@ -2238,7 +2189,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert len(yml) == 2
     for line in yml:
         assert any(
-            color == "var(--syn-type)" and "burst" in text
+            color == "var(--lf-syn-type)" and "burst" in text
             for color, text, _ in line["colors"]
         ), line
     assert {
@@ -2251,7 +2202,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # `\\ No newline at end of file` is diff metadata, not selectable source.
     assert not any("No newline at end of file" in line["text"] for line in py)
 
-    # No extension the table names: plain, the way a lf-code with no `language` is.
+    # No extension the table names: plain, the way a lf-code naming no language is.
     assert all(line["colors"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
@@ -2338,8 +2289,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     after = changed("gateway/config.yaml", "change-addition", "burst: 40")
     assert before["marks"] and any("20" in mark for mark in before["marks"])
     assert after["marks"] and any("40" in mark for mark in after["marks"])
-    assert ["var(--syn-number)", "20"] in before["inked"]
-    assert ["var(--syn-number)", "40"] in after["inked"]
+    assert ["var(--lf-syn-number)", "20"] in before["inked"]
+    assert ["var(--lf-syn-number)", "40"] in after["inked"]
 
     changed_lines = [
         line
@@ -2349,9 +2300,6 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ]
     assert changed_lines
     assert all(line["linePaint"] != line["prePaint"] for line in changed_lines)
-    assert before["linePaint"] != after["linePaint"], (
-        "additions and deletions need distinct semantic fills"
-    )
 
     inline_paint = [paint for line in changed_lines for paint in line["markPaint"]]
     assert inline_paint
@@ -2362,6 +2310,72 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         for line in changed_lines
         for background, _ in line["markPaint"]
     ), "inline changes need a stronger fill than their changed line"
+
+    # An added row and a removed row differ at a glance in either scheme: about as far
+    # apart in Oklab as GitHub's light rows (0.057), where 16% of the muted status
+    # colours mixed into the canvas left them 0.032 apart and near grey. A changed word's
+    # mark stands at least that far from its row, so it still picks out the word. The
+    # browser converts each paint to Oklab itself, whatever form the theme states it in.
+    read_paints = """() => {
+      const root = document.querySelector('#patch').shadowRoot;
+      const probe = document.body.appendChild(document.createElement('i'));
+      const oklab = paint => {
+        probe.style.color = `oklab(from ${paint} l a b)`;
+        return getComputedStyle(probe).color
+          .match(/-?\\d*\\.?\\d+(?:e-?\\d+)?/g).slice(0, 3).map(Number);
+      };
+      const read = kind => {
+        const line = root.querySelector(
+          `.lf-diff-line[data-line-type="${kind}"]:has([data-diff-span])`);
+        return {
+          row: oklab(getComputedStyle(line).backgroundColor),
+          mark: oklab(getComputedStyle(line.querySelector('[data-diff-span]'))
+            .backgroundColor),
+        };
+      };
+      const paints = {
+        canvas: oklab(getComputedStyle(root.querySelector('pre')).backgroundColor),
+        added: read('change-addition'),
+        removed: read('change-deletion'),
+      };
+      probe.remove();
+      return paints;
+    }"""
+    for scheme in ("dark", "light"):
+        page.emulate_media(color_scheme=scheme)
+        paints = page.evaluate(read_paints)
+        added, removed = paints["added"], paints["removed"]
+        apart = math.dist(added["row"], removed["row"])
+        assert apart >= 0.05, f"{scheme}: added and removed rows {apart:.3f} apart"
+        for kind in ("added", "removed"):
+            stands = math.dist(paints[kind]["mark"], paints[kind]["row"])
+            assert stands >= 0.05, f"{scheme}: a {kind} mark {stands:.3f} from its row"
+
+    # A theme or page sets the code inputs apart from the scheme (package-themes.md,
+    # "Theme tokens"), as dark code on a light page does. The rows take their lightness
+    # from the code canvas rather than the scheme, so they stand a step from it and the
+    # code on them reads as it does on the canvas.
+    dark_code = {
+        "--lf-pre-bg": "#1b1b1a",
+        "--lf-code-ink": "#e8e7e3",
+        "--lf-syn-comment": "#cac2b3",
+        "--lf-syn-keyword": "#efafa0",
+        "--lf-syn-string": "#9dc4dd",
+        "--lf-syn-number": "#a8c4e2",
+        "--lf-syn-name": "#cdb2e8",
+        "--lf-syn-type": "#e6bc88",
+    }
+    restyle = """tokens => Object.entries(tokens).forEach(([name, value]) =>
+      value ? document.documentElement.style.setProperty(name, value)
+        : document.documentElement.style.removeProperty(name))"""
+    page.evaluate(restyle, dark_code)
+    paints = page.evaluate(read_paints)
+    assert paints["canvas"][0] < 0.3, "the dark code tokens never reached the canvas"
+    for kind in ("added", "removed"):
+        step = paints[kind]["row"][0] - paints["canvas"][0]
+        assert abs(step) < 0.1, f"a {kind} row {step:+.3f} in lightness from dark code"
+    assert evaluate_probe(page, "unreadSyntax") == []
+    page.evaluate(restyle, dict.fromkeys(dark_code, ""))
 
     # Pierre's inline comparison is language-independent. Dockerfile is intentionally
     # plain in Leaf's registry, but the edited dependency is still called out.
@@ -2382,7 +2396,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfWidgetApi();
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {html, render} = await window.__lfVendorImport('lit.js');
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');
@@ -2559,9 +2574,9 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     summary's arrow does. A row consuming a press it does not make would be the same lie
     from the other side.
 
-    The staged control is the one the register could not reach at all.
-    `document.activeElement` retargets to the host, so the scope walk started at the
-    widget and never saw the control the user was located on."""
+    The staged control is the hard case: `document.activeElement` retargets to the
+    host, so a scope walk starting there would start at the widget and never see the
+    control the user is located on."""
     url = serve(
         NATIVE_CONTROL_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -2782,10 +2797,10 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, subtes
 
 
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
-    """A figure can carry more than one thread. When the page's record of what it drew was
-    keyed by the mark, the second comment overwrote the first, and the thread told the
-    user the first one's passage wasn't in this version — while it sat outlined on
-    screen for the second."""
+    """A figure can carry more than one thread. Were the page's record of what it drew
+    keyed by the mark, the second comment would overwrite the first, and the thread
+    would tell the user the first one's passage wasn't in this version — while it sat
+    outlined on screen for the second."""
     url = serve(INLINE_PAGE)
     page = open_page(browser, url)
     for text in ("first on the figure", "second on the figure"):
@@ -2809,12 +2824,12 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
     figure.click()
-    expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(figure).to_have_attribute("data-lf-projected-mark", "")
     expect(figure).to_have_attribute("data-lf-mark", re.compile("."))
     look = figure.evaluate(MARK)
     region = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--focus-region-gap'))"
+        ".getPropertyValue('--lf-focus-region-gap'))"
     )
     assert look and look["style"] == "solid" and look["width"] > 0, look
     assert look["offset"] == region, (look, region)
@@ -2843,13 +2858,12 @@ def test_a_press_on_a_mark_opens_the_thread_under_the_point(browser, serve):
     """The thread the pointer is over and the thread a press opens are one reading of one
     point.
 
-    They came from two doors, though. The hover hit-tests the pointer record the runtime
-    keeps, and the click read its own clientX and clientY — a `click` is a legacy mouse
-    event, so those arrive rounded to a whole pixel, while markAt measures against
-    getClientRects, whose edges are floats. Within a pixel of a mark's edge the two
-    answer different threads: a quote lights up under the hand and the press on it opens
-    the neighbour's thread, which is the same disagreement the aim carried and this
-    is the surface it was left on.
+    From two doors, they would disagree. The hover hit-tests the pointer record the
+    runtime keeps, and a click reading its own clientX and clientY — a `click` is a
+    legacy mouse event, so those arrive rounded to a whole pixel, while markAt measures
+    against getClientRects, whose edges are floats — would, within a pixel of a mark's
+    edge, answer a different thread: a quote lights up under the hand and the press on
+    it opens the neighbour's thread.
 
     The seam fixture puts the pointer where the true point and its rounded twin are over
     different items, and a comment on each makes the disagreement a pair of cards rather
@@ -3043,7 +3057,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     longer raises, and not the margin entry's selection.
 
     So the current location holds across the whole press, every frame from mouse-down until after
-    the click. The reaction beside the comment is the case that first showed the gap.
+    the click.
     """
     url = serve(INLINE_PAGE)
     append_carried_log_record(
@@ -3389,15 +3403,15 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
 def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
     browser, serve, html
 ):
-    """A passage closing its section used to store a suffix clipped at the section's
-    edge — one character, a bar the identical copy above it also cleared, so the mark
-    painted there while the user was still composing. The neighbours now come from
+    """A passage closing its section doesn't store a suffix clipped at the section's
+    edge — one character, a bar the identical copy above it also clears, so the mark
+    would paint there while the user was still composing. The neighbours come from
     the whole document and the section only filters where the search may land, so the
     closing copy is told apart by the words of the section after it.
 
     Where the document itself ends there is no second side to store, and an empty one is
     not an absent constraint: it says nothing followed the passage anywhere, which is true
-    of exactly one occurrence. Refusing to read it that way left the same wrong mark."""
+    of exactly one occurrence. Refusing to read it that way leaves the same wrong mark."""
     page = open_page(browser, serve(html))
     chosen = page.evaluate_handle("""() => {
         const p = document.querySelectorAll('#edge p')[1];
@@ -3420,11 +3434,11 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
 
 def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     """A quote is the passage, so what is stored is what the page marks and what the
-    comment is on. It used to be cut at four hundred characters: a user who selected
-    a paragraph got a comment on its opening and a highlight that shrank to match, on
-    most of the paragraphs a leaf page holds, and nothing said so. Storing the
-    whole of it is only affordable because the bound moved to the search's pattern,
-    which is what could not take a long passage — so this drags one past that bound and
+    comment is on. Cut at four hundred characters, it would give a user who selected
+    a paragraph a comment on its opening and a highlight that shrank to match, on
+    most of the paragraphs a leaf page holds, and nothing would say so. Storing the
+    whole of it is only affordable because the bound is on the search's pattern,
+    which is what cannot take a long passage — so this drags one past that bound and
     asks the mark, the log and the panel the same question, on the second of two
     identical copies, which is also the case where the lead alone cannot answer it."""
     url = serve(TWO_COPIES_PAGE)
@@ -3516,9 +3530,9 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
 
 
 def test_select_all_on_a_page_with_a_diff_leaves_the_page_responsive(browser, serve):
-    """Select-all on a page holding an x-shadow widget. The composed selection spans
-    <html>, past the words the page reads, and the capture once grew its neighbourhood
-    forever from a position that reading lacked, pinning the tab. The press is bounded so
+    """Select-all on a page holding a `shadow` widget. The composed selection spans
+    <html>, past the words the page reads, and the capture can grow its neighbourhood
+    forever from a position that reading lacks, pinning the tab. The press is bounded so
     that regression fails here rather than hanging the run."""
     page = open_page(browser, serve(TWICE_PAGE))
     page.locator("body").press("ControlOrMeta+a")
@@ -3621,19 +3635,19 @@ def test_a_state_only_version_change_does_not_offer_an_empty_card(browser, serve
         <h1>Board</h1>
         <lf-board id='board'>
           <lf-column id='left' label='Left'>
-            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>
+            <lf-card id='card' label='Review'><strong>Review</strong> Keep these words.</lf-card>
           </lf-column>
           <lf-column id='right' label='Right'></lf-column>
         </lf-board>
         """,
     )
     second = first.replace(
-        "<lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "<lf-card id='card' label='Review'><strong>Review</strong> Keep these words.</lf-card>\n"
         "          </lf-column>\n"
         "          <lf-column id='right' label='Right'></lf-column>",
         "</lf-column>\n"
         "          <lf-column id='right' label='Right'>\n"
-        "            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "            <lf-card id='card' label='Review'><strong>Review</strong> Keep these words.</lf-card>\n"
         "          </lf-column>",
     )
     page = open_page(browser, live_url(serve(first)))
@@ -3680,13 +3694,14 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         layer_registry={
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-upgrade": True,
-                "x-example": '<lf-decoration id="decoration"></lf-decoration>',
+                "attributes": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                },
+                "content": "markup",
+                "example": '<lf-decoration id="decoration"></lf-decoration>',
             }
         },
         layer_widgets={
@@ -3945,10 +3960,10 @@ def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, se
 def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     """A page that ships a version whenever the work moves leaves its user behind by
     more than one, and "what changed since the previous version" is then the wrong
-    question: what they want marked is everything since they last looked. The base was
-    the previous version for exactly as long as it was a control's own label — one
-    button can name one version — so the menu is where it stops being one, and every row
-    older than this one offers itself.
+    question: what they want marked is everything since they last looked. A base that
+    is a control's own label can only be the one version it names — one button can
+    name one version — so the base is chosen in the menu, where every row older than
+    this one offers itself.
 
     The rest is what the user can tell afterwards: reopening says which comparison
     stands, and its Compare pressed again is the way off."""
@@ -3994,9 +4009,9 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
 def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     """The case this exists for, and the one a section cannot narrow: a diff carries the
-    same line added and removed under a single id, so the user commenting on the fix
-    had their comment marked against the bug — stored that way, and shown to Claude that
-    way in the next round.
+    same line added and removed under a single id, so a comment on the fix can be
+    marked against the bug — stored that way, and shown to Claude that way in the next
+    round.
 
     The passage is picked out of the rendered widget, where syntax colour has cut the
     line into spans: `return` is a keyword and ` request.path` is the text after it, so
@@ -4009,8 +4024,9 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     )
     chosen = page.evaluate_handle("""() => {
         const skip = '.lf-ui, script, style';
-        // Rooted at the shadow root: lf-diff renders in one (x-shadow), so the lines
-        // this drags across are in the composed tree and not under the host element.
+        // Rooted at the shadow root: lf-diff renders in one (`shadow`), so the
+        // lines this drags across are in the composed tree and not under the host
+        // element.
         const w = document.createTreeWalker(document.getElementById('patch').shadowRoot,
             NodeFilter.SHOW_TEXT,
             {acceptNode: n => n.parentElement?.closest(skip)
@@ -4594,14 +4610,16 @@ def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     """Every question the runtime asks by id goes through one lookup, and a widget that
-    stages its authored children carries their ids into its shadow tree with them. While
-    that lookup was the document's alone the answer came back null and each caller quietly
-    did nothing — here, an anchor stored and a mark never painted, with no error to find.
+    stages its authored children carries their ids into its shadow tree with them. Were
+    that lookup the document's alone the answer would come back null and each caller
+    would quietly do nothing — here, an anchor stored and a mark never painted, with no
+    error to find.
 
-    Staged by hand because the one shipped x-shadow widget builds its tree out of parsed
-    data and mints no ids, so nothing reaches this yet; what the next one does is exactly
-    this move. The clearing sweep is the other half — a mark the repaint cannot reach is
-    a mark that outlives its reason — so the second comment has to take the first's place
+    Staged by hand because the one shipped `shadow` widget builds its tree out of
+    parsed data and mints no ids, so nothing reaches this yet; what the next one does is
+    exactly this move. The clearing sweep is the other half — a mark the repaint cannot
+    reach is a mark that outlives its reason — so the second comment has to take the
+    first's place
     rather than stand beside it."""
     page = open_page(browser, serve(TWICE_PAGE))
     page.wait_for_function(
@@ -4613,7 +4631,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     )
     # Through a locator: the paint lands on the poll that follows the write rather than
     # with it, so a read taken straight after passes on a quiet machine and fails on a
-    # busy one. `#row` reaches into the open tree the way the runtime now has to.
+    # busy one. `#row` reaches into the open tree the way the runtime has to.
     row = page.locator("#row")
     marked = re.compile(r"\blf-mark-el\b")
     d = serve.page_dir
@@ -4775,7 +4793,7 @@ new file mode 120000
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, wrote } = await window.__lfWidgetApi();
+      const { says, named } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
@@ -4801,7 +4819,7 @@ new file mode 120000
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
-        wroteRename: wrote(document).includes('old-name.js → new-name.js'),
+        namedRename: named(document).includes('old-name.js → new-name.js'),
       };
     }""")
     assert result == {
@@ -4851,7 +4869,7 @@ new file mode 120000
             "binary-target",
         ],
         "saysRename": True,
-        "wroteRename": False,
+        "namedRename": False,
     }
 
     for path, side, text in [
@@ -4934,14 +4952,15 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
 
 LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
-    "type": "object",
-    "properties": {"id": {"type": "string"}},
-    "required": ["id"],
-    "additionalProperties": False,
-    "x-content": "markup",
-    "x-upgrade": True,
-    "x-shadow": True,
-    "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
+    "attributes": {
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+    },
+    "content": "markup",
+    "shadow": True,
+    "example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
 LATE_STAGE_MODULE = """
 import {shadowStage} from '/runtime/widget-api.js';
@@ -5955,10 +5974,11 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
             "Status Ready",
         ),
         (
+            '<lf-group id="pick-q" label="What should a full store do?">'
             '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
             "recommended</small><strong>Drop the oldest documents</strong> Editing "
             'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
-            "</strong> Nothing leaves.</lf-option></lf-options>",
+            "</strong> Nothing leaves.</lf-option></lf-options></lf-group>",
             "recommended Drop",
         ),
     ],
@@ -5974,23 +5994,6 @@ def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
     page = open_page(request.getfixturevalue(engine), url)
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill(words)
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_page_search_finds_a_shipped_options_chip_and_title_apart(
-    engine, request, serve
-):
-    """The default package's lf-ask example, as shipped, puts a chip and the option's
-    title it stands beside apart, as the theme draws them: page search finds
-    "recommended Drop"."""
-    registry = json.loads(
-        (Path(__file__).parents[2] / "packages/default/registry.json").read_text()
-    )
-    url = serve(leaf_page("Ask", registry["lf-ask"]["x-example"]))
-    page = open_page(request.getfixturevalue(engine), url)
-    page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill("recommended Drop")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 
@@ -6029,37 +6032,21 @@ def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_page_search_reads_a_said_label_apart_from_its_elements_words(
-    engine, request, serve
-):
-    """A declared `x-says` label, drawn as its element's caption, reads apart from the
-    words the element holds, as the file's reading reads it: page search finds the two
-    with a space between them."""
+def test_page_search_finds_a_label_a_widget_draws(engine, request, serve):
+    """A label a widget's module draws, as a board column's heading, is the page's
+    words, so page search finds it."""
     url = serve(
         leaf_page(
             "Said label",
-            '<div id="pair"><lf-said-label id="said" label="Head">body words'
-            "</lf-said-label></div>" + "<p>More.</p>" * 4,
-        ),
-        layer_registry={
-            "lf-said-label": {
-                "description": "Words with a label the runtime says before them.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-upgrade": False,
-                "x-says": {"label": "before"},
-                "x-example": '<lf-said-label id="example" label="Head">Words.'
-                "</lf-said-label>",
-            }
-        },
+            '<lf-board id="pair"><lf-column id="said" label="Head">'
+            '<lf-card id="said-card" label="Body"><strong>body words</strong></lf-card>'
+            "</lf-column></lf-board>" + "<p>More.</p>" * 4,
+        )
     )
     page = open_page(request.getfixturevalue(engine), url)
-    page.wait_for_function("() => document.querySelector('#said > [data-lf-said]')")
+    page.wait_for_function("() => document.querySelector('#said > .lf-column-name')")
     page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill("Head body")
+    page.get_by_role("searchbox", name="Search page text").fill("Head")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 
@@ -6390,11 +6377,13 @@ def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser,
     )
     page.keyboard.press("Shift+n")
     expect(page.locator(".lf-live")).to_have_text("Searching")
+    # Run the held slices, and the ones they schedule, until the search ends: a closed
+    # search shows no count to wait on, and a step back while it still runs stays.
     page.evaluate(
         """() => {
-          window.setTimeout = window.__run;
           delete window.__steps;
-          for (const run of window.__held.splice(0)) run();
+          while (window.__held.length) window.__held.shift()();
+          window.setTimeout = window.__run;
         }"""
     )
     page.keyboard.press("Shift+n")
@@ -6512,9 +6501,9 @@ def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
     assert 0 <= box["y"] and box["y"] + box["height"] <= 900, box
 
 
-# A widget whose words read as the page's prose (`x-verbatim`), staged in a declared
-# shadow tree as it connects.
-VERBATIM_STAGE = {**LATE_STAGE, "x-verbatim": True}
+# A widget whose words read as the page's prose (`verbatim`), staged in a
+# declared shadow tree as it connects.
+VERBATIM_STAGE = {**LATE_STAGE, "verbatim": True}
 STAGED_ON_CONNECT = """
 import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-late-stage', class extends HTMLElement {

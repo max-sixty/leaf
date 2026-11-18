@@ -8,8 +8,8 @@
    same revision-bound descriptor.
 
    The binding also answers the other way, id to element, for the layer's own paint:
-   a message's frozen markup is bound when it is prepared, before the thread mounts
-   it, so what the projection paints on it arrives with the node. */
+   a message's markup is bound when each wording is prepared, before the thread
+   mounts it, so what the projection paints on it arrives with the node. */
 import { runtime } from "./context.js";
 import { declaredElements, exhibits } from "./registry.js";
 import { isElementName } from "./registry-contract.js";
@@ -41,7 +41,7 @@ const declaredAncestors = (element) => {
   return ancestors;
 };
 
-// Whether an element stands strictly inside an x-exhibit widget in the authored
+// Whether an element stands strictly inside an `exhibit` widget in the authored
 // document, so what it holds is quoted material rather than controls (`quoted` below).
 // The exhibit itself is no mention, as the server reads it (`obligations.quoted_in`);
 // `tests/exhibit_cases.json` holds both runtimes to one set of cases. Asked of
@@ -97,12 +97,13 @@ export function stageWidgetDescriptors(
   });
 }
 
-/** @param {Pick<ReturnType<typeof stageWidgetDescriptors>, "bindings">} stage @param {Set<string>} [retired] */
-export function commitWidgetDescriptors(stage, retired = new Set()) {
-  // A revision that rewrites a widget's authored markup retires the descriptor taken
-  // from the markup it replaced. The id survives the revision and the element does not,
-  // so the id-keyed readings are the ones that would otherwise answer for a document
-  // nobody is reading; the element-keyed ones leave with their elements.
+/** @param {Pick<ReturnType<typeof stageWidgetDescriptors>, "bindings">} stage @param {Iterable<string>} [retired] */
+export function commitWidgetDescriptors(stage, retired = []) {
+  // A revision or an edit of a message that rewrites a widget's authored markup
+  // retires the descriptor taken from the markup it replaced. The id survives the
+  // rewrite and the element does not, so the id-keyed readings are the ones that would
+  // otherwise answer for a document nobody is reading; the element-keyed ones leave
+  // with their elements.
   for (const id of retired) {
     byId.delete(id);
     elements.delete(id);
@@ -115,7 +116,7 @@ export function commitWidgetDescriptors(stage, retired = new Set()) {
 }
 
 // The element standing for a widget id: the one the document holds under it, else the
-// bound node not yet mounted (a message's frozen markup before the thread places it).
+// bound node not yet mounted (a message's markup before the thread places it).
 /** @param {string} id */
 export const widgetElement = (id) => elementById(id) ?? elements.get(id) ?? null;
 
@@ -129,7 +130,7 @@ export function widgetDescriptor(owner) {
   return replacement;
 }
 
-// Mention, not use: a widget inside one the registry marks x-exhibit is quoted
+// Mention, not use: a widget inside one the registry marks `exhibit` is quoted
 // material. An interactive widget consults this before wiring anything that would carry
 // input back (a choose path, a drag grip), so an exhibit never takes the user's edits.
 // Presentational upgrades and view state run regardless — a quoted diagram still

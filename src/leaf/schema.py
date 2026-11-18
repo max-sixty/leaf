@@ -50,7 +50,7 @@ DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # a command's ID is a widget or a message, whichever the page holds, so an authored
 # id may not take this shape (`validation.markup.id_errors`).
 EVENT_ID = r"[0-9a-f]{8}"
-# The record forms one vocabulary of declared state draws on ($state in the
+# The record forms one vocabulary of declared state draws on ($verbs in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
 _RECORD_ATTRIBUTE = {
@@ -101,11 +101,11 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local obligation is answered: a map from each answering x-state verb to the
-# condition its current state meets. An empty condition means the verb's state stands
-# (a non-empty attribute or value record, otherwise an action in force). `when` narrows
-# the verb to instances whose attributes match; `empty` holds when the one member
-# container it names inside the widget is left with no members by the current
+# When a local obligation is answered: a map from each answering verb (`verbs`) to
+# the condition its current state meets. An empty condition means the verb's state
+# stands (a non-empty attribute or value record, otherwise an action in force). `when`
+# narrows the verb to instances whose attributes match; `empty` holds when the one
+# member container it names inside the widget is left with no members by the current
 # positions. One map, so every answer is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
@@ -144,10 +144,7 @@ ACTION_CREATES = {
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
 # `owns` makes the relation one-to-one within a document: the referrer fills its
-# target (`validation.instances.reference_errors`). A keyed relation names a member,
-# not an element id: the `tag` member whose `key` attribute holds the value, which
-# that tag declares unique within an owner (x-unique), looked up in the referrer's own
-# enclosing owner.
+# target (`validation.instances.reference_errors`).
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -167,17 +164,12 @@ REFERENCE_SCHEMA = {
                 },
             },
             "owns": {"const": True},
-            "tag": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-            "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "dependentRequired": {
             "via": ["where"],
             "where": ["via"],
             "owns": ["via"],
-            "tag": ["key"],
-            "key": ["tag"],
         },
-        "dependentSchemas": {"key": {"not": {"required": ["via"]}}},
         "additionalProperties": False,
     },
 }
@@ -222,6 +214,8 @@ VERB_SCHEMA = {
         "unsent": {"const": True},
         "creates": ACTION_CREATES,
         "decides": {"const": True},
+        # The deciding verb's outcome that declines the proposal (`$verbs`).
+        "withdraws": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "contract": {
             "type": "object",
             "properties": {
@@ -235,6 +229,7 @@ VERB_SCHEMA = {
         "text": {"const": True},
     },
     "required": ["unit"],
+    "dependentRequired": {"withdraws": ["decides"]},
     "allOf": [
         {
             "if": {"required": ["record"]},
@@ -269,7 +264,7 @@ VERB_SCHEMA = {
     },
     "else": {"properties": {"text": False}},
 }
-STATE_SCHEMA = {
+VERBS_SCHEMA = {
     "type": "object",
     "minProperties": 1,
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
@@ -322,6 +317,9 @@ DATA_INPUTS_SCHEMA = {
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+            # The widget attribute holding the receipt of the source's run that
+            # produced the value written in the element's content.
+            "measured": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
@@ -329,185 +327,186 @@ DATA_INPUTS_SCHEMA = {
         "additionalProperties": False,
     },
 }
-MEASURED_SCHEMA = {
+
+_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
+_TAGS = {
+    "type": "array",
+    "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+    "minItems": 1,
+}
+
+
+# The form of a fact declared to hold only for the occurrences whose authored
+# attributes match its `when` (`registry.contract.holds_for`).
+_WHEN_FORM = {
     "type": "object",
-    "properties": {
-        # The x-data input whose source receipt identifies the current run.
-        "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        # The widget attribute holding the source write's opaque receipt.
-        "run": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-    },
-    "required": ["input", "run"],
+    "properties": {"when": AWAITING_CONDITION},
+    "required": ["when"],
     "additionalProperties": False,
 }
 
-_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
-EXTENSION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "x-awaits": AWAITS_SCHEMA,
-        "x-thread-seat": {
-            "type": "object",
-            "properties": {
-                "when": AWAITING_CONDITION,
-                "hold": {"type": "string", "minLength": 1},
-            },
-            "required": ["when"],
-            "additionalProperties": False,
+
+def _conditional(schema: dict) -> dict:
+    """The schema of a fact a declaration may state outright, as `schema` admits, or
+    in the `{when: {attribute: [values]}}` form. Only a mark (`$marks`) may take it,
+    and importing this module fails for any other fact (below). Delivery and the
+    browser paint each mark on the occurrences where it holds, and `registry.widgets`
+    holds each mark's `when` to the declared attributes, so no code names the fact. A
+    reader asking of one occurrence reads the fact through
+    `registry.contract.holds_for`, and one asking whether the tag declares it at all
+    reads the declaration, condition or not; `$keys` says which of `exhibit`'s
+    readers asks which."""
+    return {"oneOf": [schema, _WHEN_FORM]}
+
+
+# How an author writes an element: a widget's declaration holds these with its other
+# facts, and a selector idiom holds only these and its description (`IDIOM_SCHEMA`).
+_AUTHORING = {
+    "example": {"type": "string", "pattern": r"\S"},
+    "instructions": {"type": "string", "pattern": r"\S"},
+}
+# The facts a declaration may hold beside its description, attributes and content,
+# each declared because some reader can't run the widget's module to learn it; `$keys`
+# in the kernel package's registry says which.
+FACTS: dict[str, dict] = {
+    "verbs": VERBS_SCHEMA,
+    "awaits": AWAITS_SCHEMA,
+    "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+    "exhibit": _conditional({"const": True}),
+    # A view of another widget's answer (`shown_answers.py`): `reference` is the
+    # attribute (`refers`) naming that widget, as an input's `reference` names the
+    # element it reads, and `value` the attribute of the view's compound owner that
+    # names the answer it holds.
+    "shows": {
+        "type": "object",
+        "properties": {"reference": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
+        "required": ["reference", "value"],
+        "additionalProperties": False,
+    },
+    "work": {"const": True},
+    "history": {"const": True},
+    "owners": _TAGS,
+    "unique": {
+        "type": "object",
+        "minProperties": 1,
+        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+        "additionalProperties": {
+            "type": "string",
+            "pattern": f"^{WIDGET_NAME}$",
         },
-        "x-content": {"enum": ["markup", "members", "data", "empty"]},
-        "x-text-format": {"enum": ["inline-markdown", "markdown"]},
-        "x-data": DATA_INPUTS_SCHEMA,
-        "x-output": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-            "additionalProperties": {
+    },
+    "refers": REFERENCE_SCHEMA,
+    "reading-role": {"enum": ["pane", "group"]},
+    "verbatim": {"const": True},
+    "shadow": {"const": True},
+    "inline": {"const": True},
+    "visual": {
+        "oneOf": [
+            {"const": "whole"},
+            {
                 "type": "object",
-                "properties": {
-                    "contract": {"type": "string", "pattern": f"^{DATA_CONTRACT_NAME}$"}
-                },
-                "required": ["contract"],
+                "properties": {"parts": _ATTRIBUTE_NAME},
+                "required": ["parts"],
                 "additionalProperties": False,
             },
-        },
-        "x-example": {"type": "string"},
-        "x-example-data": {
-            "type": "object",
-            "propertyNames": {"pattern": f"^{DATA_SOURCE_NAME}$"},
-        },
-        "x-exhibit": {
-            "oneOf": [
-                {"type": "boolean"},
-                {
-                    "type": "object",
-                    "properties": {"when": AWAITING_CONDITION},
-                    "required": ["when"],
-                    "additionalProperties": False,
+            {
+                "type": "object",
+                "properties": {
+                    "prefixes": {
+                        "type": "array",
+                        "items": {"type": "string", "pattern": "^\\S+$"},
+                        "minItems": 1,
+                        "uniqueItems": True,
+                    }
                 },
-            ]
+                "required": ["prefixes"],
+                "additionalProperties": False,
+            },
+        ]
+    },
+    "text-format": {"const": "markdown"},
+    "word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
+    "views": {
+        "type": "object",
+        "properties": {
+            "members": {"type": "string", "minLength": 1},
+            "parts": {"const": True},
         },
-        "x-instructions": {"type": "string", "pattern": r"\S"},
-        "x-inline": {"type": "boolean"},
-        "x-encloses": {"const": True},
-        "x-language": _ATTRIBUTE_NAME,
-        "x-prepaint": _ATTRIBUTE_NAME,
-        "x-reading-role": {"enum": ["pane"]},
-        "x-measured": MEASURED_SCHEMA,
-        "x-patch": {"enum": ["members"]},
-        "x-owners": {
-            "type": "array",
-            "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-            "minItems": 1,
-        },
-        "x-refers": REFERENCE_SCHEMA,
-        "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "x-says": {
-            "type": "object",
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-            "additionalProperties": {"enum": ["before", "after"]},
-        },
-        "x-shadow": {"type": "boolean"},
-        # A view of another widget's answer (`shown_answers.py`): `attr` names that
-        # widget, and `value` the attribute of the view's compound owner that names
-        # the answer it holds.
-        "x-shows": {
-            "type": "object",
-            "properties": {"attr": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
-            "required": ["attr", "value"],
-            "additionalProperties": False,
-        },
-        "x-state": STATE_SCHEMA,
-        "x-thread-surface": {"const": True},
-        "x-tone": _ATTRIBUTE_NAME,
-        "x-unique": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-            "additionalProperties": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-        },
-        "x-upgrade": {"type": "boolean"},
-        "x-verbatim": {"type": "boolean"},
-        "x-visual": {
-            "oneOf": [
-                {"const": "whole"},
-                {
-                    "type": "object",
-                    "properties": {
-                        "parts": _ATTRIBUTE_NAME,
-                    },
-                    "required": ["parts"],
-                    "additionalProperties": False,
-                },
-                {
-                    "type": "object",
-                    "properties": {
-                        "prefixes": {
-                            "type": "array",
-                            "items": {"type": "string", "pattern": "^\\S+$"},
-                            "minItems": 1,
-                            "uniqueItems": True,
-                        }
-                    },
-                    "required": ["prefixes"],
-                    "additionalProperties": False,
-                },
-            ]
-        },
-        "x-space": {"enum": ["wide", "available"]},
-        "x-flow": {"const": True},
-        "x-spine": {"const": True},
-        "x-bound": {"enum": ["start", "end"]},
-        # A default height in CSS pixels, or `true` for a widget that has none and
-        # reserves only what an occurrence's data-height states.
-        "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
-        "x-history": {"const": True},
-        "x-views": {
+        "required": ["members"],
+        "additionalProperties": False,
+    },
+    "space": {"enum": ["wide", "available"]},
+    # A default height in CSS pixels, or `true` for a widget that has none
+    # and reserves only what an occurrence's data-height states.
+    "height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
+    "bound": {"enum": ["start", "end"]},
+    "spine": {"const": True},
+    "flow": _conditional({"const": True}),
+    "prepaint": _ATTRIBUTE_NAME,
+    "inputs": DATA_INPUTS_SCHEMA,
+    "outputs": {
+        "type": "object",
+        "minProperties": 1,
+        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+        "additionalProperties": {
             "type": "object",
             "properties": {
-                "members": {"type": "string", "minLength": 1},
-                "parts": {"const": True},
+                "contract": {
+                    "type": "string",
+                    "pattern": f"^{DATA_CONTRACT_NAME}$",
+                }
             },
-            "required": ["members"],
+            "required": ["contract"],
             "additionalProperties": False,
         },
-        "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "x-within": {
-            "type": "array",
-            "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-            "minItems": 1,
-        },
-        "x-word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
-        "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "x-work": {"const": True},
     },
-    "required": ["x-content", "x-upgrade"],
-    "dependentRequired": {
-        "x-retired-when": ["x-owners"],
-        "x-within": ["x-owners"],
-        "x-measured": ["x-data"],
-        "x-shows": ["x-owners", "x-refers"],
-    },
-    # An upgraded container can retain authored children, native markup included.
-    "if": {"required": ["x-patch"]},
-    "then": {
-        "properties": {
-            "x-content": {"enum": ["members", "markup"]},
-            "x-upgrade": {"const": True},
-        }
-    },
-    "additionalProperties": False,
+    **_AUTHORING,
 }
-# Selector idioms share author-facing extension fields with widgets, but cannot
-# declare widget behavior or marks (`revision_delivery.mark_declared`).
-IDIOM_SCHEMA = {
+# An element declaration: the JSON Schema of its attributes, and its facts.
+DECLARATION_SCHEMA = {
     "type": "object",
     "properties": {
         "description": {"type": "string", "pattern": r"\S"},
-        "x-example": {**EXTENSION_SCHEMA["properties"]["x-example"], "pattern": r"\S"},
-        "x-instructions": EXTENSION_SCHEMA["properties"]["x-instructions"],
+        # A JSON Schema, held to Draft 2020-12 apart (`registry.widgets`). The two
+        # keywords Leaf's readers take an attribute's own schema and presence from are
+        # named, so the browser's types know them.
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "properties": {"type": "object"},
+                "required": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "content": {"enum": ["markup", "members", "data", "empty"]},
+        **FACTS,
     },
-    "required": ["description", "x-example"],
+    "required": ["description", "attributes"],
+    # A fact read through others needs them declared too: a member that leaves under
+    # its owner's decision reads its owners, and a view of another widget's answer its
+    # owners and its reference (`registry.widgets`).
+    "dependentRequired": {"retired-when": ["owners"], "shows": ["owners", "refers"]},
+    "additionalProperties": False,
+}
+# Every key `$keys` documents: each a declaration may hold but its `description`.
+DECLARATION_KEYS = frozenset(DECLARATION_SCHEMA["properties"]) - {"description"}
+# A fact no mark paints would reach its readers in the `{when}` form as an object, which
+# reads as true, with nothing holding its condition to the declared attributes.
+if stray := sorted(
+    name
+    for name, schema in FACTS.items()
+    if _WHEN_FORM in schema.get("oneOf", ()) and name not in kernel_registry()["$marks"]
+):
+    raise ValueError(f"only a mark ($marks) may take the {{when}} form: {stray}")
+# A selector idiom names authored HTML the theme dresses, so it says only how an
+# author writes it, and declares no widget behavior or marks
+# (`revision_delivery.mark_declared`).
+IDIOM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "description": DECLARATION_SCHEMA["properties"]["description"],
+        **_AUTHORING,
+    },
+    "required": ["description", "example"],
     "additionalProperties": False,
 }
 _NONEMPTY = {"type": "string", "minLength": 1}
@@ -611,24 +610,16 @@ LAYER_FACTS = {
         "required": ["tokens"],
     },
 }
-# The keys whose value names attributes of the widget's own schema, in whichever shape
+# The facts whose value names attributes of the widget's own schema, in whichever shape
 # each carries the names: a list, a mapping keyed by them, or one name. One rule for all
 # of them, because the failure is one — the attribute is absent, so the pass reading the
-# key finds nothing and does nothing, and the widget is simply missing from it with no
-# error anywhere (validate_registry holds every key here to the entry's `properties`).
-# The verb keys of the same shape (x-retired-when, x-withdrawn-as) are not in it: they
-# name an outcome rather than an attribute, and sharing a spelling is no reason to share
-# a check. x-awaits and x-data name attributes too and keep their own loops, having more
-# to say about each than that it exists.
-ATTRIBUTE_KEYS = (
-    "x-language",
-    "x-name",
-    "x-prepaint",
-    "x-refers",
-    "x-says",
-    "x-tone",
-    "x-unique",
-)
+# fact finds nothing and does nothing, and the widget is simply missing from it with no
+# error anywhere (validate_registry holds every fact here to the entry's attributes).
+# `retired-when`, of the same shape, is not in it: it names an outcome rather than an
+# attribute, and sharing a spelling is no reason to share a check. `awaits` and
+# `inputs` name attributes too and keep their own loops, having more to say about each
+# than that it exists.
+ATTRIBUTE_FACTS = ("prepaint", "refers", "unique")
 
 # The kernel compiled from ASSETS's modules (`runtime_selection.read_runtime`).
 KERNEL = PLUGIN_ROOT / "dist" / "kernel"
@@ -705,6 +696,8 @@ INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
 USER_VIEWS_FILE = "user-views.json"
 USER_VIEWS_LOCK = "user-views.lock"
+DRAFTS_FILE = "drafts.json"
+DRAFTS_LOCK = "drafts.lock"
 RENDER_CHECKS_DIR = "checks"
 # How long a bare address stays authorized after the last handover link (`host_key`),
 # the lifetime Jupyter gives its login cookie.
@@ -722,6 +715,7 @@ SESSION_FILES = (
     WAITER_LOCK,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
+    DRAFTS_LOCK,
     SERVICE_FILE,
     SERVER_LOCK,
     PREVIEW_FILE,
@@ -735,6 +729,9 @@ PAGE_STATE_FILES = (
     EVENTS_FILE,
     INTERACTIONS_FILE,
     FILE_BINDINGS_FILE,
+    # The user's unsent words, which outlive the process serving them as the log does
+    # (`drafts.py`), though no reading of the page counts them (`reading.UNWATCHED`).
+    DRAFTS_FILE,
     *SESSION_FILES,
 )
 PAGE_OWNED_FILES = ("index.html", *PAGE_STATE_FILES)

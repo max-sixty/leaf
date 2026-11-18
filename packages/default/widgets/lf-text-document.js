@@ -6,7 +6,7 @@
  * viewport, which keeps its scroll place independent, and switching keeps the page
  * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
  * tall. A Markdown preview of written text instead takes its rendered height, which
- * its first paint already holds (`x-prepaint`), and its Source tab takes the same
+ * its first paint already holds (`prepaint`), and its Source tab takes the same
  * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
  * source, a press shows every line (`cut`), as a thread's Full quote shows a whole
  * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
@@ -20,19 +20,21 @@
  * rows stand in runs that the browser draws only in view (`run`), each sized ahead
  * of drawing by the lines its rows fill (`sizeRuns`), and syntax colour is painted on
  * the runs in view alone, as highlights over their text (`RunColours`). Built whole,
- * with a span for each token and a gutter cell for each number, 30 documents of 4 MB
- * took 23 s and 8.6 GB to show the one in view. The Markdown preview renders a file,
+ * with a span for each token and a gutter cell for each number, a page of large
+ * documents would take seconds and gigabytes to show the one in view. The Markdown
+ * preview renders a file,
  * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. The
  * source and Markdown renderers reconcile unchanged text across source updates, the
  * source only in the rows a new text changes (`rewrite`). HTML lives in a separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
+import { nothing } from "/vendor/lit.js";
 import {
+  codeLanguage,
   failSoft,
   ensureSyntaxLanguage,
   keeps,
   LeafElement,
-  nothing,
   whileConnected,
   keepsText,
   setRenderedChildren,
@@ -125,9 +127,9 @@ const digits = ({ text }) => `${String(text.length).length}`;
 // A run for `count` rows: a box the browser skips while it is out of view
 // (`content-visibility: auto`). The browser styles and lays out a skipped run only when
 // it comes into view, a search lands in it, or a script measures it, and its text stays
-// in the DOM for find-in-page, selection, copy and comments. When every row was styled
-// on each change to the page, a few megabytes of text took tens of seconds and
-// gigabytes of memory to draw. A lone run stays drawn (text-document.css): skipping it
+// in the DOM for find-in-page, selection, copy and comments. With every row styled on
+// each change to the page, a few megabytes of text would take seconds and gigabytes of
+// memory to draw. A lone run stays drawn (text-document.css): skipping it
 // buys nothing, and its rows would stand undrawn for the frames after the document
 // scrolls into view.
 /** @param {number} count */
@@ -140,10 +142,10 @@ function run(count) {
 }
 
 // A run counts its numbers on from its first line, which its first row holds
-// (`--lf-lines-before`, text-document.css). Held by the run, it reached every row, and
-// a line added at the top of 50,000 had Firefox, which styles the rows of runs it
-// skips, restyle all of them: 190 to 240 ms, against 35 with each run's number on its
-// first row. A row no longer first keeps a number the stylesheet doesn't read.
+// (`--lf-lines-before`, text-document.css). Held by the run, it would reach every row,
+// and a line added at the top of a long text would have Firefox, which styles the rows
+// of runs it skips, restyle all of them. A row no longer first keeps a number the
+// stylesheet doesn't read.
 /** @param {Element | null | undefined} row a run's first row @param {number} first */
 function number(row, first) {
   /** @type {HTMLElement | null | undefined} */ (row)?.style.setProperty(
@@ -211,10 +213,10 @@ export function changes(before, after, maxEditLength = MAX_EDIT_LENGTH) {
 // past the old ones stands beside the last it follows, or before the row after it.
 // The changes apply last to first, so each finds its rows by the runs' first lines as
 // they were. Runs are a drawing boundary, not a row's place: lines added or removed
-// leave every other run's rows where they were (`regroup`). Reconciled over every row
-// and moved so each run held 128, a one-line rewrite of 50,000 lines took 207 ms, and
-// 200 lines added carried 200 rows across each later run's edge: 2.9 s, most of it the
-// runtime hearing each row move. `firsts` is the line each run starts on.
+// leave every other run's rows where they were (`regroup`). Rejected: reconciling over
+// every row and moving rows so each run holds `RUN`, which makes a one-line rewrite of a
+// long text a pass over every row, and carries the lines added across each later run's
+// edge, the runtime hearing each row move. `firsts` is the line each run starts on.
 /** @param {Element} code @param {readonly Change[]} found @param {Lines} after @param {Set<Element>} shown @param {readonly number[]} firsts */
 function rewrite(code, found, after, shown, firsts) {
   const runs = [...code.children];
@@ -258,7 +260,7 @@ function rewrite(code, found, after, shown, firsts) {
 // new text adds past the old ones. The reconciliation finds a row's words wherever they
 // stand in its run, so a selection on lines a rewrite reindented and moved a line stays
 // on its words; patched row by row, each row took the words of the line before it.
-// Walked to the end, every line of 4 MB rewritten took 285 s.
+// The cap spares a walk to the end of a large text rewritten throughout.
 /** @param {Element} code @param {Lines} after @param {Set<Element>} shown @param {readonly number[]} firsts */
 function refill(code, after, shown, firsts) {
   const runs = [...code.children];
@@ -294,9 +296,8 @@ function refill(code, after, shown, firsts) {
 // the rewrite `touched` folds onto the end of the run before it where the two fit in
 // `RUN` rows, or where it fell under a quarter of `RUN`, and one it filled to twice
 // `RUN` splits into runs of `RUN`. So the runs a session's rewrites leave are bounded by
-// the text's size rather than the session's length: unfolded, 40 cycles of adding 200
-// lines and removing them took a 3,002-line text from 24 runs to 75, and folded, 120
-// cycles took it to 40. Both move rows (`setChildLists`, which keeps a selection in a
+// the text's size rather than the session's length. Both move rows (`setChildLists`,
+// which keeps a selection in a
 // row it moves), and a moved row lands only at a run's end or in a run the split has
 // just made, never at the head of a run the page holds: Chromium drops the line number
 // of a row `moveBefore` puts first in a run it skips, and numbers the rows after it
@@ -472,10 +473,10 @@ function rowLines(row, columns, tab) {
 // its style resolves with neither `auto` nor `content-visibility: auto`. Chromium,
 // Firefox and WebKit all do so, though css-sizing-4 says otherwise
 // (notes/browser-support.md). Narrowed after its last runs were drawn, a long text
-// left End 240 to 1,834 px short. So when the line length changes, each run the
+// can leave End short. So when the line length changes, each run the
 // browser has `drawn` that is skipped now resolves its style once as `hidden` without
-// `auto`, and takes both back before anything is drawn. Only those runs: the
-// resolution cost Firefox about 60 ms on 4 MB, and 426 ms over every resized run.
+// `auto`, and takes both back before anything is drawn. Only those runs, since
+// resolving every resized run costs Firefox far more on a large text.
 // A rewrite sizes only the runs whose rows it changed (`only`).
 /** @param {Element} code @param {readonly string[]} text @param {readonly number[]} starts the line each run starts on @param {{columns: number, tab: number}} length @param {WeakSet<Element>} [drawn] the runs drawn since they last forgot a height @param {ReadonlySet<Element>} [only] */
 function sizeRuns(code, text, starts, { columns, tab }, drawn, only) {
@@ -515,17 +516,17 @@ function sizeRuns(code, text, starts, { columns, tab }, drawn, only) {
 // keeps its theme colour but not its font style: a comment, italic in a code block,
 // stands upright here. A token whose colour is no variable, or that has none, has no
 // highlight (null). The rules are declared rather than written as each colour first
-// appears: Firefox restyled the whole page for each rule a sheet gained, 0.85 s a rule
-// beside a long document, and End there showed its scroll 1.5 s after the press.
+// appears: Firefox can restyle the whole page for each rule a sheet gains, which beside
+// a long document delays even End's scroll.
 // They rank under the comment marks (priority -1), whose ink the marked words wear
 // however late a colour first appears: at equal priority the highlight registered
-// last paints on top, and a string scrolled to after the marks were painted kept its
-// syntax colour inside a violet mark.
+// last paints on top, so a string scrolled to after the marks were painted would keep
+// its syntax colour inside a violet mark.
 /** @type {Map<string, Highlight>} */
 const tokenHighlights = new Map();
 /** @param {{color?: string}} style */
 function tokenHighlight(style) {
-  const colour = style.color?.match(/^var\(--([\w-]+)\)$/)?.[1];
+  const colour = style.color?.match(/^var\(--lf-([\w-]+)\)$/)?.[1];
   if (!colour) return null;
   let highlight = tokenHighlights.get(colour);
   if (!highlight) {
@@ -543,8 +544,8 @@ function tokenHighlight(style) {
 // comment or a fenced code block is coloured as the whole text would be. Those states
 // are kept, and a run far down whose state isn't known yet is painted at once from a
 // fresh state, then again once `walk` has tokenized the runs before it, a slice of the
-// main thread at a time: waiting for its state, End on 4 MB of Python stood uncoloured
-// for 2.1 s in Chromium and 18.5 s in Firefox. Until then only a construct open across
+// main thread at a time: waiting for its state, End on a large text would stand
+// uncoloured for seconds. Until then only a construct open across
 // the run's first line, such as a docstring, reads wrong. A new text keeps the states
 // and the paint of the runs before its first changed line.
 /** @typedef {{exact: boolean, ranges: [Highlight, StaticRange][]}} Paint */
@@ -730,8 +731,8 @@ class RunColours {
 
   // The lines of the run at `at`, as the tokenizer reads them, found by where it and
   // the next run start: counted from each run's rows instead, colouring the way to the
-  // end of 50,000 lines counted every row before each run it tokenized, 50 ms in
-  // Chromium, which counts an element's children one by one.
+  // end of a long text would count every row before each run it tokenized, which
+  // Chromium does one child at a time.
   /** @param {number} at */
   lines(at) {
     return this.text
@@ -741,8 +742,8 @@ class RunColours {
 
   // Takes the paint off `runs`. Each highlight it touches is rebuilt from the ranges it
   // keeps rather than losing each of its ranges in turn: Firefox finds a range to delete
-  // by walking the highlight's list, and taking two runs scrolled out of view off it
-  // held a frame for over 100 ms. The highlights hold only the ranges of the runs in
+  // by walking the highlight's list, so taking runs off it range by range can hold a
+  // frame. The highlights hold only the ranges of the runs in
   // view and beside them, since a fold takes a closed tab's out (`fold`), so the rebuild
   // costs what the window shows.
   /** @param {Iterable<Element>} runs */
@@ -792,6 +793,13 @@ function drawLater(doc, value, rendering) {
 
 class TextDocument extends LeafElement {
   rendering = 0;
+  // The language the text is coloured in (`codeLanguage`), read at setup while the
+  // written `<pre>` that may name it stands: the first draw replaces the `<pre>`, and a
+  // revision that names another language brings a new element. Only a document naming
+  // none takes its preview's: one naming a language Leaf can't colour stays uncoloured,
+  // as `page check` tells its author.
+  /** @type {string | null | undefined} */
+  language;
   /** @type {(() => void) | null} */
   finishFrame = null;
   /** @type {Promise<void> | undefined} */
@@ -810,16 +818,15 @@ class TextDocument extends LeafElement {
   lineLength = null;
   // A new width gives the listing's lines another length, and its runs another height.
   // So can a new face, which shows where a drawn run changes height. The runs are
-  // sized again in the next frame, outside the observer's delivery: sized in it when
-  // Firefox's face arrived, they resized the code it watches, and Firefox reported the
-  // notification it couldn't deliver as an error. A document the page shows is sized
-  // as it draws (`show`), so the observer's first delivery already sees its runs at
-  // their lines' heights; left to the next frame, Firefox on Linux CI reported a loop
-  // of undelivered notifications for a long document.
+  // sized again in the next frame, outside the observer's delivery: sized in it as
+  // Firefox's face arrives, they would resize the code it watches, and Firefox can
+  // report the notification it couldn't deliver as an error. A document the page shows
+  // is sized as it draws (`show`), so the observer's first delivery already sees its
+  // runs at their lines' heights; left to the next frame, Firefox can report a loop of
+  // undelivered notifications for a long document.
   // A hidden one is sized by the observer once its listing has a box: measured as each
-  // document drew, every closed tab's listing was a read of the page's layout, and
-  // Chromium's answer took longer for each document drawn before it, 0.8 s over 30
-  // documents of 4 MB.
+  // document drew, every closed tab's listing would be a read of the page's layout, and
+  // Chromium's answer can take longer for each document drawn before it.
   sizes = sizeObserver((entries) => {
     for (const { target, contentRect } of entries)
       if (target === this.view?.listing) this.list(contentRect.width > 0);
@@ -837,8 +844,8 @@ class TextDocument extends LeafElement {
   // the document. A closed tab skips its contents' layout (`hidden="until-found"`), so
   // the height is read while the preview shows, after each of its resizes. A document
   // drawn on Source, as after a reload, never showed its preview; it keeps the box the
-  // page first painted (`firstBox`), which holds the preview's rendering (`x-prepaint`).
-  // Either reaches the Source tab before the frame paints.
+  // page first painted (`firstBox`), which holds the preview's rendering
+  // (`prepaint`). Either reaches the Source tab before the frame paints.
   /** @param {number | null} [firstBox] */
   holdSource(firstBox = null) {
     const preview = this.view?.preview;
@@ -895,14 +902,14 @@ class TextDocument extends LeafElement {
   // colour of its runs out of the highlights every document shares. The fold makes the
   // runs `visible` (text-document.css), so they report nothing as it closes, but the
   // rows stop meeting their `pre`, which an intersection observer reports after the
-  // frame (`show`). Kept, the colour of every tab a reader had opened stood in those
-  // highlights for the rest of the session: after 30 tabs of Python they held 10,449
-  // ranges rather than 380, and over eight scroll steps Chromium spent 34 ms rather
-  // than 2 uncolouring (`unpaint`) and 25 ms rather than 6 in hit tests. A size
+  // frame (`show`). Kept, the colour of every tab a reader had opened would stand in
+  // those highlights for the rest of the session, and the ranges they hold, growing with
+  // each tab opened, would slow uncolouring (`unpaint`) and hit tests at every scroll
+  // step. A size
   // observer reports only a change from the size it last reported, and the fold opens
   // at that size, so the listing is observed afresh: the observer then reports its box
   // before the frame that shows it paints, and the runs in view are coloured in that
-  // frame (`list`), as when the fold kept their colour.
+  // frame (`list`), as they would be if the fold kept their colour.
   fold() {
     const listing = this.view?.listing;
     if (!listing) return;
@@ -926,6 +933,7 @@ class TextDocument extends LeafElement {
   }
 
   setup() {
+    this.language = codeLanguage(this);
     // A departure abandons the rendering in flight and its frame's wait, and the
     // colour of the runs it drew, which a return draws again as they show.
     whileConnected(this, () => {
@@ -940,7 +948,7 @@ class TextDocument extends LeafElement {
   }
 
   // The text, set by whoever hosts the widget: Leaf from the bound source or output
-  // (the registry's `x-data.document.property`), or from the written `<pre>`; null
+  // (the registry's `inputs.document.property`), or from the written `<pre>`; null
   // while a bound source has none.
   static properties = { value: { attribute: false } };
 
@@ -955,8 +963,14 @@ class TextDocument extends LeafElement {
         if (!skipped) this.drawn.add(target);
         const code = this.sourceView?.code;
         if (target.parentElement !== code || !code) return;
-        if (skipped) this.shown.delete(target);
-        else this.shown.add(target);
+        // A run reported skipped while it stands in view stays shown, read off the
+        // boxes as `list` reads them. As a tab opens again, Chromium reports the runs
+        // in view skipped before it draws them, and its report that they draw can
+        // come after the frame that does.
+        if (skipped) {
+          if (runsInView(code).includes(target)) return;
+          this.shown.delete(target);
+        } else this.shown.add(target);
         this.colourShown();
       },
       { capture: true },
@@ -1002,8 +1016,7 @@ class TextDocument extends LeafElement {
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
-      const language = this.getAttribute("language") ?? preview;
-      // A language with no grammar fails the document here, before it draws.
+      const language = this.language === undefined ? preview : this.language;
       if (language) await ensureSyntaxLanguage(language);
       if (preview === "markdown") {
         let failure;
@@ -1012,11 +1025,10 @@ class TextDocument extends LeafElement {
       // A document the page shows draws at once; one it doesn't, as in a closed tab,
       // first draws once the page has presented (`drawLater`), and this update
       // completes without it: the page counts the draws as an arrival. Drawn in page
-      // order, a reload on the 30th of 30 tabs of 4 MB showed its document only after
-      // the 29 before it: 2.8 s in Chromium, 33 s in Firefox. Drawn before
-      // presentation, they held it back, and Firefox, which styles a closed tab's rows
-      // too, restyled every one of them as the page presented: 2.6 s for 30 documents
-      // of 50,000 lines.
+      // order, a reload on the last of many tabs would show its document only after all
+      // the documents before it. Drawn before presentation, they would hold it back, and
+      // Firefox, which styles a closed tab's rows too, would restyle every one of them as
+      // the page presented.
       if (!this.sourceView) {
         this.listed = this.checkVisibility();
         if (!this.listed && !presented) return drawLater(this, value, rendering);

@@ -75,6 +75,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
+from leaf.http import assets_path
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
@@ -86,7 +87,7 @@ from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
-# The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
+# The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
 # names the role a path plays — "what a harness runs" — for the tests built on that.
 PLUGIN_ROOT = ROOT
 # The skill contains agent instructions; application resources belong to the plugin.
@@ -94,9 +95,8 @@ SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "tests" / "fixtures" / "packages" / "work"
 # The complete shipped vocabulary, in the order `page init` composes it for an example.
 # Read from examples/layer.json rather than listed here, because a floor that names its
-# own packages stops covering the next one: lf-diagram and lf-diff left the default
-# package for `diagram` and `diff` and would have dropped out of every sweep silently,
-# and pr-review's two widgets had never been in one.
+# own packages stops covering the next one, and a widget that moves to another package
+# drops out of every sweep silently.
 SHIPPED_PACKAGES = [
     schema_model.ASSETS,
     schema_model.DEFAULT_PACKAGE,
@@ -167,10 +167,9 @@ def append_carried_log_record(page_dir, event):
 
 
 def revision_root(page_dir: Path, revision: int) -> str:
-    """Where a page's server answers revision `revision`'s resources: under the
-    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
-    name = files_model.revision_path(page_dir, revision).stem
-    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
+    """Where a page's server answers revision `revision`'s resources
+    (`http.assets_path`)."""
+    return assets_path(execution_identity(read_artifact(page_dir, revision)))
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -212,7 +211,7 @@ def queue_board_registry(registry: dict) -> dict:
     answers spanning units without a presentation-specific package.
     """
     registry = deepcopy(registry)
-    registry["lf-board"]["x-awaits"] = {
+    registry["lf-board"]["awaits"] = {
         "value": "move",
         "answered": {
             "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
@@ -580,32 +579,38 @@ def declare_on_page(page_dir: Path, mutate) -> None:
     path.write_text(json.dumps(declarations))
 
 
-PAGE = """<!doctype html>
+# PAGE's decision is settled, so the page asks the user nothing. A test that needs a
+# question replaces this tag with a group that asks.
+PAGE_GROUP = '<lf-options id="plan-choice" settled>'
+PAGE = f"""<!doctype html>
 <html lang="en">
 <head>
 <title>t</title>
 </head>
 <body>
 <main>
-<section id="plan">
+<lf-group id="plan-questions" label="Open questions"><section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <div id="plan-choice-decision">
-    <h3>Which plan should lead?</h3>
-    <lf-options>
-      <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
-        <strong>Flag first</strong> Ship dark.
+  <lf-group id="plan-choice-decision" label="Which plan should lead?">
+    <h3 id="plan-choice-question">Which plan should lead?</h3>
+    {PAGE_GROUP}
+      <lf-option id="flag-first" label="Flag first"><small class="tag">effort: low</small><small class="tag">risk: med</small> <strong>Flag first</strong>
+        Ship dark.
       </lf-option>
-      <lf-option id="backfill-first"><small class="tag">effort: med</small><small class="tag">risk: low</small>
-        <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
+      <lf-option id="backfill-first" label="Backfill first"><small class="tag">effort: med</small><small class="tag">risk: low</small> <strong>Backfill first</strong>
+        Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
-  </div>
-</section>
+  </lf-group>
+</section></lf-group>
 </main>
 </body>
 </html>
 """
+# PAGE's Plan section stands in a named group, so a widget a test writes there asks a
+# question (`obligations.widget_groups`); a test opening the section matches this.
+PLAN_OPENING = '<section id="plan">'
 # PAGE places no widget whose module only a browser can judge, so `page check` on it
 # and on the versions built from it never starts one (`needs_browser`). A test about a
 # data widget's body, its visual parts, or the section one supplies starts from
@@ -732,16 +737,17 @@ def declare_data_input(
         declaration["instructions"] = instructions
     entry = {
         "description": "A test widget with one external-data input.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
         },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {input_name: {"contract": contract, "source": "source"}},
-        "x-upgrade": False,
+        "content": "empty",
+        "inputs": {input_name: {"contract": contract, "source": "source"}},
     }
 
     def declare(registry):
@@ -787,7 +793,7 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     """
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-options"]["properties"].update(
+        lambda registry: registry["lf-options"]["attributes"]["properties"].update(
             resolves={"type": "string"}
         ),
     )
@@ -796,11 +802,11 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     source = page_dir / "index.html"
     source.write_text(
         source.read_text()
+        .replace(PICKS_GROUP, f'<lf-options id="picks" resolves="{thread}">')
         .replace(
-            '<lf-options id="picks">',
-            f'<lf-options id="picks" choose resolves="{thread}">',
+            '<lf-option id="flag-first" label="Flag first">',
+            '<lf-option id="flag-first" label="Flag first" selected>',
         )
-        .replace('<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>')
     )
 
 
@@ -865,6 +871,10 @@ def served_state_error(value, against: str | tuple[str, ...] = "Reading") -> str
 # (`http.PageEndpoint.POST_ROUTES` and its gates), so every answer a test reads holds
 # the schema the browser and the Worker are typed from.
 ROUTE_ANSWERS = {
+    r"/api/news": ("NewsAnswer",),
+    r"/api/pages": ("PagesAnswer",),
+    r"/api/drafts": ("DraftsAnswer",),
+    r"/api/draft": ("DraftWriteAnswer", "Refusal", "LayerAnswer"),
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
@@ -894,14 +904,14 @@ def page_state(d):
 
 
 def served_thread(browser: dict) -> dict:
-    """The frozen threads as the one view `browser` serves reads them."""
+    """The threads as the one view `browser` serves reads them."""
     [view] = browser["views"].values()
     return view["thread"]
 
 
 def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
-    the selections `obligations.collection` makes: the frozen threads' obligations, or
+    the selections `obligations.collection` makes: the threads' obligations, or
     with `page` the document's obligations. The records the user's updates publish
     are `served_updates`."""
     [view] = browser["views"].values()
@@ -1108,7 +1118,7 @@ SUGGESTION = """<lf-suggestion id="sug-refill">
 
 def before_choice(page, markup):
     """Insert a fixture before the base page's titled choice."""
-    start = '<div id="plan-choice-decision">'
+    start = '<lf-group id="plan-choice-decision" label="Which plan should lead?">'
     return page.replace(start, markup + start)
 
 
@@ -1185,7 +1195,7 @@ def _board(todo, done):
     """A two-column board, each column given its cards as (id, attrs, title)."""
 
     def card(c):
-        return f'<lf-card id="{c[0]}"{c[1]}><strong>{c[2]}</strong></lf-card>'
+        return f'<lf-card id="{c[0]}" label="{c[2]}"{c[1]}><strong>{c[2]}</strong></lf-card>'
 
     return (
         '<lf-board id="b1">'
@@ -1197,13 +1207,13 @@ def _board(todo, done):
 
 X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
-OPTIONS = """<lf-ask id="g1-decision">
-  <h3>Which migration should lead?</h3>
-  <lf-options id="g1" choose>
-    <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
-    <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
+OPTIONS = """<lf-group id="g1-decision" label="Which migration should lead?">
+  <h3 id="g1-decision-h">Which migration should lead?</h3>
+  <lf-options id="g1">
+    <lf-option id="o-shim" label="Shim it"{a}><strong>Shim it</strong> {shim}</lf-option>
+    <lf-option id="o-stage" label="Migrate in stages"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
-</lf-ask>"""
+</lf-group>"""
 
 
 def thread_records(page_dir, name: str) -> list[str]:
@@ -1378,67 +1388,61 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-test-task"]["x-state"]["status"]["record"] = {"kind": "body"}
+    registry["lf-test-task"]["verbs"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
-    registry["lf-test-task"]["x-state"]["status"]["record"] = {
+    registry["lf-test-task"]["verbs"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
     }
 
 
 def _report_no_record(registry):
-    del registry["lf-test-task"]["x-state"]["status"]["record"]
+    del registry["lf-test-task"]["verbs"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["lf-test-task"]["x-state"]["status"]["record"]["attr"] = "phase"
-
-
-def _report_says_attr(registry):
-    task = registry["lf-test-task"]
-    task["required"].append("owner")
-    task["x-says"] = {"owner": "before"}
-    task["x-state"]["status"] = {
-        "writer": "agent",
-        "unit": "widget",
-        "record": {"kind": "value", "attr": "owner"},
-    }
+    registry["lf-test-task"]["verbs"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_authored_detail(registry):
-    registry["lf-test-task"]["x-state"]["status"]["detail"] = {
+    registry["lf-test-task"]["verbs"]["status"]["detail"] = {
         "type": "object",
         "additionalProperties": False,
     }
 
 
 def _report_without_overruled(registry):
-    del registry["lf-test-task"]["properties"]["overruled"]
+    del registry["lf-test-task"]["attributes"]["properties"]["overruled"]
 
 
-def _report_without_upgrade(registry):
-    registry["lf-test-task"]["x-upgrade"] = False
+def _report_without_module(registry):
+    registry["lf-test-bare"] = {
+        **deepcopy(registry["lf-test-task"]),
+        "example": '<lf-test-bare id="bare"></lf-test-bare>',
+    }
 
 
 def _user_verb_text(registry):
-    registry["lf-options"]["x-state"]["choose"]["text"] = True
+    registry["lf-options"]["verbs"]["choose"]["text"] = True
 
 
 def _agent_verb_answers(registry):
-    registry["lf-options"]["x-state"]["choose"]["writer"] = "agent"
-    registry["lf-options"]["properties"]["overruled"] = {"type": "boolean"}
+    registry["lf-options"]["verbs"]["choose"]["writer"] = "agent"
+    registry["lf-options"]["attributes"]["properties"]["overruled"] = {
+        "type": "boolean"
+    }
 
 
 def _body_record_with_prose(registry):
     # Isolate the body-record contract from the Markdown/data-content contract.
-    del registry["lf-draft"]["x-text-format"]
-    registry["lf-draft"]["x-content"] = "markup"
+    del registry["lf-draft"]["text-format"]
+    registry["lf-draft"]["content"] = "markup"
 
 
 def _body_record_with_nested_widget(registry):
-    registry["lf-option"]["x-owners"].append("lf-draft")
+    registry["lf-option"]["owners"].append("lf-draft")
 
 
 # A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`,
@@ -1476,7 +1480,7 @@ def deciding_verb(outcomes):
 
 
 def trial_version(*markup):
-    return PAGE.replace("<lf-options>", "\n".join([*markup, "<lf-options>"]))
+    return PAGE.replace(PAGE_GROUP, "\n".join([*markup, PAGE_GROUP]))
 
 
 def trial_family(root: Path) -> None:
@@ -1484,7 +1488,8 @@ def trial_family(root: Path) -> None:
 
     Registry declarations relate its owners and slots, and each owner's module is the
     product's starter, which renders nothing of its own: anything a test sees settle is
-    the layer's doing, and the holders' bodies are the authored words (`x-verbatim`).
+    the layer's doing, and the holders' bodies are the authored words
+    (`verbatim`).
     Only <lf-proposed> names two owners, for the selector case that needs one."""
     package = root / ".leaf"
     for tag, upgrade in (
@@ -1501,20 +1506,23 @@ def trial_family(root: Path) -> None:
         ("lf-pilot", ["run", "shelve"], PILOT_PURGE),
     ):
         declarations[tag] |= {
-            "x-content": "members",
-            "x-state": {"decide": deciding_verb(outcomes)},
-            "x-example": example,
+            "content": "members",
+            "verbs": {"decide": deciding_verb(outcomes)},
+            "example": example,
         }
-        declarations[tag]["properties"]["restated"] = {"type": "boolean"}
+        declarations[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
-    declarations["lf-trial"]["x-withdrawn-as"] = "shelve"
+    declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (
         ("lf-current", ["lf-trial"], "adopt"),
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
     ):
-        declarations[tag] |= {"x-owners": owners, "x-retired-when": outcome}
-        del declarations[tag]["x-example"]  # a slot does not stand alone
-        del declarations[tag]["required"]  # nor an id it must carry
+        declarations[tag] |= {
+            "owners": owners,
+            "retired-when": outcome,
+        }
+        del declarations[tag]["example"]  # a slot does not stand alone
+        del declarations[tag]["attributes"]["required"]  # nor an id it must carry
     source.write_text(json.dumps(declarations))
     # add_test_widget frames every tag as a card. The slots draw no box of their own;
     # clearing their paragraph margins keeps a retired sibling from leaving a margin
@@ -2242,12 +2250,12 @@ print("queued")
 def under_codex(spawn, codex_program):
     """A command run the way Codex runs one: a session process that stays for the
     thread, and between it and the command a shell of the moment — which is what
-    a pipeline leaves there, and what Leaf once mistook for the session.
+    a pipeline leaves there, and what Leaf must not mistake for the session.
 
     `; exit` is what puts that shell there: a lone command is exec'd in place by
-    the shell wrapping it, which is why some command shapes recorded the right
-    pid by accident. It also keeps the command's own status, where the `| cat`
-    that produced the shape in the wild would report the pipeline's last exit.
+    the shell wrapping it, which is why some command shapes would record the right
+    pid by accident. It also keeps the command's own status, where a `| cat`
+    would report the pipeline's last exit.
     PYTHONHOME because a copied interpreter has no prefix beside it to find its
     own standard library in. It is the copy's alone: the runner drops it before
     the shell, so the command gets the environment the test gave it, and a
@@ -2504,11 +2512,11 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         theme.write(
             f"\n{tag} {{\n"
             "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
+            "  margin: var(--lf-sp-3) 0;\n"
+            "  padding: var(--lf-sp-3);\n"
+            "  border: 1px solid var(--lf-rule);\n"
+            "  border-radius: var(--lf-r);\n"
+            "  background: var(--lf-card);\n"
             "  --lf-block-frame: 1;\n"
             "}\n"
         )
@@ -2519,28 +2527,23 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     return declaration
 
 
-@pytest.fixture
-def declared_reading_package(tmp_path, monkeypatch):
-    """A module-free vocabulary for the shared said-word contract."""
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / ".leaf"
-    add_test_widget(package, "lf-reading")
-    registry_path = package / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    reading = registry["lf-reading"]
-    reading["properties"].update({"label": {"type": "string"}})
-    reading["x-says"] = {"label": "before"}
-    registry_path.write_text(json.dumps(registry))
-    return "./.leaf"
+def with_modules(registry: dict, *tags: str) -> dict:
+    """`registry` holding a module for each of `tags`, as composing a layer that holds
+    their `widgets/<tag>.js` writes it (`registry.contract.MODULES`)."""
+    registry.setdefault("$modules", {}).update(
+        {tag: f"widgets/{tag}.js" for tag in tags}
+    )
+    return registry
 
 
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
-    """The product's starter declaration for `tag`, or, without `upgrade`, the same
-    markup block with no module behind it."""
+    """The product's starter declaration for `tag` as a composed vocabulary holds it,
+    its defaults written in, or, without `upgrade`, the same markup block with no
+    module behind it."""
     declaration = packages_model.starter_element_declaration(tag)
+    declaration["content"] = "markup"
     if not upgrade:
-        declaration["x-upgrade"] = False
-        del declaration["x-verbatim"]
+        del declaration["verbatim"]
     return declaration
 
 
@@ -2638,16 +2641,18 @@ def words(output: str) -> str:
     return "\n".join(found)
 
 
-def said(stderr: str) -> list[dict]:
-    """What a command said beside its result: each JSON object it printed on stderr
-    (`cli`), its words as `Prose`."""
-    return [
-        {
-            key: Prose(value) if key in ("text", "error") else value
-            for key, value in json.loads(line).items()
-        }
-        for line in stderr.splitlines()
-    ]
+def said(stdout: str) -> dict:
+    """What a command said: the JSON object it printed on stdout (`cli`), with its
+    words, its `error` and each finding's `text`, as `Prose`."""
+    record = json.loads(stdout)
+    if "error" in record:
+        record["error"] = Prose(record["error"])
+    if "findings" in record:
+        record["findings"] = [
+            {key: Prose(value) if key == "text" else value for key, value in f.items()}
+            for f in record["findings"]
+        ]
+    return record
 
 
 def yaml_block(data: dict) -> str:
@@ -2968,11 +2973,11 @@ def _codex_delivery(page_dir, text="Answer this"):
 # A page whose suggestion answers c1, which is the one shipped shape where the
 # gesture that settles a thread is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
-    '<div id="plan-choice-decision">',
+    '<lf-group id="plan-choice-decision" label="Which plan should lead?">',
     '<lf-suggestion id="sug-refill" resolves="c1">\n'
     "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
     "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
-    '</lf-suggestion>\n<div id="plan-choice-decision">',
+    '</lf-suggestion>\n<lf-group id="plan-choice-decision" label="Which plan should lead?">',
 )
 
 
@@ -3010,9 +3015,10 @@ def _settling_page(page_dir):
     serving(page_dir, 1)
 
 
-# One authored id for the group, so an action can name it. Its options already
-# carry ids, which is what lets a floor land inside the widget rather than on it.
-PICKS_PAGE = PAGE.replace("<lf-options>", '<lf-options id="picks">')
+# The group under the id the pick tests name. Its options already carry ids, which
+# is what lets a floor land inside the widget rather than on it.
+PICKS_GROUP = '<lf-options id="picks" settled>'
+PICKS_PAGE = PAGE.replace(PAGE_GROUP, PICKS_GROUP)
 
 
 def _interaction_prompt_evidence(page, value):
@@ -3039,7 +3045,7 @@ def _interaction_prompt_evidence(page, value):
         if isinstance(item, str):
             item = item.replace(str(page), "<page>")
             item = re.sub(
-                r'(<leaf-delivery id=")[0-9a-f]{8}(" operation="delivery read" />)',
+                r'(<leaf-delivery id=")[0-9a-f]{16}(" operation="delivery read" />)',
                 r"\1<delivery>\2",
                 item,
             )

@@ -11,7 +11,7 @@
  * wears the neutral undo icon and says "Undo", the word of every other control that takes
  * a gesture back, because removing a reaction is an undo of it. A red ✕ read as "close
  * this", nearly matched the ❌ reaction, and caught phone taps meant to dismiss the
- * cluster; Max chose undo over it on 23 October 2026. Commands enter only through the
+ * cluster; Max chose undo over it. Commands enter only through the
  * constructor.
  */
 import { nextRender } from "./rendering.js";

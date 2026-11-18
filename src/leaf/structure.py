@@ -62,11 +62,12 @@ OPTIONAL_END = {
 ASCII_WHITESPACE = frozenset("\t\n\f\r ")
 
 # Blocks a user predictably points at whole rather than quoting: a run of code,
-# a table, a figure, an aside set off from the prose — and the sections
-# references/page-authoring.md holds to "Stable anchors". Widgets aren't listed
-# because the
-# registry's schemas already demand ids wherever pointing at one matters.
-POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
+# a table, a figure, an aside set off from the prose, and a picture, which holds no
+# words to quote — and the sections references/page-authoring.md holds to "Stable
+# anchors". Widgets aren't listed because the registry's schemas already demand ids
+# wherever pointing at one matters.
+SECTION_TAGS = {"section", "article"}
+WHOLE_BLOCK_TAGS = {"aside", "pre", "table", "figure", "img", "svg", "video", "canvas"}
 # Prose and headings can use their enclosing block's address, but without one
 # element selection has no target.
 PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
@@ -77,8 +78,7 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # carries onto its child's body (`$authored` in the kernel registry).
 PAGE_ALLOCATIONS = kernel_authored()["allocations"]
 # The `lf-` classes an author writes: those the kernel's selector idioms name, such as
-# `lf-btn` on a button that wears Leaf's face (browser/registry.json). A page's own
-# names never take one of Leaf's faces, so where it wants one it writes Leaf's name.
+# `lf-scroll` on a box the page scrolls (browser/registry.json).
 AUTHORED_CLASSES = frozenset(
     name
     for key in json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))
@@ -86,8 +86,8 @@ AUTHORED_CLASSES = frozenset(
 )
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (x-height), and the
-# page-wide ones. Delivery honours a width, bound or height only where it means
+# CSS pixels of a widget that draws into a box of a stated height (`height`), and
+# the page-wide ones. Delivery honours a width, bound or height only where it means
 # something (`authored_on` in the kernel registry's `$marks`), and paints it for the
 # runtime to read.
 AUTHORED_ALLOCATIONS = {
@@ -303,7 +303,7 @@ def splice(source, edits):
 
     The ranges must not overlap. Edits at one offset land in the order their texts
     sort. Joining the pieces once keeps the splice linear in the source's size, where
-    splicing each of a large page's thousands of marks into a fresh copy was not."""
+    splicing each of a large page's thousands of marks into a fresh copy is not."""
     pieces = []
     at = 0
     for start, end, text in sorted(edits):
@@ -314,8 +314,11 @@ def splice(source, edits):
 
 
 def pre_body(element) -> str | None:
-    """The text of `element`'s first `<pre>` child: the body a Markdown-bodied element
-    renders and a `body` state record reads, or None where it has none."""
+    """The text of `element`'s first `<pre>` child, as the browser reads a data body
+    (widget-upgrade.js, `dataBody`): its `textContent`, so a `<code>` naming its
+    language is read through. The body a Markdown-bodied element renders, a written
+    Markdown file first paints and a `body` state record reads, or None where it has
+    none."""
     pre = next(
         (
             child
@@ -324,10 +327,19 @@ def pre_body(element) -> str | None:
         ),
         None,
     )
-    if pre is None:
-        return None
+    return None if pre is None else _text_content(pre)
+
+
+def _text_content(node) -> str:
+    """`node`'s text as the DOM's `textContent` reads it: every text node under it,
+    comments left out, and a `<template>`'s contents too, since the browser holds them
+    in a fragment of their own rather than among the template's children, where the
+    parser here keeps them."""
     return "".join(
-        child.data for child in pre.children if isinstance(child, turbohtml.Text)
+        child.data if isinstance(child, turbohtml.Text) else _text_content(child)
+        for child in node.children
+        if isinstance(child, turbohtml.Text)
+        or (isinstance(child, turbohtml.Element) and child.tag != "template")
     )
 
 
@@ -616,13 +628,19 @@ class Authoring:
         # (`AUTHORED_ALLOCATIONS`).
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
-        # {tag, line, under} per id-less pointable block, where under is the nearest
-        # ancestor carrying an id. This is where a user's aim would otherwise land.
+        # {tag, line, under, holds} per id-less pointable block, where under is the
+        # nearest ancestor carrying an id, which is where a user's aim would otherwise
+        # land, and holds says something inside it takes an aim: a whole block that
+        # lands there too, or an element with an id of its own.
         self.bare_blocks = []
+        self._bare_wholes = {}  # each whole block's record, by where it starts
         # (tag, line, markers) per element wearing a data-lf-* attribute or lf-* class
         # but the kernel's idioms (`AUTHORED_CLASSES`). The prefix reserves names the
         # runtime may coin later, without another list.
         self.reserved_markers = []
+        # (tag, line, name) per `language-…` class, the name a block of code gives its
+        # language (syntax-tokens.js, `codeLanguage`).
+        self.code_languages = []
         # The same parse retains ordinary HTML, exact text, and construction locations
         # for inspection. Widget validation keeps its specialized index; content is one
         # tree, with no reconstructed HTML or parent objects.
@@ -636,7 +654,7 @@ class Authoring:
         for child in document.tree.children:
             if isinstance(child, turbohtml.Element):
                 self._visit(child, self.content)
-        del self._document, self._first_body_position
+        del self._document, self._first_body_position, self._bare_wholes
 
     def node_of(self, record: dict) -> dict | None:
         """The content node of one of the document's lf-* records, or None for one
@@ -766,9 +784,10 @@ class Authoring:
                         "line": line,
                         "attr": attr,
                         "value": attrs[attr],
+                        "attrs": attrs,
                         # Where delivery reads it: it skips a template and what it
                         # holds, which is inert until cloned, and only a block in the
-                        # page's flow takes room (`registry.kernel.authored_inert`).
+                        # page's flow takes room (`registry.contract.authored_inert`).
                         "in_template": "template" in (tag, *ancestors),
                         "content": tag not in {"html", "body", "main"}
                         and "body" in ancestors,
@@ -782,6 +801,11 @@ class Authoring:
         )
         if markers:
             self.reserved_markers.append((tag, line, markers))
+        self.code_languages += [
+            (tag, line, name.removeprefix("language-"))
+            for name in (attrs.get("class") or "").split()
+            if name.startswith("language-") and name != "language-"
+        ]
         references = [
             (name, value[start:end])
             for name, value in attrs.items()
@@ -799,6 +823,38 @@ class Authoring:
 
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
+
+    def _note_aim(self, element, attrs: dict, line: int) -> None:
+        """Record a pointable block with no id of its own (`bare_blocks`). On the way
+        to the id its aim lands on, each whole block around it learns that it holds
+        another, as it does from an element inside it that has an id. A whole block
+        whose own attributes mark it as decoration, `aria-hidden` as an icon carries
+        or an image's empty `alt`, is nothing a reader points at."""
+        whole = element.tag in WHOLE_BLOCK_TAGS
+        named = bool(attrs.get("id"))
+        if not (named or whole or element.tag in SECTION_TAGS | PROSE_TAGS):
+            return
+        decoration = attrs.get("aria-hidden") == "true" or attrs.get("alt") == ""
+        if whole and not named and decoration:
+            return
+        under = None
+        for ancestor in element.ancestors:
+            if not isinstance(ancestor, turbohtml.Element):
+                continue
+            ancestor_id = element_attrs(ancestor).get("id")
+            if ancestor_id:
+                under = (ancestor.tag, ancestor_id)
+                break
+            if (whole or named) and ancestor.tag in WHOLE_BLOCK_TAGS:
+                holder = self._bare_wholes.get(_start(ancestor))
+                if holder:
+                    holder["holds"] = True
+        if named:
+            return
+        block = {"tag": element.tag, "line": line, "under": under, "holds": False}
+        self.bare_blocks.append(block)
+        if whole:
+            self._bare_wholes[_start(element)] = block
 
     def _visit(
         self,
@@ -860,6 +916,7 @@ class Authoring:
             }
             output.append(node)
             self.nodes.append(node)
+            self._note_aim(element, attrs, line)
             for child in element.children:
                 if isinstance(child, turbohtml.Element):
                     self._visit(child, output, ancestors=next_ancestors, in_svg=True)
@@ -880,19 +937,7 @@ class Authoring:
             if record is not None:
                 self._nodes_of[id(record)] = node
 
-            if element.tag in POINTABLE_TAGS | PROSE_TAGS and not attrs.get("id"):
-                under = next(
-                    (
-                        (ancestor.tag, element_attrs(ancestor)["id"])
-                        for ancestor in element.ancestors
-                        if isinstance(ancestor, turbohtml.Element)
-                        and element_attrs(ancestor).get("id")
-                    ),
-                    None,
-                )
-                self.bare_blocks.append(
-                    {"tag": element.tag, "line": line, "under": under}
-                )
+            self._note_aim(element, attrs, line)
 
         for child in element.children:
             if isinstance(child, turbohtml.Element):
@@ -939,7 +984,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
     Layout's carry (`layout-column` is `column`), space-separated, or None.
 
     A page Layout's class is on `main`, on a shown child of a `main` that carries none,
-    or on the child of each part of such a `main`'s parts (`x-views.parts`,
+    or on the child of each part of such a `main`'s parts (`views.parts`,
     layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
     painting the body, so delivery repeats them on the root for the Layout's own body
     rules to read before the first paint. Which part opens is the browser's, so every
@@ -969,7 +1014,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
         boxes += [
             child
             for holder in shown(main)
-            if registry.get(holder.tag, {}).get("x-views", {}).get("parts")
+            if registry.get(holder.tag, {}).get("views", {}).get("parts")
             for part in shown(holder)
             for child in shown(part)
         ]

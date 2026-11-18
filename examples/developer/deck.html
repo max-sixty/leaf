@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>Catch up on a release, one card at a time</title>
+    <title>Deck: each shape a card takes</title>
     <meta
       name="description"
-      content="Work through five release decisions one card at a time with Leaf's deck: answer a card and the next comes up, or leave it for later."
+      content="The deck package's scenarios: one card of each shape a deck holds, from a single choice to a suggestion, a multiple choice, a reply to send and a card that asks nothing, with what to try on each."
     />
   </head>
   <body>
@@ -14,28 +14,42 @@
         <h1>What's left before Friday's release</h1>
       </hgroup>
       <p class="lede" id="deck-lede">
-        Five things wait on you. Answer a card and the next comes up; Later leaves one
-        for the end.
+        Each card is a different shape a deck holds. Work through the pass, then try
+        each scenario listed below the deck.
       </p>
       <lf-deck id="deck-catch-up">
         <lf-group id="deck-store-ask" label="Which session store ships in 2.4?">
-          <h3>Which session store ships in 2.4?</h3>
+          <hgroup>
+            <p>a single choice</p>
+            <h3>Which session store ships in 2.4?</h3>
+          </hgroup>
           <p>
-            Postgres removed the Redis hop in load tests (p99 41 ms to 29 ms) but needs
-            the migration in the runbook. Redis is what production runs today.
+            Postgres removed the Redis hop in load tests, but the move needs a migration
+            two days before the release. I'd keep Redis for 2.4 and move in 2.5: 12 ms
+            at p99 isn't worth a migration this close to Friday.
           </p>
           <lf-options id="deck-store-choice">
-            <lf-option id="deck-store-redis" label="Keep Redis"
-              ><strong>Keep Redis</strong> No migration this release.</lf-option
-            >
-            <lf-option id="deck-store-pg" label="Move sessions to Postgres"
-              ><strong>Move sessions to Postgres</strong> Run the migration
-              Thursday.</lf-option
-            >
+            <lf-option id="deck-store-redis" label="Keep Redis for 2.4" recommended>
+              <small class="tag">p99 41 ms</small>
+              <small class="tag">no migration</small>
+              <strong>Keep Redis for 2.4</strong>
+            </lf-option>
+            <lf-option id="deck-store-pg" label="Move sessions to Postgres">
+              <small class="tag">p99 29 ms</small>
+              <small class="tag">migrate Thursday</small>
+              <strong>Move sessions to Postgres</strong>
+            </lf-option>
           </lf-options>
         </lf-group>
         <section id="deck-notes-card">
-          <h3>Tighten the upgrade note?</h3>
+          <hgroup>
+            <p>a suggestion</p>
+            <h3>Tighten the upgrade note?</h3>
+          </hgroup>
+          <p id="deck-notes-why">
+            Support says the note reads as a warning without saying what to do; the edit
+            gives the one step.
+          </p>
           <lf-suggestion id="deck-notes-suggestion">
             <lf-old
               ><p id="deck-notes-old">
@@ -51,50 +65,129 @@
           </lf-suggestion>
         </section>
         <lf-group id="deck-beta-ask" label="Which platforms get the 2.4 beta?">
-          <h3>Which platforms get the 2.4 beta?</h3>
-          <p>Each platform adds a day of smoke testing.</p>
+          <hgroup>
+            <p>a multiple choice</p>
+            <h3>Which platforms get the 2.4 beta?</h3>
+          </hgroup>
+          <p>
+            Two days remain for smoke testing, and each platform takes one, so pick up
+            to two. I'd take macOS and Linux, which carry nine in ten active users.
+          </p>
           <lf-options id="deck-beta-choice" multiple>
-            <lf-option id="deck-beta-mac">macOS</lf-option>
-            <lf-option id="deck-beta-linux">Linux</lf-option>
-            <lf-option id="deck-beta-win">Windows</lf-option>
+            <lf-option id="deck-beta-mac" label="macOS" recommended>
+              <small class="tag">58% of users</small>
+              <strong>macOS</strong>
+            </lf-option>
+            <lf-option id="deck-beta-linux" label="Linux" recommended>
+              <small class="tag">31% of users</small>
+              <strong>Linux</strong>
+            </lf-option>
+            <lf-option id="deck-beta-win" label="Windows">
+              <small class="tag">11% of users</small>
+              <strong>Windows</strong>
+            </lf-option>
           </lf-options>
         </lf-group>
+        <section id="deck-freeze-card">
+          <hgroup>
+            <p>a card that asks nothing</p>
+            <h3>Code freeze starts Thursday at 18:00</h3>
+          </hgroup>
+          <p id="deck-freeze-note">
+            After that only release-blocking fixes merge; ask in #release for an
+            exception.
+          </p>
+        </section>
         <lf-group
           id="deck-support-ask"
-          label="Send this reply to the support thread about slow logins?"
+          label="Send this reply to the support thread about slow sign-ins?"
         >
-          <h3>Send this reply to the support thread about slow logins?</h3>
-          <p>It goes out under your name, with any edit you make to it.</p>
+          <hgroup>
+            <p>a reply to send</p>
+            <h3>Send this reply to the support thread about slow sign-ins?</h3>
+          </hgroup>
+          <p>
+            2.4 caches avatar lookups on the sign-in page, which cut sign-in from 2.1 s
+            to 0.6 s in load tests. The reply goes out under your name, with any edit
+            you make to it. I'd send it: the fix is merged, and the customer has waited
+            a week.
+          </p>
           <lf-draft id="deck-support-draft">
             <pre>
-Thanks for the report. 2.4 moves session lookups off the slow path; logins should feel faster from Friday.</pre>
+Thanks for your patience. 2.4 caches the lookups that slowed sign-in down; in our tests it went from about two seconds to well under one. It ships on Friday.</pre>
           </lf-draft>
           <lf-options id="deck-support-choice">
-            <lf-option id="deck-support-send" label="Send it"
-              ><strong>Send it</strong></lf-option
-            >
-            <lf-option id="deck-support-hold" label="Don't send it"
-              ><strong>Don't send it</strong></lf-option
-            >
+            <lf-option id="deck-support-hold" label="Keep the reply unsent">
+              <small class="tag">customer waits</small>
+              <strong>Keep the reply unsent</strong>
+            </lf-option>
+            <lf-option id="deck-support-send" label="Send the reply" recommended>
+              <small class="tag">names Friday</small>
+              <strong>Send the reply</strong>
+            </lf-option>
           </lf-options>
         </lf-group>
         <lf-group
           id="deck-publish-ask"
-          label="Post the release notes to #eng on Friday?"
+          label="Post the release notes to #eng when 2.4 is tagged?"
         >
-          <h3>Post the release notes to #eng on Friday?</h3>
-          <p>Posts the notes, with the upgrade note as you leave it.</p>
+          <hgroup>
+            <p>a permission</p>
+            <h3>Post the release notes to #eng when 2.4 is tagged?</h3>
+          </hgroup>
+          <p>
+            Posts the notes, with the upgrade note as you leave it, once the release tag
+            is pushed. I'd let it post: a release that slips posts nothing, and nobody
+            has to remember Friday's announcement.
+          </p>
           <lf-options id="deck-publish-choice">
-            <lf-option id="deck-publish-hold" label="Keep them as a draft"
-              ><strong>Keep them as a draft</strong></lf-option
+            <lf-option id="deck-publish-hold" label="Keep the notes as a draft">
+              <small class="tag">post by hand</small>
+              <strong>Keep the notes as a draft</strong>
+            </lf-option>
+            <lf-option
+              id="deck-publish-post"
+              label="Post the notes when 2.4 is tagged"
+              recommended
             >
-            <lf-option id="deck-publish-post" label="Post them on Friday"
-              ><strong>Post them on Friday</strong></lf-option
-            >
+              <small class="tag">posts at the tag</small>
+              <strong>Post the notes when 2.4 is tagged</strong>
+            </lf-option>
           </lf-options>
         </lf-group>
       </lf-deck>
-      <p id="deck-after">The rest of the page goes on below the deck.</p>
+      <section id="deck-scenarios" class="layout-flow">
+        <h2>What to try</h2>
+        <ul id="deck-scenario-list">
+          <li id="deck-try-keys">
+            By keyboard, while a card waits: <kbd>m</kbd> lands on the open card's
+            question, a digit answers it, and <kbd>←</kbd> and <kbd>→</kbd> are Back and
+            Later.
+          </li>
+          <li id="deck-try-answer">
+            Answer the session store: the card slides off to the right and the upgrade
+            note comes up. The marks above the cards turn green as each is answered.
+          </li>
+          <li id="deck-try-suggestion">
+            Accept or reject the upgrade note from its entry in the margin; either moves
+            the deck on.
+          </li>
+          <li id="deck-try-multiple">
+            Pick platforms for the beta: a multiple choice stays open until Done.
+          </li>
+          <li id="deck-try-nothing">
+            The code freeze asks nothing, so the pass goes past it; Back reaches it.
+          </li>
+          <li id="deck-try-later">
+            Press Later on the support reply, or swipe it left on a phone: it waits for
+            the end of the pass, and Go through brings it back.
+          </li>
+          <li id="deck-try-recap">
+            At the end of the pass, the frame lists each question beside its answer, in
+            the words On Me uses for it, and each question links to its card.
+          </li>
+        </ul>
+      </section>
     </main>
   </body>
 </html>

@@ -1,6 +1,6 @@
 /* The runtime paint projected onto page-owned elements and words: the layer-owned
-   defaults that declarations make possible, the words the runtime materializes or
-   clips for a user, and the mark an external link wears.
+   defaults that declarations make possible, the words the runtime clips for a user,
+   and the mark an external link wears.
 
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:

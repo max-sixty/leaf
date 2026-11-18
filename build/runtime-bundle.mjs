@@ -42,7 +42,6 @@ export const runtimeEntries = [
   "leaf.js",
   "runtime/layer-client.js",
   "runtime/media.js",
-  "runtime/panel-stand-in.js",
   ...kernel["$public-modules"].paths
     .filter((path) => path.startsWith("/runtime/"))
     .map((path) => path.slice(1)),

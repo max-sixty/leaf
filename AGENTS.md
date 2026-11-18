@@ -260,8 +260,9 @@ plugins can load in place instead; point Codex at the git source, since its
 local-directory marketplace also copies a checkout's `.venv`. Nothing is built
 at install time: installing, authoring pages, writing custom packages and
 exporting need no browser build or npm. Pages run the browser runtime's source
-modules from the serving install, so a runtime change takes no build. Only a
-prepared installation, such as the website's container, compiles them into a
+modules from the serving install, so a runtime change takes no build, but for one to
+the floating panel's row, whose first-paint copy the build draws (`build/AGENTS.md`).
+Only a prepared installation, such as the website's container, compiles them into a
 kernel (`build/runtime-bundle.mjs`, `leaf.runtime_selection.read_runtime`).
 `bin/leaf` is `uv run --no-dev` on the tree, so the install must be writable,
 and Leaf writes nothing else there. A plugin update may replace the directory,

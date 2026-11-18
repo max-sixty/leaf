@@ -376,8 +376,8 @@ served or exported. It marks the interactive document, restores native reading s
 and reports startup failures. Content remains readable while modules load; controls
 activate through their owning widget lifecycle. A failure removes the interactive mark
 and names the reason in `data-lf-startup-error`.
-`runtime/bootstrap.js` runs in a served page only, holds keys pressed before upgrade
-and shows a startup failure.
+`runtime/bootstrap.js` runs in a served page only, stands the floating panel's row from
+the first paint, holds keys pressed before upgrade and shows a startup failure.
 
 Content modules import only `runtime/widget-api.js`, the public helper surface, or a
 widget that also runs off Leaf only its part any document loads,
@@ -791,8 +791,10 @@ review, ask why that fact isn't generated.
 
 ## Startup and presentation
 
-Authored HTML paints at once, and the render-blocking theme reserves the floating
-panel's room, so mounting the runtime moves nothing. Prose, links and scrolling work
+Authored HTML paints at once, the render-blocking theme reserves the floating panel's
+room, and the panel's row stands in it from the first paint: the panel's own first
+drawing, generated into the document (`build/panel-row.mjs`), which the panel takes over
+as it mounts. So mounting the runtime moves nothing. Prose, links and scrolling work
 while widgets upgrade; comments and drawing work from `data-lf-upgraded`.
 `../skills/leaf/references/module-authoring.md`, "Startup and presentation", says how a module
 keeps work off the presentation path and how held keys replay.

@@ -113,6 +113,12 @@ interface Window {
     finishEarlyContent(): void;
   };
   lfKeyboard: { readonly quick: boolean; setQuick(on: boolean): void };
+  /** The layer's constructed stylesheets, built once by whoever asks first (prepaint.js). */
+  lfSheets(): {
+    chrome: CSSStyleSheet;
+    marks: CSSStyleSheet;
+    annotations: CSSStyleSheet[];
+  };
   /** The floating panel's resting size. */
   lfChrome: {
     /** `row` or `mark`. */
@@ -227,8 +233,12 @@ interface DocumentEventMap {
     )
   >;
   /** The floating panel's offer of its field to say the bootstrap's held keys in, null
-   * once none are shown (`bootstrap.js`, `floating-panel.js`). */
-  "lf-held-keys-seat": CustomEvent<{ show(words: HeldWords | null): void }>;
+   * once none are shown, and to take the words written in the served row's field
+   * (`bootstrap.js`, `floating-panel.js`). */
+  "lf-held-keys-seat": CustomEvent<{
+    show(words: HeldWords | null): void;
+    write(box: HTMLTextAreaElement): void;
+  }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<

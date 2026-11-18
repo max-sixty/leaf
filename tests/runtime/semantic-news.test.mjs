@@ -535,6 +535,25 @@ test("agent content is news while it is unread, including on the first reading",
   assert.deepEqual(later.news, []);
 });
 
+test("content this tab saw read is no news when an undo makes it unread again", () => {
+  const resolved = reading({
+    threads: [thread("t", [message("answer", { unread: false })])],
+  });
+  const seen = observeSemanticNews(null, resolved);
+  assert.deepEqual(seen.news, []);
+  // The undo of the resolve that had marked the answer read.
+  const reopened = reading({ threads: [thread("t", [message("answer")])] });
+  assert.deepEqual(observeSemanticNews(seen.observed, reopened).news, []);
+  // A rewrite of it is a new version, and news.
+  const rewritten = reading({
+    threads: [thread("t", [message("answer", { edited: { id: "rewrite" } })])],
+  });
+  assert.deepEqual(
+    observeSemanticNews(seen.observed, rewritten).news.map(({ version }) => version),
+    ["rewrite"],
+  );
+});
+
 test("news is ordered by when each message last moved", () => {
   const result = observeSemanticNews(
     null,

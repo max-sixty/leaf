@@ -12,8 +12,11 @@
 
    ⌘Z says what it takes and how long ago that was made, in the command reference, the
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
-   safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
-   every tab and after a reload. A thread goes by its name as it stands now, a rewrite
+   safety” 3d ago", then "Undone: resolved “Rollout safety” 3d ago"), in
+   every tab and after a reload. The age follows the words with no separator, so it
+   reads as when the gesture was made, not when the undo was; the notice says
+   "Undone", Leaf's past participle, never "Undid" with its "I" left out (glossary.md,
+   "Reader-facing words"). A thread goes by its name as it stands now, a rewrite
    by the words it replaced, a message by the words it was sent with and a reaction by
    where it stands, all of which the page already holds. An action's ids are words only
    in the document it was made in, so the server serves what the head did in that
@@ -60,7 +63,7 @@
    A widget's gesture leaves, by its attempt, the words the widget named it by
    (`retainGesture`, `says`, pending/dispatch.js), and while this page holds them its
    undo is said in them, the name its own announcement used: "Chose “Fast”",
-   then "Undid: Chose “Fast” · just now". Those words and a settlement's reader live
+   then "Undone: Chose “Fast” just now". Those words and a settlement's reader live
    with the page that made the gesture, so after a reload or from another tab a thread
    opens where a route to it opens it. */
 import { notice } from "./notifications.js";
@@ -256,9 +259,9 @@ export function createUndo({
       gestureWords(event, gesture)
     );
   };
-  // ...and how long ago it was made.
+  // ...and how long ago it was made, as one clause (the header).
   /** @param {UndoEvent} event */
-  const takes = (event) => [said(event), ago(event.ts)].filter(Boolean).join(" · ");
+  const takes = (event) => [said(event), ago(event.ts)].filter(Boolean).join(" ");
 
   // The gesture ⌘Z would take on the list the page holds now.
   const head = () => {
@@ -315,7 +318,7 @@ export function createUndo({
     const taken = takes(event);
     return post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
-        notice(`Undid: ${taken}`);
+        notice(`Undone: ${taken}`);
         if (event.attempt) gestures.delete(event.attempt);
       }
       return accepted;

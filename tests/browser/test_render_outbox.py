@@ -263,7 +263,7 @@ def test_z_takes_back_a_reply_the_user_sent(browser, serve):
     )
     page = open_page(browser, url)
     undo(page)
-    expect(page.locator(".lf-live")).to_contain_text("Undid: replied “And this?”")
+    expect(page.locator(".lf-live")).to_contain_text("Undone: replied “And this?”")
     taken = events_model.read_events(serve.page_dir)[-1]
     assert (taken["kind"], taken["undoes"]) == ("undo", reply["id"])
     thread = page.locator(f'.lf-page-thread[data-lf-thread="{second}"]')
@@ -310,7 +310,7 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     with sending(page, "the withdrawal"):
         row.click()
     expect(page.locator(".lf-live")).to_have_text(
-        "Undid: resolved “Rollout safety” · 21d ago"
+        "Undone: resolved “Rollout safety” 21d ago"
     )
 
     append_command(
@@ -383,7 +383,7 @@ def test_z_takes_an_old_resolve_out_of_view_then_opens_its_thread(
         with sending(page, "the withdrawal"):
             panel_control(page, "command:history.undo").click()
     assert _undos(serve.page_dir) == [resolve]
-    expect(page.locator(".lf-live")).to_have_text("Undid: resolved “Feeder” · 21d ago")
+    expect(page.locator(".lf-live")).to_have_text("Undone: resolved “Feeder” 21d ago")
     # Open again, the thread opens in its card beside its passage, as a route to it
     # opens it.
     card = page.locator(f'.lf-margin-thread .lf-page-thread[data-lf-thread="{thread}"]')
@@ -591,7 +591,7 @@ def test_z_takes_a_comment_back_without_opening_its_thread(browser, serve):
         comment,
     )
     undo(page)
-    expect(page.locator(".lf-live")).to_contain_text("Undid: commented")
+    expect(page.locator(".lf-live")).to_contain_text("Undone: commented")
     round_trip(page)
     assert _undos(serve.page_dir) == [comment]
     assert not page.evaluate("() => window.__lfOpened"), (

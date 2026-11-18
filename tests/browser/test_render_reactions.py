@@ -558,7 +558,7 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
         page.locator('.lf-command-reference-command[data-lf-command="history.undo"]')
     )
     assert any(
-        re.match("^Undo: shorten reaction on “The store is capped.* · ", line)
+        re.match("^Undo: shorten reaction on “The store is capped.*” \\S", line)
         for line in said
     ), said
     page.keyboard.press("Escape")

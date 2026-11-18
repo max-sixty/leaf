@@ -746,6 +746,29 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
     expect(field(page)).to_have_attribute("name", "comment")
 
 
+def test_a_notice_over_a_thread_s_field_ends_in_reply_and_its_key(browser, serve):
+    """A notice offering no press of its own passes over an open thread's field as it
+    does over the page's: its words, then Reply and the key that enters the field, as
+    the page's field says Comment, rather than the key alone after the notice."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(panel_view("thread"))
+    expect(thread).to_be_visible()
+    thread.focus()
+    placeholder = page.locator(".lf-fp-field .lf-compose-placeholder")
+    words = placeholder.locator(".lf-compose-placeholder-words")
+    enters = placeholder.locator(".lf-compose-placeholder-enters")
+    expect(words).to_have_text("Reply…")
+    expect(enters).to_have_text("")
+    page.keyboard.press("n")
+    expect(words).to_have_text("No search to repeat")
+    expect(enters).to_have_text("Reply…")
+    expect(placeholder.locator(".lf-key-badge")).to_have_text("c")
+
+
 def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     """`t` opens the next thread in the panel and stands on it, as the walk stands on a
     card's title in Threads, so `t` and `T` go on walking from there rather than typing

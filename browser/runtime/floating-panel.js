@@ -1269,10 +1269,11 @@ export function createFloatingPanel({
       (error) => !error.seen && !saying.includes(error) && !standsAtItsBox(error),
     );
   }
-  // The page field's readings whose words say something other than a press there, so
-  // its end says the press: the status, a passing notice, and the words selected on the
+  // The readings whose words say something other than a press there, so the field's
+  // end says the press: the status, a passing notice, and the words selected on the
   // page, which the user chose to end in Comment… and c, as the field
-  // does at rest, over c alone right after the quote.
+  // does at rest, over c alone right after the quote. A thread's field ends a notice in
+  // Reply… and c, as it says them at rest.
   const SAYS_ELSE = new Set(["status", "notice", "selection"]);
   // Where the user stands on the page, which the page field's words say before the
   // status or the words selected on the page, and in a stance in the status's place,
@@ -1597,8 +1598,13 @@ export function createFloatingPanel({
           hintParts: (drawn) => fieldHint(key, replyInput(), drawn),
           hintLead: (drawn) => turnLead(key, replyInput(), drawn),
           // A notice passing over the thread's field offers its press at the field's
-          // end, as over the page's (`fieldReading`, `offer`).
-          enters: () => fieldReading(key, replyInput()).offer ?? "",
+          // end, as over the page's (`fieldReading`, `offer`), and one offering none
+          // leaves Reply there with the key that enters the field, as the page's says
+          // Comment, so the key never stands alone after the notice's words.
+          enters: () => {
+            const { says, words, offer } = fieldReading(key, replyInput());
+            return offer ?? (SAYS_ELSE.has(says) && wordsText(words) ? REPLY_HINT : "");
+          },
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it

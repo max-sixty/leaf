@@ -1309,8 +1309,11 @@ export function createResponseSurface({
         return;
       }
       // A painted owner may contain working controls or editing regions. Their
-      // native click keeps its meaning even when an annotation covers the owner.
-      if (closestAcross(target, WORKS)) return;
+      // native click keeps its meaning even when an annotation covers the owner. So does
+      // a click a widget took, which it says by preventing the click's default
+      // (module-input.md, "Pointer presses"), as keyboard/controller.js reads a key:
+      // a press on an option card picks the option and opens no thread on its question.
+      if (ev.defaultPrevented || closestAcross(target, WORKS)) return;
       // The record rather than this event's own coordinates, for the reason the record is
       // kept from a pointer event at all (pointer.js): `click` is a legacy mouse event and
       // carries the pointer's place rounded to a whole pixel, while markAt measures against

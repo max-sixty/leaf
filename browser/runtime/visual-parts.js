@@ -36,11 +36,16 @@
  * draw a datum at one width and not another. In either, a declared part missing from
  * the current state stands in for the whole visual, until travel asks for it or the
  * visual draws it, rather than detaching. A label reader can name an absent part in
- * Threads without changing the visual's state. */
+ * Threads without changing the visual's state.
+ *
+ * A reading of a visual's inventory says it reads it (kept.js, `reads`), so a reading
+ * kept from it is made again after the visual's `update()`, which a reveal that draws
+ * calls too, or a registration for a source it found none for. */
 
 import { labelWords } from "./words.js";
 import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
+import { reads } from "./kept.js";
 
 /** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
  * @typedef
@@ -50,12 +55,15 @@ import { layoutChanged } from "./widget-upgrade.js";
  * label: ((id: string) => string | null | undefined) | null,
  * find: ((id: string) => VisualPart | null | undefined) | null,
  * at: ((node: Element) => VisualPart | null | undefined) | null,
- * focus: ((id: string) => void) | null}} Registration
+ * focus: ((id: string) => void) | null, drawn: () => number}} Registration
  * @typedef {{reveal?: Registration["reveal"], label?: Registration["label"],
  * find?: Registration["find"], at?: Registration["at"],
  * focus?: Registration["focus"]}} RegistrationOptions */
 /** @type {WeakMap<Element, Registration>} */
 const registrations = new WeakMap();
+// How many sources have registered, which a reading of a source with none reads.
+let registered = 0;
+const registeredCount = () => registered;
 
 /** Register the current visual-part inventory for one rendered source.
  *
@@ -80,8 +88,24 @@ export function registerVisualParts(
 ) {
   if (registrations.has(source))
     throw new TypeError("A visual source may register its parts only once");
-  registrations.set(source, { read, reveal, label, find, at, focus });
-  return { update: () => layoutChanged(source) };
+  // How many times the source has said its inventory may have changed.
+  let draws = 0;
+  registrations.set(source, {
+    read,
+    reveal,
+    label,
+    find,
+    at,
+    focus,
+    drawn: () => draws,
+  });
+  registered += 1;
+  return {
+    update: () => {
+      draws += 1;
+      layoutChanged(source);
+    },
+  };
 }
 
 /** The part ids admitted by a whole-inventory opt-in or generated-id prefixes.
@@ -145,8 +169,10 @@ function checkedPart(source, part, number) {
 
 /** @param {Element} source */
 export function registeredVisualParts(source) {
-  const read = registrations.get(source)?.read;
-  if (!read) return [];
+  const registration = registrations.get(source);
+  reads(registration?.drawn ?? registeredCount);
+  if (!registration) return [];
+  const { read } = registration;
   const seenIds = new Set();
   const seenElements = new Set();
   const seenSurfaces = new Set();
@@ -168,9 +194,11 @@ export function registeredVisualParts(source) {
 
 /** @param {Element} source @param {string} id */
 export function registeredVisualPart(source, id) {
-  const find = registrations.get(source)?.find;
+  const registration = registrations.get(source);
+  const find = registration?.find;
   if (!find)
     return registeredVisualParts(source).find((part) => part.id === id) ?? null;
+  reads(registration.drawn);
   const found = find(id);
   if (!found) return null;
   const part = checkedPart(source, found, id);

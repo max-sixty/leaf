@@ -22,7 +22,11 @@ reflects back what a choice does, and refuses only input that would break a
 guarantee whatever the agent meant. Where a choice harms the user only in some
 cases, as an edit that relabels an option the user already picked does, Leaf
 accepts it and tells the agent what it did, rather than refusing every choice
-of that kind to stop the worst one.
+of that kind to stop the worst one. Leaf's code doesn't make such a choice in the
+agent's place either, even where a fork of the agent acts for it, as in writing a
+thread's summary. It offers evidence, such as the range it suggests folding, the
+instructions state the goal, and the agent or fork judges the case, since a
+cutoff on a measure misjudges the cases near it.
 
 ## Stage
 

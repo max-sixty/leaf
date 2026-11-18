@@ -2940,8 +2940,16 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     assert not [event for event in posts if event.get("kind") == "undo"]
 
     # With the thread put away, nothing covers the suggestion, so one press takes it.
+    # The panel's box still stands over it while it closes, and a press then shows the
+    # suggestion first, as it does for any gesture the user can't see.
     page.keyboard.press("Escape")
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    page.evaluate(
+        "async () => { window.__lfSeen = (await window.__lfCheckApi()).seenRect; }"
+    )
+    page.wait_for_function(
+        "() => Boolean(window.__lfSeen(document.getElementById('sug-thistle'), new Map()))"
+    )
     undo(page)
     expect(page.locator("#sug-thistle")).not_to_have_attribute(
         "data-lf-state", "accept"

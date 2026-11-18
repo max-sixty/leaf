@@ -15,9 +15,12 @@ const adopted = (name) => {
   // captured; this stands in its words.
   const view = served.browser.views[String(served.active.revision)];
   const messageBodies = new Map(
-    view.thread.threads.flatMap(({ msgs }) =>
-      msgs.filter(({ markup }) => markup).map(({ id, text }) => [id, { text }]),
-    ),
+    view.thread.threads.map(({ id: thread, msgs }) => [
+      thread,
+      new Map(
+        msgs.filter(({ markup }) => markup).map(({ id, text }) => [id, { text }]),
+      ),
+    ]),
   );
   assert.equal(app.adopt(served, { ...app.read().document, messageBodies }), true);
   return {

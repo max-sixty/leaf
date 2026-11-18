@@ -68,6 +68,7 @@ import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
 import { isReaction } from "./thread/model.js";
 import { threadNamed } from "./thread/state.js";
 import { readObligations } from "./obligations/model.js";
+import { keptEach } from "./kept.js";
 import { obligationPlace, obligationsIn } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import {
@@ -141,36 +142,37 @@ export function obligationHolding(items, node, inventory = items) {
 // (`obligationPlace`): the id of a widget's source and of its context; for a record unit,
 // which stands only at its datum, the widget's id with the datum's key, as the datum
 // carries them (`data-lf-projection`, `data-lf-datum`). Each name keeps the list's
-// order. Read from the records alone, once per list, so it
-// holds however the document changes; a name finds candidates, and placing each says
-// whether it stands there.
-/** @type {WeakMap<readonly import("./framework/application.js").ObligationRecord[], Map<string, [number, any][]>>} */
-const placeNames = new WeakMap();
+// order. Read from the records alone, once per list (kept.js), so it holds however the
+// document changes; a name finds candidates, and placing each says whether it stands
+// there.
+const placeNames = keptEach(
+  /** @param {readonly import("./framework/application.js").ObligationRecord[]} items */
+  (items) => {
+    /** @type {Map<string, [number, import("./framework/application.js").ObligationRecord][]>} */
+    const names = new Map();
+    /** @param {string} name @param {number} order
+     * @param {import("./framework/application.js").ObligationRecord} item */
+    const add = (name, order, item) => {
+      const listed = names.get(name);
+      if (!listed) names.set(name, [[order, item]]);
+      else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
+    };
+    items.forEach((item, order) => {
+      const { source } = item;
+      if (source.kind === "widget" && source.unit) {
+        add(`@${source.id} ${source.unit}`, order, item);
+      } else if (source.kind === "widget") {
+        add(`#${source.id}`, order, item);
+        if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
+      }
+    });
+    return names;
+  },
+);
 /** @template {import("./framework/application.js").ObligationRecord} T
  * @param {readonly T[]} items @returns {Map<string, [number, T][]>} */
-function namedPlaces(items) {
-  const held = placeNames.get(items);
-  if (held) return held;
-  /** @type {Map<string, [number, T][]>} */
-  const names = new Map();
-  /** @param {string} name @param {number} order @param {T} item */
-  const add = (name, order, item) => {
-    const listed = names.get(name);
-    if (!listed) names.set(name, [[order, item]]);
-    else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
-  };
-  items.forEach((item, order) => {
-    const { source } = item;
-    if (source.kind === "widget" && source.unit) {
-      add(`@${source.id} ${source.unit}`, order, item);
-    } else if (source.kind === "widget") {
-      add(`#${source.id}`, order, item);
-      if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
-    }
-  });
-  placeNames.set(items, names);
-  return names;
-}
+const namedPlaces = (items) =>
+  /** @type {Map<string, [number, T][]>} */ (placeNames(items));
 
 /** @param {Node | null | undefined} node */
 export const placeOf = (node) => placeFrom(node, new Set(), true);

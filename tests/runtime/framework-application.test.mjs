@@ -467,7 +467,7 @@ test("message capture preserves a deferred document's identity and immutable fie
     app.identify(1, stamp, true);
     const shown = app.read().document;
     const body = { text: "A newly read message" };
-    const messageBodies = new Map([["message", body]]);
+    const messageBodies = new Map([["thread", new Map([["message", body]])]]);
     const read = state(2, [], { active: { revision: 2, version: 2 } });
 
     assert.equal(app.adopt(read, { ...shown, messageBodies }), true);
@@ -481,7 +481,10 @@ test("message capture preserves a deferred document's identity and immutable fie
       body.text = "Changed after transfer";
     }, TypeError);
     assert.throws(() => messageBodies.clear(), /read-only/);
-    assert.equal(admitted.messageBodies.get("message").text, "A newly read message");
+    assert.equal(
+      admitted.messageBodies.get("thread").get("message").text,
+      "A newly read message",
+    );
     assert.throws(() => admitted.authored.clear(), /read-only/);
   }
 });

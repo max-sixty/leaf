@@ -3,13 +3,14 @@
 
    A fold that reads one record for each item of a collection on every publication
    would make each record again, and the publisher would then compare it with the last
-   one to keep its identity, so a publication would cost what the page holds. A reader
-   made here keeps each record beside its inputs and makes it again only where one of
-   them has changed, compared by identity, so a reading costs the records it makes and
-   a check of each one's inputs. The inputs have to name everything the record reads:
-   a fold that reads more than it names keeps a stale record. They are compared by
-   identity, so they keep it while unchanged, as the served reading does for every
-   record the server didn't change (`completeState` in `layer-client.js`).
+   one to keep its identity, so a publication would cost what the page holds.
+   `keptReadings` keeps each record beside the inputs its fold is given and makes it
+   again only where one of them has changed, compared by identity, so a reading costs
+   the records it makes and a check of each one's inputs. The inputs have to name
+   everything the record reads: a fold that reads more than it names keeps a stale
+   record. They are compared by identity, so they keep it while unchanged, as the
+   served reading does for every record the server didn't change (`completeState` in
+   `layer-client.js`).
 
    `kept` keeps a reading of facts outside it, as On Me's groups read the page, the
    threads' placement and the server's lists, without being told what it reads, and
@@ -20,22 +21,17 @@
    The page's reading and the threads' placement are not signals: a view drawn from
    them would draw again at every change the page heard, as on each frame a widget
    redraws a counter, where Leaf draws a view of the page when the page is presented
-   (`presentDocument`). Their readers, and those of the other facts outside any
-   signal, call `reads` with a function answering which version of the fact stands,
-   and the reading is made afresh once a version it read answers otherwise: the page's
-   readers (passages.js), placement's (`placedAt`), a visual's parts (visual-parts.js)
-   and the other callers of `reads`. So a reading stays current however its code
-   changes, as long as what it reads is a signal or has a reader that calls `reads`; a
-   new kind of fact gets one. What the page's watcher doesn't hear, such as a datum's
-   source or a role making a press, is read beside what announces its change, the
-   document presented or a widget's layout changing (anchor-resolution.js,
-   `currentDatums`, `claimsVisualGesture`).
-
-   Each read asks every version the reading read again, so standing costs one call per
-   such input, and an input that catches up when asked, as the page's watcher and
-   placement do, has caught up before the reading answers. A version that moved makes
-   a new reading rather than telling the old one's views, so a view draws the page's
-   change when the page is presented.
+   (`presentDocument`). So a reader of a fact outside any signal calls `reads` with a
+   function answering which version of the fact stands. Each read of a reading asks
+   every version it read again, one call each, and makes the reading afresh where one
+   answers otherwise, rather than telling the old reading's views. An input that
+   catches up when asked, as the page's watcher and placement do, has caught up before
+   the reading answers. So a reading stays current however its code changes, as long
+   as what it reads is a signal or has a reader that calls `reads`; a new kind of fact
+   gets one. What the page's watcher doesn't hear, such as a datum's source or a role
+   making a press, is read beside what announces its change, the document presented or
+   a widget's layout changing (anchor-resolution.js, `currentDatums`,
+   `claimsVisualGesture`).
 
    This module imports nothing but signals, so the pure folds can use it. */
 import { computed } from "/vendor/signals-core.js";
@@ -141,27 +137,9 @@ const within = (standing, generation, own) => {
  * being made, it is one of that reading's inputs. A make that throws keeps nothing.
  * @template T @param {() => T} derive @returns {() => T} */
 export function kept(derive) {
-  /** @type {Inputs} */
-  let inputs = new Map();
-  /** @type {import("@preact/signals-core").ReadonlySignal<T> | null} */
-  let made = null;
-  let generation = 0;
-  const standing = () => {
-    if (!made || !stands(inputs)) {
-      made = recording((inputs = new Map()), derive);
-      generation += 1;
-    }
-    return generation;
-  };
-  return () => {
-    within(standing, standing(), inputs);
-    try {
-      return /** @type {NonNullable<typeof made>} */ (made).value;
-    } catch (error) {
-      made = null;
-      throw error;
-    }
-  };
+  const each = keptEach(() => derive());
+  const one = {};
+  return () => each()(one);
 }
 
 /** A reader of what `make` makes of each key, made when the key is first asked for,
@@ -169,7 +147,8 @@ export function kept(derive) {
  * every input any of them read (`reads`) answers as it did. Each read asks those
  * inputs once and answers with a lookup by key, so reading every item of a list costs
  * one check of them, as `kept` does for one value; a lookup kept past a later read
- * answers from what that read found. A key is held no longer than whoever holds it.
+ * answers from what that read found. A key is held no longer than whoever holds it,
+ * and one whose make threw is made again, as is every reading made around it.
  * @template {object} K @template V @param {(key: K) => V} make
  * @returns {() => (key: K) => V} */
 export function keptEach(make) {
@@ -195,6 +174,7 @@ export function keptEach(make) {
       return value.value;
     } catch (error) {
       each.delete(key);
+      generation += 1;
       throw error;
     }
   };

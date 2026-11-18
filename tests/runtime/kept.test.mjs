@@ -172,6 +172,22 @@ test("a make that throws keeps nothing, and inputs read on the way are asked onc
   fail = false;
   assert.equal(reading(), "made");
   assert.equal(made, 2);
+  // A reading around it that caught the throw is made again once it answers.
+  fail = true;
+  const failing = kept(() => {
+    if (fail) throw new Error("not yet");
+    return 1;
+  });
+  const outer = kept(() => {
+    try {
+      return failing();
+    } catch {
+      return -1;
+    }
+  });
+  assert.equal(outer(), -1);
+  fail = false;
+  assert.equal(outer(), 1);
   // An input that reads itself on the way, as the page's own readers do.
   let asked = 0;
   const own = () => {

@@ -456,7 +456,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     resized(page, 1280, 900)
     marker = page.locator('[data-lf-margin-for="how-cap"] > .lf-margin-marker')
     icon = marker.locator(":scope > .lf-margin-entry-icon")
-    badge = marker.locator(":scope > .lf-margin-count")
+    badge = marker.locator(":scope > .lf-badges > .lf-margin-count")
     icon.evaluate("node => { window.__heldMarginEntryIcon = node; }")
     badge.evaluate("node => { window.__heldMarginEntryBadge = node; }")
     marker.evaluate(

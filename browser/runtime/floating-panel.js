@@ -829,23 +829,17 @@ export function createFloatingPanel({
               @click=${pressLeaf}
             >
               ${marks(
-                html`<span
-                    class="lf-fp-error-dot"
-                    aria-hidden="true"
-                    ?data-lf-shown=${unseen}
-                  ></span>
-                  <span
-                    class="lf-fp-badge"
-                    aria-hidden="true"
-                    ?data-lf-shown=${onUser > 0}
-                    >${onUser || ""}</span
-                  >
-                  <span
+                html`<span class="lf-badges" aria-hidden="true"
+                  ><span class="lf-fp-error-dot" ?data-lf-shown=${unseen}></span
+                  ><span
                     class="lf-fp-news-dot lf-unread-dot"
-                    aria-hidden="true"
                     ?data-lf-shown=${news > 0 || kept > 0}
                     ?data-lf-drafts=${!news}
-                  ></span>`,
+                  ></span
+                  ><span class="lf-fp-badge lf-badge-count" ?data-lf-shown=${onUser > 0}
+                    >${onUser || ""}</span
+                  ></span
+                >`,
               )}
             </button>
             <div class="lf-fp-field">

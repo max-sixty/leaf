@@ -227,8 +227,9 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     ]
     assert json.loads(context.split("\n")[1])["acknowledge"] is None
 
-    # The stamps answer, and nothing renews this turn past the grace; `busy`, and
-    # a record whose process is gone, change nothing.
+    # The stamps answer, and nothing renews this turn past the grace; `busy` keeps
+    # the page working but holds no move in the turn, and a record whose process
+    # is gone changes nothing.
     harness_says("busy")
     harness_says("waiting", pid=dead_pid)
     assert _activity_at(claimed)["kind"] == "working"
@@ -348,6 +349,56 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             True,
             "",
         )
+
+
+def test_a_turn_claude_code_runs_reads_working_over_unstarted_to_dos(claimed):
+    """Claude Code's record says `busy` of every turn it runs, so the page reads
+    working while one runs, in Leaf's word until the agent starts an item: a to-do
+    the agent opened and hasn't started doesn't make the page say the agent awaits
+    the user, though the watch takes input all the while. The working grace ages
+    only the stamps, so a long turn reads working past it. Once the turn ends, the
+    page awaits the user."""
+    serving(claimed, 1)
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+
+    def harness_says(status):
+        cleanup_model.write_json(
+            registry / f"{os.getpid()}.json",
+            {
+                "pid": os.getpid(),
+                "sessionId": "s1",
+                "status": status,
+                "statusUpdatedAt": int(time.time() * 1000),
+            },
+        )
+
+    session_model.cmd_waiting(claimed)
+    cleanup_model.open_session_turn("s1")
+    harness_says("busy")
+    opened = CliRunner().invoke(
+        cli_model.cli, ["task", "create", str(claimed), "page", "--title", "Fit S"]
+    )
+    assert opened.exit_code == 0, opened.output
+    lease_path = leases_model.waiter_lease_path(claimed, "s1")
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
+    assert lease
+    try:
+        for minutes in (0, 20):
+            running = _activity_at(claimed, minutes)
+            assert (
+                running["kind"],
+                running["detail"],
+                running["observed_kind"],
+                [todo["running"] for todo in running["todos"]],
+            ) == ("working", "", "working", [None])
+
+        cleanup_model.close_session_turn("s1")
+        harness_says("idle")
+        assert _activity_at(claimed)["kind"] == "listening"
+    finally:
+        leases_model.release_lease(lease)
 
 
 def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):

@@ -63,20 +63,21 @@
    (`settled`). The agent's answer to the user's own last turn, work under way and a
    reply streaming included, may then have arrived past the box's foot. Where the user
    stood at the box's end and their turn and the answer together fit in the box, its end
-   follows the answer into sight. Otherwise New reply stands at the box's foot until a
-   press on it, or the user scrolling there, shows the answer, or they send another turn,
-   and a user who stood at the end keeps their turn wholly in sight above the press, its
-   head included. A user whose wheel or key has the box scrolling as the answer arrives
-   stands wherever that scroll takes them, though the browser has yet to move the box
-   (arrivals.js, `readerScrolls`), or has moved it before the page heard the input, as
-   it does for macOS's precise wheels. Until then the answer is this thread's to place
-   (`answering`), and a box that follows its end, as a card's transcript does
-   (thread-preview.js), leaves it be. An answer the end followed into sight that grows afterwards, as a picture in it
-   loads, is placed again by the same rule (`placesEnd`). The user chose New reply for
-   the panel, and the rest of the floating panel's growth with it
-   (floating-panel.js, which records it); the margin card takes it too, so
-   one mechanism serves both, and that mechanism's rule at its end, under the user's
-   request for one thread view (thread-preview.js). */
+   glides to follow the answer into sight, so the turns above slide up as it comes, as
+   the user asked, rather than jumping up in one frame. Otherwise New reply stands at
+   the box's foot until a press on it, or the user scrolling there, shows the answer, or
+   they send another turn, and a user who stood at the end keeps their turn wholly in
+   sight above the press, its head included. A user whose wheel or key has the box
+   scrolling as the answer arrives stands wherever that scroll takes them, though the
+   browser has yet to move the box (arrivals.js, `readerScrolls`), or has moved it
+   before the page heard the input, as it does for macOS's precise wheels. Until then
+   the answer is this thread's to place (`answering`), and a box that follows its end,
+   as a card's transcript does (thread-preview.js), leaves it be. An answer the end
+   followed into sight that grows afterwards, as a picture in it loads, is placed again
+   by the same rule (`placesEnd`). The user chose New reply for the panel, and the rest
+   of the floating panel's growth with it (floating-panel.js, which records it); the
+   margin card takes it too, so one mechanism serves both, and that mechanism's rule at
+   its end, under the user's request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
@@ -117,8 +118,9 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  moveScrollerBy,
+  glideTo,
   SCROLL_SLACK,
+  scrollGoal,
   scrollLimit,
   scrollToEnd,
 } from "../scrolling.js";
@@ -1029,7 +1031,10 @@ export class ThreadView {
     // write below asks again, for an input made since, and stands back where the box no
     // longer stands where this read it: the browser can apply a wheel's scroll before the
     // page hears the wheel or the scroll, as it does for macOS's precise wheels.
-    const stood = scroller.scrollTop;
+    // A glide this placement set going toward the end, which a growth arriving before
+    // it lands finds under way, still stands the user there: where the box stands is
+    // where it is headed (`scrollGoal`).
+    const stood = scrollGoal(scroller);
     const atEnd = !readerScrolls(scroller) && before.limit - stood <= SCROLL_SLACK;
     const pad = Number.parseFloat(getComputedStyle(scroller).paddingTop);
     const from = () =>
@@ -1039,7 +1044,7 @@ export class ThreadView {
       atEnd &&
       scroller.scrollHeight - scroller.scrollTop - from() <= scroller.clientHeight
     ) {
-      scrollToEnd(scroller);
+      scrollToEnd(scroller, "smooth");
       this.#followed = answer;
       return;
     }
@@ -1062,15 +1067,17 @@ export class ThreadView {
         !atEnd ||
         !turn.isConnected ||
         readerScrolls(scroller) ||
-        scroller.scrollTop !== stood
+        scrollGoal(scroller) !== stood
       )
         return;
       // The user's turn stands wholly in sight, between the box's top edge and New
-      // reply's ground, its head first where it is taller than that.
+      // reply's ground, its head first where it is taller than that, measured where the
+      // box is headed: New reply sticks at the box's foot, and the turn rises by what
+      // the glide has yet to move. The box glides there, as it glides to the end.
+      const ahead = stood - scroller.scrollTop;
       const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
-      const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
-      const by = Math.min(Math.max(below, 0), from());
-      moveScrollerBy(scroller, by);
+      const below = foot ? turn.getBoundingClientRect().bottom - ahead - foot.top : 0;
+      glideTo(scroller, stood + Math.min(Math.max(below, 0), from() - ahead));
     });
   }
 

@@ -3240,7 +3240,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     }"""
     panel = page.locator(".lf-floating-panel")
     cover = page.locator(".lf-fp-field .lf-compose-error")
-    dot = page.locator(".lf-fp-leaf > .lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
     value = "node => node.value"
     page.evaluate(raise_error, ["Couldn't load v1", False])
     page.evaluate(raise_error, ["That reaction target is no longer available", False])
@@ -3522,7 +3522,7 @@ def test_folding_from_the_menu_draws_the_panel_folded_at_once(browser, serve):
         "async () => (await window.__lfWidgetApi()).raiseError('Link not copied')"
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
-    dot = page.locator(".lf-fp-leaf > .lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
     expect(dot).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     expect(dot).to_be_visible()

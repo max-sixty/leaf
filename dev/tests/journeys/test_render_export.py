@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 import signal
 import socket
 import subprocess
@@ -28,7 +27,7 @@ from render_harness import (
     REPLAYED_PAGE,
     example_media,
     open_page,
-    panel_menu,
+    panel_control,
     restarting,
     sending,
 )
@@ -59,13 +58,16 @@ def end_preview(process) -> None:
     process.wait(timeout=STATED_TIMEOUT)
 
 
-def expect_preview_named(page, words):
-    """The leaf's menu names a preview page's preview on its diagnostics row, whose
-    title says who drives it and which checkout serves it; read it and put the menu
-    away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="preview"]')
-    expect(row).to_have_attribute("title", re.compile(re.escape(words)))
-    page.locator(".lf-fp-leaf").click()
+def expect_preview_named(page, interaction, checkout):
+    """About this page says who drives a preview (`author` or `user`) and which
+    checkout serves it; read both and close the dialog."""
+    panel_control(page, "inspection").click()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    details = about.get_by_role("region", name="Page details")
+    expect(details).to_contain_text(f"interaction: {interaction}")
+    expect(details).to_contain_text(f"checkout: {checkout}")
+    about.get_by_role("button", name="Close about this page", exact=True).click()
+    expect(about).to_be_hidden()
 
 
 from typing import NamedTuple
@@ -363,7 +365,7 @@ def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
     )
 
     assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    assert "refusing to stamp index.html:" in result.stderr
+    assert "refusing to stamp index.html:" in result.stdout
     assert "Traceback" not in result.stdout + result.stderr
     assert "exited" not in result.stdout + result.stderr
 
@@ -427,7 +429,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         page.goto(url, wait_until="load")
         wait_until_ready(page)
         assert page.evaluate("globalThis.__previewRuntimeMarker") == expected_marker
-        expect_preview_named(page, f"Preview · {runtime.name}")
+        expect_preview_named(page, "author", runtime.name)
         expect(
             page.get_by_role("heading", name="Shared runtime comparison")
         ).to_be_visible()
@@ -470,7 +472,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
     driven = open_page(browser, driven_url)
-    expect_preview_named(driven, f"Preview · {runtime.name}")
+    expect_preview_named(driven, "author", runtime.name)
     with sending(driven, "the agent-driven option pick"):
         driven.locator("#opt-shim .lf-pick").click()
     expect(driven.locator("#opt-shim")).to_have_attribute("selected", "")
@@ -511,7 +513,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     claim = service_model.page_claim(user_dir)
     assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
     user = open_page(browser, user_url)
-    expect_preview_named(user, f"User · {runtime.name}")
+    expect_preview_named(user, "user", runtime.name)
     with sending(user, "the user option pick"):
         user.locator("#opt-stage .lf-pick").click()
     expect(user.locator("#opt-stage")).to_have_attribute("selected", "")
@@ -545,7 +547,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     assert service_model.page_claim(user_dir) is None
     assert user_event not in events_model.read_events(user_dir)
     replaced_page = open_page(browser, replaced_url)
-    expect_preview_named(replaced_page, f"Preview · {runtime.name}")
+    expect_preview_named(replaced_page, "author", runtime.name)
     expect(replaced_page.locator("#opt-stage")).not_to_have_attribute("selected", "")
 
 

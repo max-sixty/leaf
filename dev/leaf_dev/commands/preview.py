@@ -390,7 +390,9 @@ class PreviewService:
         """Hold a process-owned server down across a layer change and bring it back,
         admitted or not, unless the preview itself is ending. A `--user` service is
         restarted by the `page init` the block runs when `initializing`, and here
-        otherwise, since a server composes its layer once, as it starts."""
+        otherwise, since a server composes its layer once, as it starts. A
+        process-owned server runs in this process, which holds the runtime and the
+        layers it read for as long as it runs, so its replacement drops them first."""
         if self.user:
             if initializing:
                 yield
@@ -404,6 +406,11 @@ class PreviewService:
                 yield
             return
         self._close_temporary()
+        from leaf.layer import forget_layers
+        from leaf.runtime_selection import serving_runtime
+
+        serving_runtime.cache_clear()
+        forget_layers()
         try:
             yield
         except Exception:
@@ -487,15 +494,13 @@ def source_roots(source: Path, page: Path, runtime: Path) -> list[Path]:
 
 
 def serving_identity(runtime: Path) -> str:
-    """What a page server of `runtime` serves: its serving code and runtime, and
-    every input of a layer it composes (`runtime_selection.LAYER_SOURCES`)."""
+    """What a page server of `runtime` serves: its serving code, and every browser
+    file it serves or composes into a page's layer, the kernel's stylesheets and the
+    sheets they import included. A server holds the layer it composed for as long as
+    it runs, so an edit to any of them needs a new server."""
     from leaf.layer import files_identity, payload_server_inputs
-    from leaf.runtime_selection import LAYER_SOURCES
 
-    paths = [*payload_server_inputs(runtime)]
-    for name in LAYER_SOURCES:
-        top = runtime / name
-        paths.extend([top] if top.is_file() else sorted(top.rglob("*")))
+    paths = [*payload_server_inputs(runtime), *sorted((runtime / "browser").rglob("*"))]
     return files_identity(
         {
             path.relative_to(runtime).as_posix(): path.read_bytes()

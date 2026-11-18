@@ -640,5 +640,4 @@ the website.
 Benchmark runs are development experiments, not release gates. Run a selected
 case when changing its behavior, inspect its saved pages and judge evidence, and
 repair mistakes in that loop. Keep only a couple of no-model smoke tests for the
-provider wiring in `dev/tests`; these and other `leaf-dev` tests run explicitly,
-outside product PR CI.
+provider wiring in `dev/tests` (`dev/AGENTS.md`, "Tests", says where they run).

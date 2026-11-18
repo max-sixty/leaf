@@ -72,6 +72,11 @@ def test_preview_watches_source_without_losing_user_state(browser, watched_previ
     assert (directory / "events.jsonl").stat().st_ino == inode
 
 
+# A runtime edit's mark: a custom property no layer sets, so the tab that runs the
+# edited layer reads it whatever order the layer's sheets rank in.
+EDITED_THEME = "\n:root { --runtime-edit: 1; }\n"
+
+
 def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     """A runtime edit replaces the server, and every tab of the page follows it.
 
@@ -88,6 +93,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     inode = (directory / "events.jsonl").stat().st_ino
     resources = ("leaf.js", "registry.json")
     pages = {}
+    replaced = []
     # The interruption and the replacement server between them are a restart, and
     # what the browser says inside one is the fetch that was in flight rather than
     # the condition: a refused resource, a connection to a server that has gone, a
@@ -97,42 +103,43 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
         restarts.enter_context(restarting(open_tab))
         for resource in resources:
             page = browser.new_page()
-            failures = []
             documents = requested_documents(page)
 
-            def interrupt_resource(route, resource=resource, failures=failures):
-                if failures:
+            # Every load fails until the replacement, the one document recovery asks
+            # the same server for included, so the tab waits on the server.
+            def interrupt_resource(route):
+                if replaced:
                     route.continue_()
-                    return
-                failures.append(True)
-                route.abort()
+                else:
+                    route.abort()
 
             page.route("**/" + resource, interrupt_resource)
             restarts.enter_context(restarting(page))
             page.goto(url, wait_until="load")
             status = page.get_by_text(
-                "Leaf couldn't start. Waiting for the server to update."
+                "Leaf couldn't start. Waiting for Leaf to update."
             )
             expect(status).to_be_visible()
-            assert len(documents) == 1, resource
-            pages[resource] = (page, status, documents)
+            pages[resource] = (page, status, documents, len(documents))
         # A changed layer replaces the server. An invalid input is now refused
-        # before that replacement, so change a valid theme to test recovery.
+        # before that replacement, so change a valid theme to test recovery. A custom
+        # property no layer sets says which layer a tab runs.
+        replaced.append(True)
         theme = runtime / "browser" / "base.css"
         updated = runtime.parent / "base.css.next"
-        updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
+        updated.write_text(theme.read_text() + EDITED_THEME)
         updated.replace(theme)
-        expect(open_tab.locator("h1")).to_have_css(
-            "color", "rgb(0, 0, 128)", timeout=HANDOVER_DEADLINE_MS
+        expect(open_tab.locator("html")).to_have_css(
+            "--runtime-edit", "1", timeout=HANDOVER_DEADLINE_MS
         )
-        for page, status, _ in pages.values():
+        for page, status, _, _ in pages.values():
             expect(page.locator("body")).to_have_attribute(
                 "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
             )
             # Rebuilding the installation can outlast the default browser wait.
             expect(status).not_to_be_visible(timeout=HANDOVER_DEADLINE_MS)
-    for resource, (page, _, documents) in pages.items():
-        assert len(documents) >= 2, resource
+    for resource, (page, _, documents, failed) in pages.items():
+        assert len(documents) > failed, resource
         expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     expect(open_tab.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -159,7 +166,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     interrupted = []
     page.add_init_script(
         """(() => {
-          const words = "Leaf couldn't start. Waiting for the server to update.";
+          const words = "Leaf couldn't start. Waiting for Leaf to update.";
           const check = () => {
             if (![...document.querySelectorAll('[role="status"]')]
                 .some(node => node.textContent === words && node.checkVisibility())) return;
@@ -179,7 +186,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             interrupted.append(True)
             theme = runtime / "browser" / "base.css"
             updated = runtime.parent / "base.css.next"
-            updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
+            updated.write_text(theme.read_text() + EDITED_THEME)
             updated.replace(theme)
             route.abort("failed")
         else:
@@ -205,4 +212,4 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             failure="the preview did not bring its service back",
             timeout=COMPOSITE_TIMEOUT,
         )
-        expect(page.locator("h1")).to_have_css("color", "rgb(0, 0, 128)")
+        expect(page.locator("html")).to_have_css("--runtime-edit", "1")

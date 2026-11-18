@@ -20,18 +20,22 @@ alone (`selected_launcher`):
 Each hook runs the chosen launcher's Python as it stands, so an update reaches a
 session at its next hook without a reload; Claude Code still reads `hooks.json`
 and the hooks module only as it loads the plugin, so a change to either still
-waits for one. So where the Python a hook runs and the module that reads it must
-agree, as the forks lane and the module asking its line forks must
-(`hooks.cmd_pages`), the Python first checks the module is its own copy's
-(`module_current`). A selection whose checkout is gone falls back to the installed
-copy, which refuses a page it can't read (`newer-layer`), so the agent learns why.
+waits for one. Nothing checks that the module a session loaded and the Python its
+hooks run agree. Where their exchange has changed, the Python refuses the step the
+module runs (`leaf hook --fork`), which hands a kept-back thread to the session at
+once, or the line turn Leaf opened lapses after `activity.STARTING_GRACE`; either
+way the session gets the thread's messages as it would without forks. The user
+chose this over checking that the loaded module is this Leaf's own, which turns
+forks off in every session that loaded the module before its latest change: most
+sessions, while the module changes often. A selection whose checkout is gone falls
+back to the installed copy, which refuses a page it can't read (`newer-layer`), so
+the agent learns why.
 A running adapter keeps the modules it loaded until it retires, which it does once
 its task owns no page. The selection lives in the session lifecycle record and
 ends with its generation. Page servers retain their own runtime, so choosing
 delivery does not replace a comparison arm's renderer.
 """
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -152,23 +156,3 @@ def select_checkout(session_id: str) -> bool:
 def own_launcher() -> Path:
     """The launcher beside the Python package currently running."""
     return (PLUGIN_ROOT / "bin" / "leaf").resolve()
-
-
-def module_current(digest: object) -> bool:
-    """Whether the Claude Code hooks module running in a session, which names itself
-    by its source's SHA-256 as it loaded (`digest`), is one this Leaf ships, as its
-    `hooks.json` lists them. A session keeps the module it loaded while its hooks hand
-    themselves to another Leaf (the header), and a checkout can change under it, so a
-    contract between this Leaf's Python and the module holds only where the code that
-    loaded is this Leaf's own."""
-    if not isinstance(digest, str):
-        return False
-    hooks = PLUGIN_ROOT / "hooks"
-    try:
-        modules = json.loads((hooks / "hooks.json").read_text())["modules"]
-        return any(
-            hashlib.sha256((hooks / module).read_bytes()).hexdigest() == digest
-            for module in modules
-        )
-    except (OSError, ValueError, KeyError, TypeError):
-        return False

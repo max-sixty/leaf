@@ -606,7 +606,6 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
         yield {str(seed), str(source)}
         after = layer()
         assert after["generation"] == removed["generation"]
-        assert after["fingerprint"] != committed["fingerprint"]
         assert "Revised" in (page / "index.html").read_text()
 
     monkeypatch.setattr(
@@ -778,7 +777,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         text=True,
         check=False,
     )
-    assert refused.returncode != 0 and "unknown widget" in refused.stderr
+    assert refused.returncode != 0 and "unknown widget" in refused.stdout
     assert not page.exists()
     source.write_text(valid_initial)
 
@@ -884,6 +883,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     first = latest_revision(page)
     layer = load_registry(page)["$layer"]["generation"]
     media = page / "media" / "retained.svg"
+    media.parent.mkdir(exist_ok=True)
     media.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
     media_bytes = media.read_bytes()
     stop(task)

@@ -30,7 +30,7 @@ import {
   prepareAuthoredMessage,
   messageText,
 } from "./thread/messages.js";
-import { commitWidgetDescriptors } from "./widget-descriptors.js";
+import { keptEach } from "./kept.js";
 import {
   combineSemanticNews,
   currentSemanticNews,
@@ -39,6 +39,21 @@ import {
   semanticNewsNotice,
   semanticNewsReading,
 } from "./semantic-news.js";
+
+/** @typedef {import("./thread/model.js").CapturedBody} CapturedBody */
+// Each message's captured words, kept while they read the same (kept.js): an authored
+// message's are its island's, and any other's its words as a label reads them. A
+// thread's are kept together while its messages' are, so its record stands while its
+// messages do (thread/model.js, `readThreadRecords`).
+const plainBody = keptEach(
+  /** @param {object} _message @param {string} text @returns {CapturedBody} */
+  (_message, text) => ({ text }),
+);
+const threadBodies = keptEach(
+  /** @param {{msgs: readonly {id: string}[]}} thread @param {CapturedBody[]} bodies */
+  (thread, ...bodies) =>
+    new Map(thread.msgs.map((message, at) => [message.id, bodies[at]])),
+);
 
 /** @param {{
  * prepareActivation: ReturnType<typeof import("./version.js").createVersionController>["prepareActivation"],
@@ -146,10 +161,19 @@ export function createStateApplication({
         })),
       ),
     ]);
+    const preparedFor = new Map(
+      preparedMessages.map(({ message, prepared }) => [message, prepared]),
+    );
     const bodies = new Map(
-      preparedMessages.map(({ message, prepared }) => [
-        message.id,
-        prepared ? prepared.body : { text: messageText(message) },
+      threads.map((thread) => [
+        thread.id,
+        threadBodies(
+          thread,
+          ...thread.msgs.map((message) => {
+            const prepared = preparedFor.get(message);
+            return prepared ? prepared.body : plainBody(message, messageText(message));
+          }),
+        ),
       ]),
     );
 
@@ -207,8 +231,6 @@ export function createStateApplication({
         descriptors,
         messageBodies: bodies,
       };
-      for (const { prepared } of preparedMessages)
-        if (prepared) commitWidgetDescriptors(prepared.descriptors);
       // The user's place across the change this reading brings, kept once the page
       // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
       // own landing instead (version.js).
@@ -218,7 +240,6 @@ export function createStateApplication({
         return;
       }
       islands.commit();
-      commitWidgetDescriptors({ bindings: [] }, islands.retired);
       observeServerNow(state.now);
       observeWorkingGrace(state.working_grace_ms);
       stateApplying = true;

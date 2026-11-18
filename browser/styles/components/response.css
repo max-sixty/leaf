@@ -548,7 +548,12 @@ leaf-composition-field {
    and last line or picture by its padding and frame, a comment box line's
    (`--lf-response-height`), less the room those lines already keep
    (`--lf-thread-text-pad-block`, as a margin card's do). So opening it adds nothing to
-   the message's height. Discard and Save stand at the message's head (`.lf-msg-edit-actions`). Rejected by the user: the
+   the message's height, however long the message is, and the field has no maximum
+   height. Under a reply box's cap of half the window (controls.css), a longer
+   message's rewrite would be shorter than the message, and its first lines would
+   scroll out of sight under the frame. Where the rewrite is taller than the thread's
+   view, the view scrolls to the caret (message-edit.js, `enter`). Discard and Save
+   stand at the message's head (`.lf-msg-edit-actions`). Rejected by the user: the
    reply box's own field, its padding inside the words' box, under a draft's cropped
    shelf of the pictures, which moved and rewrapped the words. */
 .lf-msg-editor {
@@ -572,6 +577,7 @@ leaf-composition-field {
 }
 .lf-msg-editor > leaf-composition-field > .lf-compose-field > leaf-text {
   min-height: 0;
+  max-height: none;
   padding-inline-end: calc(var(--lf-msg-text-end) - 1px);
 }
 .lf-msg-editor

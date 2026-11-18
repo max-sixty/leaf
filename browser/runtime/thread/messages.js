@@ -62,7 +62,10 @@ import {
   rememberAuthoredParents,
   stageAuthoredStates,
 } from "../projection/authored.js";
-import { stageWidgetDescriptors } from "../widget-descriptors.js";
+import {
+  bindWidgetDescriptors,
+  stageWidgetDescriptors,
+} from "../widget-descriptors.js";
 import {
   NOT_ANSWERED,
   strongestWorkflow,
@@ -511,6 +514,7 @@ export function prepareAuthoredMessage(message, thread) {
       thread,
       message: message.id,
     });
+    bindWidgetDescriptors(descriptors.bindings);
     const authored = stageAuthoredStates(template.content);
     rememberPassageParts(template.content, ["event", message.id]);
     // The message's words as the page reading says them (`says`). `says` refuses text

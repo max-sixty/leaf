@@ -85,6 +85,7 @@ from leaf.file_changes import FileChanges
 from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
+from leaf.runtime_selection import forget_tree, read_runtime
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -387,7 +388,9 @@ class PreviewService:
         """Hold a process-owned server down across a layer change and bring it back,
         admitted or not, unless the preview itself is ending. A `--user` service is
         restarted by the `page init` the block runs when `initializing`, and here
-        otherwise, since a server composes its layer once, as it starts."""
+        otherwise, since a server composes its layer once, as it starts. A
+        process-owned server runs in this process, which holds the runtime and the
+        layers it read for as long as it runs, so its replacement drops them first."""
         if self.user:
             if initializing:
                 yield
@@ -401,6 +404,7 @@ class PreviewService:
                 yield
             return
         self._close_temporary()
+        forget_tree()
         try:
             yield
         except Exception:
@@ -483,25 +487,6 @@ def source_roots(source: Path, page: Path, runtime: Path) -> list[Path]:
     )
 
 
-def serving_identity(runtime: Path) -> str:
-    """What a page server of `runtime` serves: its serving code and runtime, and
-    every input of a layer it composes (`runtime_selection.LAYER_SOURCES`)."""
-    from leaf.layer import files_identity, payload_server_inputs
-    from leaf.runtime_selection import LAYER_SOURCES
-
-    paths = [*payload_server_inputs(runtime)]
-    for name in LAYER_SOURCES:
-        top = runtime / name
-        paths.extend([top] if top.is_file() else sorted(top.rglob("*")))
-    return files_identity(
-        {
-            path.relative_to(runtime).as_posix(): path.read_bytes()
-            for path in paths
-            if path.is_file()
-        }
-    )
-
-
 def refresh_preview(
     source: Path,
     page: Path,
@@ -554,7 +539,8 @@ def refresh_preview(
         )
         # A page composes its layer from the Leaf serving it, so a runtime or
         # package edit needs a server that read it as much as a new selection does.
-        serving = serving_identity(runtime)
+        # This process runs in the selected checkout, so its runtime is `runtime`.
+        serving = read_runtime().identity
         if planned["changed"] or serving != state.get("serving"):
             with service.replacing(planned["changed"]):
                 if planned["changed"]:
@@ -844,7 +830,7 @@ def serve_preview(
     service = None
     changes = None
     try:
-        state["serving"] = serving_identity(runtime)
+        state["serving"] = read_runtime().identity
         prepared_page = None
         if resumed:
             service = PreviewService(page, user, prepared_claim)

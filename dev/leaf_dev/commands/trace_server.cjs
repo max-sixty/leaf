@@ -1,8 +1,9 @@
 // Playwright owns every viewer route and its redirect. Call only its server
-// primitives: serving evidence must never invoke a desktop or browser launcher.
+// primitives, as its own `show-trace` does short of opening the URL: serving
+// evidence must never invoke a desktop or browser launcher.
 const path = require("node:path");
 const [driver, trace, host, port] = process.argv.slice(2);
-const { startTraceViewerServer, installRootRedirect } = require(
+const { startTraceViewerServer, traceViewerPath } = require(
   path.join(driver, "lib/coreBundle.js"),
 ).server;
 
@@ -12,8 +13,10 @@ async function serve() {
     port: Number(port),
     allowedFileRoots: () => [path.dirname(trace)],
   });
-  await installRootRedirect(server, `file?path=${encodeURIComponent(trace)}`, {});
-  console.log(server.urlPrefix("human-readable"));
+  server.installRootRedirect(
+    traceViewerPath(`file?path=${encodeURIComponent(trace)}`, {}),
+  );
+  console.log(server.rootUrl("human-readable"));
 }
 
 serve().catch((error) => {

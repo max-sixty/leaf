@@ -57,6 +57,7 @@ from leaf_dev.browser import (
     settle,
     tab,
 )
+from leaf_dev.claude_code_module import claude_code_module
 from leaf_dev.leaf_assets import publish, stage
 from leaf_dev.page_fixtures import fixture_environment
 from leaf_dev.recording import write_gif
@@ -307,13 +308,16 @@ def wait_for_listening(page: Page, client: PageClient) -> dict:
 
 # The interaction rows a page server writes as its request for a thread's title ends.
 TITLE_ENDS = ("thread_title_generated", "thread_title_failed", "thread_title_skipped")
+# The title the demo's thread is given. The recording's session is its own, so no
+# hooks module answers its model requests; the recorder stands in for one, as it
+# stands in for the agent, and gives the scene the same title every run.
+DEMO_TITLE = "Keeping the backfill online"
 
 
 def wait_for_title(page_dir: Path) -> None:
-    """Wait until the page server has written the title the harness's model gave the
-    demo's one thread (`thread_titles.name_admitted_thread`), or fail with what its
-    request recorded. The model words the title afresh each run. A request ends by its
-    last retry for rate limits plus one request's time."""
+    """Wait until the page server has written the demo's one thread's title
+    (`thread_titles.name_admitted_thread`), or fail with what its request recorded. A
+    request ends by its last retry for rate limits plus one request's time."""
     patience = thread_titles.RETRY_FOR + inference.TIMEOUT
     deadline = time.monotonic() + patience
     # The reader keeps its own gap rows under any type filter.
@@ -511,6 +515,9 @@ def record_demo(output: Path | None) -> None:
     with (
         tempfile.TemporaryDirectory(prefix="leaf-demo-") as scratch,
         demo_session(Path(scratch)),
+        claude_code_module(
+            os.environ["CLAUDE_CODE_SESSION_ID"], json.dumps({"title": DEMO_TITLE})
+        ),
     ):
         recording = Path(scratch) / "demo"
         recording.mkdir()

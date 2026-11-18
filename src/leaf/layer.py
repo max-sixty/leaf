@@ -1,8 +1,9 @@
 """Layer input resolution, composition, and content identity.
 
-A selection has two compositions, each held for the process by the inputs it
-resolves to. Its vocabulary (`selected_vocabulary`, `LayerVocabulary`) is all a
-reader of the page needs, merged and stamped but not validated. The full composition
+A selection has two compositions, held together by the inputs it resolves to, for
+the process or in the page's memory (`_held`). Its vocabulary (`selected_vocabulary`,
+`LayerVocabulary`) is all a reader of the page needs, merged and stamped but not
+validated. The full composition
 (`selected_layer`, `LayerComposition`) is built over that vocabulary, validates its
 registry, and reads and validates every sheet and module the layer serves;
 `validation.command.cmd_check` and
@@ -13,6 +14,7 @@ import hashlib
 import json
 import re
 import subprocess
+import threading
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -23,7 +25,7 @@ from .files import file_stamp
 from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
-from .page_memory import once
+from .page_memory import memo, once
 from .refusals import Refused
 from .registry.contract import MODULES, is_element_name
 from .registry.kernel import kernel_protocol
@@ -681,51 +683,81 @@ def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerCompositio
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies
-    its own runtime (`runtime_selection`). Held for the process, since a plugin
-    update may replace the tree under a running server, which keeps answering with
-    the bytes it started with. Held by the package roots the selection resolves to
-    rather than its spelling, since a page's own copy is another directory in another
-    page, and an installed name another snapshot after `package install`; and a
-    page's copy by its stamp too, since its next `page init` replaces it in place."""
-    return _composed(*_selection(packages, page_dir))
+    its own runtime (`runtime_selection`). The layer is held by the package roots
+    the selection resolves to rather than its spelling, since an installed name
+    resolves to another snapshot after `package install`; `_held` says for how
+    long."""
+    inputs, held = _held(packages, page_dir)
+    return once(
+        held,
+        "layer",
+        lambda: _composition(
+            checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, held)
+        ),
+    )
 
 
 def selected_vocabulary(packages: tuple[str, ...], page_dir: Path) -> LayerVocabulary:
     """The vocabulary of the layer `selected_layer` composes for the same selection,
-    without reading the layer's files. Held for the process, as the layer is."""
-    return _vocabulary(*_selection(packages, page_dir))
+    without reading the layer's files, held with that layer."""
+    return _vocabulary(*_held(packages, page_dir))
 
 
-def _selection(
-    packages: tuple[str, ...], page_dir: Path
-) -> tuple[tuple[Path, ...], tuple]:
-    """The inputs a selection resolves to, and the stamps of the page's own copies
-    among them: what `selected_layer` and `selected_vocabulary` hold a layer by."""
+def _vocabulary(inputs: tuple[Path, ...], held: dict) -> LayerVocabulary:
+    return once(
+        held, "vocabulary", lambda: compose_vocabulary(checked_inputs(list(inputs)))
+    )
+
+
+class _Layers:
+    """Layers by the inputs they compose, each kept beside the stamps of what else it
+    depends on and replaced whole once those move."""
+
+    def __init__(self) -> None:
+        self._held: dict[tuple[Path, ...], tuple[tuple, dict]] = {}
+        self._lock = threading.Lock()
+
+    def of(self, inputs: tuple[Path, ...], stamps: tuple) -> dict:
+        """What is kept of the layer `inputs` compose while what it depends on stamps
+        as `stamps`, for `page_memory.once` to fill."""
+        with self._lock:
+            held = self._held.get(inputs)
+            if held is None or held[0] != stamps:
+                held = self._held[inputs] = (stamps, {})
+            return held[1]
+
+
+_shared = _Layers()
+
+
+def _held(packages: tuple[str, ...], page_dir: Path) -> tuple[tuple[Path, ...], dict]:
+    """The inputs a selection resolves to, and what is kept of the layer they compose.
+
+    A selection of shared package roots alone, the kernel's and the bundled and
+    installed packages', is held for the process, since a plugin update may replace
+    the tree under a running server, which keeps answering with the bytes it started
+    with. A selection that includes a copy the page holds of a package it selects by
+    path is a reading of that page, held in the page's memory (`page_memory`) beside
+    the copy's stamp, since the page's next `page init` replaces the copy in place, and
+    beside the shared layers, since `forget_layers` replaces those. The layer read
+    under either's new stamp replaces the one before it, and goes when the page's
+    memory does; a page's server holds that memory for its life
+    (`server_rows.RowPublisher`)."""
     inputs = tuple(layer_inputs(packages, page_dir))
     copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
-    return inputs, copies
+    if not copies:
+        return inputs, _shared.of(inputs, ())
+    return inputs, memo(page_dir, _Layers).of(inputs, (_shared, copies))
 
 
-_vocabularies: dict = {}
-_compositions: dict = {}
-
-
-def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:
-    return once(
-        _vocabularies,
-        (inputs, copies),
-        lambda: compose_vocabulary(checked_inputs(list(inputs))),
-    )
-
-
-def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
-    return once(
-        _compositions,
-        (inputs, copies),
-        lambda: _composition(
-            checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
-        ),
-    )
+def forget_layers() -> None:
+    """Drop every layer and vocabulary this process holds (`selected_layer`), and the
+    Leaf it read itself to be (`running_leaf`), which a layer names as its producer
+    (`runtime_selection.forget_tree`). A layer kept in a page's memory was kept beside
+    the shared layers this drops (`_held`), so the page's next read composes it again."""
+    global _shared
+    _shared = _Layers()
+    running_leaf.cache_clear()
 
 
 def files_identity(files: dict[str, bytes]) -> str:

@@ -5,7 +5,7 @@ A page records the packages and theme it selects in `layer.json`
 exports the page composes the layer from that selection, its own core and bundled
 packages and the user's installed ones, in the order and at the merge grains of
 `../../skills/leaf/references/packages.md`, "Package contract"; `registry/layer.py`
-is the merge and `layer.selected_layer` holds the result for the process. The browser
+is the merge and `layer.selected_layer` holds the result. The browser
 runtime comes from the same Leaf (`runtime_selection.py`), so a page's widgets,
 theme, vocabulary and runtime always ship together. Each revision captures its
 authored content, its own declarations and modules, and names the selection, so an

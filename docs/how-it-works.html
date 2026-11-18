@@ -1376,7 +1376,7 @@ flowchart TD
               <ul>
                 <li><a href="#ontology-kinds">Records</a></li>
                 <li><a href="#ontology-relations">Relations</a></li>
-                <li><a href="#surface-flow-section">Shared readings</a></li>
+                <li><a href="#derived-data">Derived data</a></li>
                 <li><a href="#data-home">Page files and history</a></li>
                 <li><a href="#data-survives">Data lifetime</a></li>
               </ul>
@@ -1571,26 +1571,79 @@ flowchart TD
               </figcaption>
             </figure>
           </section>
-          <section id="surface-flow-section">
-            <h2>Shared readings</h2>
-            <p id="surface-flow-lede">
-              The <a href="#browser-state">browser runtime</a> combines the server’s
-              reading, authored values and pending updates. Shared selectors supply
-              names, statuses and identities to the margin, Page Map, Leaf panel,
-              activity feed and widgets.
+          <section id="derived-data">
+            <h2>Derived data</h2>
+            <p id="derived-data-lede">
+              Leaf derives what it shows from a few sources, and reuses each result
+              until something it read changes.
+            </p>
+            <figure id="derived-data-figure" class="diagram-figure">
+              <lf-diagram id="derived-data-diagram" data-height="560" parts="all">
+                <pre>
+flowchart LR
+  accTitle: Sources, kept readings and views
+  accDescr: On the server, readings of the page's files are kept between requests and sent to the browser as patches, which become the application state. In the browser, kept readings are made from the application state and the live page, and views paint them. Measured geometry is kept by the code that measures it and feeds the views directly.
+  Files["Page files"] --&gt; Memory["Server readings&lt;br/&gt;kept between requests"]
+  Memory --&gt;|patches| State["Application state&lt;br/&gt;one snapshot"]
+  State --&gt;|signal| Readings["Kept readings"]
+  Page["Live page"] --&gt;|taken on read| Readings
+  Readings --&gt; Views["Views&lt;br/&gt;paint on presentation passes"]
+  Layout["Layout"] --&gt; Geometry["Measured geometry&lt;br/&gt;kept by its owner"]
+  Geometry --&gt; Views
+</pre>
+              </lf-diagram>
+              <figcaption>
+                Each source holds facts no other has; each derived value is kept one
+                way.
+              </figcaption>
+            </figure>
+            <p id="derived-data-sources">
+              <strong>Sources.</strong> On the server, a page's files: the log, its
+              revisions, data and drafts. In the
+              <a href="#browser-state">browser runtime</a>, the application state (the
+              server's reading, authored values and this tab's pending updates,
+              published as one immutable snapshot), the live page's words, ids and
+              parts, the layout, and what a widget or the browser owns, such as focus
+              and scroll.
+            </p>
+            <p id="derived-data-hearing">
+              <strong>Hearing a change.</strong> The application state is a signal, so
+              reading it subscribes. The browser reports a change to the page a
+              microtask late, so before a reading of the page answers, Leaf takes the
+              changes still pending.
+            </p>
+            <p id="derived-data-readings">
+              <strong>Readings.</strong> A value derived from the state or the page is
+              kept as a reading: one value per key, made again when an argument or
+              anything it read changes, and dropped when its key goes. Publication gives
+              an unchanged part its old identity, because the server sends patches and
+              each unchanged part is shared, so a reading keyed by a record stands while
+              the record does, and a publication about one thing makes only that thing's
+              readings again.
+            </p>
+            <p id="derived-data-server">
+              <strong>On the server</strong>, a reading of a page is kept while the
+              files it read are unchanged, under a name that never changes meaning, or,
+              for a fact no file carries, such as another page's presence, until it is
+              observed again after 2 s. The readings last served are kept too, so a
+              later answer can be a patch.
+            </p>
+            <p id="derived-data-views">
+              <strong>Views.</strong> The margin, Page Map, Leaf panel, activity feed
+              and widgets read the same readings for names, statuses and identities, and
+              paint them on presentation passes (<a href="#browser-drawing"
+                >Drawing current state</a
+              >). A surface chooses placement and presentation, and never infers state
+              from another surface's rendered text; drawn elements carry their
+              identities so a press can find the thread or widget it acts on.
               <a href="/using/#thread-readings">What a thread shows</a> lists what the
-              conversation selectors say; the
+              conversation readings say, and the
               <a
                 href="https://github.com/max-sixty/leaf/blob/main/browser/AGENTS.md#one-answer-for-each-question"
                 >runtime owner table</a
               >
-              identifies each reading’s owner.
-            </p>
-            <p id="surface-flow-rule">
-              A surface chooses placement and presentation, using these shared readings
-              for meaning. It never infers state from another surface's rendered text.
-              Drawn elements carry their identities so a press can find the thread or
-              widget it acts on.
+              names each reading's owner. The code that measures a position or size
+              keeps it until a size observer or a layout notice reports a change.
             </p>
           </section>
           <section id="data-home">
@@ -4674,11 +4727,12 @@ flowchart TD
           <section id="browser-drawing">
             <h2>Drawing current state</h2>
             <p id="browser-drawing-proof">
-              Computing state and drawing it are separate. Widgets, threads, the
-              obligation view, panel and page marks register as renderers. Each state
-              has an epoch number. Renderers report when they have presented it; those
-              reports stay outside state, so a slow or failed paint cannot change the
-              facts.
+              Computing state and drawing it are separate: what a renderer draws is a
+              kept reading (<a href="#derived-data">Derived data</a>). Widgets, threads,
+              the obligation view, panel and page marks register as renderers. Each
+              state has an epoch number. Renderers report when they have presented it;
+              those reports stay outside state, so a slow or failed paint cannot change
+              the facts.
             </p>
             <figure id="browser-drawing-order" class="diagram-figure">
               <lf-diagram

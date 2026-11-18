@@ -576,7 +576,7 @@ def summary_range(
     those it overlaps, so a summary that ends inside an earlier one cannot uncover that
     one's tail above a later summary. Whatever the wider range replaces lies inside it,
     so admission takes it as named. A delivery's `summary_hint`
-    (`thread_context.batch_threads`) is the range this gives for a run of messages and
+    (`thread_context.summary_hint`) is the range this gives for a run of messages and
     the summaries in force beside it, so following a hint is never refused.
 
     The opening message may stay outside, since it says what the thread is about. A

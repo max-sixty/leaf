@@ -294,17 +294,15 @@ def cmd_pages(payload: dict) -> None:
     hooks hand themselves at each call to the Leaf delivering for it: a newer copy
     Claude Code installed, a checkout the session selected, or the same checkout
     moved past a protocol bump. That newer Leaf reads an older follower's lane as no
-    one's. On 8 November one follower, four days old, kept back messages that the
-    line fork's step, under the newer Leaf, refused as not kept back, so each waited
-    out the 30 s hold with no line.
+    one's: its line fork's step refuses the messages that follower keeps back, so
+    each would wait out a line turn's grace (`activity.STARTING_GRACE`) with no
+    line.
 
     The module that reads the list stays the one the session loaded until
     `/reload-plugins`, so a follower under a newer Leaf may print it to a module
-    that reads kept-back threads by an older contract. From 10 to 11 November a
-    session running a checkout's Leaf under the installed copy's module, which read
-    them under another name, kept back every thread message for the whole 30 s with
-    no line fork asked. So a follower whose module isn't this Leaf's keeps nothing
-    back, and the session's messages reach it as they would without forks.
+    that reads kept-back threads by an older contract, which would ask no line fork
+    for them. So a follower whose module isn't this Leaf's keeps nothing back, and
+    the session's messages reach it as they would without forks.
 
     The follower notes its verdict once in each page it holds
     (`interaction_log.record_follower`): whether the module asked for forks, the

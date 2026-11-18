@@ -9,8 +9,8 @@ inventory (`obligations`) also retains finished records, whatever their `status`
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
 agent recovers what it owes without the delivery. Each thread's `holder` names who
-holds it (`holding.py`): the main thread, a fork with whether its turn runs, closed or
-lapsed, or the line fork while Leaf keeps its messages back; and each obligation
+holds it (`holding.py`): the main thread, a line turn or a working fork, with whether
+that turn runs, closed or lapsed; and each obligation
 record's `holder` who on the agent's side owes it now (`holding.owed_by`), null for a
 record the agent doesn't owe. `source` states whether a document
 is live and whether an invalid source save leaves the last valid version active. Its

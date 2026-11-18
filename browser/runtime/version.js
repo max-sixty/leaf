@@ -513,7 +513,8 @@ registerPageControl({
 registerPageControl({
   key: "latest",
   rank: PAGE_CONTROL_RANK.latest,
-  label: () => versionsReading().latest.label,
+  // Read only while offered, when the latest reading has words.
+  label: () => versionsReading().latest.label ?? "",
   offered: () => versionsReading().latest.news,
   disabled: () => versionsReading().latest.disabled,
   urgent: "new",

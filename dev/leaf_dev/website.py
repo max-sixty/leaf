@@ -6,9 +6,11 @@ this module. A page loads with its startup and the errors that stop it observed
 leaves the edge for a private container when it activates (`activation_url`,
 `activation_read`); `agent_session` opens a user session whose container serves a
 release, waiting while a rollout reaches the allocations. On this machine,
-`local_adapter` serves the built site with the website's Python server, sharing the
-host's login, and `local_worker` serves it through `wrangler dev`: the Worker and its
-page container.
+`local_adapter` builds the site and serves it with the website's Python server,
+sharing the host's login, and `local_worker` serves the site `leaf-dev site build`
+last wrote (`SITE`) through `wrangler dev`: the Worker and its page container. A build
+writes its asset tree and the website's installation beside its output (`asset_site`,
+`install_tree`), and holds `site_lock` while it writes.
 
 The browser half, `website.js`, is installed before each navigation beside the
 startup evidence every probe shares (`leaf_dev.startup`).

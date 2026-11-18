@@ -89,6 +89,7 @@ from leaf_dev.example_data import (
 )
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
+from leaf_dev.website import asset_site
 
 ROOT = Path(__file__).parents[2]
 
@@ -261,7 +262,7 @@ def hosted(site, tmp_path_factory):
     shutil.copytree(site, session_site)
     httpd = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
-        released_site_endpoint(session_site, site_build.asset_site(site)),
+        released_site_endpoint(session_site, asset_site(site)),
     )
     with running_http_server(httpd):
         yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -278,7 +279,7 @@ def served_example(site, tmp_path):
     shutil.copy2(site / website_server.SITE_MANIFEST, manifest)
     httpd = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
-        released_site_endpoint(session_site, site_build.asset_site(site)),
+        released_site_endpoint(session_site, asset_site(site)),
     )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -437,7 +438,7 @@ def test_page_layers_stay_inside_their_page_directories(site):
 
 def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
-    assets = site_build.asset_site(site)
+    assets = asset_site(site)
     pinned = pinned_assets()
     root_media = SourceDocument(
         authored_markup(named_source("index"))
@@ -520,7 +521,7 @@ def test_a_crawler_is_given_one_page_per_route(site):
     revision. Only the first is a page a user should be sent to, so every
     document a page publishes names that route as its canonical.
     """
-    assets = site_build.asset_site(site)
+    assets = asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     sitemap = (assets / "sitemap.xml").read_text(encoding="utf-8")
     robots = (assets / "robots.txt").read_text(encoding="utf-8")
@@ -579,7 +580,7 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     server compose the same transforms, and a route either of them composes
     differently is one where a user's page and a crawler's page part company.
     """
-    assets = site_build.asset_site(site)
+    assets = asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     asset_root = manifest["pages"]["/examples/triage-board"]["assets"]
     board = assets / "examples" / "triage-board"

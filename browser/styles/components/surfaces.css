@@ -287,7 +287,11 @@ a[data-lf-external]::after,
    standing while it shows. Focus alone (`data-lf-mark="focus"`) is the box's focus
    ring rather than a mark, so it stands at no weight, as the focus floor above does:
    the box's own focus treatment wins, an author's outline or a carrier's such as a
-   ring overlay. */
+   ring overlay. The user chose this: a page's `:focus { outline: none }` or decorative
+   outline leaves a focused commentable box without Leaf's ring, as an author's outline
+   replaces the browser's own focus ring on any control. Focus alone at `!important`
+   fails: it overrides the author's focus outline and a ring overlay's `outline: none`,
+   which draws a second ring outside the overlay's clipping box. */
 :where([data-lf-aimed]),
 :where([data-lf-traced]),
 :where([data-lf-proxied]),

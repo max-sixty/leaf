@@ -22,10 +22,7 @@ import {
   whenWidgetsPresented,
 } from "./semantic-state.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
-import {
-  commitWidgetDescriptors,
-  stageWidgetDescriptors,
-} from "./widget-descriptors.js";
+import { bindWidgetDescriptors, stageWidgetDescriptors } from "./widget-descriptors.js";
 import {
   fencePassageParts,
   verbatimBoundaryIdentity,
@@ -273,13 +270,12 @@ export async function prepareDocument(captured) {
     authored: new Map([...prior.authored, ...authored]),
     descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
   });
-  commitWidgetDescriptors({
-    ...descriptors,
-    bindings: descriptors.bindings.map(({ element, descriptor }) => ({
+  bindWidgetDescriptors(
+    descriptors.bindings.map(({ element, descriptor }) => ({
       element: original(element),
       descriptor,
     })),
-  });
+  );
   return true;
 }
 

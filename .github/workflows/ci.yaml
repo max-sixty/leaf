@@ -342,17 +342,19 @@ jobs:
       # few seconds later. Chromium answers the change by failing every loopback load
       # still waiting for a socket with net::ERR_NETWORK_CHANGED, and the test that was
       # loading fails. Setting the leased address, router and DNS server by hand keeps
-      # the interface unchanged for the rest of the job.
+      # the interface unchanged for the rest of the job. Every value is read from the
+      # lease before any is set, since setting the address ends the lease and
+      # `ipconfig getoption` answers nothing for it afterwards.
       - name: Hold the runner's network address
         run: |
           interface=$(route -n get default | awk '/interface:/ {print $2}')
           service=$(networksetup -listnetworkserviceorder | awk -v device="$interface" '/^\([0-9]+\) / {sub(/^\([0-9]+\) /, ""); name=$0} index($0, "Device: " device ")") {print name}')
           address=$(ipconfig getifaddr "$interface")
-          sudo networksetup -setmanual "$service" "$address" \
-            "$(ipconfig getoption "$interface" subnet_mask)" \
-            "$(ipconfig getoption "$interface" router)"
-          sudo networksetup -setdnsservers "$service" \
-            "$(ipconfig getoption "$interface" domain_name_server)"
+          mask=$(ipconfig getoption "$interface" subnet_mask)
+          router=$(ipconfig getoption "$interface" router)
+          dns=$(ipconfig getoption "$interface" domain_name_server)
+          sudo networksetup -setmanual "$service" "$address" "$mask" "$router"
+          sudo networksetup -setdnsservers "$service" "$dns"
           until [ "$(ipconfig getifaddr "$interface")" = "$address" ]; do sleep 1; done
 
       - name: 📂 Checkout code

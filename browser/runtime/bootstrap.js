@@ -198,7 +198,8 @@
   // the runtime reads, so a press held until then would act on a panel the user never
   // saw take it; a key means the same wherever it lands, which is why keys are held.
   // The press still never reaches the page beneath the row, and ends a run of held keys
-  // as any press does. Its controls take no focus (`inert`), so Tab passes them by.
+  // as any press does, and the printed keys after it are dropped while the row stands
+  // (`holdEarlyKeys`). Its controls take no focus (`inert`), so Tab passes them by.
   //
   // The panel takes the row over as it mounts, in the task that draws the panel's first
   // frame, whose leaf, field and marks stand where the row's stood (floating-panel.css,
@@ -332,6 +333,8 @@
     /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
+    // Whether the latest press landed on the served row (`standRow`).
+    let rowPressed = false;
     // The words shown, as text, or "" while none are.
     let shown = "";
     /** @type {((words: HeldWords | null) => void) | null} */
@@ -406,17 +409,30 @@
         // runtime's text field; its closed root makes the host the event's origin.
         const origin = event.composedPath()[0];
         const typing = origin instanceof Element && takesLetters(origin);
-        if (typing || !printed || event.key === " ") return;
-        // Once the document upgrades, the dispatcher supplies readiness from
-        // command declarations. Useful page keys pass immediately; only a key
-        // whose input is still loading starts another ordered run.
-        if (ready?.(event)) return;
-        queue(event);
+        if (typing || !printed) return;
+        // After a press on the served row, printed keys are dropped until the row goes.
+        // The press was most likely on its field, so they are words meant for it, and
+        // held they would run as page keys. Writing them into the panel's field once it
+        // mounts would need a run of words with its own display, caret and endings, for a
+        // rare path; dropped, nothing runs and nothing shows.
+        if (!(row && rowPressed)) {
+          // Once the document upgrades, the dispatcher supplies readiness from
+          // command declarations. Useful page keys pass immediately; only a key
+          // whose input is still loading starts another ordered run.
+          if (event.key === " " || ready?.(event)) return;
+          queue(event);
+        }
       }
       event.preventDefault();
       event.stopImmediatePropagation();
     };
-    const pointed = () => letGo();
+    /** @param {PointerEvent} event */
+    const pointed = (event) => {
+      letGo();
+      rowPressed =
+        event.target instanceof Element &&
+        Boolean(event.target.closest("[data-lf-served]"));
+    };
     // The controller takes a run, but the hold stands until its owner has pressed the
     // last key in it: a printed key pressed meanwhile joins the same run rather than
     // running ahead of the keys pressed before it. Words already shown stand until the

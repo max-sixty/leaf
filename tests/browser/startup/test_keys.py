@@ -478,6 +478,34 @@ def test_a_folded_panel_stands_folded_from_the_first_paint_with_held_keys_in_its
     expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
 
 
+def test_keys_typed_after_a_press_on_the_served_row_run_nothing(browser, serve):
+    """A reader who clicks the panel's field before the runtime loads and types a
+    sentence means words for the field, not page keys: they are neither held nor shown,
+    so once the page loads `t` hasn't walked to the thread and nothing else ran."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    module, release = _hold_startup(page, "module")
+    page.goto(url, wait_until="commit")
+    holding(page, module, 1, "the module request")
+    served = page.locator(".lf-floating-panel[data-lf-served]")
+    # The page draws its first frame before the click: Playwright's checks before a
+    # press read the page from a world of their own, and the leaf's mask fetched while
+    # one of them styles the row first misses its preload (http.py, `page_delivery`).
+    page.evaluate("() => new Promise((drawn) => requestAnimationFrame(() => drawn()))")
+    served.locator(".lf-fp-field").click()
+    page.keyboard.type("fix it")
+    expect(served.locator(".lf-fp-words")).to_have_text("Connecting…")
+    expect(page.locator(".lf-held-key")).to_have_count(0)
+
+    release()
+    expect(served).to_have_count(0)
+    wait_until_ready(page)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate("() => scrollY") == 0
+
+
 def test_held_keys_stand_beside_a_saved_draft(browser, serve):
     """A draft in the panel's field hides the words it says at rest, so keys held while
     the page reloads stand in the field's mode chip beside the draft, which stays."""

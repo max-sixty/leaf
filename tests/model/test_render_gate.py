@@ -275,8 +275,11 @@ def test_a_handover_whose_arrivals_only_swing_ends_at_its_bound():
             )
             return SimpleNamespace(json_value=lambda: reading)
 
+    # The bound this wait is expected to run out: the readings come as fast as the
+    # wait asks, so its length doesn't change the case.
+    expected_stall_ms = 50
     with pytest.raises(render_checks.PageNotReady) as unready:
-        render_checks.wait_until_ready(SwingingPage(), timeout_ms=50)
+        render_checks.wait_until_ready(SwingingPage(), timeout_ms=expected_stall_ms)
     assert unready.value.stage == "arrived"
 
 

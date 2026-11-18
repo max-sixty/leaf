@@ -1,23 +1,24 @@
 /* Notices and announcements.
 
-   News arriving without the user's send gesture may show a notice but does
-   not move focus or scroll the panel. `notice` is the one visible surface for a
-   moment's news, such as an arrived version or an undo, and it stands in
-   one seat: the floating panel's seat for passing words, in place of the current walk
-   position, which returns when the notice's time is up (floating-panel.js, `passing`). The
+   News arriving without the user's send gesture may show a notice but does not move
+   focus or scroll the panel. `notice` is the one visible surface for a moment's news,
+   such as an arrived version or an undo, and it stands in one seat: the floating
+   panel's seat for passing words, whose own words come back when the notice's time is
+   up (floating-panel.js, `passing`). A walk's step holds the seat for the same moment,
+   said in the walk's live position rather than words given here (`answerStep`). The
    live region hears the same words. It is text, but for the one press a notice of the
    user's own gesture may carry: the press that matters most after that gesture
-   (`press`), the next open thread after a Resolve or the undo that takes a gesture
-   back (thread/folding.js, `nextStep`; undo.js, `offerUndo`), which the floating
-   panel's field says at its end with the key of the page command that makes it too,
-   after the words, as "Resolved “One reconnect in about 40” … Next thread t"
-   (floating-panel.js, `noticePress`). The notice stands no longer than its gesture
-   does, so its press never acts for anything else. The user chose a notice's press,
-   so a Resolve that moves the panel on leaves something there offering to take it
-   back, over a notice of text alone, whose subject only the panel's own controls
-   reach. There is no second surface for news, so
-   nothing floats in a corner to become a stale pointer target. A failure is no news: it
-   goes through errors.js, which keeps it until the user has dealt with it.
+   (`press`), the next open thread after a Resolve or the undo that takes a gesture back
+   (thread/folding.js, `nextStep`; undo.js, `offerUndo`), which the floating panel's
+   field says at its end with the key of the page command that makes it too, after the
+   words, as "Resolved “One reconnect in about 40” … Next thread t" (floating-panel.js,
+   `noticePress`). The notice stands no longer than its gesture does, so its press never
+   acts for anything else. The user chose a notice's press, so a Resolve that moves the
+   panel on leaves something there offering to take it back, over a notice of text
+   alone, whose subject only the panel's own controls reach. There is no second surface
+   for news, so nothing floats in a corner to become a stale pointer target. A failure
+   is no news: it goes through errors.js, which keeps it until the user has dealt with
+   it.
 
    The moments the panel's leaf answers with a gesture (`Moment`) pass through here too
    (`gesture`), each with its ordinal, so the leaf plays once for each, a repeat
@@ -47,7 +48,7 @@ liveEl.setAttribute("aria-live", "polite");
 // How long a notice holds its seat before the seat's own words come back: long
 // enough to read a recorded acknowledgement, short enough that the state behind it is
 // never far away.
-const NOTICE_MS = 4000;
+export const NOTICE_MS = 4000;
 
 let noticeTimer = 0;
 // Ends the watch on the standing notice's press (`showNotice`).
@@ -57,7 +58,6 @@ let showingBackground = null;
 /** @type {Background[]} */
 const waitingBackground = [];
 let userContext = false;
-let userHoldTimer = 0;
 // What the seat says, whether it shows, and the press it offers, or null: the action
 // it is, the page command whose key makes the same press, what it does, and whether it
 // still can, as `{action, command, run, stands}`. Errors are no notices: they go
@@ -130,7 +130,7 @@ function showNotice(msg, background = null, press = null) {
 }
 function retireNotice() {
   stopWatchingPress();
-  if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
+  if (!userContext && !stepping.peek() && showBackground(waitingBackground.shift()))
     return;
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
@@ -209,7 +209,8 @@ export function notice(
   if (speak) announce(msg);
   if (background) {
     const entry = group ?? textBackground(msg);
-    if (userContext || userHoldTimer || noticeVisible()) return queueBackground(entry);
+    if (userContext || stepping.peek() || noticeVisible())
+      return queueBackground(entry);
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
@@ -227,18 +228,25 @@ function yieldNotice() {
   showingBackground = null;
 }
 
-// A semantic walk is an immediate user command even though its feedback is the live
-// ordinal rather than a timed notice. Hold arriving news for a moment after the step;
-// beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
-/** @param {number} ms */
-export function holdStatus(ms) {
+// A walk's step is a command of the user's whose answer is the walk's live position
+// rather than words of its own (walk-position.js), so the seat says that position for
+// a notice's moment from the latest step (floating-panel.js, `passing`), and news
+// arriving meanwhile waits for it as it waits for a notice. The walk itself stands
+// where it landed after the moment; only the seat goes back to its own words.
+// beginWalk dispatches the step only for gestures, so ordinary repaints never restart
+// the moment.
+let stepTimer = 0;
+const stepping = signal(false);
+export const answeringStep = () => stepping.value;
+export function answerStep() {
   if (noticeVisible()) yieldNotice();
-  clearTimeout(userHoldTimer);
-  userHoldTimer = setTimeout(() => {
-    userHoldTimer = 0;
+  clearTimeout(stepTimer);
+  stepping.value = true;
+  stepTimer = setTimeout(() => {
+    stepping.value = false;
     if (userContext || noticeVisible() || !waitingBackground.length) return;
     showBackground(waitingBackground.shift());
-  }, ms);
+  }, NOTICE_MS);
 }
 
 // Persistent command context outranks background news and pauses its visible interval.
@@ -247,7 +255,12 @@ export function holdStatus(ms) {
 export function setNoticeContext(active) {
   userContext = active;
   if (active && showingBackground) yieldNotice();
-  else if (!active && !userHoldTimer && waitingBackground.length && !noticeVisible()) {
+  else if (
+    !active &&
+    !stepping.peek() &&
+    waitingBackground.length &&
+    !noticeVisible()
+  ) {
     showBackground(waitingBackground.shift());
   }
 }

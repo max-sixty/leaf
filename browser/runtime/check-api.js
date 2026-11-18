@@ -40,12 +40,17 @@ export {
   shownParts,
   coverBoxes,
 } from "./geometry.js";
-export { drawnElements, skipped } from "./shadow-tree.js";
+export {
+  drawnElements,
+  skipped,
+  renderedParent,
+  uiInside,
+  upFrom,
+} from "./shadow-tree.js";
 export { windowHoldsRail } from "./content-layout.js";
-export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export { clockValue } from "./presence.js";
-export { notice } from "./notifications.js";
+export { NOTICE_MS, notice } from "./notifications.js";
 export {
   readingRegions,
   shownRegionBounds,

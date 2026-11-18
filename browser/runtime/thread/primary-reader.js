@@ -3,7 +3,7 @@
    (application.js, `attachPresentation`). */
 import { aborted } from "../abort.js";
 import { randomId } from "../ids.js";
-import { under, renderedUnder, shadowHost } from "../shadow.js";
+import { under, renderedUnder, shadowHost } from "../shadow-tree.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { HOLDS, MessageView, messageReading } from "./messages.js";
 import { createReplyView } from "./replies.js";

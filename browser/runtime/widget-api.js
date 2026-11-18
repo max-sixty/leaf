@@ -50,7 +50,6 @@ export { registerRootHeader } from "./root-headers.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
 export { holdPlace, readingAt } from "./user-place.js";
-export { under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; their current location and whether it is in a scope; recording where a layer opened
@@ -101,7 +100,7 @@ export { threadSummary } from "./thread/messages.js";
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
-export { isNativeLayer } from "./shadow-tree.js";
+export { isNativeLayer, under } from "./shadow-tree.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
 export { commandScope, commandsOn, saying } from "./keyboard/scopes.js";

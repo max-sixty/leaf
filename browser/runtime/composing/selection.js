@@ -73,7 +73,6 @@ import { notice } from "../notifications.js";
 import { sentDrawing } from "./drawing-record.js";
 import { DRAFT_FORMAT } from "../kernel-facts.js";
 import { commitPoint } from "../pointed-place.js";
-import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
 import { isNativeLayer } from "../shadow-tree.js";
@@ -405,6 +404,7 @@ export function createSelectionComposer({
   const responseReactionButtons = () =>
     responseOptionButtons().filter((control) => control.classList.contains("lf-react"));
 
+  // The options stand whole around the ring, so a step says no position.
   /** @param {string} binding */
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
@@ -417,9 +417,6 @@ export function createSelectionComposer({
         backward ? -1 : 1,
       ),
       "move",
-    );
-    beginWalk("response-option", "Response", () =>
-      listWalkPosition(responseOptionButtons(), focused()),
     );
   }
 

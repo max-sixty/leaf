@@ -77,7 +77,6 @@ import {
   PREVIEW_ENDED,
   PendingTaskEvent,
   announce,
-  beginWalk,
   bodyText,
   commandsChanged,
   keeps,
@@ -93,6 +92,7 @@ import {
   previewChanged,
   registerVisualParts,
   sizeObserver,
+  walkPositionLabel,
 } from "/runtime/portable-api.js";
 import {
   cross,
@@ -703,20 +703,19 @@ customElements.define(
     }
 
     // A key's step is a walk along the reading's series, a new aim wherever it lands; a
-    // redraw that keeps the reader on their point is none. It says where it landed:
-    // the point's words, then its place in its series.
+    // redraw that keeps the reader on their point is none. It tells a listener where it
+    // landed: the point's words, then its place in its series. The drawing shows that
+    // place to the eye, so the panel says none.
     /** @param {Point | null} point */
     #step(point) {
       this.#place = null;
       this.#choose(point, "key", true);
       const reading = this.#reading;
       if (!point || !reading) return;
-      const series = reading.series[point.series] ?? [];
-      const position = beginWalk("chart", "Point", () =>
-        listWalkPosition(series, this.#at),
-      );
+      const at = listWalkPosition(reading.series[point.series] ?? [], this.#at);
       const { name, detail } = sayPoint(point);
-      announce([name, ...detail, position].filter(Boolean).join(", "));
+      const place = at && walkPositionLabel("Point", at.position, at.total);
+      announce([name, ...detail, place].filter(Boolean).join(", "));
     }
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so

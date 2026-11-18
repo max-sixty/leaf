@@ -36,7 +36,7 @@
 import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
 import { readPart } from "../semantic-state.js";
-import { composedParentNode } from "../shadow.js";
+import { composedParentNode } from "../shadow-tree.js";
 import { readObligations } from "./model.js";
 import { keptEach } from "../kept.js";
 

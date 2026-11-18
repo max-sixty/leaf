@@ -343,28 +343,22 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     expect(marks.nth(1)).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(marks.nth(1)).to_be_focused()
-    # Home and End reach the ends, as in every other list of rows.
+    # Home and End reach the ends, as in every other list of rows. The options stand
+    # whole around the ring, so their steps say no position, and the On Me walk that
+    # brought the user here goes on saying theirs.
     page.keyboard.press("Home")
     expect(marks.first).to_be_focused()
-    expect_walk_position(page, "Option 1 of 2")
+    expect_walk_position(page, "1 of 4 waiting on me")
     page.keyboard.press("End")
     expect(marks.nth(1)).to_be_focused()
-    expect_walk_position(page, "Option 2 of 2")
+    expect_walk_position(page, "1 of 4 waiting on me")
 
     with sending(page, "the numbered pick"):
         page.keyboard.press("1")
     expect(page.locator("#lq-keep")).to_have_attribute("selected", "")
-    # The pick's notice takes the panel's seat for passing words, and focus never left
-    # the second option, so the walk's reading stands behind it rather than retiring.
+    # The pick's notice takes the panel's seat for passing words.
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-lf-says", "notice"
-    )
-    assert (
-        page.evaluate(
-            """async () => (await window.__lfCheckApi())
-                .walkPosition()?.text"""
-        )
-        == "Option 2 of 2"
     )
     acts = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"

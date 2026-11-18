@@ -12,8 +12,8 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
   message and the agent's words, pickups and receipts, and the records Leaf's hooks
   and commands leave: `fork_admission`, whether admission kept a message back for a line
   fork or a running fork turn held it, and where neither, whether the session's fork
-  lane was up, with why not by the session's last `follower` note (whether its hooks
-  module asked for forks, `leaf.hooks.cmd_pages`); `fork_asked`,
+  lane was up, with why not by the session's last `follower` note (whether line
+  forks were on, `leaf.forks.replies_on`); `fork_asked`,
   as Leaf gave a line fork its question; `fork_outcome`, what came of it
   (`leaf.forks`), a working fork's turn and agent among it; `turn_end_check`, the
   clerk's fork (`leaf.clerk`); `leaf_command`, with the agent turn it named
@@ -96,8 +96,8 @@ DIAGNOSTICS = (
 )
 # Events no step of a message's story turns on.
 QUIET = {"seen", "read", "reanchor", "receipt"}
-# Why a follower whose hooks module asked for no forks keeps no thread back.
-FORKS_OFF = "the hooks module has forks off (LEAF_FORK_REPLIES=off)"
+# Why a follower with line forks off keeps no thread back.
+FORKS_OFF = "line forks are off (LEAF_FORK_REPLIES=off)"
 # How long after a message `--message` reads where nothing answered it.
 UNANSWERED_WINDOW = timedelta(minutes=10)
 # A shell command that runs `leaf`, anywhere in it, as `hooks/claude-code.ts` finds one.

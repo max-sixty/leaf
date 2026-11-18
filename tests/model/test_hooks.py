@@ -91,14 +91,15 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
 
     monkeypatch.setattr(file_changes_model, "FileChanges", unexpected_watcher)
     hooks_model.cmd_pages({"session_id": "s1"})
-    assert json.loads(capsys.readouterr().out) == {"pages": [], "completions": []}
+    assert json.loads(capsys.readouterr().out) == {"pages": [], "do": []}
 
 
 def test_pages_follower_reads_its_pages_on_its_timer(claimed, monkeypatch, capsys):
-    """Without forks, the per-session page list follows claims on its timer and
+    """With line forks off, the per-session page list follows claims on its timer and
     subscribes to none of its pages, only to the session's completion requests
     (`completions.watch`)."""
 
+    monkeypatch.setenv("LEAF_FORK_REPLIES", "off")
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
     subscribed = []
@@ -122,7 +123,7 @@ def test_pages_follower_reads_its_pages_on_its_timer(claimed, monkeypatch, capsy
     first, last = map(json.loads, capsys.readouterr().out.splitlines())
     assert len(first["pages"]) == 1
     assert first["pages"][0]["page_key"] == cleanup_model.page_key(claimed)
-    assert last == {"pages": [], "completions": []}
+    assert last == {"pages": [], "do": []}
 
 
 def test_pages_follower_lists_completions_whatever_its_pages_show(
@@ -148,9 +149,14 @@ def test_pages_follower_lists_completions_whatever_its_pages_show(
     monkeypatch.setattr(file_changes_model, "wait", release)
     hooks_model.cmd_pages({"session_id": "s1"})
     [listed] = map(json.loads, capsys.readouterr().out.splitlines())
-    assert listed == {"pages": [], "completions": [request]}
-    assert request["request"] == {"prompt": "Name it"}
-    completions_model.cmd_reply("s1", {"completion": request["id"], "text": "Named"})
+    [instruction] = listed["do"]
+    assert (listed["pages"], instruction["do"], instruction["request"]) == (
+        [],
+        "complete",
+        {"prompt": "Name it"},
+    )
+    assert instruction["basis"] == {"kind": "completion", "completion": request["id"]}
+    completions_model.replied("s1", {**instruction, "text": "Named"})
     asking.join()
     assert replied == [{"text": "Named"}]
 
@@ -168,10 +174,10 @@ def test_the_follower_hears_a_completion_as_it_is_asked():
     )
     asking.start()
     woke = heard.wait(mark, STATED_TIMEOUT)
-    [request] = wait_for(
-        lambda: completions_model.pending("s1"), bool, failure="nothing was asked"
+    [instruction] = wait_for(
+        lambda: completions_model.listed("s1"), bool, failure="nothing was asked"
     )
-    completions_model.cmd_reply("s1", {"completion": request["id"], "text": "{}"})
+    completions_model.replied("s1", {**instruction, "text": "{}"})
     asking.join()
     heard.close()
     assert woke, "the request woke nothing"

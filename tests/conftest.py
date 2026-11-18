@@ -24,6 +24,7 @@ from playwright.sync_api import Frame, Page, sync_playwright
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
+from leaf import forks as forks_model
 from leaf import harness as harness_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
@@ -606,6 +607,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
     monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
+    # The developer's own fork settings, which the Python reads from Claude Code's
+    # environment (`forks.replies_on`, `forks.work_on`).
+    monkeypatch.delenv(forks_model.REPLIES, raising=False)
+    monkeypatch.delenv(forks_model.WORK, raising=False)
     for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read

@@ -4,16 +4,17 @@ the suite's sessions, and the demo recording's own (`commands/site/demo.py`)."""
 import threading
 from contextlib import contextmanager
 
-from leaf import completions
+from leaf import carrier, completions
 
 
 @contextmanager
 def claude_code_module(session: str, reply: str | dict):
     """Stand in for Leaf's Claude Code hooks module (`hooks/claude-code.ts`), which
-    `tests/process/test_interact_claude_code_module.py` holds to the same: answer each
-    completion `session` is asked (`completions`) with the text `reply`, or the failure
-    it names (`{"failed": …}`), as the model's usage of 300 tokens in and 12 out, and
-    yield the requests it took, each with its `id` and `request`."""
+    `tests/process/test_interact_claude_code_module.py` holds to the same: run each
+    completion Leaf lists for `session` (`completions.listed`) as the text `reply`, or
+    the failure it names (`{"failed": …}`), with the model's usage of 300 tokens in and
+    12 out, and report it as the module does (`carrier.step`), yielding the requests it
+    took, each with its `id` and `request`."""
     asked = []
     done = threading.Event()
     answered = reply if isinstance(reply, dict) else {"text": reply}
@@ -22,12 +23,19 @@ def claude_code_module(session: str, reply: str | dict):
     def answer() -> None:
         while not done.is_set():
             mark = queued.mark()
-            for request in completions.pending(session):
-                asked.append(request)
-                completions.cmd_reply(
+            for instruction in completions.listed(session):
+                asked.append(
+                    {
+                        "id": instruction["basis"]["completion"],
+                        "request": instruction["request"],
+                    }
+                )
+                carrier.step(
                     session,
                     {
-                        "completion": request["id"],
+                        "done": instruction["id"],
+                        "do": instruction["do"],
+                        "basis": instruction["basis"],
                         **answered,
                         "usage": {
                             "input_tokens": 300,

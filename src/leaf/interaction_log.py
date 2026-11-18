@@ -166,9 +166,9 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
 
 def record_follower(pages: list[Path], session: str, *, forks: bool) -> None:
     """Record in each page a Claude Code session's pages follower starts listing
-    (`hooks.cmd_pages`) whether its hooks module asked for forks (`forks`), without
-    which it keeps no thread back for a line fork. Dropped where the page can't be
-    written, as `record_command` is."""
+    (`hooks.cmd_pages`) whether line forks were on (`forks`, `forks.replies_on`),
+    without which it keeps no thread back for a line fork. Dropped where the page
+    can't be written, as `record_command` is."""
     record = {"source": "cli", "type": "follower", "session": session, "forks": forks}
     _record_in(pages, record)
 

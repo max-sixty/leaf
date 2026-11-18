@@ -91,11 +91,12 @@ material.
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
 the answer it must give (`ANSWER`), and what Leaf does with that answer
-(`apply_answer`). A harness only makes the fork and carries the two halves (`cmd_fork`):
-Claude Code's hooks module calls `$.model.fork` from `turn.complete`
-(`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork` (ephemeral)
-and Pi's extension by resending its session, each handing the answer back the same way;
-neither does yet.
+(`apply_answer`). A harness only makes the fork and carries the two halves: Claude
+Code's hooks module reports each main-loop turn the model answered (`turn_ended`),
+makes the fork Leaf answers with, and reports its answer (`checked`), as it carries
+every instruction (`carrier.py`). Codex would fork with App Server's `thread/fork`
+(ephemeral) and Pi's extension by resending its session, each handing the answer back
+the same way; neither does yet.
 
 The fork can't author the page, so each ask is the agent's message in a thread,
 written as the agent's guidance has it write one (`threads.md`), and Leaf posts its
@@ -200,7 +201,7 @@ own last request.
 The fork thinks at the session's own effort, and the check's reference asks it to
 answer straight away without thinking it over, as Claude Code's `$.model.fork`
 documentation suggests for a quick side job. Asking for `low` effort instead can cost
-a rewrite of the conversation to the cache (`runFork` in `hooks/claude-code.ts` says
+a rewrite of the conversation to the cache (`carrier.fork` says
 when), and a fork at xhigh asked to answer straight away does as well as a low fork
 on the turn-end cases. The fork runs off the turn's path, but the sooner it answers, the
 less often a turn opened meanwhile drops its asks (`basis`).
@@ -567,27 +568,77 @@ def basis(session_id: str) -> dict | None:
     return record and {"turn": record["turn"], "opened": record["turn_opened"]}
 
 
-def cmd_fork(session_id: str, payload: dict) -> dict | None:
-    """One half of a fork for `session_id`, as `leaf hook --fork` hands it over:
-    with neither `answer` nor `failed` in `payload`, the `question`; with either,
-    `take_answer`, and the fork's `usage`, `elapsed_ms` and `request`
-    where the harness gives them."""
-    if not session_id:
+def turn_ended(session_id: str) -> dict | None:
+    """Leaf's answer to the end of a main-loop turn the model answered
+    (`carrier.step`): the fork to make with the turn-end check's question, where the
+    session holds a page. Its basis is the turn the fork reads (`basis`), which its
+    answer comes back with (`checked`)."""
+    import uuid
+
+    from .carrier import fork
+
+    asked = question(session_id)
+    if asked is None:
         return None
-    if "answer" in payload or "failed" in payload:
-        run = {
-            "usage": payload.get("usage"),
-            "elapsedMs": payload.get("elapsed_ms"),
-            "request": payload.get("request"),
-            "failed": payload.get("failed"),
-        }
-        return take_answer(
+    basis = {"kind": "check", **(asked["basis"] or {})}
+    return {"do": [fork(f"check:{uuid.uuid4().hex}", asked["prompt"], basis)]}
+
+
+def checked(session_id: str, payload: dict) -> dict:
+    """What Leaf wrote and told from the turn-end check's fork as the module reports
+    it (`carrier.step`): its `answer`, or why there is none (`failed`), with its
+    `usage`, `elapsed_ms` and the main thread's request it resent (`resent`, noted as
+    `request`) where the harness gives them (`take_answer`), and a line for the
+    module's debug log saying what came of it. An
+    answer `ANSWER` refuses writes nothing, and says why (`refused`)."""
+    from .refusals import Refused
+
+    basis = payload["basis"]
+    asked = (
+        {"turn": basis["turn"], "opened": basis["opened"]} if "turn" in basis else None
+    )
+    run = {
+        "usage": payload.get("usage"),
+        "elapsedMs": payload.get("elapsed_ms"),
+        "request": payload.get("resent"),
+        "failed": payload.get("failed"),
+    }
+    text = payload.get("answer")
+    try:
+        applied = take_answer(
             session_id,
-            payload.get("answer"),
-            payload.get("basis"),
+            text,
+            asked,
             {name: value for name, value in run.items() if value is not None},
         )
-    return question(session_id)
+    except Refused as error:
+        return {
+            "wrote": [],
+            "changed": [],
+            "told": [],
+            "refused": str(error),
+            "log": f"the clerk wrote nothing: {error}",
+        }
+    if text is None:
+        return {**applied, "log": f"the clerk's fork gave no answer ({run['failed']})"}
+    counts = [
+        f"{len(applied[part])} {noun}{'' if len(applied[part]) == 1 else 's'}"
+        for part, noun in (
+            ("wrote", "record"),
+            ("changed", "passage"),
+            ("told", "line"),
+        )
+    ]
+    dropped = (
+        f", and wrote no records on a page where {applied['dropped']}"
+        if applied.get("dropped")
+        else ""
+    )
+    return {
+        **applied,
+        "log": f"the clerk wrote {counts[0]}, changed {counts[1]} and told the agent "
+        f"{counts[2]}{dropped}",
+    }
 
 
 def question(session_id: str) -> dict | None:

@@ -148,10 +148,10 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     ) in out
     # Why admission found no fork lane, each cause told apart.
     assert "c0 not kept back: no fork lane: no pages follower noted" in out
-    assert "c2 not kept back: no fork lane: the hooks module has forks off" in out
+    assert "c2 not kept back: no fork lane: line forks are off" in out
     assert "c3 not kept back: no fork lane: the follower from " in out
     assert "pages follower keeps threads back for line forks" in out
-    assert "pages follower keeps nothing back: the hooks module has forks off" in out
+    assert "pages follower keeps nothing back: line forks are off" in out
     # Each agent turn of the session as it stands now: a fork's by its agent, and a
     # line turn as one.
     shown = [

@@ -1,12 +1,31 @@
 """What a process keeps of a page between readings, and for how long.
 
 Some readings of a page are dear to repeat: a revision's parse, a candidate's capture
-and check, the page's vocabulary, the activation answer, the presence token. Each is
-kept between reads and checked against the stamps of the files it read, so a kept
-reading is never stale, only dropped. They are kept in a `PageMemory`. A process
-keeps the memories of the eight pages it read most recently (`PageMemories`), and any
-memory something else still references (`memory_of`): a sample holds its own and its
-parent's for its life (`samples.Sample`), however many sibling samples a gallery opens.
+and check, the page's vocabulary, the activation answer, the presence token, the
+attempts its log admitted. Others are what a later answer is built from, such as the
+readings the page's server last sent. Each is kept in the page's `PageMemory` under
+one of these rules, so a kept reading is never stale, only dropped:
+
+- A reading of files is kept beside their stamps and made again once one moves
+  (`revision_artifact.read_revision`, `revisioning.held_activation`). A reading of the
+  log, which only grows, is kept beside the place in the log it read to, and reads on
+  from there (`event_log.admitted_attempts`).
+- A reading keyed by a name that never changes meaning is kept as it was made: a
+  revision's marker names one bundle for good (`revision_artifact.read_artifact`).
+- A fact no file carries, such as whether another page's server is still running, is
+  observed again once a time bound passes (`presence.PRESENCE_CACHE_S`).
+- The readings the page's server last sent are kept as the baselines a later answer is
+  patched from, the most recent few (`served_state.tail`). Each is named by its
+  content and never sent again, so none can go stale.
+
+A memory also holds what lasts as long as the process keeps the page: the page's
+change subscription (`file_changes.page_changes`) and the mark of a page Leaf deletes
+(`revision_artifact.Disposable`).
+
+A process keeps the memories of the eight pages it read most recently (`PageMemories`),
+and any memory something else still references (`memory_of`): a sample holds its own
+and its parent's for its life (`samples.Sample`), however many sibling samples a
+gallery opens.
 
 A one-page server reads its own page and the samples it serves, and nothing of any
 other page: a neighbour's panel row reads small files and keeps nothing
@@ -20,7 +39,7 @@ module that reads it, so what is kept and when it goes stale stay with that modu
 this one owns only how long it lasts.
 
 A pure function of its arguments, which no file can make stale, is memoized at module
-level instead, bounded by entry count (`revision_artifact._shared_registry`,
+level instead, bounded by entry count (`revision_artifact._read_css`,
 `thread_context._fragment`). So is a reading of the machine rather than of a page, in
 one slot replaced whole (`presence.neighbor_candidates`, `harness._registry_listing`).
 A reading that takes seconds and that requests arriving together all need, such as

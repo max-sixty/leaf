@@ -1758,11 +1758,10 @@ def _hook_bounds_take_the_suites_deadline(monkeypatch):
 def _each_test_composes_its_own_layers(monkeypatch):
     """Each test composes the layers its pages select afresh, as a new process does.
 
-    A process holds each selection's composition and vocabulary for its life
-    (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
-    a package at a path an earlier test's package held, so each test holds its own."""
-    monkeypatch.setattr(layer_model, "_compositions", {})
-    monkeypatch.setattr(layer_model, "_vocabularies", {})
+    A process holds the layer of each selection of shared package roots for its life
+    (`layer._held`), and a test may rewrite a package at a path an earlier test's
+    package held, so each test holds its own."""
+    monkeypatch.setattr(layer_model, "_shared", layer_model._Layers())
 
 
 def retire_bridge(lock):

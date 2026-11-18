@@ -82,11 +82,11 @@
   visibility: hidden;
 }
 /* A pin's count stands on its left, over the block it is about: at the window's edge one
- * on the right would stand past the window. The count shares its face's grid cell
- * (controls.css), so it stands there by alignment. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-margin-count {
-  justify-self: left;
-  margin: -7px 0 0 -7px;
+ * on the right would stand past the window. Its dot keeps the right corner
+ * (`.lf-badges`, controls.css). */
+.lf-margin-cluster[data-lf-place="pin"] .lf-badges > .lf-badge-count {
+  order: -1;
+  margin-inline: calc(-1 * var(--lf-badge-reach)) auto;
 }
 /* What a hovered or focused item says about the target it acts on is said on the target:
  * `highlight` (margin-projection.js) hands every item to target paint, which traces the

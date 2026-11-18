@@ -41,7 +41,8 @@
    the user let go of (focus.js, `onLetGo`) while they still see it, since letting go
    leaves them beside it rather than anywhere else, until they go on from there by
    standing on another page place or by pressing, wheeling or touching the page; failing
-   that, at what they read (reading-place.js, `pageReadingBlock`). Only what they saw as
+   that, at what they see, from the block they read (reading-place.js,
+   `pageReadingBlock`), or a stop on screen ahead of it (`stepFrom`). Only what they saw as
    they let go leaves them beside it: a key pressed after scrolling away lets go of focus
    they no longer see (keyboard/controller.js), and scrolling back to it doesn't put
    them there again. Neither is on a stop. Stepping into Leaf's
@@ -67,7 +68,7 @@ import { ON_CARD } from "./obligations/view-elements.js";
 import { composedParentNode, renderedOrder, renderedUnder, under } from "./shadow.js";
 import { isElement } from "./shadow-tree.js";
 import { eventSource } from "./pointer.js";
-import { pageReadingBlock } from "./reading-place.js";
+import { pageReadingBlock, seenWhereRead } from "./reading-place.js";
 
 // Each side's reading, and whether it shows its target beside the page.
 /** @type {Map<(node: Element) => Element | null, boolean>} */
@@ -210,11 +211,13 @@ export function holdPagePlace(read) {
 export const heldPagePlace = () => heldPlace()?.focus?.deref() ?? null;
 
 // A current location origin can step off its current stop. An `at` origin arrives at
-// its place; an `enter` origin starts inside its region, from either direction.
+// its place; a `view` origin, read from what the window shows, arrives at a stop the
+// user sees before it (`stepFrom`); an `enter` origin starts inside its region, from
+// either direction.
 // A selected tab enters its panel instead of being on an obligation it may hold. Each
 // names the element it was read from, `node`, which is in a thread's view where the
 // user is in that thread; `place` is null for a thread with no place on the page.
-/** @typedef {{node: Element | null, place: Element | null, kind: "at" | "enter" | "current-location"}} WalkOrigin */
+/** @typedef {{node: Element | null, place: Element | null, kind: "at" | "view" | "enter" | "current-location"}} WalkOrigin */
 /** @returns {WalkOrigin | null} */
 export function currentLocationOrigin() {
   for (const [node, place] of locations()) {
@@ -266,7 +269,8 @@ onUserInput((event) => {
 // Where a walk starts: the user's current location, else what they let go of while
 // they still see it, else what the viewport shows, each read where the glides under way
 // leave it (scroll-containers.js, `seenAhead`; reading-place.js, `readingBlock`). Only a
-// current location can be on a stop; the others are `at` one.
+// current location can be on a stop; the others are `at` one, and the viewport's is a
+// `view`.
 /** @returns {WalkOrigin} */
 export function walkOrigin() {
   const here = currentLocationOrigin();
@@ -275,7 +279,7 @@ export function walkOrigin() {
   const left = node?.isConnected ? placeOf(node) : null;
   if (node && left && seenAhead(left)) return { node, place: left, kind: "at" };
   const block = pageReadingBlock();
-  return { node: block, place: block, kind: "at" };
+  return { node: block, place: block, kind: "view" };
 }
 
 // The item a walk over `list` steps to in direction `dir` from `here`, a place on the
@@ -287,10 +291,38 @@ export function walkOrigin() {
 // item with no place stands after every placed one, so it is ahead of any place. A
 // caller whose user is on an item steps off it with `cycledRow` instead; with no
 // `here` the walk enters at the end it faces. An `enter` origin reaches its
-// contained stops first, from the end the direction faces, before leaving it.
+// contained stops first, from the end the direction faces, before leaving it. `at` is
+// an item the caller finds the user at by a reading of its own, as a thread drawn
+// with the place they stand at is (thread/destination.js, `threadAtCurrentLocation`),
+// and the press arrives there.
+//
+// A `view` origin is the block the user reads, the first of the window's words in their
+// column, but a stop is something the user sees whatever its words: a question of
+// options alone, a figure, a widget drawing its own. So the first stop ahead of that
+// block that they see where they read it (reading-place.js, `seenWhereRead`) is where they
+// are, and either press arrives there rather than passing a question in view for the
+// paragraph below it. Only the stops ahead of the block are measured.
 /** @template T @param {readonly T[]} list @param {WalkOrigin} origin
- * @param {import("./keyboard/bindings.js").Step} dir @param {(item: T) => Element | null} placeOfItem */
-export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
+ * @param {import("./keyboard/bindings.js").Step} dir @param {(item: T) => Element | null} placeOfItem
+ * @param {T | null} [at] */
+export function stepFrom(list, { place: here, kind }, dir, placeOfItem, at = null) {
+  if (kind === "view" && here) {
+    const seen = seenWhereRead(here);
+    /** @type {[T, Element] | null} */
+    let first = null;
+    for (const item of list) {
+      const place = placeOfItem(item);
+      if (
+        place &&
+        renderedOrder(place, here) < 0 &&
+        (!first || renderedOrder(place, first[1]) < 0) &&
+        seen(place)
+      )
+        first = [item, place];
+    }
+    if (first) return first[0];
+  }
+  if (at !== null) return at;
   if (!here) return cycledRow(list, null, dir);
   if (kind === "enter") {
     const inside = list.filter((item) => {

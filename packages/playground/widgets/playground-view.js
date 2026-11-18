@@ -9,7 +9,8 @@
  * regions, presets and actions, and never a control or its label. The fields stand in
  * the one `<form>` the view draws around both, so a playground's radio groups are its
  * own, and a control that belongs to a form of its own, such as a candidate's or an
- * inspection setting's, is no field. The browser's value sanitization decides which
+ * inspection setting's, is no field, nor is one a widget in the preview generated
+ * (`data-lf-gen`), such as a motion study's transport. The browser's value sanitization decides which
  * values a field can hold. An `<output for="NAME">` shows field NAME's value.
  * Rejected: Leaf's own control tags, whose kind, bounds, step and unit the view copied
  * into the native inputs it drew, and whose values it checked again itself.
@@ -183,12 +184,15 @@ export function createPlayground(host) {
   const asides = own(host, "aside");
   // A control that belongs to a form of its own, one inside the playground or one its
   // `form` attribute names, is that form's; one in no form, or in a form around the
-  // whole playground, joins the playground's form (render).
+  // whole playground, joins the playground's form (render). A control a widget in the
+  // preview generated, such as a motion study's scrubber, is that widget's inspection
+  // and no field, though it stands in the playground's form.
   /** @param {FieldControl | HTMLOutputElement | HTMLButtonElement} control */
   const member = (control) =>
     belongsTo(host, control) &&
     !control.hasAttribute("form") &&
-    !(control.form && host.contains(control.form));
+    !(control.form && host.contains(control.form)) &&
+    !host.contains(control.closest("[data-lf-gen]"));
   /** @type {Map<string, FieldControl[]>} */
   const named = new Map();
   /** @type {NodeListOf<FieldControl>} */

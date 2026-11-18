@@ -93,7 +93,7 @@
    Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
-   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow.js),
+   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow-tree.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
@@ -111,23 +111,26 @@
    silently discover nested widget families inside shadow roots as new top-level
    content. */
 
-import { isNode, closestAcross } from "./shadow-tree.js";
+import {
+  isNode,
+  closestAcross,
+  SAID,
+  UI_MARKS,
+  inUi,
+  overIn,
+  shadowHost,
+  uiInside,
+  under,
+  upFrom,
+} from "./shadow-tree.js";
 import { version } from "./kept.js";
 import { liveStages } from "./arrivals.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
-  SAID,
   declaredRoot,
-  UI_MARKS,
-  inUi,
-  overIn,
   refuseShadowRoot,
   queryAllUnder,
-  shadowHost,
   shadowRootsIn,
-  uiInside,
-  under,
-  upFrom,
 } from "./shadow.js";
 import {
   alongClimb,
@@ -515,7 +518,7 @@ const NO_CONTEXT = Object.freeze({
   cells: null,
 });
 // The markers are the selectors the point readings climb with — `UI_MARKS` and `SAID`
-// (shadow.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
+// (shadow-tree.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
 // the walk asks each of one element with `matches`, so a marker added to a selector
 // reaches both. `MARKS` joins the attribute markers, so an element whose attributes are
 // only a class or an id is settled by one match.
@@ -1902,7 +1905,9 @@ function documentReading(scope) {
 }
 /** @param {Element | null} scope */
 const forget = (scope) => {
-  if (scope) documents.delete(scope);
+  if (!scope) return;
+  documents.delete(scope);
+  if (scope === pageDocument()) pageVersion.move();
 };
 // The page's reading is kept in pieces (`Piece`), each until a change lands in it, so a
 // change re-reads only the piece it lands in. A part is a datum, the outermost on the
@@ -2031,30 +2036,21 @@ function touch(record, beneath) {
 /** @param {Node} node */
 const holdsSlot = (node) =>
   isElement(node) && (node.localName === "slot" || node.querySelector("slot") !== null);
-// Which ids and part names the page's elements bear: a new value each time an element's
-// id, or an attribute a part of the page is named by (addressable-names.js,
-// `ownNaming`), changes outside Leaf's surfaces, or an element bearing an id comes or
-// goes. None of these moves the reading of the words, and a reading of the page's nodes
-// may read any of them, so the version those readers keep against moves with them
-// (`pageReadingVersion`). `type` is among them because it decides whether a control
-// takes a `<label>`'s name (`labels`).
-/** @type {object} */
-let names = {};
 // Whether a record changes an element's id or an attribute a part is named by.
 /** @param {MutationRecord} record */
 const renames = (record) =>
   record.attributeName === "id" ||
   NAMING_ATTRIBUTES.includes(record.attributeName ?? "");
-// Which reading of the page stands, and the reading and names it last stood at: it
-// moves each time the page's reading is forgotten, or an id or a part's name changes
-// (`names`), as the page's watcher catches up (`catchUpReading`).
+// Which reading of the page stands, moved as the page's watcher catches up
+// (`catchUpReading`): each time the page's reading is forgotten (`forget`), or an
+// element's id, or an attribute a part of the page is named by (addressable-names.js,
+// `ownNaming`), changes outside Leaf's surfaces, or an element bearing an id comes or
+// goes. None of these last moves the reading of the words, and a reading of the page's
+// nodes may read any of them, so the version moves with them. `type` is among the
+// attributes because it decides whether a control takes a `<label>`'s name (`labels`).
 const pageVersion = version(catchUpReading);
-/** @type {object | null} */
-let versionedReading = null;
-/** @type {object | null} */
-let versionedNames = null;
 /** Which reading of the page stands: a new count each time the page's is forgotten, or
- * an id or a part's name changes (`names`). Each reader of the page reads it (kept.js,
+ * an id or a part's name changes. Each reader of the page reads it (kept.js,
  * `version`) as it catches up (`catchUpReading`), the readers of its words and
  * `elementById` among them, so a reading derived from the page, as On Me's places are,
  * is kept while this stands (kept.js, `kept`); work that spans tasks, as a search does,
@@ -2146,7 +2142,7 @@ function hear(records) {
   }
   forgetPartsBeneath(beneath);
   for (const scope of moved) forget(scope);
-  if (renaming || ids.size) names = {};
+  if (renaming || ids.size) pageVersion.move();
   if (moved.has(page) || ids.size) tellHearers({ written, ids, renamed });
 }
 // A change no record reports, to what the walk reads at `node` and under it: the reading
@@ -2324,15 +2320,11 @@ function catchUpReading() {
     documents = new WeakMap();
     frame = null;
     parts = new Map();
+    pageVersion.move();
     tellHearers(NOTHING_CHANGED);
   }
   readingVocabulary = vocabulary;
   readingSettled = settledKey;
-  const { token } = documentReading(pageDocument());
-  if (token !== versionedReading || names !== versionedNames) {
-    [versionedReading, versionedNames] = [token, names];
-    pageVersion.move();
-  }
   pageVersion.read();
 }
 // A reading of one element's words, kept exactly as long as the piece of its document's

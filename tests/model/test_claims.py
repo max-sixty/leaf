@@ -856,6 +856,43 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     assert service_model.owned_pages("other-guarded") == [other.resolve()]
 
 
+@pytest.mark.parametrize("evidence", ["missing", "deleted", "other-chat"])
+def test_desktop_start_requires_its_validated_native_chat(
+    tmp_path, under_codex, codex_env, native_codex_chat, evidence
+):
+    """Unsupported or absent native evidence cannot mint perpetual ownership."""
+    sid = "desktop-no-source"
+    if evidence == "deleted":
+        native_codex_chat(sid).unlink()
+    elif evidence == "other-chat":
+        other = native_codex_chat("another-chat")
+        from leaf.hooks import cmd_hook
+
+        cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": sid,
+                "transcript_path": str(other),
+            },
+        )
+    page = tmp_path / "page"
+    subprocess.run([*LEAF_COMMAND, "page", "init", page], env=codex_env, check=True)
+    task = under_codex(
+        shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
+        codex_env | {"CODEX_THREAD_ID": sid},
+        app_server=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode != 0, output + errors
+    assert "validated native transcript is unavailable" in output
+    assert "Codex hooks enabled" in output
+    assert service_model.page_claim(page) is None
+
+
 def test_a_claim_outlives_a_protocol_bump_that_leaves_its_shape_alone(
     tmp_path, monkeypatch
 ):

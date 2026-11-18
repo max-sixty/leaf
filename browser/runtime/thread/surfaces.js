@@ -42,7 +42,7 @@ import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads, threadIdNamed, threadNamed } from "./state.js";
 import { discussed, seatOf, seatRoot } from "./model.js";
 import { threadFocusDestination } from "./focus.js";
-import { under } from "../shadow.js";
+import { under } from "../shadow-tree.js";
 import { declareSide } from "../current-target.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";

@@ -42,9 +42,12 @@ A pure function of its arguments, which no file can make stale, is memoized at m
 level instead, bounded by entry count (`revision_artifact._read_css`,
 `thread_context._fragment`). So is a reading of the machine rather than of a page, in
 one slot replaced whole (`presence.neighbor_candidates`, `harness._registry_listing`).
-A reading that takes seconds and that requests arriving together all need, such as
-the layer a page selects (`layer.selected_layer`), is kept with `once`, so the first of
-those requests makes it and the rest wait for it rather than each making it again.
+So is the layer a selection of shared package roots alone composes, one per
+selection, since many pages read it alike; a layer that reads a page's own copy of a
+package is kept in that page's memory instead, beside the copy's stamp
+(`layer._held`). A reading that takes seconds and that requests arriving together all
+need, such as either layer, is kept with `once`, so the first of those requests makes
+it and the rest wait for it rather than each making it again.
 """
 
 import threading

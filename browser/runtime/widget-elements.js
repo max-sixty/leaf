@@ -60,12 +60,12 @@ import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { actionTemplate } from "./icons.js";
-import { renderedParent } from "./shadow.js";
 import {
   closestAcross,
   isElement,
   isNativeLayer,
   renderedUnder,
+  renderedParent,
 } from "./shadow-tree.js";
 
 import { keeps } from "./keeps.js";

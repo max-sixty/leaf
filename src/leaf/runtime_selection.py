@@ -49,6 +49,7 @@ from .layer import (
     LayerComposition,
     composed_sheets,
     files_identity,
+    forget_layers,
     layer_inputs,
     package_files,
     stylesheet,
@@ -242,6 +243,16 @@ def read_runtime() -> ServingRuntime:
 def serving_runtime() -> ServingRuntime:
     """The runtime this process serves, read once (`read_runtime`)."""
     return read_runtime()
+
+
+def forget_tree() -> None:
+    """Drop what this process holds of its tree, the runtime it serves and the layers
+    it composed (`layer.forget_layers`), so the next server it starts reads the tree as
+    it stands. Only a process between servers drops them, as a preview does when it
+    replaces its own: a server still running would answer with bytes it did not start
+    with."""
+    serving_runtime.cache_clear()
+    forget_layers()
 
 
 def execution_identity(artifact: RevisionArtifact) -> str:

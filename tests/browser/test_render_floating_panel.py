@@ -31,6 +31,7 @@ from render_harness import (
     LONG_PAGE,
     PREVIEW,
     accessible_node,
+    clocked,
     close_panel_menu,
     consume_browser_errors,
     expect_preview_words,
@@ -3385,11 +3386,10 @@ def test_an_error_copies_with_where_it_was_raised_and_which_leaf_ran(browser, se
 def test_a_walk_says_its_position_in_the_panel(browser, serve):
     """A walk's position is said where the panel says whatever passes, not against the
     window: in the empty field's place, as a notice is. The room the page shows (geometry.js, `shownWindow`) runs from the window's
-    head to the panel's row whether or not a walk is under way. The position lasts
-    while the obligation it reached is the block being read, which lasts while the user
-    writes a comment, so it goes unsaid once the caret is in the field: on the line
-    over the field, and in the leaf's peek, which would lie on the thread's last words
-    all that time, once the comment's thread opens over the row."""
+    head to the panel's row whether or not a walk is under way. The position goes
+    unsaid once the caret is in the field, though its moment has not passed: on the
+    line over the field, and in the leaf's peek, which would lie on the thread's last
+    words, once the comment's thread opens over the row."""
     heading = "<h3>How should the schema migrate?</h3>"
     tall = "<p>The old schema has three tables, each a year of records.</p>" * 30
     page = floating(browser, serve(OBLIGATION_PAGE.replace(heading, heading + tall)))
@@ -3422,6 +3422,33 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     expect(page.locator(panel_view("thread"))).to_be_visible()
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
     expect(page.locator(".lf-fp-peek")).to_be_hidden()
+
+
+def test_a_walk_s_position_gives_the_field_back_to_the_status(browser, serve):
+    """A walk's position answers its step for a notice's moment, and then the field
+    says the agent's status again, though the walk still stands where it landed, so
+    the agent's updates show while the user reads there. Each step says its own
+    position for a moment of its own."""
+    page = floating(clocked(browser), serve(OBLIGATION_PAGE))
+    page.locator("body").focus()
+    page.keyboard.press("m")
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^1 of 2 waiting on me")
+    )
+    rendered(page)
+    page.clock.run_for(
+        page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS")
+    )
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile("waiting on"))
+    position = page.evaluate(
+        "async () => (await window.__lfCheckApi()).walkPosition()?.position"
+    )
+    assert position == 1
+    page.keyboard.press("m")
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^2 of 2 waiting on me")
+    )
 
 
 def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, serve):
@@ -4299,7 +4326,7 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
 
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode the field
-    names in the status's place, ending in Close and its key, the mode's way out, while
+    names before the status, ending in Close and its key, the mode's way out, while
     the On Me mark keeps its seat; Close leaves the mode. While the user writes in the
     mode, the way out is the ✕ at the row's end, where the On Me mark ends, as close to
     the field as the leaf stands at the row's start, and typing moves neither the field
@@ -4320,9 +4347,11 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     rendered(page)
     assert not page.locator(PREVIEW).is_visible(), page.locator(PREVIEW).inner_text()
     annotations.locator(".lf-fp-item", has_text="Draw mode").click()
-    # The field names the mode in the status's place, and its end the way out.
-    expect(field(page)).to_have_attribute("data-lf-says", "stance")
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^In Draw mode"))
+    # The field names the mode before the status, and its end the way out.
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile(r"^In Draw mode · \S")
+    )
     close = field_press(page)
     expect(close.locator(".lf-compose-press-word")).to_have_text("Close")
     expect(close.locator("kbd")).to_have_text("esc")

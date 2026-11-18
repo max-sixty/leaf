@@ -19,14 +19,8 @@ import {
 import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import {
-  declaredRoot,
-  inUi,
-  queryAllUnder,
-  shadowHost,
-  under,
-  upFrom,
-} from "./shadow.js";
+import { declaredRoot, queryAllUnder } from "./shadow.js";
+import { inUi, shadowHost, under, upFrom } from "./shadow-tree.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,

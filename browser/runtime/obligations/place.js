@@ -36,8 +36,9 @@
 import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
 import { readPart } from "../semantic-state.js";
-import { composedParentNode } from "../shadow.js";
+import { composedParentNode } from "../shadow-tree.js";
 import { readObligations } from "./model.js";
+import { keptEach } from "../kept.js";
 
 const NOWHERE = Object.freeze({ source: null, context: null, node: null });
 
@@ -55,25 +56,23 @@ export function obligationPlace(item, items = readObligations().all) {
   return { source, context, node: item.source.unit || shared ? source : context };
 }
 
-// The ids of the widget obligations each context holds, read once per inventory, so
-// placing every obligation of an inventory costs one pass over it rather than one
-// per obligation.
-/** @type {WeakMap<readonly import("../framework/application.js").ObligationRecord[], Map<string | null, Set<string>>>} */
-const contexts = new WeakMap();
-/** @param {readonly import("../framework/application.js").ObligationRecord[]} items */
-function contextsOf(items) {
-  let held = contexts.get(items);
-  if (held) return held;
-  held = new Map();
-  for (const { id, source, prompt } of items) {
-    if (source.kind !== "widget") continue;
-    const ids = held.get(prompt.target);
-    if (ids) ids.add(id);
-    else held.set(prompt.target, new Set([id]));
-  }
-  contexts.set(items, held);
-  return held;
-}
+// The ids of the widget obligations each context holds, read once per inventory
+// (kept.js), so placing every obligation of an inventory costs one pass over it rather
+// than one per obligation.
+const contextsOf = keptEach(
+  /** @param {readonly import("../framework/application.js").ObligationRecord[]} items */
+  (items) => {
+    /** @type {Map<string | null, Set<string>>} */
+    const held = new Map();
+    for (const { id, source, prompt } of items) {
+      if (source.kind !== "widget") continue;
+      const ids = held.get(prompt.target);
+      if (ids) ids.add(id);
+      else held.set(prompt.target, new Set([id]));
+    }
+    return held;
+  },
+);
 
 // Where a to-do's or an update's subject stands on the page: the element or widget it
 // names, and nowhere for the page as a whole or a thread.
@@ -119,18 +118,16 @@ export const obligationsIn = (region, items = readObligations().all) =>
 // elements the regions hold, of which a panel holding a 96,000-line text document has
 // about 97,000.
 const authoredWidgets = readPart((root) => root.document.descriptors);
-/** @type {WeakMap<ReadonlyMap<string, import("../framework/application.js").WidgetDescriptor>, string[]>} */
-const awaitingIds = new WeakMap();
+const awaitingIds = keptEach(
+  /** @param {ReadonlyMap<string, import("../framework/application.js").WidgetDescriptor>} widgets */
+  (widgets) =>
+    [...widgets.values()]
+      .filter(({ declaration }) => declaration.awaits !== undefined)
+      .map(({ id }) => id),
+);
 /** @param {readonly Node[]} regions */
 export function regionsAwaiting(regions) {
-  const widgets = authoredWidgets();
-  let ids = awaitingIds.get(widgets);
-  if (!ids) {
-    ids = [...widgets.values()]
-      .filter(({ declaration }) => declaration.awaits !== undefined)
-      .map(({ id }) => id);
-    awaitingIds.set(widgets, ids);
-  }
+  const ids = awaitingIds(authoredWidgets());
   const wanted = new Set(regions);
   /** @type {Set<Node>} */
   const awaiting = new Set();

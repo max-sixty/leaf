@@ -24,7 +24,7 @@ import {
 import { reachingNow } from "./control-keys.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedUnder, under } from "../shadow.js";
+import { renderedUnder, under } from "../shadow-tree.js";
 import { html, render } from "/runtime/framework.js";
 import { inlineStyle, keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";

@@ -166,28 +166,6 @@ function statusOf({ kind, detail }: Leaf["activity"]) {
 let leaves: Leaf[] = [];
 let following: { stop: () => unknown } | undefined;
 let followAgain = false;
-// The SHA-256 of this module's source as Claude Code loaded it, read by the first hook
-// after a load or reload, which names the module to the pages follower: a checkout can
-// change under a running session, so only what loaded says which code reads the
-// follower (`session_runtime.module_current`).
-let loadedDigest = "";
-
-/** The SHA-256 of this module's source file as it stands, in hex, or "" where it
- * can't be read. */
-async function digestOf($: EngineInterface) {
-  try {
-    const read = await $.fs.read(`${$.plugin.root}/hooks/claude-code.ts`, {
-      as: "bytes",
-    });
-    const bytes = Uint8Array.from(atob(read.base64), (char) => char.charCodeAt(0));
-    const hash = await crypto.subtle.digest("SHA-256", bytes);
-    return Array.from(new Uint8Array(hash), (byte) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
-  } catch {
-    return "";
-  }
-}
 
 // What the first hook after a load or reload reads once, which every later one awaits.
 let initialized: Promise<void> | undefined;
@@ -197,7 +175,6 @@ let initialized: Promise<void> | undefined;
  * hooks that start meanwhile wait for that one read. */
 async function sessionOf($: EngineInterface) {
   initialized ??= (async () => {
-    loadedDigest = await digestOf($);
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
     lineForks = (await $.env.get("LEAF_FORK_REPLIES")) !== "off";
     workForks = (await $.env.get("LEAF_FORK_WORK")) === "on";
@@ -277,14 +254,10 @@ function follow($: EngineInterface, session: string) {
         "--pages",
       ],
       env: environment(session),
-      // `module` names the code running here, so a follower under another Leaf,
-      // whose kept-back threads this module may not read, keeps none back
-      // (`hooks.cmd_pages`).
       input: JSON.stringify({
         hook_event_name: "Pages",
         session_id: session,
         forks: lineForks,
-        module: loadedDigest,
       }),
     });
   } catch (error) {

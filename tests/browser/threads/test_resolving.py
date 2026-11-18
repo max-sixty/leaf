@@ -737,14 +737,10 @@ def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, s
 def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serve):
     """A repaint of an open card leaves the user's press where they aimed it.
 
-    An open margin card repaints for reasons the user never asked for — a relative
-    timestamp ageing, a receipt phase landing, a margin contribution changing — and each
-    one re-runs the whole thread render. Nothing in that render is a reason to take the
-    user off the control they have reached, so the control they were about to press
-    has to still be the one the next key reaches.
-
-    `lf-actions` is the margin's own repaint door, and its render runs inside this call,
-    so the state the press reads is stated rather than waited out.
+    An open margin card redraws its whole thread on every reading of it, as when the
+    agent's reply lands while the user rests on the card's Resolve. Nothing in that
+    render is a reason to take the user off the control they have reached, so the
+    control they were about to press has to still be the one the next key reaches.
     """
     page = open_page(
         browser,
@@ -783,13 +779,25 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
     assert page.evaluate("() => window.__lfDetachedThread"), (
         "the detached margin card reached display before its thread rendered"
     )
-    resolve = page.locator(".lf-margin-thread").get_by_role(
-        "button", name="Resolve thread", exact=True
-    )
+    card = page.locator(".lf-margin-thread")
+    resolve = card.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_visible()
     resolve.focus()
     expect(resolve).to_be_focused()
-    page.evaluate("() => document.dispatchEvent(new Event('lf-actions'))")
+    answer = "Both jobs fit one visit."
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": answer,
+        },
+    )
+    told(page)
+    expect(card).to_contain_text(answer)
     expect(resolve).to_be_focused()
     with sending(page, "the resolve the repaint could have unseated"):
         page.keyboard.press("Enter")

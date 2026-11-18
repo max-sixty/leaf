@@ -420,7 +420,7 @@ lf-tabs[data-lf-views] > lf-tab {
      * the summary under it. */
     :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-btn {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       align-content: start;
       align-items: baseline;
       justify-items: start;
@@ -442,6 +442,23 @@ lf-tabs[data-lf-views] > lf-tab {
       }
       & > .lf-tabdiff {
         margin-left: 6px;
+      }
+    }
+    /* A row whose panel waits on the user ends its name's line in On Me's symbol, quiet
+     * as the summary is, after any change count (lf-tabs.js). */
+    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-on-me {
+      grid-row: 1;
+      grid-column: 3;
+      align-self: center;
+      display: flex;
+      margin-inline: 6px 5px;
+      color: var(--lf-muted);
+      &:not([data-lf-waiting]) {
+        visibility: hidden;
+      }
+      & > svg {
+        inline-size: 14px;
+        block-size: 14px;
       }
     }
     /* The outcome has its own reserved line below the authored summary. Neither
@@ -873,7 +890,7 @@ lf-tabs[data-lf-views] > lf-tab {
         }
         :scope:is(lf-parts)[data-lf-views]
           > .lf-tabstrip
-          :is(.lf-tab-summary, .lf-tab-answer) {
+          :is(.lf-tab-summary, .lf-tab-answer, .lf-tab-on-me) {
           display: none;
         }
         :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {

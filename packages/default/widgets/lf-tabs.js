@@ -64,20 +64,24 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
- * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
- * server's next actor, counted as an `lf-tally` counts them (`tally`): the mark alone while one
- * waits on the user, since the mark and the tally already say so (its description says "To
- * answer"), else "On Claude" (`agentName`) while one is the agent's, as after the user
- * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
- * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
- * and how far the user has worked through it, and an undo that reopens an obligation puts the
- * open mark back. Which obligations a panel holds is `obligationsByRegion` (obligations/place.js), read from the
- * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel's
- * markup asks the user something keeps the mark's room either way (`regionsAwaiting`), so an answer
- * moves no row. While the
- * version diff is on, each tab counts the marked passages its panel holds, including
- * inactive panels. Unupgraded,
+ * the panel's `summary` under the name, then its obligations' state on a reserved line. Counted
+ * as an `lf-tally` counts them (`tally`), by the server's next actor: while one waits on the
+ * user, the row ends its name's line with On Me's symbol (`on-me`), the panel's mark for what
+ * waits on them, and the reserved line stays empty (its description says "To answer"). The
+ * symbol's room is kept in every state, as the line's is, so a long name wraps the same
+ * whatever its answer. A lone
+ * open mark on that line read as an empty list bullet; Leaf's dot already means an unread
+ * reply, and a mark before the name read as a bullet too. While one is open and none waits on
+ * the user, the line shows an open mark and whose turn it is: "On Claude" (`agentName`) while
+ * one is the agent's, as after the user comments on it, else "Open", as in a resolved thread.
+ * Once every one is answered it shows a check, with the answer's own words where the panel
+ * holds one obligation. So a queue shows each obligation's state and how far the user has
+ * worked through it, and an undo that reopens an obligation puts On Me's symbol back. Which
+ * obligations a panel holds is `obligationsByRegion` (obligations/place.js), read from the
+ * admitted obligation inventory, so a tally of the queue counts the same obligations. A row
+ * whose panel's markup asks the user something keeps the line's room either way
+ * (`regionsAwaiting`), so an answer moves no row. While the version diff is on, each tab
+ * counts the marked passages its panel holds, including inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
@@ -511,13 +515,22 @@ export class TabSet extends LeafElement {
           ? html`<span
               class="lf-tab-answer"
               aria-hidden="true"
-              data-lf-obligations=${answered ? "answered" : total ? "open" : nothing}
+              data-lf-obligations=${answered ? "answered" : answer ? "open" : nothing}
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing
       }<span class="lf-tabdiff lf-chip lf-change-count" aria-hidden="true"
         >${changed ? `Δ${changed}` : ""}</span
-      >${this.#down ? mark : nothing}</span
+      >${
+        hasAnswer
+          ? html`<span
+              class="lf-tab-on-me"
+              aria-hidden="true"
+              ?data-lf-waiting=${onUser > 0}
+              >${actionTemplate("on-me")}</span
+            >`
+          : nothing
+      }${this.#down ? mark : nothing}</span
     >`;
   }
 

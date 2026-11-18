@@ -852,10 +852,10 @@ def test_a_queue_entry_shows_the_face_its_item_opens_with(browser, serve):
 
 
 def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve):
-    """A row's mark, and the words beside it, say its obligations are open until every
-    one is answered, and withdrawal retires a request without claiming the user
-    answered it: a row whose only obligation was withdrawn shows no mark, and one whose
-    other obligation is answered shows the answer."""
+    """A row says its obligations wait on the user until every one is answered, and
+    withdrawal retires a request without claiming the user answered it: a row whose
+    only obligation was withdrawn shows no mark, and one whose other obligation is
+    answered shows the answer."""
     source = leaf_page(
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
@@ -868,11 +868,12 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     )
     page = open_page(browser, live_url(serve(source)))
     marks = page.locator("#queue .lf-tab-answer")
-    expect(marks.nth(0)).to_have_attribute("data-lf-obligations", "open")
-    expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "open")
-    # The open mark stands alone for the user's turn: the mark and the tally say it,
-    # and the tab's description says it in words.
-    expect(marks.nth(0)).to_have_text("")
+    on_me = page.locator("#queue .lf-tab-btn .lf-tab-on-me")
+    # The user's turn ends each row's name in On Me's symbol and leaves the answer line
+    # empty; the tab's description says it in words.
+    expect(on_me).to_have_count(2)
+    expect(on_me.nth(0)).to_be_visible()
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     expect(page.get_by_role("tab").nth(0)).to_have_accessible_description(
         re.compile("To answer")
     )
@@ -887,6 +888,8 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     expect(marks.nth(0)).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
+    expect(on_me.nth(0)).to_be_hidden()
+    expect(on_me.nth(1)).to_be_hidden()
 
 
 def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve):
@@ -915,9 +918,7 @@ def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve)
         "Ask the first question",
     )
     wait_for_revision(page, 2)
-    expect(rows.nth(1).locator(".lf-tab-answer")).to_have_attribute(
-        "data-lf-obligations", "open"
-    )
+    expect(rows.nth(1).locator(".lf-tab-on-me")).to_be_visible()
     expect(rows.nth(0).locator(".lf-tab-answer")).to_have_count(0)
 
 
@@ -1636,12 +1637,12 @@ def test_the_list_of_parts_stays_in_reach_in_every_window(browser, serve, subtes
 
 def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     """A page of parts' list marks each part's obligations as a queue's rows do, so the
-    reader sees from the list which parts they have answered: an open mark while one
-    waits on them, whose turn it is once they comment on it, a check with the answer's
-    words once they answer it through its widget, and the open mark again when an undo
-    reopens it. A part that asks nothing reserves no line, one that asks keeps its line
-    either way, so an answer moves no row, and on a phone the row over the open part
-    names each part alone."""
+    reader sees from the list which parts they have answered: On Me's symbol at the end
+    of the name's line while one waits on them, whose turn it is once they comment on
+    it, a check with the answer's words once they answer it through its widget, and On
+    Me's symbol again when an undo reopens it. A part that asks nothing reserves no
+    line, one that asks keeps its line either way, so an answer moves no row, and on a
+    phone the row over the open part names each part alone."""
 
     def part(key):
         return (
@@ -1670,15 +1671,19 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     def mark(key):
         return row(key).locator(".lf-tab-answer")
 
-    def own_line(key):
+    def on_me(key):
+        return row(key).locator(".lf-tab-on-me")
+
+    def on_name_line(key):
         name = row(key).locator(".lf-tab-name").bounding_box()
-        line = mark(key).bounding_box()
-        return line["y"] >= name["y"] + name["height"] - 0.5
+        symbol = on_me(key).bounding_box()
+        middle = symbol["y"] + symbol["height"] / 2
+        return name["y"] <= middle <= name["y"] + name["height"]
 
     for key in ("untouched", "answered", "sent", "reopened"):
-        expect(mark(key)).to_have_attribute("data-lf-obligations", "open")
-        expect(mark(key)).to_have_text("")
-        assert own_line(key), key
+        expect(on_me(key)).to_be_visible()
+        expect(mark(key)).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
+        assert on_name_line(key), key
     expect(row("untouched")).to_have_accessible_description("To answer")
     expect(mark("notes")).to_have_count(0)
     height = row("untouched").bounding_box()["height"]
@@ -1689,13 +1694,17 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
         page.locator("#answered .lf-pick").first.click()
     expect(mark("answered")).to_have_attribute("data-lf-obligations", "answered")
     expect(mark("answered")).to_have_text("Alpha")
+    expect(on_me("answered")).to_be_hidden()
     expect(row("answered")).to_have_accessible_description("Answered: Alpha")
+    name = row("answered").locator(".lf-tab-name").bounding_box()
+    assert mark("answered").bounding_box()["y"] >= name["y"] + name["height"] - 0.5
     assert row("answered").bounding_box()["height"] == height
 
     # A comment on the open question hands it to the agent until a reply.
     panel_comment(serve.page_dir, "Why only two routes?", {"section": "sent-ask"})
     expect(mark("sent")).to_have_text("On Claude")
     expect(mark("sent")).to_have_attribute("data-lf-obligations", "open")
+    expect(on_me("sent")).to_be_hidden()
     expect(row("sent")).to_have_accessible_description("On Claude")
 
     row("reopened").click()
@@ -1703,14 +1712,17 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
         page.locator("#reopened .lf-pick").first.click()
     expect(mark("reopened")).to_have_text("Alpha")
     undo(page)
-    expect(mark("reopened")).to_have_attribute("data-lf-obligations", "open")
-    expect(mark("reopened")).to_have_text("")
+    expect(on_me("reopened")).to_be_visible()
+    expect(mark("reopened")).not_to_have_attribute(
+        "data-lf-obligations", re.compile(".*")
+    )
     assert row("reopened").bounding_box()["height"] == height
 
     resized(page, 390, 800)
     expect(page.locator("#parts > .lf-tabstrip")).to_have_css("flex-direction", "row")
     for key in ("untouched", "answered", "sent", "reopened"):
         expect(mark(key)).to_be_hidden()
+    expect(on_me("untouched")).to_be_hidden()
 
 
 @pytest.mark.parametrize("route", ["pointer", "keyboard", "touch"])

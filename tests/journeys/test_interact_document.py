@@ -312,11 +312,11 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
 
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / "index.html").write_text(
-        PAGE.replace('id="backfill-first">', 'id="backfill-first" selected="">')
+        PAGE.replace('id="backfill-first"', 'id="backfill-first" selected=""')
     )
     assert check(page_dir).exit_code == 0
     (page_dir / "index.html").write_text(
-        PAGE.replace('id="backfill-first">', 'id="backfill-first" selected="yes">')
+        PAGE.replace('id="backfill-first"', 'id="backfill-first" selected="yes"')
     )
     status, findings = check_findings(page_dir)
     assert status == 1

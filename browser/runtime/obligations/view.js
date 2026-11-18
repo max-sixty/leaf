@@ -59,7 +59,9 @@ import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
-import { hostIn, under, upFrom } from "../shadow.js";
+import { hostIn, renderedOrder, under, upFrom } from "../shadow.js";
+import { drawnThreadId, THREAD, wholeThread } from "../thread/selectors.js";
+import { threadNamed } from "../thread/state.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
 import { revealAddressed } from "../anchor-resolution.js";
@@ -317,7 +319,9 @@ export function createObligationView({
     );
   }
   // The commands that answer where `origin` stands: the obligation there, which is a
-  // widget's, since only a widget's obligation has a place (`obligationPlace`).
+  // widget's, since only a widget's obligation has a place (`obligationPlace`). In a
+  // thread's view, outside any obligation, that is the obligation the thread is about,
+  // and where it is about none, the question the thread itself asks (`threadQuestion`).
   /** @param {Element | null} origin */
   function obligationContext(origin) {
     if (!origin) return null;
@@ -332,18 +336,45 @@ export function createObligationView({
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
-    if (!root) return null;
-    return {
-      root,
-      declarations: () => {
-        const owner = sourceOwner(record);
-        return owner
-          ? commandDeclarationsWithin(owner).filter(({ source: commandSource }) =>
-              ownedObligationControl(owner, commandSource),
-            )
-          : [];
-      },
-    };
+    return record && root ? answering(root, record) : threadQuestion(origin);
+  }
+  /** @param {Element} root @param {Obligation} record */
+  const answering = (root, record) => ({
+    root,
+    declarations: () => {
+      const owner = sourceOwner(record);
+      return owner
+        ? commandDeclarationsWithin(owner).filter(({ source: commandSource }) =>
+            ownedObligationControl(owner, commandSource),
+          )
+        : [];
+    },
+  });
+  // The question a thread asks: the last widget obligation drawn in the thread, answered
+  // or not. Its options take the digits wherever the user stands in the thread's view
+  // outside any obligation, as `t` leaves them. The last rather than the first still
+  // open, so an answer landing never moves the digits to another question, and a second
+  // digit changes the answer the first one made; `m` reaches an earlier question still
+  // open.
+  /** @param {Element} origin */
+  function threadQuestion(origin) {
+    const view = closestAcross(origin, THREAD);
+    const id = drawnThreadId(view);
+    if (!view || !id) return null;
+    const whole = wholeThread(view);
+    /** @type {{record: Obligation, owner: Element} | null} */
+    let last = null;
+    for (const record of threadNamed(id)?.obligations ?? []) {
+      if (record.source.kind !== "widget" || record.status === "withdrawn") continue;
+      const owner = sourceOwner(record);
+      if (
+        owner &&
+        under(owner, whole) &&
+        (!last || renderedOrder(last.owner, owner) < 0)
+      )
+        last = { record, owner };
+    }
+    return last && answering(view, last.record);
   }
   // The ring that says so, painted from the focus rather than written where the user was
   // put. Rejected: the walk writing it, which then says where the walk left them rather

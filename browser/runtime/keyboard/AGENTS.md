@@ -100,7 +100,9 @@ on its row; every other command leaves the control it was pressed on where it st
 screen (`bindings.js`). A surface
 may reuse a page key for the same intent with a nearer destination. While the user is
 on an obligation, or its margin or thread representative, core forwards only the
-widget's declared `contextKeys`, and widgets assign their own `1`–`9`.
+widget's declared `contextKeys`, and widgets assign their own `1`–`9`. From a thread
+about no obligation, the digits answer the last question drawn in the thread
+(`obligations/view.js`, `threadQuestion`).
 
 ## Touch routes
 

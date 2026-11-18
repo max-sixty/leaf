@@ -1523,6 +1523,69 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
 
 
+def test_a_thread_takes_the_digits_of_the_question_it_asks(browser, serve):
+    """A thread about no obligation that asks one in its own messages answers it by
+    digits from its view: `t` lands on the thread, the last question's options wear
+    their digits, and a digit picks one there, leaving the question it asked before
+    alone and the user on the thread. The panel's view of the thread answers it too."""
+    source = leaf_page(
+        "Release charts",
+        '<section id="release"><h2 id="release-h">The release page</h2>'
+        "<p>It draws ten charts as images.</p></section>",
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "id": "ask",
+            "anchor": {"section": "release"},
+            "text": "Should the charts stay images?\n\n"
+            '<lf-options id="first"><lf-option id="first-keep">Keep them</lf-option>'
+            '<lf-option id="first-inline">Inline them</lf-option></lf-options>',
+        },
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "id": "why",
+            "parent": "ask",
+            "text": "What would inlining take?",
+        },
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": "ask",
+            "responds": "why",
+            "text": "A script the release page's session runs. Who should run it?\n\n"
+            '<lf-options id="second"><lf-option id="second-send">Its session</lf-option>'
+            '<lf-option id="second-here">This session</lf-option></lf-options>',
+        },
+    ]
+    page = open_page(browser, serve(source, events=events))
+    page.keyboard.press("t")
+    thread = page.locator(f'{CARD} .lf-page-thread[data-lf-thread="ask"]')
+    expect(thread).to_be_focused()
+    expect(page.locator("#second-here .lf-key-badge")).to_have_text("2")
+    page.keyboard.press("2")
+    expect(page.locator("#second-here")).to_have_attribute("selected", "")
+    round_trip(page)
+    expect(page.locator("#first lf-option[selected]")).to_have_count(0)
+    expect(thread).to_be_focused()
+
+    # The panel's view of the thread draws its reply row apart from its messages, and a
+    # digit from that row's Dictate answers the same question.
+    open_panel_thread(page, "ask")
+    expect(panel_field(page)).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-field .lf-compose-dictate")).to_be_focused()
+    page.keyboard.press("1")
+    expect(page.locator("#second-send")).to_have_attribute("selected", "")
+
+
 OBLIGATION_IN_A_PANE_PAGE = leaf_page(
     "ask in a pane",
     """

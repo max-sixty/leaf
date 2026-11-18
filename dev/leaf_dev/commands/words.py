@@ -416,17 +416,18 @@ def table(name: str, lines: dict[str, dict]) -> tuple[str, int, int]:
     """Page `name`'s section, with its count of rows and of rows the arms differ in."""
     head = keyed(lines["head"]["rows"])
     base = keyed(lines["base"]["rows"]) if "base" in lines else None
-    keys = list(head)
+    # Each row under its key, head's where both arms have one, the base's where only it does.
+    rows = dict(head)
     if base is not None:
-        keys += [key for key in base if key not in head]
+        rows |= {key: row for key, row in base.items() if key not in head}
     differ = 0
     body = []
-    for key in keys:
+    for key, row in rows.items():
         after = head.get(key)
         before = base.get(key) if base is not None else None
         cells = [cell(before, after, read) for _, read in CELLS]
         differ += any("data-differs" in each or "<del>" in each for each in cells)
-        shot = (after or before)["shot"]
+        shot = row["shot"]
         body.append(
             f'<tr><th scope="row"><a href="{escape(shot)}">{escape(key[0])}</a></th>'
             + "".join(cells)
@@ -445,7 +446,7 @@ def table(name: str, lines: dict[str, dict]) -> tuple[str, int, int]:
         + "".join(body)
         + "</tbody></table></section>"
     )
-    return section, len(keys), differ
+    return section, len(rows), differ
 
 
 def report(pages: dict[str, dict[str, dict]], out: Path) -> Path:

@@ -113,17 +113,15 @@
     font: var(--lf-font-compact);
     color: var(--lf-ink);
   }
-  /* The panel's stand-in, drawn from these rules while the bootstrap holds keys
-     pressed before the panel has mounted, with their words in the field
-     (runtime/panel-stand-in.js; `.lf-fp-held`). It casts the ring and lift
-     the panel's surface would, which box-motion.js draws for the panel, and takes no
-     press. */
-  .lf-floating-panel[data-lf-stand-in] {
-    pointer-events: none;
+  /* The panel's row as the document serves it, which stands from the first paint until
+     the panel mounts (runtime/bootstrap.js, `standRow`). It has no surface behind it,
+     which box-motion.js cuts to the panel's box once that box is drawn, so its card
+     casts the ring and lift that surface would. The card casts them rather than the
+     panel, since a filter there would hold the peek, which stands against the window,
+     inside the panel's box. */
+  .lf-floating-panel[data-lf-served] .lf-fp-card {
+    box-shadow: 0 0 0 1px var(--lf-fp-ring);
     filter: drop-shadow(var(--lf-raise-2));
-    & .lf-fp-card {
-      box-shadow: 0 0 0 1px var(--lf-fp-ring);
-    }
   }
   /* The card wears the surface's colour over the ground's own fill, which it matches
      at rest and inside every move, so what stands under the panel is under a box that
@@ -524,7 +522,7 @@
     display: block;
   }
   .lf-fp-field .lf-compose-field > leaf-text,
-  .lf-fp-field .lf-compose-field > .lf-fp-held {
+  .lf-fp-field .lf-compose-field > .lf-fp-words {
     flex: 1;
     min-width: 0;
     border: 0;
@@ -596,8 +594,10 @@
      them, that it goes elsewhere. The user chose the word, so every key in a box
      stands with its word, over the key alone, which a reader took for the inbox's
      shortcut beside it. */
-  /* The stand-in's held words wear the ink every empty box's words do (theme, `--quiet`). */
-  .lf-fp-held {
+  /* The served row's words, which stand in the editor's place until the panel mounts
+     (floating-panel.js, `panelTemplate`), wear the ink every empty box's words do
+     (theme, `--quiet`), where the editor says them. */
+  .lf-fp-words {
     color: var(--lf-quiet);
   }
   /* The word naming what entering the field does, after the agent's or Leaf's words

@@ -113,6 +113,12 @@ interface Window {
     finishEarlyContent(): void;
   };
   lfKeyboard: { readonly quick: boolean; setQuick(on: boolean): void };
+  /** The layer's constructed stylesheets, built once by whoever asks first (prepaint.js). */
+  lfSheets(): {
+    chrome: CSSStyleSheet;
+    marks: CSSStyleSheet;
+    annotations: CSSStyleSheet[];
+  };
   /** The floating panel's resting size. */
   lfChrome: {
     /** `row` or `mark`. */

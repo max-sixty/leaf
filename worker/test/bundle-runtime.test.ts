@@ -42,7 +42,6 @@ describe("published runtime bundle", () => {
       for (const entry of [
         "layer-client",
         "media",
-        "panel-stand-in",
         "widget-api",
         "portable-api",
         "check-api",

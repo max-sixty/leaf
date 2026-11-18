@@ -101,7 +101,8 @@
  *   all of these but an error, which says why the page may not get ready; the mode
  *   chip says them where an error or a draft takes the field's words, and the field's
  *   end offers no press while they wait, where a key would only join them; before the
- *   panel stands, a stand-in for this row says them (`heldWords`; panel-stand-in.js).
+ *   panel stands, the row the document served from its first paint says them
+ *   (`heldWords`; bootstrap.js).
  *   The user chose this over a notice of their own
  *   beside the panel.
  *   The keys that send are Send's hover name, where Return sends with
@@ -409,6 +410,18 @@ import {
 import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
+// What the status says before the page has one (page-status.js, `statusReading`).
+const CONNECTING = {
+  tone: "",
+  summary: "Connecting…",
+  summaryParts: [leafSays("Connecting…")],
+  explanation: "Connecting…",
+  explanationParts: [leafSays("Connecting…")],
+  adds: "",
+  addsParts: [],
+  asks: false,
+  publication: null,
+};
 // The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
 // takes (queue-walk.js). No notice carries it, so it has no `stands`; `pageOffer`
 // decides when it stands.
@@ -678,8 +691,15 @@ export function createFloatingPanel({
   // none does today.
   let rowPress = false;
   // One template owns the panel's shell, views and editor placement. Its detached first
-  // drawing establishes the retained nodes that setup wires below. The peek must follow
-  // the leaf in the tree so it can anchor to it.
+  // drawing (`initial`) establishes the retained nodes that setup wires below, and is
+  // also the row a served document stands from its first paint, before this module has
+  // loaded (build/panel-row.mjs writes it to runtime/panel-row.html, and bootstrap.js
+  // stands it): what the row shows before the panel has a reading or an editor. So it
+  // draws the On Me mark without a count and, in the editor's seat, the field's words
+  // in a box of their own (`.lf-fp-words`), which the bootstrap rewrites with the keys it
+  // holds; the panel's first paint puts the editor there, saying the same words where
+  // they stood (floating-panel.css). The peek must follow the leaf in the tree so it can
+  // anchor to it.
   // The quick seat is one button, changing between the mark and a search's or a
   // stance's way out. Its count keeps its room even when empty; a count arriving moves
   // nothing beside it. The corner mark presses the fold command's row, as the menu
@@ -706,7 +726,7 @@ export function createFloatingPanel({
         ? heldWords.value
         : null;
     const folded = !initial && prefs().rest === "mark" && !top && !search;
-    const statusModel = initial ? { summary: "Connecting…", tone: "" } : status();
+    const statusModel = initial ? CONNECTING : status();
     const onUser = initial ? 0 : onUserCount();
     const news = initial ? 0 : newCount();
     const unseen = !initial && errorsWaiting(input);
@@ -721,10 +741,11 @@ export function createFloatingPanel({
     // paint that opens it (touch-controls.js). Until then the seat keeps what it shows,
     // rather than stepping aside for that paint and coming back with the way out.
     const quickHidden =
-      initial || (Boolean(top) && !exit) || (!exit && (writing || drafted));
+      !initial && ((Boolean(top) && !exit) || (!exit && (writing || drafted)));
     // Drafts are marked only where nothing has news, so the dot stays news's mark, and
     // only while the mark or the folded leaf shows, so writing never reads them.
-    const kept = news || !(folded || (!quickHidden && !exit)) ? 0 : keptDrafts();
+    const kept =
+      initial || news || !(folded || (!quickHidden && !exit)) ? 0 : keptDrafts();
     const peek = initial ? null : peekPresentation();
     const mode = search
       ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
@@ -865,7 +886,21 @@ export function createFloatingPanel({
             </button>
             <div class="lf-fp-field">
               <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
-                ${initial ? nothing : top?.thread ? replyOutlet : pageEditor().box}
+                ${
+                  initial
+                    ? html`<div class="lf-compose-field">
+                        <span class="lf-fp-words"
+                          ><span class="lf-compose-placeholder"
+                            ><span class="lf-compose-placeholder-words"
+                              >${voiced(statusModel.summaryParts)}</span
+                            ></span
+                          ></span
+                        >
+                      </div>`
+                    : top?.thread
+                      ? replyOutlet
+                      : pageEditor().box
+                }
               </div>
               <div
                 class=${`lf-fp-search-surface${searchMode === "page" ? " lf-page-search" : ""}`}
@@ -1027,17 +1062,6 @@ export function createFloatingPanel({
   // second field over the panel's own.
   const responseSeat = shell("response");
 
-  const CONNECTING = {
-    tone: "",
-    summary: "Connecting…",
-    summaryParts: [leafSays("Connecting…")],
-    explanation: "Connecting…",
-    explanationParts: [leafSays("Connecting…")],
-    adds: "",
-    addsParts: [],
-    asks: false,
-    publication: null,
-  };
   const status = () => statusReading() ?? CONNECTING;
   // Words drawn in their speakers' faces (voice.js), where the agent's sentence alone
   // carries response identity. Its renderer ref registers and retires that exact node
@@ -1175,8 +1199,8 @@ export function createFloatingPanel({
   // offers no press at its end while they wait, where a key would only join them. The
   // mode chip says them where an error or a draft takes the field's words, and the
   // folded leaf's peek as it says a notice.
-  // Before the panel stands a stand-in for its row shows them (panel-stand-in.js),
-  // which goes as the panel offers its field (`mount`).
+  // Before the panel stands, the row the document served shows them (`panelTemplate`,
+  // `initial`), which goes as the panel offers its field (`mount`).
   /** @type {import("@preact/signals-core").Signal<HeldWords | null>} */
   const heldWords = signal(null);
   /** @param {HeldWords} words */
@@ -5738,8 +5762,8 @@ export function createFloatingPanel({
     document.addEventListener(UPGRADE, () => paint(), { once: true });
     document.addEventListener("lf-chrome-preference", () => paint());
     paint();
-    // The field takes over the held keys' words from the stand-in for this row, in the
-    // frame the panel first draws (`heldWords`).
+    // The panel takes over the row the document served, and the field the held keys'
+    // words, in the frame the panel first draws (`heldWords`; bootstrap.js).
     document.dispatchEvent(
       new CustomEvent("lf-held-keys-seat", {
         detail: {
@@ -5754,6 +5778,9 @@ export function createFloatingPanel({
   }
 
   return {
+    // The panel's element, which holds its first drawing until it mounts: the row a
+    // served document stands from its first paint (build/panel-row.mjs).
+    host,
     mount,
     clearFor,
     pageComment,

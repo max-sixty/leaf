@@ -683,8 +683,10 @@ class Delivery:
     # Embeds stylesheets in place of linking them: a stylesheet's CSS by its path.
     inline_stylesheet: Callable[[str], str] | None = None
     import_map: dict | None = None
-    # The runtime's own inline script. A document with one runs the layer, so it also
-    # carries the layer's adopted sheets (`delivery_sheets`) and the prepaint.
+    # The runtime's own inline script, with what it stands before the first paint, such
+    # as a served page's panel row (`http.page_delivery`). A document with one runs the
+    # layer, so it also carries the layer's adopted sheets (`delivery_sheets`) and the
+    # prepaint.
     runtime: str | None = None
     # The host's own head metadata, such as a published page's link card.
     head: str = ""

@@ -338,7 +338,8 @@ def test_a_page_that_cannot_start_lets_its_held_keys_go(browser, serve):
 def test_a_document_the_runtime_gives_up_on_lets_its_held_keys_go(browser, serve):
     """A runtime that finds the server on another layer as it starts gives this document
     up and waits for a reload rather than upgrading it, so nothing will run what was
-    held: the keys are dropped, the notice goes, and later presses reach the page."""
+    held: the keys are dropped, later presses reach the page, and the panel's row the
+    document served goes with the chrome's sheet, since no panel will take it over."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     answered = []
@@ -373,6 +374,8 @@ def test_a_document_the_runtime_gives_up_on_lets_its_held_keys_go(browser, serve
     expect(echo).to_have_count(0)
     assert answered, "the runtime read the registry"
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    expect(page.locator(".lf-floating-panel")).to_have_count(0)
+    assert page.evaluate("() => document.adoptedStyleSheets.length") == 0
     page.keyboard.press("x")
     assert page.evaluate("heard") == ["x"]
 
@@ -384,8 +387,8 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
 ):
     """`t` walks threads the first state answer brings, so a press before presentation
     is held, said in the floating panel's field, and replayed into the presented page —
-    whether the runtime had not loaded, when a stand-in for the panel's row says it
-    until the panel takes it over, or had loaded and not yet read the log."""
+    whether the runtime had not loaded, when the row the document served says it until
+    the panel takes the row over, or had loaded and not yet read the log."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
     page = browser.new_page(
         viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
@@ -402,28 +405,28 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     expect(page.locator("#said")).to_be_visible()
 
-    page.keyboard.press("t")
     panel = page.locator(".lf-floating-panel")
-    stand_in = page.locator(".lf-floating-panel[data-lf-stand-in]")
+    served = page.locator(".lf-floating-panel[data-lf-served]")
     field = panel.locator(".lf-fp-field")
+    expect(panel).to_have_count(1)
+    expect(served).to_have_count(1 if stage == "module" else 0)
+    page.keyboard.press("t")
     expect(field.locator(".lf-held-key")).to_have_text("t")
     expect(field).to_contain_text("runs when the page is ready")
-    expect(panel).to_have_count(1)
-    expect(stand_in).to_have_count(1 if stage == "module" else 0)
     bounds = field.bounding_box()
     assert bounds and bounds["y"] >= 0
     assert bounds["y"] + bounds["height"] <= page.viewport_size["height"], bounds
     if stage == "module":
-        # The panel takes the words over where the stand-in said them.
+        # The panel takes the words over where the served row said them.
         release_module()
         holding(page, state, 1, "the state request")
-        expect(stand_in).to_have_count(0)
+        expect(served).to_have_count(0)
         expect(panel).to_have_count(1)
         expect(field.locator(".lf-held-key")).to_have_text("t")
         expect(field.locator("leaf-text")).to_have_attribute("data-lf-says", "held")
         moved = field.bounding_box()
         assert moved and abs(moved["y"] - bounds["y"]) < 1, (bounds, moved)
-        # The stand-in adopted the runtime's own chrome sheet, and leaves it adopted once.
+        # The row adopted the runtime's own chrome sheet, which stays adopted once.
         assert page.evaluate(
             "() => new Set(document.adoptedStyleSheets).size"
             " === document.adoptedStyleSheets.length"
@@ -439,6 +442,33 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
         )
     ).to_be_focused()
     expect(page.locator(".lf-held-key")).to_have_count(0)
+
+
+def test_a_folded_panel_stands_folded_from_the_first_paint_with_held_keys_in_its_peek(
+    browser, serve
+):
+    """The reader left the panel folded to its leaf, so the row the document serves
+    stands folded before the runtime loads, says held keys in the leaf's peek as the
+    panel does, and the panel takes it over with the leaf where it stood."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = open_page(browser, url)
+    page.evaluate("() => window.lfStorage.userStore.set('lf-chrome-rest', 'mark')")
+    module, release = _hold_startup(page, "module")
+    page.reload(wait_until="commit")
+    holding(page, module, 1, "the module request")
+    served = page.locator(".lf-floating-panel[data-lf-served]")
+    expect(served).to_have_attribute("data-lf-rest", "mark")
+    leaf = page.locator(".lf-floating-panel .lf-fp-leaf")
+    at = leaf.bounding_box()
+    page.keyboard.press("t")
+    peek = page.locator(".lf-floating-panel .lf-fp-peek[data-lf-shown]")
+    expect(peek.locator(".lf-held-key")).to_have_text("t")
+
+    release()
+    expect(served).to_have_count(0)
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
+    assert leaf.bounding_box() == pytest.approx(at, abs=1)
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
 
 
 def test_held_keys_stand_beside_a_saved_draft(browser, serve):

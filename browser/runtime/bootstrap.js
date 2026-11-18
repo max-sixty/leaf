@@ -178,6 +178,109 @@
   /** @type {(reason: string) => void} */
   let recordStartupFault = () => {};
   let stopHoldingKeys = () => {};
+  // The words the held keys show, or null while none do (`holdEarlyKeys`).
+  /** @type {() => HeldWords | null} */
+  let shownKeys = () => null;
+
+  // The floating panel's row stands from the first paint, so the panel never arrives
+  // after the page: the panel's own first drawing, which delivery carries inert in a
+  // template (runtime/panel-row.html, build/panel-row.mjs), stood after `body` as soon
+  // as `body` is parsed, where the runtime's chrome root will stand (base.css), at the
+  // size the reader left the panel (`lfChrome.rest`, prepaint.js). The chrome's sheet is
+  // adopted with it so it paints styled: the instance the runtime adopts, which an
+  // adoption puts after every sheet the page holds, as the runtime's does (leaf.js). It
+  // says what the panel says before it has a reading, the status's words beside an On
+  // Me mark with no count, since nothing the server reads is known yet, and the keys
+  // held below in place of the status.
+  //
+  // Until the panel mounts, a press on the row lands on it and does nothing. What a
+  // press on the leaf, the field or On Me does turns on the panel's state, which only
+  // the runtime reads, so a press held until then would act on a panel the user never
+  // saw take it; a key means the same wherever it lands, which is why keys are held.
+  // The press still never reaches the page beneath the row, and ends a run of held keys
+  // as any press does. Its controls take no focus (`inert`), so Tab passes them by.
+  //
+  // The panel takes the row over as it mounts, in the task that draws the panel's first
+  // frame, whose leaf, field and marks stand where the row's stood (floating-panel.css,
+  // `data-lf-served`), and offers its field (`lf-held-keys-seat`), which takes this one
+  // away. Where no panel is coming, because the document reports it cannot start or the
+  // runtime gives it up, the row goes as the hold on keys ends (`stopHoldingKeys`), and
+  // its sheet with it, which nothing then draws with.
+  /** @type {{say(words: HeldWords | null): void, end(taken: boolean): void} | null} */
+  let row = null;
+  let rowEnded = false;
+  /** @param {boolean} taken whether the panel took the row over */
+  const endRow = (taken) => {
+    rowEnded = true;
+    row?.end(taken);
+    row = null;
+  };
+  function standRow() {
+    const template = document.querySelector(
+      "template[data-lf-runtime][data-lf-panel-row]",
+    );
+    if (!(template instanceof HTMLTemplateElement)) return;
+    const stand = () => {
+      if (rowEnded) return;
+      const chrome = document.createElement("div");
+      chrome.className = "lf-chrome";
+      chrome.setAttribute("data-lf-runtime", "");
+      chrome.append(template.content.cloneNode(true));
+      const panel = chrome.firstElementChild;
+      const words = panel?.querySelector(".lf-fp-words .lf-compose-placeholder-words");
+      const peek = panel?.querySelector(".lf-fp-peek");
+      if (!(panel instanceof HTMLElement) || !words || !peek)
+        throw new Error("The panel's served row has no field words or peek");
+      panel.dataset.lfRest = window.lfChrome.rest;
+      panel.toggleAttribute("data-lf-served", true);
+      for (const part of panel.children) part.toggleAttribute("inert", true);
+      const status = [...words.childNodes];
+      const sheet = window.lfSheets().chrome;
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      document.body.after(chrome);
+      const takeOver = () => endRow(true);
+      document.addEventListener("lf-held-keys-seat", takeOver, { once: true });
+      // The panel's size stands while the row does, so one seat says the keys.
+      const folded = panel.dataset.lfRest === "mark";
+      row = {
+        // The keys as the panel says them, each as its badge beside Leaf's words: in
+        // the field, or in the folded leaf's peek, as the panel's `heldParts` draws
+        // them. None gives the field back its status.
+        say(said) {
+          const parts = said?.map((part) => {
+            const node = document.createElement(
+              typeof part === "string" ? "span" : "kbd",
+            );
+            if (typeof part === "string") node.setAttribute("data-lf-voice", "leaf");
+            else node.className = "lf-key-badge lf-held-key";
+            node.textContent = typeof part === "string" ? part : part.key;
+            return node;
+          });
+          if (!folded) return words.replaceChildren(...(parts ?? status));
+          peek.replaceChildren(...(parts ?? []));
+          peek.toggleAttribute("data-lf-shown", Boolean(parts));
+        },
+        end(taken) {
+          chrome.remove();
+          document.removeEventListener("lf-held-keys-seat", takeOver);
+          // A panel that took the row over adopted the sheet as its own (leaf.js).
+          if (!taken)
+            document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+              (adopted) => adopted !== sheet,
+            );
+        },
+      };
+      const held = shownKeys();
+      if (held) row.say(held);
+    };
+    if (document.body) return stand();
+    const parsing = new MutationObserver(() => {
+      if (!document.body) return;
+      parsing.disconnect();
+      stand();
+    });
+    parsing.observe(root, { childList: true });
+  }
 
   // A page key pressed before upgrade would reach a runtime that has not loaded.
   // Upgrade hands the queue to the dispatcher, whose command readiness may retain
@@ -190,14 +293,11 @@
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
   //
   // They are shown where the page says what it is doing, the floating panel's field,
-  // which says them in place of the status once the panel offers it as their seat
-  // (`lf-held-keys-seat`, floating-panel.js). The boot module's graph can take half a
-  // second to load on a loaded machine, and the panel stands only once it has, so until
-  // then the keys are shown in a stand-in for the panel's row (panel-stand-in.js),
-  // whose module evaluates without waiting for that graph. The panel takes the words
-  // over in place, and the stand-in goes as it does. A stand-in that cannot load leaves
-  // the words to the panel. The user chose the panel's look and field over a notice
-  // of the keys' own, a second interface that often stood beside the panel.
+  // in place of the status: before the panel mounts, in the row the document served
+  // (`standRow`, below), and once the panel offers its field as their seat
+  // (`lf-held-keys-seat`, floating-panel.js), there. The user chose the panel's look
+  // and field over a notice of the keys' own, a second interface that often stood
+  // beside the panel.
   //
   // The hold ends when the runtime takes it, when the document reports it cannot start
   // (`recover`, and the runtime's own `letHeldKeysGo` where it gives the document up),
@@ -231,10 +331,6 @@
     let shown = "";
     /** @type {((words: HeldWords | null) => void) | null} */
     let seat = null;
-    /** @type {Promise<typeof import("./panel-stand-in.js")> | null} */
-    let standInModule = null;
-    /** @type {ReturnType<typeof import("./panel-stand-in.js").standInRow> | null} */
-    let standIn = null;
     // What the held keys say, wherever they show: each key as its badge, then Leaf's
     // words. The keys lead, so a narrow field that cuts the line short keeps them.
     /** @returns {HeldWords} */
@@ -247,32 +343,6 @@
         ? " runs when the page is ready"
         : " run when the page is ready",
     ];
-    const dropStandIn = () => {
-      standIn?.remove();
-      standIn = null;
-    };
-    // The stand-in's module evaluates the runtime's stylesheets, which read the sheets
-    // the document carries (stylesheets.js); one evaluated before the parser reached
-    // them would throw, and fail the boot module that imports it too. So it loads once
-    // the document is parsed, which is still before the boot module can run.
-    const drawStandIn = () => {
-      if (standIn || seat || !shown) return;
-      if (document.readyState === "loading") {
-        document.addEventListener("readystatechange", drawStandIn, { once: true });
-        return;
-      }
-      // The document's import map sends a rooted runtime path to this revision's own.
-      standInModule ??= import("/runtime/panel-stand-in.js");
-      standInModule.then(
-        ({ standInRow }) => {
-          // The words went, or the panel took them, while the module loaded.
-          if (standIn || seat || !shown) return;
-          standIn = standInRow();
-          standIn.say(words());
-        },
-        () => {},
-      );
-    };
     // Words already shown are not shown again: the panel's field repaints for each, and
     // each of its paints asks the keyboard owner to take the keys again
     // (controller.js, `watchCommandAvailability`), which pauses on the same key.
@@ -283,15 +353,15 @@
       if (text === shown) return;
       shown = text;
       if (seat) seat(said);
-      else if (standIn) standIn.say(said);
-      else drawStandIn();
+      else row?.say(said);
     };
     const hide = () => {
       clearTimeout(beat);
       beat = 0;
+      if (!shown) return;
       shown = "";
-      seat?.(null);
-      dropStandIn();
+      if (seat) seat(null);
+      else row?.say(null);
     };
     const letGo = () => {
       held.length = 0;
@@ -371,16 +441,17 @@
     };
     /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
     const seated = (event) => {
-      dropStandIn();
       seat = event.detail.show;
       if (shown) seat(words());
     };
+    shownKeys = () => (shown ? words() : null);
     stopHoldingKeys = () => {
       window.removeEventListener("keydown", hold, true);
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
       document.removeEventListener("lf-held-keys-seat", seated);
       letGo();
+      endRow(false);
     };
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
@@ -621,9 +692,12 @@
     recover(event.detail.reason, event.detail.page),
   );
   // A sample opened as a window of its own has no containing page to connect it, so its
-  // runtime never starts (leaf.js waits on `lfSample.ready`) and would take nothing held.
-  if (!(root.hasAttribute("data-lf-sample") && window.parent === window))
+  // runtime never starts (leaf.js waits on `lfSample.ready`): no panel takes a row over
+  // there, and nothing takes what is held.
+  if (!(root.hasAttribute("data-lf-sample") && window.parent === window)) {
+    standRow();
     holdEarlyKeys();
+  }
   try {
     observePublicStartup();
   } catch {

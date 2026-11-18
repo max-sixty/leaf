@@ -31,12 +31,23 @@ import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 /** @type {WeakSet<Element>} */
 const initialized = new WeakSet();
 
+// Whether `el` stands in this window's document, the only one where an element
+// initializes. A copy in a document of its own stays markup in every engine but one:
+// Firefox (160), asked for the contents of a selection a drag carried through a shadow
+// root (`Range.cloneContents`), copies the Document itself, and upgrades and connects
+// the custom elements it copies into that copy before it throws. Highlighter extensions
+// read each selection the user makes that way. The check goes once Firefox clones the
+// range alone (`test_firefox_s_copy_of_a_group_builds_no_add_field`).
+/** @param {Element} el */
+export const inWindowDocument = (el) => el.ownerDocument === document;
+
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
 // already-upgraded child) must be harmless. A clone starts its own lifetime even when
-// it copied the painted upgrade mark; that mark never owns initialization.
+// it copied the painted upgrade mark; that mark never owns initialization, and a copy
+// connected outside the window's document (`inWindowDocument`) never initializes.
 /** @param {Element} el */
 export function once(el) {
-  if (initialized.has(el)) return false;
+  if (initialized.has(el) || !inWindowDocument(el)) return false;
   initialized.add(el);
   if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done))
     el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");

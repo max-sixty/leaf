@@ -14,9 +14,8 @@ import hashlib
 import json
 import re
 import subprocess
-import threading
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import cache, cached_property, lru_cache
 from pathlib import Path
@@ -25,7 +24,7 @@ from .files import file_stamp
 from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
-from .page_memory import memo, once
+from .page_memory import Stamped, memo, once
 from .refusals import Refused
 from .registry.contract import MODULES, is_element_name
 from .registry.kernel import kernel_protocol
@@ -640,10 +639,6 @@ class LayerVocabulary:
     registry: dict
     widgets: frozenset[str]
     instructions: dict[str, bytes]
-    # What readers derive from this vocabulary, such as a revision's
-    # (`registry.storage.revision_vocabulary`), held for as long as it is, each
-    # made once (`page_memory.once`).
-    readings: dict = field(default_factory=dict, repr=False)
 
 
 @dataclass(frozen=True, eq=False)
@@ -709,22 +704,8 @@ def _vocabulary(inputs: tuple[Path, ...], held: dict) -> LayerVocabulary:
     )
 
 
-class _Layers:
-    """Layers by the inputs they compose, each kept beside the stamps of what else it
-    depends on and replaced whole once those move."""
-
-    def __init__(self) -> None:
-        self._held: dict[tuple[Path, ...], tuple[tuple, dict]] = {}
-        self._lock = threading.Lock()
-
-    def of(self, inputs: tuple[Path, ...], stamps: tuple) -> dict:
-        """What is kept of the layer `inputs` compose while what it depends on stamps
-        as `stamps`, for `page_memory.once` to fill."""
-        with self._lock:
-            held = self._held.get(inputs)
-            if held is None or held[0] != stamps:
-                held = self._held[inputs] = (stamps, {})
-            return held[1]
+class _Layers(Stamped):
+    """Layers by the inputs they compose (`_held`)."""
 
 
 _shared = _Layers()

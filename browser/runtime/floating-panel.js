@@ -44,8 +44,9 @@
  *   field's width follows only the user's own moves, and what its end says never
  *   slides. The empty field says
  *   what the agent is doing or wants, in the status's words (`statusReading`), after
- *   where the user stands on the page, such as an older version (`standing`), or what
- *   a passing notice says, where a placeholder would say "Comment", and the field's end
+ *   where the user stands on the page, such as the stance they are in or an older
+ *   version (`standing`), or what a passing notice says, where a placeholder would say
+ *   "Comment", and the field's end
  *   says the one press that matters most at that moment: at rest, Open latest on an
  *   older version (`latestPress`), else Next On Me and m while On Me lists anything,
  *   else Comment and c (`pagePress`); while it passes, the press a notice of the
@@ -63,6 +64,18 @@
  *   field, and Comment and c stand again once nothing waits. Rejected: Next On Me only
  *   after an answer, until the user's next input, which left Comment and c at rest the
  *   rest of the time and waited on the server's reading of each gesture to offer it.
+ *   The status is the field's own words, and something of the user's takes their
+ *   place only while it answers or directs what the user is doing: an error until
+ *   their first edit, the words they selected while those stand, keys pressed before
+ *   the page was ready, the Go-to filter while its sequence waits for a key, and a
+ *   notice or a walk's position for a notice's moment from the gesture or step it
+ *   answers (notifications.js, `answerStep`). Where the user stands by a choice that
+ *   lasts until they undo it, a stance, an older version, a comparison or hidden
+ *   annotations, leads the status instead (`standing`). The user asked for this for a
+ *   walk's position, so the agent's updates show while they read at its stop; the
+ *   stance follows by the same rule. An alternative is a walk's position leading the
+ *   status as a version does, which fails since the position grows stale as the user
+ *   reads on from its stop and costs the status the end of its words.
  *   In a thread it says the thread's word beside the leaf, in its speaker's
  *   face (voice.js), with a walk's position after it, and Reply with the key that
  *   enters the field at the field's end (`turnLead`). The user chose this so the next
@@ -337,6 +350,7 @@ import { comparisonBase, comparisonChanges, versionsReading } from "./version.js
 import { UPGRADE } from "./presentation.js";
 import {
   announce,
+  answeringStep,
   gestureReading,
   noticeReading,
   noticeWords,
@@ -457,8 +471,9 @@ let copyRefused = false;
 const groupOf = (entry) =>
   entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
-// else what the status line says between notices, the Go-to filter's word or a walk's
-// position ("1 of 3 waiting on me · Options"). The user asked that
+// else the Go-to filter's word while its sequence waits for a key, or a walk's position
+// ("1 of 3 waiting on me · Options") for a notice's moment after each step
+// (notifications.js, `answerStep`). The user asked that
 // whatever is not anchored to the page stand at the panel rather than against the
 // window.
 function passing() {
@@ -470,7 +485,7 @@ function passing() {
 }
 function navigationWords() {
   const { goTo, walk } = statusContextReading();
-  return goTo ?? walk?.text ?? "";
+  return goTo ?? (answeringStep() ? walk?.text : null) ?? "";
 }
 // An age the panel shows, which previews the clock time behind it as every age does
 // (presence.js, `agePreview`): short, in a room of its own (`.lf-fp-age`) at a line's
@@ -1194,17 +1209,17 @@ export function createFloatingPanel({
   // can say; once the caret is in a field that takes words, where they go; on the page,
   // the selected words a press there comments on; a passing notice while one stands;
   // else on the page what the agent is doing or wants, in
-  // the status's words, and in a thread whose turn it is. On the page, the stance the
-  // user is in, such as Draw mode, heads a passing notice and takes the status's
-  // place (keyboard/status-context.js); the leaf keeps the status's colour. The status
-  // or stance first says where else the user stands (`standing`).
+  // the status's words, and in a thread whose turn it is. On the page, the status first
+  // says where the user stands (`standing`), the stance they are in leading, such as
+  // Draw mode (keyboard/status-context.js), which also heads a passing notice. The
+  // header's **The row** says which readings take the status's place, and for how long.
   //
   // In an open thread the field is the reply box, so it says the reply, with the key
   // that enters it, but for a notice or the Go-to word for their moment; whose turn it
-  // is and a walk's position, which stand as long as the user does, stand before it
-  // (`turnLead`). The user asked for this, since a walk's "Thread 11 of
-  // 11" in the field's place leaves nothing saying how to reply to the thread they are
-  // reading.
+  // is and a walk's position, which stand as long as the user stays in the thread,
+  // stand before it (`turnLead`), since the field there says no status they would
+  // hide. The user asked for this, since a walk's "Thread 11 of 11" in the field's
+  // place leaves nothing saying how to reply to the thread they are reading.
   //
   // A reading that offers a press (`offers`), the reply or the selected words, stands
   // with the key that makes it; the page field's other readings end in the press the
@@ -1319,8 +1334,8 @@ export function createFloatingPanel({
     // Me makes says its place beside the press that takes it on.
     // A notice of news says its words after the stance alone, since news often
     // announces a change to where the user stands ("Annotations hidden — o shows
-    // them"), and holds the line for a moment; a walk's position or the Go-to word, which
-    // stand as long as the user does, say the rest of where they stand first.
+    // them"), and holds the line for a moment; a walk's position or the Go-to word say
+    // the rest of where they stand first.
     if (notice.visible) {
       const own = notice.press ? noticePress(notice.press) : null;
       const close = own || !stance ? null : stanceClose();
@@ -1337,22 +1352,15 @@ export function createFloatingPanel({
         exits: Boolean(close),
       };
     }
-    if (stance) {
-      const close = stanceClose();
-      return {
-        says: "stance",
-        words: standing(stance),
-        offer: close,
-        exits: Boolean(close),
-      };
-    }
     if (!key) {
-      const lead = standing(null, true);
+      const lead = standing(stance, true);
+      const close = stance ? stanceClose() : null;
       return {
         says: "status",
         lead,
         words: [...lead, ...status().summaryParts],
-        offer: pagePress(),
+        offer: close ?? pagePress(),
+        exits: Boolean(close),
       };
     }
     return { says: "turn", words: leafSays(REPLY_HINT), offers: true };

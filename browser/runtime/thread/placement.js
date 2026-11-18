@@ -24,7 +24,6 @@ import {
   inPage,
   leafSurface,
   pageDocument,
-  pageNamesVersion,
   pageReadingVersion,
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
@@ -207,9 +206,8 @@ export function partTrail(node) {
 //
 // Kept against exactly what it reads: the threads as the thread reading publishes them,
 // a new value whenever any thread's contents change, its turns included; the agent's
-// name the turns are said in; the page's reading; and the ids and names the page's
-// elements bear, since an anchor names an element by its id and a part's name decides
-// which part holds it (`partOver`).
+// name the turns are said in; and the page's reading, since an anchor names an element
+// of the page.
 /** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations
  * @typedef {{key: readonly unknown[], inside: Map<Element, Conversations>, headed: Map<Element, Conversations>}} Gathered */
 /** @type {Gathered | null} */
@@ -218,7 +216,7 @@ let gathered = null;
 function gatherConversations() {
   const { all, bySection } = threadState();
   const agent = agentName();
-  const key = [all, agent, pageReadingVersion(), pageNamesVersion()];
+  const key = [all, agent, pageReadingVersion()];
   if (gathered && current(gathered.key, key)) return gathered;
   /** @type {Map<Element, Conversations>} */
   const inside = new Map();

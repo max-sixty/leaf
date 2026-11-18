@@ -89,12 +89,7 @@ import {
 } from "./current-target.js";
 import { readingBlock } from "./reading-place.js";
 import { readingRegionFor } from "./reading-regions.js";
-import {
-  closestAcross,
-  inChrome,
-  pageNamesVersion,
-  pageReadingVersion,
-} from "./passages.js";
+import { closestAcross, inChrome, pageReadingVersion } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
@@ -245,11 +240,10 @@ export function createQueueWalk({
   // (`pagePlace`) and the heading over that element (`partOver`), and the walk's stops
   // in On Me's order and in page order. It is derived once and kept until one of its
   // inputs changes: the lists and obligations the server read, the plan, the user's
-  // grouping, the page's reading (`pageReadingVersion`), the ids and names its elements
-  // bear (`pageNamesVersion`) and the threads' placement (`placementVersion`). A press
-  // of `m`, the position it announces and the On Me view
-  // then look items up rather than reading the page for each item (AGENTS.md,
-  // "Responsiveness").
+  // grouping, the page's reading (`pageReadingVersion`), which moves with the ids and
+  // part names its elements bear too, and the threads' placement (`placementVersion`).
+  // A press of `m`, the position it announces and the On Me view then look items up
+  // rather than reading the page for each item (AGENTS.md, "Responsiveness").
   /** @typedef {{key: readonly unknown[], seats: WeakMap<QueueItem, Seat>,
    * stops: PlacedStop[] | null, pageStops: PlacedStop[] | null}} Kept */
   /** @type {Kept | null} */
@@ -261,7 +255,6 @@ export function createQueueWalk({
       readPlan(),
       chosenGrouping.read(),
       pageReadingVersion(),
-      pageNamesVersion(),
       placementVersion(),
     ];
     if (!kept || key.some((part, at) => part !== kept?.key[at]))

@@ -9,10 +9,14 @@ import {
 } from "/runtime/widget-api.js";
 import * as codemirror from "/vendor/codemirror.esm.js";
 import {
+  Annotation,
   ChangeSet,
   Compartment,
+  Decoration,
   EditorState,
   Prec,
+  StateEffect,
+  StateField,
   Transaction,
   EditorView,
   keymap,
@@ -49,77 +53,312 @@ import {
 const LeafEditorView = leafEditorView(codemirror);
 
 const theme = EditorView.theme({
-  "&": { color: "var(--ink)", backgroundColor: "var(--card)" },
+  "&": { color: "var(--lf-ink)", backgroundColor: "var(--lf-card)" },
   "&.cm-focused": { outline: "none" },
-  ".cm-scroller": { fontFamily: "var(--mono)", lineHeight: "24px" },
-  ".cm-content": { caretColor: "var(--accent)" },
+  ".cm-scroller": { fontFamily: "var(--lf-mono)", lineHeight: "24px" },
+  ".cm-content": { caretColor: "var(--lf-accent)" },
   ".cm-line": { padding: "0 .85rem" },
+  // A line another writer changed (`written`), tinted and barred in the accent.
+  ".cm-line.lf-written": {
+    background:
+      "linear-gradient(to right, var(--lf-accent) 3px, oklch(from var(--lf-accent) l c h / 0.1) 3px)",
+  },
+  // Where another writer took whole lines away, a rule in the accent across the gap.
+  ".cm-line.lf-written-gap": { boxShadow: "inset 0 2px var(--lf-accent)" },
+  ".cm-line.lf-written-gap-below": { boxShadow: "inset 0 -2px var(--lf-accent)" },
   ".cm-gutters": {
-    backgroundColor: "var(--paper)",
-    color: "var(--muted)",
-    borderRight: "1px solid var(--rule)",
+    backgroundColor: "var(--lf-paper)",
+    color: "var(--lf-muted)",
+    borderRight: "1px solid var(--lf-rule)",
   },
   ".cm-lineNumbers .cm-gutterElement": {
     padding: "0 .6rem 0 .8rem",
     minWidth: "2.5rem",
   },
   ".cm-activeLine, .cm-activeLineGutter": {
-    backgroundColor: "color-mix(in srgb, var(--accent) 6%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-accent) 6%, transparent)",
   },
-  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
-  ".cm-placeholder": { color: "var(--quiet)" },
+  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--lf-accent)" },
+  ".cm-placeholder": { color: "var(--lf-quiet)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
-    { backgroundColor: "color-mix(in srgb, var(--accent) 24%, transparent)" },
+    { backgroundColor: "color-mix(in srgb, var(--lf-accent) 24%, transparent)" },
   ".cm-matchingBracket": {
-    backgroundColor: "color-mix(in srgb, var(--accent) 18%, transparent)",
-    outline: "1px solid color-mix(in srgb, var(--accent) 40%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-accent) 18%, transparent)",
+    outline: "1px solid color-mix(in srgb, var(--lf-accent) 40%, transparent)",
   },
   ".cm-tooltip": {
-    backgroundColor: "var(--card)",
-    color: "var(--ink)",
-    border: "1px solid var(--border-2)",
+    backgroundColor: "var(--lf-card)",
+    color: "var(--lf-ink)",
+    border: "1px solid var(--lf-border)",
   },
   ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
-    backgroundColor: "var(--accent)",
-    color: "var(--card)",
+    backgroundColor: "var(--lf-accent)",
+    color: "var(--lf-card)",
   },
   "&.cm-merge-b .cm-changedLine, .cm-inlineChangedLine": {
-    backgroundColor: "color-mix(in srgb, var(--ok) 9%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-ok) 9%, transparent)",
   },
   "&.cm-merge-b .cm-changedText": {
-    backgroundColor: "color-mix(in srgb, var(--ok) 23%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-ok) 23%, transparent)",
   },
   ".cm-deletedChunk": {
-    backgroundColor: "color-mix(in srgb, var(--danger) 9%, var(--card))",
+    backgroundColor: "color-mix(in srgb, var(--lf-danger) 9%, var(--lf-card))",
     padding: ".35rem .85rem",
-    borderLeft: "3px solid var(--danger)",
+    borderLeft: "3px solid var(--lf-danger)",
   },
   ".cm-deletedChunk .cm-deletedText": {
-    backgroundColor: "color-mix(in srgb, var(--danger) 19%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-danger) 19%, transparent)",
   },
   ".cm-deletedChunk .cm-deletedLine": { textDecoration: "none", opacity: ".85" },
   ".cm-deletedText": { textDecoration: "line-through" },
-  ".cm-changedLineGutter": { backgroundColor: "var(--ok)" },
-  ".cm-deletedLineGutter": { backgroundColor: "var(--danger)" },
+  ".cm-changedLineGutter": { backgroundColor: "var(--lf-ok)" },
+  ".cm-deletedLineGutter": { backgroundColor: "var(--lf-danger)" },
 });
 
+// The theme's code tokens, as code blocks and diffs colour the same names (Leaf's
+// token theme, build/entries/syntax/entry.mjs): a key, a type or a tag in
+// `--lf-syn-type`, a comment in italic `--lf-syn-comment`.
 const highlighting = HighlightStyle.define([
-  { tag: tags.heading, color: "var(--accent)", fontWeight: "650" },
+  { tag: tags.heading, color: "var(--lf-accent)", fontWeight: "650" },
   { tag: tags.strong, fontWeight: "650" },
   { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: [tags.link, tags.url], color: "var(--accent)", textDecoration: "underline" },
-  { tag: [tags.monospace, tags.string], color: "var(--syn-string)" },
-  { tag: [tags.keyword, tags.modifier], color: "var(--syn-keyword)" },
-  { tag: [tags.number, tags.bool], color: "var(--syn-number)" },
-  { tag: tags.comment, color: "var(--syn-comment)" },
-  { tag: [tags.meta, tags.processingInstruction], color: "var(--syn-comment)" },
+  {
+    tag: [tags.link, tags.url],
+    color: "var(--lf-accent)",
+    textDecoration: "underline",
+  },
+  { tag: [tags.monospace, tags.string], color: "var(--lf-syn-string)" },
+  { tag: [tags.keyword, tags.modifier], color: "var(--lf-syn-keyword)" },
+  { tag: [tags.number, tags.bool], color: "var(--lf-syn-number)" },
+  { tag: tags.comment, color: "var(--lf-syn-comment)", fontStyle: "italic" },
+  { tag: [tags.meta, tags.processingInstruction], color: "var(--lf-syn-comment)" },
+  {
+    tag: [tags.propertyName, tags.typeName, tags.labelName],
+    color: "var(--lf-syn-type)",
+  },
 ]);
+
+// Each language the editor highlights, by the name a file's path selects
+// (`langForPath`). Markdown comes with the editor core; every other language is a
+// module of the file-editor package, loaded the first time a file of it opens
+// (build/vendor.mjs, "file-editor"). A file in any other language reads as plain text.
+/** @type {Record<string, () => Promise<import("@codemirror/state").Extension>>} */
+const languages = {
+  markdown: async () => new LanguageSupport(markdownLanguage),
+  yaml: async () => {
+    const { yaml } = await import("/vendor/codemirror-yaml.esm.js");
+    const support = yaml();
+    // Code blocks colour YAML's plain values as strings. The YAML grammar calls them
+    // content, which Markdown's prose is too, so the colour is scoped to YAML.
+    return [
+      support,
+      syntaxHighlighting(
+        HighlightStyle.define([{ tag: tags.content, color: "var(--lf-syn-string)" }], {
+          scope: support.language,
+        }),
+      ),
+    ];
+  },
+};
+/** @type {Map<string, Promise<import("@codemirror/state").Extension>>} */
+const loading = new Map();
+/** @type {Map<string, import("@codemirror/state").Extension>} */
+const loaded = new Map();
+// The language a file's name selects among those the editor highlights, or null.
 /** @param {string} filename */
-const isMarkdown = (filename) => langForPath(filename) === "markdown";
+const languageFor = (filename) => {
+  const name = langForPath(filename);
+  return name && name in languages ? name : null;
+};
+/** @param {string} name */
+const loadLanguage = (name) => {
+  let pending = loading.get(name);
+  if (!pending) {
+    pending = /** @type {() => Promise<import("@codemirror/state").Extension>} */ (
+      languages[name]
+    )();
+    loading.set(name, pending);
+    void pending.then((extension) => loaded.set(name, extension));
+  }
+  return pending;
+};
+// The lines the last write from elsewhere changed, such as an agent's: shown until
+// the next one replaces them, and each until the reader edits that line, so a reader
+// whose file changed under them sees where. A file's first reading marks nothing.
+const fromElsewhere = Annotation.define();
+/** @type {import("@codemirror/state").StateEffectType<import("@codemirror/view").DecorationSet>} */
+const markWritten = StateEffect.define();
+const writtenLine = Decoration.line({ class: "lf-written" });
+// Where it took whole lines away: the line after the gap, or the last line where the
+// gap ends the file.
+const gapAbove = Decoration.line({ class: "lf-written-gap" });
+const gapBelow = Decoration.line({ class: "lf-written-gap-below" });
+const written = StateField.define({
+  create: () => Decoration.none,
+  update(marks, transaction) {
+    for (const effect of transaction.effects)
+      if (effect.is(markWritten)) return effect.value;
+    if (!transaction.docChanged) return marks;
+    marks = marks.map(transaction.changes);
+    if (transaction.annotation(fromElsewhere)) return marks;
+    // The reader's edit takes the mark off each line it touches.
+    const doc = transaction.state.doc;
+    /** @type {[number, number][]} */
+    const touched = [];
+    transaction.changes.iterChangedRanges((_fromA, _toA, from, to) =>
+      touched.push([doc.lineAt(from).from, doc.lineAt(to).from]),
+    );
+    return marks.update({
+      filter: (from) => !touched.some(([start, end]) => from >= start && from <= end),
+    });
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+// The marks for `changes`, a write from elsewhere that took `before` to `after`: each
+// line of `after` whose text differs from the line it replaced, and where it took
+// lines away and put none in their place, the gap they leave. A change from the
+// dependency's diff starts and ends wherever the two texts stop agreeing, which can be
+// within a line the write left alone: a line inserted above "three" can arrive as
+// "wo\nt" inserted after the "t" of "three", and one appended below "one" as "\ntwo"
+// after it. So each change is read as the whole lines it touches, before and after,
+// and the lines the two ends of that run share are left unmarked.
+/** @param {ChangeSet} changes @param {import("@codemirror/state").Text} before
+ * @param {import("@codemirror/state").Text} after */
+const writtenMarks = (changes, before, after) => {
+  /** @type {Map<number, Decoration>} */
+  const marks = new Map();
+  /** @param {import("@codemirror/state").Text} doc @param {number} from @param {number} to */
+  const linesOf = (doc, from, to) => {
+    const first = doc.lineAt(from).number;
+    const texts = [];
+    for (let n = first; n <= doc.lineAt(to).number; n++) texts.push(doc.line(n).text);
+    return { first, texts };
+  };
+  changes.iterChanges((fromA, toA, fromB, toB) => {
+    const old = linesOf(before, fromA, toA).texts;
+    const { first, texts } = linesOf(after, fromB, toB);
+    const shared = Math.min(old.length, texts.length);
+    let lead = 0;
+    while (lead < shared && old[lead] === texts[lead]) lead++;
+    let trail = 0;
+    while (trail < shared - lead && old.at(-1 - trail) === texts.at(-1 - trail))
+      trail++;
+    for (let n = first + lead; n < first + texts.length - trail; n++)
+      marks.set(after.line(n).from, writtenLine);
+    if (lead + trail < texts.length || lead + trail === old.length) return;
+    const at = first + lead;
+    const line = after.line(Math.min(at, after.lines));
+    if (!marks.has(line.from))
+      marks.set(line.from, at > after.lines ? gapBelow : gapAbove);
+  });
+  return Decoration.set(
+    [...marks].sort(([a], [b]) => a - b).map(([at, mark]) => mark.range(at)),
+  );
+};
+// Every editor's undo history, in one compartment the module shares, so a write from
+// elsewhere restarts a kept file's history as it restarts the shown one's.
+const undoHistory = new Compartment();
+// The transactions a write from elsewhere makes of `changes` on `state`: the change,
+// not the reader's to undo, marking the lines it changed (or with `mark` false taking
+// every mark away), then a new undo history. CodeMirror maps the history it keeps
+// through a change it doesn't record, and an earlier edit the change overlaps then
+// undoes into neither version: "one" typed over as "user" and then written "agent"
+// elsewhere undid to "agonent", which autosave would write to disk. So the edits before
+// a write from elsewhere belong to the version it replaced, whether the editor follows
+// the write or merges it into a draft, and whether the file is shown or kept.
+/** @param {EditorState} state @param {ChangeSet} changes @param {boolean} [mark]
+ * @returns {import("@codemirror/state").TransactionSpec[]} */
+const writeFromElsewhere = (state, changes, mark = true) => [
+  {
+    changes,
+    effects: [
+      undoHistory.reconfigure([]),
+      markWritten.of(
+        mark
+          ? writtenMarks(changes, state.doc, changes.apply(state.doc))
+          : Decoration.none,
+      ),
+    ],
+    annotations: [Transaction.addToHistory.of(false), fromElsewhere.of(true)],
+  },
+  { effects: undoHistory.reconfigure(history()) },
+];
+/** @param {EditorState} state @param {import("@codemirror/state").TransactionSpec[]} specs */
+const applied = (state, specs) =>
+  specs.reduce((at, spec) => at.update(spec).state, state);
+/** The changes that turn `from` into `to`, in CodeMirror's terms.
+ * @param {string} from @param {string} to */
+const changesBetween = (from, to) =>
+  ChangeSet.of(
+    diff(from, to).map((change) => ({
+      from: change.fromA,
+      to: change.toA,
+      insert: to.slice(change.fromB, change.toB),
+    })),
+    from.length,
+  );
+
+/** What the editor holds of one file while another is open (`suspend`).
+ * @typedef {{state: import("@codemirror/state").EditorState,
+ *   scroll: {top: number, left: number}}} KeptFile */
+
+/** The changes that fold `theirs`, a version of `base` written elsewhere, into
+ * `ours`, the reader's edit of `base`, where the two changed lines apart from each
+ * other; null where they changed the same or adjacent lines, which a line merge leaves
+ * for the reader to compare.
+ * @param {string} base @param {string} ours @param {string} theirs */
+function lineMerge(base, ours, theirs) {
+  const lines = EditorState.create({ doc: base }).doc;
+  /** @param {string} text */
+  const changes = (text) =>
+    diff(base, text).map((change) => ({
+      from: change.fromA,
+      to: change.toA,
+      insert: text.slice(change.fromB, change.toB),
+      first: lines.lineAt(change.fromA).number,
+      last: lines.lineAt(Math.max(change.fromA, change.toA - 1)).number,
+    }));
+  const mine = changes(ours),
+    other = changes(theirs);
+  if (
+    mine.some((a) => other.some((b) => a.first <= b.last + 1 && b.first <= a.last + 1))
+  )
+    return null;
+  const spec = (/** @type {typeof mine} */ list) =>
+    ChangeSet.of(
+      list.map(({ from, to, insert }) => ({ from, to, insert })),
+      base.length,
+    );
+  return spec(other).map(spec(mine));
+}
+
+/** `lineMerge` into what the editor keeps of a file while another is open, or null.
+ * @param {KeptFile} kept @param {string} base @param {string} theirs
+ * @returns {KeptFile | null} */
+export function mergeKept(kept, base, theirs) {
+  const changes = lineMerge(base, kept.state.doc.toString(), theirs);
+  return (
+    changes && {
+      ...kept,
+      state: applied(kept.state, writeFromElsewhere(kept.state, changes)),
+    }
+  );
+}
+
+/** What the editor keeps of a file while another is open, taken to `text`, written
+ * elsewhere, as `follow` takes the open file.
+ * @param {KeptFile} kept @param {string} text @returns {KeptFile} */
+export function followKept(kept, text) {
+  const changes = changesBetween(kept.state.doc.toString(), text);
+  return {
+    ...kept,
+    state: applied(kept.state, writeFromElsewhere(kept.state, changes)),
+  };
+}
 
 /** Create a file editor. External text changes use CodeMirror transactions,
- * mapping selection through the dependency's diff. Adopting changed external text
- * starts a new undo history: earlier local edits belong to the replaced version.
+ * mapping selection through the dependency's diff. Taking in text written elsewhere,
+ * followed or merged, starts a new undo history (`writeFromElsewhere`).
  * @param {HTMLElement} parent
  * @param {{text?: string, filename?: string, original?: string | null, readOnly?: boolean,
  *   label?: string, description?: string, onChange?: (text: string) => void,
@@ -140,11 +379,11 @@ export function createEditor(
 ) {
   const editable = new Compartment(),
     language = new Compartment(),
-    hint = new Compartment(),
-    undoHistory = new Compartment();
+    hint = new Compartment();
   let shownHint = "";
   let readonly = readOnly,
-    markdown = isMarkdown(filename),
+    /** @type {string | null | undefined} */
+    shownLanguage = null,
     conflict = original,
     replacing = false;
   const readonlyExtension = () => [
@@ -160,9 +399,10 @@ export function createEditor(
       doc: value,
       extensions: [
         undoHistory.of(history()),
+        written,
         drawSelection(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
-        language.of(markdown ? new LanguageSupport(markdownLanguage) : []),
+        language.of([]),
         hint.of([]),
         syntaxHighlighting(highlighting),
         theme,
@@ -219,6 +459,43 @@ export function createEditor(
         }),
       ],
     });
+  // Highlight in `name`'s language: at once where it has loaded, else plain until it
+  // has, unless the editor has moved on to another file's language by then.
+  /** @param {string | null} name */
+  const showLanguage = (name) => {
+    if (name === shownLanguage) return;
+    dispatch({ effects: languageEffect(name) });
+  };
+  // The effect that gives the state shown `name`'s language where it has loaded, or
+  // none until then, loading it to follow.
+  /** @param {string | null} name */
+  const languageEffect = (name) => {
+    shownLanguage = name;
+    const ready = name && loaded.get(name);
+    if (name && !ready)
+      void loadLanguage(name).then((extension) => {
+        if (shownLanguage === name)
+          dispatch({ effects: language.reconfigure(extension) });
+      });
+    return language.reconfigure(ready || []);
+  };
+  // Take the text through `changes`, written elsewhere (`writeFromElsewhere`).
+  /** @param {ChangeSet} changes @param {boolean} [mark] */
+  const write = (changes, mark) => {
+    replacing = true;
+    try {
+      for (const spec of writeFromElsewhere(reading(), changes, mark)) dispatch(spec);
+    } finally {
+      replacing = false;
+    }
+  };
+  // Adopt `value` as the file's text; `mark` marks the lines it changed as written
+  // elsewhere, and otherwise every mark goes.
+  /** @param {string} value @param {boolean} mark */
+  const adopt = (value, mark) => {
+    if (value === reading().doc.toString()) return;
+    write(changesBetween(reading().doc.toString(), value), mark);
+  };
   let retained = state(text);
   /** @type {InstanceType<typeof LeafEditorView> | null} */
   let view = new LeafEditorView({ state: retained, parent });
@@ -230,6 +507,7 @@ export function createEditor(
     if (view) view.dispatch(spec);
     else retained = retained.update(spec).state;
   };
+  showLanguage(languageFor(filename));
   const revealCaret = () =>
     dispatch({
       effects: EditorView.scrollIntoView(reading().selection.main.head, {
@@ -256,23 +534,27 @@ export function createEditor(
       return reading().doc.toString();
     },
     set value(value) {
-      if (value === reading().doc.toString()) return;
-      replacing = true;
-      try {
-        const previous = reading().doc.toString();
-        dispatch({
-          changes: diff(previous, value).map((change) => ({
-            from: change.fromA,
-            to: change.toA,
-            insert: value.slice(change.fromB, change.toB),
-          })),
-          effects: undoHistory.reconfigure([]),
-          annotations: Transaction.addToHistory.of(false),
-        });
-        dispatch({ effects: undoHistory.reconfigure(history()) });
-      } finally {
-        replacing = false;
-      }
+      adopt(value, false);
+    },
+    // Take the text to `value`, a version written elsewhere, as `value` does, and mark
+    // the lines it changed (`written`).
+    /** @param {string} value */
+    follow(value) {
+      adopt(value, true);
+    },
+    // Fold `theirs` into the text being edited (`lineMerge`), keeping the reader's
+    // selection; say whether it did.
+    /** @param {string} base @param {string} theirs */
+    merge(base, theirs) {
+      const changes = lineMerge(base, reading().doc.toString(), theirs);
+      if (!changes) return false;
+      write(changes);
+      return true;
+    },
+    // What the editor would keep of `text` read afresh, for a file not yet shown.
+    /** @param {string} text @returns {KeptFile} */
+    keep(text) {
+      return { state: state(text), scroll: { top: 0, left: 0 } };
     },
     get readOnly() {
       return readonly;
@@ -295,14 +577,7 @@ export function createEditor(
     },
     /** @param {string} label */
     setLabel(label) {
-      const next = isMarkdown(label);
-      if (next === markdown) return;
-      markdown = next;
-      dispatch({
-        effects: language.reconfigure(
-          markdown ? new LanguageSupport(markdownLanguage) : [],
-        ),
-      });
+      showLanguage(languageFor(label));
     },
     /** @param {string} value */
     setConflict(value) {
@@ -314,6 +589,49 @@ export function createEditor(
         originalLength,
       );
       dispatch({ effects: originalDocChangeEffect(reading(), changes) });
+    },
+    // Everything the editor holds of one file, its text, selection, undo history and
+    // scroll, for `resume` to put back when the reader returns to that file.
+    /** @returns {KeptFile} */
+    suspend() {
+      const port = view?.scrollDOM;
+      return {
+        state: reading(),
+        scroll: port ? { top: port.scrollTop, left: port.scrollLeft } : scroll,
+      };
+    },
+    // Show another file: what `suspend` kept of it, or else `text` with a history of
+    // its own, read from the top. Neither is an edit, so neither reports a change.
+    /** @param {KeptFile | null} kept
+     * @param {string} text @param {string} name */
+    resume(kept, text, name) {
+      const next = kept?.state ?? state(text);
+      scroll = kept?.scroll ?? { top: 0, left: 0 };
+      // The state shown takes this file's language with its other settings, in the one
+      // update, since it may hold another file's or none yet.
+      const settings = next.update({
+        effects: [
+          editable.reconfigure(readonlyExtension()),
+          hint.reconfigure(shownHint ? placeholder(shownHint) : []),
+          languageEffect(languageFor(name)),
+        ],
+      }).state;
+      if (!view) retained = settings;
+      else {
+        view.setState(settings);
+        setScroll(view.scrollDOM, scroll);
+      }
+    },
+    // Put the caret at the start of line `number`, or the last line where the file is
+    // shorter, and bring that line to the middle of the editor's view.
+    /** @param {number} number */
+    goToLine(number) {
+      const doc = reading().doc;
+      const { from } = doc.line(Math.min(Math.max(1, number), doc.lines));
+      dispatch({
+        selection: { anchor: from },
+        effects: EditorView.scrollIntoView(from, { y: "center" }),
+      });
     },
     // Bring the caret into the editor's view, as a landing on the editor does: its room
     // may have shrunk under the caret while the reader stood elsewhere.

@@ -44,10 +44,6 @@ test("without a rail, or in a region the rail is not beside, every row is a pin"
   assert.equal(posture(700, { besideRail: false }), "pin");
 });
 
-test("a row level with a note hanging in the margin stands on its block as a pin", () => {
-  assert.equal(posture(700, { noted: true }), "pin");
-});
-
 const rect = (left, top, width = 37, height = 32) => ({
   left,
   right: left + width,
@@ -474,12 +470,13 @@ test("rail packing preserves already held pin footprints", () => {
   assert.equal(pushes.get("rail"), 30);
 });
 
-test("a pin read before a scroll moves every field that stands on the page", () => {
+test("a pin read before a scroll and a move of its target moves every field that stands on the page", () => {
   // The layout seats a row from the pin an earlier pass prepared, carried by the scroll
-  // since (margin-layout.js, `seatings`): each field that stands somewhere on the page
-  // moves with it, and every other stays as it was.
+  // since and by its target's move across the page (margin-layout.js, `seatings`): each
+  // field read off the page moves with both, its bounds, the window's and the page's
+  // edges, with the scroll alone, and every other field stays as it was.
   const at = (left, top) => box(left, top, left + 44, top + 44);
-  const moved = (left, top) => at(left + 13, top - 250);
+  const moved = (left, top) => at(left + 13, top - 250 + 40);
   const read = {
     came: 3,
     held: at(10, 20),
@@ -495,7 +492,7 @@ test("a pin read before a scroll moves every field that stands on the page", () 
     folded: true,
     bounds: box(4, -Infinity, 386, Infinity),
   };
-  assert.deepEqual(shiftedPin(read, 13, -250), {
+  assert.deepEqual(shiftedPin(read, { x: 13, y: -250 }, { x: 0, y: 40 }), {
     came: 3,
     held: moved(10, 20),
     seats: {
@@ -504,7 +501,7 @@ test("a pin read before a scroll moves every field that stands on the page", () 
       after: [null, moved(5, 6)],
     },
     level: false,
-    floor: 50,
+    floor: 90,
     cover: [moved(7, 8)],
     controls: [moved(9, 10)],
     folds: {

@@ -14,20 +14,20 @@ it("an arriving widget scope requires its own upgrade while template contents st
     const scope = window.document.createElement("lf-arrival");
     scope.innerHTML =
       "<p>Prose</p><table></table><lf-unregistered></lf-unregistered><template><lf-unused></lf-unused></template>";
-    const registry: import("../../browser/runtime/widget-imports.js").Registry = {
-      "lf-arrival": { "x-upgrade": true, "x-content": "empty" },
-      "lf-unused": { "x-upgrade": true, "x-content": "empty" },
+    const registry = {
+      $modules: {
+        "lf-arrival": "widgets/lf-arrival.js",
+        "lf-unused": "widgets/lf-unused.js",
+      },
+      "lf-arrival": { content: "empty" },
+      "lf-unused": { content: "empty" },
       table: {
-        "x-upgrade": false,
-        "x-content": "markup",
-        "x-example": "<table></table>",
+        example: "<table></table>",
       },
       "lf-arrival.selected": {
-        "x-upgrade": false,
-        "x-content": "markup",
-        "x-example": '<lf-arrival class="selected"></lf-arrival>',
+        example: '<lf-arrival class="selected"></lf-arrival>',
       },
-    };
+    } as unknown as import("../../browser/runtime/widget-imports.js").Registry;
     expect(registeredTags(scope, registry)).toEqual(["lf-arrival"]);
     expect(widgetImports(scope, registry)).toMatchObject({
       modules: ["lf-arrival"],
@@ -62,8 +62,12 @@ it("bundles each document's static graph without fetching optional modules or ch
       await writeFile(
         join(layer, "registry.json"),
         JSON.stringify({
-          "lf-used": { "x-upgrade": true, "x-content": "empty" },
-          "lf-unused": { "x-upgrade": true, "x-content": "empty" },
+          $modules: {
+            "lf-used": "widgets/lf-used.js",
+            "lf-unused": "widgets/lf-unused.js",
+          },
+          "lf-used": { content: "empty" },
+          "lf-unused": { content: "empty" },
         }),
       );
       const sources = {
@@ -79,6 +83,7 @@ it("bundles each document's static graph without fetching optional modules or ch
         "runtime/optional.js": "window.optionalLoaded = true;",
         "runtime/media.js": "export const media = 1;",
         "runtime/layer-client.js": "export const client = 1;",
+        "runtime/panel-stand-in.js": "export const standIn = 1;",
         "runtime/widget-api.js": "export const api = 1;",
         "runtime/portable-api.js": "export const portable = 1;",
         "runtime/check-api.js": "export const checks = 1;",

@@ -4,12 +4,20 @@
 
 Repeating a test serially reruns it on the machine that already passes it; a browser
 test that passed 20 serial runs failed twice in 18 concurrent ones. So this runs the
-selection (`leaf_dev.suite`) as `COPIES` copies, `WORKERS` at a time, from the working
+selection (`_runs`) as `COPIES` copies, `WORKERS` at a time, from the working
 tree as it stands, uncommitted edits included, captured once before collection.
 Each copy runs in a private checkout of that snapshot, so fixed output paths and
 later edits to the source checkout cannot change another copy's result. Installed
 Node dependencies are shared as inputs; generated test output belongs to its copy.
 Each copy is one process (`-n0`: the copies are the concurrency).
+
+The copies are load that exists only to compete for the machine, so on macOS each one
+runs in the background band (`taskpolicy -b`), which gives it only the CPU and disk the
+machine's other work leaves, on the efficiency cores. The copies still compete with
+each other, `WORKERS` at a time. Beside other runs or other sessions' work, a run takes
+longer rather than slowing them, though the band shares out CPU and disk, not memory.
+A slower copy reports the same result, because the suite's results don't depend on
+execution speed (`tests/AGENTS.md`, "Results do not depend on execution speed").
 
 A load flake that a slower CI runner shows and this machine doesn't can need a slower
 CPU rather than more copies: `--cpu-throttle RATE` passes the suite's own option, which
@@ -21,19 +29,21 @@ copy of every test passed; a skip is not a pass.
 """
 
 import shutil
+import sys
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from pathlib import Path
 
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.suite import checkout, collect, run, snapshot
+from leaf_dev.arms import run_directory
+from leaf_dev.commands.suite._runs import checkout, collect, run, snapshot
 
 COPIES = 18
 WORKERS = 6
+BACKGROUND = ("taskpolicy", "-b") if sys.platform == "darwin" else ()
 # A message is printed to this many lines; the log keeps all of it.
 LINES = 12
 OUT = ROOT / ".tmp" / "flake"
@@ -53,12 +63,10 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
 
     Runs SELECTION, pytest node ids from the working tree, as 18 copies six at a
     time, and prints each test's count per outcome and every failure's message; each
-    copy's output stays under .tmp/flake/. Exits 1 unless every copy of every test
-    passed.
+    copy's output stays under .tmp/flake/. On macOS the copies run at background
+    priority. Exits 1 unless every copy of every test passed.
     """
-    OUT.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
-    out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
+    out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-flake-") as directory:
         scratch = Path(directory)
         candidate = scratch / "snapshot"
@@ -73,7 +81,14 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
             target = scratch / f"copy-{n:02}"
             checkout(candidate, target)
             try:
-                return run(target, selection, items, out / target.name, *options)
+                return run(
+                    target,
+                    selection,
+                    items,
+                    out / target.name,
+                    *options,
+                    under=BACKGROUND,
+                )
             finally:
                 shutil.rmtree(target)
 

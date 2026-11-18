@@ -27,25 +27,24 @@
  * since they are where the user is writing.
  *
  * Rejected: a layer a scroll-driven animation translates, which Chrome can paint a frame
- * before or after the content it carries (a pin landed 40 px off in 6 of 20 CI runs,
- * #1935) and Firefox cannot run; and a script that measures and places the box again
- * after each scroll, which paints a frame behind it. Two browser gaps are accepted rather
- * than answered by either (notes/browser-support.md, "A stuck sticky anchor in
- * Firefox" and "An anchor under a fixed box in WebKit"): Firefox ignores a sticky
- * anchor's stuck offset, and WebKit adds the root scroll to a box anchored under a
- * fixed ancestor. A third is answered where every inset is measured (`anchorBox`):
- * Firefox leaves an anchor's transforms out. A fourth gets the measuring script rejected
- * above, once per scroll: inside a scaled box, Firefox 157 and WebKit 27.2 carry an
- * anchored box by the scroll's layout pixels, not the smaller or larger distance the
- * words move on screen (Firefox bug 2055371, which its own transform support still has).
- * So the margin measures and places the rows that scroll carried again at that box's
- * `scrollend` (`scrollMisplacesAnchors`, margin-layout.js), and they stand on their words
- * a frame after it ends. While the scroll runs, the margin's once-a-frame reading of it
- * finds a row whose words have left it and places it again (`subjectMoved`), which in
- * Firefox, whose anchors `anchorBox` measures without their transforms, keeps the row a
- * few pixels from its words; in WebKit the measured anchor moves with the words, so its
- * rows drift until `scrollend`. Chromium 156 follows the words, so there the pass writes
- * the insets the scroll left.
+ * before or after the content it carries, so a pin can land off its mark, and Firefox
+ * cannot run; and a script that measures and places the box again after each scroll,
+ * which paints a frame behind it. One browser gap is accepted rather than answered by
+ * either (notes/browser-support.md, "A stuck sticky anchor in Firefox"): Firefox
+ * ignores a sticky anchor's stuck offset. A second is answered where every inset is
+ * measured (`anchorBox`): Firefox leaves an anchor's transforms out. A third gets the
+ * measuring script rejected above, once per scroll:
+ * inside a scaled box, Firefox 157 and WebKit 27.2 carry an anchored box by the
+ * scroll's layout pixels, not the smaller or larger distance the words move on screen
+ * (Firefox bug 2055371, which its own transform support still has). So the margin
+ * measures and places the rows that scroll carried again at that box's `scrollend`
+ * (`scrollMisplacesAnchors`, margin-layout.js), and they stand on their words a frame
+ * after it ends. While the scroll runs, the margin's once-a-frame reading of it finds a
+ * row whose words have left it and places it again (`subjectMoved`), which in Firefox,
+ * whose anchors `anchorBox` measures without their transforms, keeps the row a few
+ * pixels from its words; in WebKit the measured anchor moves with the words, so its
+ * rows drift until `scrollend`. Chromium 156 follows the words, so there the pass
+ * writes the insets the scroll left.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts
@@ -417,9 +416,9 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // as the spec has it. Firefox (157) leaves out every transform on the anchor and its
 // ancestors, and reads the box where layout put it, so a box written from the script's
 // reading of a transformed anchor lands off by the transform: a table granted room is
-// translated into place (layouts.css), and at 1728 px every pin, chip and comment box
-// against one stood 300 px left of what it marked; a deck such as reveal.js translates
-// and scales its slides, and they stood hundreds of pixels below and right of the words
+// translated into place (layouts.css), so every pin, chip and comment box against one
+// can stand hundreds of pixels left of what it marks; a deck such as reveal.js
+// translates and scales its slides, which can stand them far below and right of the words
 // (notes/browser-support.md, "An anchor's transforms in Firefox"). There the reading is
 // that laid-out box (`laidOut`), whose size is what `anchor-size()` reads there too. A
 // zoom is layout, which Firefox's `anchor()` keeps.
@@ -427,14 +426,14 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // Rejected: a probe anchored to the same name, read for the corner `anchor()` resolves.
 // Firefox resolves it from where scrolls stood at its last anchor snapshot, so a probe
 // read straight after a scroll between it and the anchor, the widened table's own
-// included, returned where the anchor stood before; and a probe in the chrome reaches
+// included, returns where the anchor stood before; and a probe in the chrome reaches
 // no anchor in a native layer.
 /** @type {boolean | undefined} */
 let dropsTransforms;
 // Firefox lacks transforms in `anchor()`; read once whether this engine does. The probe
 // stands in a box with layout containment, which holds its anchor and the box anchored
-// to it: in the window's containing block, Chromium restyled every anchored element on
-// the page when they left, 200 ms on a page of 512 asks.
+// to it: in the window's containing block, Chromium restyles every anchored element on
+// the page when they leave.
 function anchorDropsTransforms() {
   if (dropsTransforms !== undefined) return dropsTransforms;
   const probe = document.createElement("div");

@@ -1,0 +1,45 @@
+name: Deploy receipts-worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/receipts-worker/**
+      - deploy/receipts-worker/**
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits rather than cancelling a rollout.
+concurrency:
+  group: deploy-receipts-worker
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Deploy to staging
+        run: >
+          helm upgrade --install receipts-worker charts/worker
+          --namespace receipts --atomic --timeout 10m
+          -f deploy/receipts-worker/values.yaml
+          -f deploy/receipts-worker/values-staging.yaml
+          --set image.tag=${{ github.sha }}
+
+  production:
+    needs: staging
+    runs-on: ubuntu-latest
+    # The production environment's required reviewers approve this job.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Deploy to production
+        run: >
+          helm upgrade --install receipts-worker charts/worker
+          --namespace receipts --atomic --timeout 15m
+          -f deploy/receipts-worker/values.yaml
+          -f deploy/receipts-worker/values-production.yaml
+          --set image.tag=${{ github.sha }}

@@ -36,3 +36,21 @@ variants:
     metadata:
       scenario: still-deciding
       purpose: A question whose answer would settle what the session is still deciding belongs with the session.
+  # From the claude-code journey's `fork-lookup` step (`leaf-dev journey run
+  # claude-code --fork-work`), which asks just after the session has changed the
+  # page's source and ended its turn. The take criterion excludes what the session
+  # "is changing or about to change", and these labels read that as a change under
+  # way. A lookup in the page's source once the session's edit is done is work a
+  # fork could take. The same lookup part way through an edit of that file belongs
+  # with the session. A miss answers `hand_over`, with a line such as "counting the
+  # cards in this page's source file". The criterion's parenthetical ("such as its
+  # files and branch, the page's source or its pull requests") isn't what sends these
+  # misses to the session: a wording with it misses as often as one without.
+  source-edited:
+    metadata:
+      scenario: source-edited
+      purpose: A count to look up in the page's source, which the session has finished changing, is work a fork could take.
+  source-editing:
+    metadata:
+      scenario: source-editing
+      purpose: The same count while the session is part way through changing that file belongs with the session.

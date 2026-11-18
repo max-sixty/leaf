@@ -25,8 +25,8 @@ from leaf import event_meaning as event_meaning_model
 from leaf import page_view as page_view_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import thread as thread_model
 from leaf import thread_context as thread_context_model
-from leaf import todos as todos_model
 from leaf.registry import storage as registry_storage
 
 
@@ -93,9 +93,9 @@ def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
     publish(page_dir)
     serving(page_dir, 1)
     markup = (
-        '<lf-options id="{i}" choose>'
+        '<lf-options id="{i}">'
         + "".join(
-            f'<lf-option id="{{i}}-o{n}"><strong>Option {n}</strong> '
+            f'<lf-option id="{{i}}-o{n}" label="Option {n}"><strong>Option {n}</strong> '
             + "z" * 60
             + "</lf-option>"
             for n in range(3)
@@ -116,8 +116,9 @@ def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
                 "kind": "reply",
                 "author": "agent",
                 "parent": parent,
-                "text": "x" * 532,  # the shipped ship-review example's reply length
-                "markup": markup.format(i=f"w{turn}"),
+                "revision": 1,
+                # the shipped ship-review example's reply length
+                "text": "x" * 532 + "\n\n" + markup.format(i=f"w{turn}"),
             },
         )
         parent = append_carried_log_record(
@@ -128,10 +129,11 @@ def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
         _, batch, _ = delivered(capsys)
         headers.append(len(json.dumps(batch["threads"])))
         receive_through(page_dir, last_deliverable_seq(page_dir))
-        # The user's words answer the pick, so the agent ends it as the delivery
-        # tells it to; a pick left open would be listed in every later delivery's
-        # `waiting`, which grows with the open questions, not the thread.
-        todos_model.cmd_end(page_dir, f"widget:w{turn}", "done", "answered in words")
+        # The user's words answer the pick, so the agent resolves the thread as
+        # the delivery tells it to; a pick left open would be listed in every
+        # later delivery's `waiting`, which grows with the open questions, not
+        # the thread. The user's next reply reopens it.
+        thread_model.cmd_resolve(page_dir, parent)
         capsys.readouterr()
 
     # Flat, not merely slower: twenty further exchanges add only the few

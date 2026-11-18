@@ -17,7 +17,7 @@
    The version the user last saw is the newest stamped one at or before the newest
    revision they saw: the higher of the server's `seen` (`read_state.seen_revision`),
    which every tab of the page's one user writes, and what this tab showed itself. The
-   user chose on 31 October to count from a version, which a notice can name, rather
+   user chose to count from a version, which a notice can name, rather
    than from the revision they left, from the previous version, or from each change
    until they looked at it. So drafts between versions add up, and a page with no
    version at or before what the user saw has nothing to say.
@@ -31,9 +31,9 @@
    the user's own commands and passes after a notice's time (notifications.js), naming
    its key in words as "Draft kept — g i resumes writing" does, and the leaf's menu
    keeps Show changes as the lasting route. A revision landing while the notice is
-   counted starts the count again. The page arrives unmarked: the user chose on 3
-   November to call the marks up with a key rather than have them waiting, and on 4
-   November took up being told on return that there is something to call up, in a
+   counted starts the count again. The page arrives unmarked: the user chose
+   to call the marks up with a key rather than have them waiting, and to be told
+   on return that there is something to call up, in a
    notice that passes like the others. Rejected: a notice standing until the user's
    next input with a Show press, as an Undo does, which held the panel's seat for the
    agent's status until the user acted. The count waits until the document is

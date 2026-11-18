@@ -11,11 +11,11 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
-    append_carried_log_record,
     append_command,
     check_findings,
     element_declaration,
     fresh_process,
+    model_layer,
     page_packages,
     publish,
     registry_refusal,
@@ -28,12 +28,11 @@ from leaf import files as files_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
-from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
+from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
@@ -47,10 +46,10 @@ def test_page_registry_composes_declarations_and_implementations_independently(
 ):
     layer = registry_storage.load_registry(page_dir)
     package_widget = element_declaration("lf-local", upgrade=True)
-    package_widget["properties"]["package-only"] = {"type": "string"}
+    package_widget["attributes"]["properties"]["package-only"] = {"type": "string"}
     layer = {**layer, "lf-local": package_widget}
     page_widget = element_declaration("lf-local", upgrade=True)
-    page_widget["properties"]["page-only"] = {"type": "string"}
+    page_widget["attributes"]["properties"]["page-only"] = {"type": "string"}
     declarations = {
         "lf-local": page_widget,
         "lf-page-only": element_declaration("lf-page-only", upgrade=True),
@@ -69,7 +68,10 @@ def test_page_registry_composes_declarations_and_implementations_independently(
 
     composed = registry_page.compose_page_registry(layer, declarations, widget_paths)
 
-    assert composed.registry["lf-local"]["properties"].keys() == {"id", "page-only"}
+    assert composed.registry["lf-local"]["attributes"]["properties"].keys() == {
+        "id",
+        "page-only",
+    }
     assert composed.declaration_sources["lf-local"] == "page"
     assert composed.widget_sources["lf-local"] == "widgets/lf-local.js"
     assert composed.declaration_sources["lf-tabs"] == "layer"
@@ -98,7 +100,8 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
             "retires": {"accept": ["lf-old"], "reject": ["lf-new"]},
         }
     }
-    member = {**deepcopy(layer["lf-old"]), "x-retired-when": "reject"}
+    member = deepcopy(layer["lf-old"])
+    member["retired-when"] = "reject"
     layer_3 = registry_storage.layer_record(page_dir)
     assert layer_3 is not None
     widget_paths = set(registry_storage.layer_widgets(layer_3, page_dir))
@@ -113,6 +116,30 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
 
 
+@pytest.mark.parametrize(
+    "order", [("lf-moved", "lf-struck"), ("lf-struck", "lf-moved")]
+)
+def test_two_layers_each_add_a_member_one_decision_retires(order):
+    """A layer adds a retiring member to a widget another layer declares by declaring
+    the member alone, so two layers that each add one compose in either order and the
+    decision retires both. Named on the owner's verb instead, each layer restated the
+    owner's entry whole, and the later layer's dropped the earlier one's member with
+    no refusal."""
+    outcome = {"lf-moved": "accept", "lf-struck": "reject"}
+    registry = deepcopy(model_layer())
+    for tag in order:
+        member = deepcopy(registry["lf-old"])
+        member["retired-when"] = outcome[tag]
+        registry_layer.merge_layer_declarations(registry, {tag: member})
+    registry_validation.validate_registry(registry, "two layers")
+    registry_layer.stamp_composition(registry)
+
+    assert registry["$decisions"]["lf-suggestion"]["retires"] == {
+        "accept": ["lf-old", "lf-moved"],
+        "reject": ["lf-new", "lf-struck"],
+    }
+
+
 @pytest.mark.parametrize(("schema", "stamped"), [(True, "words"), (False, False)])
 def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     page_dir, schema, stamped
@@ -121,8 +148,7 @@ def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     becomes the tones alone, or `false`, which admits none already."""
     layer = registry_storage.load_registry(page_dir)
     declaration = element_declaration("lf-local")
-    declaration["properties"]["tone"] = schema
-    declaration["x-tone"] = "tone"
+    declaration["attributes"]["properties"]["tone"] = schema
     layer_4 = registry_storage.layer_record(page_dir)
     assert layer_4 is not None
     widget_paths = set(registry_storage.layer_widgets(layer_4, page_dir))
@@ -131,9 +157,49 @@ def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
         layer, {"lf-local": declaration}, widget_paths
     ).registry
 
-    assert composed["lf-local"]["properties"]["tone"] == (
+    assert composed["lf-local"]["attributes"]["properties"]["tone"] == (
         {"enum": layer["$tones"]["names"]} if stamped else False
     )
+
+
+def test_a_module_that_goes_is_refused_by_a_composition_validated_with_it(page_dir):
+    """A module's file decides whether its tag is upgraded, so a declaration can stand
+    unchanged while what it relies on goes. A composition reusing the validation of
+    the same declarations still refuses it, where it would otherwise serve a stateful
+    widget with nothing to draw or send its state."""
+    layer = registry_storage.load_registry(page_dir)
+    declarations = {"lf-local": _stateful_page_declaration(page_dir)}
+    record = registry_storage.layer_record(page_dir)
+    assert record is not None
+    layer_paths = set(registry_storage.layer_widgets(record, page_dir))
+
+    held = registry_page.compose_page_registry(
+        layer, declarations, {*layer_paths, "page/widgets/lf-local.js"}
+    )
+    assert held.widget_sources["lf-local"] == "page/widgets/lf-local.js"
+
+    finding = registry_refusal(
+        lambda: registry_page.compose_page_registry(
+            layer, declarations, layer_paths, validated=(layer, declarations)
+        )
+    )
+    assert (finding.code, finding.at) == ("needs-module", "<lf-local>")
+
+
+def test_a_page_widget_module_no_tag_names_is_refused(page_dir):
+    """A page's widget module is loaded by its tag's name alone, so one under a name
+    no declaration has is refused where the page is checked."""
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True)
+    (widgets / "lf-locl.js").write_text("export {};\n")
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local": element_declaration("lf-local")})
+    )
+
+    finding = registry_refusal(lambda: registry_storage.read_page_registry(page_dir))
+
+    assert finding.code == "unnamed-module"
+    assert finding.values["modules"] == ["page/widgets/lf-locl.js"]
 
 
 def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
@@ -142,10 +208,10 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
     with the layer's, an unstated writer as the user's."""
     layer = registry_storage.load_registry(page_dir)
     declaration = element_declaration("lf-local", upgrade=True)
-    declaration["properties"] |= {
+    declaration["attributes"]["properties"] |= {
         name: {"type": "boolean"} for name in ("overruled", "restated")
     } | {"reading": {"type": "string"}}
-    declaration["x-state"] = {
+    declaration["verbs"] = {
         "set": {
             "unit": "widget",
             "detail": {"type": "object", "additionalProperties": False},
@@ -168,7 +234,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
         verb: {
             "writer": writer,
             "definition": registry_contract.state_definition(
-                "lf-local", declaration, declaration["x-state"][verb]
+                "lf-local", declaration, declaration["verbs"][verb]
             ),
         }
         for verb, writer in (("set", "user"), ("measure", "agent"))
@@ -185,9 +251,14 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
         ('{"$layer": {"generation": "authored"}}', "page-layer", ""),
         (
             json.dumps(
-                {"lf-local": {**element_declaration("lf-local"), "type": "wrong"}}
+                {
+                    "lf-local": {
+                        **element_declaration("lf-local"),
+                        "attributes": {"type": "wrong"},
+                    }
+                }
             ),
-            "declaration-schema",
+            "attributes-schema",
             "<lf-local>",
         ),
         (
@@ -195,7 +266,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
                 {
                     "lf-local": {
                         **element_declaration("lf-local"),
-                        "x-example": '<lf-local id="bad" unknown="bad">Example</lf-local>',
+                        "example": '<lf-local id="bad" unknown="bad">Example</lf-local>',
                     }
                 }
             ),
@@ -204,7 +275,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
         ),
         (
             json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)}),
-            "missing-module",
+            "needs-module",
             "<lf-local>",
         ),
     ],
@@ -233,37 +304,64 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
         (
             {
                 "lf-alpha": _faulty("lf-alpha", description=""),
-                "lf-beta": _faulty("lf-beta", **{"x-says": ["label"]}),
+                "lf-beta": _faulty(
+                    "lf-beta",
+                    **{
+                        "refers": [],
+                    },
+                ),
                 "$data": {
                     "contracts": {"bad": {"description": "x", "schema": {"type": 3}}}
                 },
             },
             [
                 ("contract-schema", ""),
-                ("no-description", "<lf-alpha>"),
-                ("invalid-extensions", "<lf-beta>"),
+                ("invalid-declaration", "<lf-alpha>"),
+                ("invalid-declaration", "<lf-beta>"),
             ],
         ),
         # Faults against the other declarations, once every one holds alone.
         (
             {
-                "lf-beta": _faulty("lf-beta", **{"x-name": "label"}),
-                "lf-eps": _faulty(
-                    "lf-eps", **{"x-reading-role": "pane", "x-content": "empty"}
+                "lf-beta": _faulty(
+                    "lf-beta",
+                    **{
+                        "refers": {"label": {}},
+                    },
                 ),
+                "lf-eps": _faulty(
+                    "lf-eps",
+                    **{
+                        "content": "empty",
+                        "reading-role": "pane",
+                    },
+                ),
+                # What only a module provides, with no module for the tag.
+                "lf-delta": _faulty("lf-delta", upgrade=True),
             },
-            [("undeclared-attributes", "<lf-beta>"), ("requires", "<lf-eps>")],
+            [
+                ("undeclared-attributes", "<lf-beta>"),
+                ("requires", "<lf-eps>"),
+                ("needs-module", "<lf-delta>"),
+            ],
         ),
-        # An example and a module, once the vocabulary holds.
+        # Each example, once the vocabulary holds.
         (
             {
                 "lf-gamma": _faulty(
                     "lf-gamma",
-                    **{"x-example": '<lf-gamma id="g" tone="x">G</lf-gamma>'},
+                    **{
+                        "example": '<lf-gamma id="g" tone="x">G</lf-gamma>',
+                    },
                 ),
-                "lf-delta": _faulty("lf-delta", upgrade=True),
+                "lf-delta": _faulty(
+                    "lf-delta",
+                    **{
+                        "example": '<lf-delta id="d" tone="x">D</lf-delta>',
+                    },
+                ),
             },
-            [("invalid-example", "<lf-gamma>"), ("missing-module", "<lf-delta>")],
+            [("invalid-example", "<lf-gamma>"), ("invalid-example", "<lf-delta>")],
         ),
     ],
 )
@@ -332,13 +430,18 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     def publish_choice(needs_attention):
         pick = _stateful_page_declaration(page_dir, "lf-pick")
         if needs_attention and declaration == "obligation":
-            pick["x-awaits"] = {"value": "first", "answered": {"first": {}}}
+            pick["awaits"] = {
+                "value": "first",
+                "answered": {"first": {}},
+            }
         elif needs_attention:
-            pick["x-state"]["first"]["attention"] = True
+            pick["verbs"]["first"]["attention"] = True
         write_json(page_dir / "page" / "registry.json", {"lf-pick": pick})
         (page_dir / "index.html").write_text(
             model.leaf_page(
-                "Choice", '<lf-pick id="choice" value="author">Pick</lf-pick>'
+                "Choice",
+                '<lf-group id="ask" label="Which pick?">'
+                '<lf-pick id="choice" value="author">Pick</lf-pick></lf-group>',
             )
         )
         publish(page_dir)
@@ -498,64 +601,12 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
     )
     assert next(iter(projected.projection.desired.values()))[0]["id"] == first["id"]
 
-    declaration["x-state"]["second"] = declaration["x-state"].pop("first")
+    declaration["verbs"]["second"] = declaration["verbs"].pop("first")
     authored.write_text(json.dumps({"lf-local": declaration}))
     refused = revisioning_model.activate_source(page_dir)
 
     assert refused.error is None and refused.created
     assert refused.revision == revision + 1
-
-
-def test_an_action_an_earlier_runtime_logged_is_left_out_of_the_fold(page_dir):
-    """A pick logged before admission recorded its state operation, in the payload
-    shape of its day, folds as absent: `leaf page state` reads on with the current
-    pick in force instead of failing on the old record."""
-    source = PAGE.replace(
-        "</section>",
-        '<lf-options id="picks" choose><lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></section>',
-    )
-    (page_dir / "index.html").write_text(source)
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-    current = append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": revision,
-            "widget": "picks",
-            "action": "choose",
-            "detail": {"value": ["first"]},
-        },
-    )
-    # The shape a runtime before recorded state operations logged a pick in.
-    earlier = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "picks",
-        "action": "choose",
-        "detail": {"options": ["second"]},
-        "author": "user",
-        "id": "earlier-pick",
-        "meaning": {
-            "scope": "page",
-            "unit": "picks",
-            "depends": ["picks", "second"],
-            "answer": None,
-        },
-        "attention": True,
-        "ts": "2026-10-06T20:14:37.092-07:00",
-    }
-    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
-        log.write(json.dumps(earlier) + "\n")
-
-    out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
-
-    assert out.exit_code == 0, out.output
-    assert [(s["widget"], s["detail"]) for s in json.loads(out.stdout)["state"]] == [
-        ("picks", current["detail"])
-    ]
 
 
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
@@ -591,6 +642,9 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     ]
 
     authored.write_text("{}")
+    # A module no declared tag names is refused, so the widget's module goes with
+    # its declaration.
+    (page_dir / "page" / "widgets" / "lf-local.js").unlink()
     (page_dir / "index.html").write_text(PAGE)
     events = events_model.read_events(page_dir)
     activated = revisioning_model.activate_source(page_dir)
@@ -611,44 +665,6 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
         historical.projection.desired["local-choice", "local-choice", "first"][0]["id"]
         == action["id"]
     )
-
-
-def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
-    """A thread widget keeps the contract under which its user command was admitted."""
-    authored = page_dir / "page" / "registry.json"
-    declaration = _stateful_page_declaration(page_dir, "lf-thread-local")
-    authored.write_text(json.dumps({"lf-thread-local": declaration}))
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
-    )
-    thread_model.post_reply(
-        page_dir,
-        {"parent": "c1", "responds": "c1"},
-        "Use this control.",
-        '<lf-thread-local id="thread-choice" value="author">Local</lf-thread-local>',
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": revision,
-            "widget": "thread-choice",
-            "action": "first",
-            "detail": {"value": "user"},
-        },
-    )
-    declaration["x-state"]["second"] = declaration["x-state"].pop("first")
-    authored.write_text(json.dumps({"lf-thread-local": declaration}))
-
-    refused = revisioning_model.activate_source(page_dir)
-
-    assert refused.error is None and refused.created
-    assert revision is not None
-    assert refused.revision == revision + 1
 
 
 @pytest.mark.parametrize("declares", [False, True])
@@ -707,12 +723,12 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     from leaf.revision_artifact import read_revision
 
     declaration = _stateful_page_declaration(page_dir)
-    declaration["properties"]["value"] = {
+    declaration["attributes"]["properties"]["value"] = {
         "type": "string",
         "enum": ["old", "new"],
         "description": "Original meaning.",
     }
-    declaration["properties"]["target"] = {"type": "string"}
+    declaration["attributes"]["properties"]["target"] = {"type": "string"}
     authored = page_dir / "page" / "registry.json"
     source = page_dir / "index.html"
     authored.write_text(json.dumps({"lf-local": declaration}))
@@ -737,15 +753,20 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     assert original["meaning"]["state"]["record"] == {"kind": "value", "attr": "value"}
     next_value = "new"
     if change == "slot":
-        declaration["x-state"]["first"]["record"]["attr"] = "target"
+        declaration["verbs"]["first"]["record"]["attr"] = "target"
     elif change == "enum":
-        declaration["properties"]["value"]["enum"] = ["new"]
+        declaration["attributes"]["properties"]["value"]["enum"] = ["new"]
     elif change == "broaden":
-        declaration["properties"]["value"]["enum"].append("later")
+        declaration["attributes"]["properties"]["value"]["enum"].append("later")
     elif change == "pattern":
-        declaration["properties"]["value"] = {"type": "string", "pattern": "^new$"}
+        declaration["attributes"]["properties"]["value"] = {
+            "type": "string",
+            "pattern": "^new$",
+        }
     else:
-        declaration["properties"]["value"]["description"] = "Clarified explanation."
+        declaration["attributes"]["properties"]["value"]["description"] = (
+            "Clarified explanation."
+        )
     authored.write_text(json.dumps({"lf-local": declaration}))
     source.write_text(
         source.read_text().replace('value="old"', f'value="{next_value}"')

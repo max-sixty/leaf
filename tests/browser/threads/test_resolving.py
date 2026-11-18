@@ -12,6 +12,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
     PANEL_PAGE,
+    SEAT,
     SEATED_OBLIGATION_LAYER,
     SEATED_OBLIGATION_PAGE,
     SEATED_OBLIGATION_WIDGETS,
@@ -35,7 +36,6 @@ from render_harness import (
     sending,
     told,
     undo,
-    write,
 )
 
 from browser.threads import (
@@ -52,29 +52,22 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser, serve):
     """A page seat keeps focus through settlement when its controls are replaced."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Inline settlement",
-                '<h1>Review the plan</h1><lf-verdict id="proposal" asks>'
-                "Should these jobs share a visit?</lf-verdict>"
-                '<label>Another thought <input id="later"></label>',
-            ),
-            layer_registry=SEATED_OBLIGATION_LAYER,
-            layer_widgets=SEATED_OBLIGATION_WIDGETS,
+    url = serve(
+        leaf_page(
+            "Inline settlement",
+            '<h1>Review the plan</h1><lf-group id="proposal-q" label="Should these jobs share a visit?">'
+            '<lf-verdict id="proposal" asks>'
+            "Should these jobs share a visit?</lf-verdict></lf-group>"
+            '<label>Another thought <input id="later"></label>',
         ),
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
-    first = page.locator("#proposal > .lf-thread-seat > .lf-say")
-    write(first.locator("leaf-text"), "Please combine the jobs.")
-    with sending(page, "the root comment"):
-        first.get_by_role("button", name="Send", exact=True).click()
-    root = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+    root = panel_comment(
+        serve.page_dir, "Please combine the jobs.", {"section": "proposal"}
     )
-    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root["id"]}"]')
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     destination = thread.locator("leaf-text")
     expect(destination).to_have_count(1)
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
@@ -173,7 +166,7 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         expect(thread).to_have_attribute("inert", "")
         expect(summary).to_be_focused()
         expect(summary).to_contain_text(f"Resolved · {2 if existing_neighbors else 1}")
-        assert thread.evaluate("node => node.parentElement.matches('.lf-thread-seat')")
+        assert thread.evaluate("node => node.parentElement.matches('.lf-test-threads')")
         assert page.evaluate("window.retirement.effect.getTiming().duration") == 220
         assert abs(thread.locator("..").bounding_box()["height"] - before) < 1
 
@@ -454,7 +447,7 @@ def seat_surface(browser, serve, gesture):
         )
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    seat = page.locator("#jobs > .lf-thread-seat")
+    seat = page.locator(f"#jobs > {SEAT}")
     seated = seat.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     reopen = seated.get_by_role("button", name="Reopen", exact=True)
 
@@ -583,9 +576,10 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
     """A settlement takes the user's view of its thread away, and every way back gives
     that view back on the surface the user had it on: `z` by each of its three ways,
     the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
-    choose chose for the thread as it stood at the way back: it put a thread resolved
-    in its card in the panel, where resolved threads open, one resolved in the panel's
-    view in a card, and one resolved in a seat in the panel, then a card."""
+    choose would choose for the thread as it stood at the way back: it would put a
+    thread resolved in its card in the panel, where resolved threads open, one resolved
+    in the panel's view in a card, and one resolved in a seat in the panel, then a
+    card."""
     s = surface(browser, serve, gesture)
     page = s.page
     page.evaluate(OPEN_THREAD_COUNT)
@@ -686,8 +680,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
 def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, serve):
     """Resolve in a card shows the thread after the resolved one at the same passage,
     else the one before, standing the user on it, and the page doesn't move; `z` brings
-    the thread back where it was resolved (thread-preview.js, the user's choice of 4
-    November 2026)."""
+    the thread back where it was resolved (thread-preview.js, the user's choice)."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -744,14 +737,10 @@ def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, s
 def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serve):
     """A repaint of an open card leaves the user's press where they aimed it.
 
-    An open margin card repaints for reasons the user never asked for — a relative
-    timestamp ageing, a receipt phase landing, a margin contribution changing — and each
-    one re-runs the whole thread render. Nothing in that render is a reason to take the
-    user off the control they have reached, so the control they were about to press
-    has to still be the one the next key reaches.
-
-    `lf-actions` is the margin's own repaint door, and its render runs inside this call,
-    so the state the press reads is stated rather than waited out.
+    An open margin card redraws its whole thread on every reading of it, as when the
+    agent's reply lands while the user rests on the card's Resolve. Nothing in that
+    render is a reason to take the user off the control they have reached, so the
+    control they were about to press has to still be the one the next key reaches.
     """
     page = open_page(
         browser,
@@ -790,13 +779,25 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
     assert page.evaluate("() => window.__lfDetachedThread"), (
         "the detached margin card reached display before its thread rendered"
     )
-    resolve = page.locator(".lf-margin-thread").get_by_role(
-        "button", name="Resolve thread", exact=True
-    )
+    card = page.locator(".lf-margin-thread")
+    resolve = card.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_visible()
     resolve.focus()
     expect(resolve).to_be_focused()
-    page.evaluate("() => document.dispatchEvent(new Event('lf-actions'))")
+    answer = "Both jobs fit one visit."
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": answer,
+        },
+    )
+    told(page)
+    expect(card).to_contain_text(answer)
     expect(resolve).to_be_focused()
     with sending(page, "the resolve the repaint could have unseated"):
         page.keyboard.press("Enter")
@@ -1023,13 +1024,13 @@ ATTACHED_THREAD_PAGE = leaf_page(
     "an element and its thread",
     """<h1>Cache review</h1>
 <p id="passage" tabindex="0">The budget note covers latency budgets for the cache.</p>
-<lf-ask id="cache-ask">
-  <h2>Which cache should we keep?</h2>
-  <lf-options id="cache" choose>
+<lf-group id="cache-ask" label="Which cache should we keep?">
+  <h2 id="cache-ask-h">Which cache should we keep?</h2>
+  <lf-options id="cache">
     <lf-option id="cache-disk">Keep the disk cache</lf-option>
     <lf-option id="cache-memory">Keep the memory cache</lf-option>
   </lf-options>
-</lf-ask>""",
+</lf-group>""",
 )
 
 

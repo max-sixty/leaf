@@ -6,17 +6,34 @@
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
-   - A message says its age only where that age, as displayed, changes from the
-     message shown just above it, and the first message always says it: a thread
-     written in one sitting reads one age, and one spanning days marks each change.
-     The user chose that on 26 October 2026 over an age after every author name,
-     which repeated one age down a thread written at once ("72d ago" four times).
-   - A summary the agent wrote folds the turns it covers behind its checkpoint.
+   - Every message and run's face says when it was said (presence.js, `saidAt`),
+     since each reply says what was true when it was sent ("I'm building it now"):
+     how long ago within the hour ("just now", "12m ago") and its time of day after
+     that, as the user asked. Rejected: a time of day from the first minute, which
+     makes a reply seconds old read like any other ("15:24"); a fixed 24-hour clock,
+     which a reader whose own clock reads "3:24 PM" doesn't use (presence.js,
+     `timeOfDay`); an age said only where it changes from the message above, which
+     rounds replies hours apart into one "1d ago" a day later and leaves the replies
+     under it bare; and an age after every author name, which repeats one age down a
+     thread written at once ("72d ago" four times).
+   - A summary the agent wrote folds the turns it covers behind its checkpoint, a region
+     in the tint Leaf gives settled things (surfaces.css), so its words read as neither
+     a message nor the end of the one above it. One quiet press at its head says how
+     many messages it folds ("› 5 earlier messages"), set as a message's time is, and
+     a name the agent gave the range leads its words in bold, as a recap names what it
+     covers. Opened, the tint takes in the messages it folds, so the reader sees where
+     the live conversation picks up. The user chose this over a label ("Earlier
+     discussion") beside an accent "Show 5 earlier messages", which named the fold
+     twice and, beside a margin card's actions, wrapped the label and cut the press;
+     over one fold line naming the range in a sender's face, as a settled decision
+     folds; and over the count after the summary's words.
      Completed progress disappears when its answer shows, including a streaming answer.
      Each pending progress run stands behind a dim line showing its latest step
      (`workingView`). The face of the run the agent's work in hand
      speaks through is the working message; work whose words no run holds stands as a
-     face of its own where those words were said (`workingPlace`). A thread reads in
+     face of its own where those words were said (`workingPlace`). A face arriving in a
+     thread already drawn wears a message's arrival tint (messages.js, `arrivalTint`), as
+     the user asked; a new step in a face it stands in is no arrival. A thread reads in
      the order it was said, so a message the user sends after a face stands below it,
      and a face whose run the work leaves stays where it stood, still.
    - The transcript is flat: a fold's checkpoint stands before the messages it covers,
@@ -31,11 +48,10 @@
      `aria-owns`, and draws the frame around the open fold from its own head to its
      last message's foot by anchors (`--lf-fold-head`, `--lf-fold-foot`, surfaces.css),
      since no box contains them. Rejected: moving the covered messages into a container
-     inside the checkpoint, which unloaded a frame among them in an engine without
-     `moveBefore` (WebKit reloaded it once as the summary arrived and twice as it was
-     retracted) and lost a selection inside them in every engine; and, before that,
+     inside the checkpoint, which unloads a frame among them in an engine without
+     `moveBefore` and loses a selection inside them in every engine; and
      nesting such a container in a `repeat` inside the transcript's `repeat`, which
-     rebuilt a gathered message's row.
+     rebuilds a gathered message's row.
    - An explicit summary that arrives over a message the user is on or reads stays
      open. Completed progress disappears even if the reader had opened it.
    - A message that leaves the thread while drawn, as a reply the log refuses does,
@@ -47,7 +63,7 @@
 import { counted } from "../words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
-import { MessageView } from "./messages.js";
+import { MessageView, arrivalTint, saidTime } from "./messages.js";
 import { offeredAction } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
@@ -61,7 +77,30 @@ import {
 import { scrollThreadIntoView } from "./reply-landing.js";
 import { foldBlock, motionPlays } from "../motion.js";
 import { voiced } from "../voice.js";
-import { agePreview } from "../presence.js";
+
+// A summary's words, led by the name its agent gave the range as their first
+// paragraph's run-in head, closed by a stop where the name has none. Words that open
+// with no paragraph, as a list does, and a summary with no words, hold the name as a
+// paragraph of its own.
+/** @param {{text: string, label?: string}} summary */
+function summaryWords({ text, label }) {
+  const words = document.createElement("template");
+  words.innerHTML = text ? renderMarkdown(text) : "";
+  if (!label) return words.innerHTML;
+  const name = document.createElement("strong");
+  name.className = "lf-summary-label";
+  name.textContent = label;
+  const first = words.content.firstChild;
+  if (first instanceof Element && first.localName === "p") {
+    if (!/[.!?:…]$/u.test(label)) name.append(".");
+    first.prepend(name, " ");
+  } else {
+    const named = document.createElement("p");
+    named.append(name);
+    words.content.prepend(named);
+  }
+  return words.innerHTML;
+}
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
@@ -75,22 +114,16 @@ const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
 // class, since it is no message: a message head's places (a margin's sticky head, held
 // news) skip it. `controls` stand at its head's end, as a reply's progress disclosure
 // stands at its own.
-/** @param {Pick<import("./thread-card.js").WorkingMessage, "words" | "live" | "condition"> & {who: string | null | undefined, timestamp: string | null, age: string | null}} working
+/** @param {Pick<import("./thread-card.js").WorkingMessage, "words" | "live" | "condition"> & {who: string | null | undefined, timestamp: string | null}} working
  * @param {unknown} controls
  * @param {((node: Element | undefined) => void) | null} observe */
-function workingView(working, controls = nothing, observe = null) {
+function workingView(working, controls, observe) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${
         working.timestamp || working.condition
           ? html`<span class="lf-msg-meta"
-              >${
-                working.timestamp
-                  ? html`<time datetime=${working.timestamp} .lfPreview=${agePreview}
-                      >${working.age}</time
-                    >`
-                  : nothing
-              }${
+              >${saidTime(working.timestamp)}${
                 working.condition
                   ? html`<span>${voiced(working.condition)}</span>`
                   : nothing
@@ -111,7 +144,6 @@ const stepOf = (message) =>
   Object.freeze({
     who: message.by,
     timestamp: message.timestamp,
-    age: message.age,
     words: message.body.plainText.trim().replace(/\.$/, ""),
     live: false,
     condition: null,
@@ -139,6 +171,9 @@ export class Transcript {
   // of its run, whose words the face shows.
   /** @type {Map<string, Element | null>} */
   #facing = new Map();
+  // Every face this transcript has drawn, so one new to it is told apart.
+  /** @type {WeakSet<Element>} */
+  #faces = new WeakSet();
   /** @type {(() => void) | null} */
   #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
@@ -390,28 +425,9 @@ export class Transcript {
     const workingAt = model.working
       ? workingPlace(rangeState, model.working.position)
       : -1;
-    // The messages that say their age: the first, and each whose age, as the reader
-    // reads it, differs from the message shown just above it. A checkpoint or a run's
-    // face between them parts them, so the message after one says its age too.
-    const dated = new Set();
-    let above = null;
-    for (const [at, range] of rangeState.entries()) {
-      const shown =
-        range.kind === "message"
-          ? [range.message]
-          : range.expanded
-            ? range.messages
-            : [];
-      if (range.kind !== "message") above = null;
-      for (const message of shown) {
-        if (message.age !== above) dated.add(message.key);
-        above = message.age;
-      }
-      if (range.summary?.pending || at === workingAt) above = null;
-    }
     for (const message of drawnMessages) {
       const view = message.view;
-      view.present(message.reading, { arrived, dated: dated.has(message.key) });
+      view.present(message.reading, { arrived });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
       keeps(
@@ -420,12 +436,14 @@ export class Transcript {
         message.provisional && message.reading === model.messages.at(-1) ? "" : null,
       );
     }
-    // Each message where it was said, hidden until found while a closed fold covers it.
-    /** @param {DrawnMessage} message @param {string | null} [summary] @param {boolean} [folded] */
-    const placed = (message, summary = null, folded = false) => {
+    // Each message where it was said, hidden until found while a closed fold covers it,
+    // and standing in its summary's region while an open one does (surfaces.css).
+    /** @param {DrawnMessage} message @param {SummaryReading | null} [fold] */
+    const placed = (message, fold = null) => {
       const node = message.view.node;
-      keeps(node, "data-lf-summary", summary);
-      keepsHidden(node, folded ? "until-found" : false);
+      keeps(node, "data-lf-summary", fold?.summary.id ?? null);
+      keeps(node, "data-lf-summarized", fold && !fold.summary.pending ? "" : null);
+      keepsHidden(node, fold && !fold.expanded ? "until-found" : false);
       return node;
     };
     // The open fold's last message, which its checkpoint's frame reaches down to.
@@ -478,9 +496,7 @@ export class Transcript {
         transcript.push(messageRow(placed(range.message), range.message.key));
       else {
         const id = range.summary.id;
-        const covered = range.messages.map((message) =>
-          placed(message, id, !range.expanded),
-        );
+        const covered = range.messages.map((message) => placed(message, range));
         for (const node of covered) node.id ||= `lf-msg-${this.#id}-${++this.#named}`;
         const anchor = `--lf-fold-${this.#id}-${CSS.escape(id)}`;
         transcript.push(
@@ -526,6 +542,12 @@ export class Transcript {
         `:scope > [data-lf-face="${CSS.escape(row.key.slice(5))}"]`,
       );
     this.#facing = new Map([...facing].map(([key, row]) => [key, faceNode(row)]));
+    // A face arriving in a thread already drawn wears a message's arrival tint.
+    for (const node of this.node.querySelectorAll(":scope > .lf-thread-working")) {
+      if (this.#faces.has(node)) continue;
+      this.#faces.add(node);
+      if (arrived) arrivalTint(node);
+    }
     for (const [key, fold] of this.#folding) {
       if (fold.played) continue;
       fold.played = foldBlock(fold.node);
@@ -611,6 +633,7 @@ export class Transcript {
     return html`<section
       class="lf-thread-checkpoint"
       data-lf-summary-id=${range.summary.id}
+      data-lf-summarized=${progress ? nothing : ""}
       data-lf-expanded=${range.expanded}
       ?hidden=${progress && !range.expanded}
       aria-owns=${covered.map(({ id }) => id).join(" ")}
@@ -621,14 +644,13 @@ export class Transcript {
           ? nothing
           : html`<div class="lf-summary-checkpoint">
               <div class="lf-summary-header">
-                <div class="lf-summary-label">${range.summary.label}</div>
                 ${range.forced ? nothing : this.#summaryToggle([range])}
               </div>
               ${
-                range.summary.text
+                range.summary.text || range.summary.label
                   ? html`<div
                       class="lf-summary-text"
-                      .innerHTML=${renderMarkdown(range.summary.text)}
+                      .innerHTML=${summaryWords(range.summary)}
                     ></div>`
                   : nothing
               }
@@ -652,7 +674,9 @@ export class Transcript {
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
     const subject = counted(count, `${progress ? "progress" : "earlier"} message`);
-    const label = `${expanded ? "Hide" : "Show"} ${subject}`;
+    // A summary's press says only what it folds, its arrow whether that shows, and
+    // stands in its head's quiet face; progress says Show or Hide in the accent.
+    const label = progress ? `${expanded ? "Hide" : "Show"} ${subject}` : subject;
     return html`<button
       type="button"
       ${offeredAction(
@@ -661,6 +685,7 @@ export class Transcript {
           progress ? " lf-progress-expand" : ""
         }`,
       )}
+      data-lf-hint=${progress ? nothing : ""}
       data-lf-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges
@@ -669,7 +694,9 @@ export class Transcript {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-lf-room=${progress ? `Show ${subject}` : subject}
+        ><span>${label}</span></span
+      >
     </button>`;
   }
 

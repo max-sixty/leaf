@@ -15,12 +15,12 @@ other pages (`skills/leaf/references/authoring-evidence.md`, "Interactive and vi
 evidence").
 
 When a change adds or removes an example or changes its first screen, run
-`wt refresh-previews` from the repository root on macOS once the examples are ready,
-and again after merging `main` or any later fix that changes a first screen.
+`uv run --frozen leaf-dev site previews` from the repository root on macOS once the
+examples are ready, and again after merging `main` or any later fix that changes a first
+screen.
 `uv run leaf-dev site demo` does the same for the README's recording and the site's
-card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run `wt setup`
-first in a new checkout; if Worktrunk asks to approve the project commands, ask the
-user to run `wt config approvals add`.
+card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run
+`uv run --frozen leaf-dev setup` first in a new checkout.
 
 ## Developer pages and regression fixtures
 
@@ -65,7 +65,11 @@ An example's markup is its current version. Beside it may sit:
   it, which the page admits through the append door, so leave out what admission
   derives, such as an action's `meaning`;
 - `<stem>.data.json`, each page-owned data source's current value (`example_data.py`
-  says how to give it).
+  says how to give it);
+- `<stem>.files/`, the files the page's editors edit, laid out as their project holds
+  them, with `<stem>.files.json` mapping each binding the markup names to its path
+  there. Each builder copies them into the page directory's `files/` and binds them
+  there, so a preview, a test and each leaf.page visitor edit their own copy.
 
 `prepare_page` in `dev/leaf_dev/page_fixtures.py` builds a page directory from an
 example.

@@ -13,9 +13,8 @@ export {
 
    A behavior module builds injected controls with `offer`, a press wearing one of
    Leaf's control faces with `offerAction` by its role, marks words it writes that
-   should stand apart from the author's with `generatedElement`, and uses `relabel`
-   (control-labels.js) when a control's label is also one of the page's words. A Lit template reaches the
-   same writers through element directives built by `elementDirective`. A behavior module
+   should stand apart from the author's with `generatedElement`. A Lit template reaches
+   the same writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-lf-room`, which the
    theme sizes without script and which cuts words past it (controls.css). A module that
@@ -46,15 +45,14 @@ export {
    makes. The theme's one pressable rule reads that value.
 
    `worksInside` decides whether a container gesture may take a click. It treats
-   platform interactive elements as their own controls and uses `x-owners` to
-   distinguish a container's declared member widgets from nested widgets that own their
-   own interaction. What it cannot know is which of the controls it finds the
+   platform interactive elements, inside the container or pressed around it, as their
+   own controls and uses `owners` to distinguish a container's declared member widgets
+   from nested widgets that own their own interaction. What it cannot know is which of the controls it finds the
    container's own module put there — an option's pick mark, a gloss's own mark — so the
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
 import { pageRange, selectionBackward } from "./native-selection.js";
-import { move } from "./dom-move.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { registry, tagsDeclaring } from "./registry.js";
@@ -63,7 +61,12 @@ import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
-import { isElement, isNativeLayer, renderedUnder } from "./shadow-tree.js";
+import {
+  closestAcross,
+  isElement,
+  isNativeLayer,
+  renderedUnder,
+} from "./shadow-tree.js";
 
 import { keeps } from "./keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
@@ -162,27 +165,31 @@ export const dragging = (el, on) => {
 };
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
-// one aimed at what it holds. This is the second: the nearest thing between `node` and
-// `container` that has a use for the gesture, or null where the container is the aim.
+// one aimed at what it holds or what holds it. This is the second: the nearest thing
+// between `node` and `container` that has a use for the gesture, else a press around the
+// container, or null where the container is the aim. A press around it, as a link or a
+// label around a gloss, has the container's words for its face, and its activation is
+// the click's meaning, which a container taking the click would cancel.
 //
-// It exists because an option's case is now argued inside the option — a screenshot pair
+// It exists because an option's case is argued inside the option — a screenshot pair
 // to flip, a disclosure to open, tabs to walk — while the whole card is what takes the
-// pick. Reading the evidence then cast a vote: a click on a tab chose that option, and one
-// on a shot's `after` radio chose it and cleared it again, two decisions the user never
-// made and only the log to show for them. Fail closed, because a pick is sent the moment
-// it is made: a gesture nobody can prove was a choice is not one.
+// pick. Without it, reading the evidence would cast a vote: a click on a tab would choose
+// that option, and one on a shot's `after` radio would choose it and clear it again, two
+// decisions the user never made and only the log to show for them. Fail closed, because
+// a pick is sent the moment it is made: a gesture nobody can prove was a choice is not
+// one.
 //
 // Two vocabularies, because a container holds two kinds of thing. A widget it merely
 // contains is its own world, and that is every lf-* tag bar the parts the registry says
-// this container is made of (x-owners) — declared rather than listed, so the twelfth
-// widget is covered by its entry and a widget whose gesture lands on its own words rather
-// than on chrome (a press on lf-draft's own box) is covered with the rest. Inert ones go
-// in with them: a diagram is evidence the user studies with the pointer on it, and which
-// evidence happens to carry a control is nothing they can see.
+// this container is made of (`owners`) — declared rather than listed, so the
+// twelfth widget is covered by its entry and a widget whose gesture lands on its own
+// words rather than on chrome (a press on lf-draft's own box) is covered with the rest.
+// Inert ones go in with them: a diagram is evidence the user studies with the pointer
+// on it, and which evidence happens to carry a control is nothing they can see.
 //
 // `data-lf-offer` then catches the controls that belong to no widget — the runtime's own
 // hidden line saying how many comments a block holds, which a screen reader reaches by
-// Tab and which used to cast a vote on the way into the thread. It catches the container's
+// Tab and which would otherwise cast a vote on the way into the thread. It catches the container's
 // own apparatus too, which no rule here could tell from the rest; a container excludes
 // its own, being the only thing that can name them.
 /** @param {Element} node @param {Element} container */
@@ -194,7 +201,7 @@ export function worksInside(node, container) {
   for (let grew = true; grew;) {
     grew = false;
     for (const tag of tagsDeclaring((entry) =>
-      (entry["x-owners"] ?? []).some((owner) => parts.has(owner)),
+      (entry.owners ?? []).some((owner) => parts.has(owner)),
     ))
       if (!parts.has(tag)) {
         parts.add(tag);
@@ -214,26 +221,27 @@ export function worksInside(node, container) {
   const inner = node.closest(
     [...held, WORKS, "[data-lf-offer]", ".lf-msg-sending"].join(","),
   );
-  return inner && inner !== container && container.contains(inner) ? inner : null;
+  if (inner && inner !== container && container.contains(inner)) return inner;
+  return closestAcross(container.parentNode, PRESSES);
 }
 
 /** What else the user could aim at, at `node`, at any point on the page, marked words
  * or not: the nearest element around it, as the page renders it (`renderedParent`, so
  * through the slot that draws it), that takes the pointer itself, or null where nothing
- * does. One takes it where it is
+ * does. One takes it where it is:
  * - a control, native or ARIA (`CONTROLS`), or an element with a title the browser
  *   shows, as a link, a titled button or an option's mark;
  * - an element that declares its own preview (`lfPreview`), as a card that says what
  *   it holds, or a gloss;
- * - a registered widget that draws its content itself (`x-content` `data` or `empty`),
+ * - a registered widget that draws its content itself (`content` `data` or `empty`),
  *   as code, a diff or a draft does, with all it draws.
  * A plain tab stop or scrolling box takes nothing, and neither does what a widget
  * holds of the author's markup, as a pane's words, an option's beside its mark, a
  * suggestion's old and new words or a playground's preview: the verbs a widget
- * declares (`x-state`) say what it records, not that a press on its content acts. A
- * thread's words preview the thread only where nothing does, on every route that
- * reads a point (preview.js, `readingAt`); presses don't ask, so a press on a thread's
- * words acts as it always has.
+ * declares (`verbs`) say what it records, not that a press on its content acts.
+ * A thread's words preview the thread only where nothing does, on every route that
+ * reads a point (preview.js, `readingAt`); presses don't ask, so a press on a
+ * thread's words acts as it always has.
  * @param {Node | null} node @returns {Element | null} */
 export function aimableAt(node) {
   for (
@@ -253,7 +261,7 @@ export function aimableAt(node) {
 // Whether a registered widget draws its content itself, by its entry.
 /** @param {import("../types/contract.js").WidgetDeclaration | undefined} entry */
 const drawsItsContent = (entry) =>
-  entry?.["x-content"] === "data" || entry?.["x-content"] === "empty";
+  entry?.content === "data" || entry?.content === "empty";
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which
@@ -280,15 +288,15 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // button came up. Asking instead whether the selection contains the control is a
 // question about the DOM, and it answers yes for any selection running over the
 // control: a suggestion's row is the column's own child, in flow between the block
-// holding the change and the next one, so a user who read across the change and
-// then reached for Accept pressed a control that had gone dead — and stayed dead,
+// holding the change and the next one, so a user who reads across the change and
+// then reaches for Accept would press a control that has gone dead — and stays dead,
 // because a press that refuses a drag (`user-select: none`) never collapses the
 // selection that deadened it either.
 // Which is a reading rather than this listener's own business, because the same press
 // reaches things `offer` never made: the panel's quote, whose press travels the page to
-// the passage, and the list's landing, which moves the card the words are on. Each was
-// the same complaint in its own place — the user drew across the words to take them
-// and the page went somewhere.
+// the passage, and the list's landing, which moves the card the words are on. Each is
+// the same complaint in its own place — the user draws across the words to take them
+// and the page goes somewhere.
 // It asks only where the selection stopped, and not whether a press happened at all:
 // which presses can be a drag is each caller's own question. A click carries the answer
 // in `detail`, and a `pointerup` is a pointer by construction and carries no detail to
@@ -378,17 +386,4 @@ export function motionPreview(label) {
   preview.inert = true;
   preview.setAttribute("aria-hidden", "true");
   return preview;
-}
-
-// A widget's generated wrapper holding the children the page authored. Revision
-// member patching edits this body, while the widget keeps the wrapper itself.
-/** @type {WeakMap<Element, HTMLElement>} */
-const authoredBodies = new WeakMap();
-/** @param {Element} host */
-export const authoredBody = (host) => authoredBodies.get(host) ?? null;
-/** @template {HTMLElement} T @param {Element} host @param {T} body @returns {T} */
-export function holdAuthoredBody(host, body) {
-  for (const node of [...host.childNodes]) move(body, node, null);
-  authoredBodies.set(host, body);
-  return body;
 }

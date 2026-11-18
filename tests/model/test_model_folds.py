@@ -354,7 +354,6 @@ def test_summary_leaves_messages_after_its_range_visible():
 
     thread = model.threads(state)["e1"]
     assert thread["summaries"][0]["covers"] == ["e1", "e2"]
-    assert thread["summaries"][0]["label"] == "Earlier discussion"
     assert thread["msgs"][-1]["text"] == "new message"
 
 
@@ -632,13 +631,13 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
     ]
 
 
-def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
+def test_a_thread_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
     """A card moved on a board the agent sent in a reply is served in that reply's
     thread, so every surface of the thread shows its receipt; but the move owes
     nothing and publishes no obligation, so it leaves the thread the user's to answer,
     and no card reads it as work the agent is holding. The thread's own unanswered
     input is the contrast: it publishes the obligation that holds its thread."""
-    board = model.model_layer()["lf-board"]["x-example"]
+    board = model.model_layer()["lf-board"]["example"]
     state = model.reading(
         HUB,
         (
@@ -648,8 +647,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "author": "agent",
                 "parent": "e1",
                 "responds": "e1",
-                "text": "Here is the board. Which card goes first?",
-                "markup": board,
+                "text": "Here is the board. Which card goes first?\n\n" + board,
                 "obligation": True,
             },
             {
@@ -721,10 +719,10 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
     ]
 
 
-def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
+def test_questions_settle_one_by_one():
     """Each question in a thread waits on the user until a message or settling
-    reaction after it answers it; the thread's head marks the latest. A reply after
-    the agent ended a question does not change that end."""
+    reaction after it answers it, or a resolve after it ends it; the thread's head
+    marks the latest."""
     events = []
 
     def add(kind, identity, author="agent", **fields):
@@ -745,26 +743,25 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
         "message:first"
     ]
     assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
-    state = add(
-        "todo_end",
-        "end",
-        todo="message:first",
-        outcome="dropped",
-        detail="Asked elsewhere",
-    )
-    assert served_obligations(state)["user"] == []
     state = add("reply", "answer", "user", parent="first", text="Route A")
     first, second = served_obligations(state)["all"]
-    assert (first["status"], first["answer"]) == ("withdrawn", None)
+    assert (first["status"], first["answer"]["value"]) == (
+        "answered",
+        {"text": "Route A"},
+    )
     assert (second["status"], second["answer"]["event"]["id"]) == (
         "answered",
         "reaction",
     )
+    # A resolve ends the questions asked before it, and a reopening brings back
+    # none of them; taking the resolve back does.
     state = add("reply", "third", parent="first", text="Size?", obligation=True)
     state = add("resolve", "close", "user", parent="first")
     assert state["todos"] == []
     assert served_obligations(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
+    assert served_obligations(state)["user"] == []
+    state = add("undo", "back", "user", undoes="close")
     assert [item["id"] for item in served_obligations(state)["user"]] == [
         "message:third"
     ]
@@ -777,15 +774,15 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     ]
 
 
-def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task():
-    """Frozen widgets have no independent thread seat: their user and unanswered
+def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_prose_task():
+    """Thread widgets have no independent thread seat: their user and unanswered
     lists agree, and later prose or reactions cannot retire the widget obligation."""
     events = [
         {
             "kind": "comment",
             "author": "agent",
-            "text": "Choose a route.",
-            "markup": '<lf-options id="routes" choose><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
+            "text": "Choose a route.\n\n"
+            + '<lf-options id="routes"><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },
         {"kind": "reply", "author": "agent", "parent": "e1", "text": "Still checking."},
         {"kind": "reply", "parent": "e1", "token": "keep"},
@@ -864,9 +861,9 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
     for the whole answer it completes to)."""
     page = model.leaf_page(
         "Tail",
-        '<p id="p">One.</p><lf-ask id="ask"><h2>Which?</h2>'
-        '<lf-options id="pick" choose><lf-option id="one">One</lf-option>'
-        '<lf-option id="two">Two</lf-option></lf-options></lf-ask>',
+        '<p id="p">One.</p><lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
+        '<lf-options id="pick"><lf-option id="one">One</lf-option>'
+        '<lf-option id="two">Two</lf-option></lf-options></lf-group>',
     )
     pick = {
         "kind": "action",

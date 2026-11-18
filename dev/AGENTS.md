@@ -24,12 +24,15 @@ commands a developer reaches for together about one subject, while a command use
 across subjects, such as `probe`, stands at the top. Tooling that CI, a hook or an alias runs is a command too,
 so the repository has no directory of loose scripts. Code two tools need lives in one
 module here that the others import, never through `sys.path`, `PYTHONPATH` or a file
-path. A mechanism only one tool uses stays in that tool's file, and a command is named
-for what it examines rather than for the mechanisms inside it, so the code a new tool
-needs may sit in a command whose name doesn't suggest it. Before writing a mechanism,
+path. A command module is imported only by the CLI and its own tests; where only one
+group's commands need the code, its module is the group's own, named `_name.py` so
+`cli.py` lists it as no command (`journey/_journey.py`). A mechanism
+only one tool uses stays in that tool's file, and a command is named for what it
+examines rather than for the mechanisms inside it, so the code a new tool needs may
+sit in a command whose name doesn't suggest it. Before writing a mechanism,
 or turning a script of your own into a command, search `dev/`, `evals/` and `src/leaf/`
 for code that already does the job, by the calls it has to make (the widget whose markup it writes,
-the library it draws or measures with) rather than by name, as `/developing-leaf`'s
+the library it draws or measures with) rather than by name, as the root `AGENTS.md`'s
 **What it repeats** says. Move what you find into a module here that both tools
 import. The modules beside `cli.py` hold what several tools share already, such as
 the arms and harness sessions in `arms.py`, page directories in `page_fixtures.py`,
@@ -99,12 +102,9 @@ pnpm run test:evals
 
 ## Commands with consequences outside `.tmp/`
 
-- `leaf-dev site previews` (as `wt refresh-previews`), `site demo` and
+- `leaf-dev site previews`, `site demo` and
   `site media` publish images to `max-sixty/leaf-assets`; in the tree they change
-  only the pin
-  in `leaf-assets.json` and the README's image URLs.
-  `journey snapshots` accepts reviewed images by moving `leaf-assets.json`'s
-  `thread_snapshots_revision`.
+  only the pin in `leaf-assets.json` and the README's image URLs.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout to the
   `leaf-website-dev` environment. Production deploys only through
   `.github/workflows/publish-site.yaml`; `worker/README.md` owns diagnostics.

@@ -26,19 +26,10 @@ import { clamp, overlaps, overlapsAcross, shifted, union } from "../rect.js";
 // scrolls its target (the document, or a bounded block in its flow; never a pane), and
 // its block does not reach into the rail. A block grown past the rail's inner edge by
 // more than half a marker would stand under a rail marker, so its row stands on it as a
-// pin instead: the figure keeps its shape and the comment lands on what it is about. A
-// note hanging in the right margin level with the row holds the rail's strip there, so
-// that row pins too (`noted`).
-/** @param {{railStands: boolean, besideRail: boolean, blockRight: number, railInner: number, half: number, noted: boolean}} reading */
-export function rowPlacement({
-  railStands,
-  besideRail,
-  blockRight,
-  railInner,
-  half,
-  noted,
-}) {
-  if (!railStands || !besideRail || noted) return "pin";
+// pin instead: the figure keeps its shape and the comment lands on what it is about.
+/** @param {{railStands: boolean, besideRail: boolean, blockRight: number, railInner: number, half: number}} reading */
+export function rowPlacement({ railStands, besideRail, blockRight, railInner, half }) {
+  if (!railStands || !besideRail) return "pin";
   return blockRight - half > railInner ? "pin" : "rail";
 }
 
@@ -357,15 +348,19 @@ export function seatRow(pin, { gap, occupied }) {
   return { rect, folded };
 }
 
-// `pin` read `dx` across and `dy` down from where it was read: the layout's record of a
-// pin from an earlier pass, brought to where the page stands now (margin-layout.js,
-// `seatings`). Every positional field of `Pin` moves, so a field added to it moves here.
-/** @param {Pin} pin @param {number} dx @param {number} dy @returns {Pin} */
-export function shiftedPin(pin, dx, dy) {
+// The layout's record of a pin from an earlier pass, brought to where the page stands now
+// (margin-layout.js, `seatings`): the window has scrolled `scroll` since, and what the pin
+// read by its target has moved `move` across the page. Its bounds, the window's edges and
+// the page's top, move with the scroll alone, and every other positional field of `Pin`
+// with both, so a field added to it moves here.
+/** @param {Pin} pin @param {{x: number, y: number}} scroll @param {{x: number, y: number}} [move] @returns {Pin} */
+export function shiftedPin(pin, scroll, move = { x: 0, y: 0 }) {
+  const dx = scroll.x + move.x;
+  const dy = scroll.y + move.y;
   /** @param {Box} box */
   const at = (box) => shifted(box, dx, dy);
   /** @param {SeatSet} seats */
-  const move = ({ before, home, after }) => ({
+  const seatsAt = ({ before, home, after }) => ({
     before: before.map((seat) => seat && at(seat)),
     home: at(home),
     after: after.map((seat) => seat && at(seat)),
@@ -373,12 +368,12 @@ export function shiftedPin(pin, dx, dy) {
   return {
     ...pin,
     held: pin.held && at(pin.held),
-    seats: move(pin.seats),
+    seats: seatsAt(pin.seats),
     floor: pin.floor + dy,
     cover: pin.cover.map(at),
     controls: pin.controls.map(at),
-    bounds: at(pin.bounds),
-    folds: pin.folds && { ...pin.folds, seats: move(pin.folds.seats) },
+    bounds: shifted(pin.bounds, scroll.x, scroll.y),
+    folds: pin.folds && { ...pin.folds, seats: seatsAt(pin.folds.seats) },
   };
 }
 

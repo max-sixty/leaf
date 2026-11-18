@@ -440,9 +440,8 @@ cases:
             future validation from an executed run or deployment and retains the single synthetic
             five-minute run per cell limitation, without claiming production performance, uncertainty
             estimates or SLO proof.
-  # Revisions that change what a page is for, kept when they compose by Layouts
-  # (TODO.md, "Test the Layouts on agents"). Each reuses its task's request,
-  # comment and decision, then sends one revision.
+  # Revisions that change what a page is for, kept when they compose by Layouts.
+  # Each reuses its task's request, comment and decision, then sends one revision.
   document-live-status:
     inputs:
       request: document

@@ -31,12 +31,23 @@ import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 /** @type {WeakSet<Element>} */
 const initialized = new WeakSet();
 
+// Whether `el` stands in this window's document, the only one where an element
+// initializes. A copy in a document of its own stays markup in every engine but one:
+// Firefox (160), asked for the contents of a selection a drag carried through a shadow
+// root (`Range.cloneContents`), copies the Document itself, and upgrades and connects
+// the custom elements it copies into that copy before it throws. Highlighter extensions
+// read each selection the user makes that way. The check goes once Firefox clones the
+// range alone (`test_firefox_s_copy_of_a_group_builds_no_add_field`).
+/** @param {Element} el */
+export const inWindowDocument = (el) => el.ownerDocument === document;
+
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
 // already-upgraded child) must be harmless. A clone starts its own lifetime even when
-// it copied the painted upgrade mark; that mark never owns initialization.
+// it copied the painted upgrade mark; that mark never owns initialization, and a copy
+// connected outside the window's document (`inWindowDocument`) never initializes.
 /** @param {Element} el */
 export function once(el) {
-  if (initialized.has(el)) return false;
+  if (initialized.has(el) || !inWindowDocument(el)) return false;
   initialized.add(el);
   if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done))
     el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
@@ -44,7 +55,7 @@ export function once(el) {
 }
 
 // A data widget's body: the <pre> the content model requires, never the element's own
-// textContent. The two used to be the same string and are not once the element holds a
+// textContent. The two differ once the element holds a
 // child — an HTML formatter is free to put the <pre> on its own line, and the newline
 // and indent before it are the element's text too. Line one is load-bearing in every
 // notation here, so that indent is not untidiness downstream: a diff's file header, a

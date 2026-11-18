@@ -46,7 +46,7 @@ from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview
-from leaf_dev.commands.site import build as site
+from leaf_dev.commands.site import _build as site
 from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
@@ -60,7 +60,7 @@ def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_pat
 
     personal = tmp_path / "personal"
     personal.mkdir()
-    (personal / "overrides.css").write_text(":root { --accent: #814b07; }")
+    (personal / "overrides.css").write_text(":root { --lf-accent: #814b07; }")
     cmd_package_install(personal)
     config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
     config.parent.mkdir(parents=True)
@@ -163,9 +163,9 @@ def test_desktop_start_requires_its_validated_native_chat(
         text=True,
     )
     output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode != 0, output
-    assert "validated native transcript is unavailable" in errors
-    assert "Codex hooks enabled" in errors
+    assert task.returncode != 0, output + errors
+    assert "validated native transcript is unavailable" in output
+    assert "Codex hooks enabled" in output
     assert service.page_claim(page) is None
 
 
@@ -425,10 +425,13 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
     (source.parent / "media").mkdir()
     pin = tmp_path / "leaf-assets.json"
     pin.write_text("{}")
-    scripts = tmp_path / "src"
-    scripts.mkdir(parents=True)
-    (tmp_path / "pyproject.toml").write_text("")
-    (tmp_path / "uv.lock").write_text("")
+    # A checkout holds every file its Python processes load. The preview follows a
+    # missing input from the nearest directory that exists, here the checkout.
+    for tree in ("src", "dev/leaf_dev"):
+        (tmp_path / tree).mkdir(parents=True)
+    for path in preview.worker_inputs(tmp_path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("")
     watched = preview.watch_paths(source, tmp_path, [])
     assert pin in watched.roots
     assert tmp_path not in watched.roots
@@ -752,7 +755,7 @@ try:
             capture_output=True, text=True,
         )
         if result.returncode:
-            sys.exit(result.stderr)
+            sys.exit(result.stdout + result.stderr)
         started = (json.loads(result.stdout)["url"], result.stderr)
     else:
         foreground = subprocess.Popen(
@@ -760,10 +763,11 @@ try:
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         line = foreground.stdout.readline()
-        if not line:
+        announced = json.loads(line) if line else {}
+        if "url" not in announced:
             output, errors = foreground.communicate(timeout=30)
-            sys.exit(errors)
-        started = (json.loads(line)["url"], "")
+            sys.exit(line + output + errors)
+        started = (announced["url"], "")
     write_json(ready, started)
     while not done.exists():
         time.sleep(0.01)

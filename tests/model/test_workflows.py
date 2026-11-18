@@ -35,6 +35,7 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
+from leaf import holding as holding_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import obligations as obligations_model
@@ -329,9 +330,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
 
 def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
-    question = thread_model.cmd_comment(
-        page_dir, "", "", "", "Forty?", "", obligation=True
-    )
+    question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
     browser = page_state(page_dir)["browser"]
     [before] = served_thread(browser)["threads"]
     [owed] = served_obligations(browser)["user"]
@@ -354,7 +353,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     assert after["attention"] is None
 
 
-def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
+def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     asked = append_carried_log_record(
@@ -364,9 +363,8 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "id": "widget-thread",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<lf-options id="thread-region" choose>'
-            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            "text": "Which region?\n\n" + '<lf-options id="thread-region">'
+            '<lf-option id="thread-east" label="East"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -448,7 +446,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     }
 
 
-def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(
+def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(
     page_dir,
 ):
     """A card moved on a board sent in a reply is a page move in another document:
@@ -475,8 +473,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
             "author": "agent",
             "parent": asked["id"],
             "responds": asked["id"],
-            "text": "Here is the board.",
-            "markup": registry["lf-board"]["x-example"],
+            "text": "Here is the board.\n\n" + registry["lf-board"]["example"],
         },
     )
     moved = append_command(
@@ -587,14 +584,14 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     the submission and while the agent works on it, recording the settings asks for no
     attention and leaves the submission the agent's one input on the widget."""
     page = ModelPage(
-        '<lf-ask id="ask"><h2>Which tone?</h2><lf-playground id="tone-playground">'
-        '<lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="calm">'
-        '<lf-playground-choice id="tone-calm" value="calm" label="Calm"></lf-playground-choice>'
-        '<lf-playground-choice id="tone-urgent" value="urgent" label="Urgent"></lf-playground-choice>'
-        "</lf-playground-control>"
-        "<lf-playground-preview><p>Deployed.</p></lf-playground-preview>"
+        '<lf-group id="ask" label="Which tone?"><h2 id="ask-h">Which tone?</h2><lf-playground id="tone-playground">'
+        '<aside><fieldset id="tone"><legend>Tone</legend>'
+        '<label id="tone-calm"><input type="radio" name="tone" value="calm" checked /> Calm</label>'
+        '<label id="tone-urgent"><input type="radio" name="tone" value="urgent" /> Urgent</label>'
+        "</fieldset></aside>"
+        "<p>Deployed.</p>"
         "<lf-playground-output>Build it.</lf-playground-output>"
-        "</lf-playground></lf-ask>",
+        "</lf-playground></lf-group>",
         packages=("playground",),
     )
     log = []
@@ -640,7 +637,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     """A thread's status reads the records open in it, and names the strongest
     workflow serving the one it waits on. An input a newer one covers serves the newer
     one's record, so its pickup or a reply streaming to it keeps reading on the thread;
-    a frozen move that owes nothing serves none, so its further stage never stands in
+    a thread move that owes nothing serves none, so its further stage never stands in
     for the owed reply's."""
 
     def workflow(id, seq, subject, stage, obligation=None):
@@ -683,11 +680,9 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         ),
     ]
     # Only which thread the board widget stands in matters here.
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
-    frozen = projection_model.FrozenThreadReading(
-        ThreadStructure(set(), {}, {}), {}, {}, {"board": "root"}, empty
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    thread_reading = projection_model.ThreadMarkupReading(
+        ThreadStructure(set(), {}, {}, {}, {}), {}, {}, {"board": "root"}, empty
     )
     todos = [
         {
@@ -704,7 +699,9 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         assert browser_served_model._thread_attention(
             thread,
             [owed],
-            work_served_model.served_workflows(workflows, frozen, records, frozenset()),
+            work_served_model.served_workflows(
+                workflows, thread_reading, records, frozenset()
+            ),
             todos,
         ) == {
             "kind": "waiting",
@@ -775,16 +772,14 @@ def test_served_workflows_list_the_strongest_first():
             ["back", "working"],
         ),
     ]
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
-    frozen = projection_model.FrozenThreadReading(
-        ThreadStructure(set(), {}, {}), {}, {}, {}, empty
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    thread_reading = projection_model.ThreadMarkupReading(
+        ThreadStructure(set(), {}, {}, {}, {}), {}, {}, {}, empty
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
         served = work_served_model.served_workflows(
-            workflows, frozen, records, frozenset()
+            workflows, thread_reading, records, frozenset()
         )
         assert [item["id"] for item in served] == expected
 
@@ -867,7 +862,6 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "listening": True,
         "session_alive": True,
         "agent_turns": {},
-        "kept_back": [],
     }
     reply = {
         "state": "active",
@@ -895,7 +889,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([record]),
-        holding=activity_model.present_holding(present, [], now.isoformat()),
+        holding=holding_model.reading_of([], present, now.isoformat(), {}),
     )
     [projected] = activity["workflows"]
     assert (projected["stage"], projected["condition"]) == ("replying", None)
@@ -931,10 +925,9 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<lf-options id="region" choose>'
-            '<lf-option id="east"><strong>East</strong></lf-option>'
-            '<lf-option id="west"><strong>West</strong></lf-option>'
+            "text": "Which region?\n\n" + '<lf-options id="region">'
+            '<lf-option id="east" label="East"><strong>East</strong></lf-option>'
+            '<lf-option id="west" label="West"><strong>West</strong></lf-option>'
             "</lf-options>",
         },
     )
@@ -974,7 +967,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
     }
 
 
-def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
+def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
     claimed, printing, capsys
 ):
     page_dir = claimed
@@ -993,10 +986,9 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which regions?",
-            "markup": '<lf-options id="regions" choose multiple>'
-            '<lf-option id="east"><strong>East</strong></lf-option>'
-            '<lf-option id="west"><strong>West</strong></lf-option>'
+            "text": "Which regions?\n\n" + '<lf-options id="regions" multiple>'
+            '<lf-option id="east" label="East"><strong>East</strong></lf-option>'
+            '<lf-option id="west" label="West"><strong>West</strong></lf-option>'
             "</lf-options>",
         },
     )

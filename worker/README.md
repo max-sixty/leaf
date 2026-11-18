@@ -256,7 +256,7 @@ aggregate product events. Each record type below has a `component` field:
 | `leaf-agent`       | Worker and container | Step of a request or hosted turn, and each `500` the adapter answers |
 
 Workers Logs keeps records for at most seven days; a page directory's own `events.jsonl`
-lasts as long as its container. TODO(2026-09-25): Export interaction records to durable
+lasts as long as its container. TODO: Export interaction records to durable
 storage if they need to outlive [Workers Logs
 retention](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
 
@@ -529,17 +529,26 @@ The records to read first:
 | `container_continuation_receipted`                                       | The container wrote `startup_failed` for a waiting message it could not start, and whether that settled it                                                                   |
 | `thread_title_generated`, `thread_title_skipped`, `thread_title_failed`  | The title request for an untitled thread                                                                                                                                     |
 | `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
+| `container_stalled`                                                      | Nothing in the adapter ran for `stalledMs`, with the CPU, steal and stall time the container's VM spent meanwhile (`worker/leaf_website/stalls.py`)                          |
+| `container_unresponsive`                                                 | The adapter ran, but its server took `durationMs` to answer a health check, with the serving thread's frames (`worker/leaf_website/stalls.py`)                               |
 
 The session's `component=leaf-container`, `event=http_error` records identify
 forwarded HTTP 5xx responses by status, method, `source` and `retried`:
 `adapter` means the response carried Python's `Leaf-Release` stamp;
 `disconnected` means it matched one of the Containers SDK's proxy-failure
 responses; `unclassified` means neither was established. A `disconnected`
-`GET`, `HEAD` or `POST` to `api/user-view` is sent once more (`retried: true`),
-and the visitor sees the second answer; no other write is resent. These records retain no URL or response
-body. Use their native trace ID to join the request's invocation records. A
-`disconnected` response identifies the proxy boundary, not why its container
-connection was lost.
+record's `detail` is the SDK's sentence, which names the failure:
+`Container suddenly disconnected, try again` for a connection lost mid-request,
+`…taking too long to accept the connection…` for a container that answered
+nothing, and `…client disconnected.` for a visitor who left while their
+container started. A `disconnected` `GET`, `HEAD` or `POST` to `api/user-view`
+is sent once more (`retried: true`), and the visitor sees the second answer; no
+other write is resent. Apart from `detail`, which carries the runtime's error
+message as the SDK's own log line does, these records retain no URL or response
+body. Use their native trace ID to join the request's invocation
+records, and the container's `container_stalled` and `container_unresponsive`
+records (below) to tell a container the host stopped running from one whose
+server stopped answering.
 
 The page's private `observations.jsonl` also records these hosted-turn boundaries.
 Only that private diagnostic stream retains the complete published reply updates,
@@ -594,12 +603,14 @@ interaction log reports the focus within a quarter second, and the Worker posts
 `worker/src/agent.ts`). That starts the container and has it compose the page's layer,
 so both overlap the visitor's typing. Opening a thread focuses its comment box, so it
 prewarms too. The existing session Durable Object
-serves saved documents, comments, choices and private resources while compute is
+serves saved documents, comments, choices, drafts and private resources while compute is
 stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
 canonical files and matching Python-produced responses atomically before a write
 is acknowledged; a failed publication fails the request and permits an idempotent
-retry. The Durable Object serves each saved response with the headers Python gave it,
+retry. Drafts change no page reading, so a write publishes them only beside a change of
+its own, and a container that stops publishes each page whose drafts moved since
+(`save_drafts`). The Durable Object serves each saved response with the headers Python gave it,
 so the browser caches it as it would the live answer, and Back restores a page the
 visitor has acted on from the back/forward cache, as it does a locally served page
 ([browser support](../notes/browser-support.md), "Page cache"). File modification

@@ -44,6 +44,7 @@ from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
 from leaf.registry.storage import layer_record
+from leaf_dev import arms
 from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import read_fixture, record_run_context
 
@@ -152,7 +153,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         assert turn_record is not None
         assert turn_record["generation"] == before["generation"]
         assert state.held_claims(sid)
-        assert leases.lock_is_held(preview.preview_lease(page))
+        assert leases.lock_is_held(arms.preview_lease(page))
         assert (current := server.running_server(page)) is not None
         assert current["url"] == url
 
@@ -202,7 +203,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
                 failure=f"chat {retirement} left its page server running",
             )
         wait_for(
-            lambda: leases.lock_is_held(preview.preview_lease(page)),
+            lambda: leases.lock_is_held(arms.preview_lease(page)),
             lambda held: not held,
             failure=f"chat {retirement} left its preview watcher running",
         )
@@ -234,7 +235,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             hosting.cmd_stop(page)
             state.end_session(sid)
             wait_for(
-                lambda: leases.lock_is_held(preview.preview_lease(page)),
+                lambda: leases.lock_is_held(arms.preview_lease(page)),
                 lambda held: not held,
                 failure="the explicitly stopped detached preview kept watching",
             )
@@ -318,7 +319,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(
     assert task.returncode == 0, f"{output}{errors}"
     assert service.page_claim(page) is None
     assert server.running_server(page) is None
-    assert not leases.lock_is_held(preview.preview_lease(page))
+    assert not leases.lock_is_held(arms.preview_lease(page))
 
 
 def test_preview_publishes_companion_edits_at_its_existing_url(
@@ -330,7 +331,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
     its ordinary stamp door and HTTP delivery. Earlier executable resources retain
     their bytes, and a competing preview edit is refused until reconciled.
     """
-    from leaf.files import latest_revision, revision_path
+    from leaf.files import latest_revision
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -347,12 +348,13 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
             {
                 "lf-reading": {
                     "description": "A reading",
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                    "additionalProperties": False,
-                    "x-content": "empty",
-                    "x-upgrade": True,
+                    "attributes": {
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                        "additionalProperties": False,
+                    },
+                    "content": "empty",
                 }
             }
         )
@@ -382,19 +384,15 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         def at(path):
             return fetch(urlsplit(url)._replace(path=path).geturl(), token=None)
 
-        def resource(revision):
-            # Beneath the runtime the preview's server runs, which its document names.
+        def resource():
+            # Beneath the address the live document names for its resources.
             document = at("/")[1].decode()
-            match = re.search(r'data-lf-runtime-identity="([0-9a-f]+)"', document)
+            match = re.search(r'data-lf-entry="([^"]+)/leaf\.js"', document)
             assert match is not None
-            runtime = match[1]
-            return (
-                f"/revisions/{revision_path(page, revision).stem}/{runtime}"
-                "/page/widgets/lf-reading.js"
-            )
+            return f"{match[1]}/page/widgets/lf-reading.js"
 
         first = latest_revision(page)
-        old_resource = resource(first)
+        old_resource = resource()
         assert at(old_resource) == (200, original)
 
         status, body = fetch(
@@ -417,7 +415,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         assert second is not None and first is not None
         assert second > first
         assert at("/")[0] == 200
-        assert at(resource(second)) == (200, revised)
+        assert at(resource()) == (200, revised)
         assert at(old_resource) == (200, original)
         assert (page / "events.jsonl").read_bytes().startswith(before)
         assert read_interactions(page, types=("run_context",)) == contexts
@@ -754,8 +752,10 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     source.write_text(
         "<!doctype html><html><head><title>Reading</title></head><body><main>"
         '<h1>Initial reading</h1><lf-text-document id="receipt" source="receipt"></lf-text-document>'
-        '<lf-options id="route" choose><lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></main></body></html>'
+        '<lf-group id="route-q" label="Which route?">'
+        '<lf-options id="route"><lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>'
+        "</main></body></html>"
     )
     source.with_suffix(".data.json").write_text('{"receipt":"Original value"}')
     package = tmp_path / "package"

@@ -41,7 +41,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.commands.generate.corpus import sources as corpus_sources
+from leaf_dev.corpus import sources as corpus_sources
 
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
@@ -64,6 +64,13 @@ def failed_widget(page: Page) -> None:
             'source row: ' + 'unbroken_source_value_'.repeat(12));
     }""")
     expect(page.locator("#failed-exhibit > .lf-error")).to_be_visible()
+
+
+def worktree_cases_open(page: Page) -> None:
+    """The larger set of examples opened, its first workbench in view: a wide list of
+    worktrees in a section inside a disclosure."""
+    page.locator("#worktree-example-cases > summary").click()
+    page.locator("#worktree-example-single-case").scroll_into_view_if_needed()
 
 
 def worktree_summaries(page: Page) -> None:
@@ -390,6 +397,27 @@ def panel_status_hover(page: Page) -> None:
     page.locator(".lf-fp-leaf").hover()
 
 
+def panel_errors(page: Page) -> None:
+    """The leaf's menu opened by its error dot, over an error the user edited past in
+    the field, so it waits unseen in the Errors list."""
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {raiseError, passErrors} = await import(
+            new URL('runtime/errors.js', new URL(boot, location.href)));
+        passErrors([raiseError('That writing place is unavailable').id]);
+    }""")
+    expect(page.locator(".lf-fp-error-dot[data-lf-shown]")).to_be_attached()
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator('.lf-fp-item[data-lf-row="errors"]')).to_be_visible()
+
+
+def panel_errors_list(page: Page) -> None:
+    """The Errors list the menu's Errors row opens, each error with its presses."""
+    panel_errors(page)
+    page.locator('.lf-fp-item[data-lf-row="errors"]').click()
+    expect(page.locator(".lf-fp-error").first).to_be_visible()
+
+
 def open_thread(page: Page, key: str) -> None:
     """The thread `key`, opened from Threads in the floating panel's view."""
     go_to_threads(page)
@@ -713,6 +741,42 @@ def open_card(page: Page, marker: Locator) -> float:
     marker.click()
     page.wait_for_function(OPEN_CARD)
     return before
+
+
+def summary_card(page: Page) -> None:
+    """A margin card a summary of the thread's opening messages opens, under its
+    actions, and the agent's latest reply after it."""
+    root = "9303f850cbdc9b9f79f1725011251d36"
+    as_agent("thread", "reply", root, "--text", "Export now checks the sandbox first.")
+    # A summary speaks in its agent's voice, which a session gives it.
+    served = served_page.get()
+    served.leaf(
+        "thread",
+        "summarize",
+        str(served.directory),
+        "--from",
+        root,
+        "--through",
+        "sandbox-shutdown-reply",
+        "--text",
+        "The supervisor reaps every child before export, so an empty sandbox is "
+        "its precondition.",
+        LEAF_SESSION_ID="stills-summary",
+        LEAF_AGENT="Codex",
+    )
+    wait_until_ready(
+        page, PageClient(served_page.get().address).state(), through="state"
+    )
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    page.mouse.move(0, 0)
+
+
+def summary_card_opened(page: Page) -> None:
+    """The same card with its summary opened on the messages it folds."""
+    summary_card(page)
+    page.locator(".lf-margin-preview .lf-summary-expand").click()
+    settle(page)
+    page.mouse.move(0, 0)
 
 
 def thread_by_marker(page: Page) -> None:
@@ -1114,8 +1178,9 @@ def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
     root = thread.get_attribute("data-lf-thread")
     assert root
     as_agent("thread", "reply", root, "--text", "That one goes first.")
+    # The notice says one count of all it holds; its preview says each fact.
     notice = thread.locator(".lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 new reply")
+    expect(notice).to_have_text("1 new")
     PageClient(served_page.get().address).post(
         {
             "kind": "reply",
@@ -1124,7 +1189,7 @@ def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
             "text": "Sent from my other tab.",
         }
     )
-    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    expect(notice).to_have_text("2 new")
 
 
 def card_held_news(page: Page) -> None:
@@ -1194,6 +1259,23 @@ def seat_held_news(page: Page) -> None:
     thread = page.locator("#goal-parser .lf-page-thread")
     thread.scroll_into_view_if_needed()
     held_news(page, thread, drafting=False)
+
+
+def seat_comment_box(page: Page) -> None:
+    """A goal's row with its comment box open under the conversation it holds, the
+    words of a second comment typed: the box stands in the row's own outlet, with the
+    send that holds the goal beside it."""
+    as_agent(
+        "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
+    )
+    load(page, served_page.get().address)
+    goal = page.locator("#goal-parser")
+    control = goal.locator(":scope > .atlas-task-comment")
+    control.scroll_into_view_if_needed()
+    control.click()
+    box = goal.locator(":scope > .atlas-task-threads .lf-fab-input")
+    expect(box).to_be_focused()
+    page.keyboard.insert_text("Park it once the hunk lands")
 
 
 def option_picked(page: Page) -> None:
@@ -1285,6 +1367,29 @@ def on_me_question(page: Page) -> None:
     page.locator(".lf-fp-on-item", has_text=question).scroll_into_view_if_needed()
 
 
+def on_me_thread_choice(page: Page) -> None:
+    """On Me opened on the card of a choice the agent asked in a thread, drawn
+    nowhere else, the card focused so its options wear their digits."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "plan-context",
+        "--text",
+        "Open the pull request now, or hold it?\n\n"
+        '<lf-options id="pr-timing">\n'
+        '<lf-option id="pr-now" label="Open it now"><strong>Open it now</strong></lf-option>\n'
+        '<lf-option id="pr-hold" label="Hold it"><strong>Hold it</strong></lf-option>\n'
+        "</lf-options>",
+    )
+    page.reload()
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    on_me(page)
+    card = page.locator('.lf-fp-on-item[data-lf-obligation-id="widget:pr-timing"]')
+    card.scroll_into_view_if_needed()
+    card.focus()
+
+
 def on_me_choice(page: Page) -> None:
     """A described choice card in On Me, before answering."""
     on_me(page)
@@ -1317,6 +1422,29 @@ def threads_scrolled(page: Page) -> None:
     """Threads scrolled in a short window, with Open's band stuck over its rows."""
     go_to_threads(page)
     page.locator(panel_view("threads")).evaluate("view => { view.scrollTop = 36; }")
+    settle(page)
+
+
+def threads_drafts(page: Page) -> None:
+    """Threads while the user has left comments on two passages and a reply unsent:
+    Drafts lists each by its words and what it is about, over the threads."""
+    field = page.locator(".lf-fab-input")
+    page.locator("#off-lede").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    page.keyboard.type("Lead with the decision, then the evidence.")
+    page.locator("#off-facts").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    page.keyboard.type("Cite the telemetry window here.")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(reply).to_be_focused()
+    page.keyboard.type("And the support macro, before Friday.")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    go_to_threads(page)
     settle(page)
 
 
@@ -1537,6 +1665,14 @@ def screenshot_options(page: Page) -> None:
         "node => node.scrollIntoView({block: 'start'})"
     )
     shot.scroll_into_view_if_needed()
+
+
+def screenshot_startup(page: Page) -> None:
+    """The section holding a shot, at the top of the window, before the shot's module
+    draws it."""
+    page.locator("#rn-console-section").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
 
 
 def image_in_page(page: Page) -> None:
@@ -1909,6 +2045,15 @@ def chart_preview(page: Page) -> None:
     settle(page)
 
 
+def chart_point_aim(page: Page) -> None:
+    """The point `chart_preview` reads under Alt: Leaf's aim on the mark round the
+    chart's ring, which a click takes as the comment's point (lf-chart.js). A runtime
+    whose charts take no comment on a point aims at the whole chart."""
+    chart_preview(page)
+    page.keyboard.down("Alt")
+    settle(page)
+
+
 def gallery_plans(page: Page) -> None:
     """Planned work beside observed history, using authored stable section identity."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
@@ -1922,13 +2067,11 @@ def gallery_drawing(page: Page) -> None:
 
 
 def gallery_ask_figure(page: Page) -> None:
-    """An `lf-ask` enclosing a chart, with its question at the window's top so the chart and
-    every option either share the window or run past it."""
+    """A question's group enclosing a chart, with its question at the window's top so
+    the chart and every option either share the window or run past it."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     settle(page)
-    page.locator("#bg-ask-across lf-ask").evaluate(
-        "el => el.scrollIntoView({block: 'start'})"
-    )
+    page.locator("#bg-across-ask").evaluate("el => el.scrollIntoView({block: 'start'})")
 
 
 def theme_hierarchy(page: Page) -> None:
@@ -2224,7 +2367,7 @@ def card_ask_by_keyboard(page: Page) -> None:
     """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
     ask, so the location ring stands round it inside the card's transcript."""
     page.keyboard.press("m")
-    expect(page.locator(".lf-margin-preview lf-ask")).to_be_focused()
+    expect(page.locator(".lf-margin-preview [data-lf-obligation]")).to_be_focused()
     settle(page)
 
 
@@ -2319,33 +2462,39 @@ def versions_menu(page: Page) -> None:
 
 def all_pages(page: Page) -> None:
     """All pages with two neighbours of one title, told apart only by where their
-    sessions work. A stills server has no neighbour of its own, so a rewritten state
-    supplies them."""
+    sessions work. A stills server has no neighbour of its own, so its news names a
+    list of pages, which `/api/pages` answers with them."""
+    activity = PageClient(served_page.get().address).state()["activity"]
+    neighbours = [
+        {
+            "page_key": place,
+            "url": f"http://127.0.0.1:9/{place}",
+            "title": "Move Tend's agent runs into one sandbox and retire its setup",
+            "session_cwd": f"/workspace/tend.{place}",
+            "activity": {
+                **activity,
+                "kind": "working",
+                "dropped": None,
+                "awaiting": None,
+                "detail": "Running the sandbox suite against both harnesses",
+            },
+        }
+        for place in ("sandbox-runner", "release-notes")
+    ]
 
     def with_neighbours(route):
         response = route.fetch()
-        state = response.json()
-        state["others"] = [
-            {
-                "page_key": place,
-                "url": f"http://127.0.0.1:9/{place}",
-                "title": "Move Tend's agent runs into one sandbox and retire its setup",
-                "session_cwd": f"/workspace/tend.{place}",
-                "activity": {
-                    **state["activity"],
-                    "kind": "working",
-                    "dropped": None,
-                    "awaiting": None,
-                    "detail": "Running the sandbox suite against both harnesses",
-                },
-            }
-            for place in ("sandbox-runner", "release-notes")
-        ]
-        route.fulfill(response=response, json=state)
+        route.fulfill(response=response, json={**response.json(), "pages": "stills"})
 
-    page.route("**/api/state*", with_neighbours)
-    page.reload()
-    wait_until_ready(page)
+    page.route("**/api/news*", with_neighbours)
+    page.route("**/api/pages*", lambda route: route.fulfill(json=neighbours))
+    # A predicate's promise reads as a truthy answer, so the check API is imported first.
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const api = await import(new URL('runtime/check-api.js', new URL(boot, location.href)));
+        window.__lfLeavesOffered = api.leavesOffered;
+    }""")
+    page.wait_for_function("() => window.__lfLeavesOffered()")
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     page.locator(panel_view("leaves")).wait_for()
@@ -2362,14 +2511,22 @@ def obligation_marker_by_keyboard(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
+    """The next open obligation, a question's group, reached with `m`: its ring and its
+    marker in view."""
     page.keyboard.press("m")
-    page.locator("lf-ask").first.wait_for()
+    page.locator("[data-lf-obligation]").first.wait_for()
 
 
 def steps_in_view(page: Page) -> None:
     """A list of steps in body prose, each number beside its first line."""
     page.locator("#security-contract-list").scroll_into_view_if_needed()
+
+
+def deep_record_open(page: Page) -> None:
+    """The architecture record opened, its proposed-states diagram in view: a wide
+    drawing in a section inside a disclosure."""
+    page.locator("#security-deep-record > summary").click()
+    page.locator("#security-states").scroll_into_view_if_needed()
 
 
 def disclosures_in_view(page: Page) -> None:
@@ -2395,7 +2552,7 @@ def contents_by_keyboard(page: Page) -> None:
 
 
 def contents_marks(page: Page) -> None:
-    """Where each section's threads and On me items stand along the contents: on the
+    """Where each section's threads and On Me items stand along the contents: on the
     map where the track stands beside the body, and in the outline the reader opened
     where the track stacks over it."""
     toggle = page.locator("lf-toc .lf-toc-toggle")
@@ -2436,7 +2593,7 @@ def overflowing_tabs(page: Page) -> None:
 
 
 def widget_inline_hints(page: Page) -> None:
-    """A standalone command scope with an active inline hint, outside an `lf-ask`."""
+    """A standalone command scope with an active inline hint, outside a question."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
     page.keyboard.press("Tab")
     page.locator("#bg-local-shortcuts").focus()
@@ -2494,7 +2651,7 @@ def playground_controls(page: Page) -> None:
     control = page.get_by_role("slider", name="Concurrent release events")
     control.focus()
     control.press("ArrowRight")
-    page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+    page.locator(".lf-playground-controls-region").scroll_into_view_if_needed()
 
 
 def playground_instruction(page: Page) -> None:
@@ -2505,10 +2662,12 @@ def playground_instruction(page: Page) -> None:
 
 
 def playground_tall_stage(page: Page) -> None:
-    """The last alert's controls, pressed far down a stage taller than the window."""
-    control = page.locator("lf-playground-preview lf-playground-control").last
-    control.scroll_into_view_if_needed()
-    control.get_by_role("radio").last.click()
+    """The last alert's last choice, pressed far down a stage taller than the window."""
+    choice = page.locator(
+        ".lf-playground-preview-body label:has(> input[type=radio])"
+    ).last
+    choice.scroll_into_view_if_needed()
+    choice.get_by_role("radio").click()
     page.mouse.move(0, 0)
 
 
@@ -2605,6 +2764,14 @@ def live_sample_embedded(page: Page) -> None:
     ).to_be_visible()
 
 
+def gallery_comparison(page: Page) -> None:
+    """A section comparing alternatives: its guide, a row of tiles and a table."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-neutral-comparison").scroll_into_view_if_needed()
+
+
 def interactive_sample(page: Page) -> None:
     """An interactive sample, whose widgets use this page's state, under its note."""
     page.locator("#bg-inline-sample").scroll_into_view_if_needed()
@@ -2677,6 +2844,12 @@ STATES = (
         region="#race",
     ),
     State(
+        "gallery-comparison",
+        "feature-gallery",
+        gallery_comparison,
+        region="#bg-neutral-comparison",
+    ),
+    State(
         "native-code",
         "feature-gallery",
         native_code,
@@ -2737,6 +2910,13 @@ STATES = (
         region=".lf-fp-leaf",
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
+    State("panel-errors", "review-a-plan", panel_errors, region=".lf-floating-panel"),
+    State(
+        "panel-errors-list",
+        "review-a-plan",
+        panel_errors_list,
+        region=".lf-floating-panel",
+    ),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
     State(
         "detached-thread", "feature-gallery", detached_thread, region=".lf-fp-opened"
@@ -2776,6 +2956,7 @@ STATES = (
     State(
         "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"
     ),
+    State("threads-drafts", "ship-review", threads_drafts, region=".lf-fp-opened"),
     State(
         "floating-thread-retitled",
         "ship-review",
@@ -2853,7 +3034,7 @@ STATES = (
         "playground-text",
         "notification-playground",
         playground_text,
-        region='lf-playground-control:has(> input[type="text"])',
+        region="lf-playground :has(> input[placeholder])",
     ),
     State("drawing-comment", "feature-gallery", drawing_comment),
     State("drawing-comment-hover", "feature-gallery", drawing_comment_hover),
@@ -2905,6 +3086,13 @@ STATES = (
         screenshot_view_hover,
         region="#bg-shot .lf-shot-toolbar",
     ),
+    State(
+        "screenshot-startup",
+        "release-notes",
+        screenshot_startup,
+        activated=False,
+        region="#rn-console-section",
+    ),
     State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
     State("dial-press", "detail", dial_press, region="lf-dial"),
     State(
@@ -2943,6 +3131,12 @@ STATES = (
         "worktree-diffs",
         worktree_summaries,
         region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-cases-open",
+        "worktree-diffs",
+        worktree_cases_open,
+        region="#worktree-example-single-case",
     ),
     State("diff-file-reply", "diff-thread-gallery", diff_file_reply),
     State("diff-moved-reply", "diff-thread-gallery", diff_moved_reply),
@@ -3063,6 +3257,7 @@ STATES = (
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),
     State("chart-preview", "feature-gallery", chart_preview, region="#bg-chart"),
+    State("chart-point-aim", "feature-gallery", chart_point_aim, region="#bg-chart"),
     State("gallery-plans", "feature-gallery", gallery_plans),
     State(
         "gallery-drawing",
@@ -3129,6 +3324,18 @@ STATES = (
         "plan-card-cluster-resolved",
         "review-a-plan",
         card_cluster_resolved,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "summary-card",
+        "review-a-plan",
+        summary_card,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "summary-card-opened",
+        "review-a-plan",
+        summary_card_opened,
         region=".lf-margin-preview",
     ),
     State(
@@ -3200,6 +3407,12 @@ STATES = (
         "command-hub",
         seat_held_news,
         region="#goal-parser .lf-page-thread",
+    ),
+    State(
+        "hub-seat-comment",
+        "command-hub",
+        seat_comment_box,
+        region="#goal-parser > .atlas-task-threads",
     ),
     State(
         "plan-card-reply-large",
@@ -3350,6 +3563,12 @@ STATES = (
     ),
     State("stacked-disclosures", "security-boundary", disclosures_in_view),
     State(
+        "deep-record-open",
+        "security-boundary",
+        deep_record_open,
+        region="#security-states",
+    ),
+    State(
         "security-flow",
         "security-boundary",
         security_flow,
@@ -3448,6 +3667,7 @@ STATES = (
         window=Window((1440, 480)),
     ),
     State("on-me-question", "review-a-plan", on_me_question),
+    State("on-me-thread-choice", "review-a-plan", on_me_thread_choice),
     State("on-me", "corpus", on_me),
     State("on-agent", "corpus", on_agent),
     State("hub-on-me", "command-hub", on_me),

@@ -82,11 +82,13 @@ const SQUASH = 0.01;
  * @typedef {{[key: string]: Channel | true | undefined}} Sources
  * @typedef {{[key: string]: unknown}} Format
  * @typedef {{key: string, label?: string | null, value?: unknown}} Row
- * @typedef {{values: Values, scales: Scales, fx: unknown, fy: unknown, left: number, bottom: number, number: (value: number) => string | undefined, sources: Sources, format: Format, authored: Format, rows: (this: {format: Format}, i: number, index: {fx?: unknown, fy?: unknown}, sources: Sources, scales: Scales, values: Values) => Iterable<Row>}} Drawn
+ * @typedef {{values: Values, scales: Scales, fx: unknown, fy: unknown, fi?: number, left: number, bottom: number, number: (value: number) => string | undefined, sources: Sources, format: Format, authored: Format, rows: (this: {format: Format}, i: number, index: {fx?: unknown, fy?: unknown}, sources: Sources, scales: Scales, values: Values) => Iterable<Row>}} Drawn
  * @typedef {{tx: number, ty: number, kx: number, ky: number, reach: number, frame: Dimensions, points: Point[]}} Frame
- * @typedef {{x: number, y: number, px: number, py: number, ax: number, ay: number, i: number, order: number, drawn: Drawn, series: number, n: number, said?: string, same?: Point}} Point
- * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y"}} Reading
- * @typedef {import("@observablehq/plot").Mark & {data?: any, tip?: unknown, facet?: unknown, facetAnchor?: unknown, format: Format, frameAnchor?: string, dx?: number, dy?: number}} Drawable */
+ * @typedef {{x: number, y: number, px: number, py: number, ax: number, ay: number, i: number, order: number, drawn: Drawn, series: number, n: number, said?: string, datum?: string, same?: Point}} Point
+ * @typedef {{node: Element | null, shapes?: Map<number, Element | null>}} Rendered
+ * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y", named?: Map<string, Point>, rendered: Map<number | undefined, Rendered>[]}} Reading
+ * @typedef {(this: Drawable, index: (ArrayLike<number> & {fi?: number}) | null, ...rest: unknown[]) => Element | null} Render
+ * @typedef {import("@observablehq/plot").Mark & {data?: any, tip?: unknown, facet?: unknown, facetAnchor?: unknown, format: Format, frameAnchor?: string, dx?: number, dy?: number, render: Render}} Drawable */
 
 /** @param {Scale | undefined} scale */
 const placed = (scale) => Boolean(scale?.type && PLACES.has(scale.type));
@@ -172,6 +174,24 @@ export function readPoints({ Plot, tipSources, tipRows }, marks) {
   const standing = new Map();
   /** @type {Scales | null} */
   let chart = null;
+  // What each mark that fills a box for each datum drew in each facet it drew, by the
+  // facet's number, for the shape that is a datum's bar or cell (`shapeOf`). The
+  // number is Plot's own (`index.fi`), which its types don't declare, so a mark drawn
+  // twice under one number, as every facet would be without it, names no shape there.
+  const boxes = [Plot.BarX, Plot.BarY, Plot.Cell, Plot.Rect];
+  /** @type {Map<number | undefined, Rendered>[]} */
+  const rendered = tipped.map(() => new Map());
+  tipped.forEach((mark, order) => {
+    if (!boxes.some((kind) => mark instanceof kind)) return;
+    const render = mark.render;
+    const drawings = rendered[order];
+    mark.render = function (index, ...rest) {
+      const node = render.call(this, index, ...rest);
+      const facet = index?.fi;
+      drawings?.set(facet, { node: drawings.has(facet) ? null : node });
+      return node;
+    };
+  });
   // Each mark's tip as Plot builds it from the mark's `tip` option (`inferTips`): the
   // mark's data and, through an initializer, its channels; Plot's pointer's `px` and
   // `py` channels, without the pointer itself; and in place of its drawing, a reading.
@@ -243,6 +263,7 @@ export function readPoints({ Plot, tipSources, tipRows }, marks) {
         scales,
         fx: index.fx,
         fy: index.fy,
+        fi: index.fi,
         left: tx + dimensions.marginLeft,
         bottom: ty + dimensions.height - dimensions.marginBottom,
         number,
@@ -305,7 +326,7 @@ export function readPoints({ Plot, tipSources, tipRows }, marks) {
         run.sort(order);
         run.forEach((point, n) => Object.assign(point, { series: s, n }));
       });
-      return { points, series: runs, frames, axis };
+      return { points, series: runs, frames, axis, rendered };
     },
   };
 }
@@ -364,33 +385,130 @@ export function nearest({ frames }, x, y) {
   return best?.same ?? best;
 }
 
-// What names a point's datum across drawings: its mark, its facet and the values of
-// its channels, as the data says them rather than as a drawing places them.
-/** @param {Point} point */
-function datumOf({ order, i, drawn }) {
-  /** @param {unknown} value */
-  const raw = (value) => (value instanceof Date ? value.getTime() : (value ?? null));
-  return JSON.stringify([
-    order,
-    raw(drawn.fx),
-    raw(drawn.fy),
-    ...Object.entries(drawn.values.channels).map(([key, channel]) => [
-      key,
-      raw(channel?.value[i]),
-    ]),
-  ]);
+/* What names a point's datum across drawings: its mark, its facet and the values of its
+ * channels, as the data says them rather than as a drawing places them. It is one token
+ * a reader can read, the mark's place among the marks that say their values and then
+ * each value under its channel's name, `;` between them: "0;x=2026-05-11;y=26", a time
+ * as its ISO date, with its time of day where it has one. A name or value keeps its own
+ * characters but whitespace, `%`, `;` and `=`, which it writes as a URI does. So the
+ * token is the datum's name wherever it is kept, as the id of a comment on it
+ * (lf-chart.js), and an agent reading the comment reads the datum in it.
+ *
+ * Every value names the datum, a measure included, so a datum whose value changes is
+ * another datum, as a stacked segment is once a segment below it changes, and a
+ * redraw's own data is the same data. */
+
+/** A value as its datum's token writes it.
+ * @param {unknown} value */
+function written(value) {
+  const said =
+    value instanceof Date
+      ? Number.isNaN(value.getTime())
+        ? ""
+        : value
+            .toISOString()
+            .replace(/\.000Z$/, "Z")
+            .replace(/T00:00:00Z$/, "")
+      : value == null
+        ? ""
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value);
+  return said.replace(/[%;=\s\p{Cc}]/gu, encodeURIComponent);
 }
 
-/** The point of `reading` holding the datum `point` held in an earlier drawing, if it
- * still draws it.
- * @param {Reading} reading @param {Point} point */
-export function sameDatum(reading, point) {
-  const datum = datumOf(point);
-  return (
-    reading.points.find(
-      (other) => other.order === point.order && datumOf(other) === datum,
-    ) ?? null
-  );
+/** The datum's entries after its mark: its facets, then each channel's value.
+ * @param {Point} point */
+function* entries({ i, drawn }) {
+  if (drawn.fx != null) yield `fx=${written(drawn.fx)}`;
+  if (drawn.fy != null) yield `fy=${written(drawn.fy)}`;
+  const { channels } = drawn.values;
+  for (const key in channels)
+    yield `${written(key)}=${written(channels[key]?.value[i])}`;
+}
+
+/** The shape Plot drew for a point's datum where its mark fills a box for each datum,
+ * as a bar, a bin, a cell or a rect does: in the point's facet, the `<rect>`, or the
+ * `<path>` a bar with rounded corners is, that Plot's join bound to the datum's index
+ * (d3's `__data__`), inside any link or clip Plot wraps it in. Null for a dot, a line's
+ * vertex or an area's, and wherever the chart can't be sure which shape is the
+ * datum's: where two shapes hold it, where the mark drew twice in what reads as one
+ * facet, or where a render transform has drawn the mark again since, as Plot's pointer
+ * does, replacing what it drew first. A transform that joins other data to the shapes
+ * it drew, reusing them, has the facet's shapes read again. The first ask of a facet
+ * reads its shapes, one pass, and each ask after it is one lookup while the shape it
+ * finds still holds its datum.
+ * @param {Reading} reading @param {Point} point @returns {Element | null} */
+export function shapeOf({ rendered }, { order, i, drawn }) {
+  const facet = rendered[order]?.get(drawn.fi);
+  const root = facet?.node;
+  if (!facet || !root?.parentNode) return null;
+  let shape = facet.shapes?.get(i);
+  if (!facet.shapes || (shape && boundTo(shape) !== i)) {
+    facet.shapes = shapesIn(root);
+    shape = facet.shapes.get(i);
+  }
+  return shape && root.contains(shape) ? shape : null;
+}
+
+/** @param {Element} shape */
+const boundTo = (shape) => /** @type {{__data__?: unknown}} */ (shape).__data__;
+
+/** Each datum's shape under a mark's drawing, or null for a datum two shapes hold.
+ * @param {Element} root */
+function shapesIn(root) {
+  /** @type {Map<number, Element | null>} */
+  const shapes = new Map();
+  for (const shape of root.querySelectorAll("rect, path")) {
+    const datum = boundTo(shape);
+    if (typeof datum === "number") shapes.set(datum, shapes.has(datum) ? null : shape);
+  }
+  return shapes;
+}
+
+/** The token naming a point's datum, kept on it once read.
+ * @param {Point} point */
+export const datumOf = (point) =>
+  (point.datum ??= [String(point.order), ...entries(point)].join(";"));
+
+/** The point of `reading` holding the datum `datum` names, if it draws it. The first
+ * ask of a drawing names each of its points (`datumOf`), one pass, so each ask after it
+ * is one lookup however the points stand. Of two points with one name, the first
+ * drawn holds it.
+ * @param {Reading} reading @param {string} datum */
+export function datumPoint(reading, datum) {
+  if (!reading.named) {
+    reading.named = new Map();
+    for (const point of reading.points) {
+      const name = datumOf(point);
+      if (!reading.named.has(name)) reading.named.set(name, point);
+    }
+  }
+  return reading.named.get(datum) ?? null;
+}
+
+/** A datum's token in words, each value after its channel's name, for a datum the
+ * chart no longer draws: "x 2026-05-11, y 26".
+ * @param {string} datum */
+export const datumWords = (datum) =>
+  datum
+    .split(";")
+    .slice(1)
+    .map((entry) => {
+      const [key = "", value = ""] = entry.split("=");
+      return `${unwritten(key)} ${unwritten(value)}`.trim();
+    })
+    .join(", ");
+
+// A value as its token wrote it, back in its own characters. A token an agent wrote
+// by hand may hold a `%` that writes nothing, and reads as it stands.
+/** @param {string} value */
+function unwritten(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 // Where `at` falls along `run`, sorted along `local`: the index of its first point

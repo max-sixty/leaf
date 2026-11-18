@@ -1,51 +1,54 @@
 {
   "lf-conversation-workspace": {
     "description": "A worked package reader sharing Leaf conversations and obligations.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-shadow": true,
-    "x-upgrade": true,
-    "x-example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
+    "content": "empty",
+    "shadow": true,
+    "example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
   },
   "lf-margin-entry-gallery": {
     "description": "A developer exhibit of page-edge controls and status indicators across their supported states.",
-    "x-instructions": "Use this only in the feature gallery. Ordinary pages demonstrate controls through the live widgets that own them.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-exhibit": true,
-    "x-upgrade": true,
-    "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>"
+    "content": "empty",
+    "exhibit": true,
+    "instructions": "Use this only in the feature gallery. Ordinary pages demonstrate controls through the live widgets that own them.",
+    "example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>"
   },
   "lf-document-gallery": {
     "description": "A gallery producer whose changing Markdown is read by a text document.",
-    "x-exhibit": true,
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-upgrade": true,
-    "x-output": {
+    "content": "empty",
+    "outputs": {
       "document": {
         "contract": "text-document"
       }
     },
-    "x-example": "<lf-document-gallery id=\"document-producer\"></lf-document-gallery>"
+    "exhibit": true,
+    "example": "<lf-document-gallery id=\"document-producer\"></lf-document-gallery>"
   }
 }

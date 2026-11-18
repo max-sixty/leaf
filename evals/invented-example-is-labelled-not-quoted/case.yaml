@@ -1,0 +1,62 @@
+# A page explaining why Leaf's thread summary hint overlaps earlier summaries draws a
+# thread it makes up. An author can exhibit that drawing in a plain `lf-sample`, whose
+# note reads "QUOTED", and so present the page's own example as material quoted from
+# elsewhere. A caption or sentence beside the drawing that calls the thread
+# illustrative keeps it the page's own explanation.
+description: invented-example-is-labelled-not-quoted
+metadata:
+  purpose:
+    "Develop the work: an example the page invents is labelled illustrative beside
+    it, and stays the page's own explanation rather than an exhibit Leaf calls
+    quoted."
+  tags:
+    - drawing
+    - evidence
+vars:
+  prompt: |
+    Write a small Leaf page that answers the maintainer's question: "why do we need
+    this hint vs summary overlap? explain it on a page with an example". The reader is
+    Max, who designs Leaf and knows its threads and summaries in general, but doesn't
+    hold the mechanics below in mind. Keep the page short and draw the mechanism
+    rather than describing it.
+
+    The facts, all checked against the code:
+
+    - An agent runs `leaf thread summarize <page> --from <first> --through <last>
+      --file summary.md`. The thread then shows the summary in place of those
+      messages; the originals stay available to unfold.
+    - Replacement: a new summary replaces, whole, every summary in force that it
+      overlaps by even one message.
+    - No gap: no message except the thread's first may stay unsummarized above a
+      summary. Leaf refuses such a range and names a wider one it accepts.
+    - So summaries that touch but don't overlap both stand, and the only way a thread
+      keeps one summary of its earlier discussion is for the new summary to overlap
+      the old ones.
+    - When a thread is long, Leaf's delivery of the user's new message suggests a
+      range to summarize (`summary_hint`), always leaving the newest exchange (the
+      last two messages) in full. The old hint was the earliest run of at least four
+      unsummarized messages, so following it added a summary beside the existing
+      one. The new hint, merged today as #6273, adds every summary in force among the
+      older messages, so following it replaces them and leaves one.
+
+    A constructed thread you may use, about a search cache's TTL: m1 (user) "Why five
+    minutes for the TTL?"; m2–m6 settled keeping five minutes and are already folded
+    into summary S1; m7 (user) the cache needs a size cap; m8 (agent) capped at 2 GB,
+    hit rate 74% → 71%; m9 (user) warm it at startup; m10 (agent) warms 10,000 top
+    queries in 40 s; m11 (user) what happens when the index rebuilds?; m12 (agent) a
+    rebuild flushes the cache; m13 (user, just sent) could we keep serving old results
+    during a rebuild?
+
+    The page directory is not reachable from here, so reply with the page's HTML
+    rather than writing a file.
+assert:
+  - type: llm-rubric
+    metric: example-labelled-as-the-pages-own
+    value: |
+      Find the search-cache thread the page uses as its example. Pass if words
+      standing with it, such as its figure's caption, its heading or the sentence
+      introducing it, say it is illustrative, constructed or made up, and it is not
+      inside an `lf-sample` that lacks both `interactive` and a `template` child:
+      Leaf labels such a sample "quoted", which presents the page's own example as
+      material quoted from elsewhere. Fail if the example is inside such a sample, or
+      if nothing beside it says it is invented. Do not demand exact wording.

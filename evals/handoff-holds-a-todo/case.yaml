@@ -1,18 +1,13 @@
-# From real pages since `leaf task` shipped (2026-10-05 to 10-10): of 5 replies
-# promising later work, the 3 the replying agent carried itself held a task; the 2 it
-# handed to another session (a `/dispatch`) held none, so the promise left both
-# queues and no result reached the thread. Cold, every run opens the task; what
-# fails is ending it, since "a worker touches the page only in a role Leaf's
-# instructions give it" leads the brief to forbid `leaf task`. Base at 8cbfb8f75
-# passed 9 of 12 runs on Claude Code, every failure that brief; "wherever the result
-# lands, the task ends there" passed 4 of 4, each brief ending the task from the
-# dispatched session, as did a longer edit that also listed hand-offs as a worker role.
-# Reworded by #2506 (`--task` to `--todo`); at 3fe3eb0af it passed 1/1 on Claude Code.
-# Real pages from Oct 4 to 12 kept failing it: 11 dispatch handoffs answered `--done`.
-# The dispatch skill's own last step, pasted in below, is what pulls that way ("the
-# launch closes out this task"), with "work owned by another session stays there"
-# misread as covering the thread. With it, 759b1beb8 passed 0 of 3 on Claude Code,
-# each reply `--done`; naming a handoff as a promise in "Long-running work" passed 3 of 3.
+# A reply promising later work holds a task where the replying agent carries the
+# work itself; one handing it to another session (a `/dispatch`) can hold none, so
+# the promise leaves both queues and no result reaches the thread. Cold, the failure
+# is ending the task rather than opening it: "a worker touches the page only in a
+# role Leaf's instructions give it" can lead the brief to forbid `leaf task`, so the
+# instructions say whoever finishes the work ends the to-do, from the dispatched
+# session. A dispatch handoff can also answer `--done`: the dispatch skill's own last
+# step, pasted in below, pulls that way ("the launch closes out this task"), with
+# "work owned by another session stays there" misread as covering the thread, so
+# "Long-running work" names a handoff as a promise.
 description: handoff-holds-a-todo
 metadata:
   purpose: "Conversation loop: work the agent hands to another session still gets a
@@ -41,7 +36,7 @@ vars:
     > its progress, list it as an open item, or park enrichment for it. The launch
     > closes out this task, however unfinished the dispatched work is.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page in this turn, and the brief you
     would hand the dispatched session.
 assert:

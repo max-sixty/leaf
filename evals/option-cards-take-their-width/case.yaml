@@ -1,0 +1,43 @@
+# A session's user found three option cards set `across` in a question's lf-group "quite thin"
+# at 1728px: `across` shares the group's width, the question keeps the 720px column,
+# so each card got 229px and its four-word title broke in two. Other pages that set
+# cards across gave the group no `data-width` either.
+# The fix is guidance: the lf-options entry says a card of words reads at about
+# 18rem, so a row of three needs `data-width="wide"`. The case is a probe given a
+# page with its packages.
+description: option-cards-take-their-width
+metadata:
+  purpose:
+    "Asks: a row of option cards set side by side takes the width its cards need to
+    read, rather than a share of the reading column too small for a card's title."
+  page: []
+  tags:
+    - asks
+vars:
+  prompt: |
+    Write a Leaf page that reviews the shared build cache's settings, one section
+    per setting, each ending in a question for the user. The user said earlier that
+    they compare options most easily side by side. Start with the section for this
+    item; the other settings come later.
+
+    Your notes:
+    - Item #4: the cache evicts every entry older than 7 days. CI's hit rate falls
+      from 81% on Mondays to 64% on Fridays as the week's branches push main's
+      entries out. The cache holds 410 GB of its 500 GB.
+    - The user decides the eviction rule:
+      - keep main's entries 30 days and others 7 (your recommendation; about 60 GB
+        more);
+      - evict the least recently used entries once the cache reaches 480 GB,
+        whatever their age;
+      - keep the 7-day rule, as today.
+assert:
+  - type: llm-rubric
+    metric: row-takes-its-width
+    value: |
+      Find the `lf-options` group that asks which eviction rule to use. Pass only if
+      its three options stand side by side at a width that gives each card room for
+      its title: the `lf-options` element carries `across` and also
+      `data-width="wide"` or `data-width="available"`. Fail if it carries `across`
+      without a `data-width`, which leaves each card a third of the reading column.
+      Fail if it has no `across`, since the user asked to compare options side by
+      side.

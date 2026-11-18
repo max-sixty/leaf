@@ -23,27 +23,27 @@ const TERM = { x: 790, y: 96, w: 450, h: 470, line: 21, rows: 19 };
 // page's light or dark scheme and the browser re-themes it when the scheme changes. The
 // terminal reads as one of the page's code blocks.
 const ROLES = {
-  bg: "--card",
-  panel: "--field",
-  panel2: "--paper",
-  rule: "--rule",
-  ink: "--ink",
-  muted: "--muted",
-  faint: "--border-2",
-  main: "--accent",
-  feat: "--warn",
-  squash: "--mark-ink",
-  ok: "--ok",
-  bad: "--danger",
-  warn: "--warn-ink",
+  bg: "--lf-card",
+  panel: "--lf-field",
+  panel2: "--lf-paper",
+  rule: "--lf-rule",
+  ink: "--lf-ink",
+  muted: "--lf-muted",
+  faint: "--lf-border",
+  main: "--lf-accent",
+  feat: "--lf-warn",
+  squash: "--lf-series-4",
+  ok: "--lf-ok",
+  bad: "--lf-danger",
+  warn: "--lf-warn-ink",
 };
 const TERM_ROLES = {
-  bg: "--pre-bg",
-  rule: "--code-border",
-  ink: "--code-ink",
-  muted: "--code-muted",
-  ok: "--ok",
-  bad: "--danger",
+  bg: "--lf-pre-bg",
+  rule: "--lf-code-border",
+  ink: "--lf-code-ink",
+  muted: "--lf-code-muted",
+  ok: "--lf-ok",
+  bad: "--lf-danger",
 };
 
 const byName = (roles) =>

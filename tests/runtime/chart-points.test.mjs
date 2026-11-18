@@ -3,10 +3,13 @@ import test from "node:test";
 import * as bundle from "../../packages/default/vendor/plot.esm.js";
 import {
   cross,
+  datumOf,
+  datumPoint,
+  datumWords,
   nearest,
   readPoints,
-  sameDatum,
   sayPoint,
+  shapeOf,
   step,
 } from "../../packages/default/widgets/chart-points.js";
 
@@ -475,9 +478,12 @@ test("a redraw finds the datum the reader was on, wherever the data moved it", (
   const on = before.points.find((point) => said(point)?.name === "x 2");
   assert.ok(on);
   const after = read({ marks: [Plot.lineY(rows([2, 3]), { x: "x", y: "y" })] });
-  assert.deepEqual(said(sameDatum(after, on)), { name: "x 2", detail: ["y 20"] });
+  assert.deepEqual(said(datumPoint(after, datumOf(on))), {
+    name: "x 2",
+    detail: ["y 20"],
+  });
   const gone = read({ marks: [Plot.lineY(rows([3]), { x: "x", y: "y" })] });
-  assert.equal(sameDatum(gone, on), null);
+  assert.equal(datumPoint(gone, datumOf(on)), null);
   // Two readings at one place are two data across drawings too.
   const together = (/** @type {string} */ by) =>
     read({
@@ -494,8 +500,265 @@ test("a redraw finds the datum the reader was on, wherever the data moved it", (
   for (const by of ["title", "fill"]) {
     const two = together(by).points[1];
     assert.ok(two);
-    assert.deepEqual(said(sameDatum(together(by), two)), said(two), by);
+    assert.deepEqual(said(datumPoint(together(by), datumOf(two))), said(two), by);
   }
+});
+
+test("a datum's name is one token of its values that finds it in the next drawing", () => {
+  // A comment keeps it as the point's id, which an agent reads: the mark, then each
+  // channel's value, a day as its date, and words with spaces and the token's own
+  // separators written as a URI writes them.
+  const line = read({
+    x: { type: "utc" },
+    marks: [
+      Plot.lineY(
+        [
+          { week: "2026-05-04", team: "back end; ops", hours: 31 },
+          { week: "2026-06-01T14:00Z", team: "back end; ops", hours: 26 },
+        ],
+        { x: "week", y: "hours", stroke: "team" },
+      ),
+    ],
+  });
+  const [day, moment] = line.points;
+  assert.ok(day && moment);
+  assert.equal(
+    datumOf(day),
+    "0;stroke=back%20end%3B%20ops;x=2026-05-04;y=31;z=back%20end%3B%20ops",
+  );
+  assert.equal(datumOf(moment).split(";")[2], "x=2026-06-01T14:00:00Z");
+  // Each series' points are found by where they stand, the series coming first.
+  assert.equal(datumPoint(line, datumOf(moment)), moment);
+  assert.equal(
+    datumWords(datumOf(day)),
+    "stroke back end; ops, x 2026-05-04, y 31, z back end; ops",
+  );
+  // A channel an author names with a space keeps the token one token.
+  const named = read({
+    marks: [
+      Plot.dot([{ x: 1, y: 2, m: 3 }], {
+        x: "x",
+        y: "y",
+        channels: { "body mass": "m" },
+      }),
+    ],
+  });
+  const [heavy] = named.points;
+  assert.ok(heavy);
+  assert.equal(datumOf(heavy), "0;body%20mass=3;x=1;y=2");
+  assert.equal(datumPoint(named, datumOf(heavy)), heavy);
+  assert.equal(datumWords(datumOf(heavy)), "body mass 3, x 1, y 2");
+  const bins = read({
+    marks: [
+      Plot.rectY(
+        [1, 2, 12, 13, 14].map((v) => ({ v })),
+        Plot.binX({ y: "count" }, { x: "v", thresholds: [0, 10, 20] }),
+      ),
+    ],
+  });
+  assert.deepEqual(bins.points.map(datumOf), [
+    "0;x1=0;y1=0;x2=10;y2=2",
+    "0;x1=10;y1=0;x2=20;y2=3",
+  ]);
+  // A token that names no datum the drawing holds, or holds more than it names, finds
+  // nothing.
+  const [first] = bins.points;
+  assert.ok(first);
+  assert.equal(datumPoint(bins, datumOf(first)), first);
+  assert.equal(datumPoint(bins, "0;x1=0;y1=0;x2=10"), null);
+  assert.equal(datumPoint(bins, "1;x1=0;y1=0;x2=10;y2=2"), null);
+  assert.equal(datumPoint(bins, `${datumOf(first)};z=1`), null);
+});
+
+test("a bar, a bin and a cell are the shape Plot drew for them, and a dot or vertex none", () => {
+  // The shape a comment's mark and Leaf's aim stand on (lf-chart.js), insets and all.
+  /** @param {any} marks @param {string} drawnAs */
+  const shapes = (marks, drawnAs) => {
+    const { reading, svg } = drawn({ marks: [marks] });
+    const shown = [...svg.querySelectorAll(`[aria-label="${drawnAs}"] > *`)];
+    return { found: reading.points.map((point) => shapeOf(reading, point)), shown };
+  };
+  const binned = shapes(
+    Plot.rectY(
+      [1, 2, 12, 13, 14, 25].map((v) => ({ v })),
+      Plot.binX({ y: "count" }, { x: "v", thresholds: [0, 10, 20, 30], inset: 8 }),
+    ),
+    "rect",
+  );
+  assert.equal(binned.shown.length, 3);
+  assert.deepEqual(binned.found, binned.shown);
+  // A bar on no categorical axis, which spans the frame.
+  const spanning = shapes(Plot.barX([{ v: 2 }, { v: 5 }], { x: "v" }), "bar");
+  assert.deepEqual(spanning.found, spanning.shown);
+  const cells = shapes(
+    Plot.cell(
+      [
+        { a: "p", b: "q" },
+        { a: "r", b: "s" },
+      ],
+      { x: "a", y: "b" },
+    ),
+    "cell",
+  );
+  assert.deepEqual(cells.found, cells.shown);
+  // A dot on two categorical axes, and a line's vertex, are no box.
+  const dots = shapes(
+    Plot.dot(
+      [
+        { a: "p", b: "q" },
+        { a: "r", b: "s" },
+      ],
+      { x: "a", y: "b" },
+    ),
+    "dot",
+  );
+  assert.deepEqual(dots.found, [null, null]);
+  const line = shapes(Plot.lineY([1, 3, 2]), "line");
+  assert.deepEqual(line.found, [null, null, null]);
+});
+
+const BARS = [
+  { k: "a", v: 1 },
+  { k: "b", v: 3 },
+];
+// The shape each point of a bar chart is, and the shapes of `kind` the bars drew.
+/** @param {any} options @param {string} [kind] */
+const barShapes = (options, kind = "rect") => {
+  const { reading, svg } = drawn(options);
+  const shown = [...svg.querySelectorAll(`[aria-label="bar"] ${kind}`)];
+  return { reading, svg, found: reading.points.map((p) => shapeOf(reading, p)), shown };
+};
+
+test("a mark repeated in each facet is, in the second, the shape drawn there", () => {
+  const repeated = barShapes({
+    facet: { data: [{ g: "A" }, { g: "B" }], x: "g" },
+    marks: [Plot.barY(BARS, { x: "k", y: "v", facet: false })],
+  });
+  assert.equal(repeated.shown.length, 4);
+  assert.deepEqual(repeated.found, repeated.shown);
+});
+
+test("a datum's shape is the one Plot bound it to, in whatever order it drew them", () => {
+  const reversed = barShapes({
+    marks: [
+      Plot.barY(BARS, {
+        x: "k",
+        y: "v",
+        render: (
+          /** @type {any[]} */ index,
+          ...[scales, values, size, context, next]
+        ) => next([...index].reverse(), scales, values, size, context),
+      }),
+    ],
+  });
+  assert.deepEqual(reversed.found, [...reversed.shown].reverse());
+});
+
+test("a linked bar, a clipped one and one with rounded corners are their shapes", () => {
+  // Plot wraps a linked bar in a link and a clipped mark's group in another, and
+  // draws a bar with rounded corners as a path.
+  const linked = barShapes({
+    marks: [
+      Plot.barY(BARS, { x: "k", y: "v", href: (/** @type {any} */ d) => `#${d.k}` }),
+    ],
+  });
+  assert.equal(linked.shown[0]?.parentElement?.localName, "a");
+  assert.deepEqual(linked.found, linked.shown);
+  const clipped = barShapes({
+    marks: [Plot.barY(BARS, { x: "k", y: "v", clip: true })],
+  });
+  assert.deepEqual(clipped.found, clipped.shown);
+  const rounded = barShapes(
+    { marks: [Plot.barY(BARS, { x: "k", y: "v", r: 4 })] },
+    "path",
+  );
+  assert.equal(rounded.shown.length, 2);
+  assert.deepEqual(rounded.found, rounded.shown);
+});
+
+test("a mark a render transform draws again is no shape the drawing no longer holds", () => {
+  // As Plot's pointer does, the transform replaces what it drew first, and the chart,
+  // unable to say which shape is now the datum's, names none.
+  /** @type {() => void} */
+  let redraw = () => {};
+  const redrawn = barShapes({
+    marks: [
+      Plot.barY(BARS, {
+        x: "k",
+        y: "v",
+        render(/** @type {any} */ index, ...[scales, values, size, context, next]) {
+          const drawing = next(index, scales, values, size, context);
+          redraw = () =>
+            drawing.replaceWith(next(index, scales, values, size, context));
+          return drawing;
+        },
+      }),
+    ],
+  });
+  assert.deepEqual(redrawn.found, redrawn.shown);
+  redraw();
+  assert.equal(redrawn.svg.querySelectorAll('[aria-label="bar"] rect').length, 2);
+  assert.deepEqual(
+    redrawn.reading.points.map((p) => shapeOf(redrawn.reading, p)),
+    [null, null],
+  );
+});
+
+test("a mark whose shapes a transform joins to other data is read again", () => {
+  // As a d3 update join does, the transform binds the shapes it drew to the index
+  // reversed, keeping each node.
+  /** @type {() => void} */
+  let rejoin = () => {};
+  const rejoined = barShapes({
+    marks: [
+      Plot.barY(BARS, {
+        x: "k",
+        y: "v",
+        render(/** @type {any} */ index, ...[scales, values, size, context, next]) {
+          const drawing = next(index, scales, values, size, context);
+          rejoin = () =>
+            drawing.querySelectorAll("rect").forEach((/** @type {any} */ shape, n) => {
+              shape.__data__ = index[index.length - 1 - n];
+            });
+          return drawing;
+        },
+      }),
+    ],
+  });
+  assert.deepEqual(rejoined.found, rejoined.shown);
+  rejoin();
+  assert.deepEqual(
+    rejoined.reading.points.map((p) => shapeOf(rejoined.reading, p)),
+    [...rejoined.shown].reverse(),
+  );
+});
+
+test("a mark drawn in facets Plot doesn't number names no shape in them", () => {
+  // Plot numbers each facet it draws a mark in (`index.fi`), which its types don't
+  // declare. Were it to stop, every facet would read as one, and the chart rings each
+  // point rather than mark another facet's shape.
+  const bar = Plot.barY(BARS, { x: "k", y: "v", facet: false });
+  const points = readPoints(bundle, [bar]);
+  for (const mark of [bar, ...points.marks]) {
+    const render = mark.render;
+    mark.render = function (/** @type {any} */ index, /** @type {any[]} */ ...rest) {
+      const unnumbered =
+        index && Object.assign([...index], { fx: index.fx, fy: index.fy });
+      return render.call(this, unnumbered, ...rest);
+    };
+  }
+  Plot.plot({
+    width: 640,
+    height: 400,
+    facet: { data: [{ g: "A" }, { g: "B" }], x: "g" },
+    marks: [[bar], points.marks],
+  });
+  const reading = points.done();
+  assert.equal(reading.points.length, 4);
+  assert.deepEqual(
+    reading.points.map((p) => shapeOf(reading, p)),
+    [null, null, null, null],
+  );
 });
 
 test("a time reads to the second or millisecond its datum has", () => {

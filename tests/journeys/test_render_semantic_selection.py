@@ -8,19 +8,24 @@ from render_cases_navigation import (
     UNDO_PAGE,
 )
 from render_harness import (
+    DESIGN_LEGEND,
     PANEL,
+    expect_design_mode,
     expect_panel_offers,
     field_press,
     open_page,
     panel_control,
     panel_field,
+    panel_settled,
     panel_view,
+    resized,
     selection_field,
     sending,
     write,
 )
 
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -51,28 +56,28 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
 
     with sending(page, "the pick"):
         page.locator("#opt-a").tap()
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     expect_panel_offers(page, "command:history.undo")
     with sending(page, "the withdrawal"):
         panel_control(page, "command:history.undo").tap()
     expect(host).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
     # each mode's way out is the field's Close, its word alone under a finger, while
     # the On Me mark keeps its seat.
-    for entry, root, mode in (
-        ("command:draw.mode.enter", "html", "data-lf-draw-mode"),
-        ("command:design.mode.enter", "body", "data-lf-design-mode"),
+    for entry, stands in (
+        ("command:draw.mode.enter", "html[data-lf-draw-mode]"),
+        ("command:design.mode.enter", DESIGN_LEGEND),
     ):
         panel_control(page, entry, at="annotate").tap()
-        expect(page.locator(root)).to_have_attribute(mode, "")
+        expect(page.locator(stands).first).to_be_attached()
         expect(close).to_be_visible()
         expect(close.locator("kbd")).to_have_count(0)
         expect(on_me).to_be_visible()
         close.tap()
-        expect(page.locator(root)).not_to_have_attribute(mode, "")
+        expect(page.locator(stands)).to_have_count(0)
         expect(close).to_have_count(0)
         expect(on_me).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
@@ -102,14 +107,14 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(thread).to_be_visible()
     page.locator(".lf-fp-close").tap()
     expect(thread).to_have_count(0)
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     # A finger does not hover, so no name stays where the last tap was.
     expect(page.locator(".lf-inspect")).to_be_hidden()
 
     # Prose still selects in Design mode. On the narrowest phone row the panel's field
     # names the mode before the quoted words, beside the mode's ✕, until the words are
     # let go, when its own end says Close again, and a tap on it comments on them.
-    page.set_viewport_size({"width": 320, "height": 700})
+    resized(page, 320, 700)
     field = panel_field(page)
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
     comment = selection_field(page)
@@ -117,6 +122,9 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
         "placeholder", re.compile("^In Design mode · “Undo”")
     )
     expect(exit_design).to_be_visible()
+    # The row is measured at rest: the panel's parts slide to their new places, past
+    # the row's end on the way.
+    panel_settled(page, open=False)
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the selection's field overflows a 320px row"
     )
@@ -125,6 +133,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(field).to_have_attribute("placeholder", re.compile("^In Design mode"))
     expect(close).to_be_visible()
     expect(exit_design).to_have_count(0)
+    panel_settled(page, open=False)
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the mode's way out overflows a 320px row"
     )
@@ -136,7 +145,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
     close.tap()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
 
     # Selecting words reaches only what is on screen; search finds the rest, and its
     # walk stands in its own box, beside the count, with the box still taking letters.
@@ -154,7 +163,9 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text("Match 2 of 3")
     expect(box).to_be_focused()
     # A press on the marked match takes it as the selection, which the panel's field
-    # then quotes.
+    # then quotes. The live region says the step on a timer of its own, which can
+    # fire before the rendering update that moves the mark onto the match.
+    rendered(page)
     mark = page.locator(".lf-page-search-match").first.bounding_box()
     page.touchscreen.tap(mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
     expect(box).to_be_hidden()

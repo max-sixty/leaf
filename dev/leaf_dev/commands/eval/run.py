@@ -5,7 +5,8 @@ working tree, and with `--base` a `base` at the merge base or a ref, as
 `choose_arms(payload=True)` copies them), gives each provider a home of its own seeded
 with the harness's login, and expands the catalog's task/context addresses into
 Promptfoo tests.
-Native probes install the complete arm as a plugin and read it in fresh sessions;
+Native probes install the complete arm as a plugin and read it in fresh sessions,
+with an initialized page where the case declares `metadata.page`;
 short authoring cases use isolated tool-capable children and grade the saved page;
 Codex shares one server per provider home while starting fresh ephemeral, read-only
 threads for each test.
@@ -29,14 +30,12 @@ results join Promptfoo's store and viewer like any other run's.
 
 import fnmatch
 import json
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
 from collections.abc import Callable, Iterator
 from copy import deepcopy
-from datetime import datetime
 from functools import cache, partial
 from importlib import import_module
 from pathlib import Path
@@ -45,7 +44,7 @@ import click
 import yaml
 from click.core import ParameterSource
 
-from leaf.harness import ClaudeCodeHarness
+from leaf.harness import ClaudeCodeHarness, claude_code_config
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
@@ -63,6 +62,8 @@ from leaf_dev.arms import (
     environment,
     install_codex_plugin,
     instruction_context,
+    run_directory,
+    run_leaf,
 )
 from leaf_dev.browser import WINDOWS
 from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
@@ -74,6 +75,7 @@ from leaf_dev.screenshot_judge import screenshot_judge
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = definition("eval")["skill_prefix"]
+PAGE_PROMPT = definition("eval")["page_prompt"]
 NOW = definition("eval")["now"]
 
 
@@ -133,24 +135,37 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 def native_provider(
     harness: str, payload: Path, work: Path, model: str | None = None
 ) -> tuple[dict, Path | None]:
-    """A read-only native agent and its explicitly invocable installed skill."""
+    """A read-only native agent and its explicitly invocable installed skill.
+
+    Besides reading, it can ask the arm's Leaf what a page's packages tell an author,
+    the route an author takes to a widget's instructions (`PAGE_PROMPT`): Claude Code
+    through `leaf page instructions` and `leaf page vocabulary` alone, Codex through the
+    plugin's `leaf` tool, which runs any `leaf` command outside its read-only sandbox."""
     if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
+        reading = [
+            "Skill",
+            "Read",
+            "Bash(leaf page instructions:*)",
+            "Bash(leaf page vocabulary:*)",
+            "Bash(jq:*)",
+        ]
         return {
             "id": "anthropic:claude-agent-sdk",
             "config": {
-                "model": MODELS[ClaudeCodeHarness.name],
+                "model": model or MODELS[ClaudeCodeHarness.name],
                 "apiKeyRequired": False,
                 "working_dir": str(work),
                 "persist_session": False,
                 "plugins": [{"type": "local", "path": str(payload)}],
                 "additional_directories": [str(payload)],
-                "tools": ["Skill", "Read"],
-                "custom_allowed_tools": ["Skill", "Read"],
+                "tools": ["Skill", "Read", "Bash"],
+                "custom_allowed_tools": reading,
                 "permission_mode": "dontAsk",
                 "max_turns": 24,
                 "settings": {"autoMemoryEnabled": False},
                 "env": {
+                    "PATH": environment(payload=payload)["PATH"],
                     "XDG_STATE_HOME": str(Path(child["env"]["HOME"]) / ".local/state"),
                     **{
                         key: child["env"][key]
@@ -166,7 +181,10 @@ def native_provider(
         }, None
     home = work.with_name(f"{work.name}-home")
     home.mkdir(mode=0o700)
-    config_home = codex_home(home / ".codex")
+    config_home = codex_home(
+        home / ".codex",
+        '[plugins."leaf@leaf".mcp_servers.leaf]\ndefault_tools_approval_mode = "approve"\n',
+    )
     codex = codex_program()
     temporary = work / "tmp"
     temporary.mkdir()
@@ -235,9 +253,7 @@ def workflow_provider(
             # `eval run` drops CLAUDE_CONFIG_DIR from Promptfoo's environment, so native
             # providers can't read the user's settings; executors need it to find
             # the login (`claude_child`).
-            "claude_config_dir": os.environ.get(
-                "CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")
-            ),
+            "claude_config_dir": str(claude_code_config()),
             "harness": harness,
             "model": model or MODELS[harness],
             "condition": condition,
@@ -335,6 +351,7 @@ def prepare(
     """One test per selected address and condition, run on each column it applies to."""
     definitions = catalog()
     providers: dict[str, dict] = {}
+    payloads: dict[str, Path] = {}
     skills = {}
     tests = []
     # Judged screenshots sit apart from the rest of the evidence, for the judge.
@@ -364,6 +381,7 @@ def prepare(
                         + (f"/instructions:{instructions}" if instructions else "")
                     )
                     if label not in providers:
+                        payloads[label] = payload
                         if executor or authoring:
                             configured = workflow_provider(
                                 harness,
@@ -413,6 +431,23 @@ def prepare(
                 now = sample["vars"].pop("now", NOW)
                 if not authoring:
                     prompt = f"It is now {now}.\n\n{prompt}"
+                if not authoring and "page" in metadata:
+                    # Each column's probe finds the case's page at the same path
+                    # under its working directory, with the packages the case names.
+                    page = Path("pages") / address.replace("/", "--")
+                    for label in labels:
+                        config = providers[label]["config"]
+                        state = config.get("env", config.get("cli_env"))
+                        run_leaf(
+                            payloads[label],
+                            Path(state["XDG_STATE_HOME"]),
+                            "page",
+                            "init",
+                            *(f"--package={name}" for name in metadata["page"]),
+                            str(Path(config["working_dir"]) / page),
+                            check=True,
+                        )
+                    prompt = PAGE_PROMPT.format(prompt=prompt, page=page)
                 sample["vars"] = {
                     **sample["vars"],
                     "prompt": (
@@ -640,7 +675,8 @@ def run_name(scope: str, globs: tuple[str, ...]) -> str:
 )
 @click.option(
     "--model",
-    help="Codex author model for this run; all selected conditions use the same model.",
+    help="Author model for this run in place of the harness's pin; all selected "
+    "conditions use the same model.",
 )
 @click.option(
     "--condition",
@@ -700,10 +736,6 @@ def eval(
     else:
         cases = select_cases(globs)
         harnesses = HARNESSES if harness == "both" else (harness,)
-        if model is not None and harness != "codex":
-            raise click.BadParameter(
-                "--model currently requires --harness codex", param_hint="--model"
-            )
         conditions = ("leaf", "html") if condition == "both" else (condition,)
         # Only the Leaf condition runs on more than the working tree.
         if "leaf" not in conditions:
@@ -712,12 +744,7 @@ def eval(
         raise click.ClickException(
             "Install development dependencies first: pnpm install --frozen-lockfile"
         )
-    RUNS.mkdir(parents=True, exist_ok=True)
-    out = Path(
-        tempfile.mkdtemp(
-            prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=RUNS
-        )
-    )
+    out = run_directory(RUNS)
     click.echo(f"evidence: {out}")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)

@@ -14,9 +14,12 @@
 // specifier is a missing module and an error. So is the framework's facade by its
 // served path, `/runtime/framework.js`: like Lit beneath it, the framework is a
 // dependency every owner may hold, not one of the owners whose routes these rules
-// read. Its own modules, under `framework/`, are checked as any owner is. JSON, such as
-// the kernel registry `kernel-facts.js` imports, is excluded too: data holds no route
-// between owners.
+// read. Its own modules, under `framework/`, are checked as any owner is. The bootstrap,
+// a classic script the server inlines, names the panel's stand-in by its served path
+// too, `/runtime/panel-stand-in.js`, which is excluded by name; the stand-in's own
+// imports are checked as any module's, and stay within modules that import nothing so
+// it loads ahead of the boot module's graph. JSON, such as the kernel registry
+// `kernel-facts.js` imports, is excluded too: data holds no route between owners.
 
 import fs from "node:fs";
 
@@ -34,6 +37,7 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // the focused scope. If one of them reached a painter or an application service, every
 // caller would acquire that owner's initialization graph.
 const exactClosures = {
+  "panel-stand-in.js": ["control-faces.js", "icon-paths.js", "stylesheets.js"],
   "queued-work.js": [],
   "control-selectors.js": ["inputs.js", "document-inputs.js"],
   "shadow-tree.js": [],
@@ -136,7 +140,6 @@ const applicationOwners = [
 // them and must stay above them.
 const forbiddenClosures = Object.fromEntries([
   ...[
-    "thread/box.js",
     "thread/folding.js",
     "thread/inline.js",
     "thread/landing.js",
@@ -154,7 +157,7 @@ const forbiddenClosures = Object.fromEntries([
     "addressable-names.js",
     "anchor-resolution.js",
     "anchor-controls.js",
-    "annotation-overlay/anchor-paint.js",
+    "anchor-paint.js",
     "anchor-travel.js",
     "page-layout.js",
     "annotation-overlay/composing/drawing-paint.js",
@@ -237,6 +240,7 @@ export default {
         "^/vendor/",
         "^/checks/",
         "^/runtime/framework\\.js$",
+        "^/runtime/panel-stand-in\\.js$",
         "\\.json$",
       ],
     },

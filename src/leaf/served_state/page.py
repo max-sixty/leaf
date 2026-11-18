@@ -90,7 +90,7 @@ def read_served_page(
             **{
                 key: value
                 for key, value in work.activity.items()
-                # TODO(2026-11-14): serve who holds each thread (`work.holding`)
+                # TODO: serve who holds each thread (`work.holding`)
                 # once the panel says which fork is working a thread.
                 if key not in {"workflows", "todos", "obligations"}
             },

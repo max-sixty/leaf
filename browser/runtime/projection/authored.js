@@ -11,7 +11,6 @@ import { authoredRank } from "./model.js";
 
 /** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
 /** @typedef {import("../../types/domain.js").AuthoredWidget} AuthoredWidget */
-/** @typedef {import("../../types/domain.js").AuthoredMap} AuthoredMap */
 /** @typedef {import("../../types/domain.js").StateRecord} StateRecord */
 
 /* The authored initial condition, read once from validated source before upgrade.
@@ -22,7 +21,7 @@ import { authoredRank } from "./model.js";
    ownership. `stageAuthoredStates` decodes source elements while their validated
    attributes, member order, and data bodies are intact. The complete staged document
    enters the application publisher before its content modules render. Page revisions
-   and frozen thread markup use the same boundary, so presentation never becomes a
+   and thread markup use the same boundary, so presentation never becomes a
    semantic input.
 
    `authoredStates` holds the one typed initial condition per owner. Provenance
@@ -52,7 +51,11 @@ const recordedOwner = (member, record) => {
 /** @param {Element} widget @param {string} selector @param {StateRecord} record */
 const ownedRecordMembers = (widget, selector, record) =>
   [...widget.querySelectorAll(selector)].filter(
-    (member) => recordedOwner(member, record) === widget,
+    // Only a Leaf element holds recorded state, as the server's index reads it
+    // (structure.py): a native `<option selected>` inside an option's card is the
+    // author's own control, not a pick.
+    (member) =>
+      member.localName.startsWith("lf-") && recordedOwner(member, record) === widget,
   );
 
 /** @param {Element} el @param {StateRecord} record */
@@ -122,8 +125,8 @@ function initialState(widget, spec) {
   return { action: null, value, detail: record ? { value } : {} };
 }
 
-/** @param {Document | Element | DocumentFragment} root @param {AuthoredMap} existing @returns {Map<string, AuthoredWidget>} */
-export function stageAuthoredStates(root = document, existing = authoredStates()) {
+/** @param {Document | Element | DocumentFragment} root @returns {Map<string, AuthoredWidget>} */
+export function stageAuthoredStates(root) {
   /** @type {Map<string, AuthoredWidget>} */
   const captured = new Map();
   /** @type {Map<string, Map<string, ActionSpec>>} */
@@ -137,7 +140,7 @@ export function stageAuthoredStates(root = document, existing = authoredStates()
     const widgets = [...root.querySelectorAll(tag)];
     if (root instanceof Element && root.matches(tag)) widgets.unshift(root);
     for (const widget of widgets) {
-      if (!widget.id || existing.has(widget.id)) continue;
+      if (!widget.id) continue;
       captured.set(widget.id, {
         tag,
         specs,

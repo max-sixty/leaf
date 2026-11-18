@@ -713,7 +713,9 @@ CHROME_WATCH = f"""(sel) => {{
 }}"""
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
 # differently. The words ride along so `displaced` can tell a box whose own content
-# changed from one that was pushed. Read every dimension from the screen rectangle;
+# changed from one that was pushed. The right edge is rounded from the box's own
+# fractional edge, since left and width each rounded can differ by a pixel from where
+# the edge stands. Read every dimension from the screen rectangle;
 # ancestor movement and transforms are part of what the user sees, not an origin to
 # subtract. A rendered control carried beyond the viewport still moved.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
@@ -722,7 +724,7 @@ DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
       const box = n.getBoundingClientRect();
       return [Math.round(box.left), Math.round(box.top),
               Math.round(box.width), Math.round(box.height),
-              (n.textContent || '').trim()];
+              (n.textContent || '').trim(), Math.round(box.right)];
     }); }"""
 
 
@@ -771,7 +773,7 @@ def displaced(before, boxes, news=False):
         if now is None:
             return False
         if news and was[4] != now[4]:
-            held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
+            held = was[0] == now[0] or was[5] == now[5]
             return not held or was[1] != now[1] or was[3] != now[3]
         return any(a != b for a, b in zip(was[:4], now[:4], strict=True))
 

@@ -422,7 +422,7 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
     page.locator("#title").click()
     for _ in range(4):
         page.keyboard.press("m")
-    expect_walk_position(page, "4 of 4 waiting on me · Options")
+    expect_walk_position(page, "4 of 4 waiting on me")
     landed = page.evaluate("() => document.activeElement.id")
     page.locator("#title").click()
 
@@ -473,7 +473,7 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
     last = on_card(page, "widget:pick-8")
     assert not shown(last)
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "8 of 8 waiting on me · Options")
+    expect_walk_position(page, "8 of 8 waiting on me")
     expect(page.locator("#ask-8")).to_be_focused()
     expect(view.locator(".lf-fp-on-item[data-lf-walked]")).to_have_count(1)
     expect(last).to_have_attribute("data-lf-walked", "")
@@ -482,7 +482,7 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
 
     first = on_card(page, "widget:pick-1")
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 8 waiting on me · Options")
+    expect_walk_position(page, "1 of 8 waiting on me")
     expect(first).to_have_attribute("data-lf-walked", "")
     expect(last).not_to_have_attribute("data-lf-walked", "")
     assert shown(first)
@@ -761,9 +761,9 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
         if runners.get_attribute("data-lf-walked") is not None:
             break
     expect(runners).to_have_attribute("data-lf-walked", "")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect_walk_position(page, "1 of 2 waiting on me")
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Reply")
+    expect_walk_position(page, "2 of 2 waiting on me")
 
 
 def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
@@ -1121,7 +1121,7 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     page = open_page(browser, url)
     for decision, at in [("timeline-ask", 1), ("ship-ask", 2), ("timeline-ask", 1)]:
         page.keyboard.press("m")
-        expect_walk_position(page, f"{at} of 2 waiting on me · Options")
+        expect_walk_position(page, f"{at} of 2 waiting on me")
         expect(page.locator(f"#{decision}")).to_be_focused()
     view = open_on_me(page)
     cards = view.locator(".lf-fp-on-item")

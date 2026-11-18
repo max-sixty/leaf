@@ -4,7 +4,7 @@
 
 Repeating a test serially reruns it on the machine that already passes it; a browser
 test that passed 20 serial runs failed twice in 18 concurrent ones. So this runs the
-selection (`_runs`) as `COPIES` copies, `WORKERS` at a time, from the working
+selection (`_runs`) as `--copies` copies, `--workers` at a time, from the working
 tree as it stands, uncommitted edits included, captured once before collection.
 Each copy runs in a private checkout of that snapshot, so fixed output paths and
 later edits to the source checkout cannot change another copy's result. Installed
@@ -14,7 +14,7 @@ Each copy is one process (`-n0`: the copies are the concurrency).
 The copies are load that exists only to compete for the machine, so on macOS each one
 runs in the background band (`taskpolicy -b`), which gives it only the CPU and disk the
 machine's other work leaves, on the efficiency cores. The copies still compete with
-each other, `WORKERS` at a time. Beside other runs or other sessions' work, a run takes
+each other, `--workers` at a time. Beside other runs or other sessions' work, a run takes
 longer rather than slowing them, though the band shares out CPU and disk, not memory.
 A slower copy reports the same result, because the suite's results don't depend on
 execution speed (`tests/AGENTS.md`, "Results do not depend on execution speed").
@@ -41,8 +41,6 @@ from leaf_dev import ROOT
 from leaf_dev.arms import run_directory
 from leaf_dev.commands.suite._runs import checkout, collect, run, snapshot
 
-COPIES = 18
-WORKERS = 6
 BACKGROUND = ("taskpolicy", "-b") if sys.platform == "darwin" else ()
 # A message is printed to this many lines; the log keeps all of it.
 LINES = 12
@@ -53,18 +51,34 @@ RESULTS = ("passed", "failed", "error", "skipped", "not run")
 @click.command()
 @click.argument("selection", nargs=-1, required=True)
 @click.option(
+    "--copies",
+    type=click.IntRange(min=1),
+    default=18,
+    show_default=True,
+    help="How many copies of the selection to run.",
+)
+@click.option(
+    "--workers",
+    type=click.IntRange(min=1),
+    default=6,
+    show_default=True,
+    help="How many copies run at once.",
+)
+@click.option(
     "--cpu-throttle",
     "throttle",
     type=click.FloatRange(min=1),
     help="Slow every Chromium page the tests open this many times.",
 )
-def flake(selection: tuple[str, ...], throttle: float | None) -> None:
+def flake(
+    selection: tuple[str, ...], copies: int, workers: int, throttle: float | None
+) -> None:
     """Run tests as concurrent copies to surface load flakes.
 
-    Runs SELECTION, pytest node ids from the working tree, as 18 copies six at a
-    time, and prints each test's count per outcome and every failure's message; each
-    copy's output stays under .tmp/flake/. On macOS the copies run at background
-    priority. Exits 1 unless every copy of every test passed.
+    Runs SELECTION, pytest node ids from the working tree, as concurrent copies, and
+    prints each test's count per outcome and every failure's message; each copy's
+    output stays under .tmp/flake/. On macOS the copies run at background priority.
+    Exits 1 unless every copy of every test passed.
     """
     out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-flake-") as directory:
@@ -92,20 +106,20 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
             finally:
                 shutil.rmtree(target)
 
-        pool = ThreadPoolExecutor(WORKERS)
+        pool = ThreadPoolExecutor(workers)
         try:
-            copies = list(pool.map(copy, range(1, COPIES + 1)))
+            results = list(pool.map(copy, range(1, copies + 1)))
         finally:
             # On Ctrl-C, start no more copies; the running ones stop with it.
             pool.shutdown(cancel_futures=True)
 
     click.echo(f"| test | {' | '.join(RESULTS)} |\n|---|{'---|' * len(RESULTS)}")
     for item in items:
-        counts = Counter(c[item].result for c in copies)
+        counts = Counter(c[item].result for c in results)
         click.echo(f"| `{item}` | {' | '.join(str(counts[r]) for r in RESULTS)} |")
     for item in items:
         messages = defaultdict(list)
-        for n, c in enumerate(copies, 1):
+        for n, c in enumerate(results, 1):
             if c[item].result not in ("passed", "skipped"):
                 messages[c[item].result, c[item].message].append(n)
         if messages:
@@ -115,5 +129,5 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
             text = "\n    ".join(lines[:LINES] + ["…"] * (len(lines) > LINES))
             click.echo(f"- copies {', '.join(map(str, ns))} ({result}): {text}")
     click.echo(f"\nlogs: {out.relative_to(ROOT)}/")
-    green = all(c[item].result == "passed" for c in copies for item in items)
+    green = all(c[item].result == "passed" for c in results for item in items)
     raise SystemExit(0 if green else 1)

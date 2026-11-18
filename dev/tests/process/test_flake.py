@@ -66,8 +66,6 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
     monkeypatch.setattr(arms, "ROOT", root)
     monkeypatch.setattr(suite, "ROOT", root)
     monkeypatch.setattr(flake, "OUT", root / ".tmp" / "flake")
-    monkeypatch.setattr(flake, "COPIES", 4)
-    monkeypatch.setattr(flake, "WORKERS", 2)
     monkeypatch.setenv(
         "PATH", str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"]
     )
@@ -81,7 +79,9 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
         editor = Thread(target=edit)
         editor.start()
     try:
-        result = CliRunner().invoke(flake.flake, ["test_candidate.py"])
+        result = CliRunner().invoke(
+            flake.flake, ["--copies", "4", "--workers", "2", "test_candidate.py"]
+        )
     finally:
         if editor:
             editor.join(timeout=STATED_TIMEOUT)

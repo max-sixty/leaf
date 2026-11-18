@@ -9,7 +9,9 @@ name: ci
 # - the daily schedule and a manual dispatch run every product test, and their summary lists
 #   the tests over their directory's budget; `test-macos` runs them on macOS too.
 #   The daily schedule also runs the benchmark (`bench`), whose readings gate
-#   nothing.
+#   nothing;
+# - a dispatch given `flake` runs only `test-macos`, which runs those tests alone in
+#   place of the suite.
 # Developer-tool tests live in dev/tests and are opt-in, outside every CI selection.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
@@ -19,6 +21,9 @@ on:
   schedule:
     - cron: "47 10 * * *"
   workflow_dispatch:
+    inputs:
+      flake:
+        description: Arguments for `leaf-dev suite flake` to run on macOS in place of the suite
 
 # Only a pull request cancels its own earlier run. A push to main keeps its run: a red
 # branch is judged against the base SHA's result, and the next merge must not end a
@@ -31,6 +36,7 @@ concurrency:
 
 jobs:
   test:
+    if: ${{ !inputs.flake }}
     concurrency:
       # One push suite at a time: it holds a runner for over an hour, and GitHub's
       # concurrency pool is per-account, shared with the other repos here. A running
@@ -322,7 +328,9 @@ jobs:
   # daily schedule and a dispatch run it, since it adds a runner for as long as the
   # nightly suite takes, and a failure turns the run red for tend like `test`'s. The
   # Linux job's gates, website checks and profiles are platform-independent or
-  # Linux-only, so this job runs the suite alone.
+  # Linux-only, so this job runs the suite alone. A failure only this job shows is
+  # reproduced here too, by a dispatch on the ref under test that names its tests in
+  # `flake`, so nobody edits this file to probe one.
   test-macos:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-15
@@ -367,6 +375,7 @@ jobs:
       # depend on speed (tests/AGENTS.md, "Waits"); the suite can take as long at four
       # workers as at two.
       - name: 🧪 Python tests
+        if: ${{ !inputs.flake }}
         shell: bash
         run: |
           mkdir -p .tmp/test-results
@@ -374,11 +383,22 @@ jobs:
             pytest tests -n 4 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
             2>&1 | tee .tmp/test-results/output.log
 
+      # The named tests as concurrent copies, which starve one another of the three
+      # cores as the suite's workers do; `--copies` and `--workers` set how many run
+      # and how many at once. The step's log ends with each test's count per outcome
+      # and every failure's message, and the artifact holds each copy's whole log.
+      # xargs splits the input as a shell would, quotes included, without running it.
+      - name: Run the named tests as copies under load
+        if: ${{ inputs.flake }}
+        env:
+          FLAKE: ${{ inputs.flake }}
+        run: printf '%s' "$FLAKE" | xargs uv run leaf-dev suite flake
+
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/test-results/
+          path: ${{ inputs.flake && '.tmp/flake/' || '.tmp/test-results/' }}
           if-no-files-found: ignore
           retention-days: 30

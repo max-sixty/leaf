@@ -193,20 +193,34 @@
   // Me mark with no count, since nothing the server reads is known yet, and the keys
   // held below in place of the status.
   //
-  // Until the panel mounts, a press on the row lands on it and does nothing. What a
-  // press on the leaf, the field or On Me does turns on the panel's state, which only
-  // the runtime reads, so a press held until then would act on a panel the user never
-  // saw take it; a key means the same wherever it lands, which is why keys are held.
-  // The press still never reaches the page beneath the row, and ends a run of held keys
-  // as any press does, and the printed keys after it are dropped while the row stands
-  // (`holdEarlyKeys`). Its controls take no focus (`inert`), so Tab passes them by.
+  // Until the panel mounts, a press on the leaf or On Me lands on the row and does
+  // nothing. What it does turns on the panel's state, which only the runtime reads, so
+  // a press held until then would act on a panel the user never saw take it; a key
+  // means the same wherever it lands, which is why keys are held. The press still never
+  // reaches the page beneath the row, and ends a run of held keys as any press does.
+  // Those controls take no focus (`inert`), so Tab passes them by.
+  //
+  // The field is a textarea (`.lf-fp-served-field`), so a press there puts the caret
+  // in it and what the user types is words, which the browser keeps, with the caret,
+  // selection, input methods and a phone's keyboard, and which the hold leaves to it,
+  // as it leaves any field's (`takesLetters`). The words the field says stand under
+  // the textarea while it is empty. Where Return sends from the panel's field, it
+  // makes no line here and sends nothing either, so the words wait for the panel;
+  // Shift+Return makes a line. The textarea shows the field's ring while the user is
+  // in it, as the panel's field does (`data-lf-control-focus-visible`, focus.js).
+  // Rejected: dropping the keys typed there, which loses every word typed before the
+  // runtime loads; drawing them in the field's words as typed, which needs a caret,
+  // endings, wrapping and a phone's keyboard of its own; and a `contenteditable`, the
+  // runtime field's own box while CodeMirror loads, which Firefox types into but
+  // deletes nothing from when it stands after `body`, as the chrome does.
   //
   // The panel takes the row over as it mounts, in the task that draws the panel's first
   // frame, whose leaf, field and marks stand where the row's stood (floating-panel.css,
-  // `data-lf-served`), and offers its field (`lf-held-keys-seat`), which takes this one
-  // away. Where no panel is coming, because the document reports it cannot start or the
-  // runtime gives it up, the row goes as the hold on keys ends (`stopHoldingKeys`), and
-  // its sheet with it, which nothing then draws with.
+  // `data-lf-served`), and offers its field (`lf-held-keys-seat`), which takes the
+  // textarea's words and caret (floating-panel.js, `write`) before this row goes. Where
+  // no panel is coming, because the document reports it cannot start or the runtime
+  // gives it up, the row goes as the hold on keys ends (`stopHoldingKeys`), and its
+  // sheet with it, which nothing then draws with.
   /** @type {{say(words: HeldWords | null): void, end(taken: boolean): void} | null} */
   let row = null;
   let rowEnded = false;
@@ -228,10 +242,19 @@
       chrome.setAttribute("data-lf-runtime", "");
       chrome.append(template.content.cloneNode(true));
       const panel = chrome.firstElementChild;
-      const words = panel?.querySelector(".lf-fp-words .lf-compose-placeholder-words");
+      const fieldWords = panel?.querySelector(".lf-fp-words");
+      const words = fieldWords?.querySelector(".lf-compose-placeholder-words");
+      const box = panel?.querySelector(".lf-fp-served-field");
+      const panelRow = panel?.querySelector(".lf-fp-row");
       const peek = panel?.querySelector(".lf-fp-peek");
-      if (!(panel instanceof HTMLElement) || !words || !peek)
-        throw new Error("The panel's served row has no field words or peek");
+      if (
+        !(panel instanceof HTMLElement && fieldWords instanceof HTMLElement) ||
+        !(box instanceof HTMLTextAreaElement) ||
+        !words ||
+        !panelRow ||
+        !peek
+      )
+        throw new Error("The panel's served row has no field, field words or peek");
       panel.dataset.lfRest = window.lfChrome.rest;
       panel.toggleAttribute("data-lf-served", true);
       // Only the controls are inert, since an inert subtree is hidden from assistive
@@ -241,10 +264,29 @@
         control.toggleAttribute("inert", true);
       for (const seat of [words, peek]) seat.setAttribute("role", "status");
       const status = [...words.childNodes];
+      box.addEventListener("input", () => {
+        const typed = box.value !== "";
+        if (fieldWords.hidden !== typed) fieldWords.hidden = typed;
+      });
+      // Return sends where a keyboard has Shift to make a line with, as in the panel's
+      // field (keyboard/bindings.js, `submitBindings`).
+      const sends = !matchMedia("(pointer: coarse)").matches;
+      box.addEventListener("keydown", (event) => {
+        if (sends && event.key === "Enter" && !event.shiftKey && !event.isComposing)
+          event.preventDefault();
+      });
+      for (const type of ["focus", "blur"])
+        box.addEventListener(type, () =>
+          panelRow.toggleAttribute("data-lf-control-focus-visible", type === "focus"),
+        );
       const sheet = window.lfSheets().chrome;
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
       document.body.after(chrome);
-      const takeOver = () => endRow(true);
+      /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
+      const takeOver = (event) => {
+        event.detail.write(box);
+        endRow(true);
+      };
       document.addEventListener("lf-held-keys-seat", takeOver, { once: true });
       // The panel's size stands while the row does, so one seat says the keys.
       const folded = panel.dataset.lfRest === "mark";
@@ -333,8 +375,6 @@
     /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
-    // Whether the latest press landed on the served row (`standRow`).
-    let rowPressed = false;
     // The words shown, as text, or "" while none are.
     let shown = "";
     /** @type {((words: HeldWords | null) => void) | null} */
@@ -409,30 +449,17 @@
         // runtime's text field; its closed root makes the host the event's origin.
         const origin = event.composedPath()[0];
         const typing = origin instanceof Element && takesLetters(origin);
-        if (typing || !printed) return;
-        // After a press on the served row, printed keys are dropped until the row goes.
-        // The press was most likely on its field, so they are words meant for it, and
-        // held they would run as page keys. Writing them into the panel's field once it
-        // mounts would need a run of words with its own display, caret and endings, for a
-        // rare path; dropped, nothing runs and nothing shows.
-        if (!(row && rowPressed)) {
-          // Once the document upgrades, the dispatcher supplies readiness from
-          // command declarations. Useful page keys pass immediately; only a key
-          // whose input is still loading starts another ordered run.
-          if (event.key === " " || ready?.(event)) return;
-          queue(event);
-        }
+        if (typing || !printed || event.key === " ") return;
+        // Once the document upgrades, the dispatcher supplies readiness from
+        // command declarations. Useful page keys pass immediately; only a key
+        // whose input is still loading starts another ordered run.
+        if (ready?.(event)) return;
+        queue(event);
       }
       event.preventDefault();
       event.stopImmediatePropagation();
     };
-    /** @param {PointerEvent} event */
-    const pointed = (event) => {
-      letGo();
-      rowPressed =
-        event.target instanceof Element &&
-        Boolean(event.target.closest("[data-lf-served]"));
-    };
+    const pointed = () => letGo();
     // The controller takes a run, but the hold stands until its owner has pressed the
     // last key in it: a printed key pressed meanwhile joins the same run rather than
     // running ahead of the keys pressed before it. Words already shown stand until the

@@ -522,7 +522,8 @@
     display: block;
   }
   .lf-fp-field .lf-compose-field > leaf-text,
-  .lf-fp-field .lf-compose-field > .lf-fp-words {
+  .lf-fp-field .lf-compose-field > .lf-fp-words,
+  .lf-fp-field .lf-compose-field > .lf-fp-served-field {
     flex: 1;
     min-width: 0;
     border: 0;
@@ -599,6 +600,26 @@
      (theme, `--quiet`), where the editor says them. */
   .lf-fp-words {
     color: var(--lf-quiet);
+  }
+  /* The textarea the user writes in there until the editor stands stands over those
+     words (bootstrap.js, `standRow`) and draws its words as the editor does, in the
+     field's face and padding, wrapping at its width, so they stand where the editor
+     draws them. It grows with them where the browser sizes a field to its content. */
+  .lf-floating-panel[data-lf-served] .lf-fp-field .lf-compose-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lf-floating-panel[data-lf-served] .lf-fp-field .lf-compose-field > * {
+    grid-area: 1 / 1;
+  }
+  .lf-fp-served-field {
+    margin: 0;
+    outline: none;
+    color: inherit;
+    font: inherit;
+    resize: none;
+    overflow: hidden;
+    field-sizing: content;
   }
   /* The word naming what entering the field does, after the agent's or Leaf's words
      (composing/input.js, `enters`), or the press the field's end offers in its place,

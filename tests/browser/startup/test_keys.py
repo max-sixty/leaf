@@ -481,29 +481,80 @@ def test_a_folded_panel_stands_folded_from_the_first_paint_with_held_keys_in_its
     expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
 
 
-def test_keys_typed_after_a_press_on_the_served_row_run_nothing(browser, serve):
-    """A reader who clicks the panel's field before the runtime loads and types a
-    sentence means words for the field, not page keys: they are neither held nor shown,
-    so once the page loads `t` hasn't walked to the thread and nothing else ran."""
+def _served_field(browser, serve):
+    """A page whose runtime module is held, standing its served row, and that row's
+    field, and the release of the module."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     module, release = _hold_startup(page, "module")
     page.goto(url, wait_until="commit")
     holding(page, module, 1, "the module request")
-    served = page.locator(".lf-floating-panel[data-lf-served]")
     first_frame(page)
-    served.locator(".lf-fp-field").click()
-    page.keyboard.type("fix it")
-    expect(served.locator(".lf-fp-words")).to_have_text("Connecting…")
+    served = page.locator(".lf-floating-panel[data-lf-served]")
+    return page, served, served.locator(".lf-fp-served-field"), release
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_typed_in_the_served_field_go_on_in_the_panels_field(
+    request, serve, engine
+):
+    """A reader who clicks the panel's field before the runtime loads and types writes
+    words, not page keys: the field the document served, a textarea, takes them with
+    the caret, Return makes no line and sends nothing, and once the panel stands its
+    field holds the words with the caret where it stood, so typing goes on there and
+    `t` never walked to the thread. Firefox edits a field standing after `body`, as
+    the chrome does, by rules of its own, so the test runs there too."""
+    page, served, box, release = _served_field(request.getfixturevalue(engine), serve)
+    box.click()
+    expect(box).to_be_focused()
+    expect(served.locator(".lf-fp-row")).to_have_attribute(
+        "data-lf-control-focus-visible", ""
+    )
+    page.keyboard.type("fix itt")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowLeft")
+    expect(box).to_have_value("fix it")
+    expect(served.locator(".lf-fp-words")).to_be_hidden()
     expect(page.locator(".lf-held-key")).to_have_count(0)
+    words = box.bounding_box()
 
     release()
     expect(served).to_have_count(0)
+    field = panel_field(page)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "fix it")
+    expect(field).to_have_js_property("selectionStart", 4)
+    # The words stand where the served field drew them.
+    moved = field.bounding_box()
+    assert moved and words and abs(moved["x"] - words["x"]) < 1, (words, moved)
+    page.keyboard.type("a")
+    expect(field).to_have_js_property("value", "fix ait")
     wait_until_ready(page)
     expect(page.locator(".lf-held-key")).to_have_count(0)
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(field).to_be_focused()
     assert page.evaluate("() => scrollY") == 0
+
+
+def test_words_left_in_the_served_field_wait_in_the_panels_field(browser, serve):
+    """Words typed in the served field before the reader went back to the page wait in
+    the panel's field once it stands, and the caret stays where the reader went."""
+    page, served, box, release = _served_field(browser, serve)
+    box.click()
+    page.keyboard.type("fix it")
+    page.locator("#said").click()
+    expect(box).not_to_be_focused()
+    expect(served.locator(".lf-fp-row")).not_to_have_attribute(
+        "data-lf-control-focus-visible", ""
+    )
+
+    release()
+    expect(served).to_have_count(0)
+    expect(panel_field(page)).to_have_js_property("value", "fix it")
+    expect(panel_field(page)).not_to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_held_keys_stand_beside_a_saved_draft(browser, serve):

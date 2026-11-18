@@ -422,6 +422,9 @@ const CONNECTING = {
   asks: false,
   publication: null,
 };
+// The page's field's name where no selection is offered, which the field the document
+// serves wears too (`panelTemplate`, `initial`).
+const PAGE_FIELD_NAME = "Comment on the page";
 // The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
 // takes (queue-walk.js). No notice carries it, so it has no `stands`; `pageOffer`
 // decides when it stands.
@@ -697,9 +700,11 @@ export function createFloatingPanel({
   // stands it): what the row shows before the panel has a reading or an editor. So it
   // draws the On Me mark without a count and, in the editor's seat, the field's words
   // in a box of their own (`.lf-fp-words`), which the bootstrap rewrites with the keys it
-  // holds; the panel's first paint puts the editor there, saying the same words where
-  // they stood (floating-panel.css). The peek must follow the leaf in the tree so it can
-  // anchor to it.
+  // holds, under a textarea the user writes in until the editor stands
+  // (`.lf-fp-served-field`); the panel's first paint puts the editor there, saying the
+  // same words where they stood (floating-panel.css), and takes the textarea's words
+  // (`write`, at `mount`). The peek must follow the leaf in the tree so it
+  // can anchor to it.
   // The quick seat is one button, changing between the mark and a search's or a
   // stance's way out. Its count keeps its room even when empty; a count arriving moves
   // nothing beside it. The corner mark presses the fold command's row, as the menu
@@ -895,7 +900,12 @@ export function createFloatingPanel({
                               >${voiced(statusModel.summaryParts)}</span
                             ></span
                           ></span
-                        >
+                        ><textarea
+                          class="lf-fp-served-field"
+                          rows="1"
+                          aria-label=${PAGE_FIELD_NAME}
+                          autocapitalize="sentences"
+                        ></textarea>
                       </div>`
                     : top?.thread
                       ? replyOutlet
@@ -1507,7 +1517,7 @@ export function createFloatingPanel({
       accessibleName: () =>
         general && fieldReading(null, input).says === "selection"
           ? "Comment on the selection"
-          : "Comment on the page",
+          : PAGE_FIELD_NAME,
       sends: "send",
       sendClass: "lf-fp-send",
       save: (text) => {
@@ -5771,6 +5781,27 @@ export function createFloatingPanel({
           show(words) {
             heldWords.value = words;
             if (words) announce(heldText(words));
+          },
+          // The served row's field, which the user may have written in before the
+          // panel stood (`initial`): its words go on in the page's field, after a draft
+          // the field holds as typing there would, and the caret, if the user is in
+          // the textarea, with the selection where it stood. The caret moves while the
+          // textarea still stands, so a phone's keyboard has a field to stay up for.
+          /** @param {HTMLTextAreaElement} box */
+          write(box) {
+            const inBox = focused() === box;
+            if (!box.value && !inBox) return;
+            const input = pageEditor().input;
+            const before = input.value.length;
+            if (box.value) input.edit(input.value + box.value);
+            if (!inBox) return;
+            input.setSelectionRange(
+              before + box.selectionStart,
+              before + box.selectionEnd,
+              box.selectionDirection,
+            );
+            writeOnPage();
+            paint();
           },
         },
       }),

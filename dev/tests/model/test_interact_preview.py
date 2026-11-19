@@ -178,7 +178,8 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
     source.parent.mkdir()
     (source.parent / "layer.json").write_text("[]")
     (source.parent / "media").mkdir()
-    (source.parent / "leaf-assets.json").write_text("{}")
+    (source.parent / ".config").mkdir()
+    (source.parent / ".config" / "leaf-assets.json").write_text("{}")
     assets = tmp_path / "draft-assets"
     assets.mkdir()
     previous, current, revised, unused = [
@@ -262,7 +263,7 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     ] == []
     assert [root for root in watched.roots if ".tmp" in root.parts] == []
     # The example images are a pinned copy under `.tmp`, so their pin stands in.
-    assert str(ROOT / "leaf-assets.json") in watched.paths
+    assert str(ROOT / ".config" / "leaf-assets.json") in watched.paths
     assert ROOT not in watched.roots  # A single assets pin does not watch its checkout.
 
 
@@ -371,7 +372,8 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
     source.parent.mkdir()
     source.write_text("reading")
     (source.parent / "media").mkdir()
-    pin = tmp_path / "leaf-assets.json"
+    pin = tmp_path / ".config" / "leaf-assets.json"
+    pin.parent.mkdir()
     pin.write_text("{}")
     # A checkout holds every file its Python processes load. The preview follows a
     # missing input from the nearest directory that exists, here the checkout.

@@ -525,7 +525,7 @@ function besideFork(
 // the end of the run reports: the turn by its id, since the run can end before Leaf
 // hears which agent runs it (`forks.started`). `$.state` keeps them, which a reload
 // of this module's code leaves standing, so a fork made before a reload still ends
-// its turn (types/leaf-state.d.ts). A fork whose run ended stays, with how it ended,
+// its turn (leaf-state.d.ts). A fork whose run ended stays, with how it ended,
 // until Leaf has closed its turn (`endFork`).
 const FORKS = { plugin: "leaf", key: "forks" } as const;
 type Run = { answer: string } | { failed: string };

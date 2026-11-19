@@ -86,7 +86,8 @@ cli(["setup"])
         events.mkdir()
         checkout = checkout or tmp_path / "checkout"
         checkout.mkdir(exist_ok=True)
-        (checkout / "leaf-assets.json").write_text(
+        (checkout / ".config").mkdir(exist_ok=True)
+        (checkout / ".config" / "leaf-assets.json").write_text(
             json.dumps({"repository": "max-sixty/leaf-assets", "revision": "media"})
         )
         cached = checkout / ".tmp" / "leaf-assets" / "media"

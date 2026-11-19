@@ -67,16 +67,16 @@ repos:
         name: dependency-cruiser
         language: node
         additional_dependencies: [dependency-cruiser@18.3.1]
-        entry: depcruise --output-type err browser/runtime
+        entry: depcruise --config .config/dependency-cruiser.mjs --output-type err browser/runtime
         pass_filenames: false
-        files: ^(browser/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
+        files: ^(browser/(leaf\.js|runtime/.*\.js)|\.config/dependency-cruiser\.mjs)$
       # JavaScript's vulture: the modules, exports and types nothing reads, and
-      # import cycles (`knip.config.js`). Whole-tree; files only wakes it.
+      # import cycles (`.config/knip.js`). Whole-tree; files only wakes it.
       - id: knip
         name: knip
         language: node
         additional_dependencies: [knip@6.44.1]
-        entry: knip --no-progress
+        entry: knip --config .config/knip.js --no-progress
         pass_filenames: false
         files: '\.(js|mjs|cjs|ts)$'
   - repo: https://github.com/adhtruong/mirrors-typos

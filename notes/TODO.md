@@ -3,7 +3,7 @@
 ## Biggest current challenges
 
 - **Improve our outputs against a standard HTML output.** The
-  [recovered comparison](notes/agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
+  [recovered comparison](agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
   measures complete authoring and feedback cycles on saved Leaf and HTML pages.
   Use task-specific evidence to decide which compositions help, and measure current
   authoring time before adding more widgets or instructions.

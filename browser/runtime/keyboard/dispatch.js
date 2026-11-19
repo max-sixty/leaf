@@ -535,11 +535,16 @@ export function answerCloseRequest() {
 }
 
 // Scoping is the DOM's, but the resolver's stack, rather than listener order, says
-// which command wins. The controller leaves composing input to the IME.
-/** @param {KeyboardEvent} ev */
-export function dispatchKey(ev) {
+// which command wins. The controller leaves composing input to the IME. It reads a key
+// once ahead of the page's document and window listeners, for every row but one that
+// `waits`, and once after them with `waiting`, for that row alone (controller.js).
+// The stack answers with the same row both times, so the read that is not the row's own
+// runs nothing, and no row further out takes its place.
+/** @param {KeyboardEvent} ev @param {boolean} [waiting] */
+export function dispatchKey(ev, waiting = false) {
   const matched = resolveKey(ev);
   if (!matched || matched === INPUT_PENDING) return false;
+  if (Boolean(word(matched.row.waits)) !== waiting) return false;
   // Repeats are consumed even for a command that runs once. A native row performs
   // its own half before leaving the browser's half of the same press intact.
   if (!matched.native) ev.preventDefault();

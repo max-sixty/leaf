@@ -2391,7 +2391,7 @@ def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
             "page": str(claimed),
             "thread": asked["id"],
             "outcome": "hand_back",
-            "why": "The session is changing its startup.",
+            "why": 'its last words were "The session is changing its startup."',
         }
     ]
     [owed] = activity_model.turn_obligations(reading(claimed), watched=False)
@@ -2399,7 +2399,9 @@ def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
     assert owed["answer"]["ref"] == answer_ref(claimed, asked["id"])
     gave = clerk_model.queued("s1")[-1]
     assert gave.startswith(f"Your fork agent-1 gave thread {asked['id']}"), gave
-    assert gave.endswith(": The session is changing its startup."), gave
+    assert gave.endswith(
+        ': its last words were "The session is changing its startup."'
+    ), gave
 
     unstarted, given = taken_by_a_fork(claimed, "How many shards does staging have?")
     [failed] = forks_model.ended(

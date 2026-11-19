@@ -1042,7 +1042,8 @@ def ended(
     thread owes nothing only where nothing waits in it and no to-do on it is open;
     the take's line, if it hasn't heard it yet, leaves the queue (`clerk.unqueue`).
     For a thread given back it hears why: the fork's failure, or else its last words
-    (`answer`), which the fork's task asks to be one line saying why. Those words
+    (`answer`), quoted as the fork's, since a fork whose reply Leaf refused may say it
+    answered; the fork's task asks for one line saying why. Those words
     decide no outcome, since the log already says whether the fork answered. A
     marker or structured answer in them would be a second answer to that question,
     one that could disagree with the log, so the task asks for neither.
@@ -1066,10 +1067,13 @@ def ended(
     entries = agent_turns(session_id)
     [ran] = {entries[closing]["agent"] for closing in closed}
     fork = "Your fork" if ran is None else f"Your fork {ran}"
+    words = (answer or "").strip()
     why = (
         f"the fork failed: {failed}"
         if failed
-        else (answer or "").strip() or "the fork ended without answering"
+        else f'its last words were "{words}"'
+        if words
+        else "the fork ended without answering"
     )
     elapsed = {} if elapsed_ms is None else {"elapsedMs": elapsed_ms}
     outcomes = []

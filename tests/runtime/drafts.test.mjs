@@ -17,9 +17,12 @@ let version = 0;
 // Answers the test holds back, released in the order the writes went out.
 /** @type {(() => void)[] | null} */
 let held = null;
+// Whether draft writes fail as they do while the server is out of reach.
+let unreachable = false;
 // A canonical page also posts diagnostic interactions, which the server takes.
 globalThis.fetch = async (url, init) => {
   if (!String(url).endsWith("/api/draft")) return new Response(null, { status: 204 });
+  if (unreachable) throw new TypeError("Failed to fetch");
   const { context, expect, record } = JSON.parse(String(init?.body));
   const current = server.get(context) ?? null;
   const written = current === null || expect.includes(current.attempt);
@@ -159,4 +162,24 @@ test("a page going away leaves its tab no copy of saved words it is sending", as
   window.dispatchEvent(new Event("pagehide"));
   const left = new Map(JSON.parse(tabMemory.get("lf-drafts-waiting") ?? "[]"));
   assert.equal(left.get("reply:leaving")?.copy, null);
+});
+
+// Words no write is carrying go with the document, so leaving asks first; words the
+// server has taken leave quietly.
+test("leaving asks first while words wait that no write carries", async () => {
+  const leave = () =>
+    window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+  const answered = async () => {
+    for (let turn = 0; turn < 20; turn += 1)
+      await new Promise((resolve) => setTimeout(resolve));
+  };
+  assert.equal(leave(), true);
+  unreachable = true;
+  saveDraft("reply:stranded", "Words typed while the server was away.");
+  await answered();
+  assert.equal(leave(), false);
+  unreachable = false;
+  saveDraft("reply:stranded", "Words typed while the server was away, and after.");
+  await answered();
+  assert.equal(leave(), true);
 });

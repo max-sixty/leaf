@@ -1095,13 +1095,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (sendBindings().includes("Enter")) event.preventDefault();
     });
     // A press on a submit control is the send key pressed from the box, so it leaves the
-    // user where Enter does: in the box, for a box that stays to take more, or wherever the
-    // send hands them on to, as a first message does to its thread (`landSent`), never on the
-    // control, where the next letters would fall on nothing. A pointer press never takes
-    // the focus (moving it is mousedown's default), so the box keeps it until the send
-    // moves it. A keyboard press on the control, or a pointer press while the user was
-    // elsewhere, puts the user in the box before the submission, so what the send does
-    // next starts from the state Enter starts it from.
+    // user where Enter does: wherever the send hands them on to, as every message does to
+    // its thread (`landSent`), or else in the box, as a widget's box that stays to take
+    // more, or a press that sent nothing, leaves them, never on the control, where the
+    // next letters would fall on nothing. A pointer press never takes the focus (moving
+    // it is mousedown's default), so the box keeps it until the send moves it. A keyboard
+    // press on the control, or a pointer press while the user was elsewhere, puts the
+    // user in the box only where the send left them where they were, so a send that
+    // lands takes them from the control to its thread without passing through the box.
     //
     // Except while an input method holds unfinished words: leaving the box is what
     // finishes them, so there the press takes the focus, and the words
@@ -1114,8 +1115,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // sends nothing (`uncover`).
     const pressed = (alternate = false) => {
       if (inputError.value) return uncover();
-      if (focused() !== ta) focusDestination(ta, "return");
-      submit(alternate);
+      const from = focused();
+      void submit(alternate);
+      if (from !== ta && focused() === from) focusDestination(ta, "return");
     };
     return sync;
 

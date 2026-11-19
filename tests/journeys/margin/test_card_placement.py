@@ -530,11 +530,12 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
 def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve):
     """A card standing above what it is about holds its foot, so a step grows it up
     past its head row and messages. With the user in its reply box, where a click's
-    opening leaves the caret, the step shows at once: the card rises from the box,
-    which stays where it stands, and the watch credits the rise the card declares.
-    With the user on the thread instead, the next step waits, with no notice, since
-    progress is no unread news, and shows when the user opens the card again
-    (thread-preview.js, `endNewsMoves`)."""
+    opening leaves the caret, or on the thread, where Escape from the box and a send
+    leave them, which waits at its reply box, the step shows at once: the card rises
+    from the box, which stays where it stands, and the watch credits the rise the card
+    declares. With the user on a message, by a click on its words, the next step waits,
+    with no notice, since progress is no unread news, and shows when the user opens the
+    card again (thread-preview.js, `endNewsMoves`)."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Make the banner quieter", {"section": "m19"})
     address = {"parent": root, "responds": root}
@@ -573,19 +574,33 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     rendered(page)
     page.wait_for_timeout(600)
-    reading = preview.bounding_box()
+    waiting = box.bounding_box()
     thread_model.post_reply(
         serve.page_dir, address, "Checking the banner in both schemes.", ephemeral=True
     )
     told(page)
-    expect(working).to_contain_text("the change")
+    expect(working).to_contain_text("both schemes")
+    rendered(page)
+    assert box.bounding_box() == pytest.approx(waiting, abs=0.5)
+
+    words = preview.locator(".lf-msg").first.bounding_box()
+    page.mouse.click(words["x"] + 20, words["y"] + words["height"] - 8)
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    rendered(page)
+    page.wait_for_timeout(600)
+    reading = preview.bounding_box()
+    thread_model.post_reply(
+        serve.page_dir, address, "Measuring the banner's contrast.", ephemeral=True
+    )
+    told(page)
+    expect(working).to_contain_text("both schemes")
     expect(preview.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert preview.bounding_box() == pytest.approx(reading, abs=0.5)
     preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
     expect(preview).to_be_hidden()
     page.locator(".lf-margin-marker").first.click()
-    expect(working).to_contain_text("both schemes")
+    expect(working).to_contain_text("contrast")
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):

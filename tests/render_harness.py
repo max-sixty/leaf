@@ -1552,8 +1552,8 @@ def clean_browser(test=None):
     assert not problems, "\n".join(problems)
 
 
-# How Firefox words, in its console, a module import that did not complete.
-_MODULE_LOAD_FAILED = re.compile(r"Loading failed for the module with source “([^”]+)”")
+# How Firefox begins the warning it writes for a module import that did not complete.
+_MODULE_LOAD_FAILED = '[JavaScript Warning: "Loading failed for the module with source'
 
 
 def _named_problems(captured):
@@ -1662,11 +1662,13 @@ def watched(page, *, java_script_enabled=True):
     (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
-    them: console warnings and errors, and uncaught exceptions. A module import the
-    browser cut off is no failure of the page: a navigation stops what the document it
-    leaves was still loading, and Firefox still says each such import failed to load,
-    so that warning is dropped where the request's own failure names the cut
-    (`NS_BINDING_ABORTED`), whichever of the two arrives first.
+    them: console warnings and errors, and uncaught exceptions. Leaving a document cuts
+    off what it was still loading, and Firefox says each module import among that
+    failed to load as it lets the document go, which no reader sees. So while the
+    page's own frame leaves its document, from its next navigation's request or the
+    first module it cuts off (`NS_BINDING_ABORTED`) until the next document commits,
+    that warning is dropped; an import that fails while a document stands is still
+    reported.
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
@@ -1690,22 +1692,32 @@ def watched(page, *, java_script_enabled=True):
     page.lf_errors = errors
     page.lf_java_script_enabled = java_script_enabled
 
-    cut_off = set()
+    leaving = False
 
-    def cut(problem):
-        found = problem.code == "console-warning" and _MODULE_LOAD_FAILED.search(
-            problem.values["text"]
-        )
-        return bool(found) and found[1] in cut_off
+    def requested(request):
+        nonlocal leaving
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            leaving = True
 
     def request_failed(request):
-        if request.failure == "NS_BINDING_ABORTED":
-            cut_off.add(request.url)
-            errors[:] = [problem for problem in errors if not cut(problem)]
+        nonlocal leaving
+        if (
+            request.failure == "NS_BINDING_ABORTED"
+            and request.resource_type == "script"
+            and request.frame == page.main_frame
+        ):
+            leaving = True
+
+    def committed(frame):
+        nonlocal leaving
+        if frame == page.main_frame:
+            leaving = False
 
     def console_message(message):
         problem = render_gate_model.console_finding(message)
-        if problem is not None and not cut(problem):
+        if problem is not None and not (
+            leaving and message.text.startswith(_MODULE_LOAD_FAILED)
+        ):
             errors.append(problem)
 
     def window_error(error):
@@ -1718,8 +1730,10 @@ def watched(page, *, java_script_enabled=True):
         else:
             errors.append(problem)
 
-    page.on("console", console_message)
+    page.on("request", requested)
     page.on("requestfailed", request_failed)
+    page.on("framenavigated", committed)
+    page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
         return errors

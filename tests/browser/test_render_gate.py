@@ -533,10 +533,11 @@ def test_a_module_import_a_navigation_cuts_off_is_no_problem(firefox_browser, se
       const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
       import(new URL(path, new URL(boot, location.href)).href).catch(() => {});
     }"""
-    # Held unanswered, so the reload cuts it off.
-    page.route("**/runtime/validation.js", lambda route: None, times=1)
-    with page.expect_request("**/runtime/validation.js"):
-        page.evaluate(load, "runtime/validation.js")
+    # A module the page hasn't loaded, held unanswered, so the reload cuts it off.
+    held = "runtime/validation.js?cut-off"
+    page.route(lambda url: url.endswith(held), lambda route: None, times=1)
+    with page.expect_request(lambda request: request.url.endswith(held)):
+        page.evaluate(load, held)
     page.reload()
     page.route("**/runtime/not-served.js", lambda route: route.abort(), times=1)
     page.evaluate(load, "runtime/not-served.js")

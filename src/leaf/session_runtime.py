@@ -21,11 +21,12 @@ Each hook runs the chosen launcher's Python as it stands, so an update reaches a
 session at its next hook without a reload; Claude Code still reads `hooks.json`
 and the hooks module only as it loads the plugin, so a change to either still
 waits for one. Nothing checks that the module a session loaded and the Python its
-hooks run agree. Where their exchange has changed, the Python refuses the step the
-module runs (`leaf hook --fork`), which hands a kept-back thread to the session at
-once, or the line turn Leaf opened lapses after `activity.STARTING_GRACE`; either
-way the session gets the thread's messages as it would without forks. The user
-chose this over checking that the loaded module is this Leaf's own, which turns
+hooks run agree: the module only runs the instructions the Python gives it
+(`carrier.py`), and one an older module doesn't know comes back failed, as a report
+the Python refuses does, which hands a kept-back thread to the session at once; where
+nothing reports, the line turn Leaf opened lapses after `activity.STARTING_GRACE`.
+Either way the session gets the thread's messages as it would without forks. The
+user chose this over checking that the loaded module is this Leaf's own, which turns
 forks off in every session that loaded the module before its latest change: most
 sessions, while the module changes often. A selection whose checkout is gone falls
 back to the installed copy, which refuses a page it can't read (`newer-layer`), so

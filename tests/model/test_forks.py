@@ -266,10 +266,17 @@ def summary_beside(page_dir) -> tuple[dict, list[dict], dict, dict]:
 
 def summarized(summary: dict, answer: dict) -> dict:
     """What Leaf did with the summary fork's `answer`."""
-    outcome = forks_model.cmd_fork(
-        "s1", {"beside": summary["basis"], "answer": json.dumps(answer)}
+    outcome = forks_model.step(
+        "s1",
+        {
+            "done": "summary",
+            "do": "fork",
+            "basis": {"kind": "beside", **summary["basis"]},
+            "answer": json.dumps(answer),
+        },
     )
     assert outcome is not None
+    assert outcome.pop("log").startswith("the summary fork for thread ")
     return outcome
 
 
@@ -2744,8 +2751,8 @@ def test_the_running_tool_reaches_the_prompt(claimed, lane):
 def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
     claimed, monkeypatch, capsys
 ):
-    """The follower is the session's lane while it runs and lists each page's
-    kept-back threads for the module. It waits on the page's subscription,
+    """The follower is the session's lane while it runs and lists a report for each
+    kept-back thread for the module. It waits on the page's subscription,
     so a message wakes it as it is admitted rather than at the next presence read.
     Stopping with a thread kept back ends nothing: the line fork runs in the
     module."""
@@ -2781,16 +2788,22 @@ def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
     with pytest.raises(Stopped):
         hooks_model.cmd_pages(FOLLOWER)
     assert not forks_model.lane_up("s1")
-    listed = [
-        json.loads(line)["pages"] for line in capsys.readouterr().out.splitlines()
-    ]
-    assert listed[0][0]["kept_back"] == []
-    assert listed[1][0]["kept_back"] == [
+    listed = [json.loads(line)["do"] for line in capsys.readouterr().out.splitlines()]
+    turn = basis(claimed, asked[0]["id"])["turn"]
+    assert listed[0] == []
+    assert listed[1] == [
         {
-            "page": str(claimed.resolve()),
-            "thread": asked[0]["id"],
-            "inputs": [asked[0]["id"]],
-            "turn": basis(claimed, asked[0]["id"])["turn"],
+            "id": f"line:{turn}",
+            "do": "report",
+            "basis": {
+                "kind": "line",
+                "thread": {
+                    "page": str(claimed.resolve()),
+                    "thread": asked[0]["id"],
+                    "inputs": [asked[0]["id"]],
+                    "turn": turn,
+                },
+            },
         }
     ]
     assert nudged == []
@@ -2839,10 +2852,8 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
         hooks_model.cmd_pages(FOLLOWER)
     assert ended.value.code == os.EX_TEMPFAIL
     assert not forks_model.lane_up("s1")
-    [listed] = [
-        json.loads(line)["pages"] for line in capsys.readouterr().out.splitlines()
-    ]
-    assert listed[0]["kept_back"] == []
+    [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert listed["do"] == []
 
 
 def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(

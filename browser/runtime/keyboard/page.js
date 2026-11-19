@@ -165,6 +165,9 @@ export function declareCurrentLocation({ pageState }) {
         touch: false,
         keys: ["Escape"],
         title: "let go",
+        // A popup of the page's may answer the same Escape from a listener on the
+        // document, and keeps focus on its trigger, so this waits for it.
+        waits: true,
         when: () => Boolean(currentLocationFloor()),
         run: release,
       },
@@ -189,6 +192,8 @@ pageRung("page", () => {
       : {
           title: "back to the page",
           out: letGo,
+          // From a control in the page, as the let-go above; the chrome is Leaf's own.
+          waits: !inChrome(focused(document)),
         };
   // A sample has one more containing page. Its own controls and current location unwind
   // first; the frame's owner takes the focus back, not another keyboard listener

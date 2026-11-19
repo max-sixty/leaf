@@ -1401,6 +1401,7 @@ export default [
   {
     files: [
       "*.mjs",
+      ".config/*.mjs",
       ".github/scripts/*.mjs",
       "build/**/*.mjs",
       "worker/*.mjs",

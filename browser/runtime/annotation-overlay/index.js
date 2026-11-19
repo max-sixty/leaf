@@ -2,7 +2,7 @@
  * drawing paint.
  * Boot imports this entry only for overlay presentation, so a page that presents its
  * own annotations (`data-annotations=page`) loads none of this closure; no other
- * runtime owner reaches it (`.dependency-cruiser.mjs`, `core-independent-of-overlay`).
+ * runtime owner reaches it (`.config/dependency-cruiser.mjs`, `core-independent-of-overlay`).
  * Its factories share the core runtime's canonical owners.
  *
  * It lives in the kernel rather than the bundled default package: every

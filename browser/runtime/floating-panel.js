@@ -34,7 +34,12 @@
  *   change. That kept On Me beside the draft and the field narrower, and saved no
  *   rewrap, since the stance's arrival had already rewrapped the draft. An open view
  *   has its ✕ on a line of its own, its head line or its tabs, and the field takes the
- *   seat's room while the view stands, a stance's ✕ waiting with it (**Opened**).
+ *   seat's room while the view stands (**Opened**), but for a stance's ✕: a thread's
+ *   reply box ends in Reply, never Close, so beside it the ✕ keeps the seat, and a
+ *   reply drafted there rewraps as a stance comes and goes, as a draft on the page
+ *   does. Rejected:
+ *   the ✕ waiting for the view to close, which left a stance entered from a thread, such
+ *   as Go-to or Draw mode, unnamed and with no way out on screen.
  *   The user chose the one seat over a Threads mark beside On Me and a seat kept
  *   empty for the ✕, which leaves a gap at the row's end; Threads is the On view's
  *   tab, since On Me already lists a thread message that waits on the user. Rejected:
@@ -1019,7 +1024,7 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const searchSurface = shell("search-surface");
   // The row's end: the On Me mark, or the way out of the search the user is in, or of
-  // their stance where no view is open, there while the user types too
+  // their stance where the field doesn't offer it, there while the user types too
   // (touch-controls.js, `stance`), each at its own width (floating-panel.css,
   // `.lf-fp-quick`).
   // The anchored comment box's home on a page that draws its own annotations
@@ -1200,7 +1205,8 @@ export function createFloatingPanel({
     const { stance } = statusContextReading();
     const held = heldWords.value;
     const page = !key;
-    const { notice, goTo, step } = passingFacts(page ? STANDING : NO_STANDING);
+    const says = page ? STANDING : STANCE;
+    const { notice, goTo, step } = passingFacts(says);
     return readField({
       thread: !page,
       writing: input === focused(),
@@ -1213,8 +1219,8 @@ export function createFloatingPanel({
       },
       goTo,
       step,
-      stance: page ? stance : null,
-      standing: () => (page ? standing(stance) : []),
+      stance,
+      standing: () => standing(stance, says),
       destination: () => whereTo(drawn ?? thread),
       status: () => status().summaryParts,
       close: () => (stance ? stanceClose() : null),
@@ -1285,9 +1291,13 @@ export function createFloatingPanel({
     ],
   ];
   const STANDING = new Set(STANDING_PARTS.map(([about]) => about));
-  /** @param {string | null} stance */
-  function standing(stance) {
-    return STANDING_PARTS.map(([, words]) => words(stance))
+  // Where the user stands in an open thread's reply box: the stance alone, since the
+  // rest is the page's (field-readings.js, `lead`).
+  const STANCE = new Set(["stance"]);
+  /** @param {string | null} stance @param {ReadonlySet<string>} says */
+  function standing(stance, says) {
+    return STANDING_PARTS.filter(([about]) => says.has(about))
+      .map(([, words]) => words(stance))
       .filter((part) => part !== null)
       .map((part) => saidBy(part.voice, `${part.text} · `));
   }
@@ -1314,21 +1324,24 @@ export function createFloatingPanel({
     return shownOffer ? noticePress(shownOffer) : null;
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
-  // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
-  // walk's position. The thread walk standing on this thread says only its place,
-  // "11 of 11", since the view names the thread; any other walk says what the screen
-  // lacks with no words standing before it (walk-position.js, `walkWords`), so a
-  // comparison's changes are named here, "Change 1 of 5 since v2". The agent's own
-  // line, a to-do's title or a start's, stays in the thread, where the working message
-  // says it. A notice or the Go-to word, which pass in a moment, take the reply's place.
-  // The thread's word is the one its view draws (`drawn`), held news included, as its
-  // Resolve says it.
+  // (composing/input.js, `hintLead`): the stance the user is in, which is where they
+  // stand in a thread and leads the reading's words (field-readings.js, `lead`), drawn
+  // at the row's start as it stands before the page's status, rather than against
+  // Reply, where it would read as a way of replying; then the thread's word, as
+  // Threads says it; then a walk's position. The thread walk standing on this thread
+  // says only its place, "11 of 11", since the view names the thread; any other walk
+  // says what the screen lacks with no words standing before it (walk-position.js,
+  // `walkWords`), so a comparison's changes are named here, "Change 1 of 5 since v2".
+  // The agent's own line, a to-do's title or a start's, stays in the thread, where the
+  // working message says it. A notice or the Go-to word, which pass in a moment, take
+  // the reply's place. The thread's word is the one its view draws (`drawn`), held
+  // news included, as its Resolve says it.
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread} drawn */
   function turnLead(key, input, drawn) {
     if (fieldReading(key, input).says !== "turn") return "";
     const thread = threadByKey(key);
-    const { walk } = statusContextReading();
+    const { walk, stance } = statusContextReading();
     const position = !walk
       ? ""
       : walk.kind === "thread" && walk.target === thread?.id
@@ -1340,8 +1353,14 @@ export function createFloatingPanel({
     const away = Boolean(position) && !currentLocationIn(host);
     const settled = drawn.resolvedBy ? leafSays(drawn.resolvedBy) : RESOLVED;
     const word = away ? null : drawn.resolved ? settled : drawn.attention?.word;
-    if (!word) return position && voiced(leafSays(position));
-    return voiced([word, ...(position ? [leafSays(` · ${position}`)] : [])]);
+    const said = [
+      ...(stance ? [leafSays(stance)] : []),
+      ...(word ? [word] : []),
+      ...(position ? [leafSays(position)] : []),
+    ];
+    return said.length
+      ? voiced(said.flatMap((part, at) => (at ? [leafSays(" · "), part] : [part])))
+      : "";
   }
   // What the focused field says: the word it says at rest, as every comment box does
   // with the caret in, which the user chose over naming where the
@@ -1377,6 +1396,8 @@ export function createFloatingPanel({
     const held = heldWords.value;
     if (says === "held" && held) return heldParts(held);
     const parts = [words].flat();
+    // A thread's lead stands beside the leaf (`turnLead`), so Reply's words are its own.
+    if (says === "turn" && lead.length) return voiced(parts.slice(lead.length));
     // Where the user stands, before the status, is drawn apart from it, so the ink a
     // status that asks wears stays the status's (floating-panel.css).
     if (says === "status" && lead.length)
@@ -1520,10 +1541,11 @@ export function createFloatingPanel({
     const top = trail.value.at(-1);
     return top?.thread ? (threadOf(top) ? replyInput() : null) : pageEditor().input;
   };
-  // The way out at the row's end: a search's, or, where no view stands, a stance's
-  // while one stands and the page field doesn't say it at its end, which it does while
-  // it says its words at rest (`stanceClose`). An open view's Close stands on the view's
-  // own line (`closeAtFoot`).
+  // The way out at the row's end: a search's, or a stance's while one stands and the
+  // field doesn't say it at its end, which the page's field does while it says its
+  // words at rest (`stanceClose`) and a thread's reply box never does, since Reply ends
+  // it there. An open view's Close stands on the view's own line (`closeAtFoot`); the
+  // menu's search, which holds the field while the menu stands, has no ✕ of its own.
   /** @param {PanelSearch | typeof threadSearch | null} search @param {PanelRoute | null | undefined} top
    * @param {Element | null} input @param {ReturnType<typeof fieldReading> | null} reading */
   const fieldExit = (search, top, input, reading) => {
@@ -1534,7 +1556,7 @@ export function createFloatingPanel({
         disabled: false,
         action: null,
       };
-    if (top && (!search || menuSearching())) return null;
+    if (top && menuSearching()) return null;
     if (
       !search &&
       (!innermostStance() || (reading?.exits && input !== focused() && !draftOf(input)))

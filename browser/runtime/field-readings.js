@@ -23,7 +23,13 @@
  * where the user stands comes back with the status a moment later. The Go-to word and
  * a walk's position take all of where the user stands, which a walk over a list one of
  * those facts is about counts on: it says its place alone after them, "5 changes since
- * v2 · 1 of 5" (walk-position.js, `walkWords`).
+ * v2 · 1 of 5" (walk-position.js, `walkWords`). In an open thread's reply box, where the
+ * user stands is the stance alone, since the version, the comparison and the
+ * annotations are the page's, which a reply never addresses. It leads Reply as it leads
+ * the status, so the stance is named while a thread stands open too, beside the leaf
+ * before whose turn it is (floating-panel.js, `turnLead`), and the stance's Close,
+ * which Reply leaves no room for at the field's end, stands in the row's seat
+ * (floating-panel.js, `fieldExit`).
  *
  * The field's end offers one press, the one that matters most at that moment (`end`):
  * - "key": the key that enters the field, after the words, as Reply's c;
@@ -78,9 +84,9 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @property {string | null} goTo the Go-to filter's word while its sequence waits
  * @property {string | null} step a walk's position for its step's moment, in the words
  * the field's own leave unsaid
- * @property {string | null} stance the stance the user is in, by name, on the page
- * @property {() => readonly (string | Said)[]} standing where the user stands on the
- * page, each part ending in its separator; nothing in a thread
+ * @property {string | null} stance the stance the user is in, by name
+ * @property {() => readonly (string | Said)[]} standing where the user stands, each
+ * part ending in its separator: on the page, and the stance alone in a thread
  * @property {() => Words} destination where words typed in the field go
  * @property {() => Words} status the status's words
  * @property {() => BoxPress | null} close the stance's Close
@@ -159,11 +165,12 @@ export const FIELD_READINGS = Object.freeze([
   // over the key beside Reply with the turn at the field's end in one face, Reply alone
   // with the turn left to the thread's messages, and the agent's words in a lane of
   // their own before the seat. Reply takes the one dim face the user chose for every
-  // comment box's word.
+  // comment box's word. The stance the user is in leads it (`lead`, above).
   {
     says: "turn",
     field: "thread",
     claims: () => leafSays(REPLY_HINT),
+    lead: "standing",
     end: "key",
     offers: true,
   },

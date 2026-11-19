@@ -122,6 +122,7 @@ import {
   selectionAnchor,
   snapSelection,
 } from "./capture.js";
+import { takesNoWords } from "./input.js";
 import { repaint } from "../repaint.js";
 import {
   drawn,
@@ -1396,8 +1397,6 @@ export function createResponseSurface({
         (inlineBox ? { held: inline, box: inlineBox } : null),
     };
   }
-  /** @param {Element | null} box */
-  const readOnlyBox = (box) => Boolean(box && "readOnly" in box && box.readOnly);
   /** @returns {{title: string, box: Element | null, go: () => unknown, rest?: NonNullable<ReturnType<ResponseOptions["currentTarget"]>>}} */
   function commentDestination() {
     // The panel's field quotes the selected words, and a press there does what c does,
@@ -1584,7 +1583,7 @@ export function createResponseSurface({
     // page still are, since a comment on them opens a box of its own.
     when: () =>
       (anchoringIsReady() || !pageSelection()) &&
-      (Boolean(offeredSelection) || !readOnlyBox(commentDestination().box)),
+      (Boolean(offeredSelection) || !takesNoWords(commentDestination().box)),
     run: () => {
       // Activation reads the current native selection directly. Painting its offer
       // first would displace the reading controls only to restore them in this press.

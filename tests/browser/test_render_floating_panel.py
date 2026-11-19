@@ -4531,7 +4531,7 @@ def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
     row's end, which stands where the On Me mark ends, as close to the field as the leaf
     stands at the row's start; the ✕ leaves the mode and the On Me mark comes back.
     A press on the field leaves the caret where it was and moves neither the field nor
-    its ✕. A thread opened in the mode,
+    its ✕, and `c`, which would write there, leaves it too. A thread opened in the mode,
     as Threads is, closes before the mode on Escape, since it came last. Annotations
     also lists Select mode for a mouse, with the `s` that reaches it from the keyboard,
     since selecting words picks no widget or picture. The row previews nothing: it
@@ -4576,6 +4576,9 @@ def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
     ] == stood
 
     page.locator("body").focus()
+    page.keyboard.press("c")
+    rendered(page)
+    expect(field(page)).not_to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
     expect(page.locator(panel_view("threads"))).to_be_visible()

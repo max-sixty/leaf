@@ -111,7 +111,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {readonly import("../keyboard/bindings.js").Command[]} [rows]
  * @property {HTMLElement | null} [submitIn]
  * @property {boolean} [sentMedia]
- * @typedef {{(): void, cancelDictation: () => void, value: () => string, hasMedia: () => boolean,
+ * @typedef {{(): void, cancelDictation: () => void, value: () => string, closed: () => boolean, hasMedia: () => boolean,
  * arrive: () => void, load: (value: string) => void, button: HTMLButtonElement | null,
  * composition: () => {field: HTMLElement, frame: CompositionField}, addMedia: (images: readonly Blob[]) => Promise<boolean>}} InputSync
  * @typedef {TextField & {[INPUT_DRAFT]?: InputSync}} WiredInput
@@ -272,6 +272,11 @@ export const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
 // name reads has changed and the caller holds the field rather than its wiring.
 /** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
+// Whether a wired box takes no words now (`closed`), as the panel's field while a
+// stance stands. It asks `closed` rather than `readOnly`, which an upload in flight
+// also sets on a box that `c` may still move to another passage.
+/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
+export const takesNoWords = (ta) => Boolean(ta?.[INPUT_DRAFT]?.closed());
 // Whether an error stands at a box, which says it there; the panel's dot marks only
 // those that stand nowhere. A box that stops showing the words passes its errors, so a
 // standing one is always on screen.
@@ -619,8 +624,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${pressText ? ` · ${pressText}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+      // The paint is the one writer of `readOnly`: a box that takes no words, and one
+      // whose image is still uploading (`addMedia`), which keeps its Send and microphone.
       const shut = closed();
-      if (ta.readOnly !== shut) ta.readOnly = shut;
+      const locked = shut || uploading;
+      if (ta.readOnly !== locked) ta.readOnly = locked;
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
@@ -812,6 +820,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // guessing whether a hidden field is merely outside the viewport.
     sync.cancelDictation = cancelDictation;
     sync.value = draftValue;
+    sync.closed = closed;
     sync.hasMedia = () => attachedMedia.length > 0;
     // The box takes up the draft it now stands on as it is, with a history of its own:
     // another draft, or this one as another tab left it. The caller's next paint shows
@@ -1002,9 +1011,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         return false;
       }
       rememberWriting(ta);
-      const wasReadOnly = ta.readOnly;
       uploading = true;
-      ta.readOnly = true;
       ta.setAttribute("aria-busy", "true");
       refresh();
       // The thumbnail arriving in the shelf is the attachment's result, so only a
@@ -1046,7 +1053,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         return false;
       } finally {
         uploading = false;
-        ta.readOnly = wasReadOnly;
         ta.removeAttribute("aria-busy");
         refresh();
       }

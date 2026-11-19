@@ -511,6 +511,13 @@ INLINE_OPENING = (
 )
 
 
+def inline_context(delivery: dict) -> str:
+    """The context that hands `delivery` over inline: its opening line
+    (`INLINE_OPENING`) and the delivery's block (`json_block`), which
+    `inline_delivery` reads back."""
+    return "\n".join([INLINE_OPENING, json_block(delivery)])
+
+
 def inline_delivery(context: str) -> dict | None:
     """The delivery a hook's `context` handed over inline, its opening line
     (`INLINE_OPENING`) followed by the delivery's block (`json_block`), or None where
@@ -721,11 +728,7 @@ def carry_turn(
 
         def inline(batches: list[dict]) -> str:
             return "\n".join(
-                [
-                    INLINE_OPENING,
-                    json_block({**delivery, "batches": batches}),
-                    *attention,
-                ]
+                [inline_context({**delivery, "batches": batches}), *attention]
             )
 
         # Record only input the model will see whole, while the hook can still
@@ -817,7 +820,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     if not batches:
         return
     delivery = freeze_delivery(batches)
-    message = "\n".join([INLINE_OPENING, json_block(delivery)])
+    message = inline_context(delivery)
     deadline = started + CONFIRM_WITHIN
     recorded = (
         receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
@@ -826,7 +829,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     )
     if recorded:
         inline = {**delivery, "batches": recorded}
-        message = "\n".join([INLINE_OPENING, json_block(inline)])
+        message = inline_context(inline)
     else:
         note_pointer(
             sid,

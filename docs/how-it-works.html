@@ -24,6 +24,16 @@
       lf-text-document[data-prompt] {
         --lf-bound: 80vh;
       }
+      /* Leaf's two queued lines are short, and a listing keeps its whole bound
+         however short its text. */
+      #prompt-told {
+        --lf-bound: 14rem;
+      }
+      @media (width < 40rem) {
+        #prompt-told {
+          --lf-bound: 34rem;
+        }
+      }
 
       /* Keep delivery field names readable on a phone. */
       #delivery-fields :is(th, td):first-child {
@@ -3470,6 +3480,7 @@ EOF</code></pre>
                 <li><a href="#ending">When a fork's run ends</a></li>
                 <li><a href="#follow-ups">Further messages in a thread</a></li>
                 <li><a href="#coordinator">The main thread stays in charge</a></li>
+                <li><a href="#anatomy">Anatomy of a fork journey</a></li>
                 <li><a href="#forks-sources">Where each rule is written</a></li>
               </ul>
             </nav>
@@ -3539,24 +3550,10 @@ flowchart TD
               same thread, such as “and also…”, joins it, and a new line fork reads them
               both. Leaf keeps a message back only while a background process of Leaf's
               hooks module is running for the session to list it; otherwise the message
-              goes to the main thread as any input does.
+              goes to the main thread as any input does. The line fork's prompt is in
+              <a href="#anatomy-line">Anatomy of a fork journey</a>, as Leaf wrote it in
+              one run.
             </p>
-            <details id="line-fork-prompt">
-              <summary>The line fork's prompt</summary>
-              <p id="line-fork-prompt-values">
-                Leaf's hooks module resends the main thread's last request with this
-                message added at its end. For each message Leaf fills in the thread,
-                given whole, and the sentence naming the call the session is running;
-                when no call is running, that sentence says the conversation ends where
-                the session last sent it to the model. The thread and the call here are
-                illustrative.
-              </p>
-              <lf-text-document
-                id="prompt-line-fork"
-                label="line_prompt, src/leaf/forks.py"
-                data-prompt="line"
-              ></lf-text-document>
-            </details>
             <figure id="states-figure" class="diagram-figure">
               <lf-diagram id="states-diagram" data-height="480" parts="all">
                 <pre>
@@ -3667,7 +3664,8 @@ flowchart TD
                 >). The fork does the work with the session's tools and answers with its
                 own <code>leaf thread reply</code>, or, where the message turns out to
                 need the main thread, gives the thread back by leaving it unanswered,
-                ending its run with a line saying why.
+                ending its run with a line saying why. The fork's task is in
+                <a href="#anatomy-take">Anatomy of a fork journey</a>.
               </p>
               <figure id="take-figure" class="diagram-figure">
                 <lf-diagram id="take-sequence" data-height="520" parts="all">
@@ -3698,25 +3696,10 @@ sequenceDiagram
                   main thread, which wait for its next tool boundary or prompt (<a
                     href="#telling"
                     >How a fork tells the main thread</a
-                  >).
+                  >). <a href="#anatomy">Anatomy of a fork journey</a> follows one run,
+                  message by message.
                 </figcaption>
               </figure>
-              <details id="working-fork-prompt">
-                <summary>The working fork's task</summary>
-                <p id="working-fork-prompt-values">
-                  Leaf's hooks module spawns the working fork with this task. For each
-                  take Leaf fills in the turn it opened for the fork and its delivery of
-                  the thread: an envelope like the main thread's, but with the thread
-                  whole, the working line among its messages. The delivery here is
-                  illustrative, apart from its handling clauses, which are the ones
-                  Leaf's kernel registry gives this case.
-                </p>
-                <lf-text-document
-                  id="prompt-working-fork"
-                  label="work_prompt, src/leaf/forks.py"
-                  data-prompt="work"
-                ></lf-text-document>
-              </details>
             </section>
           </section>
 
@@ -3984,7 +3967,7 @@ flowchart TD
                 A resumed fork's transcript lacks what the session did on the page while
                 it was stopped, so Leaf's message resuming it carries the thread's
                 delivery and asks it to read <code>leaf page state</code> before it
-                answers.
+                answers (<a href="#anatomy-resume">the message</a>).
               </li>
               <li id="follow-up-new-fork">
                 A thread the main thread answered last gets a new fork, and so does one
@@ -3998,20 +3981,6 @@ flowchart TD
                 unasked answers nothing, so the thread stays the fork's.
               </li>
             </ul>
-            <details id="resumed-fork-prompt">
-              <summary>The message that resumes a fork</summary>
-              <p id="resumed-fork-prompt-values">
-                Leaf's hooks module sends this message to the fork that answered the
-                thread last, whose transcript already holds its first task. For each
-                resume Leaf fills in the fork's new turn, the page's path and the
-                delivery of the user's new messages, here illustrative.
-              </p>
-              <lf-text-document
-                id="prompt-resumed-fork"
-                label="resume_prompt, src/leaf/forks.py"
-                data-prompt="resume"
-              ></lf-text-document>
-            </details>
           </section>
 
           <section id="coordinator">
@@ -4038,6 +4007,361 @@ flowchart TD
               the fork's turn ends; the main thread hears of it, and Leaf wakes an idle
               session for it.
             </p>
+          </section>
+
+          <section id="anatomy">
+            <h2>Anatomy of a fork journey</h2>
+            <p id="anatomy-lede">
+              This section follows one thread through every message Leaf, Claude Code
+              and the forks exchanged in a run of the Claude Code agent journey (<code
+                >leaf-dev journey run claude-code</code
+              >) at 19:38 PT on 18 November 2026, under Claude Code 2.1.328. The session
+              sat idle while the user asked three questions about the page's source: one
+              working fork answered the first two together, and the third, 26 s later,
+              resumed the same fork. The times and Claude Code's text are as the run
+              recorded them. Leaf's own messages are written by Leaf's current code from
+              the run's values, so they read as Leaf writes them now. Paths and ids are
+              the journey's scratch page and session.
+            </p>
+            <p id="anatomy-key">
+              Who wrote each message: <span class="said from-cc">Claude Code</span>,
+              <span class="said from-leaf">Leaf</span>,
+              <span class="said from-model">a model</span> and
+              <span class="said from-user">the user</span>.
+            </p>
+            <figure id="anatomy-figure">
+              <lf-timeline
+                id="journey-timeline"
+                aria-label="One thread's fork journey, from the user's first message"
+              >
+                <lf-lane label="User">
+                  <lf-event
+                    id="journey-ask"
+                    at="0"
+                    label="Asks how many cards the page's source holds"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-follow"
+                    at="2596"
+                    label="Asks how many mention the migration"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-third"
+                    at="26453"
+                    label="Asks which card's text is longest"
+                  ></lf-event>
+                </lf-lane>
+                <lf-lane label="Leaf">
+                  <lf-event
+                    id="journey-keep"
+                    at="2"
+                    label="Keeps the message back"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-take"
+                    at="2293"
+                    label="Posts the line, gives the thread to a fork"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-hand"
+                    at="5832"
+                    label="Hands the follow-up to the fork"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-closed"
+                    at="15752"
+                    label="Hears the run end, closes the turn"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-keep-again"
+                    at="26455"
+                    label="Keeps the message back"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-resume"
+                    at="28320"
+                    label="Posts the line, resumes the fork"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-closed-again"
+                    at="45444"
+                    label="Hears the run end, closes the turn"
+                  ></lf-event>
+                </lf-lane>
+                <lf-lane label="Line fork">
+                  <lf-event
+                    id="journey-judge"
+                    at="181"
+                    end="2300"
+                    label="Writes the line, judges take"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-judge-again"
+                    at="26635"
+                    end="28327"
+                    label="Writes the line, judges take"
+                  ></lf-event>
+                </lf-lane>
+                <lf-lane label="Working fork">
+                  <lf-event
+                    id="journey-run"
+                    at="2429"
+                    end="15752"
+                    label="Counts the cards"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-answer"
+                    at="12744"
+                    label="Answers both messages"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-resumed"
+                    at="28465"
+                    end="45444"
+                    label="Compares the cards' text"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-state"
+                    at="34708"
+                    label="Reads the page's state"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-answer-again"
+                    at="42017"
+                    label="Answers"
+                  ></lf-event>
+                </lf-lane>
+                <lf-lane label="Main thread">
+                  <lf-event
+                    id="journey-idle"
+                    at="0"
+                    end="45290"
+                    label="Idle"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-woken"
+                    at="45290"
+                    label="Woken by Claude Code's notice"
+                  ></lf-event>
+                </lf-lane>
+              </lf-timeline>
+              <figcaption id="anatomy-caption">
+                <strong>The run, in seconds from the user's first message.</strong>
+                The main thread stays idle throughout: Leaf's lines for it wait for its
+                next prompt, and Claude Code's notice that the resumed run ended is what
+                wakes it.
+              </figcaption>
+            </figure>
+
+            <section id="anatomy-line">
+              <h3>1. A line fork writes the line and judges</h3>
+              <p id="anatomy-line-ask">
+                The user writes in a thread:
+                <q class="said from-user"
+                  >How many cards does this page's source hold? Count them in the
+                  file.</q
+                >
+                Leaf keeps the message back from the main thread, and its hooks module
+                resends the main thread's last request through
+                <code>$.model.fork</code>, with Leaf's message added at its end.
+              </p>
+              <details id="line-fork-prompt" class="from from-leaf">
+                <summary>Leaf's message to the line fork</summary>
+                <p id="line-fork-prompt-values">
+                  For each message Leaf fills in the thread, given whole, and the
+                  sentence naming the call the session is running. When no call runs, as
+                  here, that sentence says the conversation ends where the session last
+                  sent it to the model.
+                </p>
+                <lf-text-document
+                  id="prompt-line-fork"
+                  label="line_prompt, src/leaf/forks.py"
+                  data-prompt="line"
+                ></lf-text-document>
+              </details>
+              <p id="anatomy-line-answer">
+                The line fork answered 2.1 s after the message:
+              </p>
+              <pre
+                id="anatomy-line-json"
+                class="from from-model"
+              ><code>{"line": "counting the cards in the page's source file", "work": "take"}</code></pre>
+              <p id="anatomy-line-posted">
+                Leaf posts the line as the agent's and, in the same transaction, gives
+                the thread to a turn for a working fork.
+              </p>
+            </section>
+
+            <section id="anatomy-take">
+              <h3>2. A working fork takes the thread</h3>
+              <p id="anatomy-take-spawn">
+                The hooks module spawns the fork with <code>$.agent.spawn</code>. Its
+                first request is the main thread's conversation, to which Claude Code
+                adds an Agent call in the session's name, described as
+                <span class="said from-leaf">Leaf: </span
+                ><span class="said from-model"
+                  >counting the cards in the page's source file</span
+                >, with this result:
+              </p>
+              <pre
+                id="anatomy-take-result"
+                class="from from-cc"
+              ><code>Fork started — that fork is you.</code></pre>
+              <p id="anatomy-take-message">
+                One message follows: Claude Code's rules for a fork, then Leaf's task
+                after “Your directive:”.
+              </p>
+              <details id="anatomy-boilerplate" class="from from-cc">
+                <summary>Claude Code's rules for a fork</summary>
+                <pre><code>&lt;fork-boilerplate&gt;
+You are a worker fork. The transcript above is the parent's history — inherited reference, not your situation. You are NOT a continuation of that agent. Execute ONE directive, then stop.
+
+Hard rules:
+- Do NOT spawn subagents with the Agent tool. The "default to forking" guidance is for the parent; you ARE the fork, execute directly.
+- One shot: report once and stop. No follow-up questions, no proposed next steps, no waiting for the user.
+
+Guidelines (your directive may override any of these):
+- Stay in scope. Other forks may be handling adjacent work; if you spot something outside your directive, note it in a sentence and move on.
+- Open with one line restating your task, so the parent can spot scope drift at a glance.
+- Be concise — as short as the answer allows, no shorter. Plain text, no preamble, no meta-commentary.
+- If you committed changes, list the paths and commit hashes in your report.
+&lt;/fork-boilerplate&gt;
+
+Your directive: </code></pre>
+              </details>
+              <details id="working-fork-prompt" class="from from-leaf">
+                <summary>Leaf's task for the working fork</summary>
+                <p id="working-fork-prompt-values">
+                  For each take Leaf fills in the turn it opened for the fork and its
+                  delivery of the thread: an envelope like the main thread's, but with
+                  the thread whole, the working line among its messages, and the
+                  handling clauses Leaf's kernel registry gives this case.
+                </p>
+                <lf-text-document
+                  id="prompt-working-fork"
+                  label="work_prompt, src/leaf/forks.py"
+                  data-prompt="work"
+                ></lf-text-document>
+              </details>
+            </section>
+
+            <section id="anatomy-follow-up">
+              <h3>3. A follow-up reaches the fork at its next tool call</h3>
+              <p id="anatomy-follow-up-ask">
+                0.3 s after the line, the user adds
+                <q class="said from-user"
+                  >And how many of them mention the migration?</q
+                >
+                The fork's turn holds the thread, so the message is the fork's. Claude
+                Code runs none of the hooks module's hooks for a fork's own tool calls,
+                so Leaf's PostToolBatch hook in <code>hooks.json</code> hands it over,
+                3.2 s later, after the fork's next tool call:
+              </p>
+              <details id="anatomy-follow-up-context" class="from from-leaf">
+                <summary>The hook's context for the fork</summary>
+                <lf-text-document
+                  id="prompt-follow-up"
+                  label="inline_context, src/leaf/hook_transport.py"
+                  data-prompt="follow-up"
+                ></lf-text-document>
+              </details>
+              <p id="anatomy-follow-up-answer">
+                The fork answered both questions in one reply, 12.7 s after the first:
+              </p>
+              <details id="anatomy-follow-up-reply" class="from from-model">
+                <summary>The fork's reply in the thread</summary>
+                <pre><code>`index.html` holds **8 cards**. There are 8 `&lt;lf-card` elements in all: 7 defects plus the Release 90f9ee5 card I added.
+
+**1 of them mentions the migration:** *Migration reruns on every deploy* (`card-migration`). Its label, title and text all mention it:
+
+&gt; The version stamp never lands. The next migration applies credits and is not idempotent.
+
+*Search misses renamed projects* says "a workspace migrated from v1". That's an older v1 workspace migration, not this one, so I didn't count it.
+</code></pre>
+              </details>
+            </section>
+
+            <section id="anatomy-resume">
+              <h3>4. A later message resumes the fork</h3>
+              <p id="anatomy-resume-ask">
+                The fork's run ended at 15.8 s, and Leaf closed its turn. At 26.5 s the
+                user asks
+                <q class="said from-user">Which of those cards has the longest text?</q>
+                A new line fork judges <code>take</code> in 1.7 s. The fork that
+                answered the thread last has ended, so Leaf resumes it in a new turn
+                rather than starting another: the hooks module sends it Leaf's message
+                with <code>$.session.send</code>, and Claude Code wraps it.
+              </p>
+              <pre
+                id="anatomy-resume-open"
+                class="from from-cc"
+              ><code>The coordinator sent a message while you were working:</code></pre>
+              <details id="resumed-fork-prompt" class="from from-leaf">
+                <summary>Leaf's message resuming the fork</summary>
+                <p id="resumed-fork-prompt-values">
+                  Leaf fills in the fork's new turn, the page's path and the delivery of
+                  the user's new messages. The fork's transcript already holds its first
+                  task.
+                </p>
+                <lf-text-document
+                  id="prompt-resumed-fork"
+                  label="resume_prompt, src/leaf/forks.py"
+                  data-prompt="resume"
+                ></lf-text-document>
+              </details>
+              <pre
+                id="anatomy-resume-close"
+                class="from from-cc"
+              ><code>Address this before completing your current task.</code></pre>
+              <p id="anatomy-resume-after">
+                Claude Code's wrapper is written for an agent still at work. This one
+                had finished, and Leaf's message tells it this is a new turn. The
+                resumed fork read
+                <code>leaf page state</code> first, as the message asks, and answered at
+                42.0 s.
+              </p>
+            </section>
+
+            <section id="anatomy-main">
+              <h3>5. What the main thread hears</h3>
+              <p id="anatomy-main-quiet">
+                None of these messages enters the main thread's conversation. Claude
+                Code tells it nothing of a fork the hooks module spawned, and Leaf's
+                lines for it wait for its next tool call or prompt, which an idle
+                session doesn't reach. At 45.3 s Claude Code's notice that the resumed
+                run had ended woke it:
+              </p>
+              <details id="anatomy-notification" class="from from-cc">
+                <summary>Claude Code's task notification</summary>
+                <pre><code>&lt;task-notification&gt;
+&lt;task-id&gt;aa8ab85c76e0cb0fd&lt;/task-id&gt;
+&lt;tool-use-id&gt;toolu_plugin_77e6109fee86476fb9f9d96566325665&lt;/tool-use-id&gt;
+&lt;output-file&gt;/private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-r3wg5es5-work/4c8b14ff-072d-482b-99b1-c131ab44cf51/tasks/aa8ab85c76e0cb0fd.output&lt;/output-file&gt;
+&lt;status&gt;completed&lt;/status&gt;
+&lt;summary&gt;Agent "Leaf: counting the cards in the page's source file" finished&lt;/summary&gt;
+&lt;note&gt;A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.&lt;/note&gt;
+&lt;result&gt;<span class="said from-model">Task was to answer the user's follow-up in thread 70a0f2c6: which card has the longest text. I replied with `--done`.
+
+- **Answer:** "Logout fails with an expired session" has the longest text: 125 characters and 21 words, counting the title. It only just beats "Webhook retries ignore Retry-After" at 122 and "Migration reruns on every deploy" at 121.
+- **Wording:** "those cards" could mean all 8 or only the migration card. The reply answers for all 8 and adds that the migration card is the answer if they meant just that one. A table of all 8 lengths is folded under it.
+
+I didn't change any files or the page.</span>&lt;/result&gt;
+&lt;usage&gt;&lt;subagent_tokens&gt;71957&lt;/subagent_tokens&gt;&lt;tool_uses&gt;4&lt;/tool_uses&gt;&lt;duration_ms&gt;42961&lt;/duration_ms&gt;&lt;/usage&gt;
+&lt;/task-notification&gt;</code></pre>
+              </details>
+              <p id="anatomy-main-lines">
+                Leaf's queued lines came with it: the first run's answer, and the
+                resumed run's take, since Leaf heard that run end 0.15 s after Claude
+                Code's notice.
+              </p>
+              <div id="anatomy-told" class="from from-leaf">
+                <lf-text-document
+                  id="prompt-told"
+                  label="_answered and _given_line, src/leaf/forks.py"
+                  data-prompt="told"
+                ></lf-text-document>
+              </div>
+            </section>
           </section>
 
           <section id="forks-sources">

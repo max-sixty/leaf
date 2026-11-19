@@ -88,3 +88,41 @@ body.site-page footer.site-footer p + p {
 .topic-outline ul {
   margin-block: var(--lf-sp-2);
 }
+/* Who wrote each message in the Forks topic's "Anatomy of a fork journey": a rule
+   beside each message, and a tint on each quoted piece and on the key. */
+#anatomy .from-cc {
+  --from: light-dark(oklch(0.6 0.01 250), oklch(0.68 0.01 250));
+  --from-said: light-dark(oklch(0.6 0.01 250 / 0.22), oklch(0.68 0.01 250 / 0.3));
+}
+#anatomy .from-leaf {
+  --from: light-dark(oklch(0.6 0.13 150), oklch(0.7 0.13 150));
+  --from-said: light-dark(oklch(0.6 0.13 150 / 0.22), oklch(0.7 0.13 150 / 0.3));
+}
+#anatomy .from-model {
+  --from: light-dark(oklch(0.6 0.17 20), oklch(0.7 0.15 20));
+  --from-said: light-dark(oklch(0.6 0.17 20 / 0.2), oklch(0.7 0.15 20 / 0.3));
+}
+#anatomy .from-user {
+  --from: light-dark(oklch(0.72 0.15 75), oklch(0.8 0.13 85));
+  --from-said: light-dark(oklch(0.72 0.15 75 / 0.32), oklch(0.8 0.13 85 / 0.3));
+}
+#anatomy .from {
+  border-inline-start: 4px solid var(--from);
+  padding-inline-start: var(--lf-sp-3);
+  margin-block: var(--lf-sp-3);
+}
+#anatomy pre.from,
+#anatomy .from pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#anatomy .said {
+  background: var(--from-said);
+  border-radius: 3px;
+  padding-inline: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+#anatomy q.said {
+  quotes: none;
+}

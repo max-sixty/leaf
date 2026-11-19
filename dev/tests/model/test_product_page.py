@@ -90,8 +90,10 @@ def test_a_composed_part_refuses_an_authored_copy(slot, copy):
 def test_how_it_works_shows_each_prompt_as_leaf_writes_it():
     """How it works shows every prompt `prompts.PROMPTS` renders, each in its own slot,
     with the text Leaf's function writes, escaped so it reads back exactly. The
-    deliveries the prompts are written around take the shape a real one is stored
-    under, so the page shows a fork what Leaf would give it."""
+    deliveries the prompts are written around, the recorded journey's included, take
+    the shape a real one is stored under, so the page shows a fork what Leaf would
+    give it, and a change to that shape fails here until the journey's batches are
+    recorded again."""
     source = named_source("how-it-works")
     tree = SourceDocument(docs.compose(source, source.read_text())).tree
     shown = {}
@@ -101,8 +103,12 @@ def test_how_it_works_shows_each_prompt_as_leaf_writes_it():
         shown[slot.attrs["data-prompt"]] = text.text
     assert shown == {name: render() for name, render in prompts.PROMPTS.items()}
     validator = json_validator(with_leaf_resources(DELIVERY.schema))
-    for captured in (prompts.ASKED, prompts.TAKEN, prompts.RESUMED, prompts.FOLDED):
-        validator.validate(prompts.delivery(prompts.TAKEN_DELIVERY, captured))
+    validator.validate(prompts.delivery("5efad8dcb492db29", prompts.FOLDED))
+    validator.validate(
+        prompts.delivery("f7667dd2ce39fdb3", prompts.JOURNEY["line"]["batch"])
+    )
+    for step in ("work", "follow-up", "resume"):
+        validator.validate(prompts.journey_delivery(step))
 
 
 def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():

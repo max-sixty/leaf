@@ -977,16 +977,18 @@ def _given(session_id: str, basis: dict, turn: str, agent: str) -> None:
     (`ended`)."""
     from .clerk import queue
 
-    queue(
-        session_id,
-        [
-            f"Leaf gave the user's message in thread {basis['thread']} on "
-            f"{basis['page']} to a fork of this conversation, agent id {agent}, which "
-            "is doing what it asks beside you and will answer there; Leaf tells you "
-            "when it has. Leave that thread to it; to steer or stop it, SendMessage "
-            f"{agent}. An answer of your own there takes the thread from it."
-        ],
-        turn=turn,
+    queue(session_id, [_given_line(basis["thread"], basis["page"], agent)], turn=turn)
+
+
+def _given_line(thread: str, page: str, agent: str) -> str:
+    """The line telling the main session that Leaf gave `thread` on `page` to the
+    fork `agent` (`_given`)."""
+    return (
+        f"Leaf gave the user's message in thread {thread} on {page} to a fork of "
+        f"this conversation, agent id {agent}, which is doing what it asks beside "
+        "you and will answer there; Leaf tells you when it has. Leave that thread "
+        f"to it; to steer or stop it, SendMessage {agent}. An answer of your own "
+        "there takes the thread from it."
     )
 
 

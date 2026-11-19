@@ -77,7 +77,7 @@ const writtenElsewhere = (ctx, text, payload) => {
  * the last request settles follows them, and a write an answer sends next joins the
  * wait. */
 const writesSettled = async () => {
-  for (let seen = -1; seen !== draftWrites.length; ) {
+  for (let seen = -1; seen !== draftWrites.length;) {
     seen = draftWrites.length;
     await Promise.allSettled(draftWrites);
     await new Promise((resolve) => setTimeout(resolve));
@@ -212,7 +212,12 @@ test("leaving asks first while words wait that no write carries", async () => {
 // drawing that no write carries asks before leaving too.
 test("leaving asks first while a drawing waits that no write carries", async () => {
   const drawing = {
-    strokes: [[[0, 0], [10, 10]]],
+    strokes: [
+      [
+        [0, 0],
+        [10, 10],
+      ],
+    ],
     box: [100, 100],
     viewport: [800, 600],
     scheme: "light",

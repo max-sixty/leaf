@@ -183,3 +183,29 @@ test("leaving asks first while words wait that no write carries", async () => {
   await answered();
   assert.equal(leave(), true);
 });
+
+// A comment's drawing is the user's work as its words are, so a draft holding only a
+// drawing that no write carries asks before leaving too.
+test("leaving asks first while a drawing waits that no write carries", async () => {
+  const leave = () =>
+    window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+  const answered = async () => {
+    for (let turn = 0; turn < 20; turn += 1)
+      await new Promise((resolve) => setTimeout(resolve));
+  };
+  const drawing = {
+    strokes: [[[0, 0], [10, 10]]],
+    box: [100, 100],
+    viewport: [800, 600],
+    scheme: "light",
+  };
+  assert.equal(leave(), true);
+  unreachable = true;
+  saveDraft("composer:drawn", "", { drawing });
+  await answered();
+  assert.equal(leave(), false);
+  unreachable = false;
+  saveDraft("composer:drawn", "", { drawing });
+  await answered();
+  assert.equal(leave(), true);
+});

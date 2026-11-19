@@ -276,9 +276,9 @@ def cmd_pages(payload: dict) -> None:
     native notifications cannot replace this timer. It waits on the session's
     requests (`completions.watch`), so it lists one as it is written.
 
-    With line forks on (`forks.replies_on`) the follower is the session's forks lane
-    (`forks.take_lane`) while it runs, and lists each thread a line turn holds
-    (`forks.look`). Between presence reads it waits on each page's subscription
+    The follower is the session's forks lane (`forks.take_lane`) while it runs,
+    and lists each thread a line turn holds (`forks.look`). Between presence reads
+    it waits on each page's subscription
     (`file_changes.page_changes`) and on the lane's name, so it looks again as a
     message is admitted or as a later follower takes the lane. It reads a page again
     only once its reading has moved, since admission opens the line turn.
@@ -297,10 +297,10 @@ def cmd_pages(payload: dict) -> None:
     `/reload-plugins`, so a follower under a newer Leaf may print it to an older
     module, which runs its instructions as any (`carrier.py`).
 
-    The follower notes once in each page it holds whether line forks were on
+    The follower notes once in each page it holds that it runs
     (`interaction_log.record_follower`), so a message admission found with no lane
-    (`forks.kept_from_main_at_admission`) says whether forks were off or the
-    follower that held the lane had gone (`leaf-dev logs timeline`)."""
+    (`forks.kept_from_main_at_admission`) says whether no follower had run or the
+    one that held the lane had gone (`leaf-dev logs timeline`)."""
     sid = payload.get("session_id") or ""
     from .harness import ClaudeCodeHarness
     from .leases import mark_module
@@ -315,26 +315,22 @@ def cmd_pages(payload: dict) -> None:
 
     from .completions import listed as completions_listed
     from .completions import watch
-    from .file_changes import FileChanges, wait
-    from .forks import replies_on
+    from .file_changes import FileChanges, page_changes, wait
+    from .forks import lane_path, take_lane
     from .interaction_log import record_follower
+    from .leases import release_lease
+    from .page_memory import memory_of
     from .presence import PRESENCE_CACHE_S, live_leaves
 
     queued = watch(sid)
-    asked = replies_on()
-    forking = asked
+    # Whether this follower still holds the lane, which a later one takes.
+    forking = True
     # The pages this follower has made its note in (`record_follower`), each once.
     noted: set = set()
-    if forking:
-        from .file_changes import page_changes
-        from .forks import lane_path, take_lane
-        from .leases import release_lease
-        from .page_memory import memory_of
-
-        lane = take_lane(sid)
-        # Resolved, as notifications name it.
-        named = lane_path(sid).resolve()
-        renamed = FileChanges({named.parent: False}, lambda path: path == named)
+    lane = take_lane(sid)
+    # Resolved, as notifications name it.
+    named = lane_path(sid).resolve()
+    renamed = FileChanges({named.parent: False}, lambda path: path == named)
     looked: dict = {}
     shown = None
     try:
@@ -343,7 +339,7 @@ def cmd_pages(payload: dict) -> None:
                 # EX_TEMPFAIL: the module starts it again, under that Leaf.
                 raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
-            record_follower(sorted(held - noted), sid, forks=asked)
+            record_follower(sorted(held - noted), sid)
             noted |= held
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process

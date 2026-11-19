@@ -20,8 +20,8 @@ vars:
     Decision. Approve the new states, or keep the old ones.
 
     Captures, same viewport and state:
-    - evals/visual-change-uses-captures/captures/before.png: the form with Save disabled and enabled, before (1200x700)
-    - evals/visual-change-uses-captures/captures/after.png: the same, after (1200x700)
+    - captures/before.png: the form with Save disabled and enabled, before (1200x700)
+    - captures/after.png: the same, after (1200x700)
 
     Write the Leaf page with the finding and the decision.
 assert:
@@ -64,8 +64,8 @@ variants:
         14:05 UTC in Chromium 141 at a 1200×700 viewport, device scale factor 1, light
         scheme, en-US, UTC. Base is revision 4f1c2a9 and the fix is 9b7e310; neither is
         deployed anywhere you can open.
-        - evals/visual-change-uses-captures/captures/before.png
-        - evals/visual-change-uses-captures/captures/after.png
+        - captures/before.png
+        - captures/after.png
     assert:
       - type: python
         metric: widgets-draw
@@ -94,8 +94,8 @@ variants:
         14:05 UTC in Chromium 141 at a 600×350 viewport, device scale factor 2, light
         scheme, en-US, UTC. Base is revision 4f1c2a9 and the fix is 9b7e310; neither is
         deployed anywhere you can open.
-        - evals/visual-change-uses-captures/captures/before.png
-        - evals/visual-change-uses-captures/captures/after.png
+        - captures/before.png
+        - captures/after.png
     assert:
       - type: python
         metric: widgets-draw

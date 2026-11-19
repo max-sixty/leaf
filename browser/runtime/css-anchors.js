@@ -60,8 +60,15 @@ import {
   scrollsContent,
   shownParts,
 } from "./geometry.js";
-import { hostIn, renderedParent, shadowHost } from "./shadow.js";
-import { isElement, isHTML, isText, nativeLayerHolding } from "./shadow-tree.js";
+import {
+  isElement,
+  isHTML,
+  isText,
+  nativeLayerHolding,
+  hostIn,
+  renderedParent,
+  shadowHost,
+} from "./shadow-tree.js";
 import { watchArrivals } from "./arrivals.js";
 import { inlineStyle, keeps, layoutPx } from "./keeps.js";
 import { move } from "./dom-move.js";

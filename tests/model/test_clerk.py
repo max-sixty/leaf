@@ -518,6 +518,11 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     assert rule.endswith("is not an obligation.")
     assert f"## Leaf's guidance for asking and for threads\n\n{rule}\n\n" in prompt
     assert all(paragraph in prompt for paragraph in rest)
+    # A paragraph comes with the example after it, which shows the markup it asks
+    # for, as the advised option's `recommended`; the fork can't open the reference.
+    (choice,) = (each for each in rest if each.startswith("When a message asks"))
+    assert choice.endswith("</lf-options>\nEOF\n```")
+    assert 'label="Keep the account store" recommended>' in choice
     assert (
         "Started items, which the page shows as under way, each with its line:\n"
         f'- {todo["id"]}, the agent\'s to-do "Revise the plan": "revising the plan"'

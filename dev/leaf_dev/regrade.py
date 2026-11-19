@@ -161,11 +161,12 @@ def discovery(output, context: dict) -> dict:
 
 
 def evidence(context: dict, name: str) -> Path:
-    """A fresh directory for one judgment's native evidence."""
+    """A fresh directory for one judgment's native evidence. The judge is told to
+    save its captures there, so its name leaves out the case, whose name describes
+    what is measured; the test's metadata keeps the subject."""
     root = Path(context["config"]["evidence"])
     root.mkdir(parents=True, exist_ok=True)
-    subject = context["test"]["metadata"]["subject"].replace("/", "-")
-    return Path(tempfile.mkdtemp(prefix=f"{subject}-{name}-", dir=root))
+    return Path(tempfile.mkdtemp(prefix=f"{name}-", dir=root))
 
 
 def graded(response: dict, reason: Callable[[dict], str]) -> dict:

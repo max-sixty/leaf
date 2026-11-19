@@ -113,8 +113,8 @@ def test_a_terminated_pages_follower_exits_with_its_signal(claimed, spawn):
         stderr=subprocess.PIPE,
         text=True,
     )
-    # With line forks on, the follower is also the session's forks lane, so it
-    # waits on the page's changes between reads.
+    # The follower is also the session's forks lane, so it waits on the page's
+    # changes between reads.
     follower.stdin.write(json.dumps({"hook_event_name": "Pages", "session_id": "s1"}))
     follower.stdin.close()
     # The claimed page has no server, so the follower lists nothing and goes on

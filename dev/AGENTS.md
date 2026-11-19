@@ -44,8 +44,14 @@ measured by `leaf-dev bench`, so a new page, input or reading belongs in
 ## Experiments
 
 `leaf-dev eval run` runs the catalog, the cases that score Leaf's shipped instructions on
-its arms; a new case is `evals/<task>/case.yaml` (`evals/README.md`). Any other
-question put to a model is an experiment. An experiment adds one folder under `evals/`,
+its arms; a new case is `evals/<task>/case.yaml` (`evals/README.md`). Every path an
+eval hands an author, fork or judge, whether in a prompt, a plugin, a state home or a
+command, lies in the run's stored directory or in a `scratch` one, and no directory on
+it is named after the task, case or arm; a task's files sit at the root of the agent's
+working directory (`arms.stage_task_files`). A path in the checkout carries the
+branch's name, and a task's, case's or arm's name describes the behavior under test,
+so either would prime every arm toward that behavior (`commands/eval/run.py`). Any other question put to a
+model is an experiment. An experiment adds one folder under `evals/`,
 and a `pnpm run eval:<name>` script that runs its config:
 
 - `promptfooconfig.yaml` declares the arms as `providers`, the samples as `tests` and
@@ -109,6 +115,8 @@ pnpm run test:evals
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout to the
   `leaf-website-dev` environment. Production deploys only through
   `.github/workflows/publish-site.yaml`; `worker/README.md` owns diagnostics.
+- `leaf-dev eval run` keeps each run in `$XDG_STATE_HOME/leaf-dev/eval/`, linked from
+  `.tmp/eval/`, and deletes a stored run once its link is gone.
 - `leaf-dev journey run` appends each sample to `$XDG_STATE_HOME/leaf-dev/journey.jsonl`. On
   a harness target it uses the host's authenticated accounts, as `leaf-dev eval run` does,
   so CI runs neither; `publish-site` runs the journey against each deployed release

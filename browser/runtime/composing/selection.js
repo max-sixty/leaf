@@ -73,7 +73,6 @@ import { notice } from "../notifications.js";
 import { sentDrawing } from "./drawing-record.js";
 import { DRAFT_FORMAT } from "../kernel-facts.js";
 import { commitPoint } from "../pointed-place.js";
-import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
 import { isNativeLayer } from "../shadow-tree.js";
@@ -219,6 +218,29 @@ export let composerOpen = false;
 export function isComposerDraft(payload) {
   return payload != null && "format" in payload && payload.format === DRAFT_FORMAT;
 }
+// The key a passage's draft is kept under (`createSelectionComposer` says why), and the
+// record it holds beside the words, touched now.
+/** @param {Anchor | null} anchor */
+const composerCtx = (anchor) => commentContext(anchorKey(anchor));
+/** @param {Omit<ComposerDraft, "format" | "touched">} fields @returns {ComposerDraft} */
+const composerPayload = (fields) => ({
+  format: DRAFT_FORMAT,
+  ...fields,
+  touched: Date.now(),
+});
+// The draft a comment the log holds on a passage was written in, as this composer keeps
+// it, which taking the comment back puts its words back in (undo.js).
+/** @param {{anchor: Anchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("./drawing-record.js").DraftDrawing | undefined}} comment */
+export const commentDraft = (comment) => ({
+  ctx: composerCtx(comment.anchor),
+  payload: composerPayload({
+    anchor: comment.anchor,
+    revision: comment.revision ?? null,
+    suggest: Boolean(comment.suggestion),
+    about: comment.about ?? null,
+    drawing: comment.drawing ?? null,
+  }),
+});
 
 /** @param {ComposerOptions} options */
 export function createSelectionComposer({
@@ -260,23 +282,19 @@ export function createSelectionComposer({
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = commentContext("");
-  /** @param {Anchor | null} anchor */
-  const composerCtx = (anchor) => commentContext(anchorKey(anchor));
   /** @type {import("./input.js").InputSync} */
   let syncComposer;
   let pendingRevision = applicationState.read().document.revision;
   // The draft owns its mode; the response action and editor hint present it.
   let suggestionMode = false;
-  /** @returns {ComposerDraft} */
-  const composerDraftPayload = () => ({
-    format: DRAFT_FORMAT,
-    anchor: pendingAnchor,
-    revision: pendingRevision,
-    suggest: suggestionMode,
-    about: pendingAbout,
-    drawing: pendingDrawing,
-    touched: Date.now(),
-  });
+  const composerDraftPayload = () =>
+    composerPayload({
+      anchor: pendingAnchor,
+      revision: pendingRevision,
+      suggest: suggestionMode,
+      about: pendingAbout,
+      drawing: pendingDrawing,
+    });
   const saveComposerDraft = (text = syncComposer.value()) =>
     saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
   // Words and their submission metadata belong to the shared draft generation.
@@ -405,6 +423,7 @@ export function createSelectionComposer({
   const responseReactionButtons = () =>
     responseOptionButtons().filter((control) => control.classList.contains("lf-react"));
 
+  // The options stand whole around the ring, so a step says no position.
   /** @param {string} binding */
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
@@ -417,9 +436,6 @@ export function createSelectionComposer({
         backward ? -1 : 1,
       ),
       "move",
-    );
-    beginWalk("response-option", "Response", () =>
-      listWalkPosition(responseOptionButtons(), focused()),
     );
   }
 

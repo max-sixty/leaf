@@ -304,11 +304,11 @@ COLD_OBLIGATION = leaf_page(
 )
 
 
-@pytest.mark.parametrize("key", ["m", "1", "z"])
+@pytest.mark.parametrize("key", ["m", "1"])
 def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
-    """Obligation walking, Decisions, and Undo wait for their own saved history."""
+    """Obligation walking and Decisions wait for their own saved history."""
     url = serve(COLD_OBLIGATION)
     if key != "m":
         append_command(
@@ -350,24 +350,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     page.clock.resume()
     if key == "m":
         expect(page.locator("#cold-ask")).to_be_focused()
-    elif key == "1":
+    else:
         expect(page.locator("#cold-a")).to_have_attribute("selected", "")
         round_trip(page)
-    else:
-        # The passing notice says it where the empty field's placeholder would.
-        expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-            "placeholder", re.compile("Undid")
-        )
-        round_trip(page)
-        expect(page.locator("#cold-b")).not_to_have_attribute("selected", "")
-        assert (
-            len(
-                [
-                    event
-                    for event in events_model.read_events(serve.page_dir)
-                    if event["kind"] == "undo"
-                ]
-            )
-            == 1
-        )
     expect(page.locator(".lf-held-key")).to_have_count(0)

@@ -168,7 +168,9 @@ The workflow:
 Cloudflare activates the Worker before the new container image has rolled out. Until
 it has, a container on the previous release answers, the Worker replaces that answer
 with the published state or a `503` with `Retry-After`, and the `--wait` reruns the
-check.
+check. The session's page store refuses such a container (`worker/src/storage.ts`), so
+it starts without the session's record rather than reading one the new release shaped,
+and logs `page_restore_refused`.
 
 ### One-time setup
 
@@ -608,9 +610,12 @@ stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
 canonical files and matching Python-produced responses atomically before a write
 is acknowledged; a failed publication fails the request and permits an idempotent
-retry. Drafts change no page reading, so a write publishes them only beside a change of
-its own, and a container that stops publishes each page whose drafts moved since
-(`save_drafts`). The Durable Object serves each saved response with the headers Python gave it,
+retry. A page's drafts store is saved on its own: each draft write replaces the Durable
+Object's copy before the container answers it (`publish_drafts`), no page commit
+carries it, and the object serves that copy in place of the drafts a commit captured.
+The object takes a write only over the store it replaces, so a write that reaches it
+late changes nothing, and the container works from the store the object answers with.
+The Durable Object serves each saved response with the headers Python gave it,
 so the browser caches it as it would the live answer, and Back restores a page the
 visitor has acted on from the back/forward cache, as it does a locally served page
 ([browser support](../notes/browser-support.md), "Page cache"). File modification
@@ -621,8 +626,8 @@ storage and identity contract.
 The append lease admits one staged successor per page. Preparation stores its descriptor
 and returns its content identity plus missing chunk digests. Commit names that identity;
 the stored descriptor supplies every file and response reference. Identical preparations
-share an identity; different content replaces it. Commit checks the stored page and
-release against the current site manifest before promotion. Replacing or committing it
+share an identity; different content replaces it. Preparation refuses a page the current
+site manifest doesn't name. Replacing or committing it
 collects chunks no committed record, staged successor, delivery stream or restore
 snapshot uses.
 An interrupted upload therefore retains at most one successor until that page

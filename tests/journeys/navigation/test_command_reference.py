@@ -39,7 +39,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(search).to_be_focused()
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
     # The walk says its position where the panel says what passes, in the empty
-    # field's place.
+    # field's place, naming what it counts, since the panel stands apart from the list.
     expect(panel_field(page)).to_have_attribute(
         "placeholder", f"Command 1 of {commands.count()}"
     )

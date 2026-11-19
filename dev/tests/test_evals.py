@@ -424,6 +424,20 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
         assert execution["requested_viewports"] == ["desktop"]
 
 
+def test_children_inherit_nothing_that_names_the_checkout(monkeypatch):
+    """An eval's agent can read its environment, and the checkout's path names the
+    branch under test; the parent session's own variables don't reach it either."""
+    checkout = str(arms.ROOT)
+    monkeypatch.setenv("VIRTUAL_ENV", f"{checkout}/.venv")
+    monkeypatch.setenv("OLDPWD", checkout)
+    monkeypatch.setenv("CODEX_COMPANION_TRANSCRIPT_PATH", "/transcripts/session.jsonl")
+    monkeypatch.setenv("PATH", f"{checkout}/node_modules/.bin:/usr/bin")
+    env = arms.environment()
+    assert not [key for key, value in env.items() if checkout in value]
+    assert "CODEX_COMPANION_TRANSCRIPT_PATH" not in env
+    assert env["PATH"] == "/usr/bin"
+
+
 def test_model_option_sets_the_author_of_every_condition(tmp_path):
     config = module.prepare(
         ["configuration"],
@@ -459,7 +473,17 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
 
     monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
     monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setattr(arms, "build_arm", build_arm)
+    # A stored run lasts as long as its link: one whose worktree is gone goes, one
+    # whose link remains stays.
+    store = tmp_path / "state" / "leaf-dev" / "eval"
+    for name, linked in (("run-gone", False), ("run-kept", True)):
+        (store / name).mkdir(parents=True)
+        if linked:
+            (tmp_path / "runs").mkdir()
+            (tmp_path / "runs" / name).symlink_to(store / name)
+        (store / f"{name}.link").symlink_to(tmp_path / "runs" / name)
     result = CliRunner().invoke(
         module.eval,
         [
@@ -478,17 +502,28 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     )
     assert result.exit_code == 100, result.output
     assert calls.read_text().strip().endswith("--repeat 3")
-    (run,) = (tmp_path / "runs").iterdir()
+    (run,) = (path for path in (tmp_path / "runs").iterdir() if path.name != "run-kept")
+    stored = run.resolve()
+    assert stored.parent == store.resolve()
+    assert sorted(path.name for path in store.iterdir()) == sorted(
+        ["run-kept", "run-kept.link", run.name, f"{run.name}.link"]
+    )
     config = json.loads((run / "promptfooconfig.json").read_text())
     assert len(config["tests"]) == 1
-    # Each arm is its own payload copy, kept with the run for grading again.
-    assert {
-        provider["label"]: provider["config"]["payload"]
+    # Each arm is its own payload copy, kept with the run for grading again. Every
+    # path an agent is handed is in the stored run, named for neither the arm nor
+    # the case, since agents read these paths and those names describe what is
+    # being measured.
+    payloads = {
+        provider["label"]: Path(provider["config"]["payload"])
         for provider in config["providers"]
-    } == {
-        f"claude-code/{arm}/workflow": str(run / "arms" / arm)
-        for arm in ("base", "head")
     }
+    assert set(payloads) == {f"claude-code/{arm}/workflow" for arm in ("base", "head")}
+    assert {path.parent for path in payloads.values()} == {stored / "arms"}
+    for provider in config["providers"]:
+        for key in ("payload", "samples", "screenshots"):
+            parts = Path(provider["config"][key]).relative_to(stored).parts
+            assert not {"base", "head", "patch-review"} & set(parts), parts
     assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
     assert "--viewport" not in calls.read_text()
 
@@ -565,6 +600,7 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
     promptfoo.chmod(0o755)
     monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
     monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     run = saved_run(tmp_path / "saved")
     original = (run / "results.json").read_bytes()
 
@@ -914,7 +950,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch, brows
     cleanup.directory.mkdir()
     cleanup_work = tmp_path / "cleanup-originals"
     monkeypatch.setattr(workflow, "LiveChild", lambda *args, **kwargs: None)
-    monkeypatch.setattr(workflow, "pinned_copy", lambda *args: None)
+    monkeypatch.setattr(workflow, "stage_task_files", lambda *args: None)
 
     @contextmanager
     def authored(*args, **kwargs):

@@ -1097,7 +1097,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")

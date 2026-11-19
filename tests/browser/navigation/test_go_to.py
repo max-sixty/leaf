@@ -647,6 +647,45 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 
 
+def test_an_armed_go_to_names_itself_and_closes_from_any_step(browser, serve):
+    """While Go-to waits for a key, the panel's field names it where the user reads,
+    chips or none, and ends in Close, which says esc while Escape would close the map,
+    not while it would take a filter back, and takes the map off from any step."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Links", '<h1>Links</h1><p><a id="one" href="#one">One link</a></p>'
+            )
+        ),
+    )
+    field = page.locator(".lf-fp-field leaf-text")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^In Go-to · .+ · Close esc$")
+    )
+    # A filter that keeps the link's chip: Escape would take the filter back first.
+    page.keyboard.press("h")
+    expect(page.locator(f"{CHIPS}:visible")).to_have_count(1)
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^In Go-to · .+ · Close$")
+    )
+    page.keyboard.press("Escape")
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^In Go-to · .+ · Close esc$")
+    )
+    page.keyboard.press("t")
+    expect(field).to_have_attribute(
+        "placeholder", "In Go-to · No visible threads · Close"
+    )
+    page.locator(".lf-fp-field").get_by_text("Close", exact=True).click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
+    expect(field).not_to_have_attribute("placeholder", re.compile("Go-to"))
+
+
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     """A tab can be selected from elsewhere on the page through its generated hint.
 
@@ -670,7 +709,8 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(page.locator("#tab-feeders")).to_have_attribute("hidden", re.compile(".*"))
     page.keyboard.press("ArrowLeft")
     expect(tabs.first).to_be_focused()
-    expect_walk_position(page, "Tab 1 of 2")
+    # Both tabs stand in view around the ring, so the step declares no position.
+    expect_walk_position(page, None)
 
 
 def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve):
@@ -823,7 +863,8 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("Tab")
     first_code = address_code(page, "Link", "first")
-    expect_walk_position(page, "Target 1 of 2")
+    # Every hint stands on screen, the heard one marked, so the walk says no position.
+    expect_walk_position(page, None)
     expect(page.locator(".lf-live")).to_have_text(
         f"Hint {first_code}: Link, First destination. Press Enter to go there."
     )
@@ -832,7 +873,6 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     )
 
     page.keyboard.press("Tab")
-    expect_walk_position(page, "Target 2 of 2")
     page.keyboard.press("Enter")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
@@ -858,7 +898,9 @@ def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, ser
     codes = {n: address_code(page, "Link", f"l{n}") for n in range(1, 6)}
     for _ in range(3):
         page.keyboard.press("Tab")
-    expect_walk_position(page, "Target 3 of 5")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l3"]')).to_have_class(
+        re.compile(r"\blf-current\b")
+    )
 
     added = '<p>New words with <a id="new" href="#top">a new link</a>.</p>'
     (serve.page_dir / "index.html").write_text(source.replace(heading, heading + added))
@@ -870,5 +912,7 @@ def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, ser
         re.compile(r"\blf-current\b")
     )
     page.keyboard.press("Tab")
-    expect_walk_position(page, "Target 4 of 5")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l4"]')).to_have_class(
+        re.compile(r"\blf-current\b")
+    )
     expect(page.locator(".lf-live")).to_contain_text("Destination 4")

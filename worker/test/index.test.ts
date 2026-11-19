@@ -2298,12 +2298,7 @@ describe("website page agent", () => {
         blobs.set(digest, bytes);
         responses[path] = { headers: {}, chunks: [digest] };
       }
-      const publication = {
-        root: "/examples/triage-board",
-        release: RELEASE,
-        record: {},
-        responses,
-      };
+      const publication = { root: "/examples/triage-board", record: {}, responses };
       const prepared = await session.preparePublication(publication);
       for (const digest of prepared.missing) {
         await session.saveBlob(digest, blobs.get(digest)!.slice().buffer);
@@ -2379,36 +2374,45 @@ describe("website page agent", () => {
         "hex",
       );
       const context = { containerId: "trusted-owner", className: "LeafWebsiteSession" };
-      const absent = "f".repeat(64);
-      const missing = () =>
+      // Each request names the release its container runs, as Python's does
+      // (`_request` in `worker/leaf_website/storage.py`).
+      const ask = (
+        path: string,
+        init: RequestInit = {},
+        release: string | null = RELEASE,
+      ) =>
         handler(
-          new Request("https://leaf-state.internal/prepare", {
-            method: "PUT",
-            body: JSON.stringify({
-              root: "/examples/triage-board",
-              release: RELEASE,
-              record: {
-                "events.jsonl": { chunks: [digest, absent], modified: 1_700_000_000 },
-              },
-              responses: {},
-            }),
+          new Request(`https://leaf-state.internal${path}`, {
+            ...init,
+            headers: {
+              ...(init.headers as Record<string, string>),
+              ...(release === null ? {} : { "Leaf-Release": release }),
+            },
           }) as never,
           env as never,
           context as never,
         );
+      const absent = "f".repeat(64);
+      const missing = () =>
+        ask("/prepare", {
+          method: "PUT",
+          body: JSON.stringify({
+            root: "/examples/triage-board",
+            record: {
+              "events.jsonl": { chunks: [digest, absent], modified: 1_700_000_000 },
+            },
+            responses: {},
+          }),
+        });
       expect(await (await missing()).json()).toEqual({
         identity: expect.stringMatching(/^[0-9a-f]{64}$/),
         missing: [digest, absent],
       });
-      const put = await handler(
-        new Request(`https://leaf-state.internal/blobs/${digest}`, {
-          method: "PUT",
-          body: bytes,
-          headers: { Cookie: "__Host-leaf-page=another-user" },
-        }) as never,
-        env as never,
-        context as never,
-      );
+      const put = await ask(`/blobs/${digest}`, {
+        method: "PUT",
+        body: bytes,
+        headers: { Cookie: "__Host-leaf-page=another-user" },
+      });
       expect(put.status).toBe(204);
       expect(await (await missing()).json()).toEqual({
         identity: expect.stringMatching(/^[0-9a-f]{64}$/),
@@ -2416,33 +2420,34 @@ describe("website page agent", () => {
       });
       const publication = {
         root: "/examples/triage-board",
-        release: RELEASE,
         record: { "events.jsonl": { chunks: [digest], modified: 1_700_000_000 } },
         responses: {},
       };
       const prepared = await session.preparePublication(publication);
-      const committed = await handler(
-        new Request("https://leaf-state.internal/publication", {
-          method: "PUT",
-          body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
-        }) as never,
-        env as never,
-        context as never,
-      );
+      const committed = await ask("/publication", {
+        method: "PUT",
+        body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
+      });
       expect(committed.status).toBe(204);
-      const answer = await handler(
-        new Request("https://leaf-state.internal/records") as never,
-        env as never,
-        context as never,
-      );
-      expect(answer.headers.get("Content-Type")).toBe("application/x-tar");
-      const entries = await unpackTar(answer.body!);
+      const drafts = { store: "store-1", version: 1, drafts: {} };
+      const saved = await ask("/drafts", {
+        method: "PUT",
+        body: JSON.stringify({ root: publication.root, replaces: null, drafts }),
+      });
+      expect(await saved.json()).toEqual({ drafts });
+      const snapshot = async () => {
+        const answer = await ask("/records");
+        expect(answer.headers.get("Content-Type")).toBe("application/x-tar");
+        return unpackTar(answer.body!);
+      };
+      const entries = await snapshot();
       expect(entries.map(({ header }) => header.name)).toEqual([
         "records.json",
         digest,
       ]);
       expect(JSON.parse(new TextDecoder().decode(entries[0].data!))).toEqual({
-        "/examples/triage-board": publication.record,
+        records: { "/examples/triage-board": publication.record },
+        drafts: { "/examples/triage-board": drafts },
       });
       expect(new TextDecoder().decode(entries[1].data!)).toBe("private saved bytes");
       expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(
@@ -2450,28 +2455,36 @@ describe("website page agent", () => {
       );
       // A refusal reaches the container as an answer carrying its reason, which
       // a thrown handler would turn into a closed connection.
-      const oversized = await handler(
-        new Request(`https://leaf-state.internal/blobs/${digest}`, {
-          method: "PUT",
-          body: new Uint8Array(1024 * 1024 + 1),
-        }) as never,
-        env as never,
-        context as never,
-      );
+      const oversized = await ask(`/blobs/${digest}`, {
+        method: "PUT",
+        body: new Uint8Array(1024 * 1024 + 1),
+      });
       expect(oversized.status).toBe(500);
       expect(await oversized.text()).toBe("page storage chunk exceeds 1 MiB");
-      const otherRelease = await handler(
-        new Request("https://leaf-state.internal/prepare", {
-          method: "PUT",
-          body: JSON.stringify({ ...publication, release: "previous-release" }),
-        }) as never,
-        env as never,
-        context as never,
-      );
-      expect(otherRelease.status).toBe(500);
-      expect(await otherRelease.text()).toBe(
-        "publication does not name a page in this website release",
-      );
+      // A container still on the previous image after a deploy reads nothing this
+      // release shaped and writes nothing, and its refusal says so apart from a fault.
+      for (const release of ["previous-release", null]) {
+        const restore = await ask("/records", {}, release);
+        expect(restore.status).toBe(409);
+        expect(await restore.text()).toBe(`the page store serves release ${RELEASE}`);
+        const write = await ask(
+          "/drafts",
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              root: publication.root,
+              replaces: { store: drafts.store, version: drafts.version },
+              drafts: { ...drafts, version: 2 },
+            }),
+          },
+          release,
+        );
+        expect(write.status).toBe(409);
+      }
+      const held = await snapshot();
+      expect(JSON.parse(new TextDecoder().decode(held[0].data!)).drafts).toEqual({
+        "/examples/triage-board": drafts,
+      });
     } finally {
       close();
     }

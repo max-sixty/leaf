@@ -95,31 +95,18 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
 
 
 def test_pages_follower_reads_its_pages_on_its_timer(claimed, monkeypatch, capsys):
-    """With line forks off, the per-session page list follows claims on its timer and
-    subscribes to none of its pages, only to the session's completion requests
-    (`completions.watch`)."""
+    """The per-session page list follows claims on its timer: a page the session no
+    longer holds leaves the list at the next presence read, which ends the follower
+    once the session holds none."""
 
-    monkeypatch.setenv("LEAF_FORK_REPLIES", "off")
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
-    subscribed = []
-    subscribe = file_changes_model.FileChanges
-
-    def watching(roots, accepts):
-        subscribed.append(set(roots))
-        return subscribe(roots, accepts)
-
-    def forbidden(*_args, **_kwargs):
-        pytest.fail("the page list subscribed to a page")
 
     def release(_marks, _timeout):
         cleanup_model.end_session("s1")
 
-    monkeypatch.setattr(file_changes_model, "FileChanges", watching)
-    monkeypatch.setattr(file_changes_model, "page_changes", forbidden)
     monkeypatch.setattr(file_changes_model, "wait", release)
     hooks_model.cmd_pages({"session_id": "s1"})
-    assert subscribed == [{cleanup_model.sessions_home().resolve()}]
     first, last = map(json.loads, capsys.readouterr().out.splitlines())
     assert len(first["pages"]) == 1
     assert first["pages"][0]["page_key"] == cleanup_model.page_key(claimed)

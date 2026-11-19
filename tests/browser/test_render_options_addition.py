@@ -18,6 +18,7 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
+    RELEASE_FOCUS,
     consume_browser_errors,
     example_media,
     expect_error_waits_in_menu,
@@ -565,8 +566,16 @@ def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
     widgets it copies there before it throws. A highlighter extension asks that of every
     selection the user makes. The copy stays markup: a copied group that set up would
     build its add field there, whose style sheet that document refuses, and the page
-    would report the refusal to the agent."""
+    would report the refusal to the agent.
+
+    Firefox copies the Document only where the field's editor, an editable node, has
+    built; past the textarea an unvisited field holds, it clones the range alone. So
+    the user visits the field before the drag."""
     page = open_page(firefox_browser, serve(OBLIGATION_PAGE))
+    field = page.locator("#bracket > .lf-another leaf-text")
+    field.focus()
+    rendered(page)
+    page.evaluate(RELEASE_FOCUS)
     # The extension's reading of the selection, which it makes as the drag ends.
     page.evaluate("""() => {
       window.copies = [];
@@ -590,8 +599,8 @@ def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
       const box = range.getBoundingClientRect();
       return [box.x, box.y + box.height / 2];
     }""")
-    field = page.locator("#bracket > .lf-another leaf-text").bounding_box()
-    select(page, start, (field["x"] + 230, field["y"] + field["height"] / 2), steps=15)
+    box = field.bounding_box()
+    select(page, start, (box["x"] + 230, box["y"] + box["height"] / 2), steps=15)
     # The throw says Firefox still copies the Document, so the drag reached the copy this
     # guards.
     page.wait_for_function("copies.length")

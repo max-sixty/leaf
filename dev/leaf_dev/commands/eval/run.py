@@ -26,10 +26,26 @@ each test replays one saved result in that result's column, graded by its case's
 assertions as this checkout states them, and `--judge` names a judgment to make of
 the saved samples instead (`regrade.py` owns the replay and the judgments). Its
 results join Promptfoo's store and viewer like any other run's.
+
+No path an author, fork or judge is handed names what the run measures. A checkout's
+directory carries its branch's name, and a case's or arm's name describes the
+behavior under test, so either would prime every arm toward it. A run therefore lives
+in leaf-dev's state home (`eval/`), as Promptfoo keeps its record in its own home, and
+each directory an agent sees inside it is named at random, as Promptfoo names its
+per-step workspaces. `.tmp/eval/<run>` links to the run, and the next `eval run`
+deletes a stored run whose link is gone, so a run lasts as long as its worktree.
+
+A run could instead be built in a temporary directory and moved into `.tmp/eval`
+afterwards. But its records name its files by absolute path, and agents read those
+same paths in prompts and transcripts. Rewriting the paths to the new location would
+misstate what the agents read, and keeping them would leave `--from` and the report
+with paths that are gone. Nor does a link in front of a checkout path hide it, since
+Leaf and Claude Code resolve paths.
 """
 
 import fnmatch
 import json
+import secrets
 import shutil
 import subprocess
 import sys
@@ -45,7 +61,7 @@ import yaml
 from click.core import ParameterSource
 
 from leaf.harness import ClaudeCodeHarness, claude_code_config
-from leaf_dev import ROOT
+from leaf_dev import ROOT, state_home
 from leaf_dev.arms import (
     HARNESSES,
     JUDGE_MODELS,
@@ -64,15 +80,16 @@ from leaf_dev.arms import (
     instruction_context,
     run_directory,
     run_leaf,
+    stage_task_files,
 )
 from leaf_dev.browser import WINDOWS
 from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
 from leaf_dev.eval_records import run_samples
-from leaf_dev.leaf_assets import pinned_copy
 from leaf_dev.regrade import REPLAY, judgment
 from leaf_dev.screenshot_judge import screenshot_judge
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
+# Where people find this checkout's runs: each a link to the run in the state home.
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = definition("eval")["skill_prefix"]
 PAGE_PROMPT = definition("eval")["page_prompt"]
@@ -393,10 +410,9 @@ def prepare(
                                 model,
                             )
                         else:
-                            # One flat directory per label: a nested one would
-                            # sit inside the plain arm's ("claude-code/base").
-                            work = scratch / "work" / label.replace("/", "--")
-                            work.mkdir(parents=True)
+                            # The agent's cwd, named for nothing in its label.
+                            (scratch / "work").mkdir(parents=True, exist_ok=True)
+                            work = Path(tempfile.mkdtemp(dir=scratch / "work"))
                             configured, skill = native_provider(
                                 harness, payload, work, model
                             )
@@ -433,8 +449,9 @@ def prepare(
                     prompt = f"It is now {now}.\n\n{prompt}"
                 if not authoring and "page" in metadata:
                     # Each column's probe finds the case's page at the same path
-                    # under its working directory, with the packages the case names.
-                    page = Path("pages") / address.replace("/", "--")
+                    # under its working directory, with the packages the case names,
+                    # named for nothing in the case.
+                    page = Path("pages") / secrets.token_hex(4)
                     for label in labels:
                         config = providers[label]["config"]
                         state = config.get("env", config.get("cli_env"))
@@ -455,15 +472,10 @@ def prepare(
                     )
                     + prompt,
                 }
-                images = None if authoring else pinned_copy(ROOT / "evals" / task)
-                if images is not None and images.is_dir():
+                if not authoring:
                     for label in labels:
-                        shutil.copytree(
-                            images,
-                            Path(providers[label]["config"]["working_dir"])
-                            / "evals"
-                            / task,
-                            dirs_exist_ok=True,
+                        stage_task_files(
+                            task, Path(providers[label]["config"]["working_dir"])
                         )
             tests.append(
                 {
@@ -641,6 +653,23 @@ def saved_pairs(
             yield subject, (first, x), (second, y), number
 
 
+def stored_run() -> Path:
+    """A new run directory in the state home, linked from `RUNS` under the same name,
+    once every stored run whose link is gone has been deleted. Each run's `.link`
+    beside it points back at its link, so it resolves only while the link does."""
+    store = state_home() / "eval"
+    for owner in store.glob("*.link"):
+        if not owner.exists():
+            shutil.rmtree(store / owner.stem, ignore_errors=True)
+            owner.unlink(missing_ok=True)
+    out = run_directory(store)
+    RUNS.mkdir(parents=True, exist_ok=True)
+    (RUNS / out.name).symlink_to(out)
+    # After the link it names, so a concurrent run never sees it broken.
+    (store / f"{out.name}.link").symlink_to(RUNS / out.name)
+    return out
+
+
 def run_name(scope: str, globs: tuple[str, ...]) -> str:
     """The run's name in Promptfoo's viewer: branch, what it grades and the cases."""
     branch = subprocess.run(
@@ -744,8 +773,8 @@ def eval(
         raise click.ClickException(
             "Install development dependencies first: pnpm install --frozen-lockfile"
         )
-    out = run_directory(RUNS)
-    click.echo(f"evidence: {out}")
+    out = stored_run()
+    click.echo(f"evidence: {RUNS / out.name}")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)
         if runs:

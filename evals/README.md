@@ -415,11 +415,17 @@ this machine, each named by branch, commits and cases. It shows each sample's
 output, assertion reasons, metadata, cost and tokens, and compares runs.
 
 Authoring cases and complete tasks keep their evidence (prompts, native traces,
-page directories) under `.tmp/eval/<run>/samples/`, one directory per sample named
-by its case, and each sample's `metadata.work` names its directory. Original runtime
-arms are retained under `arms/` for later live grading. A judged sample's screenshots
-are under `screenshots/`, in a directory of the same name. `results.json` there
-holds the whole run.
+page directories) under `.tmp/eval/<run>/samples/`, one directory per sample, and
+each sample's `metadata.work` names its directory. Original runtime arms are retained
+under `arms/` for later live grading. A judged sample's screenshots are under
+`screenshots/`, in a directory of the same name. `results.json` there holds the whole
+run.
+
+`.tmp/eval/<run>` is a link to the run, which lives in `$XDG_STATE_HOME/leaf-dev/eval/`.
+The paths agents read and the records keep are in that directory, so they don't name
+the branch, and samples and arms take random names, so they don't name the case or
+arm either (`commands/eval/run.py` says why). The next `eval run` deletes a stored
+run whose link is gone, so removing a worktree removes its runs.
 
 ### Recorded execution data
 
@@ -544,8 +550,9 @@ text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
 tasks use one JavaScript assertion to pass the final live judge's verdict through
 the Python provider. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
-`arrangement_eval` copies pinned assets under `evals/<task>/` to the same relative
-path in each author's isolated workspace, as short authoring cases do.
+A task's pinned assets are copied to the root of the agent's working directory
+(`arms.stage_task_files`), so `evals/<task>/captures/before.png` reaches the agent as
+`captures/before.png`, and the task's prompt names it by that path.
 
 Python prepares fixtures, drives live chat turns or user input through the page,
 and extracts evidence. Complete authoring tasks have only two execution

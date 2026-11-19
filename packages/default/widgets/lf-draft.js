@@ -56,7 +56,7 @@
  * edit delivered to the agent, which would read half-written words. Pointer Discard returns the frame
  * over a short native size interpolation; its words and Edit focus return at once.
  * Keyboard discarding and reduced motion are instant; reopening cancels the effect.
- * A saved edit is withdrawn with the page's undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
+ * A saved edit is withdrawn with the page's undo (⌘Z), and the log keeps every version for the agent. Rejected: Escape setting
  * unsent words aside for the next opening, which needed a Close button beside Discard
  * and left a closed box holding words it gave no sign of; and a Changes list that
  * restored earlier versions, which the page's undo already does.

@@ -38,7 +38,7 @@ import {
   startsAt,
 } from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
-import { renderedUnder } from "../shadow.js";
+import { renderedUnder } from "../shadow-tree.js";
 
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {NonNullable<ReturnType<typeof rect>>} VisibleBox

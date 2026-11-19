@@ -64,7 +64,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
 import { exceptionRecord } from "./exception.js";
 import { aborted } from "./abort.js";
-import { frameArrival, onAllNear } from "./presentation.js";
+import { deferredArrival, frameArrival, onAllNear } from "./presentation.js";
 
 /** @typedef {import("./sample-protocol.js").SampleReady} SampleReady
  * @typedef {import("./sample-protocol.js").SampleCommands} SampleCommands
@@ -525,54 +525,65 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     await retire("reset");
     allocation++;
     record("queued");
-    return settle(
-      loadWithinLimit(async (release) => {
-        if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-        record("allocating");
-        /** @type {import("../types/contract.js").ServedSampleAnswer} */
-        const { url, page } = await request(
-          pageUrl("api/samples"),
-          { template, source, message },
-          revision ? { "Leaf-View-Revision": String(revision) } : {},
-        );
-        current = new URL(url, location.href).href;
-        samplePage = page;
-        record("allocated");
-        try {
-          if (destroyed) {
-            await retire("destroyed");
-            throw new DOMException("sample destroyed", "AbortError");
-          }
-          // The opaque frame cannot expose its document or order cross-process
-          // bootstrap messages against load. Admit the server's document contract
-          // before native navigation; later authored destinations remain native.
-          const admission = await fetch(current, {
-            method: "HEAD",
-            credentials: "omit",
-            signal: lifetimeController.signal,
-          });
-          record("admission", {
-            status: admission.status,
-            leafDocument: admission.headers.get("Leaf-Document"),
-          });
-          if (!admission.ok || !admission.headers.has("Leaf-Document"))
-            throw new Error("The sample document did not start Leaf");
-          if (destroyed) {
-            await retire("destroyed");
-            throw new DOMException("sample destroyed", "AbortError");
-          }
-          const upgraded = interfaceReady();
-          // A loaded module graph frees its slot even while Leaf upgrade waits on
-          // widget preparation. Native load needs no access to the opaque child document.
-          frame.addEventListener("load", release, { once: true });
-          record("loading");
-          frame.src = current;
-          return await upgraded;
-        } finally {
-          frame.removeEventListener("load", release);
+    // Allocating the document and loading it, its scripts run, needs no rendering, so
+    // it goes on whether or not anyone can see the frame, and the page counts it until
+    // the frame loads or the allocation fails. What the child does after, which Chrome
+    // holds back while the frame is off screen, the page counts only while the frame
+    // shows (lf-sample.js, `frameArrival`).
+    /** @type {PromiseWithResolvers<void>} */
+    const { promise: loaded, resolve: landLoad } = Promise.withResolvers();
+    const landed = () => landLoad();
+    deferredArrival(loaded);
+    const loading = loadWithinLimit(async (release) => {
+      if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+      record("allocating");
+      /** @type {import("../types/contract.js").ServedSampleAnswer} */
+      const { url, page } = await request(
+        pageUrl("api/samples"),
+        { template, source, message },
+        revision ? { "Leaf-View-Revision": String(revision) } : {},
+      );
+      current = new URL(url, location.href).href;
+      samplePage = page;
+      record("allocated");
+      try {
+        if (destroyed) {
+          await retire("destroyed");
+          throw new DOMException("sample destroyed", "AbortError");
         }
-      }, lifetimeController.signal),
-    );
+        // The opaque frame cannot expose its document or order cross-process
+        // bootstrap messages against load. Admit the server's document contract
+        // before native navigation; later authored destinations remain native.
+        const admission = await fetch(current, {
+          method: "HEAD",
+          credentials: "omit",
+          signal: lifetimeController.signal,
+        });
+        record("admission", {
+          status: admission.status,
+          leafDocument: admission.headers.get("Leaf-Document"),
+        });
+        if (!admission.ok || !admission.headers.has("Leaf-Document"))
+          throw new Error("The sample document did not start Leaf");
+        if (destroyed) {
+          await retire("destroyed");
+          throw new DOMException("sample destroyed", "AbortError");
+        }
+        const upgraded = interfaceReady();
+        // A loaded module graph frees its slot even while Leaf upgrade waits on
+        // widget preparation. Native load needs no access to the opaque child document.
+        frame.addEventListener("load", release, { once: true });
+        frame.addEventListener("load", landed, { once: true });
+        record("loading");
+        frame.src = current;
+        return await upgraded;
+      } finally {
+        frame.removeEventListener("load", release);
+        frame.removeEventListener("load", landed);
+      }
+    }, lifetimeController.signal);
+    loading.then(landed, landed);
+    return settle(loading);
   }
   function reset() {
     if (destroyed)
@@ -602,7 +613,10 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     if (!near.asked() || !channel || pendingInterface || askedNear === connectedNonce)
       return;
     askedNear = connectedNonce;
-    frameArrival(frame, call("near-work", {}).catch(() => {}));
+    frameArrival(
+      frame,
+      call("near-work", {}).catch(() => {}),
+    );
   }
   const near = onAllNear(nearWork);
   /** @type {SampleHost} */

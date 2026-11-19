@@ -25,12 +25,13 @@
  * page presents before it unless the frame's resize on arrival would move what the
  * reader sees then. The sample's arrival is its child's: the child's presentation
  * and then whatever that document deferred, the samples it started included. The page
- * reads as arriving until every started child it shows has arrived, and until the
- * browser's first reading of each waiting frame has said whether it starts. Each
- * document the frame loads, on mount, Reset or a reload, is counted from when it begins
- * until it arrives, fails, departs or the sample leaves, while its frame shows
- * (`frameArrival`): Chrome stops rendering the child while its frame is off screen or
- * in a shut tab, so the rest of its arrival waits for the reader. A
+ * reads as arriving until every started child has loaded and every one it shows has
+ * arrived, and until the browser's first reading of each waiting frame has said
+ * whether it starts. Each document the frame loads, on mount, Reset or a reload, is
+ * counted from when it begins until it arrives, fails, departs or the sample leaves:
+ * its allocation and load wherever the frame stands (sample.js, `replace`), and the
+ * rest while the frame shows (`frameArrival`), since Chrome stops rendering the child
+ * while its frame is off screen or in a shut tab, and so the rest waits for the reader. A
  * reload's document is counted once it connects; the parent cannot tell its departure
  * from one to a page outside Leaf, whose load can land before the departure's notice,
  * so nothing is counted between. Work a child starts after it has arrived, such as

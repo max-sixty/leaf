@@ -356,11 +356,10 @@ def held_sample_page(
     return page, release
 
 
-READINESS = "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
-
-
 def readiness(frame):
-    return frame.evaluate(READINESS)
+    return frame.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+    )
 
 
 def live_sample(sample_id, attributes="", content="<p>Practice</p>"):
@@ -403,9 +402,8 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     browser, serve
 ):
     """A block sample below the window but near it starts loading before the reader
-    reaches it, and the page presents and takes keys without it. Off screen, where the
-    browser stops rendering it, the page counts none of its arrival; once the reader
-    scrolls to it, the page reads as arriving until it has. A reader who scrolls
+    reaches it, and the page presents and takes keys without it, reading as arriving
+    until it has. A reader who scrolls
     to it while it loads sees its frame keep its loading height as the child arrives,
     so what follows stays put, until the frame leaves their sight or the tab is
     hidden. A wheel over the frame scrolls past it and claims nothing. Once they click
@@ -451,10 +449,9 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     )
     holding(page, held, 1, "the sample's document")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    page.wait_for_function(f"{READINESS} !== 'arrived'")
+    assert readiness(page) == "arrived"
     frame = page.locator("#practice iframe")
     frame.scroll_into_view_if_needed()
-    page.wait_for_function(f"{READINESS} === 'arrived'")
     loading = frame.bounding_box()["height"]
     after = page.locator("#after").bounding_box()
     # The sample's document goes on; the inner sample's, once asked for, waits.

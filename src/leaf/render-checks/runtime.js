@@ -17,11 +17,15 @@ export { startNearWork } from "/runtime/check-api.js";
 // The frames this check has brought into view (`showUnshownFrame`).
 const shownForCheck = new WeakSet();
 // Bring into view the next frame whose document waits for it to show and that scrolling
-// can show, such as a live sample's a window below; false once none is left that this
-// has not shown. A frame in a shut tab or a closed disclosure stays as the page has it.
+// can show, such as a live sample's frame a window below; false once none is left that
+// this has not shown. A frame in a shut tab or a closed disclosure stays as the page has
+// it.
 export function showUnshownFrame() {
   for (const frame of unshownFrames()) {
-    if (shownForCheck.has(frame) || !frame.checkVisibility({ visibilityProperty: true }))
+    if (
+      shownForCheck.has(frame) ||
+      !frame.checkVisibility({ visibilityProperty: true })
+    )
       continue;
     shownForCheck.add(frame);
     scrollIntoView(frame, { block: "nearest" });

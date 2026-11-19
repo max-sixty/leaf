@@ -52,16 +52,18 @@
    child too. `deferredArrival` is
    the declaration alone, for work already running that presentation need not wait
    for: the work starts now, the page presents without it, and `arrived` waits for it.
-   `frameArrival` is that declaration for work in a frame's document, such as a live
-   sample's child page arriving. A sample's child has an origin of its own, and Chrome
-   gives such a document one rendering and then no more while its frame is off screen
-   or in a closed disclosure, so whatever in it waits for a rendering, such as a
-   chart's first drawing, waits for the reader to show the frame. The page counts that
-   work until the browser's first reading of the frame, and after that only while the
-   frame shows, just as rendering readiness reads a document nobody can see as settled
-   (rendering.js). Counted always, one chart in a sample a window below the reader kept
-   the page arriving for as long as it stayed open. A check that reads every document
-   the page can show brings each such frame into view in turn (`unshownFrames`).
+   `frameArrival` is that declaration for work in a frame's document that waits for the
+   browser to render it, such as a live sample's child page drawing a chart. A sample's
+   child has an origin of its own, and Chrome gives such a document one rendering and
+   then no more while its frame is off screen or in a closed disclosure, so that work
+   waits for the reader to show the frame. The page counts it until the browser's first
+   reading of the frame, and after that only while the frame shows, just as rendering
+   readiness reads a document nobody can see as settled (rendering.js). Loading the
+   frame's document needs no rendering, so its owner counts the load with
+   `deferredArrival`. Counted always, one chart in a sample a window below the reader
+   kept the page arriving for as long as it stayed open. A check that reads every
+   document the page can show brings each such frame into view in turn
+   (`unshownFrames`).
    None hands a package the bare `presented` wait. */
 
 import { whileConnected } from "./arrivals.js";

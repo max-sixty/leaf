@@ -46,10 +46,11 @@ registrations' lock, and a retiring bridge reads the registrations a last time
 and releases the lease under that lock too (`retire`), so a session that
 registers meanwhile either keeps this bridge serving, its lease held throughout,
 or has started the next one. A hook that takes the lease removes the
-address a gone bridge left, so while the lease is held the address is absent or the
-holder's. A client counts a bridge up only once it accepts the request, so one that
-reaches a retiring bridge tries again, and it waits for the address for as long as
-a bridge holds the lease, since a slow start only makes that wait longer; with no
+address a gone bridge left before it lets the registrations' lock go, so once
+another hook can find the lease held the address is absent or the holder's. A
+client counts a bridge up only once it accepts the request, so one that reaches a
+retiring bridge tries again, and it waits for the address for as long as a bridge
+holds the lease, since a slow start only makes that wait longer; with no
 holder it fails at once, contacting no address, since a gone bridge's port may
 now be another listener's. A client that falls silent before its
 command's exit status, as when Claude Code times the command out, ends the
@@ -186,11 +187,13 @@ def ensure(session: str, lifetime: dict) -> None:
     with flocked(bridge_path("sessions.lock")):
         REGISTRATION.write(sessions / f"{digest}.json", registration)
         lease = take_lease(bridge_path("lock"))
-    if lease is None:
-        return
-    # An address left while no bridge held the lease is a gone bridge's, as after
-    # a crash or a reboot, so a client waits for the new one's (`run`).
-    bridge_path("json").unlink(missing_ok=True)
+        if lease is None:
+            return
+        # An address left while no bridge held the lease is a gone bridge's, as
+        # after a crash or a reboot, so a client waits for the new one's (`run`).
+        # It goes before the lock does, so a hook that then finds the lease held
+        # hands its client no address but the new bridge's.
+        bridge_path("json").unlink(missing_ok=True)
     # Closing this copy leaves the lease held by the bridge's.
     with lease, open(bridge_path("log"), "ab") as log:
         subprocess.Popen(

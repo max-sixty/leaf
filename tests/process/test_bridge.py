@@ -365,6 +365,40 @@ def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
     assert not bridge_model.lock_is_held(lock)
 
 
+def test_a_hook_that_finds_a_new_bridge_starting_gets_no_gone_bridges_address(
+    monkeypatch,
+):
+    """A gone bridge left its address, and a hook takes the lease to start the
+    next bridge. A second hook that registers as soon as the first lets the
+    registrations' lock go finds the lease held and returns, so its client may
+    read the address at once; it finds none, rather than the gone bridge's, whose
+    port another listener may now hold."""
+    bridge_model.bridge_path("json").parent.mkdir(parents=True, exist_ok=True)
+    bridge_model.ADDRESS.write(
+        bridge_model.bridge_path("json"), {"port": 1, "token": "t", "pid": 1}
+    )
+    sessions_lock = bridge_model.bridge_path("sessions.lock")
+    locked = bridge_model.flocked
+    seen = []
+
+    @contextlib.contextmanager
+    def then_second_hook(path, **kwargs):
+        with locked(path, **kwargs):
+            yield
+        if path == sessions_lock and not seen:
+            seen.append(None)
+            bridge_model.ensure("second", {"pid": os.getpid()})
+            # The second hook's client asks whether a bridge runs, then reads
+            # its address.
+            assert bridge_model.lock_is_held(bridge_model.bridge_path("lock"))
+            seen[0] = bridge_model.ADDRESS.read(bridge_model.bridge_path("json"))
+
+    monkeypatch.setattr(bridge_model, "flocked", then_second_hook)
+    monkeypatch.setattr(bridge_model.subprocess, "Popen", lambda *a, **k: None)
+    bridge_model.ensure("first", {"pid": os.getpid()})
+    assert seen == [None]
+
+
 def test_each_process_of_a_session_keeps_the_bridge(dead_pid):
     """Two processes can carry one session's id, as a session resumed while it
     still runs elsewhere does, and each lives as its own pid. The one that ends

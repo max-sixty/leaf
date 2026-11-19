@@ -845,7 +845,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     # A restart updates authored and runtime inputs, but never replays new seeds
     # over the existing log or changes data the page already holds.
     fictional = next(event for event in read_events(page) if event["kind"] == "comment")
-    fictional |= {"id": "fictional", "text": "A different fictional seed"}
+    fictional = fictional | {"id": "fictional", "text": "A different fictional seed"}
     source.with_suffix(".jsonl").write_text(json.dumps(fictional) + "\n")
     source.with_suffix(".data.json").write_text('{"receipt":"Replacement seed"}')
     source.write_text(source.read_text().replace("Initial reading", "Revised reading"))

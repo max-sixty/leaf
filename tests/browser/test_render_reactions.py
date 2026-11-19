@@ -2541,7 +2541,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
 
 
-def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
+def test_undo_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
     """A reaction someone has answered is the user's to take back, as one nobody has
     answered is. Taking it back
     draws its place in the thread Deleted in the press, before the log answers, above

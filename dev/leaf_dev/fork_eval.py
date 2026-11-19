@@ -14,9 +14,10 @@ Each arm's own Leaf writes the question and takes the answer, run as the session
 Claude Code environment runs it: its launcher, and its Python for what has no
 command (`Leaf`). The executor builds the page in a throwaway state home, opens a
 turn for a fresh session id and claims the page as that session
-(`CLAUDE_CODE_SESSION_ID`, with this process as `CLAUDE_PID`). It asks `leaf hook
---fork` for the prompt as `forkStep` in `hooks/claude-code.ts` does, and hands it
-the answer the same way. For a line or summary fork, a process of the arm's holds the session's
+(`CLAUDE_CODE_SESSION_ID`, with this process as `CLAUDE_PID`). It reports to `leaf
+hook --fork` as the hooks module does (`leaf.carrier`): a turn's end, or the report
+the pages follower lists for a kept-back thread, whose answer is the fork to make, and
+then that fork's answer. For a line or summary fork, a process of the arm's holds the session's
 forks lane (`forks.take_lane`) from before the user's waiting messages are admitted,
 as the event endpoint admits them (`KEEP`), until the answer is taken, as the pages
 follower holds it, and asks about the thread the follower would list
@@ -37,7 +38,21 @@ resends the session's, with its per-machine sections moved out of the system pro
 so the prefix is cached across cases. One `PreToolUse` hook (`BLOCKED`), the fresh
 home's only one, refuses every call, and `--max-turns 1` then ends the fork without
 an answer, which fails every check of the case rather than raising a provider
-error. Plugins and MCP servers are off.
+error. Plugins, skills and MCP servers are off.
+
+A live fork's request ends with its prompt, since `$.model.fork` appends the prompt
+to the session's last request. A resume instead reads its environment afresh (its
+working directory, the tools, agents and skills it lists, the session's context) and
+puts each record of it that the transcript lacks after the new prompt, a few
+thousand tokens that change how the fork judges the prompt. So a first resume, sent
+to an address no API listens on (`UNREACHABLE`), writes those records without a
+request, and the transcript carries them after its first prompt, where a live
+session's are (`announced`). Today's date stays out of them: a case's conversation
+is written on its own date, and the fork reads a date at the session's start as the
+day the conversation took place. The second resume then adds only the line giving
+today's date after the prompt. Skills are off because the listing a resume reads
+offline differs from the one it reads online, which would put a listing after the
+prompt.
 
 What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 `answered`. Its asks are the records it wrote (`wrote`), as the user reads them; its
@@ -122,6 +137,9 @@ BLOCKED = {
         ]
     }
 }
+
+# An API address nothing listens on, which ends a resume before its first request.
+UNREACHABLE = "http://127.0.0.1:9"
 
 # List prices by model, dollars per million tokens.
 PRICES = {
@@ -227,10 +245,11 @@ def execute_scenario(
     conversation once, and score what the arm's Leaf took of the answer."""
     if harness != ClaudeCodeHarness.name:
         raise ValueError("Leaf's conversation forks run only in Claude Code")
-    scenario = CASES[case]
     work.mkdir(parents=True, exist_ok=True)
     session = str(uuid.uuid4())
     page = work / "page"
+    # The case's `{page}` and `{session}`, wherever they stand, such as a running call.
+    scenario = substitute(CASES[case], {"{page}": str(page), "{session}": session})
     leaf = Leaf(payload, work / "state", session)
     source = work / "source" / "index.html"
     source.parent.mkdir()
@@ -253,25 +272,29 @@ def execute_scenario(
             [thread] = leaf.python(
                 KEEP, str(page), session, stdin=json.dumps(scenario["waiting"])
             )
-            kept = {"thread": thread, "running": scenario.get("running", [])}
-            asked = leaf.fork(kept)
-            if scenario["fork"] == "summary":
-                # The fork Leaf asks for beside the line fork, scored alone.
-                [asked] = [
-                    beside
-                    for beside in asked.get("beside", [])
-                    if beside["basis"]["duty"] == "summary"
-                ]
+            listed = {"kind": "line", "thread": thread}
+            reported = leaf.fork(
+                {
+                    "done": "line",
+                    "do": "report",
+                    "basis": listed,
+                    "running": scenario.get("running", []),
+                }
+            )
+            # The line fork, or the one Leaf asks for beside it, scored alone.
+            [asked] = [
+                instruction
+                for instruction in reported["do"]
+                if (instruction["basis"].get("duty") == "summary")
+                == (scenario["fork"] == "summary")
+            ]
             run = fork(asked, session, turns, work)
             if run["text"] is not None:
-                if scenario["fork"] == "summary":
-                    leaf.fork({"beside": asked["basis"], **taken(run)})
-                else:
-                    leaf.fork({**kept, **taken(run)})
+                leaf.fork(answered(asked, run))
     else:
-        asked = leaf.fork({})
+        [asked] = leaf.fork({"turn_end": True})["do"]
         run = fork(asked, session, turns, work)
-    (work / "prompt.txt").write_text(asked["prompt"])
+    (work / "prompt.txt").write_text(asked["request"]["prompt"])
     metadata.update(
         {key: run[key] for key in ("usage", "cost", "wall_s", "tool_calls")}
     )
@@ -324,16 +347,13 @@ class Leaf:
             else None,
         )
 
-    def fork(self, payload: dict, *, check: bool = True):
-        """One step of a fork, as `forkStep` runs it: what it printed, or with
-        `check` False the finished process."""
+    def fork(self, payload: dict):
+        """One report to the arm's Leaf, as the hooks module makes it
+        (`leaf.carrier`), and what Leaf answered."""
         ran = self.run(
             *("hook", "--harness", "claude-code", "--if-claimed", "--fork"),
-            stdin={"hook_event_name": "Fork", **payload},
-            check=check,
+            stdin={"hook_event_name": "Fork", "running": [], **payload},
         )
-        if not check:
-            return ran
         if not ran.stdout.strip():
             raise RuntimeError("leaf hook --fork printed nothing")
         return json.loads(ran.stdout)
@@ -372,9 +392,13 @@ class Leaf:
             holder.wait(timeout=30)
 
 
-def taken(run: dict) -> dict:
-    """The fork's answer as the module hands it back to Leaf."""
+def answered(asked: dict, run: dict) -> dict:
+    """The report of the fork `asked`, Leaf's instruction, with its answer, as the
+    module makes it."""
     return {
+        "done": asked["id"],
+        "do": asked["do"],
+        "basis": asked["basis"],
         "answer": run["text"],
         "usage": run["usage"],
         "elapsed_ms": run["elapsed_ms"],
@@ -546,41 +570,68 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
 
 
 def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
-    """Resume the rendered conversation once with the prompt the arm's Leaf `asked`
-    for, at the effort it names or the session's, as `$.model.fork` forks it, in a
-    home and cwd of its own outside the repository, keeping its stream and transcript
-    under `work`; its answer, or why it gave none."""
+    """Resume the rendered conversation with the prompt the arm's Leaf `asked` for,
+    at the effort it names or the session's, as `$.model.fork` forks it, in a home
+    and cwd of its own outside the repository, once a resume that reaches no API has
+    written the environment the transcript carries (the module header says why),
+    keeping its stream and transcript under `work`; its answer, or why it gave none."""
     stream = work / "fork.jsonl"
-    effort = asked.get("effort", SESSION_EFFORT)
+    effort = asked["request"].get("effort", SESSION_EFFORT)
     with tempfile.TemporaryDirectory(prefix="leaf-fork-") as directory:
         cwd = Path(directory).resolve() / "cwd"
         cwd.mkdir()
-        child = claude_child(
-            cwd,
-            *("--resume", session, "--effort", effort, "--max-turns", "1"),
-            *("--exclude-dynamic-system-prompt-sections", "--settings"),
-            json.dumps(BLOCKED),
-            model=MODEL,
-            sandbox=False,
-        )
+
+        def resume(**env: str) -> dict:
+            return claude_child(
+                cwd,
+                *("--resume", session, "--effort", effort, "--max-turns", "1"),
+                *(
+                    "--exclude-dynamic-system-prompt-sections",
+                    "--disable-slash-commands",
+                ),
+                *("--settings", json.dumps(BLOCKED)),
+                env=env,
+                model=MODEL,
+                sandbox=False,
+            )
+
+        child = resume()
         project = Path(child["env"]["HOME"]) / ".claude/projects"
         project /= re.sub(r"[^A-Za-z0-9]", "-", str(cwd))
         project.mkdir(parents=True)
         kept = project / f"{session}.jsonl"
-        start = datetime.fromisoformat(DEFINITION["start"])
-        kept.write_text(
-            "".join(
-                json.dumps(record) + "\n"
-                for record in transcript(turns, session, cwd, start)
-            )
+        records = transcript(
+            turns, session, cwd, datetime.fromisoformat(DEFINITION["start"])
         )
+        kept.write_text("".join(json.dumps(record) + "\n" for record in records))
+        # The environment a resume announces, written by one that reaches no API.
+        offline = resume(ANTHROPIC_BASE_URL=UNREACHABLE, CLAUDE_CODE_MAX_RETRIES="0")
+        calibrated = subprocess.run(
+            offline["args"],
+            cwd=offline["cwd"],
+            env=offline["env"],
+            input=".",
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        written = [json.loads(line) for line in kept.read_text().splitlines()]
+        seeded = announced(records, written[len(records) :])
+        if len(seeded) == len(records):
+            # Without them the fork would read its environment after the prompt.
+            raise RuntimeError(
+                "the offline resume wrote no environment: "
+                f"{calibrated.stderr or calibrated.stdout}"
+            )
+        kept.write_text("".join(json.dumps(record) + "\n" for record in seeded))
         started = time.monotonic()
         with stream.open("w") as out:
             ran = subprocess.run(
                 ["nice", "-n", "10", *child["args"]],
                 cwd=child["cwd"],
                 env=child["env"],
-                input=asked["prompt"],
+                input=asked["request"]["prompt"],
                 stdout=out,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -612,6 +663,24 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
         "elapsed_ms": result.get("duration_ms"),
         "tool_calls": calls,
     }
+
+
+def announced(records: list[dict], written: list[dict]) -> list[dict]:
+    """The transcript `records` with the attachments a resume `written` after them,
+    which describe the session's environment, moved after its first prompt, where a
+    live session's carry them; all but today's date (the module header says why)."""
+    found = [
+        record
+        for record in written
+        if record.get("type") == "attachment" and record["attachment"]["type"] != "date"
+    ]
+    first, *rest = records
+    parent = first["uuid"]
+    for record in found:
+        record["parentUuid"], parent = parent, record["uuid"]
+    if rest:
+        rest[0]["parentUuid"] = parent
+    return [first, *found, *rest]
 
 
 def price(usage: dict, model: str) -> float:
@@ -692,10 +761,9 @@ def score_turn_end(
 ) -> dict:
     """Hand the answer to the arm's Leaf as the module does, score what it took
     against the case's labels, and pack every item and change for the judge."""
-    ran = leaf.fork({"basis": asked["basis"], **taken(run)}, check=False)
-    if ran.returncode:
-        return {"checks": {"answered": False}, "refused": ran.stderr.strip()}
-    applied = json.loads(ran.stdout)
+    applied = leaf.fork(answered(asked, run))
+    if "refused" in applied:
+        return {"checks": {"answered": False}, "refused": applied["refused"]}
     note = leaf.python(NOTE, str(page), "turn_end_check") or {}
 
     def titled(record: dict) -> str:
@@ -754,7 +822,11 @@ def score_turn_end(
         "named": matched["named"],
         "changed": changed,
         "told": applied.get("told", []),
-        "texts": {"judge": judge_text(turns, asked["prompt"], items, matched, changed)},
+        "texts": {
+            "judge": judge_text(
+                turns, asked["request"]["prompt"], items, matched, changed
+            )
+        },
     }
 
 

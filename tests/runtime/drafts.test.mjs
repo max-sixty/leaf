@@ -17,9 +17,21 @@ let version = 0;
 // Answers the test holds back, released in the order the writes went out.
 /** @type {(() => void)[] | null} */
 let held = null;
+// Whether draft writes fail as they do while the server is out of reach.
+let unreachable = false;
+// Each draft write's request, settled or not, for a test that reads what follows it.
+/** @type {Promise<unknown>[]} */
+const draftWrites = [];
 // A canonical page also posts diagnostic interactions, which the server takes.
-globalThis.fetch = async (url, init) => {
+globalThis.fetch = (url, init) => {
+  const answer = answerFetch(url, init);
+  if (String(url).endsWith("/api/draft")) draftWrites.push(answer);
+  return answer;
+};
+/** @param {RequestInfo | URL} url @param {RequestInit} [init] */
+const answerFetch = async (url, init) => {
   if (!String(url).endsWith("/api/draft")) return new Response(null, { status: 204 });
+  if (unreachable) throw new TypeError("Failed to fetch");
   const { context, expect, record } = JSON.parse(String(init?.body));
   const current = server.get(context) ?? null;
   const written = current === null || expect.includes(current.attempt);
@@ -51,7 +63,7 @@ window.lfStorage.tabStore = {
   where: (key) => ({ store: "session", key }),
   keys: () => [...tabMemory.keys()],
 };
-const { draftsWaiting, loadDraft, saveDraft, sendDraft, watchDraft } =
+const { draftsWaiting, giveBackWords, loadDraft, saveDraft, sendDraft, watchDraft } =
   await import("/runtime/drafts.js");
 
 /** Another tab's or device's generation of the draft at `ctx`, written to the server
@@ -60,6 +72,19 @@ const writtenElsewhere = (ctx, text, payload) => {
   version += 1;
   server.set(ctx, { attempt: `elsewhere-${ctx}`, text, payload, version });
 };
+/** Waits until every draft write has settled and the document has heard each answer
+ * or failure: the handlers run in the request's own microtasks, so a timer turn after
+ * the last request settles follows them, and a write an answer sends next joins the
+ * wait. */
+const writesSettled = async () => {
+  for (let seen = -1; seen !== draftWrites.length;) {
+    seen = draftWrites.length;
+    await Promise.allSettled(draftWrites);
+    await new Promise((resolve) => setTimeout(resolve));
+  }
+};
+const leave = () =>
+  window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
 /** The next words and payload every view of the draft at `ctx` is told of.
  * @param {string} ctx @returns {Promise<{value: string | null, payload: unknown}>} */
 const told = (ctx) =>
@@ -159,4 +184,72 @@ test("a page going away leaves its tab no copy of saved words it is sending", as
   window.dispatchEvent(new Event("pagehide"));
   const left = new Map(JSON.parse(tabMemory.get("lf-drafts-waiting") ?? "[]"));
   assert.equal(left.get("reply:leaving")?.copy, null);
+});
+
+// Words no write is carrying go with the document, so leaving asks first; words the
+// server has taken leave quietly.
+test("leaving asks first while words wait that no write carries", async () => {
+  await writesSettled();
+  const waiting = draftsWaiting();
+  assert.equal(leave(), true);
+  unreachable = true;
+  saveDraft("reply:stranded", "Words typed while the server was away.");
+  await writesSettled();
+  assert.equal(draftsWaiting(), waiting + 1);
+  assert.equal(leave(), false);
+  unreachable = false;
+  saveDraft("reply:stranded", "Words typed while the server was away, and after.");
+  await writesSettled();
+  assert.equal(
+    server.get("reply:stranded")?.text,
+    "Words typed while the server was away, and after.",
+  );
+  assert.equal(draftsWaiting(), waiting);
+  assert.equal(leave(), true);
+});
+
+// A comment's drawing is the user's work as its words are, so a draft holding only a
+// drawing that no write carries asks before leaving too.
+test("leaving asks first while a drawing waits that no write carries", async () => {
+  const drawing = {
+    strokes: [
+      [
+        [0, 0],
+        [10, 10],
+      ],
+    ],
+    box: [100, 100],
+    viewport: [800, 600],
+    scheme: "light",
+  };
+  await writesSettled();
+  const waiting = draftsWaiting();
+  assert.equal(leave(), true);
+  unreachable = true;
+  saveDraft("composer:drawn", "", { drawing });
+  await writesSettled();
+  assert.equal(draftsWaiting(), waiting + 1);
+  assert.equal(leave(), false);
+  unreachable = false;
+  saveDraft("composer:drawn", "", { drawing });
+  await writesSettled();
+  assert.deepEqual(server.get("composer:drawn")?.payload, { drawing });
+  assert.equal(draftsWaiting(), waiting);
+  assert.equal(leave(), true);
+});
+
+// Words an undo gives back to a box the user has begun keep what the box holds, even
+// only whitespace, and the box's own payload rather than the sent message's.
+test("words given back to a box holding only whitespace keep it and its payload", async () => {
+  const own = { anchor: { says: "the bracket" }, mode: "comment" };
+  saveDraft("composer:spaced", "  ", own);
+  await writesSettled();
+  const back = told("composer:spaced");
+  giveBackWords("composer:spaced", "Fit the bracket.", {
+    anchor: { says: "the cable" },
+  });
+  const { value, payload } = await back;
+  assert.equal(value, "Fit the bracket.\n\n  ");
+  assert.deepEqual(payload, own);
+  assert.deepEqual(loadDraft("composer:spaced")?.payload, own);
 });

@@ -257,7 +257,7 @@ function threadStands(thread, said) {
   };
 }
 
-// When a message or a run's face was said, in its head (presence.js, `saidAt`): its
+// When a message or a step's face was said, in its head (presence.js, `saidAt`): its
 // day, then its time. A head too narrow for both keeps the day whole and drops the
 // time onto a line it clips (surfaces.css), so a crowded head still says which day,
 // where an ellipsis cut it to "Nov 1…"; the preview reads the time whole.
@@ -674,7 +674,7 @@ export function messageReading(
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
-    // thread shows as its run's face until an answer folds it (transcript.js).
+    // thread shows as a face, not a message, until something ends it (transcript.js).
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
     // question the user owes words to, the agent's Still to do (`todoWord`) for work it
@@ -732,7 +732,7 @@ export function messageReading(
  * reaction: ConstructorParameters<typeof ReactionStripView>[0],
  * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"]}} MessageCommands */
 
-// The tint a turn arrives in, a message or a progress run's face (transcript.js):
+// The tint a turn arrives in, a message or a step's face (transcript.js):
 // one phase drives its ground and its sticky head (surfaces.css, `--lf-msg-arrival`).
 // CSS resolves the tint and resting colour at the node after insertion; Firefox's Web
 // Animations interpolates a var() colour keyframe discretely. The shared motion gate
@@ -840,6 +840,7 @@ export class MessageView {
               options,
             ),
           land: () => this.#commands.edit.land(this.node),
+          saved: () => this.#commands.edit.saved(this.node),
           paint: () => this.#commands.edit.paint(this.node),
           previous: () => this.#commands.edit.previous(presentation.model.id),
           reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),

@@ -201,8 +201,23 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     assert drawings[0]["revision"] == 1
     expect(page.locator('[data-lf-thread^="pending:"]')).to_have_count(0)
     # Threads lists the saved conversation beside the two the tab sent early.
-    # Draw mode's way out stands at the panel field's end until the user leaves it.
-    field_press(page).filter(has_text="Close").click()
+    # Draw mode's way out stands at the panel field's end with `esc` until the user
+    # leaves it, once the margin's card standing over the mode has taken its Escape.
+    # The card held its row where the drawing's row stood, below the comment's row
+    # since merged into it; letting the card go returns the row beside the passage
+    # in that press's rendering, not at whatever later change seats the margin.
+    page.keyboard.press("Escape")
+    page.wait_for_function(
+        """() => {
+          const marker = document.querySelector('.lf-margin-marker');
+          const passage = document.getElementById('passage');
+          return Math.abs(marker.getBoundingClientRect().top
+            - passage.getBoundingClientRect().top) < 1;
+        }"""
+    )
+    close = field_press(page).filter(has_text="Close")
+    expect(close.locator("kbd")).to_have_text("esc")
+    close.click()
     open_threads(page)
     rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     expect(rows).to_have_count(3)

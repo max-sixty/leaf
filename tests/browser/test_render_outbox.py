@@ -170,7 +170,7 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
-def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
+def test_undo_takes_back_the_thread_the_user_just_resolved(browser, serve):
     """The gesture with no reverse in front of the user: resolving a thread moves the
     user on from it, so putting it back by hand means finding it under Resolved and
     pressing Reopen. What ⌘Z writes is a withdrawal
@@ -211,7 +211,28 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     assert [e["kind"] for e in log if e["kind"] == "unresolve"] == []
 
 
-def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
+def test_bare_z_takes_nothing_back_and_undo_still_does(browser, serve):
+    """Undo is ⌘Z (Ctrl+Z off a Mac), never a bare `z`: a word with a "z" in it,
+    typed while focus is on the page rather than in a field, would otherwise take
+    back the user's last gesture. The bare press comes while ⌘Z would be taken, so
+    an undo bound to `z` would take the pick; the ⌘Z after it is the later gesture of
+    the same kind whose withdrawal lands behind anything the `z` sent."""
+    page = open_page(browser, serve(UNDO_PAGE))
+    with sending(page, "the pick"):
+        page.locator("#opt-a").click()
+    picked = actions(serve.page_dir)[-1]
+    page.evaluate(RELEASE_FOCUS)
+    undo_offered(page)
+
+    page.keyboard.press("z")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
+
+    undo(page)
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
+    assert _undos(serve.page_dir) == [picked["id"]]
+
+
+def test_undo_waits_for_an_unanswered_thread_resolution(browser, serve):
     """Resolve and reopen are undoable gestures too. While a second resolve is in
     the outbox, undo cannot name the older resolve still visible in the log."""
     page = open_page(browser, serve(LONG_PAGE, comments=3))
@@ -249,7 +270,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     ] == ["resolve", "resolve", "undo"]
 
 
-def test_z_takes_back_a_reply_the_user_sent(browser, serve):
+def test_undo_takes_back_a_reply_the_user_sent(browser, serve):
     """⌘Z takes back the user's newest gesture, a reply they sent included, and doesn't
     stop at the reply as said rather than unsaid. The reply's thread is out of view,
     so the press takes the reply back and then opens the thread it left."""
@@ -273,7 +294,7 @@ def test_z_takes_back_a_reply_the_user_sent(browser, serve):
     expect(thread.locator(".lf-msg")).not_to_contain_text(["And this?"])
 
 
-def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
+def test_undo_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     """A page opened weeks after the user's last gesture still says what ⌘Z would
     take back, read from the log rather than from the tab that made it: the leaf's
     menu names the thread they resolved and how long ago, and so does the undo's
@@ -371,7 +392,7 @@ def _old_resolve_below_the_fold(serve):
 
 
 @pytest.mark.parametrize("route", ["key", "menu"])
-def test_z_takes_an_old_resolve_out_of_view_then_opens_its_thread(
+def test_undo_takes_an_old_resolve_out_of_view_then_opens_its_thread(
     browser, serve, route
 ):
     """A thread resolved weeks ago below the fold is reopened by one press of ⌘Z or of
@@ -392,7 +413,7 @@ def test_z_takes_an_old_resolve_out_of_view_then_opens_its_thread(
     expect(card).to_be_in_viewport()
 
 
-def test_z_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
+def test_undo_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
     browser, serve
 ):
     """A choice in front of the user, made in another tab, is taken back by one press,
@@ -448,7 +469,7 @@ FAR_CHOICE_PAGE = leaf_page(
 )
 
 
-def test_z_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
+def test_undo_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
     """A choice out of view is taken back by one press, which then travels to it as a
     link to it would, so Back returns the user to where they pressed."""
     url = serve(FAR_CHOICE_PAGE)
@@ -474,7 +495,7 @@ def test_z_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
     expect(picks).not_to_be_in_viewport()
 
 
-def test_z_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser, serve):
+def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser, serve):
     """A fast user walks to a thread far above their choice and presses ⌘Z before the
     walk's scroll has drawn a frame. The press reads the page that scroll leaves, where
     the choice is out of view, so it takes the choice and then goes to it, rather than
@@ -565,7 +586,7 @@ def _choose(page_dir, option="opt-a"):
     )
 
 
-def test_z_as_escape_closes_a_view_over_the_choice_takes_it_where_it_stands(
+def test_undo_as_escape_closes_a_view_over_the_choice_takes_it_where_it_stands(
     browser, serve
 ):
     """A fast user closes the panel's thread view, which stood over their choice, and
@@ -602,7 +623,7 @@ def test_z_as_escape_closes_a_view_over_the_choice_takes_it_where_it_stands(
     assert page.evaluate("() => [scrollY, location.hash]") == [0, ""]
 
 
-def test_a_second_z_while_the_first_is_on_its_way_takes_nothing_more(browser, serve):
+def test_a_second_undo_while_the_first_is_on_its_way_takes_nothing_more(browser, serve):
     """Two quick presses of ⌘Z take back one gesture: the second finds the first's
     withdrawal still on its way, so the list's head is still the gesture the first
     took, and it waits rather than take the one before it, which the user hasn't seen
@@ -626,7 +647,7 @@ def test_a_second_z_while_the_first_is_on_its_way_takes_nothing_more(browser, se
     assert _undos(serve.page_dir) == [newer["id"]]
 
 
-def test_z_takes_a_comment_back_without_opening_its_thread(browser, serve):
+def test_undo_takes_a_comment_back_without_opening_its_thread(browser, serve):
     """Taking back a comment nobody has answered removes its thread, so the press
     leaves the user at the passage it was on and never opens the thread it is
     removing."""
@@ -685,7 +706,7 @@ def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, 
     expect(row.locator(".lf-fp-value")).to_have_text("5m ago")
 
 
-def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
+def test_undo_puts_a_card_back_where_the_version_had_it(browser, serve):
     """A withdrawal leaves the log holding one gesture and one word taking it back,
     and the page derives the rest. What it derives here is the placement this
     version's markup arrived showing, read before replay first touched the page —
@@ -725,7 +746,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     ]
 
 
-def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
+def test_undo_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     """Where a unit has no earlier action, the state a move is taken back to is what
     this version's markup arrived showing — and a version written around the
     decision shows the decision. So on v2 the authored placement of a card moved on
@@ -764,7 +785,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
 
 
-def test_z_takes_the_move_the_log_has_not_taken_yet(browser, serve):
+def test_undo_takes_the_move_the_log_has_not_taken_yet(browser, serve):
     """The walk finds the last thing the user did by reading the log, so while the
     page holds a gesture the log has not taken it would name the gesture *before*
     that one — and take the wrong thing back, with the card they had just moved
@@ -1927,36 +1948,36 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
 def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, serve):
     """`503` is a wait the user is told about, not an answer the page could not read.
 
-    leaf.page's edge refuses every event with `503` and a plain-text body for the
-    minutes a container image takes to reach a user's allocation, and the outbox has
-    always retried through it. What it said meanwhile came from the JSON decode that
-    body fails, which reports the page failing to read an answer the server never sent.
+    A server that cannot take a gesture yet, as leaf.page's container host while no
+    container is free, answers `503` with a plain-text body, and the outbox retries
+    through it. What it said meanwhile came from the JSON decode that body fails, which
+    reports the page failing to read an answer the server never sent.
     """
     page = open_page(browser, serve(BOARD_PAGE))
-    starting = {"rollout": True}
+    starting = {"busy": True}
     refused = []
 
     def still_starting(route):
-        if not starting["rollout"]:
+        if not starting["busy"]:
             route.continue_()
             return
         refused.append(route.request.post_data_json["attempt"])
         route.fulfill(
             status=503,
-            body="this release is still starting",
-            headers={"Retry-After": "5", "Content-Type": "text/plain;charset=UTF-8"},
+            body="There is no Container instance available at this time.",
+            headers={"Content-Type": "text/plain;charset=UTF-8"},
         )
 
     page.route("**/api/event", still_starting)
     page.locator("#card-baffle .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
-    holding(page, refused, 2, "the move the rollout would not take")
+    holding(page, refused, 2, "the move the server would not take yet")
     expect_panel_says(page, "Not through yet")
     # The same gesture throughout: a refusal that admits nothing cannot mint a second.
     assert len(set(refused)) == 1
 
-    starting["rollout"] = False
+    starting["busy"] = False
     round_trip(page)
     page.unroute("**/api/event")
     assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
@@ -2212,7 +2233,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     ]
 
 
-def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
+def test_undo_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     """The walk steps past what it has already taken and reaches the gesture before
     it — the edit here, whose authored text comes back with its paragraphs, where
     the state a comparison reads is collapsed. That is what withdrawing buys over
@@ -2316,7 +2337,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     cut.restore()
 
 
-def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
+def test_undo_returns_a_recordless_decision_to_undecided(browser, serve):
     """Withdrawing an accept renders the null decision. The same suggestion regains its
     old passage, its anchored comment marks and its decision controls without replacing
     its subtree, and focus returns to the available decision control."""

@@ -1,6 +1,3 @@
-<!-- @noformat -->
-<!-- Table padding exceeds the harness's 30,000-character single-read limit. -->
-
 # Leaf glossary
 
 The canonical names for the page a user sees and operates. Use them in element
@@ -171,7 +168,7 @@ behavior. A compound widget may own reading regions without being a pane.
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On Me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the On view on the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The On view's first tab, **Menu**: the full status over the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list over the menu: Navigate, Annotations, Versions. While it stands, the comment field is its search |
-| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page**, **Search menu** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, after where the user stands, such as Draw mode or an older version (**v1 of 2**, with **Open latest** at its end), a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position beside the leaf, and Reply with its key at its end. A press it offers, Reply or words selected on the page, reads in ink with its key; everything else reads dim |
+| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page**, **Search menu** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, after where the user stands, such as an older version (**v1 of 2**, with **Open latest** at its end), a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position beside the leaf, and Reply with its key at its end. While a stance such as Draw mode stands, the field takes no words and the row's mode chip names the stance in a word (**Draw**) beside its ✕. A press it offers, Reply or words selected on the page, reads in ink with its key; everything else reads dim |
 | **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs Menu, On Me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page closes it |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens

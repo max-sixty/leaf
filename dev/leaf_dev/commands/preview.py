@@ -103,7 +103,8 @@ from leaf_dev.example_data import (
     page_files,
 )
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
-from leaf_dev.leaf_assets import assets_lock
+from leaf_dev.leaf_assets import LOCK as ASSETS_LOCK
+from leaf_dev.leaf_assets import assets_checkout
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     authored_markup,
@@ -647,7 +648,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     manifest = source_manifest(source)
     companions = page_files(source)
     media = media_source(source)
-    lock = assets_lock(source)
+    checkout = assets_checkout(source)
     composed, composed_trees = composition_inputs(source)
     page = {
         path.resolve()
@@ -668,7 +669,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
             # A pinned copy's bytes change only with its pin, which is followed
             # instead, and it sits under `.tmp`, which no subscription may cover.
             *(() if media.is_relative_to(ASSETS_CACHE) else media.rglob("*")),
-            *([lock] if lock is not None else []),
+            *([checkout / ASSETS_LOCK] if checkout is not None else []),
             # The nearer of these two directories is the one the page's images come
             # from, so either arriving changes which images the refresh copies.
             source.parent / "media",

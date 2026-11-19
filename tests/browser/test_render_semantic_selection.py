@@ -17,7 +17,6 @@ from render_harness import (
     ROOT,
     available_commands,
     expect_panel_says,
-    field_press,
     leaf_page,
     open_page,
     panel_control,
@@ -27,6 +26,7 @@ from render_harness import (
     scroll_settled,
     selection_field,
     sending,
+    stance_exit,
     write,
 )
 
@@ -228,14 +228,13 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
 
 
 def test_the_picker_s_way_out_stays_available_across_pointer_changes(browser, serve):
-    """The picker's way out, Close at the panel field's end, stays in the panel's row
-    as the primary pointer changes under it."""
+    """The picker's way out, the ✕ at the panel row's end, stays in the row as the
+    primary pointer changes under it."""
     page = open_page(browser, serve(TARGETS_PAGE))
-    cancel = field_press(page).filter(has_text="Close")
+    cancel = stance_exit(page)
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
     expect(cancel).to_be_visible()
-    expect(cancel.locator("kbd")).to_have_text("esc")
 
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
@@ -465,26 +464,22 @@ DENSE_TARGETS_PAGE = leaf_page(
 )
 
 
-def test_the_picker_s_close_ends_it_whatever_escape_would_take_back(browser, serve):
-    """Escape takes back a typed hint letter before it closes the picker, so the panel
-    field's Close, which ends the picker at once, says `esc` only while no letter
-    stands typed."""
+def test_the_picker_s_way_out_ends_it_whatever_escape_would_take_back(browser, serve):
+    """Escape takes back a typed hint letter before it closes the picker, and the ✕ at
+    the panel row's end ends the picker at once, a letter typed or none."""
     page = open_page(browser, serve(DENSE_TARGETS_PAGE))
     page.keyboard.press("s")
     hints = page.locator(".lf-target-picker-hint")
     expect(hints).to_have_count(61)
-    close = field_press(page).filter(has_text="Close")
-    expect(close.locator("kbd")).to_have_text("esc")
+    close = stance_exit(page)
+    expect(close).to_have_attribute("aria-label", re.compile("."))
     codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     first = next(code for code in codes if len(code) == 2)[0]
     page.keyboard.press(first)
     expect(close).to_be_visible()
-    expect(close.locator("kbd")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(hints).to_have_count(61)
-    expect(close.locator("kbd")).to_have_text("esc")
     page.keyboard.press(first)
-    expect(close.locator("kbd")).to_have_count(0)
     close.click()
     expect(hints).to_have_count(0)
 

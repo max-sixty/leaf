@@ -447,7 +447,9 @@ def test_a_claude_code_completion_that_gets_no_answer_says_why(page_dir, monkeyp
     with pytest.raises(TimeoutError):
         generate("Pick", page_dir, schema=thread_titles.OUTPUT_SCHEMA, instructions="")
     assert list(requests.parent.glob(requests.name)) == []
-    completions.cmd_reply("s1", {"completion": "a" * 32, "text": "{}"})
+    completions.replied(
+        "s1", {"basis": {"kind": "completion", "completion": "a" * 32}, "text": "{}"}
+    )
     assert list(requests.parent.glob(requests.name)) == []
 
 

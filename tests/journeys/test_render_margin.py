@@ -493,11 +493,11 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     with sending(page, "the reply"):
         send.click()
     expect(preview).to_contain_text("Sent")
-    # The send empties the reply, so the caret it leaves there holds no line: the card
-    # keeps its top, and the sent turn joins under the transcript, moving the box down.
-    # An answer arriving then grows the card down past the box too.
+    # The send leaves the user on the thread, out of the box it empties: the card keeps
+    # its top, and the sent turn joins under the transcript, moving the box down. An
+    # answer arriving then grows the card down past the box too.
     rendered(page)
-    expect(editor).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview).to_be_visible()
     sent = page.evaluate(CARD_AND_REPLY)
     for edge in ("cardTop", "turn"):

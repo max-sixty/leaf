@@ -232,6 +232,13 @@ sheet.replaceSync(`
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));
   }
+  /* The words after a change (data-lf-after, field-editor.js) keep their place from the
+     field's end edge, as layout keeps them, so an owner carrying the words by the start
+     edge draws these farther by --lf-field-after. */
+  .cm-content > [data-lf-after],
+  .cm-content > [data-lf-after] ~ * {
+    translate: var(--lf-field-after);
+  }
   /* The placeholder is one line that never widens the box — a response bar sizes to the
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
@@ -559,11 +566,26 @@ class LeafText extends HTMLElement {
       rect.top - leading <= middle &&
       rect.bottom + leading > middle;
     for (const line of view.contentDOM.children) {
-      const block = line.getBoundingClientRect();
+      // A line after the change carries farther than the words' carry
+      // (`--lf-field-after`), so it is read back by that much.
+      const lineStyle = getComputedStyle(line);
+      const [ox = 0, oy = 0] =
+        lineStyle.translate === "none"
+          ? []
+          : lineStyle.translate.split(/\s+/).map(Number.parseFloat);
+      /** @param {import("../rect.js").Box} rect */
+      const back = (rect) => ({
+        left: rect.left - ox * scaleX,
+        right: rect.right - ox * scaleX,
+        top: rect.top - oy * scaleY,
+        bottom: rect.bottom - oy * scaleY,
+      });
+      const block = back(line.getBoundingClientRect());
       if (block.bottom <= top || block.top >= box.bottom) continue;
-      const height = Number.parseFloat(getComputedStyle(line).lineHeight) * scaleY;
+      const height = Number.parseFloat(lineStyle.lineHeight) * scaleY;
       for (const rect of contentsRects(line))
-        if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
+        if (reaches(back(rect), Math.max(0, (height - rect.height) / 2) || 0))
+          return true;
     }
     if (!view.hasFocus) return false;
     const { rectangle: caret } = module.LeafEditorView.caretAt(

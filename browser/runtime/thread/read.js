@@ -376,7 +376,7 @@ export function createReadTracking({ markRead, openThread }) {
     };
   }
 
-  /** @param {Element} body @param {{id: string, version: string, author: string, attempt: string | null, provisional: boolean, progress: boolean, failure: string | null}} message */
+  /** @param {Element} body @param {{id: string, version: string, author: string, attempt: string | null, provisional: boolean, failure: string | null}} message */
   function observeMessage(body, message) {
     return observeBody(body, {
       id: message.id,
@@ -389,19 +389,17 @@ export function createReadTracking({ markRead, openThread }) {
               presentation_kind: "message_words",
               reply_kind: message.provisional
                 ? "stream"
-                : message.progress
-                  ? "progress"
-                  : message.failure
-                    ? "failure"
-                    : "answer",
+                : message.failure
+                  ? "failure"
+                  : "answer",
               surface: "margin",
             }
           : null,
     });
   }
 
-  // A working line displays explicit agent words without mounting their folded
-  // MessageView. Its renderer supplies exact source identity, never its thread parent.
+  // A working line displays explicit agent words, which have no MessageView. Its
+  // renderer supplies exact source identity, never its thread parent.
   /** @param {Element} body @param {Feedback} feedback */
   function observeFeedback(body, feedback) {
     return observeBody(body, { id: null, version: null, feedback });

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM node:22-bookworm-slim AS codex
 
 WORKDIR /codex
@@ -27,8 +28,10 @@ RUN ln -s /codex-bin/rg /usr/local/bin/rg
 
 # Leaf and its website server come from the installation `leaf-dev site build` built its pages
 # with, a prepared one, so a revision a hosted session writes carries the same compiled
-# kernel as the published pages.
-COPY .tmp/site-install/ ./
+# kernel as the published pages. Building those pages ran its launcher, which left the
+# build host's environment and bytecode in it; the image builds its own. `--exclude` needs
+# Dockerfile syntax 1.19 or later, which the `syntax` line fetches on an older engine too.
+COPY --exclude=**/.venv --exclude=**/__pycache__ .tmp/site-install/ ./
 # Install the complete prepared plugin before uv creates an environment in this
 # payload: Codex's native installer copies it into the ordinary plugin cache.
 COPY worker/codex-config.toml /codex-home/config.toml

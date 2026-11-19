@@ -82,8 +82,8 @@ reaches the agent in every run and every generation of the session, resuming an
 ended one. A name doesn't:
 Claude Code gives a name to the newest agent spawned under it, refuses a send to a
 name that has moved from the agent the main session first reached by it, and reaches
-nothing by a name after `claude --resume` (2.1.325, `notes/fork-replies.md`). So the
-module spawns each fork unnamed, leaving the main session no second address that
+nothing by a name after `claude --resume` (2.1.325, `notes/fork-replies.md`). So
+Leaf spawns each fork unnamed (`step`), leaving the main session no second address that
 could move.
 
 The user chose that one fork works a thread. While a fork's turn runs,
@@ -110,7 +110,7 @@ session had it, which would hide it from the nudge and the overdue count.
 The line fork thinks at the session's own effort, and its prompt asks it to reply
 straight away without thinking it over, since every second it takes keeps the thread's
 messages from the session; a fork at another effort can cost a rewrite of the
-conversation to the cache (`runFork` in `hooks/claude-code.ts` says when). A fork at
+conversation to the cache (`carrier.fork` says when). A fork at
 `low` writes lines as good as xhigh's (`notes/fork-replies.md`, "How well the fork
 judges") and skips the occasional line xhigh spends seconds thinking over, while a
 fork at xhigh asked to reply straight away does as well on the eval's cases.
@@ -156,11 +156,12 @@ user accepted three rare paths with it:
   the message at its next prompt.
 
 The lane is the session's pages follower (`hooks.cmd_pages`) while it holds the
-lease at `lane_path`: the follower prints each kept-back thread with the session's
-pages (`look`), and the module asks a line fork about each one (`ask`), then hands
-its answer back (`route`). Python writes the prompt (`line_prompt`); the module only
-carries it and the line, and names the tool calls the session is running, which the
-line fork can't see: its last request predates them.
+lease at `lane_path`: the follower lists a report for each kept-back thread (`look`,
+`listed`), whose answer is the line fork's question (`ask`), and the line fork's answer
+is routed (`route`), each a step of the instructions the module carries (`step`,
+`carrier.py`). Python writes the prompt (`line_prompt`) and decides each step; the
+module makes the fork and names the tool calls the session is running, which the line
+fork can't see: its last request predates them.
 
 The prompt carries the thread whole, as the user asked, where a delivery to the
 session carries a long thread's opening and latest messages and leaves the middle
@@ -269,6 +270,16 @@ class KeptBack(NamedTuple):
             "inputs": list(self.inputs),
             "turn": self.turn,
         }
+
+
+def listed(kept: KeptBack, page_dir: Path) -> dict:
+    """The instruction the pages follower lists for the kept-back thread `kept`: a
+    report, whose answer is its line fork (`step`)."""
+    return {
+        "id": f"line:{kept.turn}",
+        "do": "report",
+        "basis": {"kind": "line", "thread": kept.basis(page_dir)},
+    }
 
 
 def lane_path(session_id: str) -> Path:
@@ -451,55 +462,115 @@ def look(session_id: str, page_dir: Path) -> list[KeptBack]:
         return kept_back(page) if claim and claim["id"] == session_id else []
 
 
-def cmd_fork(session_id: str, payload: dict) -> dict | None:
-    """One step of a thread's forks, as `leaf hook --fork` hands it over: with the
-    kept-back thread in `payload["thread"]` and without `answer` or `failed`, the line
-    fork's question (`ask`); with one, what Leaf did with the line fork's answer
-    (`route`), which may give the work to a working fork. The module then says which
-    agent its harness started for that fork's turn (`started`), and, as any agent of
-    the session's run ends, what it ended with (`ended`). With `beside`, the basis of a
-    fork Leaf asked for beside the line fork (`ask`), what Leaf did with its answer,
-    by the duty it names (`BESIDE`)."""
-    if "beside" in payload:
-        basis = payload["beside"]
-        return BESIDE[basis["duty"]](
+def step(session_id: str, payload: dict) -> dict | None:
+    """Leaf's answer to the module's report of one of a thread's instructions
+    (`carrier.step`), by its basis's `kind`. For a kept-back thread (`line`), the
+    follower's report asks the line fork's question (`ask`), with the forks to make
+    beside it, and the line fork's answer, or a failed step, is routed (`route`), giving
+    the work to a working fork where the fork judged `take`: a new fork
+    of the conversation with the session's tools, spawned unnamed for the reason this
+    module's header gives, or the fork that answered the thread before, resumed by a
+    send to its agent id. For a fork beside it (`beside`), Leaf writes what it
+    answered by the duty its basis names (`BESIDE`). For a working fork (`work`), the
+    module's first report says which agent runs the fork's turn (`started`), and one
+    with `ended` or `failed` closes the turn (`ended`), naming the agent where one
+    started."""
+    from .carrier import fork
+
+    basis = payload["basis"]
+    kind = basis["kind"]
+    if kind == "beside":
+        outcome = BESIDE[basis["duty"]](
             session_id,
             basis,
             answer=payload.get("answer"),
             failed=payload.get("failed"),
             usage=payload.get("usage"),
             elapsed_ms=payload.get("elapsed_ms"),
-            request=payload.get("request"),
+            request=payload.get("resent"),
         )
-    if "ended" in payload:
-        run = payload["ended"]
-        return {
-            "ended": ended(
+        duty, thread = basis["duty"], basis["thread"]
+        log = f"the {duty} fork for thread {thread}: {outcome['outcome']}"
+        return {**outcome, "log": log}
+    if kind == "work":
+        if "ended" in payload or "failed" in payload:
+            run = payload.get("ended") or {"failed": payload["failed"]}
+            ended(
                 session_id,
-                agent=run.get("agent"),
-                turn=run.get("turn"),
+                agent=payload.get("agent"),
+                turn=basis["turn"],
                 answer=run.get("answer"),
                 failed=run.get("failed"),
                 elapsed_ms=payload.get("elapsed_ms"),
             )
+        else:
+            started(session_id, basis["thread"], basis["turn"], payload["agent"])
+        return None
+    thread = basis["thread"]
+    if payload["do"] == "report" and "failed" not in payload:
+        running = payload.get("running") or []
+        question = ask(session_id, thread, running)
+        if question is None:
+            return None
+        turn = thread["turn"]
+        forked = {"kind": "line", "thread": thread, "running": running}
+        return {
+            "do": [
+                fork(f"fork:{turn}", question["prompt"], forked),
+                *(
+                    fork(
+                        f"{beside['basis']['duty']}:{turn}",
+                        beside["prompt"],
+                        {"kind": "beside", **beside["basis"]},
+                    )
+                    for beside in question.get("beside", [])
+                ),
+            ]
         }
-    basis = payload["thread"]
-    if "started" in payload:
-        return started(
-            session_id, basis, payload["started"]["turn"], payload["started"]["agent"]
-        )
-    if "answer" in payload or "failed" in payload:
-        return route(
-            session_id,
-            basis,
-            answer=payload.get("answer"),
-            failed=payload.get("failed"),
-            usage=payload.get("usage"),
-            elapsed_ms=payload.get("elapsed_ms"),
-            running=payload.get("running") or [],
-            request=payload.get("request"),
-        )
-    return ask(session_id, basis, payload.get("running") or [])
+    outcome = route(
+        session_id,
+        thread,
+        answer=payload.get("answer"),
+        failed=payload.get("failed"),
+        usage=payload.get("usage"),
+        elapsed_ms=payload.get("elapsed_ms"),
+        # The calls the line fork's prompt named, which a failed report lacks.
+        running=basis["running"]
+        if "running" in basis
+        else payload.get("running") or [],
+        request=payload.get("resent"),
+    )
+    log = f"the line fork for thread {thread['thread']}: {outcome['outcome']}"
+    if outcome["outcome"] != "take":
+        return {**outcome, "log": log}
+    work = {
+        "id": f"work:{outcome['turn']}",
+        "basis": {"kind": "work", "thread": thread, "turn": outcome["turn"]},
+    }
+    return {
+        **{name: value for name, value in outcome.items() if name != "prompt"},
+        "do": [
+            {
+                **work,
+                "do": "send",
+                "request": {
+                    "to": {"agentId": outcome["resume"]},
+                    "text": outcome["prompt"],
+                },
+            }
+            if "resume" in outcome
+            else {
+                **work,
+                "do": "spawn",
+                "request": {
+                    "prompt": outcome["prompt"],
+                    "subagentType": "fork",
+                    "description": f"Leaf: {outcome['text']}",
+                },
+            }
+        ],
+        "log": log,
+    }
 
 
 def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
@@ -603,14 +674,16 @@ def line_prompt(data: dict, running: list[dict]) -> str:
     """The one message a fork answers: what it is for, the thread as Leaf would
     deliver it (`delivery.batch_data`) but whole, and what the session is running."""
     return f"""{LINE_OPENING}
-This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to acknowledge them at once while the main session carries on. The main session takes the message from here and does what it asks. Every tool call is denied here, so don't call tools, and reply straight away without thinking it over. {_running_line(running)}
+This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds. You are a fork of the session, and Leaf asks you for two things: the working line it posts in the thread at once, saying what the agent will do about the message, and who should do that work, a fork of the session beside the main session or the main session itself.
 
-The whole thread, as Leaf delivers it; "events" are the user's messages, oldest first:
+Every tool call is denied here, so don't call tools, and reply straight away without thinking it over.
+
+{_running_line(running)} The whole thread, as Leaf delivers it; "events" are the user's messages, oldest first:
 {thread_json(data)}
 
-Leaf posts your line in the thread at once as the agent's working line, until the main session's own words replace it. Write that one line: what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer to the main session, even where the conversation above holds it.
+The line stands in the thread as the agent's until the agent's answer replaces it. Write what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer out of the line, even where the conversation above holds it.
 
-Then judge who should do what the message asks. "take": a fork of the session with the session's tools could do it start to finish beside the main session, because it needs nothing the main session is changing or about to change (its files and branch, the page's source, its pull requests), settles no question the main session is weighing, and waits on nothing the session is running; answering from reading, a lookup, or research that writes only its own scratch files are such work. "hand_over": it belongs with the main session.
+The work is "take" where a fork of the session with the session's tools could do it start to finish beside the main session: it changes nothing the main session works on (its files and branch, the page's source, its pull requests), settles no question the main session is weighing, and waits on nothing the session has under way, such as a command it is running or a change it has started and not finished. Reading, a lookup, or research that writes only its own scratch files is such work, in the session's files and the page's source too. Otherwise it is "hand_over", and the main session does it.
 
 Reply with this JSON alone: {{"line": "<the line>", "work": "take" or "hand_over"}}
 </leaf-line-fork>"""

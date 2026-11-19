@@ -11,7 +11,7 @@ import { keeps, keepsHidden } from "../keeps.js";
 import { generatedElement } from "../widget-elements.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
-import { THREAD, threadPart, wholeThread } from "./selectors.js";
+import { THREAD, declareThreadParts, threadPart, wholeThread } from "./selectors.js";
 import { threadRewrites } from "./message-edit.js";
 import { orderChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
@@ -41,12 +41,15 @@ import { turns } from "./model.js";
    (`threadRewrites`). Layout and disclosure belong to the caller. The thread's reply
    destination is its reply box as the parts stand: a thread's or a reply part's, or the
    one the presentation drawing them declares (selectors.js, `threadPart`), as the
-   floating panel declares its field. A reply part takes the presentation's words for
-   its box and its own landing of a send (replies.js, `createReplyView`), as a thread
-   part's reply outlet does. It stands in a resolved thread too, where a reply reopens
-   the thread, as a card's reply row does. The thread itself, where a walk or a notice
-   lands the keyboard, is the drawing the presentation declares around the parts, as the
-   panel's view is. The notice of what the reader holds back (held-news.js) stands in a
+   floating panel declares its field. A message part holds no box of its own and
+   declares that one as its reply, so where the reader draws the thread's reply box,
+   Enter or `c` on a message part a walk or a rewrite's Save left the user on writes in
+   it, as on a card. A reply part takes the presentation's words for its box and its
+   own landing of a send (replies.js, `createReplyView`), as a thread part's reply
+   outlet does. It stands in a resolved thread too, where a reply reopens the thread,
+   as a card's reply row does. The thread
+   itself, where a walk or a notice lands the keyboard, is the drawing the presentation
+   declares around the parts, as the panel's view is. The notice of what the reader holds back (held-news.js) stands in a
    thread part as a card's does, or where its nomination stands it; among message parts
    it stands at the end of the first part's head, in room every such head keeps for it,
    so news arriving moves none of the head's words. */
@@ -123,7 +126,6 @@ export function createPrimaryReader(
       const whole = parts.find((part) => part instanceof ThreadView);
       return {
         node: drawingOf(parts) ?? last.node,
-        progressOpen: whole?.progressOpen ?? false,
         // A presentation that makes room for the agent's answer to the user's last turn
         // itself (`answersAtOnce`) is handed it whatever it moves. A whole thread moves
         // what a card's would (thread-card.js, `newsMoves`).
@@ -177,10 +179,12 @@ export function createPrimaryReader(
    * @returns {view is Extract<RetainedPart, {kind: K}>} */
   const isKind = (view, kind) => view.kind === kind;
   // The thread's reply box as the parts drawn stand, in a reply part or where the
-  // presentation around them declares it.
+  // presentation around them declares it. A message part holds none of its own and
+  // declares this one as its reply.
   /** @param {string} key */
   const replyOf = (key) => {
     for (const view of destinations.get(key) ?? []) {
+      if (view.kind === "message") continue;
       const input = !view.node.hidden && threadPart(view.node, "reply");
       if (input) return input;
     }
@@ -453,6 +457,11 @@ export function createPrimaryReader(
               edit: rewritesOf(item.key).edit,
             });
             node.append(message.node);
+            declareThreadParts(node, {
+              reply: () => replyOf(item.key),
+              settlement: () => null,
+              whole: (part) => part,
+            });
             /** @type {MessagePart} */
             const part = {
               kind: "message",

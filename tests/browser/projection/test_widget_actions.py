@@ -868,7 +868,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
     )
 
 
-def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
+def test_undo_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
     """A decision the next revision keeps in force is still the user's newest gesture
     there, so ⌘Z takes it back as the widget's own Undo would."""
     first = leaf_page(

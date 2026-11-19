@@ -14,7 +14,6 @@ interface DeploymentConfig {
     class_name: string;
     max_instances: number;
     instance_type: { vcpu: number; memory_mib: number; disk_mb: number };
-    rollout_active_grace_period: number;
   }>;
   durable_objects: {
     bindings: Array<{ name: string; class_name: string }>;
@@ -38,10 +37,7 @@ const config = parse(
   readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8"),
 ) as unknown as DeploymentConfig;
 const [container] = config.containers;
-const dockerfile = readFileSync(
-  new URL("../../Dockerfile.website", import.meta.url),
-  "utf8",
-);
+const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
 const codexConfig = parse(
   readFileSync(new URL("../codex-config.toml", import.meta.url), "utf8"),
 ) as Record<string, unknown>;

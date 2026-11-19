@@ -859,7 +859,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
     )
     page.mouse.wheel(0, -3500)
     page.wait_for_function("view => view.scrollTop < 1", arg=view.element_handle())
-    expect(reply).to_be_focused()
+    expect(view).to_be_focused()
     opening = view.locator(".lf-msg").first
     before = opening.evaluate("node => node.getBoundingClientRect().top")
 
@@ -873,7 +873,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(browser, serve):
     assert opening.evaluate(
         "node => node.getBoundingClientRect().top"
     ) == pytest.approx(before, abs=1)
-    expect(reply).to_be_focused()
+    expect(view).to_be_focused()
 
 
 def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):

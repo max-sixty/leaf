@@ -647,10 +647,13 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 
 
-def test_an_armed_go_to_names_itself_and_closes_from_any_step(browser, serve):
-    """While Go-to waits for a key, the panel's field names it where the user reads,
-    chips or none, and ends in Close, which says esc while Escape would close the map,
-    not while it would take a filter back, and takes the map off from any step."""
+def test_an_armed_go_to_is_named_beside_the_way_out_that_closes_it_from_any_step(
+    browser, serve
+):
+    """While Go-to waits for a key, the panel's row names it beside its ✕, chips or
+    none, where the field says what Go-to found, and the ✕ takes the map off from any
+    step, a filter typed or none. The field's end says Close and esc while Escape would
+    take the map off, and nothing while it would take back a typed letter first."""
     page = open_page(
         browser,
         serve(
@@ -660,30 +663,29 @@ def test_an_armed_go_to_names_itself_and_closes_from_any_step(browser, serve):
         ),
     )
     field = page.locator(".lf-fp-field leaf-text")
+    name = page.locator(".lf-fp-mode")
+    leave = page.locator('.lf-fp-quick .lf-fp-exit[aria-label="Close Go to"]')
     page.locator("body").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
-    expect(field).to_have_attribute(
-        "placeholder", re.compile(r"^In Go-to · .+ · Close esc$")
-    )
-    # A filter that keeps the link's chip: Escape would take the filter back first.
+    expect(name).to_have_text("Go to")
+    expect(leave).to_be_visible()
+    expect(field).to_have_attribute("placeholder", re.compile(r" · Close esc$"))
+    expect(field).not_to_have_attribute("placeholder", re.compile("Go-to"))
+    # A filter that keeps the link's chip.
     page.keyboard.press("h")
     expect(page.locator(f"{CHIPS}:visible")).to_have_count(1)
-    expect(field).to_have_attribute(
-        "placeholder", re.compile(r"^In Go-to · .+ · Close$")
-    )
+    expect(name).to_have_text("Go to")
+    expect(field).not_to_have_attribute("placeholder", re.compile("Close"))
     page.keyboard.press("Escape")
-    expect(field).to_have_attribute(
-        "placeholder", re.compile(r"^In Go-to · .+ · Close esc$")
-    )
+    expect(field).to_have_attribute("placeholder", re.compile(r" · Close esc$"))
     page.keyboard.press("t")
-    expect(field).to_have_attribute(
-        "placeholder", "In Go-to · No visible threads · Close"
-    )
-    page.locator(".lf-fp-field").get_by_text("Close", exact=True).click()
+    expect(field).to_have_attribute("placeholder", "No visible threads")
+    leave.click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
-    expect(field).not_to_have_attribute("placeholder", re.compile("Go-to"))
+    expect(name).to_be_hidden()
+    expect(leave).to_have_count(0)
 
 
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):

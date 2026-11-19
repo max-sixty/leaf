@@ -1,14 +1,26 @@
 /**
  * Public Leaf site with edge reads and isolated canonical mutation sessions.
  *
- * Cloudflare serves untouched pages at the edge. A browser cookie selects a private,
- * release-scoped Durable Object holding canonical page records and Python-produced
- * dormant responses. Saved content loads without starting Linux. Mutations wake the
- * Python Leaf server, which restores the record before admission and publishes the
- * record and matching delivery atomically before acknowledgement. Python owns all
- * event and activity rules; this Worker stores and routes their output.
- * New releases select new demo records. A previous container image during rollout is
- * refused rather than letting it interpret the new release's document.
+ * Cloudflare serves untouched pages at the edge. A browser cookie selects a private
+ * Durable Object, one per page protocol and store format, holding canonical page
+ * records and Python-produced dormant responses. Saved content loads without starting
+ * Linux. Mutations wake the Python Leaf server, which restores the record before
+ * admission and publishes the record and matching delivery atomically before
+ * acknowledgement. Python owns all event and activity rules; this Worker stores and
+ * routes their output.
+ * A visitor's records outlive a deploy at the same page protocol and store format
+ * (`storage.ts`), as a local page outlives a Leaf update: the next release's container
+ * restores them and serves them on its own runtime, and a new protocol or format selects
+ * new records. The maintainer chose this over a record per release, which reset every
+ * visitor's comments, choices and agent thread at each deploy. Only the edge names a
+ * release to the browser: it stamps its own on every answer, a container's included.
+ * Nothing a previous release runs reaches a visitor: Cloudflare resets an active session
+ * object at the deploy, so it runs the deployed release's code from then on
+ * (`code_update_strategy` in `wrangler.toml`); the page store refuses a container
+ * whose image runs another release, so a previous image still starting during a
+ * rollout fails before it reads or writes the records; the store serves a saved
+ * response only to the release that captured it; and this object stops a container
+ * from before a deploy at the deploy's first request.
  * Disposable sample URLs carry the opaque container object ID alongside their own
  * random capability, so an opaque-origin child uses native requests without a browser
  * session cookie. This routing reference selects a container only beneath that sample
@@ -47,6 +59,7 @@ import {
   readPageDrafts,
   readPublication,
   readPublicationCommit,
+  STORE_FORMAT,
 } from "./storage";
 
 import { agentLog, dispatchAgentTask, prewarmContainer } from "./agent";
@@ -60,8 +73,8 @@ import { proxyModelRequest } from "./model-proxy";
 import {
   activeCookie,
   activeFromCookie,
-  clearActiveCookie,
   isLivePageDocumentRequest,
+  isPageVersionRequest,
   isPageApiRequest,
   isPageSessionFileRequest,
   isPrivatePageRequest,
@@ -138,6 +151,7 @@ const PAGE_FAULT_REASON_CHARS = 300;
 const MAX_INTERACTION_BYTES = 128 * 1024;
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
 const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
+const CONTAINER_RELEASE = "container-release";
 interface AcceptedEvent {
   event: Event;
   needsReply: boolean;
@@ -218,9 +232,21 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 
   override async fetch(request: Request): Promise<Response> {
+    const manifest = await siteManifest(request, this.env);
+    // The object's container belongs to the release whose Worker last claimed the
+    // object. A container from before a deploy runs the previous image, whose documents
+    // name assets this release no longer serves, so the first request after the deploy
+    // stops it; its records are saved, and any container started afterwards runs this
+    // release's image or fails to start (`answerPageStore`). Requests that arrive
+    // meanwhile wait for the claim, so none stops a container this release is starting.
+    if (this.ctx.storage.kv.get(CONTAINER_RELEASE) !== manifest.release)
+      await this.ctx.blockConcurrencyWhile(async () => {
+        if (this.ctx.storage.kv.get(CONTAINER_RELEASE) === manifest.release) return;
+        if (this.ctx.container?.running) await this.destroy();
+        this.ctx.storage.kv.put(CONTAINER_RELEASE, manifest.release);
+      });
     if (!this.ctx.container?.running) {
       const url = new URL(request.url);
-      const manifest = await siteManifest(request, this.env);
       const route = pageRoute(url.pathname, manifest);
       if (route !== null) {
         // Optional viewport observations are useful only to a running agent.
@@ -238,7 +264,12 @@ export class LeafWebsiteSession extends Container<Env> {
             request.headers.get("Leaf-View-Revision");
           if (revision) path += `?revision=${revision}`;
         }
-        const response = await this.pages.response(route.root, path, request);
+        const response = await this.pages.response(
+          route.root,
+          path,
+          request,
+          manifest.release,
+        );
         if (response !== null) return response;
       }
     }
@@ -255,10 +286,11 @@ interface HttpFailure {
 // 500, and that 500's body is the SDK's sentence about the failure, such as a
 // connection lost mid-request or a container that did not accept one. The SDK logs
 // the exception behind some of those, not reliably with its message, and none for a
-// lost connection. Python stamps its own answers and logs page_fault. Retain the
-// SDK's sentence as `detail`, and add neither Python's body nor the request URL.
+// lost connection. Python names the session on its own answers (`Leaf-Session`,
+// `WebsitePageEndpoint`) and logs page_fault. Retain the SDK's sentence as `detail`,
+// and add neither Python's body nor the request URL.
 async function httpFailure(response: Response): Promise<HttpFailure> {
-  if (response.headers.has("Leaf-Release")) return { source: "adapter" };
+  if (response.headers.has("Leaf-Session")) return { source: "adapter" };
   const body = await readBoundedText(response.clone(), 1024).catch(() => null);
   return body === "Container suddenly disconnected, try again" ||
     body?.startsWith("Error proxying request to container:")
@@ -355,10 +387,17 @@ function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-// A release selects its own durable record and container; new code never interprets
-// a different release’s demo state. Container replacement keeps the same record.
-function containerId(sessionId: string, release: string): string {
-  return `${release}:${sessionId}`;
+// What a visitor's record is readable by: Leaf's page protocol for the page files, and
+// the store's own format for the tables holding them (`STORE_FORMAT`). Each scope has
+// its own durable record and container, so a deploy that keeps both keeps a visitor's
+// page, and one that moves either starts them on the published page. Container
+// replacement keeps the same record.
+function recordScope(manifest: SiteManifest): string {
+  return `${manifest.protocol}.${STORE_FORMAT}`;
+}
+
+function containerId(sessionId: string, scope: string): string {
+  return `${scope}:${sessionId}`;
 }
 
 // The body as text, or null once it passes maxBytes, whether the client declared that
@@ -644,39 +683,6 @@ async function staticState(
   return answer;
 }
 
-// Cloudflare activates a Worker and its assets in one operation and rolls the container
-// application's image out in another, so for the first minutes of a deployment the edge
-// already serves the new release while containers still answer for the previous one. The
-// browser's only move against a foreign release is to reload, and the document it would
-// reload onto is the one this edge just gave it, so handing that answer on leaves the
-// page restarting for as long as the rollout runs. The edge answers for itself instead:
-// the user is unseated, reads the published projection at the release their document
-// belongs to, and waits to send rather than landing a gesture in a container that is
-// about to be replaced.
-async function rollingOut(
-  request: Request,
-  env: Env,
-  manifest: SiteManifest,
-  route: PageRoute,
-  reference: string,
-  cookies: string[],
-): Promise<Response> {
-  let answer: Response;
-  if (request.method === "GET" && route.inside === "api/state") {
-    answer = await staticState(request, env, manifest, route, reference);
-  } else {
-    // A history load reuses a stored answer without asking, so a stored refusal would
-    // stand in for the document or API answer after the rollout ends.
-    answer = new Response("this release is still starting", {
-      status: 503,
-      headers: { "Retry-After": "5", "Cache-Control": "no-store" },
-    });
-    stampDelivery(answer.headers, route, manifest, reference);
-  }
-  for (const cookie of cookies) answer.headers.append("Set-Cookie", cookie);
-  return answer;
-}
-
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestStarted = Date.now();
@@ -743,6 +749,7 @@ export default {
       const fetched = await env.PAGES.get(id).fetch(request);
       const response = new Response(fetched.body, fetched);
       response.headers.delete("Set-Cookie");
+      response.headers.set("Leaf-Release", manifest.release);
       // Only the container can admit this capability. After admission, retain the
       // same bounded, redacted cloud evidence as a parent batch; the clone lets
       // the native request also keep its full local trace.
@@ -759,9 +766,10 @@ export default {
     const secure = url.protocol === "https:";
     const cookie = request.headers.get("Cookie");
     const existing = sessionFromCookie(cookie, secure);
-    const active = activeFromCookie(cookie, secure, route.root, manifest.release);
+    const scope = recordScope(manifest);
+    const active = activeFromCookie(cookie, secure, route.root, scope);
     const sessionId = existing ?? randomSessionId();
-    const privateContainer = containerId(sessionId, manifest.release);
+    const privateContainer = containerId(sessionId, scope);
     const reference = sessionReference(sessionId);
     if (request.method === "POST" && route.inside === "api/performance") {
       if (existing === null) {
@@ -806,9 +814,14 @@ export default {
     if (!active && request.method === "GET" && route.inside === "api/state") {
       return staticState(request, env, manifest, route, reference);
     }
-    // An active page's current document belongs to its private record, including
-    // on ordinary reload. Its DO can serve that document while the container sleeps.
-    const privateDocument = active && isLivePageDocumentRequest(route);
+    // An active page's current document and its versions belong to its private
+    // record, including on ordinary reload, since their addresses don't name their
+    // content: a record an earlier release saved holds its own versions, which the
+    // release's published ones of the same number are not. Revisions and media are
+    // named by their content, so a published copy is the same file. The DO can serve
+    // these documents while the container sleeps.
+    const privateDocument =
+      active && (isLivePageDocumentRequest(route) || isPageVersionRequest(route));
     if (
       (request.method === "GET" || request.method === "HEAD") &&
       !isPageApiRequest(route) &&
@@ -841,12 +854,6 @@ export default {
     }
     const posted = request.method === "POST" && route.inside === "api/event";
     const response = await getContainer(env.PAGES, privateContainer).fetch(request);
-    const containerRelease = response.headers.get("Leaf-Release");
-    if (containerRelease !== null && containerRelease !== manifest.release) {
-      const cookies = [clearActiveCookie(secure, route.root)];
-      if (existing === null) cookies.push(sessionCookie(sessionId, secure));
-      return rollingOut(request, env, manifest, route, reference, cookies);
-    }
     if (posted) {
       const accepted = await acceptedEvent(response);
       if (accepted) {
@@ -886,16 +893,17 @@ export default {
       answer.headers.delete("Content-Length");
       answer.headers.delete("Content-Encoding");
     }
-    answer.headers.set("Leaf-Session", "active");
+    answer.headers.set("Leaf-Release", manifest.release);
     answer.headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
       answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active)
-      answer.headers.append(
-        "Set-Cookie",
-        activeCookie(secure, route.root, manifest.release),
-      );
+    // Only Python's own answer, which names its session (`Leaf-Session: active`), shows
+    // the container holds the page. The Containers SDK's failure for a container that
+    // never started names none, so neither the visitor's cookie nor their browser pins
+    // later reads to that container.
+    if (!active && response.headers.has("Leaf-Session"))
+      answer.headers.append("Set-Cookie", activeCookie(secure, route.root, scope));
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
       answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }

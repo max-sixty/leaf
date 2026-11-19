@@ -162,7 +162,7 @@ For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
 
 A cause waits on the maintainer when its next step is one only they can take, such
-as a decision. Assign it to the maintainer while it waits (`TODO.md`, "Backlog",
+as a decision. Assign it to the maintainer while it waits (`notes/TODO.md`, "Backlog",
 names them), say in it what you found and what their answer should settle, and
 unassign them once they act. A cause that asks them something without
 assigning them is missing from their list of assigned issues.
@@ -244,7 +244,7 @@ and its lane's next passing run closes it.
 ## Leave backlog issues to the maintainer
 
 An issue labelled `backlog` is an item on the maintainer's prioritised backlog
-(`TODO.md` says how it is kept), not a report awaiting triage. When one reaches
+(`notes/TODO.md` says how it is kept), not a report awaiting triage. When one reaches
 you, whether through triage or an unread notification, take no action, post
 nothing, and acknowledge the notification.
 

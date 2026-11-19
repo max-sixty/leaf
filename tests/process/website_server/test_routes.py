@@ -303,9 +303,10 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     if published_revision:
-        manifest["pages"]["/examples/decision"]["states"] = {
-            "1": "/_leaf/state/decision--r1.json"
-        }
+        assert website_server.activate_source(published).revision == 1
+        manifest["pages"]["/examples/decision"]["revisions"] = [
+            revision_path(published, 1).stem
+        ]
     manifest_path.write_text(json.dumps(manifest))
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, harness)
@@ -402,13 +403,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
         assert get(f"{root}/health")[0] == b"ok\n"
-        # During a rollout a container on the previous release can be asked for a
-        # page only the new release has. Its refusal names its release, so the Worker
-        # replaces it as it does any previous release's answer (`rollingOut`).
-        with pytest.raises(urllib.error.HTTPError) as refused:
-            get(f"{root}/added-later/api/news")
-        assert refused.value.code == 404
-        assert refused.value.headers["Leaf-Release"] == "0" * 64
 
         document, headers = get(f"{root}/examples/decision/")
         assert b"sitenote.js" not in document
@@ -652,7 +646,7 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     page = manifest["pages"]["/examples/decision"]
-    page["states"] = {"1": "unused"}
+    page["revisions"] = [revision_path(published, 1).stem]
     manifest_path.write_text(json.dumps(manifest))
     release = f"{page['assets']}/revisions/{revision_path(published, 1).stem}"
     # A revision a session saved after the release is the container's, never the
@@ -686,7 +680,6 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
             assert headers["Access-Control-Allow-Origin"] == "*"
         registry, headers = get(f"{root}{release}/registry.json")
         assert json.loads(registry)["$layer"] == load_registry(published)["$layer"]
-        assert headers["Leaf-Release"] == manifest["release"]
         for missing in (
             f"{release}/api/state",
             f"{page['assets']}/revisions/r9-x/a.js",

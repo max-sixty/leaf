@@ -6,7 +6,7 @@ such as the route bar and the catalog's previews and captions, composed in as it
 (`leaf_dev.docs`). The Worker serves the
 build-generated initial projection at the edge, then gives an interacting browser a
 private copy through Leaf's canonical Python server. The catalog previews and the
-product card come from the max-sixty/leaf-assets revision pinned in `leaf-assets.json`.
+product card come from the max-sixty/leaf-assets revision pinned in `.config/leaf-assets.json`.
 
 The worked examples and developer package galleries become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture records
@@ -50,8 +50,9 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 from leaf.event_log import initialized
-from leaf.files import latest_revision, list_revisions
+from leaf.files import latest_revision, list_revisions, revision_path
 from leaf.live_shell import write_live_shell
+from leaf.registry.kernel import kernel_protocol
 from leaf.schema import (
     BROWSER_DIRS,
     DATA_DIR,
@@ -357,6 +358,9 @@ def publish_live_shells(
     # assets, from here rather than from copies of its own.
     manifest = {
         "release": release,
+        # The Worker keys a visitor's private record by it, so the record outlives a
+        # deploy until the protocol moves (`worker/src/index.ts`).
+        "protocol": kernel_protocol(),
         "frame_ancestors": FRAME_ANCESTORS_CSP,
         "routes": {
             "layer": list(BROWSER_DIRS),
@@ -391,6 +395,12 @@ def publish_live_shells(
             "layer": state["layer"]["generation"],
             "state": state_path,
             "states": states,
+            # The revision files published beside this release's runtime, which a
+            # visitor's record may hold beside revisions an earlier release published.
+            "revisions": [
+                revision_path(page_dir, revision).stem
+                for revision in list_revisions(page_dir)
+            ],
             "title": title,
             "description": description,
             "image": images.get(page_root, images[""]),

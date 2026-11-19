@@ -14,7 +14,7 @@ The pieces this runbook names:
 | `worker/src/agent.ts`, `worker/src/model-proxy.ts` | The hosted agent's dispatch and its outbound OpenAI handler                      |
 | `worker/leaf_website/`                             | The Python adapter each container runs in front of Leaf's server                 |
 | `worker/wrangler.toml`                             | Production (`leaf-website`) and the `dev` environment (`leaf-website-dev`)       |
-| `Dockerfile.website`                               | The container image                                                              |
+| `worker/Dockerfile`                                | The container image                                                              |
 | `.github/workflows/publish-site.yaml`              | The only production deploy                                                       |
 
 `uv run leaf-dev site build` builds the site into `.tmp/site`, with its edge assets in
@@ -166,11 +166,11 @@ The workflow:
   to answer a real turn with a reply and a published revision.
 
 Cloudflare activates the Worker before the new container image has rolled out. Until
-it has, a container on the previous release answers, the Worker replaces that answer
-with the published state or a `503` with `Retry-After`, and the `--wait` reruns the
-check. The session's page store refuses such a container (`worker/src/storage.ts`), so
-it starts without the session's record rather than reading one the new release shaped,
-and logs `page_restore_refused`.
+it has, a session's container can still start on the previous image. The session's
+page store refuses that container (`worker/src/storage.ts`), so it exits before
+serving and the `--wait` reruns the check. A visitor who acts on the page meanwhile
+sees it as not through yet, and the page sends it again until the rollout reaches
+their container.
 
 ### One-time setup
 
@@ -235,15 +235,15 @@ against the rate limits below.
 
 Revert the change on `main` and land the revert. The revert touches the same files, so
 its push runs `publish-site`, which deploys it as a new release through the same checks.
-A release starts new containers, so every visitor's private state resets, as on any
-deploy.
+As on any deploy, visitors keep their private pages unless the revert moves the page
+protocol or the session store's format (`STORE_FORMAT`).
 
 Do not use `wrangler rollback`. It reactivates an earlier Worker version, whose assets
 name the earlier release. Cloudflare's rollback documentation says resources connected
 to the Worker are not changed and does not mention containers, so expect the container
-image to stay on the newer release. Every container would then name a release other than
-the Worker's, and the Worker answers each private request with `503` (`rollingOut` in
-`worker/src/index.ts`), so no visitor could comment or act until the next deploy.
+image to stay on the newer release. Every container would then run a release other
+than the Worker's, which the page store refuses (`worker/src/storage.ts`), so no
+container would start and no visitor could comment or act until the next deploy.
 
 ## Diagnostics
 
@@ -536,7 +536,7 @@ The records to read first:
 
 The session's `component=leaf-container`, `event=http_error` records identify
 forwarded HTTP 5xx responses by status, method, `source` and `retried`:
-`adapter` means the response carried Python's `Leaf-Release` stamp;
+`adapter` means the response carried Python's `Leaf-Session` stamp;
 `disconnected` means it matched one of the Containers SDK's proxy-failure
 responses; `unclassified` means neither was established. A `disconnected`
 record's `detail` is the SDK's sentence, which names the failure:
@@ -619,8 +619,9 @@ The Durable Object serves each saved response with the headers Python gave it,
 so the browser caches it as it would the live answer, and Back restores a page the
 visitor has acted on from the back/forward cache, as it does a locally served page
 ([browser support](../notes/browser-support.md), "Page cache"). File modification
-dates survive restore, including the publication date of an unstamped revision. A release selects fresh demo records, while container
-replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
+dates survive restore, including the publication date of an unstamped revision. A deploy keeps every session's records until the page
+protocol or the store's format moves (`worker/src/storage.ts`), and so does
+container replacement. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
 
 The append lease admits one staged successor per page. Preparation stores its descriptor
@@ -637,9 +638,9 @@ Each container is a custom instance of one vCPU and 3 GiB (`wrangler.toml` gives
 reason). `max_instances` caps them at 1,470 for production and 20 for `dev`, under the
 account's default limit of 1,500 concurrent vCPU. A container with no requests stops
 after ten minutes (`sleepAfter` in `worker/src/index.ts`). A rollout replaces a
-container as soon as it reaches it, however recently the container started
-(`rollout_active_grace_period = 0`, whose reason `wrangler.toml` gives). The adapter
-exits on the `SIGTERM` that replacement sends, ending any agent turn it was running.
+container as soon as it reaches it, however recently the container started. The
+adapter exits on the `SIGTERM` that replacement sends, ending any agent turn it was
+running.
 
 ### Sandbox and rate limits
 

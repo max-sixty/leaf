@@ -522,13 +522,14 @@ def test_news_at_a_card_s_end_shows_where_its_held_edge_keeps_the_reply_still(
     assert preview.evaluate(REPLY_BOX) == pytest.approx(typed, abs=0.5)
 
 
-def test_news_under_a_card_s_words_waits_once_the_user_begins_in_the_box_a_send_left(
+def test_news_under_a_card_s_words_waits_once_the_user_begins_in_its_reply_box(
     browser, serve
 ):
     """Under its words a card keeps its top, so news at its end moves the reply box
-    down. The box Send leaves the caret in lets the answer the user waits for show
-    until they begin a reply there (thread-preview.js, `endNewsMoves`;
-    thread/replies.js): by typing, even words they erase, or by coming back to it."""
+    down. The empty box a click's opening leaves the caret in, and the thread a send
+    leaves the user on, let the answer the user waits for show until they begin a reply
+    in the box (thread-preview.js, `endNewsMoves`; thread/replies.js): by typing, even
+    words they erase, or by coming back to it."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     resized(page, 1000, 600)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
@@ -536,16 +537,9 @@ def test_news_under_a_card_s_words_waits_once_the_user_begins_in_the_box_a_send_
     expect(preview).to_have_attribute("data-lf-thread-placement", "below")
     box = preview.locator(".lf-thread-reply leaf-text")
     expect(box).to_be_focused()
+    thread = preview.locator(".lf-page-thread")
     news = preview.locator(".lf-thread-news")
 
-    def send(words):
-        page.keyboard.type(words)
-        with sending(page, "the turn"):
-            page.keyboard.press("ControlOrMeta+Enter")
-        rendered(page)
-        expect(box).to_be_focused()
-
-    send("First.")
     agent_says(page, serve.page_dir, "Shown beside the empty box.")
     expect(preview.locator(".lf-msg", has_text="Shown beside")).to_be_visible()
     page.keyboard.type("W")
@@ -554,11 +548,13 @@ def test_news_under_a_card_s_words_waits_once_the_user_begins_in_the_box_a_send_
     agent_says(page, serve.page_dir, "Held once a word was typed.")
     expect(news).to_have_text("1 new")
 
-    send("Second.")
+    page.keyboard.type("Second.")
+    with sending(page, "the turn"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    expect(thread).to_be_focused()
     agent_says(page, serve.page_dir, "Shown again after the send.")
     expect(preview.locator(".lf-msg", has_text="Shown again")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
     page.keyboard.press("Enter")
     expect(box).to_be_focused()
     agent_says(page, serve.page_dir, "Held once they came back.")
@@ -849,9 +845,9 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     expect(preview).to_be_hidden()
 
 
-# The long thread's opening comment, the agent's two steps of progress on it and the
-# user's turn after them, which fold the steps behind "Show 2 progress messages".
-STEPPED_THREAD = [
+# The long thread's opening comment, two of the agent's replies to it, folded behind
+# their summary's "2 earlier messages", and the user's turn after them.
+FOLDED_THREAD = [
     LONG_THREAD_ROOT,
     *(
         {
@@ -861,10 +857,22 @@ STEPPED_THREAD = [
             "parent": LONG_THREAD_ROOT["id"],
             "revision": 1,
             "text": words,
-            "ephemeral": True,
+            "id": identity,
         }
-        for words in ("Comparing the two layers.", "Checking where each one closes.")
+        for identity, words in (
+            ("b" * 32, "Comparing the two layers."),
+            ("c" * 32, "Checking where each one closes."),
+        )
     ),
+    {
+        "kind": "summary",
+        "author": "agent",
+        "agent": "Claude",
+        "thread": LONG_THREAD_ROOT["id"],
+        "from": "b" * 32,
+        "through": "c" * 32,
+        "text": "",
+    },
     {
         "kind": "reply",
         "author": "user",
@@ -880,8 +888,8 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     engine, request, serve
 ):
     """A card read beside its passage, whose foot stands within a line of where the
-    window's foot holds a card, is held by that foot once a press shows its progress,
-    and stands beside its passage again once a press hides it, which travels. The
+    window's foot holds a card, is held by that foot once a press opens its summary,
+    and stands beside its passage again once a press closes it, which travels. The
     travel starts from where the card stood held: at the motion's first frame its
     outline and head row are drawn where they were, and at rest the card has moved
     down. Read by the edge holding the card after the press, its placement's move
@@ -890,7 +898,7 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     beside its passage holds the card's foot instead: thread-preview.js, `heldEdge`)."""
     page = open_page(
         request.getfixturevalue(engine),
-        serve(LOW_PASSAGE_PAGE, events=STEPPED_THREAD),
+        serve(LOW_PASSAGE_PAGE, events=FOLDED_THREAD),
     )
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1440, 900)
@@ -900,7 +908,8 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     page.keyboard.press("Escape")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     disclosure = preview.locator(".lf-summary-expand")
-    expect(disclosure).to_have_text("Show 2 progress messages")
+    expect(disclosure).to_have_text("2 earlier messages")
+    expect(disclosure).to_have_attribute("aria-expanded", "false")
 
     def foot_after_scrolling(by):
         page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
@@ -923,22 +932,22 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     page.evaluate("() => {" + HOLD_MOTION + "}")
     stood = preview.evaluate(CARD_DRAWN)
     disclosure.click()
-    expect(disclosure).to_have_text("Hide 2 progress messages")
+    expect(disclosure).to_have_attribute("aria-expanded", "true")
     rendered(page)
     page.wait_for_function(CARD_RELEASED)
     held_up = preview.evaluate(CARD_DRAWN)
     assert held_up[0] < stood[0] - 5, (
-        f"the progress held the card nowhere: {stood} -> {held_up}"
+        f"the summary held the card nowhere: {stood} -> {held_up}"
     )
     disclosure.click()
-    expect(disclosure).to_have_text("Show 2 progress messages")
+    expect(disclosure).to_have_attribute("aria-expanded", "false")
     page.wait_for_function(
         "() => window.__lfHeld.some(motion => motion.playState !== 'idle')"
     )
     drawn = preview.evaluate(CARD_DRAWN)
     page.wait_for_function(CARD_RELEASED)
     rest = preview.evaluate(CARD_DRAWN)
-    assert rest[0] > held_up[0] + 5, f"the progress went and the card stayed: {rest}"
+    assert rest[0] > held_up[0] + 5, f"the summary closed and the card stayed: {rest}"
     # The transcript changed size, so its turns show where they now stand (box-motion.js).
     assert drawn[:2] == pytest.approx(held_up[:2], abs=1), f"{held_up} -> {drawn}"
 
@@ -2023,12 +2032,11 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
 )
 def test_a_send_keeps_the_edge_its_card_holds(browser, serve, size, how):
     """Over its words a card keeps its foot, and so its reply's, through the send, its
-    admission, an answer, and the next draft typed in the box Send leaves the caret
-    in. Under its words it keeps its top, so the sent turn and the answer move the
-    reply row down: the answer shows at once, since the caret only rests in the empty
-    box (thread-preview.js, `endNewsMoves`). Clearing several lines may lower the
-    editor's top, but cannot move the card's column or the page, even for one
-    frame."""
+    admission, an answer, and the next draft typed in the box Send emptied. Under its
+    words it keeps its top, so the sent turn and the answer move the reply row down:
+    the answer shows at once, since the send left the user on the thread
+    (thread-preview.js, `endNewsMoves`). Clearing several lines may lower the editor's
+    top, but cannot move the card's column or the page, even for one frame."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     write(editor, "First point.\nSecond point.\nThird point.")
     rendered(page)
@@ -2097,7 +2105,7 @@ def test_a_send_keeps_the_edge_its_card_holds(browser, serve, size, how):
     expect(preview.locator(".lf-msg").last).to_contain_text("Third point.")
     expect(preview.locator(".lf-msg").last).to_have_attribute("aria-busy", "true")
     rendered(page)
-    expect(editor).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     page.wait_for_function("replyMotion.frames.some(frame => frame.pending)")
     below = before["side"] == "below"
     pending = finish(before, "top" if below else "editorFoot")
@@ -2138,7 +2146,7 @@ def test_a_send_keeps_the_edge_its_card_holds(browser, serve, size, how):
             answered,
         )
 
-    # A fresh draft in the box Send left the caret in grows away from the words, down
+    # A fresh draft in the box Send emptied grows away from the words, down
     # from its first line under them and up from the reply's foot over them, the
     # transcript giving way where the card fills the room above them; then it scrolls
     # within the card.

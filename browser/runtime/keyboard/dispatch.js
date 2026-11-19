@@ -22,7 +22,9 @@
    checkbox, Escape, or unrelated function keys merely because they are form-related.
    Radio and slider navigation has its own narrow claim at the focused control, so
    an arrow changes that control without also moving its containing widget. Open select
-   options retain typeahead when focus moves into their list. Native activation, such as
+   options retain typeahead when focus moves into their list, and a widget whose ARIA
+   pattern types ahead, such as a menu or a tree, claims the letters and digits a name
+   starts with (`text-entry.js`). Native activation, such as
    Enter on a link or Space on a button, is the narrowest claim: it withholds its press
    from every outer row that would run something else and leaves the rows that only name
    the press (`nativeActivationAt`). An exact element scope stands before these native
@@ -143,8 +145,11 @@ export const userIn = (scope) => {
 // the first comment.
 /** @param {Scope} scope */
 const currentLocation = (scope) => userIn(scope) && pageHas(scope);
-/** The stance the user is in, innermost, with its way out (register.js, `stances`),
- * or null. */
+/** The stances the user is in, innermost first, each with its way out (register.js,
+ * `stances`). */
+export const standingStances = () =>
+  stances().filter(({ scope }) => currentLocation(scope));
+/** The stance the user is in, innermost, with its way out, or null. */
 export const innermostStance = () =>
   stances().find(({ scope }) => currentLocation(scope)) ?? null;
 /** @param {(binding: string) => boolean} claims @returns {Scope} */
@@ -533,11 +538,16 @@ export function answerCloseRequest() {
 }
 
 // Scoping is the DOM's, but the resolver's stack, rather than listener order, says
-// which command wins. The controller leaves composing input to the IME.
-/** @param {KeyboardEvent} ev */
-export function dispatchKey(ev) {
+// which command wins. The controller leaves composing input to the IME. It reads a key
+// once ahead of the page's document and window listeners, for every row but one that
+// `waits`, and once after them with `waiting`, for that row alone (controller.js).
+// The stack answers with the same row both times, so the read that is not the row's own
+// runs nothing, and no row further out takes its place.
+/** @param {KeyboardEvent} ev @param {boolean} [waiting] */
+export function dispatchKey(ev, waiting = false) {
   const matched = resolveKey(ev);
   if (!matched || matched === INPUT_PENDING) return false;
+  if (Boolean(word(matched.row.waits)) !== waiting) return false;
   // Repeats are consumed even for a command that runs once. A native row performs
   // its own half before leaving the browser's half of the same press intact.
   if (!matched.native) ev.preventDefault();

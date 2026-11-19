@@ -12,7 +12,7 @@ absolute launcher; a bare `leaf` may run the installed plugin instead.
 ## Take a backlog item
 
 Pick an issue labelled `backlog`, assigned to nobody, that no pull request links
-(`TODO.md` has the query), and open its pull request early, as a draft if need be,
+(`notes/TODO.md` has the query), and open its pull request early, as a draft if need be,
 with `Closes #N` in the body, so the next session sees the item taken.
 
 ## Read the owning contract

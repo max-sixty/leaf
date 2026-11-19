@@ -223,8 +223,8 @@ Each place, as an outlet, stands inside the widget, and may stand in its shadow 
 A whole thread, as a reply part does, takes the reply being written in it that no
 other view holds, so the user goes on writing there.
 
-`parts.reply` takes `{hint, accessibleName, sent}`, where
-`sent()` runs after a send instead of moving the user to the thread. The reply box
+`parts.reply` takes `{hint, accessibleName, sent}`. A send leaves the user on the
+thread, and `sent()` then runs in place of Leaf's landing of the new turn. The reply box
 stands in a resolved thread too, and a reply there reopens it. The collection
 holds back changes that would move what the user sees behind a notice, which a whole
 conversation stands as a card does, or where its `head` names, and message parts at

@@ -153,6 +153,7 @@ from .delivery import (
 )
 from .findings import Finding
 from .harness import HOOK_TIMEOUT_S, Harness, claim_harness
+from .json_block import json_block, read_json_block
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
@@ -512,13 +513,13 @@ INLINE_OPENING = (
 
 def inline_delivery(context: str) -> dict | None:
     """The delivery a hook's `context` handed over inline, its opening line
-    (`INLINE_OPENING`) followed by the delivery's JSON, or None where it handed none
-    over: a pointer, a reminder, or a context cut short."""
+    (`INLINE_OPENING`) followed by the delivery's block (`json_block`), or None where
+    it handed none over: a pointer, a reminder, or a context cut short."""
     opening, _, rest = context.partition("\n")
     if opening != INLINE_OPENING:
         return None
     try:
-        return json.loads(rest.partition("\n")[0])
+        return read_json_block(rest)[0]
     except ValueError:
         return None
 
@@ -722,7 +723,7 @@ def carry_turn(
             return "\n".join(
                 [
                     INLINE_OPENING,
-                    json.dumps({**delivery, "batches": batches}, ensure_ascii=False),
+                    json_block({**delivery, "batches": batches}),
                     *attention,
                 ]
             )
@@ -816,7 +817,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     if not batches:
         return
     delivery = freeze_delivery(batches)
-    message = "\n".join([INLINE_OPENING, json.dumps(delivery, ensure_ascii=False)])
+    message = "\n".join([INLINE_OPENING, json_block(delivery)])
     deadline = started + CONFIRM_WITHIN
     recorded = (
         receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
@@ -825,7 +826,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     )
     if recorded:
         inline = {**delivery, "batches": recorded}
-        message = "\n".join([INLINE_OPENING, json.dumps(inline, ensure_ascii=False)])
+        message = "\n".join([INLINE_OPENING, json_block(inline)])
     else:
         note_pointer(
             sid,

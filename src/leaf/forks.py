@@ -214,6 +214,7 @@ from .holding import (
     owed_by,
     reading_of,
 )
+from .json_block import json_block
 from .leases import lease_speaks_here, take_wait_lease
 from .registry.kernel import kinds_declaring
 from .service import PageTransaction, owned_pages
@@ -635,7 +636,7 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
 
 
 def thread_json(data: dict) -> str:
-    return json.dumps(
+    return json_block(
         {
             "page": data["page"],
             "threads": data["threads"],
@@ -643,9 +644,7 @@ def thread_json(data: dict) -> str:
                 {key: value for key, value in event.items() if key != "answer"}
                 for event in data["events"]
             ],
-        },
-        ensure_ascii=False,
-        indent=1,
+        }
     )
 
 
@@ -700,7 +699,7 @@ def work_prompt(delivery: dict, turn: str) -> str:
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to do what the message asks beside the main session, which carries on with its own work and leaves this thread to you. You have the session's tools. Change nothing the main session is changing or about to change: its files and branch, the page's source, its pull requests.
 
 Leaf's delivery of the thread to you; "events" are the user's messages, oldest first, and the one that owes the thread's answer carries its `answer`:
-{json.dumps(delivery, ensure_ascii=False)}
+{json_block(delivery)}
 
 Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Leaf runs your work in a turn of its own, {turn}. Begin every `leaf` command you run with `leaf --turn {turn}`, as in `leaf --turn {turn} thread reply …`. Leaf takes a command as yours only where it names your turn; one without it acts as the main session's. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message.
 
@@ -721,7 +720,7 @@ def resume_prompt(delivery: dict, turn: str) -> str:
 This message comes from Leaf, not the user. The user wrote again in the thread you answered, and Leaf gives it to you in a new turn of your own, {turn}, in place of your last one: begin every `leaf` command you run from now on with `leaf --turn {turn}`. Your transcript lacks what the rest of the session has done on the page since your last turn, so read where the page stands with `leaf --turn {turn} page state {page}` before you answer.
 
 Leaf's delivery of the thread to you; "events" are the user's new messages, oldest first, and the one that owes the thread's answer carries its `answer`:
-{json.dumps(delivery, ensure_ascii=False)}
+{json_block(delivery)}
 
 Answer as before: do the work, then reply with `leaf --turn {turn} thread reply` and the reference the delivery's `answer` names, adding `--todo` where the rest of the work is bigger than a message; or, if the main session has to act on the message now, don't answer, and end your turn with one line saying why.
 </leaf-fork-work>"""

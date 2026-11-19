@@ -2751,6 +2751,14 @@ def continued(output: str | dict) -> str:
     return answer["hookSpecificOutput"]["additionalContext"]
 
 
+def inlined(context: str) -> dict:
+    """The delivery a hook's `context` handed over inline, as Leaf reads it back
+    (`hook_transport.inline_delivery`)."""
+    delivery = hook_transport_model.inline_delivery(context)
+    assert delivery is not None, context
+    return delivery
+
+
 def printed(output: str) -> tuple[dict, dict, list[dict]]:
     """Read the one delivery a wait printed, for a harness whose wait is its watcher
     (a bare shell, a Codex watcher): its reader confirms it with `delivery ack`."""

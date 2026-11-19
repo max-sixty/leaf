@@ -36,6 +36,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf.findings import Finding
+from leaf.json_block import read_json_block
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
@@ -802,8 +803,8 @@ One top-level key per route, holding exactly what reaches the agent's task:
   leaf wait:         its output, from a bare shell.
   Claude Code hook:  the native watch's notification, and the prompt hook's
                      `additionalContext`, split into its instruction line, the
-                     delivery on the next line, and what Leaf asks of the turn
-                     after it.
+                     delivery's JSON block after it, and what Leaf asks of the
+                     turn after that.
   Codex queue:       the `--message` given to `codex queue`, and the output of
                      the `leaf delivery read` it points at.
   Codex App Server:  the `turn/start` params. `toolOutput.output` is the
@@ -897,7 +898,8 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    instruction, hooked, *attention = context.split("\n")
+    instruction, _, rest = context.partition("\n")
+    hooked, attention = read_json_block(rest)
 
     pinned = {
         logged["id"]: "1946b466",
@@ -905,7 +907,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
         json.loads(waited)["id"]: "11111111",
         queued.payload["id"]: "22222222",
         prepared.payload["id"]: "33333333",
-        json.loads(hooked)["id"]: "44444444",
+        hooked["id"]: "44444444",
         session: "claude-session",
         # The turn's reply attempt is derived from the delivery id.
         service_model.delivery_reply_attempt(
@@ -941,8 +943,8 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
                     "watch notification": pin(woke),
                     "UserPromptSubmit additionalContext": {
                         "instruction": Prose(instruction),
-                        "delivery": readable(hooked),
-                        "attention": Prose(pin("\n".join(attention))),
+                        "delivery": readable(json.dumps(hooked, ensure_ascii=False)),
+                        "attention": Prose(pin(attention)),
                     },
                 },
                 "Codex queue": {

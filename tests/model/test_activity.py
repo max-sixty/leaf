@@ -19,6 +19,7 @@ from interact_support import (
     declared,
     delivered,
     end_work,
+    inlined,
     owed,
     page_state,
     read_record,
@@ -225,7 +226,7 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    assert json.loads(context.split("\n")[1])["acknowledge"] is None
+    assert inlined(context)["acknowledge"] is None
 
     # The stamps answer, and nothing renews this turn past the grace; `busy` keeps
     # the page working but holds no move in the turn, and a record whose process

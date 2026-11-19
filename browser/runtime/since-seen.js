@@ -90,8 +90,9 @@ export function createSinceSeen({ markSeen }) {
   tabStore.set(HANDOFF_KEY, null);
   // The newest revision this tab has posted, so a blur and the hide after it send once.
   let posted = 0;
-  // Counts arrivals, so a count in flight answers only the arrival that started it.
-  let arrival = 0;
+  // Counts arrivals, so a count in flight answers only the arrival that started it, and
+  // its notice stands only until the next (notifications.js, `stands`).
+  const arrival = signal(0);
   // The version the user last saw, as their arrival found it.
   const lastSeen = signal(/** @type {Version | null} */ (null));
 
@@ -144,7 +145,7 @@ export function createSinceSeen({ markSeen }) {
   /** @param {Version} since @param {number} mine */
   async function tell(since, mine) {
     const holds = () =>
-      mine === arrival && !selectedBase() && base()?.revision === since.revision;
+      mine === arrival.value && !selectedBase() && base()?.revision === since.revision;
     await whenDocumentPresented();
     while (holds()) {
       const revision = runtime.currentRevision;
@@ -154,6 +155,7 @@ export function createSinceSeen({ markSeen }) {
       if (n && holds())
         notice(`${counted(n, "change")} since v${since.version} — v shows them`, {
           background: true,
+          stands: holds,
         });
       return;
     }
@@ -164,7 +166,8 @@ export function createSinceSeen({ markSeen }) {
     if (!takesPart() || current === null || !runtime.showsActive || !attended()) return;
     if (arriving) {
       arriving = false;
-      const mine = ++arrival;
+      const mine = arrival.peek() + 1;
+      arrival.value = mine;
       const seen = newestSeen();
       const since = versionAt(seen);
       lastSeen.value = since;

@@ -891,6 +891,51 @@ def test_words_typed_on_a_reload_stand_over_the_resend_of_the_page_it_left(
     expect(field).to_have_js_property("value", "Kept words")
 
 
+def test_words_typed_on_a_reload_stand_over_a_write_taken_as_it_was_served(
+    browser, serve, one_user
+):
+    """A reload asks for its document before the page it replaces goes away, so that
+    page can hear the server take its last write after the reload was served the
+    drafts from before it. The reload starts from that page's copy, newer than what it
+    was served, so it shows the words typed before it, and the words typed on arrival
+    go on after them."""
+    page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    write(page_comment(page), "K")
+    assert stored_draft_text(page, "general") == "K"
+    writes = []
+    page.route("**/api/draft", lambda route: writes.append(route))
+    page.keyboard.insert_text("ept")
+    holding(page, writes, 1, "the write of Kept")
+    page.unroute("**/api/draft")
+    # The document the reload is served, asked for while the server holds "K".
+    served = page.request.get(page.url)
+    _land(writes[0])
+    assert stored_draft_text(page, "general") == "Kept"
+
+    def document(route):
+        if route.request.resource_type != "document":
+            route.fallback()
+            return
+        route.fulfill(response=served)
+
+    page.route("**/*", document)
+    # The reload hears what the server holds only through its writes' answers.
+    reads = []
+    page.route("**/api/drafts", lambda route: reads.append(route))
+    with restarting(page):
+        page.reload()
+    page.unroute("**/*", document)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    expect(field).to_have_js_property("value", "Kept")
+
+    _type_on_arrival(page, " words")
+    assert stored_draft_text(page, "general") == "Kept words"
+    page.unroute("**/api/drafts")
+    for route in reads:
+        route.continue_()
+    expect(field).to_have_js_property("value", "Kept words")
+
+
 def test_words_typed_on_a_reload_stand_however_late_the_page_it_left_writes(
     firefox_browser, serve
 ):

@@ -114,7 +114,7 @@ import { signal } from "./framework.js";
  * @typedef {import("../types/contract.js").ServedDraftsAnswer} DraftsReading
  * @typedef {import("../types/contract.js").ServedDraftWriteAnswer} DraftWriteAnswer
  * @typedef {{record: DraftRecord, stored: string | null, version: number, durable: boolean, ours: ReadonlySet<string>}} DraftCopy
- * @typedef {{attempts: string[], copy: Pick<DraftCopy, "record" | "stored" | "version"> | null}} WaitingDraft
+ * @typedef {{attempts: string[], copy: Pick<DraftCopy, "record" | "stored" | "version" | "durable"> | null}} WaitingDraft
  * @typedef {{ctx: string, value: string | null, payload?: DraftPayload}} DraftNews
  * @typedef {import('./composing/text-field.js').LeafTextElement | HTMLTextAreaElement} DraftField
  * @typedef {import('./composing/input.js').InputSync} InputSync
@@ -381,13 +381,16 @@ const writeWaiting = () => {
 // newest words replace it.
 //
 // A reload can be served its drafts before those writes land, and the words typed on
-// arrival would then go over an older generation than the resend's and lose to it. So
-// the page also leaves in the tab, for each draft, the generations its writes that
-// may still land carry or name (`inherited` included), and its copy of a draft still
+// arrival would then go over an older generation than the resend's and lose to it. It
+// can also be served them before a write this page then heard the server take, since
+// the reload asks for its document before this page goes away. So the page also
+// leaves in the tab, for each draft, the generations its writes that may still land
+// carry or name (`inherited` included), and its copy of the draft, taken or still
 // waiting (`WAITING_DRAFTS`), and its reload starts from them (`takeWaitingDrafts`).
-// The reload shows the newest words at once, and the words it has yet to send go over
-// any of those writes, whichever lands and when (`superseded`), so the words typed
-// after the reload stand. A generation this document is sending leaves its
+// The reload shows the newest words at once, a served generation older than the copy
+// gives way to it by version (`hearReading`), and the words it has yet to send go
+// over any of those writes, whichever lands and when (`superseded`), so the words
+// typed after the reload stand. A generation this document is sending leaves its
 // generations but not its copy, since only the server's answer says whether the log
 // took those words.
 const WAITING_DRAFTS = "lf-drafts-waiting";
@@ -398,11 +401,18 @@ addEventListener("pagehide", () => {
   for (const ctx of new Set([...draftCache.keys(), ...inherited.keys()])) {
     const copy = draftCache.get(ctx);
     const earlier = [...(inherited.get(ctx) ?? [])];
-    if (!copy || copy.durable) {
+    if (!copy) {
       if (earlier.length) waiting.push([ctx, { attempts: earlier, copy: null }]);
       continue;
     }
-    const { record, stored, version } = copy;
+    const { record, stored, version, durable } = copy;
+    if (durable) {
+      waiting.push([
+        ctx,
+        { attempts: earlier, copy: { record, stored, version, durable } },
+      ]);
+      continue;
+    }
     draftCache.set(ctx, { ...copy, ours: new Set([...copy.ours, record.attempt]) });
     const unanswered = [...copy.ours, ...earlier];
     void postDraft(ctx, [stored, ...unanswered], record, true).catch(() => {});
@@ -411,7 +421,7 @@ addEventListener("pagehide", () => {
       ctx,
       {
         attempts: [...unanswered, record.attempt, ...(stored ? [stored] : [])],
-        copy: sending ? null : { record, stored, version },
+        copy: sending ? null : { record, stored, version, durable },
       },
     ]);
   }
@@ -434,7 +444,7 @@ function takeWaitingDrafts() {
       JSON.parse(left)
     )) {
       inherited.set(ctx, new Set(attempts));
-      if (copy) draftCache.set(ctx, { ...copy, durable: false, ours: new Set() });
+      if (copy) draftCache.set(ctx, { ...copy, ours: new Set() });
     }
   } catch {
     // Unreadable copies leave the drafts the document was served with.

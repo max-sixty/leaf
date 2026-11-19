@@ -999,13 +999,13 @@ export function createMarginProjection({
       runKey: stepClusterMarginEntries,
     },
     // The walk answers from a marker, not from the entries beside it, which Left and
-    // Right move between. It walks the markers in view, so it says no position.
+    // Right move between. It walks the markers in view, which stand whole on screen, so
+    // a step says no position.
     ...rowWalk({
       id: "margin",
       noun: "Marker",
       plural: "visible markers",
       rows: visibleRows,
-      position: null,
       landed: holdTabStop,
       scroll: false,
     }).map((row) => ({

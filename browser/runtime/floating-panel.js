@@ -5114,9 +5114,9 @@ export function createFloatingPanel({
   // so a notice's press stands there with its key, in the face Comment and c wear, over
   // the notice's own line with an inked Undo over the field's start, the one press in
   // the row in a face of its own.
-  // Its key stands beside it only while that key would make the same press now, as the
-  // dispatcher reads it (`activeCommandLabel`): with the caret in a box, `m` is a letter
-  // typed, and the press alone still acts.
+  // Its keys are those that would make the same press now, as the dispatcher reads it
+  // (`activeCommandLabel`): none with the caret in a box, where `m` is a letter typed
+  // (field-readings.js, `end`, says what the field's end shows then).
   /** @param {FieldPress} press
    * @returns {import("./composing/input.js").BoxPress} */
   function noticePress(press) {
@@ -5138,8 +5138,9 @@ export function createFloatingPanel({
   // at the field's end wears, read as a status. Its keys are Versions' `g V` and then
   // Versions' own `l` (`latestRow`), which opens the live page as the press does, where
   // a version's digit there opens that version pinned; they stand only while `g` would
-  // open the Go-to sequence now, so not while the caret is in a box. The menu's row
-  // that opens the latest offers it too.
+  // open the Go-to sequence now, so not while the caret is in a box (field-readings.js,
+  // `end`, says what the field's end shows then). The menu's row that opens the latest
+  // offers it too.
   /** @returns {import("./composing/input.js").BoxPress | null} */
   function latestPress() {
     const { latest } = versionsReading();

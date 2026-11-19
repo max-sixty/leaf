@@ -23,8 +23,8 @@ from render_harness import (
     holding,
     http_error_console,
     is_problem,
-    latest_press,
     leaf_page,
+    open_latest,
     open_page,
     open_threads,
     page_comment,
@@ -2177,9 +2177,8 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
         "Replace the reader owner while retaining its conversations",
     )
     told(page)
-    # The panel's Open latest, pressed without taking the editor's focus first, as a press
-    # on it does.
-    latest_press(page).dispatch_event("click")
+    # Open latest, run without taking the editor's focus, as a press on it does.
+    open_latest(page)
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin === originalDocument")
     assert page.evaluate("!originalWorkspace.isConnected")

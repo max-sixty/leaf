@@ -244,9 +244,9 @@ def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, s
     """While anything waits on the user, the panel field's end offers Next On Me with
     `m`, and still does once an answer leaves one item there, the send leaving the user
     on the thread, where `m` walks. With the caret back in the card's reply box, where
-    `m` is a letter typed, the press stands without its key and still walks to the next
-    item, whose key it then says. Once nothing is On Me, the field's end offers it no
-    more."""
+    `m` is a letter typed, the field's end shows nothing, and the press and its key
+    stand again once the caret leaves. Once nothing is On Me, the field's end offers it
+    no more."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -291,10 +291,12 @@ def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, s
     expect(press.locator("kbd")).to_have_text("m")
     page.keyboard.press("c")
     expect(box).to_be_focused()
-    expect(press.locator("kbd")).to_have_count(0)
+    expect(press).to_have_count(0)
+    page.locator("h1").click()
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(press.locator("kbd")).to_have_text("m")
     press.click()
     expect(page.locator("#channel-ask")).to_be_focused()
-    expect(press.locator("kbd")).to_have_text("m")
 
     with sending(page, "the pick"):
         page.locator("#beta").click()

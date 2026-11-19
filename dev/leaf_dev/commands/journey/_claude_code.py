@@ -1194,8 +1194,8 @@ def deliveries(records: list[dict], update: str) -> list[int]:
         and any(
             event["id"] == update
             for content in attachment.get("content") or []
-            if (delivery := inline_delivery(content)) is not None
-            for batch in delivery["batches"]
+            if (inline := inline_delivery(content)) is not None
+            for batch in inline[0]["batches"]
             for event in batch["events"]
         )
     ]

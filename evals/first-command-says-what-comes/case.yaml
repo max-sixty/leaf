@@ -18,6 +18,7 @@ vars:
     You are a Claude Code session driving a live Leaf page at
     ~/.local/state/leaf/pages/rollout, served with `leaf server start`. Leaf's prompt
     hook has just put this delivery in your context and confirmed it:
+
     ```json
     {
      "format": "leaf-delivery/51",

@@ -513,20 +513,20 @@ INLINE_OPENING = (
 
 def inline_context(delivery: dict) -> str:
     """The context that hands `delivery` over inline: its opening line
-    (`INLINE_OPENING`) and the delivery's block (`json_block`), which
+    (`INLINE_OPENING`), a blank line and the delivery's block (`json_block`), which
     `inline_delivery` reads back."""
-    return "\n".join([INLINE_OPENING, json_block(delivery)])
+    return "\n\n".join([INLINE_OPENING, json_block(delivery)])
 
 
-def inline_delivery(context: str) -> dict | None:
-    """The delivery a hook's `context` handed over inline, its opening line
-    (`INLINE_OPENING`) followed by the delivery's block (`json_block`), or None where
-    it handed none over: a pointer, a reminder, or a context cut short."""
-    opening, _, rest = context.partition("\n")
+def inline_delivery(context: str) -> tuple[dict, str] | None:
+    """The delivery a hook's `context` handed over inline (`inline_context`) and the
+    lines after its block, or None where it handed none over: a pointer, a reminder,
+    or a context cut short."""
+    opening, _, rest = context.partition("\n\n")
     if opening != INLINE_OPENING:
         return None
     try:
-        return read_json_block(rest)[0]
+        return read_json_block(rest)
     except ValueError:
         return None
 
@@ -715,7 +715,7 @@ def carry_turn(
         attention.extend(
             [
                 "Read these unanswered updates and their exact answer references:",
-                *(delivery_pointer_prompt(identity) for identity in reminders),
+                *(f"\n{delivery_pointer_prompt(identity)}" for identity in reminders),
             ]
         )
     delivery = freeze_delivery(batches) if batches else None
@@ -762,7 +762,7 @@ def carry_turn(
             message = "\n".join(
                 [
                     pointer_opening(delivery),
-                    delivery_pointer_prompt(delivery["id"]),
+                    f"\n{delivery_pointer_prompt(delivery['id'])}",
                     *attention,
                 ]
             )

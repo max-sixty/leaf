@@ -1257,8 +1257,16 @@
   // Read its actual final properties in the finished-promise checkpoint, while
   // that effect still applies, using the same eligibility proof as frame samples.
   const endings = new WeakMap();
-  // How and when each effect a reading saw ended, which the shift evidence reports.
+  // How and when each effect a reading saw ended, with the beginning it ended, which
+  // the shift evidence reports. A replayed effect keeps its Animation but begins anew,
+  // so an ending counts only while its beginning is still the effect's latest.
   const endedBy = new WeakMap();
+  const endingOf = (animation) => {
+    const ending = endedBy.get(animation);
+    return ending?.beginning === beganAt.get(animation)
+      ? { how: ending.how, at: ending.at }
+      : null;
+  };
   // A no-fill native effect retires before its finished promise runs. Capture its
   // underlying translation at the producer, before animate() applies the effect;
   // a later authored change cannot be mistaken for that native return endpoint.
@@ -1362,16 +1370,23 @@
     }
     for (const animation of effects) {
       const finished = animation.finished;
-      if (endings.get(animation) !== finished) {
-        endings.set(animation, finished);
+      const beginning = beganAt.get(animation),
+        watched = endings.get(animation);
+      if (watched?.finished !== finished || watched.beginning !== beginning) {
+        // A reversal begins anew on the same promise; read its endpoint only once.
+        const read = watched?.finished !== finished;
+        endings.set(animation, { finished, beginning });
+        const end = (how) => {
+          const at = nativePerformance.now();
+          endedBy.set(animation, { beginning, how, at });
+          return at;
+        };
         finished.then(
           () => {
-            const at = nativePerformance.now();
-            endedBy.set(animation, { how: "finished", at });
-            readMotion(at, animation);
+            const at = end("finished");
+            if (read) readMotion(at, animation);
           },
-          () =>
-            endedBy.set(animation, { how: "cancelled", at: nativePerformance.now() }),
+          () => end("cancelled"),
         );
       }
       const effect = animation.effect,
@@ -3953,7 +3968,7 @@
           began: beganAt.get(animation)?.at ?? null,
           owned: renderings.some((rendering) => rendering.own.has(animation)),
           carry: carrySteps.has(animation),
-          ended: endedBy.get(animation) ?? null,
+          ended: endingOf(animation),
           before: endpoint(samples.findLast((sample) => sample.at <= from)),
           after: endpoint(samples.findLast((sample) => sample.at <= to)),
         };

@@ -4665,6 +4665,62 @@ motion.pause();motion.currentTime=150;
         ), motions
 
 
+@pytest.mark.parametrize("ending", ["finish", "cancel"])
+def test_a_replayed_animation_reports_no_ending_of_its_earlier_run(browser, ending):
+    """Replaying an ended effect reuses its Animation. A finding during the replay
+    reports the replay's beginning and no ending, never the earlier run's."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<button id="start">Start</button><button id="end">End</button>
+<button id="replay">Replay</button>
+<div id="panel" style="margin-left:350px">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+const hold = () => { motion.pause(); motion.currentTime = 150; };
+start.onclick = () => {
+  window.motion = panel.animate([{translate:'-200px 0px'},{translate:'0px 0px'}],
+    {duration:1000,fill:'both'});
+  hold();
+};
+end.onclick = () => motion[end.dataset.how]();
+replay.onclick = () => { motion.play(); hold(); };
+</script></body>""")
+    )
+    page.locator("#end").evaluate("(end, how) => (end.dataset.how = how)", ending)
+    paint(page)
+    for control in ("#start", "#end", "#replay"):
+        page.locator(control).click()
+        paint(page)
+    judge_watches()
+    assert not take_browser_errors(page)
+    page.evaluate(
+        """() => {
+          control.style.marginLeft = '55px';
+          motion.currentTime = 800;
+          trigger.style.left = '40px';
+        }"""
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    finding = next(
+        error for error in errors if is_problem(error, moved_within("button#control"))
+    )
+    motions = [
+        animation
+        for comparison in shift_evidence(finding)["comparisons"]
+        for animation in comparison["animations"]
+        if within(animation["target"], "div#panel")
+    ]
+    assert motions, finding
+    assert all(
+        motion["began"] is not None and motion["ended"] is None for motion in motions
+    ), motions
+
+
 @pytest.mark.parametrize(
     "fault,finish",
     [

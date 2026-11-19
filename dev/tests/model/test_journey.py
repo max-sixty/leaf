@@ -383,20 +383,20 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
     terminal.session = "s"
     end = journey.HttpEnd("http://127.0.0.1:1/?t=t", page, time.sleep)
     user = journey.User(end, "v", lambda: events, terminal, lambda: forks)
-    for name, comment in (("fork-idle", "c1"), ("fork-work", "c2")):
+    for name, comment in (("mid-turn", "c1"), ("ending", "c2")):
         profile = journey.AgentProfile()
         profile.event_ids = [comment]
         user.ids[name], user.profiles[name] = comment, profile
         user.sent.append(name)
-    assert user.timing("fork-idle") == (
-        "`fork-idle` picked up after 20.0 s, answered after 4.0 s; a fork's hand_over "
+    assert user.timing("mid-turn") == (
+        "`mid-turn` picked up after 20.0 s, answered after 4.0 s; a fork's hand_over "
         'after 3200 ms on 12 in, 80 out, 9000 cache read tokens: "Looking at how it '
         'is served."'
     )
     user.passed("forks", time.monotonic())
 
     [step] = user.sample()["steps"]
-    answered, handed = step["comments"]["fork-idle"], step["comments"]["fork-work"]
+    answered, handed = step["comments"]["mid-turn"], step["comments"]["ending"]
     assert answered["fork"] == {
         "outcome": "hand_over",
         "elapsedMs": 3200.0,

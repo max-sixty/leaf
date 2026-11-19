@@ -27,7 +27,11 @@ fork could do its work beside the session (`take`) or the work belongs with the
 session (`hand_over`) (`leaf.forks`). A working fork would answer a question in the
 session's place, so each delivery step's comment asks for a change to the page,
 which the line fork hands to the session (`evals/line-fork/case.yaml`,
-`work-request`), and the step tests the session's own delivery from then on.
+`work-request`), and the step tests the session's own delivery from then on;
+`withdrawn`'s comment needs none, since the user resolves it at once. The fork steps
+come before the delivery steps: once the session has been changing the page, a line
+fork judges a lookup in the page's source the session's own (`source-editing` in the
+same file).
 
 The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
 more than one harness takes, as `_journey.Terminal` has them:
@@ -36,10 +40,37 @@ more than one harness takes, as `_journey.Terminal` has them:
 - `release`, which asks for work, so its line fork hands it over and the session
   answers it.
 
+Then the fork steps, each timed from the comment's admission to the reply, with the
+fork's own time and tokens from its record in the page's diagnostics
+(`fork_outcome`):
+
+- `fork-idle`: with the session idle, a question the conversation already answers
+  goes to a fork that does the work: the line fork judges it a fork's and posts the
+  agent's working line as its first reply, and a fork spawned from the conversation,
+  in a turn of its own that picked the comment up, answers it in the thread itself
+  with `leaf thread reply` while the session stays idle, and no later turn of the
+  session answers it again;
+- `fork-follow-up`: a question a fork takes and looks up in the page's source, and
+  the user's further message in its thread sent as the fork starts, which the fork's
+  next tool boundary hands it: the fork's turn picks it up and the fork answers it,
+  while the session stays idle;
+- `fork-resume`: once that fork's run has ended, a further message in its thread
+  goes to the same fork, which Claude Code resumes under the same agent id in a new
+  turn of its own that picks the message up and answers it, while the session stays
+  idle; the session then wakes for Claude Code's notice that the resumed fork
+  finished, and doesn't answer the message again;
+- `fork-todo`: a question a fork takes, whose rest the user leaves as work for
+  later, which the fork answers with a to-do on the thread (`--todo`), ending its
+  turn as `todo`; Leaf's wake for that to-do starts a turn of the idle session, whose
+  prompt hook hands it the line naming the to-do, and the session does the work and
+  ends the to-do or leaves it open on its list, as it judges.
+
 Then the delivery steps:
 
-- `mid-turn`, whose PostToolBatch context carries the exact input before another
-  model call, rather than waiting for Stop;
+- `mid-turn`, a comment sent during the user's own turn's shell command, whose
+  line fork posts the agent's working line as its first reply and hands it over,
+  and whose PostToolBatch context then carries the exact input before another model
+  call, rather than waiting for Stop;
 - `ending`: two comments sent during a shell command, the second after the turn
   picked up the first, both enter that turn at its tool boundaries;
 - `escape`, whose line says the claim's turn stayed open, since Escape runs no
@@ -68,34 +99,6 @@ Then the delivery steps:
   runs no prompt or Stop hook, so the watch the last turn's Stop started keeps
   running through it, and Claude Code holds that watch's wake until the
   compaction is done.
-
-Then the fork steps, each timed from the comment's admission to the reply, with the
-fork's own time and tokens from its record in the page's diagnostics
-(`fork_outcome`):
-
-- `fork-idle`: with the session idle, a question the conversation already answers
-  goes to a fork that does the work: the line fork judges it a fork's and posts the
-  agent's working line as its first reply, and a fork spawned from the conversation,
-  in a turn of its own that picked the comment up, answers it in the thread itself
-  with `leaf thread reply` while the session stays idle;
-- `fork-follow-up`: a question a fork takes and looks up in the page's source, and
-  the user's further message in its thread sent as the fork starts, which the fork's
-  next tool boundary hands it: the fork's turn picks it up and the fork answers it,
-  while the session stays idle;
-- `fork-resume`: once that fork's run has ended, a further message in its thread
-  goes to the same fork, which Claude Code resumes under the same agent id in a new
-  turn of its own that picks the message up and answers it, while the session stays
-  idle; the session then wakes for Claude Code's notice that the resumed fork
-  finished, and doesn't answer the message again;
-- `fork-todo`: a question a fork takes, whose rest the user leaves as work for
-  later, which the fork answers with a to-do on the thread (`--todo`), ending its
-  turn as `todo`; Leaf's wake for that to-do starts a turn of the idle session, whose
-  prompt hook hands it the line naming the to-do, and the session does the work and
-  ends the to-do or leaves it open on its list, as it judges;
-- `fork-work`: a request for a change to the page, sent during the user's own
-  turn's shell command, gets the line fork's working line before the command ends,
-  and the session picks it up and answers it in that turn or the next, and doesn't
-  answer the forks' questions again.
 
 Then `quit`, by `/exit`.
 
@@ -168,7 +171,6 @@ from leaf_dev.review_scenario import (
     activity,
     answers,
     attempt,
-    claimed,
     picked_up,
     post,
     prepare,
@@ -496,6 +498,22 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             for content in attachment.get("content") or []
         ]
 
+    def lined(name: str) -> float:
+        """Require the line fork on step `name`'s comment to have posted the agent's
+        working line, as the comment's first reply, and handed the comment over; the
+        seconds to that reply."""
+        fork = require(user.fork(name), f"{name}: no fork decided on the comment")
+        require(
+            fork["outcome"] == "hand_over" and "line" in fork,
+            f"{name}: the fork posted no working line: {fork_summary(fork)}",
+        )
+        timings = user.end.timings()[user.ids[name]]["milestones"]
+        require(
+            timings["first_reply"]["event_id"] == fork["line"],
+            f"{name}: the fork's working line was not the comment's first reply",
+        )
+        return timings["first_reply"]["elapsed_s"]
+
     def delivered() -> None:
         """The delivery steps, from `mid-turn` to `compacting`."""
         started = time.monotonic()
@@ -508,7 +526,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             ),
             "mid-turn: PostToolBatch did not hand the exact input to the model",
         )
-        step("mid-turn", started, "mid-turn")
+        first = lined("mid-turn")
+        step(
+            "mid-turn",
+            started,
+            "mid-turn",
+            detail=f"`mid-turn` had the line fork's working line after {first:.1f} s",
+        )
 
         started = time.monotonic()
         turn = cc.user_turn(page)
@@ -634,10 +658,15 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         )
         # Escape during a tool boundary's hooks keeps that boundary's context, so the
         # comment is in the conversation once and the woken turn only names it as owed.
-        handed = deliveries(native_records(cc.home, session), boundary)
+        records = native_records(cc.home, session)
+        handed = deliveries(records, boundary)
         require(
             len(handed) == 1,
             f"boundary: the comment Escape kept was handed over {len(handed)} times",
+        )
+        require(
+            records[handed[0]]["attachment"].get("hookEvent") == "PostToolBatch",
+            "boundary: the comment reached the turn by a prompt, not a tool boundary",
         )
         step("boundary", started, "first-wake", "boundary")
 
@@ -678,11 +707,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         step("compacting", started, "compacting")
 
     def forked() -> None:
-        """The fork steps, from `fork-idle` to `fork-work`."""
-
-        def picked(name: str) -> list[str]:
-            """The turns that picked up step `name`'s comment."""
-            return picked_up(page, user.ids[name])
+        """The fork steps, from `fork-idle` to `fork-todo`."""
 
         def agent_of(turn: str) -> str | None:
             """The agent of the fork that ran `turn`, which Leaf learns only as the
@@ -747,6 +772,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             step(
                 "fork-idle",
                 started,
+                "fork-idle",
                 detail=(
                     f"`fork-idle` had its first reply after "
                     f"{timings['first_reply']['elapsed_s']:.1f} s, and the fork "
@@ -1048,22 +1074,6 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
                 ),
             )
 
-        def lined(name: str) -> float:
-            """Require the fork on step `name`'s comment to have posted the agent's
-            working line, as the comment's first reply, and handed the comment over;
-            the seconds to that reply."""
-            fork = require(user.fork(name), f"{name}: no fork decided on the comment")
-            require(
-                fork["outcome"] == "hand_over" and "line" in fork,
-                f"{name}: the fork posted no working line: {fork_summary(fork)}",
-            )
-            timings = user.end.timings()[user.ids[name]]["milestones"]
-            require(
-                timings["first_reply"]["event_id"] == fork["line"],
-                f"{name}: the fork's working line was not the comment's first reply",
-            )
-            return timings["first_reply"]["elapsed_s"]
-
         started = time.monotonic()
         user.comment("fork-idle")
         forked_work(started)
@@ -1071,44 +1081,12 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         resumed(time.monotonic(), asked, taken)
         opened_todo(time.monotonic())
 
-        started = time.monotonic()
-        turn = cc.user_turn(page)
-        user.comment("fork-work")
-        cc.until(
-            lambda: user.fork("fork-work") or not cc.sleeping(),
-            "fork-work: no fork decided on the comment",
-        )
-        require(
-            user.fork("fork-work"),
-            "fork-work: the user's command ended before a fork decided on the comment",
-        )
-        cc.until(answered("fork-work"), "fork-work: the session did not answer it")
-        first = lined("fork-work")
-        # The session's turn once it answered, which is the user's own or the next.
-        last = claimed(page)["turn"]
-        took = picked("fork-work")
-        require(
-            bool(took) and took[0] in (turn, last),
-            "fork-work: neither the user's turn nor the next picked the request up",
-        )
-        where = "the user's turn" if took[0] == turn else "the next turn"
-        require(
-            len(answers(page, user.ids["fork-idle"])) == 1,
-            "fork-idle: the session answered again the comment its fork answered",
-        )
-        step(
-            "fork-work",
-            started,
-            "fork-work",
-            detail=f"`fork-work` had its first reply after {first:.1f} s, in {where}",
-        )
-
     started = time.monotonic()
     cc.release(user)
     fork = require(user.fork("release"), "release: no fork decided on the ask")
     step("release", started, "release", detail=f"`release`: {fork_summary(fork)}")
-    delivered()
     forked()
+    delivered()
 
     started = time.monotonic()
     cc.quit(page)

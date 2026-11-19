@@ -12,7 +12,7 @@ when it is busy, and the thread shows nothing from the agent after a message unt
 session's first model call ends (`notes/fork-replies.md`, "Forks on real pages").
 `$.model.fork` resends the session's last request with one more message, at any moment,
 mid-command too, and a fork decides in seconds. The user had the fork post only
-the agent's working line and always hand over, rather than answer or hand over: a line
+the agent's working line and hand the thread on, rather than answer it: a line
 fork can't call tools (`$.model.fork` denies every one), and answering is left to a fork
 that can act. The line fork also judges whether a working fork could do the work beside
 the session (`ANSWER`'s `work`): `take` gives the thread to one (`_take`), and

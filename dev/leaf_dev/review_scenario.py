@@ -29,19 +29,15 @@ REQUEST = definition("delivery_eval")["prompts"]["initial"]
 # Each step's comment, on the section it is posted on. A Claude Code session's line
 # fork hands a request for a change to the page to the session, and a working fork
 # would take a question the session could answer by reading (`leaf.forks`), so the
-# steps that check the session's own delivery each ask for a small change.
+# claude-code journey's delivery steps each ask to reword one phrase, as `mid-turn`
+# and `escape` do on every harness. A rewording keeps the page's meaning and shape,
+# so neither the session nor Claude Code's turn-end check (`leaf.clerk`) finds
+# anything more to raise with the user.
 COMMENTS = {
-    "mid-turn": (
-        "triage-why",
-        "Add “It is the first blocker we found, maybe not the last.” to the end of "
-        "this section.",
-    ),
+    "mid-turn": ("triage-why", "In this section, change “a no-op” to “harmless”."),
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
     "reconnect": ("triage-lede", "Is the same review still connected?"),
-    "escape": (
-        "triage-why",
-        "Add “The interrupted check changed nothing.” to the end of this section.",
-    ),
+    "escape": ("triage-why", "In this section, change “exits non-zero” to “fails”."),
     "resume": ("triage-why", "Did resuming the check change anything?"),
     "unload": ("triage-lede", "Who signs off once the migration is fixed?"),
     "held-escape": (
@@ -50,50 +46,44 @@ COMMENTS = {
     ),
     "woken": (
         "triage-lede",
-        "Add “If we ship today, cut the export fix.” to the end of this paragraph.",
+        "In this paragraph, change “Once 0042 ships” to “When 0042 ships”.",
     ),
     "after-wake": (
         "triage-why",
-        "Add “Keep the migration fix at any cost.” to the end of this section.",
+        "In this section, change “billed twice in March” to “double-billed in March”.",
     ),
     "dropped": (
         "triage-why",
-        "Add “The export bug does not block the release.” to the end of this section.",
+        "In this section, change “it pays twice” to “it pays out twice”.",
     ),
     "deferred": (
         "triage-lede",
-        "Add “The export fix can ship in a patch release.” to the end of this "
-        "paragraph.",
+        "In this paragraph, change “the same failure” to “that same failure”.",
     ),
     "first-wake": (
         "triage-lede",
-        "Add “Read the migration card first.” to the end of this paragraph.",
+        "In this paragraph, change “ship differently” to “ship another way”.",
     ),
     "boundary": (
         "triage-why",
-        "Add “The timezone bug is not a regression.” to the end of this section.",
+        "In this section, change “by waiting a week” to “if it waits a week”.",
     ),
     "first": (
         "triage-lede",
-        "Add “The platform team owns the migration fix.” to the end of this paragraph.",
+        "In this paragraph, change “Today that is harmless.” to “Today that does no "
+        "harm.”",
     ),
     "ending": (
         "triage-why",
-        "Add “The migration fix could land this week.” to the end of this section.",
+        "In this section, change “has few reports” to “has few reports so far”.",
     ),
     "compacting": (
         "triage-lede",
-        "Add “The migration is the risk that worries us most.” to the end of this "
-        "paragraph.",
+        "In this paragraph, change “the only release blocker” to “the one release "
+        "blocker”.",
     ),
-    # A question the conversation already answers, which a working fork takes, and a
-    # request for work, which the line fork hands to the session; on each, a line
-    # fork posts the agent's working line first.
+    # A question the conversation already answers, which a working fork takes.
     "fork-idle": ("triage-lede", "What did I ask you to do with this page?"),
-    "fork-work": (
-        "triage-why",
-        "Rename this heading to ‘Why the migration alone blocks the release’.",
-    ),
     # A question a fork takes and looks up in the page's source, which the user
     # follows up in its thread as the fork starts (`FOLLOW_UP`).
     "fork-lookup": (

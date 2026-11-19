@@ -188,8 +188,14 @@ def paste_image(field, pixels, *, count=1):
     with field.page.expect_response(
         lambda response: response.url.endswith("/api/media")
     ):
-        field.evaluate(
-            """(box, {encoded, count}) => {
+        dispatch_paste(field, pixels, count=count)
+    expect(field).not_to_have_attribute("aria-busy", "true")
+
+
+def dispatch_paste(field, pixels, *, count=1):
+    """Paste `count` copies of the PNG `pixels` into `field`, waiting for nothing."""
+    field.evaluate(
+        """(box, {encoded, count}) => {
               const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
               const transfer = new DataTransfer();
               for (let index = 0; index < count; index += 1)
@@ -198,9 +204,8 @@ def paste_image(field, pixels, *, count=1):
                 bubbles: true, cancelable: true, clipboardData: transfer,
               }));
             }""",
-            {"encoded": base64.b64encode(pixels).decode(), "count": count},
-        )
-    expect(field).not_to_have_attribute("aria-busy", "true")
+        {"encoded": base64.b64encode(pixels).decode(), "count": count},
+    )
 
 
 def long_diff_thread(serve, lead=""):

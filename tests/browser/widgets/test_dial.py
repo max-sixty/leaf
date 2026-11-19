@@ -157,7 +157,8 @@ def test_skim_keeps_every_picture(browser, serve):
     """Skim folded every picture the author hadn't marked `.gist`, so a skimmer saw
     the page's words alone. Skim keeps each picture the page shows, with a figure's
     caption, and the heading above it: a figure, a chart, a picture in a tab, and a
-    paragraph or open disclosure holding one, whole. A picture inside a closed
+    paragraph or open disclosure holding one, whole. A list item is laid out in
+    place, so a gist in one keeps its support folded. A picture inside a closed
     disclosure stays closed, since Skim shows nothing Read doesn't, and an icon HTML
     marks as decoration is no picture, so a section holding only those folds whole."""
     chart = (
@@ -183,6 +184,8 @@ def test_skim_keeps_every_picture(browser, serve):
                 '<img id="shot" alt="The dashboard" width="40" height="30"> at 3%.</p>'
                 '<p id="captioned"><img alt="The cache" width="40" height="30"><br>'
                 '<em id="captioned-words">The cache at 16:30.</em></p>'
+                '<ul><li><p class="gist" id="finding-gist">4.2 changed the key.</p>'
+                '<p id="finding-support">Found by diffing the releases.</p></li></ul>'
                 '<details id="cause-raw" open><summary id="cause-raw-summary">Raw'
                 f'</summary><figure id="cause-raw-figure">{SQUARE}</figure></details>'
                 "</section>"
@@ -207,6 +210,7 @@ def test_skim_keeps_every_picture(browser, serve):
         "#key-caption",
         "#shot-line",
         "#captioned-words",
+        "#finding-gist",
         "#cause-raw-summary",
         "#cause-raw-figure",
         "#latency-heading",
@@ -218,6 +222,7 @@ def test_skim_keeps_every_picture(browser, serve):
     for folded in (
         "#cause-0",
         "#cause-1",
+        "#finding-support",
         "#latency-0",
         "#views-0",
         "#method-heading",

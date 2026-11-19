@@ -684,10 +684,9 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
 ):
     """A thread the line fork judges `take` goes to a fork the module spawns with
     Leaf's task, unnamed, so its agent id is the one address the main thread has for
-    it, and Leaf hears which agent runs the turn it
-    opened for it, which the task names for the fork's `leaf` commands. As that
-    agent's run ends its turn closes, and the main thread hears what came of the
-    thread."""
+    it, and Leaf hears which agent runs the turn it opened for it, which the task
+    names for the fork's `leaf` commands. As that agent's run ends its turn closes,
+    and the main thread hears what came of the thread."""
     driven = ClaudeCode(
         spawn,
         "cc-work",

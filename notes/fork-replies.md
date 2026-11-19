@@ -16,9 +16,8 @@ conversation, as against the forks and subagents made from it.
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
 call tools, so it now posts only the agent's working line and hands each message on,
 to the session or to a working fork, and the message reads On it from the moment Leaf
-keeps it back. Answering
-moves to a fork that can act ("A fork that takes the work"), and the line fork now
-also judges whether one could take the work. The measurements below are of the fork
+keeps it back. Answering moves to a fork that can act ("A fork that takes the work"),
+and the line fork now also judges whether one could take the work. The measurements below are of the fork
 that answered.
 
 ## What a hooks module can fork
@@ -303,9 +302,10 @@ them, `clerk` and the new `agent-turns`, start at 44.
 2. **Doing and joining** (a prototype, whose ownership record step 3 replaced): the
    taken state (`forks.TAKEN`), the fork spawned on `take`, follow-ups passed to it,
    its answer posted at the join, and the clerk's lines to the main thread. On
-   2026-11-05 the claude-code journey's fork steps ran it live: the question "What did I ask you to do with this page?" had the fork's
-   line 2.1 s after sending and the working fork's answer at 6.9 s, after 4.6 s of
-   work, while the session stayed idle; the session's next turn took the message in,
+   2026-11-05 the claude-code journey's fork steps ran it live: the question "What
+   did I ask you to do with this page?" had the fork's line 2.1 s after sending and
+   the working fork's answer at 6.9 s, after 4.6 s of work, while the session stayed
+   idle; the session's next turn took the message in,
    settled, and didn't answer it again. The two requests in the run, judged
    `hand_over`, went to the session as before. On 2026-11-09 the same run had the
    line at 2.0 s and the working fork's answer at 5.1 s, with no tool call.

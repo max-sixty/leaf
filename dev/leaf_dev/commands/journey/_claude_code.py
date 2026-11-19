@@ -29,9 +29,10 @@ session's place, so each delivery step's comment asks for a change to the page,
 which the line fork hands to the session (`evals/line-fork/case.yaml`,
 `work-request`), and the step tests the session's own delivery from then on;
 `withdrawn`'s comment needs none, since the user resolves it at once. The fork steps
-come before the delivery steps: once the session has been changing the page, a line
-fork judges a lookup in the page's source the session's own (`source-editing` in the
-same file).
+run right after `release`. `fork-lookup` needs its line fork to give a count in the
+page's source to a fork, as `evals/line-fork/case.yaml` labels it once the session has
+finished editing that file (`source-edited`); after the delivery steps' edits, the
+line fork gave it to the session instead.
 
 The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
 more than one harness takes, as `_journey.Terminal` has them:
@@ -63,14 +64,14 @@ fork's own time and tokens from its record in the page's diagnostics
   later, which the fork answers with a to-do on the thread (`--todo`), ending its
   turn as `todo`; Leaf's wake for that to-do starts a turn of the idle session, whose
   prompt hook hands it the line naming the to-do, and the session does the work and
-  ends the to-do or leaves it open on its list, as it judges.
+  ends the to-do or leaves it open, not started, on its list, as it judges.
 
 Then the delivery steps:
 
-- `mid-turn`, a comment sent during the user's own turn's shell command, whose
-  line fork posts the agent's working line as its first reply and hands it over,
-  and whose PostToolBatch context then carries the exact input before another model
-  call, rather than waiting for Stop;
+- `mid-turn`: a comment sent during the user's own turn's shell command gets the
+  line fork's working line as its first reply and is handed over, and the turn's
+  PostToolBatch context then carries the exact input before another model call,
+  rather than waiting for Stop;
 - `ending`: two comments sent during a shell command, the second after the turn
   picked up the first, both enter that turn at its tool boundaries;
 - `escape`, whose line says the claim's turn stayed open, since Escape runs no
@@ -489,11 +490,12 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         """Whether the page's claim has closed `turn`, or opened another after it."""
         return not turn_open(page_claim(page), turn)
 
-    def hook_contexts(event: str) -> list[str]:
-        """The contexts the hooks of `event` put in the conversation, one a hook."""
+    def hook_contexts(event: str, since: int = 0) -> list[str]:
+        """The contexts the hooks of `event` put in the conversation from its record
+        `since` on, one a hook."""
         return [
             content
-            for record in native_records(cc.home, session)
+            for record in native_records(cc.home, session)[since:]
             if (attachment := record.get("attachment", {})).get("hookEvent") == event
             for content in attachment.get("content") or []
         ]
@@ -671,6 +673,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         step("boundary", started, "first-wake", "boundary")
 
         started = time.monotonic()
+        before = len(native_records(cc.home, session))
         turn = cc.user_turn(page, DEFERRING_TURN)
         deferred = user.comment("deferred")
         cc.until(lambda: closed(turn), "deferred: the user's turn did not end")
@@ -683,7 +686,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         )
 
         require(
-            not any(ATTENTION_OPENING in content for content in hook_contexts("Stop")),
+            not any(
+                ATTENTION_OPENING in content
+                for content in hook_contexts("Stop", before)
+            ),
             "deferred: a Stop hook continued the user's turn over the owed comment",
         )
         require(
@@ -721,12 +727,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
                 None,
             )
 
-        def forked_work(started: float) -> None:
+        def idle_fork() -> None:
             """`fork-idle`: its line fork judges the question a fork's and posts the
             agent's working line, and a fork it spawns, in a turn of its own that
             picked the comment up, answers it in the thread with `leaf thread reply`,
             while the session stays idle."""
-            comment = user.ids["fork-idle"]
+            started = time.monotonic()
+            comment = user.comment("fork-idle")
             cc.until(
                 lambda: user.answered("fork-idle"),
                 "fork-idle: no fork answered it",
@@ -1035,9 +1042,16 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
                 f"fork-todo: the session ended the to-do {outcome and outcome['state']}",
             )
             if outcome is None:
-                require(
-                    any(t["id"] == todo for t in TodoReading(read_events(page)).owed),
+                [left] = require(
+                    [t for t in TodoReading(read_events(page)).owed if t["id"] == todo],
                     "fork-todo: the to-do is neither open nor done",
+                )
+                # The delivery steps after it read the page as listening, which a
+                # to-do left started holds at stalled.
+                require(
+                    left["running"] is None,
+                    "fork-todo: the session left the to-do started, so the page "
+                    "reads stalled",
                 )
             timings = user.end.timings()[comment]["milestones"]
             scheduled = (
@@ -1074,9 +1088,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
                 ),
             )
 
-        started = time.monotonic()
-        user.comment("fork-idle")
-        forked_work(started)
+        idle_fork()
         asked, taken = followed_up(time.monotonic())
         resumed(time.monotonic(), asked, taken)
         opened_todo(time.monotonic())

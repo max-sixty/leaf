@@ -28,11 +28,13 @@ REQUEST = definition("delivery_eval")["prompts"]["initial"]
 
 # Each step's comment, on the section it is posted on. A Claude Code session's line
 # fork hands a request for a change to the page to the session, and a working fork
-# would take a question the session could answer by reading (`leaf.forks`), so the
-# claude-code journey's delivery steps each ask to reword one phrase, as `mid-turn`
-# and `escape` do on every harness. A rewording keeps the page's meaning and shape,
-# so neither the session nor Claude Code's turn-end check (`leaf.clerk`) finds
-# anything more to raise with the user.
+# would take a question the session could answer by reading (`leaf.forks`), so each
+# of the claude-code journey's delivery steps asks to reword one phrase, and so do
+# `mid-turn` and `escape` on the other harnesses, which share them. A rewording keeps
+# the page's meaning and shape, which leaves the session and Claude Code's turn-end
+# check (`leaf.clerk`) nothing more to raise with the user. Each quotes words found
+# once in its section of `examples/triage-board.html`, and no two steps touch the
+# same words.
 COMMENTS = {
     "mid-turn": ("triage-why", "In this section, change “a no-op” to “harmless”."),
     "restart": ("triage-lede", "Anything else I should check before we ship?"),

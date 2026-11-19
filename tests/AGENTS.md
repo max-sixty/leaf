@@ -152,8 +152,7 @@ Tend's triage marks the issue with an eyes reaction while it works, then fixes t
 cause in a pull request that links the issue; a cause issue with neither is still
 waiting, and a failure only a local run shows never reaches Tend. If no pull request,
 Tend run, session or worktree (Codex's under `~/.codex/worktrees` included) is fixing
-a failure and the user you work for maintains Leaf, start a local session for it (for
-example with `/dispatch`).
+a failure and the user you work for maintains Leaf, start a local session for it.
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for

@@ -11,7 +11,6 @@ from leaf.events import (
     build_threads,
     conversation_turns,
     event_coordinate,
-    progress_completions,
     retractions,
     spoken_turns,
     summary_range,
@@ -482,9 +481,9 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
     `summaries`, as `{"from", "through"}`, or None where none is worth suggesting.
 
     It keeps the newest exchange verbatim, and is offered for the earliest run of
-    uncovered messages before it that is long enough to suggest. Completed progress
-    is not drawn, so a run folds it; pending progress is still being said, so a run
-    stops at it. The hint spans that run and every summary in force among the older
+    uncovered messages before it that is long enough to suggest. A run passes over
+    progress, which the thread never draws as a message (`events.summary_range`).
+    The hint spans that run and every summary in force among the older
     messages, so a summary that follows it replaces them and the thread keeps one
     summary of its earlier discussion, rather than gaining one more beside the last
     each time a run grows long enough. A fold of progress alone counts too. Its ends
@@ -497,15 +496,12 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
     hint."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
     prefix = {message["id"] for message in conversation_turns(thread)[:-2]}
-    completed = progress_completions(thread)
     ids = [message["id"] for message in thread["msgs"]]
     at = {identity: index for index, identity in enumerate(ids)}
     runs = []
     run = []
     for message in thread["msgs"]:
-        if message["id"] in covered or (
-            message.get("ephemeral") and message["id"] not in completed
-        ):
+        if message["id"] in covered:
             if run:
                 runs.append(run)
                 run = []

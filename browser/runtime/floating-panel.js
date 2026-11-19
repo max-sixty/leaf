@@ -3424,11 +3424,11 @@ export function createFloatingPanel({
   // `registerChromeThreadPresentation`), yielding to one the page's package registers, in
   // whose reader its threads then open, and gives the open thread an outlet here. Leaf
   // draws the thread there as a card on the page draws it (thread/thread-card.js,
-  // `ThreadView`): the words it is about, its to-dos, and its messages, progress folded
-  // behind the answer that completed it, work under way as the dim working message, New
-  // in each unread reply's head, with their reactions, rewrites and agent-authored
-  // widgets. The user chose that over every message at full size, which
-  // stands each progress step as a reply and marks nothing unread. The thread stands its
+  // `ThreadView`): the words it is about, its to-dos, and its messages, work under way
+  // as the dim working message and an ended step nowhere, New in each unread reply's
+  // head, with their reactions, rewrites and agent-authored widgets. The user chose
+  // that over every message at full size, which stands each progress step as a reply
+  // and marks nothing unread. The thread stands its
   // notice of the news it holds back and its Resolve on the view's head line, and its
   // reply box in the field below, where the panel gives them places (`nominateThread`),
   // so the view and a card share one of each. A thread anchored to a passage stays the

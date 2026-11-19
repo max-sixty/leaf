@@ -80,13 +80,7 @@
    its end, under the user's request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
-import {
-  holdFocus,
-  focusDestination,
-  focused,
-  currentLocationTouches,
-  currentLocationIn,
-} from "../focus.js";
+import { holdFocus, focusDestination, focused, currentLocationIn } from "../focus.js";
 import {
   effect,
   html,
@@ -224,15 +218,14 @@ function quoteReading(thread, anchors) {
 // message while an obligation in the same thread waits on the user. A message's work speaks before a to-do's, and
 // a proactive progress message, which takes no request in hand, gives its own words.
 // `live` while the work runs; work whose turn ended or went stale without an answer
-// says so beside its last line. The progress messages behind it are gathered by
-// `withPendingProgress`. It stands where those words were said, after `after`, the
-// original log position (`workingPlace`): as the face of the progress run
-// it follows, or as a face of its own (transcript.js). An answer already
-// streaming at the thread's end replaces the working message and pending progress.
+// says so beside its last line. It stands where those words were said, at `position`,
+// the original log position (`workingPlace`): as the face of the step there, or as a
+// face of its own (transcript.js). An answer already streaming at the thread's end
+// replaces the working message and the step before it.
 const STOPPED = new Set(["ended", "stale", "interrupted"]);
-// A progress run's face (transcript.js), the working message among them, standing for
-// the work under way where a thread reads the answer to the user's turn (`#fitAnswer`);
-// and the key each is drawn under there, by the run it faces.
+// A step's face (transcript.js), the working message among them, standing for the work
+// under way where a thread reads the answer to the user's turn (`#fitAnswer`); and the
+// key each is drawn under there.
 const WORKING = ".lf-thread-working";
 const FACE = "face:";
 // A first header's words, which a held-news notice stands after: everything it holds
@@ -246,10 +239,7 @@ const words = (header) => {
 /** @param {ThreadRecord} thread @param {readonly MessageReading[]} messages @returns {WorkingMessage | null} */
 function workingMessage(thread, messages) {
   if (thread.resolved || messages.at(-1)?.provisional) return null;
-  const covered = new Set(thread.summaries.flatMap(({ covers }) => covers));
-  const pending = messages.filter(
-    (message) => message.progress && !covered.has(message.id),
-  );
+  const pending = messages.filter((message) => message.progress);
   const lastProgress = pending.at(-1);
   const workflows = thread.workflows;
   const running = workflows.find((workflow) => !workflow.condition && workflow.at_work);
@@ -370,13 +360,15 @@ export function threadReading(thread, surface, commands) {
       : message.todo && openTodos.has(message.id)
         ? todoWord(null)
         : null;
-  // Completion comes from the server, including the provisional answer. A held
-  // reading keeps progress until its completing reply is among the messages shown.
+  // What ended a step comes from the server (`completed_by`), a provisional answer
+  // included. A held reading keeps a step until the message that ended it is among the
+  // messages shown; one its turn ended goes at once.
   const presented = new Set(thread.msgs.map(({ id }) => id));
   const messages = turns(thread)
     .filter(
       (message) =>
-        message.completed_by === undefined || !presented.has(message.completed_by),
+        message.completed_by === undefined ||
+        (message.completed_by !== null && !presented.has(message.completed_by)),
     )
     .map((message) =>
       messageReading(message, {
@@ -571,7 +563,7 @@ export class ThreadView {
   /** @type {NonNullable<import("./held-news.js").ThreadChange["answers"]> | null} */
   #followed = null;
   // The answer waiting past that box's foot behind New reply, by its first message or
-  // the face of its progress run.
+  // the face of the step that stands for it.
   /** @type {{message: string, label: string, scroller: HTMLElement} | null} */
   #waiting = null;
   // Whether this opening offers Next unread, and whether that has been asked (header).
@@ -676,13 +668,6 @@ export class ThreadView {
     return this.node.querySelector(":scope > .lf-thread-reply");
   }
 
-  // The node a message the thread draws stands in, after which a change to it grows;
-  // none while the thread is folded, where no message shows.
-  /** @param {string} key */
-  #messageNode(key) {
-    return this.#fold ? null : this.#transcript.messageNode(key);
-  }
-
   /** @param {string} id */
   ownsMessage(id) {
     return (
@@ -701,12 +686,6 @@ export class ThreadView {
     // changes, and draws at once whatever its settlement does to the seat.
     if (this.#fold) return false;
     const pinned = pinnedReply(this.#reply?.node);
-    // An answer's own fold of the progress run at the thread's end changes only the
-    // thread's foot, as the answer's arrival does, unless the user is on a message
-    // the fold would put away, by focus or by a selection reaching into it.
-    const foot =
-      footFold &&
-      !folds.messages.some((key) => currentLocationTouches(this.#messageNode(key)));
     // A floating card grows at one of its own edges: the one it does not hold
     // (`CardOutlets`, `endNewsMoves`; thread-preview.js, `heldEdge`). That edge is the
     // card's alone, since it stands itself rather than in a flow its growth moves, so
@@ -733,12 +712,14 @@ export class ThreadView {
         [...changed].every(
           (key) => key === last?.key && (last.provisional || follows),
         ) &&
-        (foot || (!folds.messages.length && !folds.summaries.length));
+        // An answer ending the step at the thread's end changes only the thread's
+        // foot, as the answer's arrival does.
+        (footFold || (!folds.messages.length && !folds.summaries.length));
       return growthIsSeen(this.node) && (!atEnd || endNewsMoves());
     }
     const followed = pinned && !news.settled ? this.#foot : null;
     return (
-      this.#transcript.newsMoves({ news, changed, folds }, { followed }) ||
+      this.#transcript.newsMoves({ news, changed, folds, footFold }, { followed }) ||
       Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow))
     );
   }
@@ -856,7 +837,7 @@ export class ThreadView {
     const settlement = model.settlement
       ? this.#settlement(model, model.settlement)
       : nothing;
-    const handedOn = this.#transcript.present(model, {
+    this.#transcript.present(model, {
       arrived: Boolean(prior),
       awaited: this.#newReply(),
     });
@@ -903,22 +884,19 @@ export class ThreadView {
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
-    // A progress disclosure the user was on that this render replaced hands them to
-    // its successor (transcript.js). A thread whose container stands its reply apart
-    // lands no one there: as one rewrite gives way to the next, a landing in the
-    // panel's field would let go of the height its view holds for a rewrite and take it
-    // again in the same press (floating-panel.js, `holdThread`).
+    // A thread whose container stands its reply apart lands no one there: as one
+    // rewrite gives way to the next, a landing in the panel's field would let go of the
+    // height its view holds for a rewrite and take it again in the same press
+    // (floating-panel.js, `holdThread`).
     restoreFocus?.(
-      ...(handedOn
-        ? [() => (focusDestination(handedOn, "return"), true)]
-        : replyApart
-          ? []
-          : [
-              () =>
-                this.#commands.landInThread(
-                  this.node.querySelector(SAY_BOX) ?? this.node,
-                ),
-            ]),
+      ...(replyApart
+        ? []
+        : [
+            () =>
+              this.#commands.landInThread(
+                this.node.querySelector(SAY_BOX) ?? this.node,
+              ),
+          ]),
     );
     return this.node;
   }
@@ -1415,12 +1393,6 @@ export class ThreadView {
           ? ""
           : null,
       );
-  }
-
-  // Whether the progress behind the working message stood open when last drawn
-  // (transcript.js, `progressOpen`).
-  get progressOpen() {
-    return this.#transcript.progressOpen;
   }
 
   // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn

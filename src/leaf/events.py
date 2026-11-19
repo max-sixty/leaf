@@ -507,8 +507,8 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     undoing an edit of it, invalidates a summary containing prose, and so does
     taking back a message its thread held when the summary was written, which the
     prose may report wherever the message stood. A fold without prose keeps showing
-    the revised originals. Progress completion is separate (`progress_completions`),
-    so opening a summary never restores completed progress.
+    the revised originals. A summary folds no progress: the thread shows only the
+    steps nothing has superseded, as working messages (`progress_completions`).
     """
     edits = {}
     edited = {}
@@ -539,26 +539,30 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
 
 
 def progress_completions(thread: dict) -> dict[str, dict]:
-    """The ordinary agent reply that supersedes each completed progress message.
-
-    The next non-failure agent reply completes all pending progress in its thread.
-    Reactions and user messages do not complete it. Presentation and unread share
-    this relation independently of explicit summaries and read acknowledgements.
-    """
-    pending = []
+    """The agent message that supersedes each progress message of `thread`: the next
+    one the agent says in it, a step, an answer or a failure. A step the user wrote
+    after waits for the agent's next message that is more than a step, so a step said
+    below the user's message leaves the one above it standing. So the thread holds at
+    most one step it hasn't superseded between two of the user's messages, its newest,
+    and a step never moves the user's message by ending above it. Reactions supersede
+    nothing. The turn that wrote a step can end it too, which the log doesn't say
+    (`served_state.thread.progress_ends`)."""
+    pending = None
+    spoken_after: list[str] = []
     completed = {}
     for message in spoken_turns(thread):
+        if message["author"] != "agent":
+            if pending is not None:
+                spoken_after.append(pending)
+            pending = None
+            continue
+        if pending is not None:
+            completed[pending] = message
         if message.get("ephemeral"):
-            pending.append(message["id"])
+            pending = message["id"]
             continue
-        if (
-            message["kind"] != "reply"
-            or message["author"] != "agent"
-            or message.get("failure")
-        ):
-            continue
-        completed.update((identity, message) for identity in pending)
-        pending = []
+        completed.update((step, message) for step in spoken_after)
+        pending, spoken_after = None, []
     return completed
 
 
@@ -580,16 +584,16 @@ def summary_range(
     the summaries in force beside it, so following a hint is never refused.
 
     The opening message may stay outside, since it says what the thread is about. A
-    message counts where the panel draws it whole: a spoken turn no summary covers,
-    other than progress a later reply completed (`progress_completions`), which is
-    drawn nowhere. Pending progress is drawn, so it counts, and a reaction is a mark
-    on another message, so it doesn't. A summary of completed progress alone is drawn
-    nowhere, so no message stands above it. Only `covers` is read of each summary, so
-    a caller can weigh a range it has not written."""
+    message counts where the panel draws it whole: a turn of the conversation no
+    summary covers (`conversation_turns`). Progress doesn't, since the panel draws at
+    most a thread's newest step, as its working message rather than a message a
+    summary folds (`progress_completions`), and a reaction is a mark on another
+    message. A summary of progress alone is drawn nowhere, so no message stands above
+    it. Only `covers` is read of each summary, so a caller can weigh a range it has
+    not written."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
-    completed = progress_completions(thread)
     spoken = spoken_turns(thread)
-    drawn = [message for message in spoken if message["id"] not in completed]
+    drawn = conversation_turns(thread)
     last = max(
         (at for at, message in enumerate(drawn) if message["id"] in covered),
         default=0,

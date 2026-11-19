@@ -558,6 +558,29 @@ def nudge_due(present: dict, turn: Turn) -> bool:
     return turn.ended is not None and not takes_input(present, turn)
 
 
+def turn_runs(written: dict, present: dict, turn: Turn, agents: set[str]) -> bool:
+    """Whether the turn that wrote `written`, a logged event naming its session and
+    turn, still runs: an agent's turn beside the claimant's main thread while it runs
+    (`agents`, `running_agent_turns`, which lapses one nothing renews), and the main
+    thread's while it is the claimant's current `turn` and no ending of it has been
+    seen, or after one while the harness says the session still works in the
+    background (`Turn.busy`). A main turn nothing has renewed lately still runs, since a
+    long step renews nothing, and a later one never runs for it. Unlike a start
+    (`_start_age`), a step gets no quiet grace past its turn's end, and another
+    session's step none at all."""
+    session = written.get("session")
+    if not session or session != present.get("claim_session"):
+        return False
+    if written.get("turn") in present["agent_turns"]:
+        return written["turn"] in agents
+    if (
+        written.get("turn") != present.get("turn")
+        or present["session_alive"] is not True
+    ):
+        return False
+    return turn.busy or turn.ended is None
+
+
 def _start_age(
     start: dict, present: dict, now: datetime, turn: Turn, agents: set[str]
 ) -> tuple[bool, bool]:

@@ -1,5 +1,7 @@
 """Thread-scoped browser projection."""
 
+from collections.abc import Callable
+
 from ..events import (
     active_summaries,
     awaits_agent,
@@ -7,8 +9,10 @@ from ..events import (
     is_answer,
     progress_completions,
     seat_root,
+    spoken_turns,
     turn_message,
     unanswered_agent_turn,
+    unanswered_turns,
 )
 from ..projection import ThreadMarkupReading
 from ..read_state import content_version, unread_content
@@ -73,8 +77,38 @@ def thread_counts(threads: list[dict]) -> dict:
     }
 
 
+def progress_ends(
+    thread: dict, owed_since: int | None, runs: Callable[[dict], bool]
+) -> dict[str, str | None]:
+    """What ended each progress message `thread` no longer shows, by its id: the
+    agent message that superseded it (`events.progress_completions`), or None where
+    the turn that wrote it has ended (`runs`, `activity.turn_runs`) and no message of
+    the user's said before it still waits on an answer (`owed_since`, the seq of the
+    oldest one that does, or None). So a thread shows only its newest steps, and only
+    while the work they belong to goes on.
+
+    A step toward an answer still owed stands until the agent next speaks in its
+    thread (`events.progress_completions`), whichever turn or session writes that, as
+    the line a line fork writes for the session does (`forks.py`): its line turn ends
+    as it hands the thread on, long before the session answers. The user chose that a
+    step otherwise goes with its turn, rather than standing as the thread's last word
+    until the agent next speaks there, and that owed work keeps the rule before, under
+    which every step stood until then, even past its session's end, when its On it
+    goes."""
+    superseded = progress_completions(thread)
+    ends: dict[str, str | None] = {}
+    for message in spoken_turns(thread):
+        if not message.get("ephemeral"):
+            continue
+        if (by := superseded.get(message["id"])) is not None:
+            ends[message["id"]] = by["id"]
+        elif (owed_since is None or owed_since > message["seq"]) and not runs(message):
+            ends[message["id"]] = None
+    return ends
+
+
 def browser_thread(
-    work, live_reply: dict | None = None
+    work, live_reply: dict | None, runs: Callable[[dict], bool]
 ) -> tuple[dict, ThreadMarkupReading]:
     """Serialize the shared thread-markup work reading, adding presentation only.
     Messages and closing events carry their canonical display name; provisional
@@ -84,7 +118,9 @@ def browser_thread(
     workflow says the agent is replying, and an empty message would only reserve a
     bubble with nothing in it. An agent's message whose current Markdown holds HTML
     carries `html` (`thread_context.thread_structure`), which the browser draws as
-    markup."""
+    markup. A progress message the thread no longer shows carries `completed_by`
+    (`progress_ends`), where `runs` says whether the turn that wrote an event still
+    runs."""
     events, threads = work.events, work.threads
     reading, thread_obligations = work.thread, work.thread_obligations
     fragments = reading.structure.fragments
@@ -97,7 +133,11 @@ def browser_thread(
     for event in events:
         if is_answer(event):
             first_answers.setdefault(event["responds"], event["id"])
+    owed_since: dict[str, int | None] = {}
     for thread_id, thread in threads.items():
+        owed_since[thread_id] = (
+            unanswered_turns(thread)[0]["seq"] if awaits_agent(thread) else None
+        )
         protected = set()
         if awaits_agent(thread):
             turn = unanswered_agent_turn(thread)
@@ -186,13 +226,13 @@ def browser_thread(
                     "pending": live_reply["state"] == "active",
                 },
             ]
-    # Presentation keeps the raw messages so a surface can retain progress while its
-    # answer is held. The same relation includes an answer already streaming here.
+    # Presentation keeps the raw messages so a surface can retain progress while the
+    # message that ended it is held. An answer already streaming here ends it too.
     for thread in rendered_threads:
-        completed = progress_completions(thread)
+        ends = progress_ends(thread, owed_since[thread["id"]], runs)
         for message in thread["msgs"]:
-            if reply := completed.get(message["id"]):
-                message["completed_by"] = reply["id"]
+            if message["id"] in ends:
+                message["completed_by"] = ends[message["id"]]
     return (
         {
             "projection": browser_projection(

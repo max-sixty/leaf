@@ -193,9 +193,7 @@
 }
 /* The room stays whole where something stands before it that the words would
    otherwise run under, a notice of news (surfaces.css), and under a finger, where the
-   controls always show. A progress disclosure comes before the completed answer's
-   reaction trigger, so the room holds the trigger's width from the disclosure's first
-   paint and its arrival moves no label. */
+   controls always show. */
 .lf-msg-head:has(> .lf-primary-news) > .lf-msg-control-room,
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -208,11 +206,6 @@
   .lf-msg-control-room {
     min-inline-size: auto;
   }
-}
-.lf-msg-head:has(> .lf-progress-expand)
-  > .lf-msg-control-room:has(> .lf-msg-controls:empty) {
-  display: flex;
-  inline-size: var(--lf-msg-control-width);
 }
 /* Under a finger, with no hover to hide it, Copy would stand on every message for
    good, and a head is too narrow for two controls at the aim floor, so it is left out

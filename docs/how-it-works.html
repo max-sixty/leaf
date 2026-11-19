@@ -2900,9 +2900,9 @@ flowchart TD
                   ><code>leaf thread reply &lt;answer.ref&gt; --ephemeral</code></strong
                 >
                 Names the upcoming work in the user’s thread before reads or edits. It
-                sets the page’s status and the comment’s Working label, then folds
-                behind
-                <em>Show 1 progress message</em> when the answer arrives.
+                sets the page’s status and the comment’s Working label, and stands as
+                the thread’s dim working message until the agent’s next message there
+                replaces it.
               </li>
               <li id="updates-written-working">
                 <strong><code>leaf task start … &lt;id&gt; --text "…"</code></strong>
@@ -3452,8 +3452,11 @@ EOF</code></pre>
               exchange outside, so a summary over it leaves the thread one summary; the
               agent decides whether to summarize. Editing a message inside a written
               summary's range removes the summary, so an outdated summary cannot hide
-              the correction. Progress messages an agent posts while working gather
-              behind the latest one, and disappear once its next ordinary reply arrives.
+              the correction. A thread shows only the latest progress message an agent
+              posts while working, and the one it left above each message the user has
+              written since. Its next message there replaces the latest, its next reply
+              the ones above the user's messages, and its turn ending does too where
+              nothing before them still waits on an answer.
             </p>
           </section></lf-tab
         ><lf-tab id="forks" label="Forks"

@@ -2315,11 +2315,10 @@ def agent_said(page_dir, root, text, **fields):
 
 def test_a_thread_s_view_hides_completed_progress_as_its_card_does(browser, serve):
     """A thread's view draws its messages as the thread's card on the page does
-    (thread/transcript.js): progress the answer completed stays hidden, and work
-    still under way stands as one dim
-    working message at the transcript's foot rather than as a reply. What anyone wrote,
-    messages and the working line alike, reads in Leaf's sans rather than the page's
-    serif."""
+    (thread/transcript.js): steps the answer ended stay hidden, and the step on the
+    user's follow-up stands as one dim working message at the transcript's foot rather
+    than as a reply. What anyone wrote, messages and the working line alike, reads in
+    Leaf's sans rather than the page's serif."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
@@ -2332,6 +2331,15 @@ def test_a_thread_s_view_hides_completed_progress_as_its_card_does(browser, serv
         "The workshop fits, including a fifteen-minute break.",
         responds=root,
     )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "text": "Can the closing discussion run past five?",
+        },
+    )
     agent_said(
         serve.page_dir,
         root,
@@ -2343,11 +2351,8 @@ def test_a_thread_s_view_hides_completed_progress_as_its_card_does(browser, serv
     page.keyboard.press("t")
     view = page.locator(panel_view("thread"))
     shown = view.locator(".lf-msg:visible")
-    expect(shown).to_have_count(2)
-    expect(shown.last).to_contain_text("The workshop fits")
-    expect(
-        view.get_by_role("button", name=re.compile("progress message"))
-    ).to_have_count(0)
+    expect(shown).to_have_count(3)
+    expect(shown.nth(1)).to_contain_text("The workshop fits")
     working = view.locator(".lf-thread-working")
     expect(working).to_be_visible()
     expect(working).to_contain_text("Checking whether the room stays free after five")
@@ -2355,7 +2360,7 @@ def test_a_thread_s_view_hides_completed_progress_as_its_card_does(browser, serv
     leaf = page.locator(".lf-fp-head .lf-fp-title").evaluate(face)
     assert leaf != page.evaluate("getComputedStyle(document.body).fontFamily")
     for words in (
-        shown.last.locator(".lf-msg-body"),
+        shown.nth(1).locator(".lf-msg-body"),
         working.locator(".lf-thread-working-words"),
     ):
         assert words.evaluate(face) == leaf

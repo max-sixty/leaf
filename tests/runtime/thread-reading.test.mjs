@@ -624,6 +624,30 @@ test("news answers only a user turn that still stands", async () => {
   assert.equal(threadChange(before, reading([root], "More work")).answers, null);
 });
 
+test("a step its turn ended above the user's message is news a seat can hold", async () => {
+  const { threadChange } = await import("/runtime/thread/held-news.js");
+  const root = { id: "question", key: "question", author: "user", body: "Question" };
+  const step = { id: "step", key: "step", author: "agent", progress: true };
+  const turn = { id: "followup", key: "followup", author: "user", body: "And this?" };
+  const later = { id: "later", key: "later", author: "agent", progress: true };
+  const working = { words: "Checking the title" };
+  const was = {
+    messages: [root, step, turn, later],
+    source: { msgs: [root, step, turn, later] },
+    summaries: [],
+    working,
+  };
+  // The step's turn ended: it leaves the presentation with nothing else changing.
+  const now = {
+    ...was,
+    messages: [root, turn, later],
+    source: { msgs: [root, { ...step, completed_by: null }, turn, later] },
+  };
+  const change = threadChange(was, now);
+  assert.deepEqual(change?.folds.messages, ["step"]);
+  assert.equal(change?.footFold, false);
+});
+
 test("Copy gives an authored message's Markdown, its HTML included, after the public thread reading", async () => {
   const { adoptRegistry } = await import("/runtime/registry.js");
   const { loadMarkdown } = await import("/runtime/markdown.js");

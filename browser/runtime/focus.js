@@ -425,25 +425,11 @@ export const focused = (tree = null) => {
   return tree ? hostIn(at, tree) : at;
 };
 
-// The selection the user drew in the tree containing `node`, where the browser keeps it.
-/** @param {Node} node */
-const selectionOf = (node) => {
-  const root = node.getRootNode();
-  // Only Chromium's shadow roots answer their own selection; Firefox and WebKit
-  // keep it on the document.
-  return (
-    (focusRoot(root) &&
-      root.nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
-      root.getSelection?.()) ||
-    getSelection()
-  );
-};
-
 // Where the user is, nearest first: the focused node, unless focus rests on the
 // body, then the ends of a selection they drew, its focus before its anchor, a caret a
 // click left included, since a selection names where a reader is as surely as focus
-// does. Each reader takes these by its own rule: the first that is a place on the page
-// (`currentLocationOrigin`, current-target.js), or any that lies in a node (`currentLocationTouches`).
+// does. Each reader takes these by its own rule, as the first that is a place on the
+// page (`currentLocationOrigin`, current-target.js).
 export function currentLocationNodes() {
   const at = focused();
   const selection = getSelection();
@@ -452,18 +438,6 @@ export function currentLocationNodes() {
     selection?.focusNode ?? null,
     selection?.anchorNode ?? null,
   ].filter((node) => node !== null);
-}
-
-// Whether the user is on `node` or on something in it: where they are
-// (`currentLocationNodes`) is inside it, or a selection they drew reaches into it. A change
-// that puts `node` away would take that place from them.
-/** @param {Node | null} node */
-export function currentLocationTouches(node) {
-  if (!node) return false;
-  if (currentLocationNodes().some((at) => at === node || node.contains(at)))
-    return true;
-  const selection = selectionOf(node);
-  return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
 }
 
 // Holding the user's place across a change to the tree they are in. Moving a node

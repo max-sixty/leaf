@@ -30,11 +30,11 @@ vars:
     pass.
 
     Your audit subagent has finished. It wrote its candidates to
-    `evals/audit-calls-are-proposals/audit/candidates.json`, with a cropped capture
+    `audit/candidates.json`, with a cropped capture
     of each item as it looks today under `audit/captures/` (device scale 2) and a
     capture of the whole console, `audit/captures/console.png`, at 1200x720. All four
     are judgment calls, where removing the item loses something real. The console
-    is a static page, `evals/audit-calls-are-proposals/audit/app/index.html` with its
+    is a static page, `audit/app/index.html` with its
     `console.css`, which opens directly in a browser; a headless Chrome is at
     `$LEAF_BROWSER_EXECUTABLE`. No code has changed.
 

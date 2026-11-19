@@ -106,7 +106,7 @@ from leaf.service import claim_is_active, page_claim
 from leaf.state import session_live, session_record, turn_open
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
-from leaf_dev import ROOT
+from leaf_dev import ROOT, state_home
 from leaf_dev.arms import (
     PAYLOAD,
     PageClient,
@@ -186,8 +186,7 @@ def samples_path() -> Path:
     """Where this machine keeps every sample, one JSON line each, outside any
     checkout so runs from every worktree accumulate. CI's samples stay in
     `publish-site`'s run logs."""
-    state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
-    return Path(state) / "leaf-dev" / "journey.jsonl"
+    return state_home() / "journey.jsonl"
 
 
 class Session(NamedTuple):

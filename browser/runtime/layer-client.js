@@ -369,8 +369,10 @@ function admitted(response, ofThisLayer) {
   return true;
 }
 
-// Activation belongs to one private page in one release. A pinned revision shares
-// its canonical root; another page or deployment has a separate saved record.
+// Activation belongs to one private page, whose saved record outlives a deploy. A
+// pinned revision shares its canonical root; another page has a separate record. Tabs
+// tell each other on a channel of their release, since a tab on another release
+// reloads at its next answer.
 let sessionMode = release ? "unknown" : "active";
 const sessionChannel =
   release && !document.documentElement.lfSample

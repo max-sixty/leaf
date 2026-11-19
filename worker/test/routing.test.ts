@@ -40,7 +40,13 @@ const routes = {
   files: ["leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg"],
 };
 const frame_ancestors = "frame-ancestors 'self'";
-const manifest = { release: "a".repeat(64), frame_ancestors, routes, pages };
+const manifest = {
+  release: "a".repeat(64),
+  protocol: 60,
+  frame_ancestors,
+  routes,
+  pages,
+};
 const route = (pathname: string) => pageRoute(pathname, manifest);
 
 describe("website page routing", () => {
@@ -114,65 +120,70 @@ describe("website page routing", () => {
     expect(isPrivatePageRequest("/examples/triage-board/api/state")).toBe(false);
   });
 
-  it("marks private state for only its page and release", () => {
+  it("marks private state for only its page and page protocol", () => {
     const root = "/examples/triage-board";
-    const release = manifest.release;
+    const protocol = manifest.protocol;
     expect(
       activeFromCookie(
-        `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${release}`,
+        `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${protocol}`,
         true,
         root,
-        release,
+        protocol,
       ),
     ).toBe(true);
     expect(
       activeFromCookie(
-        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${release}`,
+        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${protocol}`,
         false,
         root,
-        release,
+        protocol,
       ),
     ).toBe(true);
     expect(
       activeFromCookie(
-        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${release}`,
+        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${protocol}`,
         true,
         root,
-        release,
+        protocol,
       ),
     ).toBe(false);
     expect(
       activeFromCookie(
-        `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${"b".repeat(64)}`,
+        `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${protocol + 1}`,
         true,
         root,
-        release,
+        protocol,
       ),
     ).toBe(false);
     expect(
-      activeFromCookie(`${ACTIVE_COOKIE_PREFIX}-root=${release}`, true, root, release),
+      activeFromCookie(
+        `${ACTIVE_COOKIE_PREFIX}-root=${protocol}`,
+        true,
+        root,
+        protocol,
+      ),
     ).toBe(false);
     expect(
-      activeFromCookie(`${ACTIVE_COOKIE_PREFIX}=${release}`, true, root, release),
+      activeFromCookie(`${ACTIVE_COOKIE_PREFIX}=${protocol}`, true, root, protocol),
     ).toBe(false);
-    expect(activeFromCookie(null, true, root, release)).toBe(false);
+    expect(activeFromCookie(null, true, root, protocol)).toBe(false);
     // A page's activation must not alias another path, including the root sentinel.
     const roots = ["/", "/root", "/examples/a_b", "/examples/a/b", "/examples/a%2Fb"];
-    expect(activeCookie(true, "/review(draft)", release)).toBe(
-      `${ACTIVE_COOKIE_PREFIX}-page-review%28draft%29=${release}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+    expect(activeCookie(true, "/review(draft)", protocol)).toBe(
+      `${ACTIVE_COOKIE_PREFIX}-page-review%28draft%29=${protocol}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
     for (const selected of roots) {
-      const cookie = activeCookie(true, selected, release).split(";", 1)[0];
+      const cookie = activeCookie(true, selected, protocol).split(";", 1)[0];
       for (const candidate of roots)
-        expect(activeFromCookie(cookie, true, candidate, release)).toBe(
+        expect(activeFromCookie(cookie, true, candidate, protocol)).toBe(
           candidate === selected,
         );
     }
-    expect(activeCookie(true, root, release)).toBe(
-      `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${release}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+    expect(activeCookie(true, root, protocol)).toBe(
+      `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${protocol}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
-    expect(activeCookie(false, "/", release)).toBe(
-      `${HTTP_ACTIVE_COOKIE_PREFIX}-root=${release}; Path=/; HttpOnly; SameSite=Lax`,
+    expect(activeCookie(false, "/", protocol)).toBe(
+      `${HTTP_ACTIVE_COOKIE_PREFIX}-root=${protocol}; Path=/; HttpOnly; SameSite=Lax`,
     );
   });
 

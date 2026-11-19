@@ -1,16 +1,22 @@
 /**
  * Public Leaf site with edge reads and isolated canonical mutation sessions.
  *
- * Cloudflare serves untouched pages at the edge. A browser cookie selects a private,
- * release-scoped Durable Object holding canonical page records and Python-produced
- * dormant responses. Saved content loads without starting Linux. Mutations wake the
- * Python Leaf server, which restores the record before admission and publishes the
- * record and matching delivery atomically before acknowledgement. Python owns all
- * event and activity rules; this Worker stores and routes their output.
- * New releases select new demo records. Only the edge names a release to the browser:
- * it stamps its own on every answer, a container's included, and the page store refuses
- * a container whose image runs another release, so a previous image still starting
- * during a rollout fails rather than reading or writing the new release's records.
+ * Cloudflare serves untouched pages at the edge. A browser cookie selects a private
+ * Durable Object, one per page protocol, holding canonical page records and
+ * Python-produced dormant responses. Saved content loads without starting Linux.
+ * Mutations wake the Python Leaf server, which restores the record before admission and
+ * publishes the record and matching delivery atomically before acknowledgement. Python
+ * owns all event and activity rules; this Worker stores and routes their output.
+ * A visitor's records outlive a deploy at the same page protocol, as a local page
+ * outlives a Leaf update: the next release's container restores them and serves them on
+ * its own runtime, and a new protocol selects new records. The maintainer chose this
+ * over a record per release, which reset every visitor's comments, choices and agent
+ * thread at each deploy. Only the edge names a release to the browser: it stamps its own
+ * on every answer, a container's included. Nothing a previous release runs reaches a
+ * visitor: the page store refuses a container whose image runs another release, so a
+ * previous image still starting during a rollout fails before it reads or writes the
+ * records; the store serves a saved response only to the release that captured it; and
+ * this object stops a container a previous release started before forwarding to it.
  * Disposable sample URLs carry the opaque container object ID alongside their own
  * random capability, so an opaque-origin child uses native requests without a browser
  * session cookie. This routing reference selects a container only beneath that sample
@@ -139,6 +145,7 @@ const PAGE_FAULT_REASON_CHARS = 300;
 const MAX_INTERACTION_BYTES = 128 * 1024;
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
 const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
+const CONTAINER_RELEASE = "container-release";
 interface AcceptedEvent {
   event: Event;
   needsReply: boolean;
@@ -218,10 +225,26 @@ export class LeafWebsiteSession extends Container<Env> {
     return second;
   }
 
+  // The release whose Worker started the running container. Its image is that release's,
+  // since the page store refuses any other (`answerPageStore`), and a container that
+  // never started names none.
+  override async onStart(): Promise<void> {
+    const { release } = await siteManifest(new Request("https://leaf.page/"), this.env);
+    this.ctx.storage.kv.put(CONTAINER_RELEASE, release);
+  }
+
   override async fetch(request: Request): Promise<Response> {
+    const manifest = await siteManifest(request, this.env);
+    // A container from before a deploy runs the previous image, whose documents name
+    // assets this release no longer serves. Its records are saved, so stop it and let
+    // this release's container restore them.
+    if (
+      this.ctx.container?.running &&
+      this.ctx.storage.kv.get(CONTAINER_RELEASE) !== manifest.release
+    )
+      await this.destroy();
     if (!this.ctx.container?.running) {
       const url = new URL(request.url);
-      const manifest = await siteManifest(request, this.env);
       const route = pageRoute(url.pathname, manifest);
       if (route !== null) {
         // Optional viewport observations are useful only to a running agent.
@@ -239,7 +262,12 @@ export class LeafWebsiteSession extends Container<Env> {
             request.headers.get("Leaf-View-Revision");
           if (revision) path += `?revision=${revision}`;
         }
-        const response = await this.pages.response(route.root, path, request);
+        const response = await this.pages.response(
+          route.root,
+          path,
+          request,
+          manifest.release,
+        );
         if (response !== null) return response;
       }
     }
@@ -357,10 +385,11 @@ function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-// A release selects its own durable record and container; new code never interprets
-// a different release’s demo state. Container replacement keeps the same record.
-function containerId(sessionId: string, release: string): string {
-  return `${release}:${sessionId}`;
+// A page protocol selects its own durable record and container, so a deploy at the same
+// protocol keeps a visitor's page and a protocol bump starts them on the published one.
+// Container replacement keeps the same record.
+function containerId(sessionId: string, protocol: number): string {
+  return `${protocol}:${sessionId}`;
 }
 
 // The body as text, or null once it passes maxBytes, whether the client declared that
@@ -729,9 +758,9 @@ export default {
     const secure = url.protocol === "https:";
     const cookie = request.headers.get("Cookie");
     const existing = sessionFromCookie(cookie, secure);
-    const active = activeFromCookie(cookie, secure, route.root, manifest.release);
+    const active = activeFromCookie(cookie, secure, route.root, manifest.protocol);
     const sessionId = existing ?? randomSessionId();
-    const privateContainer = containerId(sessionId, manifest.release);
+    const privateContainer = containerId(sessionId, manifest.protocol);
     const reference = sessionReference(sessionId);
     if (request.method === "POST" && route.inside === "api/performance") {
       if (existing === null) {
@@ -862,7 +891,7 @@ export default {
     if (!active && response.headers.has("Leaf-Session"))
       answer.headers.append(
         "Set-Cookie",
-        activeCookie(secure, route.root, manifest.release),
+        activeCookie(secure, route.root, manifest.protocol),
       );
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
       answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);

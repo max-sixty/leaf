@@ -23,6 +23,10 @@ vi.mock("@cloudflare/containers", () => ({
     fetch(request: Request) {
       return forwardedContainerFetch(request);
     }
+
+    async destroy(this: { ctx: { container: { running: boolean } } }) {
+      this.ctx.container.running = false;
+    }
     static get outboundByHost(): Record<string, OutboundHandler<Env>> | undefined {
       return containerHandlers.get(this.name);
     }
@@ -44,9 +48,11 @@ function executionContext(waitUntil = vi.fn()): ExecutionContext {
 }
 
 const RELEASE = "a".repeat(64);
+const PROTOCOL = 60;
 const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
+  protocol: PROTOCOL,
   frame_ancestors: "frame-ancestors 'self'",
   routes: {
     layer: ["runtime", "widgets", "vendor"],
@@ -151,9 +157,9 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
   presentedMs: 310,
   ...overrides,
 });
-const activeMarker = (root: string, release = RELEASE) =>
-  activeCookie(true, root, release).split(";", 1)[0];
-const containerId = (sessionId: string) => `${RELEASE}:${sessionId}`;
+const activeMarker = (root: string, protocol = PROTOCOL) =>
+  activeCookie(true, root, protocol).split(";", 1)[0];
+const containerId = (sessionId: string) => `${PROTOCOL}:${sessionId}`;
 
 function environment(overrides: Partial<Env> = {}): Env {
   const allow = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
@@ -1213,7 +1219,7 @@ describe("product-site delivery", () => {
     }
   });
 
-  it("selects private state by the deployed release", async () => {
+  it("selects private state by the page protocol, across releases", async () => {
     const sessionId = "0b".repeat(16);
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
@@ -1650,9 +1656,9 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("keeps an earlier release's active page passive after deployment", async () => {
+  it("keeps a page made active at an earlier page protocol passive", async () => {
     const sessionId = "1c".repeat(16);
-    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`;
+    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", PROTOCOL - 1)}`;
     const env = environment({
       ASSETS: {
         fetch: async () =>
@@ -1708,7 +1714,7 @@ describe("product-site delivery", () => {
     for (const cookie of [
       undefined,
       `__Host-leaf-page=${sessionId}`,
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", PROTOCOL - 1)}`,
       `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
     ]) {
       const response = await report(cookie);
@@ -1761,7 +1767,7 @@ describe("product-site delivery", () => {
     for (const cookie of [
       undefined,
       `__Host-leaf-page=${sessionId}`,
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", PROTOCOL - 1)}`,
       `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
     ]) {
       const response = await read(cookie);
@@ -1810,7 +1816,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
-      `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+      `__Host-leaf-active-page-examples%2Ftriage-board=${PROTOCOL}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
   });
 
@@ -1884,7 +1890,7 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("active");
       expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
-        `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        `__Host-leaf-active-page-examples%2Ftriage-board=${PROTOCOL}; Path=/; Secure; HttpOnly; SameSite=Lax`,
       );
     }
   });
@@ -2121,6 +2127,7 @@ describe("website page agent", () => {
         { storage, container: { running: true } } as never,
         environment(),
       );
+      await session.onStart();
       for (const [body, headers, expected] of [
         ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
         ["private-adapter-error", { "Leaf-Session": "active" }, "adapter"],
@@ -2165,6 +2172,7 @@ describe("website page agent", () => {
         { storage, container: { running: true } } as never,
         environment(),
       );
+      await session.onStart();
       const url = "https://leaf.page/examples/triage-board/api/news?private=secret";
       for (const body of [
         "Container suddenly disconnected, try again",
@@ -2253,6 +2261,48 @@ describe("website page agent", () => {
     }
   });
 
+  it("stops a container an earlier release started before forwarding to it", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const ctx = { storage, container: { running: true } };
+      const earlier = {
+        ...environment(),
+        ASSETS: {
+          fetch: async () => Response.json({ ...MANIFEST, release: "b".repeat(64) }),
+        } as unknown as Fetcher,
+      };
+      await new LeafWebsiteSession(ctx as never, earlier).onStart();
+      // The deploy restarts the object on the new release's code; its container still
+      // runs the earlier image.
+      const session = new LeafWebsiteSession(ctx as never, environment());
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch.mockImplementationOnce(async () => {
+        expect(ctx.container.running).toBe(false);
+        return new Response("restored on this release");
+      });
+      const response = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/state"),
+      );
+      expect(await response.text()).toBe("restored on this release");
+      // This release's own container goes on answering.
+      ctx.container.running = true;
+      await session.onStart();
+      forwardedContainerFetch.mockImplementationOnce(async () => {
+        expect(ctx.container.running).toBe(true);
+        return new Response("still running");
+      });
+      expect(
+        await (
+          await session.fetch(
+            new Request("https://leaf.page/examples/triage-board/api/state"),
+          )
+        ).text(),
+      ).toBe("still running");
+    } finally {
+      close();
+    }
+  });
+
   it("recalls saved content and private resources without starting the container", async () => {
     const { storage, close } = sqliteStorage();
     try {
@@ -2333,6 +2383,7 @@ describe("website page agent", () => {
       ).toBe(204);
       expect(forwardedContainerFetch).not.toHaveBeenCalled();
       ctx.container.running = true;
+      await session.onStart();
       expect(
         await (
           await session.fetch(

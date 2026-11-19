@@ -303,9 +303,10 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     if published_revision:
-        manifest["pages"]["/examples/decision"]["states"] = {
-            "1": "/_leaf/state/decision--r1.json"
-        }
+        assert website_server.activate_source(published).revision == 1
+        manifest["pages"]["/examples/decision"]["revisions"] = [
+            revision_path(published, 1).stem
+        ]
     manifest_path.write_text(json.dumps(manifest))
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, harness)
@@ -645,7 +646,7 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     page = manifest["pages"]["/examples/decision"]
-    page["states"] = {"1": "unused"}
+    page["revisions"] = [revision_path(published, 1).stem]
     manifest_path.write_text(json.dumps(manifest))
     release = f"{page['assets']}/revisions/{revision_path(published, 1).stem}"
     # A revision a session saved after the release is the container's, never the

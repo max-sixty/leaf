@@ -41,7 +41,7 @@ the host late finds a newer store there and changes nothing. Where the host hold
 another store than the file, as after a save it took whose answer never came back,
 the file takes the host's store and the write runs once more against it (`_change`).
 Every record carries the version of its own write, so a tab ordering a reading
-against a write's answer keeps the later of the two. A page directory replaced, or a leaf.page session started for a new release,
+against a write's answer keeps the later of the two. A page directory replaced, or a leaf.page session started at a new page protocol,
 starts another store with another identity, whose versions say nothing of the one a
 tab heard before.
 """

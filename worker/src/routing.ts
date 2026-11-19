@@ -42,6 +42,8 @@ interface PageRoutes {
 
 export interface SiteManifest {
   release: string;
+  /** The page protocol this release's Leaf serves and writes (`kernel_protocol`). */
+  protocol: number;
   /** The header policy every HTML response adds, since a document's own <meta>
    * policy cannot govern its ancestors (`structure.FRAME_ANCESTORS_CSP`). */
   frame_ancestors: string;
@@ -143,17 +145,18 @@ export function sessionFromCookie(
   return null;
 }
 
-/** Activation selects a private record in one release, like its Durable Object key. */
+/** Activation selects a private record at one page protocol, like its Durable Object
+ * key. */
 export function activeFromCookie(
   cookie: string | null,
   secure: boolean,
   pageRoot: string,
-  release: string,
+  protocol: number,
 ): boolean {
   if (cookie === null) return false;
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const expected = pageCookieName(prefix, pageRoot);
-  return cookie.split(";").some((item) => item.trim() === `${expected}=${release}`);
+  return cookie.split(";").some((item) => item.trim() === `${expected}=${protocol}`);
 }
 
 function pageCookieName(prefix: string, pageRoot: string): string {
@@ -185,10 +188,10 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
 export function activeCookie(
   secure: boolean,
   pageRoot: string,
-  release: string,
+  protocol: number,
 ): string {
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const name = pageCookieName(prefix, pageRoot);
   const security = secure ? "; Secure" : "";
-  return `${name}=${release}; Path=/${security}; HttpOnly; SameSite=Lax`;
+  return `${name}=${protocol}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }

@@ -3,9 +3,13 @@
 Python remains the sole owner of activation, event admission and projection. A
 successful page transaction publishes its canonical record and asleep responses
 together to the container's Durable Object before acknowledging the write. The
-record overlays this release's immutable image on startup; captured responses are
-disposable delivery output and never an input to a fold. Responses retain their
-exact bytes: the separately bundled public assets are a different module graph.
+record is the page's whole directory as the session left it, every revision it reads
+included, and replaces the image's copy of the page on startup. So a later release at
+the same page protocol serves the visitor's page as they left it, as a local Leaf
+serves a page an earlier Leaf wrote, rather than reading their log against the
+revisions it publishes itself. Captured responses are disposable delivery output and
+never an input to a fold. Responses retain their exact bytes: the separately bundled
+public assets are a different module graph.
 
 The user's drafts change with every keystroke and move no page reading
 (`reading.UNWATCHED`), so they take a path of their own. Each write of a page's drafts
@@ -186,6 +190,13 @@ def restore(site_root: Path) -> bool:
             for digest in content["chunks"]
         ):
             raise ValueError("page restore snapshot is missing referenced chunks")
+        # A page an earlier release published and this one doesn't keeps its record
+        # in the store, unread, rather than ending the start for every other page.
+        records = {
+            root: record
+            for root, record in records.items()
+            if root in manifest["pages"]
+        }
         for root, record in records.items():
             directory = _page_directory(site_root, manifest, root)
             targets = []
@@ -197,8 +208,6 @@ def restore(site_root: Path) -> bool:
             # These trees are complete inputs, not patches over the release.
             # Replacing them also preserves deletion of a published input.
             for name in PAGE_OWNED_DIRS:
-                if name == "revisions":
-                    continue
                 if (directory / name).exists():
                     shutil.rmtree(directory / name)
             for name in PAGE_OWNED_FILES:
@@ -211,6 +220,8 @@ def restore(site_root: Path) -> bool:
                 os.utime(target, (content["modified"], content["modified"]))
                 files += 1
         for root, drafts in snapshot["drafts"].items():
+            if root not in manifest["pages"]:
+                continue
             DRAFTS.write(
                 _page_directory(site_root, manifest, root) / DRAFTS_FILE, drafts
             )
@@ -236,7 +247,7 @@ def _upload(blobs: _BlobSet, release: str, digest: str) -> None:
         pass
 
 
-def _record_files(page_dir: Path, published: set[int]) -> list[Path]:
+def _record_files(page_dir: Path) -> list[Path]:
     # The drafts store is published on its own (`publish_drafts`).
     files = [
         page_dir / name
@@ -244,16 +255,7 @@ def _record_files(page_dir: Path, published: set[int]) -> list[Path]:
         if name not in PAGE_PROCESS_FILES and name != DRAFTS_FILE
     ]
     for name in PAGE_OWNED_DIRS:
-        if name != "revisions":
-            files.extend(
-                path for path in (page_dir / name).rglob("*") if path.is_file()
-            )
-    for path in (page_dir / "revisions").glob("r*-*"):
-        # Published revisions already live in the same release's image. Only the
-        # private additions belong to the per-session durable record.
-        number = int(path.name.split("-", 1)[0][1:])
-        if number not in published:
-            files.extend(path.rglob("*") if path.is_dir() else [path])
+        files.extend(path for path in (page_dir / name).rglob("*") if path.is_file())
     return sorted(path for path in files if path.is_file())
 
 
@@ -308,9 +310,9 @@ def _responses(
     )
     paths = {"", "api/state", "api/news", "api/drafts", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
-    published = set(map(int, manifest["pages"][root]["states"]))
+    published = set(manifest["pages"][root]["revisions"])
     for item, artifact in snapshot.artifacts.items():
-        if item in published:
+        if snapshot.revision_names[item].removesuffix(".html") in published:
             continue
         paths.add(f"revisions/{snapshot.revision_names[item]}")
         # Where the container serves the revision's resources, which the revisions
@@ -445,9 +447,7 @@ def publish(page: PageTransaction) -> None:
     published = PUBLISHED.read(token)
     if published is not None and published["fingerprint"] == fingerprint:
         return
-    files = _record_files(
-        page.page_dir, set(map(int, manifest["pages"][root]["states"]))
-    )
+    files = _record_files(page.page_dir)
     with TemporaryFile() as buffer:
         blobs = _BlobSet(buffer)
         record = _record(page.page_dir, files, blobs)

@@ -850,15 +850,15 @@ export default {
       answer.headers.delete("Content-Length");
       answer.headers.delete("Content-Encoding");
     }
-    answer.headers.set("Leaf-Session", "active");
     answer.headers.set("Leaf-Release", manifest.release);
     answer.headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
       answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    // Only Python's own answer, which names its session, shows the container holds the
-    // page. The Containers SDK's failure for a container that never started would
-    // otherwise pin every later read to that container until the visitor's cookie ends.
+    // Only Python's own answer, which names its session (`Leaf-Session: active`), shows
+    // the container holds the page. The Containers SDK's failure for a container that
+    // never started names none, so neither the visitor's cookie nor their browser pins
+    // later reads to that container.
     if (!active && response.headers.has("Leaf-Session"))
       answer.headers.append(
         "Set-Cookie",

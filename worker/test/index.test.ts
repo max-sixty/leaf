@@ -1282,7 +1282,6 @@ describe("product-site delivery", () => {
         expect(containerFetch).toHaveBeenCalledOnce();
         expect(response.status).toBe(200);
         expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-        expect(response.headers.get("Leaf-Session")).toBe("active");
       }
     },
   );
@@ -1508,7 +1507,6 @@ describe("product-site delivery", () => {
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(await response.text()).toContain("Private revision");
-    expect(response.headers.get("Leaf-Session")).toBe("active");
   });
 
   it("loads an active page's private document on every navigation", async () => {
@@ -1567,7 +1565,6 @@ describe("product-site delivery", () => {
     expect(getContainer).toHaveBeenCalledTimes(3);
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledTimes(3);
-    expect(marked.headers.get("Leaf-Session")).toBe("active");
   });
 
   it.each([
@@ -1726,7 +1723,6 @@ describe("product-site delivery", () => {
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
     );
     expect(active.status).toBe(204);
-    expect(active.headers.get("Leaf-Session")).toBe("active");
     expect(active.headers.get("Set-Cookie")).toBeNull();
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
@@ -1787,7 +1783,6 @@ describe("product-site delivery", () => {
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
     );
     expect(active.status).toBe(200);
-    expect(active.headers.get("Leaf-Session")).toBe("active");
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
   });
@@ -1841,6 +1836,7 @@ describe("product-site delivery", () => {
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(response.status).toBe(500);
     expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(response.headers.get("Leaf-Session")).toBeNull();
   });
 
   it("routes concurrent first uploads through the identity minted by the document", async () => {

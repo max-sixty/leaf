@@ -351,15 +351,18 @@ function admitted(response, ofThisLayer) {
   // status and error body belong to the caller, not to successful-payload admission.
   if (!response.ok) return true;
   if (layerReloading) return false;
-  const generation = response.headers.get("Leaf-Layer");
+  // The release goes first: a new release's answer may also name a new layer, and the
+  // probe that would settle a layer is this release's own asset, gone once the edge
+  // has moved on.
   const responseRelease = response.headers.get("Leaf-Release");
+  if (release && responseRelease && responseRelease !== release) {
+    reloadNow("Leaf has been updated — reloading this page.");
+    return false;
+  }
+  const generation = response.headers.get("Leaf-Layer");
   if (ofThisLayer && generation && !sameLayer(generation)) return false;
   if (!sameRuntime(response)) {
     reloadDelivery("Leaf has been updated — reloading this page.");
-    return false;
-  }
-  if (release && responseRelease && responseRelease !== release) {
-    reloadNow("Leaf has been updated — reloading this page.");
     return false;
   }
   holdWaiting(null);

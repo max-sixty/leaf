@@ -150,15 +150,16 @@ def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
 
 
 SQUARE = '<svg viewBox="0 0 10 10" width="40" height="40"><rect width="10" height="10"/></svg>'
+ICON = '<svg aria-hidden="true" viewBox="0 0 10 10" width="12" height="12"></svg>'
 
 
 def test_skim_keeps_every_picture(browser, serve):
     """Skim folded every picture the author hadn't marked `.gist`, so a skimmer saw
     the page's words alone. Skim keeps each picture the page shows, with a figure's
-    caption, and the heading above it: a figure, a chart, an image in a line of text
-    with that line whole, and one alone in a paragraph. A picture inside a closed
-    detail stays closed, since Skim shows nothing Read doesn't, and a section whose
-    only picture is there folds whole."""
+    caption, and the heading above it: a figure, a chart, a picture in a tab, and a
+    paragraph or open disclosure holding one, whole. A picture inside a closed
+    disclosure stays closed, since Skim shows nothing Read doesn't, and an icon HTML
+    marks as decoration is no picture, so a section holding only those folds whole."""
     chart = (
         '<lf-chart id="latency-chart"><pre>{ ariaLabel: "p99 by hour", '
         "marks: [Plot.lineY([1, 3, 2])] }"
@@ -180,12 +181,19 @@ def test_skim_keeps_every_picture(browser, serve):
                 '<p id="cause-1">More detail.</p>'
                 '<p id="shot-line">The dashboard then: '
                 '<img id="shot" alt="The dashboard" width="40" height="30"> at 3%.</p>'
-                f'<p id="alone"><a id="alone-link" href="#key-figure">{SQUARE}</a></p>'
+                '<p id="captioned"><img alt="The cache" width="40" height="30"><br>'
+                '<em id="captioned-words">The cache at 16:30.</em></p>'
+                '<details id="cause-raw" open><summary id="cause-raw-summary">Raw'
+                f'</summary><figure id="cause-raw-figure">{SQUARE}</figure></details>'
                 "</section>"
                 '<section id="latency"><h2 id="latency-heading">Latency</h2>'
                 f'{chart}<p id="latency-0">p99 doubled.</p></section>'
-                '<section id="method"><h2 id="method-heading">Method</h2>'
-                '<p id="method-0">How we measured.</p>'
+                '<section id="views"><h2 id="views-heading">Views</h2>'
+                '<lf-tabs id="views-tabs"><lf-tab id="views-a" label="Before">'
+                f'<figure id="views-figure">{SQUARE}</figure></lf-tab></lf-tabs>'
+                '<p id="views-0">Both views.</p></section>'
+                f'<section id="method"><h2 id="method-heading">{ICON} Method</h2>'
+                f'<ul id="method-checks"><li id="method-lint">{ICON}Lint passed</li></ul>'
                 '<details id="method-raw"><summary>Raw</summary>'
                 f'<figure id="raw-figure">{SQUARE}</figure></details></section>',
             )
@@ -198,17 +206,22 @@ def test_skim_keeps_every_picture(browser, serve):
         "#key-figure",
         "#key-caption",
         "#shot-line",
-        "#alone-link svg",
+        "#captioned-words",
+        "#cause-raw-summary",
+        "#cause-raw-figure",
         "#latency-heading",
         "#latency-chart",
+        "#views-heading",
+        "#views-figure",
     ):
         expect(page.locator(kept)).to_be_visible()
     for folded in (
         "#cause-0",
         "#cause-1",
         "#latency-0",
+        "#views-0",
         "#method-heading",
-        "#method-0",
+        "#method-lint",
         "#method-raw",
     ):
         expect(page.locator(folded)).to_be_hidden()

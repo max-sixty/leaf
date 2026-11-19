@@ -534,8 +534,9 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's notice of a Resolve and its press name one gesture. A Resolve that
-    leaves no thread open says so and offers the Undo that takes it back. The log refusing that Resolve takes
-    the notice away with it, and its press takes back that Resolve even once another
+    leaves no thread open says so and, once the log has it, offers the Undo that takes
+    it back. The log refusing that Resolve takes the notice away with it, and its press
+    takes back that Resolve even once another
     gesture of the user's is the newest, the one ⌘Z would take: a press that ran ⌘Z
     would take back an earlier gesture once its own was refused. The agent having picked
     that Resolve up changes nothing: the press still takes that Resolve, not the
@@ -578,8 +579,10 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     thread.focus()
     page.keyboard.press("r")
     holding(page, held, 1, "the resolve")
-    expect(said).to_have_text("All threads resolved")
-    expect(undo).to_contain_text("Undo")
+    # ⌘Z takes back no gesture still on its way to the log, so the field's end offers
+    # Undo only once the log has the Resolve.
+    expect(field(page)).to_have_attribute("placeholder", "All threads resolved")
+    expect(undo).to_have_count(0)
     # The refusal arrives as news once the Resolve's motion has ended, which can be
     # well after its rendering settles. Its thread rejoins Open in the Threads view as
     # that view leaves for the thread, which carries the Resolved heading under it

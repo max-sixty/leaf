@@ -36,17 +36,21 @@
  *   so the key never stands alone after the notice's words;
  * - "none": nothing.
  * While the page holds keys pressed before it was ready, the end offers nothing, since a
- * key there would only join them. A press acts as a touch control does, wherever the
- * caret stands, and says its key only while that key would make it now: `m` typed in a
- * card's reply is a letter, and Escape closes a comment box standing in Design mode
- * before the mode. The user chose a notice's press, so a Resolve that moves the panel on
- * says which thread it resolved and offers its next step there, over Undo and ⌘Z after a
- * Resolve, and the ✕ with Escape unsaid in a stance. They chose Next On Me at rest while
- * On Me lists anything over Comment and c, since from reading or backing out `m` is the
- * press they most often make next; `c` still enters the field, and Comment and c stand
- * again once nothing waits. Rejected: Next On Me only after an answer, until the user's
- * next input, which left Comment and c at rest the rest of the time and waited on the
- * server's reading of each gesture to offer it.
+ * key there would only join them. The end shows the page's shortcuts, so a press stands
+ * there only while one of its keys would make it now, as the dispatcher reads it, and
+ * otherwise the end shows nothing. With the caret in a card's reply, `m` types a letter,
+ * so Next On Me leaves the end; with a comment box open in Design mode, Escape closes
+ * the box before the mode, so Close leaves it (composing/input.js, `enters`). A finger,
+ * which is shown no keys, is shown the press's word alone, its route to the press. The
+ * user chose this, since the end is there to show shortcuts, over a press standing
+ * without its key wherever the caret stood. They chose a notice's press, so a Resolve
+ * that moves the panel on says which thread it resolved and offers its next step there,
+ * over Undo and ⌘Z after a Resolve, and the ✕ with Escape unsaid in a stance. They chose
+ * Next On Me at rest while On Me lists anything over Comment and c, since from reading
+ * or backing out `m` is the press they most often make next; `c` still enters the
+ * field, and Comment and c stand again once nothing waits. Rejected: Next On Me only
+ * after an answer, until the user's next input, which left Comment and c at rest the
+ * rest of the time and waited on the server's reading of each gesture to offer it.
  *
  * A reading whose words name what a press on the field does (`offers`), the reply or
  * the selected words, reads in full ink with its key, and every other reads dim

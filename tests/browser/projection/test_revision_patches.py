@@ -6,7 +6,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_harness import (
     expect_obligations_answered,
-    latest_press,
     leaf_page,
     open_latest_by_keys,
     open_page,
@@ -1141,8 +1140,7 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     write(editor, "This occurrence matters.")
 
     (serve.page_dir / "index.html").write_text(second)
-    # The row offers the latest, without a press that would end the hold.
-    expect(latest_press(page)).to_be_visible()
+    told(page)
     expect(page.locator("#subject p")).to_have_count(1)
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
         "aria-label", "On Me, 1 draft unsent"
@@ -1178,7 +1176,7 @@ def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
 
     third = second.replace('id="note"', 'id="note" placeholder="New instruction"')
     (serve.page_dir / "index.html").write_text(third)
-    expect(latest_press(page)).to_be_visible()
+    told(page)
     expect(editor).not_to_have_attribute("placeholder", "New instruction")
     expect(editor).to_have_value("Keep my words.")
     editor.press("Tab")

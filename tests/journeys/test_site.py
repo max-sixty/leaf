@@ -1178,7 +1178,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         expected_title = SourceDocument(source).authoring.title.strip()
         assert expected_title
         assert page.title() == expected_title, name
-        expect(page.locator("h1")).to_have_text(heading(source))
+        # The page's own heading, in its header: a Markdown preview on the page draws
+        # its file's headings at the levels the file wrote, as GitHub draws a file.
+        expect(page.locator("#top h1")).to_have_text(heading(source))
         expect(page.locator(CHROME_ROOT)).to_have_count(1)
         expect(page.locator("script[data-lf-server]")).to_have_count(1)
         expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)

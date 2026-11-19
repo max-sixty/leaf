@@ -101,7 +101,7 @@ jobs:
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: pnpm --dir .. exec wrangler --cwd worker deploy
+        run: ./wrangler-deploy.sh
 
       # A real browser must see the requested build in the document, module graph, edge
       # projection, and a newly started container before this deployment is green.

@@ -188,14 +188,12 @@ sequenceDiagram
           has acted on is their own copy.
         </p>
         <p id="releases-rollout">
-          A deploy reaches a visitor's session as a Leaf update reaches a local page.
-          Their session's Durable Object picks the container image each time it starts
-          one, from the Worker it runs, so every container started after the deploy runs
-          the new release. A container already running keeps its image until it has gone
-          ten minutes without a request: an agent turn in progress finishes, the page
-          keeps answering on its release, and the files that release's page loads come
-          from that container once the Worker has moved on. The next container starts on
-          the new release, and the open page reloads onto it at its first answer.
+          A visitor's session Durable Object picks the container image each time it
+          starts one, from the Worker it runs, so every container started after a deploy
+          runs the new release, with no minutes in between when starts fail. The
+          deploy's first request to the session stops a container still running the
+          previous release, ending any agent turn in progress, and starts one on the new
+          release; the open page reloads onto it at that answer.
         </p>
         <p id="releases-deploy">
           A push to <code>main</code> that changes the site runs the

@@ -1453,9 +1453,8 @@ class WebsitePageEndpoint(PageEndpoint):
         # Every response this adapter sends is already inside this user's private
         # container. Say so at the canonical HTTP boundary as the outer Worker does;
         # the local adapter has no Worker in front of it to add the same reading. Each
-        # also names the release this image runs, which a deploy can leave behind the
-        # edge's while the container keeps running (`LeafSession` in
-        # `worker/src/index.ts`), so its tab reloads only once a newer one answers.
+        # also names the release this image runs, which the tab holds to its
+        # document's (`layer-client.js`).
         return {
             "Leaf-Session": "active",
             "Leaf-Release": self.release,

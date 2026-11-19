@@ -20,9 +20,8 @@ required = ["OPENAI_API_KEY"]
 [[containers]]
 # Each session object starts its own container from the image of the Worker version it
 # runs (`LeafSession` in `src/index.ts`), so a container started after a deploy runs
-# the deployed image, and a running one keeps its image until it stops. Cloudflare
-# fixes an application's policy when it creates it, and gives each object class one
-# application.
+# the deployed image with no rollout between. Cloudflare fixes an application's
+# policy when it creates it, and gives each object class one application.
 name = "leaf-website-session"
 class_name = "LeafSession"
 scheduling_policy = "durable_object"

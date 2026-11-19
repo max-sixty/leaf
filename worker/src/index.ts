@@ -13,15 +13,12 @@
  * restores them and serves them on its own runtime, and a new protocol or format selects
  * new records. The maintainer chose this over a record per release, which reset every
  * visitor's comments, choices and agent thread at each deploy.
- * A deploy is a Leaf update for each visitor's session, which the maintainer chose
- * over stopping every container at a deploy: a container already running keeps its
- * image and its tab until it stops for want of requests, and every container started
- * afterwards runs the deployed image (`LeafSession`). So every answer names the
- * release of the code that gave it (`Leaf-Release`): the edge its own, a container
- * the one its image runs, and a saved response the one whose container captured it,
- * which the store serves only to that release. A tab reloads onto the deployed
- * release when an answer names another than its document (`layer-client.js`), which
- * happens once its container has stopped and the next one answers.
+ * Every answer names the release of the code that gave it (`Leaf-Release`): the edge
+ * its own, a container the one its image runs, and a saved response the one whose
+ * container captured it, which the store serves only to that release. A session's
+ * containers run the deployed image from the deploy's first request on (`LeafSession`),
+ * so a tab reloads onto the deployed release at its first answer after the deploy
+ * (`layer-client.js`).
  * Disposable sample URLs carry the opaque container object ID alongside their own
  * random capability, so an opaque-origin child uses native requests without a browser
  * session cookie. This routing reference selects a container only beneath that sample
@@ -165,8 +162,12 @@ const CONTAINER_ENV = {
 const CONTAINER_INSTANCE = { vcpu: 1, memoryMib: 3072, diskMb: 4000 };
 // How long a container keeps running after its session's last request.
 const CONTAINER_IDLE_MS = 10 * 60 * 1000;
+// The session object's key for the release whose image its container runs.
+const CONTAINER_RELEASE = "container-release";
 // A started container answers on its port within about 7 s. One that has not answered
-// in many times that is stuck, and the request that waits on it fails.
+// in many times that is stuck, and the request that waits on it fails. A start the
+// platform can't place yet, as just after another container stopped, is tried again
+// within the same time.
 const CONTAINER_READY_MS = 120_000;
 const CONTAINER_POLL_MS = 100;
 interface AcceptedEvent {
@@ -193,13 +194,11 @@ declare global {
  *
  * The object chooses its container's image when it starts one, from the Worker
  * version it runs (Durable Object scheduling, `wrangler.toml`), so every container a
- * deploy's object starts runs that deploy's image. A container already running keeps
- * its image until it has gone `CONTAINER_IDLE_MS` without a request, as a local Leaf
- * server keeps running when the plugin updates: an agent turn finishes on the image it
- * started on, and the tab keeps talking to the container that served it. Every answer
- * the container gives names the release its image runs (`Leaf-Release`), so the tab
- * reloads onto the deployed release once a newer container answers it. The object
- * itself restarts on the deployed code at the deploy (`code_update_strategy`).
+ * deploy's object starts runs that deploy's image. The object restarts on the deployed
+ * code at the deploy (`code_update_strategy`), and its first request afterwards stops
+ * a container still running the previous image: that image's server and the deployed
+ * Worker share no version for what they send each other, and a page the deploy added
+ * is one the previous image doesn't have. An agent turn running then is cut off.
  */
 export class LeafSession extends DurableObject<Env> {
   private pages: PageStore;
@@ -238,7 +237,8 @@ export class LeafSession extends DurableObject<Env> {
   }
 
   /** Stage a publication under the release of the container that captured it, which
-   * after a deploy can be the one before the Worker's (`storage.ts`). */
+   * until the deploy's first request stops it can be the one before the Worker's
+   * (`storage.ts`). */
   async preparePublication(
     value: unknown,
     release: string,
@@ -272,29 +272,53 @@ export class LeafSession extends DurableObject<Env> {
 
   private async start(): Promise<void> {
     const container = this.ctx.container!;
+    const { release } = await siteManifest(new Request("https://leaf.page/"), this.env);
+    this.ctx.storage.kv.put(CONTAINER_RELEASE, release);
     await this.routeOutbound();
-    container.start({
-      image: container.images.leaf,
-      instance: CONTAINER_INSTANCE,
-      enableInternet: false,
-      env: CONTAINER_ENV,
-    });
-    this.watch();
-    await container.setInactivityTimeout(CONTAINER_IDLE_MS);
-    // `start` returns before the server listens. Its health route answers once it
-    // does (`_select_page` in `worker/leaf_website`).
-    const health = container.getTcpPort(CONTAINER_PORT);
     const deadline = Date.now() + CONTAINER_READY_MS;
     for (;;) {
+      container.start({
+        image: container.images.leaf,
+        instance: CONTAINER_INSTANCE,
+        enableInternet: false,
+        env: CONTAINER_ENV,
+      });
+      this.watch();
       try {
-        await health.fetch("http://container/health", {
+        await container.setInactivityTimeout(CONTAINER_IDLE_MS);
+        await this.ready(deadline);
+        return;
+      } catch (error) {
+        // A process that ran and exited carries its exit code; a start the platform
+        // could not place carries none, and is tried again.
+        const placed = (error as { exitCode?: number })?.exitCode !== undefined;
+        if (container.running || placed || Date.now() >= deadline) {
+          if (container.running) await container.destroy().catch(() => undefined);
+          throw error;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, CONTAINER_POLL_MS));
+    }
+  }
+
+  // Resolve once the container's server answers its health route
+  // (`_select_page` in `worker/leaf_website`), which `start` returns before; reject
+  // with the runtime's reason once the container has stopped.
+  private async ready(deadline = Date.now() + CONTAINER_READY_MS): Promise<void> {
+    const container = this.ctx.container!;
+    const health = container.getTcpPort(CONTAINER_PORT);
+    for (;;) {
+      try {
+        const answer = await health.fetch("http://container/health", {
           signal: AbortSignal.timeout(Math.max(deadline - Date.now(), 1)),
         });
-        return;
+        await answer.body?.cancel();
+        if (answer.ok) return;
+        throw new Error(`the container's health route answered ${answer.status}`);
       } catch (error) {
         if (!container.running)
           throw await container.monitor().then(
-            () => new Error("the container exited while starting"),
+            () => new Error("the container exited"),
             (reason: unknown) => reason,
           );
         if (Date.now() >= deadline) throw error;
@@ -314,7 +338,7 @@ export class LeafSession extends DurableObject<Env> {
     try {
       await this.running();
     } catch (error) {
-      return lostAttempt("start", "Failed to start container", error);
+      return lostAttempt("start", "Failed to start container", error, 503);
     }
     let response: Response;
     try {
@@ -322,7 +346,7 @@ export class LeafSession extends DurableObject<Env> {
         .container!.getTcpPort(CONTAINER_PORT)
         .fetch(request.url.replace(/^https:/, "http:"), request);
     } catch (error) {
-      return lostAttempt("disconnected", "Lost the container's connection", error);
+      return lostAttempt("disconnected", "Lost the container's connection", error, 500);
     }
     if (response.status < 500) return { response, failure: null };
     // Python names the session on its own answers (`Leaf-Session`,
@@ -338,7 +362,8 @@ export class LeafSession extends DurableObject<Env> {
   private async forward(request: Request): Promise<Response> {
     // A connection lost while the container starts or restarts says nothing about
     // the request, so a request Python answers the same way twice gets one more
-    // attempt rather than showing the visitor a 500: a read, or a view report,
+    // attempt, once the container answers its health route again or a new one has
+    // started, rather than showing the visitor a 500: a read, or a view report,
     // which replaces only an older report of its session (`leaf.user_views`).
     // Any other write may already have reached Python, so its loss reaches the
     // caller instead.
@@ -355,6 +380,7 @@ export class LeafSession extends DurableObject<Env> {
     logHttpError(request, first.response, first.failure, retry);
     if (!retry) return first.response;
     await first.response.body?.cancel();
+    await this.ready().catch(() => undefined);
     const second = await this.attempt(replay);
     if (second.failure !== null)
       logHttpError(request, second.response, second.failure, false);
@@ -364,13 +390,18 @@ export class LeafSession extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const manifest = await siteManifest(request, this.env);
     const url = new URL(request.url);
-    // An earlier release's file, which the edge sends here for a tab still on that
-    // release's container (`earlierReleaseFile`). Only that container has it.
-    if (releaseAssetRoute(url.pathname, manifest) !== null) {
-      return this.ctx.container?.running
-        ? this.forward(request)
-        : new Response("not found", { status: 404 });
-    }
+    // Requests that arrive meanwhile wait, so none reaches the container being stopped.
+    if (
+      this.ctx.container?.running &&
+      this.ctx.storage.kv.get(CONTAINER_RELEASE) !== manifest.release
+    )
+      await this.ctx.blockConcurrencyWhile(async () => {
+        if (
+          this.ctx.container?.running &&
+          this.ctx.storage.kv.get(CONTAINER_RELEASE) !== manifest.release
+        )
+          await this.ctx.container.destroy();
+      });
     if (!this.ctx.container?.running) {
       const route = pageRoute(url.pathname, manifest);
       if (route !== null) {
@@ -419,17 +450,19 @@ interface Attempt {
   failure: HttpFailure | null;
 }
 
-// A container that failed to start or dropped the connection, as the visitor's 500.
+// A container that failed to start, as the visitor's 503, which the tab waits out
+// (`state-feed.js`), or dropped the connection, as their 500.
 // The platform's sentence about it is the log's `detail`; neither Python's body nor
 // the request URL is logged.
 function lostAttempt(
   source: "start" | "disconnected",
   summary: string,
   error: unknown,
+  status: number,
 ): Attempt {
   const detail = error instanceof Error ? error.message : String(error);
   return {
-    response: new Response(`${summary}: ${detail}`, { status: 500 }),
+    response: new Response(`${summary}: ${detail}`, { status }),
     failure: { source, detail },
   };
 }
@@ -531,24 +564,6 @@ async function answerPageStore(
     return Response.json({ drafts: await store.saveDrafts(await request.json()) });
   }
   return new Response("unknown page storage operation", { status: 404 });
-}
-
-// A file of an earlier release, which a tab whose container kept that release's image
-// through a deploy still loads, such as a module it imports on demand. Only that
-// container still has it, so only an active session's object is asked for it.
-function earlierReleaseFile(
-  request: Request,
-  env: Env,
-  manifest: SiteManifest,
-  route: PageRoute,
-): Promise<Response> | Response {
-  const secure = new URL(request.url).protocol === "https:";
-  const cookie = request.headers.get("Cookie");
-  const sessionId = sessionFromCookie(cookie, secure);
-  const scope = recordScope(manifest);
-  if (sessionId === null || !activeFromCookie(cookie, secure, route.root, scope))
-    return new Response("not found", { status: 404 });
-  return env.PAGES.getByName(containerId(sessionId, scope)).fetch(request);
 }
 
 function randomSessionId(): string {
@@ -871,8 +886,6 @@ export default {
             "Access-Control-Allow-Headers": "*",
           },
         });
-      if (releasedAsset.release !== manifest.release)
-        return earlierReleaseFile(request, env, manifest, releasedAsset.route);
       const assetUrl = new URL(request.url);
       assetUrl.pathname = releasedAsset.pathname;
       const response = stampedStaticResponse(
@@ -1026,8 +1039,7 @@ export default {
     if (posted) {
       const accepted = await acceptedEvent(response);
       if (accepted) {
-        // The release of the container that admitted it, which a deploy can leave
-        // running behind the edge's.
+        // The release of the container that admitted it.
         const admitting = response.headers.get("Leaf-Release") ?? manifest.release;
         recordAcceptedEvent(env, route, admitting, reference, accepted);
       }

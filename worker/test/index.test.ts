@@ -1369,34 +1369,6 @@ describe("product-site delivery", () => {
     expect(getByName).not.toHaveBeenCalled();
   });
 
-  it("asks only an active session's container for an earlier release's file", async () => {
-    const sessionId = "1c".repeat(16);
-    const earlier = `https://leaf.page/_leaf-release/${"b".repeat(64)}/examples--triage-board/runtime/lazy.js`;
-    const sessionFetch = vi.fn(
-      async (_request: Request) => new Response("export const earlier = 1;"),
-    );
-    getByName.mockClear().mockReturnValue({ fetch: sessionFetch } as never);
-    const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
-    const env = environment({ ASSETS: { fetch: assetFetch } as unknown as Fetcher });
-    const ask = (cookie: string) =>
-      worker.fetch(
-        new Request(earlier, { headers: { Cookie: cookie } }),
-        env,
-        executionContext(),
-      );
-
-    expect((await ask(`__Host-leaf-page=${sessionId}`)).status).toBe(404);
-    expect(getByName).not.toHaveBeenCalled();
-    const answer = await ask(
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
-    );
-    expect(await answer.text()).toBe("export const earlier = 1;");
-    expect(getByName).toHaveBeenCalledExactlyOnceWith(containerId(sessionId));
-    expect(sessionFetch.mock.calls[0][0].url).toBe(earlier);
-    expect(assetFetch).not.toHaveBeenCalled();
-    getByName.mockClear();
-  });
-
   it("serves a browser navigation without starting a container", async () => {
     const waitUntil = vi.fn();
     const response = await worker.fetch(
@@ -2151,6 +2123,9 @@ function sessionContext(storage: DurableObjectStorage) {
       container.running = true;
     }),
     monitor: vi.fn(async () => {}),
+    destroy: vi.fn(async () => {
+      container.running = false;
+    }),
     setInactivityTimeout: vi.fn(async (_ms: number) => {}),
     interceptOutboundHttps: vi.fn(async (_host: string, _outbound: unknown) => {}),
     interceptAllOutboundHttp: vi.fn(async (_outbound: unknown) => {}),
@@ -2255,32 +2230,65 @@ describe("website page agent", () => {
     }
   });
 
-  it("answers a container that fails to start with the platform's reason", async () => {
+  it("starts again where the platform could not place the container, and answers a crash with its reason", async () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const ctx = sessionContext(storage);
-      const reason = "there is no container instance that can be provided";
+      // The first start finds no instance to run on, as just after another stopped.
+      let starts = 0;
       ctx.container.getTcpPort.mockImplementation(() => ({
+        fetch: async (url: string, init?: Request) => {
+          if (url !== "http://container/health") return forwardedContainerFetch(init!);
+          if (starts === 1) {
+            ctx.container.running = false;
+            throw new Error("the container is not listening");
+          }
+          return new Response("ok");
+        },
+      }));
+      ctx.container.start.mockImplementation(() => {
+        starts += 1;
+        ctx.container.running = true;
+      });
+      ctx.container.monitor.mockRejectedValue(
+        new Error("there is no container instance that can be provided"),
+      );
+      const session = new LeafSession(ctx as never, environment());
+      const news = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/news"),
+      );
+      expect(await news.text()).toBe("container");
+      expect(ctx.container.start).toHaveBeenCalledTimes(2);
+      expect(log).not.toHaveBeenCalled();
+
+      // A server that exits is the request's failure, which the tab waits out.
+      const crashed = Object.assign(new Error("Container exited with code 1"), {
+        exitCode: 1,
+      });
+      const failing = sessionContext(storage);
+      failing.container.getTcpPort.mockImplementation(() => ({
         fetch: async () => {
-          ctx.container.running = false;
+          failing.container.running = false;
           throw new Error("the container is not listening");
         },
       }));
-      ctx.container.monitor.mockRejectedValue(new Error(reason));
-      const session = new LeafSession(ctx as never, environment());
-      const response = await session.fetch(
+      failing.container.monitor.mockRejectedValue(crashed);
+      const response = await new LeafSession(failing as never, environment()).fetch(
         new Request("https://leaf.page/examples/triage-board/api/news"),
       );
-      expect(response.status).toBe(500);
-      expect(await response.text()).toBe(`Failed to start container: ${reason}`);
+      expect(response.status).toBe(503);
+      expect(await response.text()).toBe(
+        "Failed to start container: Container exited with code 1",
+      );
+      expect(failing.container.start).toHaveBeenCalledOnce();
       expect(log).toHaveBeenCalledExactlyOnceWith({
         component: "leaf-container",
         event: "http_error",
         method: "GET",
-        status: 500,
+        status: 503,
         source: "start",
-        detail: reason,
+        detail: "Container exited with code 1",
         retried: false,
       });
     } finally {
@@ -2414,50 +2422,33 @@ describe("website page agent", () => {
     }
   });
 
-  it("keeps a container from before a deploy serving its tab, and routes it again", async () => {
+  it("stops a container from before a deploy at the deploy's first request", async () => {
     const { storage, close } = sqliteStorage();
     try {
-      const { ctx } = await startedSession(storage);
+      const earlier = {
+        ...environment(),
+        ASSETS: {
+          fetch: async () => Response.json({ ...MANIFEST, release: "b".repeat(64) }),
+        } as unknown as Fetcher,
+      };
+      const { ctx } = await startedSession(storage, earlier);
       ctx.container.start.mockClear();
-      ctx.container.setInactivityTimeout.mockClear();
-      ctx.container.interceptOutboundHttps.mockClear();
-      // The deploy restarts the object on the new release's code; its container still
-      // runs the earlier image, and keeps the routes and timeout only its new code sets.
-      const session = new LeafSession(ctx as never, environment());
-      await vi.waitFor(() =>
-        expect(ctx.container.setInactivityTimeout).toHaveBeenCalledWith(600_000),
-      );
-      expect(ctx.container.interceptOutboundHttps).toHaveBeenCalledWith("*", {
-        props: { session: SESSION_OBJECT },
+      const destroy = vi.fn(async () => {
+        ctx.container.running = false;
       });
-      forwardedContainerFetch.mockResolvedValueOnce(
-        new Response("the earlier release's state", {
-          headers: { "Leaf-Release": "b".repeat(64) },
-        }),
-      );
-      const state = await session.fetch(
-        new Request("https://leaf.page/examples/triage-board/api/state"),
-      );
-      expect(await state.text()).toBe("the earlier release's state");
-      expect(state.headers.get("Leaf-Release")).toBe("b".repeat(64));
-      expect(ctx.container.running).toBe(true);
-      expect(ctx.container.start).not.toHaveBeenCalled();
-
-      // That release's files, which the edge no longer has, come from its container,
-      // and from nothing else once it stops.
-      const earlierFile =
-        "https://leaf.page/_leaf-release/" +
-        "b".repeat(64) +
-        "/examples--triage-board/revisions/r1-0123/runtime/app.js";
-      forwardedContainerFetch.mockResolvedValueOnce(new Response("earlier module"));
-      expect(await (await session.fetch(new Request(earlierFile))).text()).toBe(
-        "earlier module",
-      );
-      ctx.container.running = false;
-      forwardedContainerFetch.mockClear();
-      expect((await session.fetch(new Request(earlierFile))).status).toBe(404);
-      expect(forwardedContainerFetch).not.toHaveBeenCalled();
-      expect(ctx.container.start).not.toHaveBeenCalled();
+      Object.assign(ctx.container, { destroy });
+      // The deploy restarts the object on the new release's code; its container still
+      // runs the earlier image.
+      const session = new LeafSession(ctx as never, environment());
+      const state = () =>
+        session.fetch(new Request("https://leaf.page/examples/triage-board/api/state"));
+      expect(await (await state()).text()).toBe("container");
+      expect(destroy).toHaveBeenCalledOnce();
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+      // The container this release started stays.
+      expect(await (await state()).text()).toBe("container");
+      expect(destroy).toHaveBeenCalledOnce();
+      expect(ctx.container.start).toHaveBeenCalledOnce();
     } finally {
       close();
     }
@@ -2543,7 +2534,9 @@ describe("website page agent", () => {
       ).toBe(204);
       expect(forwardedContainerFetch).not.toHaveBeenCalled();
       expect(ctx.container.start).not.toHaveBeenCalled();
+      // A container this release started.
       ctx.container.running = true;
+      storage.kv.put("container-release", RELEASE);
       expect(
         await (
           await session.fetch(

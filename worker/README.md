@@ -150,8 +150,8 @@ The workflow:
 
 - builds the site with a release id unique to the commit and run attempt;
 - runs `pnpm run check:worker` and `leaf-dev site verify website-worker`;
-- deploys the Worker, which builds the container image and names it by its registry
-  digest in that Worker version's image map;
+- deploys the Worker (`worker/wrangler-deploy.sh`), which builds the container image
+  and names it by its registry digest in that Worker version's image map;
 - runs `leaf-dev site verify --release <id> --wait 900` against <https://leaf.page/>,
   which passes only once Chrome sees that release in the edge document, its module
   URLs, and a newly started private container, with no browser errors;
@@ -160,10 +160,9 @@ The workflow:
 
 A session object starts its container from the image map of the Worker version it
 runs (`LeafSession` in `worker/src/index.ts`), so every container started after the
-deploy runs the new image. A container already running keeps the image it started on
-until it has gone ten minutes without a request: an agent turn in progress finishes,
-and the visitor's tab keeps working against it. The tab reloads onto the new release
-once the visitor's next container answers it.
+deploy runs the new image. The deploy's first request to a session stops a container
+still on the previous image, ending any agent turn it was running, and starts one on
+the new image; the visitor's open tab reloads onto the new release at that answer.
 
 ### One-time setup
 
@@ -536,7 +535,9 @@ the runtime's error message, such as `Network connection lost.` for a connection
 lost mid-request. A `disconnected` `GET`, `HEAD` or `POST` to `api/user-view` is
 sent once more (`retried: true`), and the visitor sees the second answer; no other
 write is resent. Apart from `detail`, these records retain no URL or response
-body. Use their native trace ID to join the request's invocation
+body. A `component=leaf-container`, `event=container_stopped` record notes each
+container's exit, with the runtime's reason, such as an exit code, as `detail` where
+it gives one. Use their native trace ID to join the request's invocation
 records, and the container's `container_stalled` and `container_unresponsive`
 records (below) to tell a container the host stopped running from one whose
 server stopped answering.
@@ -626,8 +627,7 @@ retries; other pages' concurrent uploads and readers remain protected.
 Each container is a custom instance of one vCPU and 3 GiB (`CONTAINER_INSTANCE` in
 `worker/src/index.ts` gives the reason). The account's default limit of 1,500
 concurrent vCPU bounds how many run at once, production's and `dev`'s together. A
-container with no requests stops after ten minutes (`CONTAINER_IDLE_MS`), and a deploy
-leaves it running on the image it started on until then.
+container with no requests stops after ten minutes (`CONTAINER_IDLE_MS`).
 
 ### Sandbox and rate limits
 

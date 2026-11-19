@@ -34,7 +34,7 @@ if [[ ! -x "$wrangler" ]]; then
   exit 2
 fi
 
-deploy_arguments=(deploy --env dev)
+deploy_arguments=(--env dev)
 if ! (
   cd "$worker_root"
   "$wrangler" secret list --env dev 2>/dev/null
@@ -61,10 +61,7 @@ release=$(
 )
 LEAF_SITE_RELEASE="$release" uv run --project "$repo_root" leaf-dev site build
 
-(
-  cd "$worker_root"
-  "$wrangler" "${deploy_arguments[@]}"
-)
+"$worker_root/wrangler-deploy.sh" "${deploy_arguments[@]}"
 
 uv run --project "$repo_root" leaf-dev site verify "$origin" \
   --release "$release" --wait 900

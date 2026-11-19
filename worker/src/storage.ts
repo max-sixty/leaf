@@ -31,7 +31,7 @@
  * its first read of the page, a transaction like any write, saves the responses again.
  * The release kept is the one the capturing container names (`Leaf-Release` on each
  * request it makes), since a container running when a deploy lands keeps its image,
- * and so its release, until it stops (`LeafSession` in `index.ts`).
+ * and so its release, until its session stops it (`LeafSession` in `index.ts`).
  * The store itself also outlives deploys, so every later release reads the tables and
  * stored values an earlier one wrote. `STORE_FORMAT` names their shape: the tables
  * (`STORE_TABLES`, which a test pins to the format), the encodings stored in their

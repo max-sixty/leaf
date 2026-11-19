@@ -118,6 +118,7 @@ import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
 import { signal } from "./framework.js";
+import { takesNoWords } from "./composing/input.js";
 
 /** @typedef {object} DraftPayload
  * @typedef {{attempt: string, text: string, payload?: DraftPayload, held?: string, settled?: never}} ActiveDraft
@@ -1293,10 +1294,13 @@ export function createWritingResume({
       (view) => view.ctx === place.context && editorInput(view) === input,
     );
     const field = editor && editorInput(editor);
+    // Whether the box takes words now (`takesNoWords`), not its painted `readOnly`,
+    // which still reads shut until the next paint after the same task ends a stance,
+    // as `g i` ends Go-to's.
     if (
       field?.isConnected &&
       field.checkVisibility() &&
-      !field.readOnly &&
+      !takesNoWords(field) &&
       !("disabled" in field && field.disabled)
     ) {
       // Coming back to the words is the user dealing with any error over them, as a

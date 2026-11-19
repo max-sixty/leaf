@@ -691,7 +691,6 @@ def local_worker() -> Generator[LocalWorker]:
             copy_working(
                 [
                     "worker/Dockerfile",
-                    "worker/Dockerfile.dockerignore",
                     "package.json",
                     "pnpm-lock.yaml",
                     "pnpm-workspace.yaml",
@@ -717,12 +716,6 @@ def local_worker() -> Generator[LocalWorker]:
             # architecture before the bounded server-readiness check starts.
             # Keep the Dockerfile in Wrangler's config: local image references
             # are pulled from a registry even when Docker already has them.
-            # Wrangler sends the Dockerfile on stdin, so use the same ignores
-            # for that build and Docker's file-based warm build.
-            shutil.copyfile(
-                context / "worker" / "Dockerfile.dockerignore",
-                context / ".dockerignore",
-            )
             subprocess.run(
                 [
                     "docker",

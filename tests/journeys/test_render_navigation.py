@@ -1383,7 +1383,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         {
             "command": "navigation.target.filter.margin-entries",
             "keys": ["g", "m"],
-            "action": "Show only visible margin targets",
+            "action": "Show only visible margin entries",
         },
         {
             "command": "navigation.target.filter.threads",

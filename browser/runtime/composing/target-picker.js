@@ -688,7 +688,7 @@ export function createTargetPicker({
     setTargetPicker(false);
     const said = landOnMatch(segments, repeatedSearch.query);
     announce(
-      `${said}, selected: ${sentence(matchDescription(segments))} ${
+      `${said}: ${sentence(matchDescription(segments))} Selected. ${
         coarsePointer.matches || !bindingEnabled("c")
           ? "A press on the comment field comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."

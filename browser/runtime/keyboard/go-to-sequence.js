@@ -1,13 +1,13 @@
 /* The Go-to sequence: `g` opens one prefix grammar, and this owner holds its vocabulary.
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
-   tabs, folds, the presses a widget built, and visible margin targets are read together
+   tabs, folds, the presses a widget built, and visible margin entries are read together
    in screen order and receive short prefix-free labels. `hints.js` owns that map — the
    codes, the typed prefix, the audible walk, the scroll freeze, the revalidation before
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
-   that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin targets, `g t`
-   Thread controls. A filter narrows the complete map, as a typed letter does
+   that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin entries, `g t`
+   threads. A filter narrows the complete map, as a typed letter does
    (hints.js, `kept`), so each member keeps its code and its chip's seat; codes are
    assigned here, over the complete map, rather than by the session.
 
@@ -93,8 +93,8 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @typedef {{kind: string, member: Element, go: () => unknown, exposure: "self" | "across"}} TargetMember
  * @typedef {{key: number, className: string, hintCode: string, kind: string, marginEntryKey: string | null,
  * targetId: string | null, commandId: null, address: null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
- * @typedef {{id: string, key: string, word: string, matches: (target: TargetMember) => boolean}} TargetFilter
- * `word` names one target it keeps, which takes an s for many.
+ * @typedef {{id: string, key: string, words: [string, string], matches: (target: TargetMember) => boolean}} TargetFilter
+ * `words` names one target it keeps and many, as `counted` takes them (words.js).
  * @typedef {Object} GoToOptions
  * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "leaves">} doors
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
@@ -274,13 +274,13 @@ export function createGoToSequence({
     {
       id: "margin-entries",
       key: "m",
-      word: "margin target",
+      words: ["margin entry", "margin entries"],
       matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
     },
     {
       id: "threads",
       key: "t",
-      word: "thread",
+      words: ["thread", "threads"],
       matches: ({ kind, member }) =>
         kind === MARGIN_TARGET_KIND &&
         marginEntries?.marginEntryKind(member) === "comment",
@@ -288,13 +288,13 @@ export function createGoToSequence({
     {
       id: "hyperlinks",
       key: "h",
-      word: "hyperlink",
+      words: ["hyperlink", "hyperlinks"],
       matches: ({ kind }) => kind === "Link",
     },
     {
       id: "folds",
       key: "f",
-      word: "fold",
+      words: ["fold", "folds"],
       matches: ({ kind }) => kind === "Fold",
     },
   ];
@@ -488,10 +488,12 @@ export function createGoToSequence({
     const found = hints.narrow();
     announce(
       found.length
-        ? `${counted(found.length, `visible ${chosen.word}`)}; ${hearThem(found.length)}.`
-        : `No visible ${chosen.word}s`,
+        ? `${counted(found.length, ...visible(chosen))}; ${hearThem(found.length)}.`
+        : `No visible ${chosen.words[1]}`,
     );
   }
+  /** @param {TargetFilter} filter @returns {[string, string]} */
+  const visible = ({ words: [one, many] }) => [`visible ${one}`, `visible ${many}`];
   /** @param {number} count */
   const hearThem = (count) =>
     `type a hint or press Tab to hear ${count === 1 ? "it" : "them"}`;
@@ -504,7 +506,7 @@ export function createGoToSequence({
   // out of the expensive visibility and hit-test pass.
   function goToStatus() {
     if (!goToActive || hints.candidates().length) return null;
-    return `No visible ${targetFilter ? `${targetFilter.word}s` : "targets"}`;
+    return `No visible ${targetFilter ? targetFilter.words[1] : "targets"}`;
   }
 
   // The sequence is one scope: generated visible targets, named global destinations, structural
@@ -612,10 +614,10 @@ export function createGoToSequence({
         id: "navigation.target.filter",
         touch: false,
         keys: FILTER_KEYS,
-        routes: TARGET_FILTERS.map(({ id, key, word }) => ({
+        routes: TARGET_FILTERS.map(({ id, key, words }) => ({
           id: `navigation.target.filter.${id}`,
           binding: key,
-          title: `Show only visible ${word}s`,
+          title: `Show only visible ${words[1]}`,
         })),
         label: FILTER_KEYS.join(" / "),
         sequenceSteps: ["kind"],

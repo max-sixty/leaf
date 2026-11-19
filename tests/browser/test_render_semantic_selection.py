@@ -866,7 +866,7 @@ def test_a_match_inside_a_word_reads_back_as_the_word(browser, serve):
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
     page.keyboard.press("Enter")
     expect(page.locator(".lf-live")).to_contain_text(
-        "Match 1 of 1, selected: …Follow-ups rather than blockers."
+        "Match 1 of 1: …Follow-ups rather than blockers."
     )
 
 

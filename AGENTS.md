@@ -399,6 +399,14 @@ only a registry entry, its module and theme rules. Everything else reads registr
 declarations, never lists of tag names. Layer-wide facts live under `$` keys;
 each tag's entry is its complete schema.
 
+The shipped instructions keep the layer open the same way. Where one tells an author
+what to use, it names the form, such as a before-and-after pair, a chart or a choice,
+or the declared fact the behavior turns on, such as `awaits` or `reading-role`, and a
+package's widget only as an example of it or in a markup example. The page's vocabulary
+says which widget provides the form, and `packages.md`, "A widget", says where a
+widget's own guidance goes. So a widget under a name of its own, in a package the page
+selects, reaches an author as a bundled one does.
+
 ### Wait for the event that ends the work
 
 Code waits for a response, a process's exit, a lease's release or a socket's

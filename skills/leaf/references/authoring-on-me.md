@@ -42,7 +42,7 @@ beside the change, with a fault marked where it goes wrong, a wording as it woul
 appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
 own pictures, so nothing pairs them with another option's; a picture of both answers
-at once, such as an `lf-shot` pair, stands in the question's group outside the
+at once, such as a before-and-after pair, stands in the question's group outside the
 options. Where the result spans several captures, such as several surfaces or states,
 line each capture up with its counterparts in the other options and name each surface
 or state once, so the reader compares one at a time down the options. The default is
@@ -89,8 +89,9 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 Make each question answerable where On Me takes the user: pressing `m` selects the
 whole question and brings its start to the top of the window, leaving earlier content
-out of view. Write each question as an `lf-group` holding the question and its case,
-with an id and a `label` that asks the question on its own, without leaning on the
+out of view. Write each question as a named group (an entry declaring `reading-role:
+group`, such as `lf-group`) holding the question and its case, with an id and a
+`label` that asks the question on its own, without leaning on the
 prose around it. The group draws none of its label, so give it the heading the page
 needs, as for any part of the page. The label's words are the question's words on On Me and in the
 answer you receive; Leaf reads the region and its name from that markup, so

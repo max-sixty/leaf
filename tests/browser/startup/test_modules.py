@@ -84,7 +84,8 @@ Two classic models.</pre></lf-code>
     )
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator("body > main")).to_be_visible()
-    expect(page.locator(PANEL)).to_be_hidden()
+    # The served row stands from the first paint; the runtime's panel hasn't mounted.
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-served", "")
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 

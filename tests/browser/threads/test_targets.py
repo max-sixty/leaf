@@ -425,8 +425,8 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     expect_design_mode(page)
     for name, point in places.items():
         found[name].append(seen(point))
-    # The mode's own key leaves it. Escape would first put away the preview of a mark
-    # the pointer rested on long enough to show one, which a slow machine does
+    # The mode's own key leaves it. Escape would first put away a preview the readings
+    # left standing, as a slow machine's rest on the link does
     # (browser/runtime/keyboard/AGENTS.md, "Escape").
     page.keyboard.press("l")
     expect_design_mode(page, on=False)

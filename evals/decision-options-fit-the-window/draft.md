@@ -23,15 +23,15 @@ You investigated and prototyped. Your notes:
 - The captures below come from a prototype. Its implementation is not included in
   this workspace.
 - Captures, each a 1640x1010 window with the thread open beside the column:
-  - evals/decision-options-fit-the-window/captures/start-card.png: today's margin
+  - captures/start-card.png: today's margin
     card, where every route starts.
-  - evals/decision-options-fit-the-window/captures/card-with-button.png: the card
+  - captures/card-with-button.png: the card
     with the Open in panel icon in its head, at about x 1180 to 1640, y 10 to 80.
-  - evals/decision-options-fit-the-window/captures/today-panel.png: after Threads,
+  - captures/today-panel.png: after Threads,
     then the thread's row: the panel's view at 540px.
-  - evals/decision-options-fit-the-window/captures/panel-panel.png: after Open in
+  - captures/panel-panel.png: after Open in
     panel at today's size.
-  - evals/decision-options-fit-the-window/captures/reading-panel.png: after Open
+  - captures/reading-panel.png: after Open
     in panel at reading size, the whole thread.
 - Once a route is chosen, you'll build it from the prototype into the runtime with
   a keyboard route, carry a reply being written into the panel, and show the user
@@ -176,19 +176,17 @@ handoff and save it.
               </p>
               <div class="route-frames">
                 <figure>
-                  <a
-                    href="evals/decision-options-fit-the-window/captures/start-card.png"
+                  <a href="captures/start-card.png"
                     ><img
-                      src="evals/decision-options-fit-the-window/captures/start-card.png"
+                      src="captures/start-card.png"
                       alt="Today's margin card, 444 px wide at the window's right edge, its transcript scrolling, with Resolve and Close in its head."
                   /></a>
                   <figcaption>The card a walk opens.</figcaption>
                 </figure>
                 <figure>
-                  <a
-                    href="evals/decision-options-fit-the-window/captures/today-panel.png"
+                  <a href="captures/today-panel.png"
                     ><img
-                      src="evals/decision-options-fit-the-window/captures/today-panel.png"
+                      src="captures/today-panel.png"
                       alt="The same thread in the panel's thread view, 540 px wide, centred over the page, still scrolling."
                   /></a>
                   <figcaption>After Threads, then the row.</figcaption>
@@ -208,19 +206,17 @@ handoff and save it.
               </p>
               <div class="route-frames">
                 <figure>
-                  <a
-                    href="evals/decision-options-fit-the-window/captures/card-with-button.png"
+                  <a href="captures/card-with-button.png"
                     ><img
-                      src="evals/decision-options-fit-the-window/captures/card-with-button.png"
+                      src="captures/card-with-button.png"
                       alt="The margin card with an expand icon added before Resolve and Close."
                   /></a>
                   <figcaption>Open in panel, the expand icon.</figcaption>
                 </figure>
                 <figure>
-                  <a
-                    href="evals/decision-options-fit-the-window/captures/panel-panel.png"
+                  <a href="captures/panel-panel.png"
                     ><img
-                      src="evals/decision-options-fit-the-window/captures/panel-panel.png"
+                      src="captures/panel-panel.png"
                       alt="The thread in the panel's view at 540 px, the card gone."
                   /></a>
                   <figcaption>After the press.</figcaption>
@@ -241,19 +237,17 @@ handoff and save it.
               </p>
               <div class="route-frames">
                 <figure>
-                  <a
-                    href="evals/decision-options-fit-the-window/captures/card-with-button.png"
+                  <a href="captures/card-with-button.png"
                     ><img
-                      src="evals/decision-options-fit-the-window/captures/card-with-button.png"
+                      src="captures/card-with-button.png"
                       alt="The margin card with an expand icon added before Resolve and Close."
                   /></a>
                   <figcaption>Open in panel, as in B.</figcaption>
                 </figure>
                 <figure>
-                  <a
-                    href="evals/decision-options-fit-the-window/captures/reading-panel.png"
+                  <a href="captures/reading-panel.png"
                     ><img
-                      src="evals/decision-options-fit-the-window/captures/reading-panel.png"
+                      src="captures/reading-panel.png"
                       alt="The thread in the panel at 760 px wide and nearly the window's height, every message visible with no scrolling."
                   /></a>
                   <figcaption>After the press: the whole thread.</figcaption>

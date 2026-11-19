@@ -206,9 +206,10 @@ reading.
   gesture by its attempt.
 - **A refused or undone gesture gives back what it took.** A refusal restores the
   server's state, and delivery says why in the notice seat. A refused send returns the
-  words to their box (`standGesture` in `drafts.js`), and a gesture that moved the user,
-  such as resolving a thread, leaves them at its place again (`undo.js` owns where undo
-  leaves the user).
+  words to their box (`standGesture` in `drafts.js`), an undone message or rewrite
+  returns them to the draft they were written in (`giveBackWords`), and a gesture that
+  moved the user, such as resolving a thread, leaves them at its place again (`undo.js`
+  owns where undo leaves the user).
 
 ### Controls are few and quiet
 
@@ -638,7 +639,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | threads, workflow, attention, obligations, to-dos, activity, unread                                            | the server's state, which the browser selects without folding again (obligations: `obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read                                                                                                                                                                                       |
 | what waits on the user and on the agent                                                                        | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                                                                                                                                                                                                                                                  |
 | the machine's other live pages                                                                                 | the server's `/api/pages` answer, read again only when a news look names another pages reading than the one last asked for (`live-leaves.js`, `hearPages`); it keeps no consistency with the page's own reading, and nothing this page reads waits for it                                                                                                                           |
-| the user's unsent drafts                                                                                       | the page server's drafts (`src/leaf/drafts.py`), read again when a news look names another drafts version than the tab holds (`drafts.js`, `lookForDrafts`); the tab's own copy holds only words the server hasn't taken yet                                                                                                                                                        |
+| the user's unsent drafts                                                                                       | the page server's drafts (`src/leaf/drafts.py`), read again when a news look names another drafts store or version than the tab holds (`drafts.js`, `hearDrafts`); the tab's own copy holds only words the server hasn't taken yet                                                                                                                                                  |
 | what the DOM shows                                                                                             | the presentation coordinator's renderer tickets and preparation regions                                                                                                                                                                                                                                                                                                             |
 | when a document-wide renderer paints                                                                           | the DOM dependencies `PRESENTATION_DOM` in `runtime/semantic-state.js` declares                                                                                                                                                                                                                                                                                                     |
 | where each thread's passage is                                                                                 | `anchor-placement.js`, resolving its anchor in this version                                                                                                                                                                                                                                                                                                                         |
@@ -741,6 +742,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed; a style property needs no guard (`keeps.js` header)           | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
+| What the floating panel's empty field says, for how long, and what its end offers                     | `field-readings.js` `FIELD_READINGS`, `readField`                                  |
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `words.js` `labelWords`, `counted`, `capitalized`                                  |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                        |
@@ -770,6 +772,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
 | A reading derived from the page, placement or the application state, kept until what it read moves    | `kept.js` `kept`, `keptEach`; a fact outside signals has a `version`               |
+| What a reading of an element's words or children, or of a document, is kept by                        | `passages.js` `readsElement`, `readsDocument`                                      |
 | Which reading of the page stands, its words, ids and part names, for work that spans tasks            | `passages.js` `pageReadingVersion`                                                 |
 
 ### Facts both runtimes know

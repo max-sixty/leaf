@@ -4,7 +4,7 @@
  * title ("In Draw mode"; dispatch.js, `innermostStance`).
  * The floating panel reads this signal for its empty field, where a stance leads the
  * page status, and the Go-to words, or a walk's position for its step's moment, take
- * the status's place (floating-panel.js, `fieldReading`). Painted in the repaint
+ * the status's place (field-readings.js). Painted in the repaint
  * frame (repaint.js), since these readings follow focus, the sequence's state and the
  * register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows
@@ -29,6 +29,7 @@ const stanceWords = (scope) => (scope ? word(scope.says ?? scope.title) : null) 
 const same = (a, b) =>
   a.goTo === b.goTo &&
   a.stance === b.stance &&
+  a.walk?.kind === b.walk?.kind &&
   a.walk?.text === b.walk?.text &&
   a.walk?.target === b.walk?.target;
 
@@ -39,15 +40,7 @@ export function paintStatusContext(goToStatus) {
   const goTo = goToStatus();
   const next = Object.freeze({
     goTo,
-    walk: position
-      ? Object.freeze({
-          kind: position.kind,
-          target: position.target,
-          position: position.position,
-          total: position.total,
-          text: position.text,
-        })
-      : null,
+    walk: position ? Object.freeze(position) : null,
     stance: stanceWords(innermostStance()?.scope),
   });
   setNoticeContext(Boolean(goTo));

@@ -72,9 +72,12 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 
 - `drafts.json` — the user's unsent message drafts, each draft's latest generation by
   its context (`drafts.py`), which every tab and device showing the page reads and
-  writes. A tab hears it through its own version in `/api/news`, so no reading of the
-  page, activation or watcher counts it, and the agent never reads it. It outlives the
-  process serving it, as the log does.
+  writes. A tab hears it through its own store identity and version in `/api/news`,
+  so no reading of the page, activation or watcher counts it, and the agent never
+  reads it. It outlives the process serving it, as the log does. The identity is
+  minted when the file is created, so it follows the file: a server restart keeps it,
+  and a replaced file starts another store, whose versions say nothing of the first
+  one's. Within one identity the version never goes back.
 
 - `drafts.lock` — the lock serializing writes to `drafts.json`.
 

@@ -1306,6 +1306,32 @@ def panel_resolved(page: Page) -> None:
     )
 
 
+def panel_draft_kept(page: Page) -> None:
+    """The panel's row while a comment the user put away waits unsent and no thread
+    has news, so the On Me mark wears the dot for a kept draft."""
+    field = page.locator(".lf-fab-input")
+    page.locator("#race-lede").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    page.keyboard.type("Say which write wins before the timeline.")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.activeElement?.blur()")
+    expect(page.locator(".lf-fp-on-user .lf-fp-news[data-lf-drafts]")).to_be_visible()
+    settle(page)
+
+
+def leaf_draft_kept(page: Page) -> None:
+    """The panel folded to its leaf while a comment the user put away waits unsent and
+    no thread has news, so the leaf wears the dot for a kept draft."""
+    panel_draft_kept(page)
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
+    expect(
+        page.locator(".lf-fp-news-dot[data-lf-drafts][data-lf-shown]")
+    ).to_be_visible()
+    settle(page)
+
+
 def panel_draw_mode(page: Page) -> None:
     """The panel's row in Draw mode, the field naming the mode before the status, with
     its way out."""
@@ -2968,6 +2994,8 @@ STATES = (
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
     State("ship-option-answered", "ship-review", option_answered, region=".lf-fp-row"),
     State("panel-resolved", "ship-review", panel_resolved, region=".lf-fp-row"),
+    State("panel-draft-kept", "lost-update", panel_draft_kept, region=".lf-fp-row"),
+    State("leaf-draft-kept", "lost-update", leaf_draft_kept, region=".lf-fp-leaf"),
     State("panel-draw-mode", "review-a-plan", panel_draw_mode, region=".lf-fp-row"),
     State("panel-selection", "review-a-plan", panel_selection, region=".lf-fp-row"),
     State(

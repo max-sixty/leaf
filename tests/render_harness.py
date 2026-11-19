@@ -93,6 +93,7 @@ from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
     ON_ME_MARK,
     PANEL,
+    PANEL_SAYS,
     chromium_metrics,
     panel_view,
     scroll_settled,
@@ -1235,11 +1236,11 @@ def ticked(page):
     page.wait_for_function("() => window.__lfTicked")
 
 
-# `z` is the one press whose subject is read rather than pointed at, so the dispatcher
+# ⌘Z is the one press whose subject is read rather than pointed at, so the dispatcher
 # holds it dead while the page holds a gesture no log read has accounted for — this
 # press's own trip included (unrecordedGesture). Every other press acts on what is under
 # the user and can be made the moment the paint is there; the paint arrives a turn
-# before the trip it was made on is over, so a `z` made on it is a press the dispatcher
+# before the trip it was made on is over, so a ⌘Z made on it is a press the dispatcher
 # refuses, and what the refusal leaves behind is the page an assertion on the un-undone
 # state would find anyway. A test cannot tell that from an undo that did the wrong thing:
 # it reads the no-op as the wrong answer, or waits its budget out and calls it a hang.
@@ -1251,13 +1252,13 @@ def ticked(page):
 # moment it is made, and a `round_trip` that reads the counters before the browser has
 # reported the request is a wait on a page that has not started moving.
 def undo(page):
-    """Take the last gesture back, from the moment the dispatcher would take `z`."""
+    """Take the last gesture back, from the moment the dispatcher would take ⌘Z."""
     page.evaluate(AVAILABLE_COMMANDS)
     page.wait_for_function(
-        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('Mod+z') ?? false"
     )
     with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
 
 
 # Each command the dispatcher would run from the current location, by its id, with the
@@ -1331,7 +1332,7 @@ def fetch_whole_state(route, **fetch):
 
 
 # A tab a test holds stale is stale only while nothing reaches it: a state read brings
-# it the log, and a drafts read the server's drafts (runtime/drafts.js, `lookForDrafts`),
+# it the log, and a drafts read the server's drafts (runtime/drafts.js, `hearDrafts`),
 # so a stale view the assertions take their time reaching is a race a loaded runner
 # loses. Refusing both reads states it — but
 # only from before the page exists. `page.route` reaches no request already in the
@@ -2039,7 +2040,7 @@ def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
     (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
     Resolve's Next thread, a stance's Close, or the page's own, Open latest or Next On
-    Me (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
+    Me (field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the
     key that makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
 
@@ -2319,22 +2320,6 @@ def page_comment(page):
     box.click()
     expect(box).to_be_focused()
     return box
-
-
-# The words in the panel's one seat for what passes, such as a notice or a walk's
-# position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
-# open view, else the line over the field while it stands, else an error standing
-# over the field's words (composing/input.js), else the empty field's placeholder.
-PANEL_SAYS = """() => {
-  const peek = document.querySelector('.lf-fp-peek');
-  if (peek?.hasAttribute('data-lf-shown')) return peek.textContent.trim();
-  const line = document.querySelector('.lf-fp-context');
-  if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
-  const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
-  if (cover) return cover.textContent.trim();
-  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
-    ?? '';
-}"""
 
 
 def panel_says(page) -> str:

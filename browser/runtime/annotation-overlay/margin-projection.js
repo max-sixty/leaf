@@ -126,7 +126,7 @@ import { el, generatedElement, offerActionElement } from "../widget-elements.js"
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
-import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
+import { rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
 
@@ -609,18 +609,8 @@ export function createMarginProjection({
     const [first, ...rest] = buttons;
     if (!current || !first || !rest.length) return;
     const direction = binding === rowArrows(current)[1] ? 1 : -1;
+    // The cluster's entries stand side by side, so the step says no position.
     focusDestination(cycledRow([first, ...rest], current, direction), "move");
-    beginWalk("margin-entry", "Action", () => {
-      const currentLocation = focused();
-      const currentLocationHost = closestAcross(
-        currentLocation,
-        "[data-lf-margin-for]",
-      );
-      return listWalkPosition(
-        clusterMarginEntries(currentLocationHost),
-        currentLocation,
-      );
-    });
   }
 
   // Folding a cluster the user was in hands them back to its toggle.
@@ -1009,7 +999,8 @@ export function createMarginProjection({
       runKey: stepClusterMarginEntries,
     },
     // The walk answers from a marker, not from the entries beside it, which Left and
-    // Right move between.
+    // Right move between. It walks the markers in view, which stand whole on screen, so
+    // a step says no position.
     ...rowWalk({
       id: "margin",
       noun: "Marker",

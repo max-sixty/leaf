@@ -440,7 +440,7 @@ matching frame even if the gesture goes on to another result. The helpers in
 - `told` waits until the page has applied what the server holds now; call it after
   changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
-- `undo` presses `z` once the dispatcher would take it and waits for the undo's round
+- `undo` presses ⌘Z once the dispatcher would take it and waits for the undo's round
   trip;
 - `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
   and `available_commands` reads the dispatcher once after it;

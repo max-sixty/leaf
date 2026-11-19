@@ -46,8 +46,11 @@ fulfilled or explicitly ended with a reason.
 **Preserve the user’s attention and work.** Live revisions let the user keep
 reading, aiming, and writing. Incoming updates preserve their reading position
 and the controls they are using. Typed words and the editing position survive
-changes around them. Changes the user requests remain understandable as they
-happen. Speed serves the user when the page also keeps them oriented.
+changes around them. Leaf drops words the user typed only when it knows they no
+longer want them, as once they sent or cancelled them; where it can't be sure, it
+keeps the words where the user can find them, even on a rare path, and better
+still removes the cause of the doubt. Changes the user requests remain
+understandable as they happen. Speed serves the user when the page also keeps them oriented.
 
 **Keep the foundation small and extensible.** Leaf has a small core and default
 packages. Authors can compose pages, create widgets, and share packages;

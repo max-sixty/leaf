@@ -183,11 +183,13 @@ sequenceDiagram
         <p id="releases-rollout">
           Cloudflare activates a new Worker and its assets before the new container
           image has rolled out, so for some minutes a new container can still start on
-          the previous release. When a container answers with a release other than the
-          Worker's, the Worker does not pass that answer on. It clears the page's active
-          cookie, serves the published state for <code>api/state</code>, and answers
-          other requests with a 503 asking the browser to retry, until containers on the
-          new release answer.
+          the previous release. The session's Durable Object refuses that container its
+          saved record, which the new release may store in a form the previous one can't
+          read, so the container starts without it. When a container answers with a
+          release other than the Worker's, the Worker does not pass that answer on. It
+          clears the page's active cookie, serves the published state for
+          <code>api/state</code>, and answers other requests with a 503 asking the
+          browser to retry, until containers on the new release answer.
         </p>
         <p id="releases-deploy">
           A push to <code>main</code> that changes the site runs the
@@ -224,12 +226,14 @@ sequenceDiagram
         </ul>
         <p id="state-restart">
           A replacement container restores saved content before accepting the next
-          mutation. Container replacement does not force an open page to reload. Unsent
-          drafts are saved with the page content each time the visitor sends something,
-          and when a container stops. If a container is lost without stopping, a tab
-          still holding words typed since the last save gives them back to the new
-          container. Running agent turns belong to the container process, so saving page
-          content does not preserve a running turn.
+          mutation. Container replacement does not force an open page to reload. Each
+          unsent draft is saved in the session's record before the container confirms
+          it, so a replacement container restores every confirmed draft, even when the
+          container before it was lost without stopping. A new release starts its
+          session record with no drafts, and a tab still holding drafts from the
+          previous release saves them into it once the visitor next acts on the page.
+          Running agent turns belong to the container process, so saving page content
+          does not preserve a running turn.
         </p>
         <p id="state-records">
           The site counts accepted events in Analytics Engine without their content,

@@ -29,6 +29,8 @@ applicationState.captureDocument({
 
 let taken = 0;
 const state = (reading) => servedState({ taken: ++taken, reading });
+// The user's drafts, which no look here moves: a store that holds none.
+const DRAFTS = { store: "drafts-store", version: 0 };
 
 test("an earlier return cannot close a later absence", (t) => {
   let visible = "visible";
@@ -93,7 +95,8 @@ test("a return stays interrupted until its refreshed reading is actually present
       let reads = 0;
       t.mock.method(globalThis, "fetch", async (url) => {
         const path = new URL(url).pathname;
-        if (path === "/api/news") return Response.json({ reading: news, pages: null });
+        if (path === "/api/news")
+          return Response.json({ reading: news, pages: null, drafts: DRAFTS });
         // The diagnostic stream may flush while this reading is held. Its POST,
         // and a reported presentation fault, are not state reads.
         if (path === "/api/interaction") return new Response(null, { status: 204 });
@@ -192,7 +195,8 @@ test("the page asks for no reading it already has in hand", async (t) => {
   let answering = null;
   t.mock.method(globalThis, "fetch", async (url) => {
     const path = new URL(url).pathname;
-    if (path === "/api/news") return Response.json({ reading: news, pages: null });
+    if (path === "/api/news")
+      return Response.json({ reading: news, pages: null, drafts: DRAFTS });
     assert.equal(path, "/api/state", `unexpected feed request: ${url}`);
     await answering?.promise;
     return Response.json(state(answers.shift()));
@@ -335,7 +339,7 @@ test("a read waits while the news answers and ends when a look does not", async 
     const path = new URL(url).pathname;
     if (path === "/api/news") {
       if (!answering) throw new TypeError("Failed to fetch");
-      return Response.json({ reading: news, pages: null });
+      return Response.json({ reading: news, pages: null, drafts: DRAFTS });
     }
     assert.equal(path, "/api/state", `unexpected feed request: ${url}`);
     // A server still working on the answer, which only the page can end.
@@ -393,7 +397,8 @@ test("another page's change reads the list of pages, never this page's state", a
   let listed = [];
   t.mock.method(globalThis, "fetch", async (url) => {
     const path = new URL(url).pathname;
-    if (path === "/api/news") return Response.json({ reading: "initial", pages });
+    if (path === "/api/news")
+      return Response.json({ reading: "initial", pages, drafts: DRAFTS });
     if (path === "/api/pages") return Response.json(listed);
     assert.equal(path, "/api/state", `unexpected feed request: ${url}`);
     return Response.json(state("initial"));
@@ -476,7 +481,7 @@ test("a read of the list still out ends when the news names another or hears not
     const path = new URL(url).pathname;
     if (path === "/api/news") {
       if (!hearing) throw new TypeError("Failed to fetch");
-      return Response.json({ reading: "initial", pages });
+      return Response.json({ reading: "initial", pages, drafts: DRAFTS });
     }
     if (path === "/api/pages") {
       const read = { signal: init.signal, ...Promise.withResolvers() };

@@ -901,8 +901,8 @@
       transition: opacity var(--lf-motion-disclosure);
     }
   }
-  /* What waits on the user, on the folded leaf: a count, and a dot for news, grey for
-     a put-away draft where nothing has news (controls.css). */
+  /* What waits on the user, on the folded leaf: a count, and a dot for news, faint
+     grey for a put-away draft where nothing has news (controls.css). */
   .lf-floating-panel[data-lf-rest="mark"] .lf-fp-leaf > .lf-badges {
     inset: -3px -3px auto;
     --lf-badge-reach: 3px;

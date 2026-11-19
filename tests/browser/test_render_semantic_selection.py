@@ -259,7 +259,6 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     hints = page.locator(".lf-target-picker-hint")
     expect(hints).to_have_count(3)  # heading, paragraph, and figure
     page.keyboard.press("Tab")
-    expect_panel_says(page, "Target 1 of 3")
     expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
     page.keyboard.press("?")
@@ -853,6 +852,21 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
     expect(page.locator(".lf-live")).to_contain_text(
         "Match 2 of 2: …Unified title Unified body, rewritten."
+    )
+
+
+def test_a_match_inside_a_word_reads_back_as_the_word(browser, serve):
+    """A listener hears each match in the words around it, and one inside a word, as
+    "the" in "rather", reads back as that word rather than with spaces put around it.
+    Enter, which selects the match, says its place as `n` does."""
+    html = leaf_page("search inside a word", "<p>Follow-ups rather than blockers.</p>")
+    page = open_page(browser, serve(html))
+    page.keyboard.press("/")
+    page.keyboard.type("the")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Match 1 of 1: …Follow-ups rather than blockers."
     )
 
 

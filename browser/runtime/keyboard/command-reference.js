@@ -1099,13 +1099,22 @@ function moveCommandReferenceSelection(dir) {
   const next = referenceElement(`#${nextRecord.entry.rowId}`);
   if (focusedId) focusDestination(next, "move");
   scrollIntoView(next, { block: "nearest" });
-  beginWalk("shortcut-command", "Command", () => {
-    const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
-    return listWalkPosition(
-      commandReferenceView.visibleCommands.map(({ entry }) => entry.id),
-      current,
-    );
-  });
+  const rows = () => commandReferenceView.visibleCommands;
+  beginWalk(
+    "shortcut-command",
+    "Command",
+    () =>
+      listWalkPosition(
+        rows().map(({ entry }) => entry.id),
+        focusedCommandId() ?? commandReferenceState.selectedCommandId,
+      ),
+    {
+      list: () =>
+        [rows()[0], rows().at(-1)].map(
+          (record) => record && referenceElement(`#${record.entry.rowId}`),
+        ),
+    },
+  );
 }
 
 function activateSelectedCommand() {

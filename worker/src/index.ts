@@ -35,6 +35,7 @@ import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 import type {
   Event,
+  ServedDraftsAnswer,
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
@@ -43,6 +44,7 @@ import {
   CHUNK_BYTES,
   PageStore,
   prepareStateDelivery,
+  readPageDrafts,
   readPublication,
   readPublicationCommit,
 } from "./storage";
@@ -177,10 +179,14 @@ export class LeafWebsiteSession extends Container<Env> {
     return this.pages.prepare(publication, manifest);
   }
 
-  async savePublication(value: unknown): Promise<void> {
-    const commit = readPublicationCommit(value);
+  savePublication(value: unknown): void {
+    this.pages.publish(readPublicationCommit(value));
+  }
+
+  async saveDrafts(value: unknown): Promise<ServedDraftsAnswer | null> {
+    const drafts = readPageDrafts(value);
     const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
-    this.pages.publish(commit, manifest);
+    return this.pages.saveDrafts(drafts, manifest);
   }
 
   private async forward(request: Request): Promise<Response> {
@@ -289,8 +295,7 @@ LeafWebsiteSession.outboundByHost = {
     } catch (error) {
       // An outbound handler that throws reaches the container as a connection closed
       // without a response, so answer with the store's reason for the container to
-      // log. A container still on the previous image after a deploy meets the new
-      // release's refusal here (`PageStore.checkRelease`).
+      // log.
       return new Response(error instanceof Error ? error.message : String(error), {
         status: 500,
       });
@@ -306,6 +311,12 @@ async function answerPageStore(
 ): Promise<Response> {
   // The proxy supplies the owning DO identity. The container cannot select a
   // different user's session by changing a URL, cookie, or request header.
+  // A container still on the previous image after a deploy is refused before it
+  // reads or writes anything, as `storage.ts` says.
+  const { release } = await siteManifest(new Request("https://leaf.page/"), env);
+  if (request.headers.get("Leaf-Release") !== release) {
+    return new Response(`the page store serves release ${release}`, { status: 409 });
+  }
   const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
   const path = new URL(request.url).pathname;
   if (request.method === "GET" && path === "/records") {
@@ -333,6 +344,9 @@ async function answerPageStore(
   if (request.method === "PUT" && path === "/publication") {
     await session.savePublication(await request.json());
     return new Response(null, { status: 204 });
+  }
+  if (request.method === "PUT" && path === "/drafts") {
+    return Response.json({ drafts: await session.saveDrafts(await request.json()) });
   }
   return new Response("unknown page storage operation", { status: 404 });
 }

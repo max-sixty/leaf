@@ -1170,8 +1170,9 @@ def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
     if not memo(page_dir, Disposable).held:
         fsync_parents([marker])
     marker = marker.absolute()
+    stamp = file_stamp(marker)
     memo(page_dir, _Readings).hold(
-        marker, file_stamp(marker), RevisionReading(marker, reading)
+        marker, stamp, RevisionReading(marker, stamp, reading)
     )
     return marker
 
@@ -1253,8 +1254,9 @@ class RevisionReading(SourceReading):
     that initializer.
     """
 
-    def __init__(self, marker: Path, adopted: SourceReading | None = None):
+    def __init__(self, marker: Path, stamp, adopted: SourceReading | None = None):
         self.marker = marker
+        self.stamp = stamp
         self.bundle = marker.with_suffix("")
         if adopted is not None:
             # A revision written from a checked candidate is that candidate: its
@@ -1273,7 +1275,13 @@ class RevisionReading(SourceReading):
         # Bytes, not text: universal newlines would turn CRLF into LF, and
         # `document.data` must be the captured bytes the digest and the
         # unchanged-source check compare.
-        return SourceDocument(self.marker.read_bytes().decode("utf-8"))
+        # Set before the hold, which charges a reading by whether its document is
+        # set, so a concurrent `read_revision` of this one holds it charged too.
+        document = vars(self)["document"] = SourceDocument(
+            self.marker.read_bytes().decode("utf-8")
+        )
+        memo(self.marker.parent.parent, _Readings).hold(self.marker, self.stamp, self)
+        return document
 
     @cached_property
     def registry(self) -> dict:
@@ -1290,17 +1298,20 @@ class RevisionReading(SourceReading):
             self.manifest, _bundle_declarations(self.bundle), self.bundle.parent.parent
         )
 
-    @cached_property
+    @property
     def inventory(self):
         """Historical consumers outlive eviction of the expensive parse.
 
         A long history can exceed the document budget. Keeping only these compact
         immutable facts lets retries and new revisions reuse the completed scan.
+        Only `_CompactReadings` holds them, under its own budget. The reading keeps
+        no copy, since `_Readings` may hold it uncharged as long as the page's
+        memory lives.
         """
         return memo(self.marker.parent.parent, _CompactReadings).get(
             self.marker,
-            file_stamp(self.marker),
-            lambda: SourceReading.inventory.func(self),
+            self.stamp,
+            lambda: SourceReading._inventory.func(self),
             _inventory_size,
         )
 
@@ -1339,7 +1350,7 @@ def read_revision(page_dir: Path, revision: int) -> RevisionReading:
     marker = revision_path(page_dir, revision).absolute()
     stamp = file_stamp(marker)
     readings = memo(page_dir, _Readings)
-    reading = readings.get(marker, stamp) or RevisionReading(marker)
+    reading = readings.get(marker, stamp) or RevisionReading(marker, stamp)
     return readings.hold(marker, stamp, reading)
 
 
@@ -1358,20 +1369,25 @@ class _Readings:
     The budget is in authored source, since that is what a marker's stamp tells
     without a parse, and a reading's weight scales with it: a document, its passages
     and its words come to about twenty times the source (the corpus example's 336 KB
-    to 8 MB, a median example's 11 KB to 0.2 MB). Entries are charged their source
-    whether or not their document has been parsed yet, so 8 MB of source keeps one
-    page's readings under about 160 MB. A normal history fits whole: some 180
-    revisions of the largest shipped example page (44 KB), about 700 of the median
-    one. A longer one re-parses an evicted revision a reader asks for again; a scan
-    of the whole history reads each revision once (`revision_history`).
+    to 8 MB, a median example's 11 KB to 0.2 MB). So 8 MB of source keeps one page's
+    parses under about 160 MB. A reading is charged its source once it parses its
+    document (`RevisionReading.document`), and nothing before, since until then it
+    holds little more than the revision's manifest, once read. Each state read asks
+    every earlier revision for its obligation registrations, which
+    `_CompactReadings` keeps without a parse; charging those readings their source
+    would push the active revision's parse out of a long history's budget, to be
+    parsed again on the next read. A normal history fits whole: some 180 revisions of the largest
+    shipped example page (44 KB), about 700 of the median one. A longer one
+    re-parses an evicted revision a reader asks for again; a scan of the whole
+    history reads each revision once (`revision_history`).
 
     Endpoints read from a thread pool, so every change is under the lock."""
 
     BUDGET = 8 * 1024 * 1024
 
     def __init__(self) -> None:
-        # revision marker → (its stamp, the reading)
-        self.held: dict[Path, tuple[tuple, RevisionReading]] = {}
+        # revision marker → (its stamp, the reading, what it is charged)
+        self.held: dict[Path, tuple[tuple, RevisionReading, int]] = {}
         self.size = 0
         self.lock = threading.Lock()
 
@@ -1381,17 +1397,19 @@ class _Readings:
         return held[1] if held and held[0] == stamp else None
 
     def hold(self, marker: Path, stamp, reading: RevisionReading) -> RevisionReading:
-        """Hold `reading` as the newest read, within the budget."""
+        """Hold `reading` as the newest read, charged its source once it has parsed
+        its document, within the budget."""
         with self.lock:
             held = self.held.pop(marker, None)
             if held:
-                self.size -= held[0][2]
+                self.size -= held[2]
             if stamp:
-                self.held[marker] = (stamp, reading)
-                self.size += stamp[2]
+                charge = stamp[2] if "document" in vars(reading) else 0
+                self.held[marker] = (stamp, reading, charge)
+                self.size += charge
                 while self.size > self.BUDGET and len(self.held) > 1:
-                    evicted_stamp, _evicted = self.held.pop(next(iter(self.held)))
-                    self.size -= evicted_stamp[2]
+                    *_, evicted = self.held.pop(next(iter(self.held)))
+                    self.size -= evicted
         return reading
 
 

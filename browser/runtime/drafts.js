@@ -15,8 +15,8 @@
    (`draftCache`), which every box here reads and writes at once, and the copy goes on
    to the server behind the keystroke (`writeDraft`); a page going away sends what is
    still waiting, and a reload of its tab starts from its copy of it. Words typed while
-   the server is out of reach stay in the tab until a look reaches it again; a tab
-   closed before then takes them with it. The server's store names itself, and within
+   the server is out of reach stay in the tab until a look reaches it again, and
+   leaving the page before then asks first (`beforeunload`). The server's store names itself, and within
    one store nothing this document heard goes back (`drafts.py`). A store that
    replaced the one this document heard from, as a new leaf.page release starts one,
    gets this document's words: alone where it holds nothing for their draft, and
@@ -444,6 +444,23 @@ const writeWaiting = () => {
 // whichever lands and when (`superseded`), so the words typed after the reload stand. A generation this document is sending leaves its
 // generations but not its copy, since only the server's answer says whether the log
 // took those words.
+//
+// Words no write is carrying, as after one failed while the server was out of reach,
+// or on an exported page, which has no server, go with the document. So leaving asks
+// first, through the browser's own prompt, and the user says whether they still want
+// them (SOUL.md, "Leaf drops words the user typed only when it knows they no longer
+// want them"). Keeping them in the browser past the tab instead would need the store
+// to know every write it ever took, or a late replay brings back words sent,
+// cancelled or written over elsewhere. Words a write is carrying need no prompt,
+// since the resend above takes them on. A reload asks too, though its tab keeps the
+// words for it, since the prompt can't tell a reload from a close.
+addEventListener("beforeunload", (event) => {
+  const stranded = [...draftCache].some(
+    ([ctx, { durable }]) =>
+      !durable && !writing.has(ctx) && activeDraftRecord(ctx)?.text.trim(),
+  );
+  if (stranded) event.preventDefault();
+});
 const WAITING_DRAFTS = "lf-drafts-waiting";
 addEventListener("pagehide", () => {
   if (offlineInteractive) return;
@@ -869,10 +886,20 @@ export async function sendDraft(ctx, owns, send) {
 // the page refuses before posting, such as a reply to a thread being settled, drew
 // nothing: the words stay in the box and the caller hears null, as for a draft it could
 // not claim.
-/** @param {string} ctx @param {() => boolean} owns @param {(attempt: string, payload: DraftPayload | undefined) => unknown} send */
-export function sendMessage(ctx, owns, send) {
+//
+// A refusal gives back what the send took (browser/AGENTS.md, "A refused or undone
+// gesture gives back what it took"): the words to their draft (`standGesture`), and,
+// while the user has done nothing since Send, the user to the box they come back in:
+// `back`, the caller's way into that box, which says itself where a box no longer
+// stands for those words. Only whether they have acted since counts, not where focus
+// stands, since withdrawing the thread the send landed them on hands their focus on.
+// After a later key or press the words wait for Resume writing.
+/** @param {string} ctx @param {() => boolean} owns @param {(attempt: string, payload: DraftPayload | undefined) => unknown} send
+ * @param {() => unknown} back */
+export function sendMessage(ctx, owns, send, back) {
   const current = claimDraft(ctx, owns);
   if (!current) return null;
+  const untouched = retainUserIntent({ source: document.documentElement });
   const flight = send(current.attempt, current.payload);
   const answer = standGesture(ctx, current);
   if (!flight) {
@@ -914,6 +941,7 @@ export function sendMessage(ctx, owns, send) {
       writingPlace.context === sentPlace.context
     )
       keepWritingPlace(previousPlace);
+    if (!sent) untouched.handoff(back);
   });
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
@@ -1120,7 +1148,7 @@ export function keepRefusedWords(attempts) {
       .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
   // Words back where Resume writing already goes are resumed at their end too, not at
-  // the caret the send left.
+  // the start of the box the send emptied.
   const resumes = returned.find((ctx) => ctx === writingPlace?.context);
   if (resumes !== undefined && writingPlace)
     keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });

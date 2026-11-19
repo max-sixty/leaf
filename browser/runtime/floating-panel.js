@@ -20,21 +20,26 @@
  *   answering a gesture show immediately.
  * - **The row**: the leaf, the comment field, and at its end one seat: the On Me mark,
  *   counting what waits on the user, with a dot while a thread holds a reply they have
- *   not read; or, while a search stands, the ✕ that ends it, and while a stance stands,
- *   the ✕ that ends it wherever the field doesn't say Close at its end, as it does with
- *   its words at rest, so the seat never stands empty and the stance has one way out
- *   on screen. The ✕ takes the leaf's width, beside the field;
- *   filling the room On Me keeps for its count would stand it apart from the field,
- *   which the user questioned. The ✕ keeps the seat while the user writes in
- *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
- *   rest, so a draft standing through a stance rewraps as the stance comes and as it
- *   goes, which a mode, a path this rare, may do, and Go-to, whose user aims at the
- *   page's hints rather than the panel, may too (browser/AGENTS.md, "The page holds
- *   still under the user's aim"). Rejected: holding the seat for the draft until the next posture
- *   change. That kept On Me beside the draft and the field narrower, and saved no
- *   rewrap, since the stance's arrival had already rewrapped the draft. An open view
- *   has its ✕ on a line of its own, its head line or its tabs, and the field takes the
- *   seat's room while the view stands, a stance's ✕ waiting with it (**Opened**).
+ *   not read; or, while a search or a stance stands, the ✕ that ends it, so the seat
+ *   never stands empty and the stance always has a way out on screen. A stance owns the
+ *   row while it stands, on the page and in a thread alike: the field's mode chip names it
+ *   beside its ✕ in a word ("Draw", "Go to"; its scope's `says`), as a search's chip
+ *   names its scope beside its own ✕ (`stanceName`), and the field takes no words
+ *   (field-readings.js, `still`), offering neither Reply nor the microphone, so the row
+ *   reads whose turn it is or the status, Close and esc at the field's end while Escape
+ *   would end the stance (`stanceClose`), the name and the ✕. The user chose this: the
+ *   name beside its way out over the name first beside the leaf, which stood it at the
+ *   row's far end from the ✕ it names; one word over "In Draw mode"; and a mode that
+ *   stops the field's writing over a reply, its Send and the microphone standing
+ *   beside the mode's ✕. On the page too the ✕ is the stance's way out for a pointer,
+ *   so On Me's count gives the seat up while a stance stands. A draft the field holds
+ *   stays, unwritable, through the stance. The ✕ takes the leaf's width, beside the
+ *   field; filling the room On Me keeps for its count would stand it apart from the
+ *   field, which the user questioned. An open view has its ✕ on a line of its own, its
+ *   head line or its tabs, and the field takes the seat's room while the view stands
+ *   (**Opened**), but for a stance's ✕, which keeps the seat there too. Rejected: the ✕
+ *   waiting for the view to close, which left a stance entered from a thread, such as
+ *   Go-to or Draw mode, unnamed and with no way out on screen.
  *   The user chose the one seat over a Threads mark beside On Me and a seat kept
  *   empty for the ✕, which leaves a gap at the row's end; Threads is the On view's
  *   tab, since On Me already lists a thread message that waits on the user. Rejected:
@@ -80,7 +85,8 @@
  *   ‹ hanging off the box beside the leaf, far from the name it leads away from; and no
  *   way back, which leaves a pointer two presses from Threads. The field below runs to
  *   the panel's edge while a view stands, at rest and widened alike, which the user
- *   chose over Close in the row's seat, which takes room from the field at rest. The
+ *   chose over Close in the row's seat, which takes room from the field at rest; only a
+ *   search's or a stance's ✕ takes the seat then (**The row**). The
  *   panel stands on the window's foot, so a view grows and shrinks from its top edge,
  *   and its head line moves with it: news, such as an answer growing a thread, carries
  *   the thread's presses up with its name. A press on the head line holds the view's
@@ -302,7 +308,7 @@ import {
   passErrors,
   seeErrors,
 } from "./errors.js";
-import { statusContextReading } from "./keyboard/status-context.js";
+import { stanceWords, statusContextReading } from "./keyboard/status-context.js";
 import { passingWords, readField } from "./field-readings.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
@@ -361,6 +367,7 @@ import {
   escapeInvocation,
   innermostStance,
   pressCommand,
+  standingStances,
 } from "./keyboard/dispatch.js";
 import { closestAcross } from "./passages.js";
 
@@ -701,7 +708,7 @@ export function createFloatingPanel({
     const onUser = initial ? 0 : onUserCount();
     const news = initial ? 0 : newCount();
     const unseen = !initial && errorsWaiting(reading);
-    const exit = initial ? null : fieldExit(search, top, input, reading);
+    const exit = initial ? null : fieldExit(search, top);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
     // the head line, where a thread's presses stand and every other view's name. A
     // search's own ✕ ends the row under a list's tabs while it holds the field, so the
@@ -718,6 +725,9 @@ export function createFloatingPanel({
     const kept =
       initial || news || !(folded || (!quickHidden && !exit)) ? 0 : keptDrafts();
     const peek = initial ? null : peekPresentation();
+    // A stance's ✕ in the seat has the stance's name beside it, as a search's has its
+    // scope, read from the dispatcher as the ✕ is (`fieldExit`).
+    const stanceName = exit && !search ? stanceWords(innermostStance()?.scope) : null;
     const mode = search
       ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
             "search",
@@ -725,9 +735,7 @@ export function createFloatingPanel({
           )}<span>${searchMode}</span>`
       : held
         ? heldParts(held)
-        : selection
-          ? "Selection"
-          : nothing;
+        : (stanceName ?? (selection ? "Selection" : nothing));
     const newsName = news
       ? `${counted(news, "thread")} with news`
       : kept
@@ -911,7 +919,7 @@ export function createFloatingPanel({
                     ? searchLabel
                     : held
                       ? heldText(held)
-                      : selection
+                      : selection && !stanceName
                         ? wordsText(reading.words)
                         : null;
                   return words ? { name: words } : null;
@@ -1022,7 +1030,7 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const searchSurface = shell("search-surface");
   // The row's end: the On Me mark, or the way out of the search the user is in, or of
-  // their stance where no view is open, there while the user types too
+  // their stance where the field doesn't offer it, there while the user types too
   // (touch-controls.js, `stance`), each at its own width (floating-panel.css,
   // `.lf-fp-quick`).
   // The anchored comment box's home on a page that draws its own annotations
@@ -1200,7 +1208,6 @@ export function createFloatingPanel({
     // A retained field can repaint between a thread leaving the reading and its
     // route being retired. Its native row survives that interval, not its turn.
     if (key && !thread) return ABSENT;
-    const { stance } = statusContextReading();
     const held = heldWords.value;
     const page = !key;
     const { notice, goTo, step } = passingFacts(page ? STANDING : NO_STANDING);
@@ -1216,21 +1223,28 @@ export function createFloatingPanel({
       },
       goTo,
       step,
-      stance: page ? stance : null,
-      standing: () => (page ? standing(stance) : []),
+      still: stanceStands(),
+      standing: () => (page ? standing() : []),
       destination: () => whereTo(drawn ?? thread),
       status: () => status().summaryParts,
-      close: () => (stance ? stanceClose() : null),
+      close: stanceClose,
       pagePress,
     });
   }
+  // Whether a stance stands, so the row is its (`stanceName`) and the field takes no
+  // words (field-readings.js, `still`), as the stance's words in the repaint frame say
+  // it (status-context.js), so the field and the row's ✕ change in the same paint.
+  const stanceStands = () => statusContextReading().stance !== null;
+  // Whether the field takes no words now (`closed`), read from the dispatcher as the
+  // repaint frame reads it, so a command in the task that ends a stance, as a Go-to
+  // destination's after `g i`, finds the field open before that frame paints it.
+  const stanceHolds = () => stanceWords(innermostStance()?.scope) !== null;
   /** @type {ReturnType<typeof readField>} */
   const ABSENT = Object.freeze({
     says: "absent",
     words: [],
     lead: [],
     end: "",
-    exits: false,
     offers: false,
   });
   // The newest error the field can say, which it says where nothing newer claims it
@@ -1249,7 +1263,7 @@ export function createFloatingPanel({
   }
   // Where the user stands on the page, which leads the page field's words for as long
   // as the user's own choice stands (field-readings.js, `lead`), each fact with its words
-  // in the order they are said (`STANDING_PARTS`): the stance's name, the version the
+  // in the order they are said (`STANDING_PARTS`): the version the
   // page shows where it is older than the latest (version.js, `shownBehind`), how many
   // changes the page marks since the version it compares with (`v`, version.js), whose
   // bars say only that a block changed, and that the user hid the annotation layer (`o`,
@@ -1260,10 +1274,10 @@ export function createFloatingPanel({
   // them where they stand. Each part carries its separator in its own speaker's face,
   // so words all Leaf's keep the native placeholder (`saying`). The version stood in a
   // tinted notice beside the On Me mark until #5642, which narrowed the field as it came
-  // and went and slid the press at the field's end from under the user's aim.
-  /** @type {readonly [string, (stance: string | null) => ReturnType<typeof leafSays> | null][]} */
+  // and went and slid the press at the field's end from under the user's aim. A
+  // stance is named in the row's mode chip instead (`stanceName`).
+  /** @type {readonly [string, () => ReturnType<typeof leafSays> | null][]} */
   const STANDING_PARTS = [
-    ["stance", (stance) => (stance === null ? null : leafSays(stance))],
     [
       "version",
       () => {
@@ -1288,9 +1302,8 @@ export function createFloatingPanel({
     ],
   ];
   const STANDING = new Set(STANDING_PARTS.map(([about]) => about));
-  /** @param {string | null} stance */
-  function standing(stance) {
-    return STANDING_PARTS.map(([, words]) => words(stance))
+  function standing() {
+    return STANDING_PARTS.map(([, words]) => words())
       .filter((part) => part !== null)
       .map((part) => saidBy(part.voice, `${part.text} · `));
   }
@@ -1325,7 +1338,8 @@ export function createFloatingPanel({
   // line, a to-do's title or a start's, stays in the thread, where the working message
   // says it. A notice or the Go-to word, which pass in a moment, take the reply's place.
   // The thread's word is the one its view draws (`drawn`), held news included, as its
-  // Resolve says it.
+  // Resolve says it. The stance the user is in stands in the mode chip, beside its ✕
+  // (`panelTemplate`).
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread} drawn */
   function turnLead(key, input, drawn) {
@@ -1415,6 +1429,8 @@ export function createFloatingPanel({
       hintParts: () => fieldHint(null, input),
       // The one press the moment offers at the field's end (field-readings.js, `end`).
       enters: () => fieldReading(null, input).end,
+      // While a stance stands the field takes no words (field-readings.js, `still`).
+      closed: stanceHolds,
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>
@@ -1502,6 +1518,7 @@ export function createFloatingPanel({
           // A notice passing over the thread's field offers its press at the field's
           // end, as over the page's (field-readings.js, `end`).
           enters: () => fieldReading(key, replyInput()).end,
+          closed: stanceHolds,
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it
@@ -1528,13 +1545,15 @@ export function createFloatingPanel({
     const top = trail.value.at(-1);
     return top?.thread ? (threadOf(top) ? replyInput() : null) : pageEditor().input;
   };
-  // The way out at the row's end: a search's, or, where no view stands, a stance's
-  // while one stands and the page field doesn't say it at its end, which it does while
-  // it says its words at rest (`stanceClose`). An open view's Close stands on the view's
-  // own line (`closeAtFoot`).
-  /** @param {PanelSearch | typeof threadSearch | null} search @param {PanelRoute | null | undefined} top
-   * @param {Element | null} input @param {ReturnType<typeof fieldReading> | null} reading */
-  const fieldExit = (search, top, input, reading) => {
+  // The way out at the row's end: a search's, or a stance's while one stands, on the
+  // page and in a thread alike. An open view's Close stands on the view's own line
+  // (`closeAtFoot`); the menu's search, which holds the field while the menu stands, has
+  // no ✕ of its own. It asks the dispatcher whether a stance stands now
+  // (`innermostStance`), since the stance's words and its exit row are read in the
+  // repaint frame: for the paint a search's close makes, they still name the search,
+  // and the seat would take its ✕ for that paint and give it up in the next.
+  /** @param {PanelSearch | typeof threadSearch | null} search @param {PanelRoute | null | undefined} top */
+  const fieldExit = (search, top) => {
     if (search === threadSearch && !menuSearching())
       return {
         label: "Close search",
@@ -1542,12 +1561,8 @@ export function createFloatingPanel({
         disabled: false,
         action: null,
       };
-    if (top && (!search || menuSearching())) return null;
-    if (
-      !search &&
-      (!innermostStance() || (reading?.exits && input !== focused() && !draftOf(input)))
-    )
-      return null;
+    if (top && menuSearching()) return null;
+    if (!search && !innermostStance()) return null;
     const exit = rows().find((entry) => entry.exit);
     return exit ? { ...exit, press: () => exit.press?.(null) } : null;
   };
@@ -1880,6 +1895,16 @@ export function createFloatingPanel({
     const [over] = viewOf(route).over ?? [];
     return over ? [{ view: over }, route] : [route];
   };
+  // The stances that stood as each view opened, so Escape takes whichever of a view
+  // and a stance came last (the `floating panel` rung): a mode entered from an open
+  // thread ends first, and a thread opened in a mode closes first. The user asked
+  // for this, since the one entered last is the one they are in. Rejected: the
+  // view always first, which left a mode entered from a thread on as Escape took the
+  // thread away, and the mode always first, which ends the mode under a thread
+  // opened in it. Every stance standing counts, so a view a Go-to key opens in Draw
+  // mode, while both stand, still closes before Draw mode ends.
+  /** @type {WeakMap<PanelRoute, ReadonlySet<import("./keyboard/bindings.js").Scope>>} */
+  const openedIn = new WeakMap();
   // A thread lands the user in its reply (`focusView`), or on the thread itself
   // (`part`), as the thread a send starts does.
   /** @param {PanelRoute} route @param {{replace?: boolean, reopen?: boolean, focus?: boolean, part?: "reply" | "thread"}} [options] */
@@ -1910,6 +1935,7 @@ export function createFloatingPanel({
     // over it.
     if (!trail.value.some((level) => level.view === "threads")) searching = false;
     if (route.thread) arriveAt(route.thread);
+    openedIn.set(route, new Set(standingStances().map(({ scope }) => scope)));
     openLayer(host);
     transition(before, { focus, part });
   }
@@ -3402,11 +3428,11 @@ export function createFloatingPanel({
   // `registerChromeThreadPresentation`), yielding to one the page's package registers, in
   // whose reader its threads then open, and gives the open thread an outlet here. Leaf
   // draws the thread there as a card on the page draws it (thread/thread-card.js,
-  // `ThreadView`): the words it is about, its to-dos, and its messages, progress folded
-  // behind the answer that completed it, work under way as the dim working message, New
-  // in each unread reply's head, with their reactions, rewrites and agent-authored
-  // widgets. The user chose that over every message at full size, which
-  // stands each progress step as a reply and marks nothing unread. The thread stands its
+  // `ThreadView`): the words it is about, its to-dos, and its messages, work under way
+  // as the dim working message and an ended step nowhere, New in each unread reply's
+  // head, with their reactions, rewrites and agent-authored widgets. The user chose
+  // that over every message at full size, which stands each progress step as a reply
+  // and marks nothing unread. The thread stands its
   // notice of the news it holds back and its Resolve on the view's head line, and its
   // reply box in the field below, where the panel gives them places (`nominateThread`),
   // so the view and a card share one of each. A thread anchored to a passage stays the
@@ -5028,10 +5054,12 @@ export function createFloatingPanel({
     };
     // The caret this paint puts in the page's field starts the writing posture in the
     // same paint, so the row draws it once rather than stepping out of it and back
-    // when the field takes focus (`onCurrentLocation`).
+    // when the field takes focus (`onCurrentLocation`). While a stance stands the field
+    // takes no words, so the row holds no room for Send, and the stance's Close stands
+    // at the field's end on the page and in a thread alike (field-readings.js, `still`).
     const caretLands = caretToField && !replying && !search;
     if (caretLands) writing = true;
-    posture("data-lf-writing", writing ? "" : null);
+    posture("data-lf-writing", writing && !stanceStands() ? "" : null);
     // A draft's Send takes the corner and the quick mark steps aside, unless a way
     // out holds that seat (`quickHidden`).
     const words = Boolean(draftOf(input));
@@ -5118,24 +5146,22 @@ export function createFloatingPanel({
       run: press.run,
     };
   }
-  // The way out of the stance the user is in, as the page field's end offers it while
-  // the field says its words at rest: Close, a press that ends the stance at once, as
-  // its ✕ does (keyboard/touch-controls.js), with `esc` beside it while Escape takes
-  // the stance off now, as the dispatcher reads it (`escapeInvocation`): its step is the
-  // stance's exit, or one titled as that exit, the ladder's step for the stance. Where
-  // something stands over the stance, such as a widget's comment box in Design mode,
-  // Escape closes that first, and Close has no key (field-readings.js, `end`, says what
-  // the field's end shows then). The reading that offers it `exits`, which tells
-  // `fieldExit` the field offers it, so the seat holds the On Me mark meanwhile. Both
-  // ask the dispatcher whether a stance stands now (`innermostStance`):
-  // the stance's words and its exit row are read in the repaint frame, so for the paint
-  // a search's close makes, they still name the search, and the seat would take its ✕
-  // for that paint and give it up in the next.
+  // The way out of the stance the user is in, as the field's end offers it while the
+  // stance stands, on the page and in a thread (field-readings.js, `still`): Close, a
+  // press that ends the stance at once, as the ✕ beside its name does
+  // (keyboard/touch-controls.js), with `esc`, the key that leaves it. It stands only
+  // while Escape takes the stance off now, as the dispatcher reads it
+  // (`escapeInvocation`): its step is the stance's exit, or one titled as that exit, the
+  // ladder's step for the stance. Where something stands over the stance, such as a
+  // thread opened inside it or a widget's comment box in Design mode, Escape closes that
+  // first, so Close leaves the end. A finger, shown no keys, has the ✕ as its way out,
+  // so Close stands only where the page shows keys. It asks the dispatcher whether a
+  // stance stands now (`innermostStance`), as `fieldExit` does.
   /** @returns {import("./composing/input.js").BoxPress | null} */
   function stanceClose() {
     const held = innermostStance();
     const exit = held ? rows().find((entry) => entry.exit) : null;
-    if (!held || !exit) return null;
+    if (!held || !exit || !advertisesKeys()) return null;
     return {
       word: actionName("close"),
       // Read at each ask, as a notice's press's key is (`noticePress`).
@@ -5259,6 +5285,10 @@ export function createFloatingPanel({
             };
     const top = trail.value.at(-1);
     if (!top) return null;
+    // A stance entered over this view came after it, so its own step comes first
+    // (`openedIn`).
+    const stance = innermostStance();
+    if (stance && !openedIn.get(top)?.has(stance.scope)) return null;
     if (trail.value.at(-2)?.view === "menu")
       return { root: host, title: "back to menu", out: back };
     if (top.view === "menu")

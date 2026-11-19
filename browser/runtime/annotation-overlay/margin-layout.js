@@ -295,13 +295,18 @@ export const THREAD_CARD = "lf-margin-preview";
 // The selector names a held row or the part inside it that holds it (`heldRows`), so
 // one query over the layer finds them all without asking `:has()` of every row.
 const ROW = ".lf-margin-cluster";
-const HELD = `${ROW}:is(:hover, :focus-within, [data-lf-options-expanded]), ${ROW} :is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HOLDS_ROW = ":is(:hover, :focus-within, [data-lf-options-expanded])";
+const HOLDS_PART = `:is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HELD = `${ROW}${HOLDS_ROW}, ${ROW} ${HOLDS_PART}`;
 /** @param {Layer} layer */
 const heldRows = (layer) =>
   new Set(
     [...layer.projection.querySelectorAll(HELD)].map((part) => part.closest(ROW)),
   );
 let pending = 0;
+// The rows the last pass held (`layoutMountedRows`), which `letGo` asks after.
+/** @type {ReturnType<typeof heldRows>} */
+let heldAtPass = new Set();
 
 // What the last pass read to seat each row it can seat again without reading: the row's
 // read, its home before any push, a pin's prepared seats and cover, and the band of the
@@ -780,14 +785,14 @@ function heardFaces(records) {
   });
 }
 const faces = new MutationObserver(heardFaces);
-// Whether a restyled face measures another size than its row was seated at, dropping the
-// record of each that does.
+// Whether a restyled face measures another size than its row was seated at, or belongs
+// to a row the last pass held that is held no longer, dropping the record of each.
 function resizedFaces() {
   let resized = false;
   for (const row of restyled) {
     if (!rows.has(row)) continue;
     const face = seatedFaces.get(row);
-    if (face) {
+    if (face && !letGo(row)) {
       const { width, height } = row.getBoundingClientRect();
       if (width === face.width && height === face.height) continue;
     }
@@ -797,6 +802,16 @@ function resizedFaces() {
   restyled.clear();
   return resized;
 }
+// Whether a row the last pass held, as an open card or options hold one, is held no
+// longer. A held row keeps no record and stands where it stood, as a row since gone
+// pushed it, so a pass seats it afresh beside its target. The attribute that lets it go
+// changes the row's own face but no size, so `resizedFaces` asks it of that row, in the
+// rendering of the gesture that let it go, rather than leaving the row at its old seat
+// until some later change takes it there with no input. Another row's change asks it of
+// no held row, so it moves no row the user isn't acting on.
+/** @param {HTMLElement} row */
+const letGo = (row) =>
+  heldAtPass.has(row) && !row.matches(HOLDS_ROW) && !row.querySelector(HOLDS_PART);
 // Takes in the face records a pass would otherwise drop with its own (`heardFaces`).
 function takeFaceRecords() {
   heardFaces(faces.takeRecords());
@@ -1917,6 +1932,7 @@ function layoutMountedRows(layer) {
   const { scrollX: windowX, scrollY: windowY } = window;
   // A row the user holds is read afresh, so it is seated from where it stands.
   const holding = heldRows(layer);
+  heldAtPass = holding;
   /** @param {HTMLElement} row */
   const keptSeating = (row) => (holding.has(row) ? null : seatings.get(row));
   /** @type {Map<HTMLElement, Seating>} */

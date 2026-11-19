@@ -398,23 +398,19 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     assert body.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     expect(body).to_have_js_property("scrollTop", 0)
     # Wheeling leaves the remembered walk position. The walk enters the trace's
-    # first thread; the next walk step returns to the frame comment.
+    # first thread; each step to the other thread restores the evidence it was
+    # written on. Each commented part has its own margin entry, so the walk
+    # crosses entries rather than stepping inside one card.
     user.keyboard.press("t")
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
     card = user.locator(".lf-margin-preview")
-    card.get_by_role("button", name="Next thread").click()
+    user.keyboard.press("t")
     expect(card).to_contain_text("This exact captured frame.")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
-    # A click on ‹ or › lands in the reply (thread/focus.js, `openingPart`).
-    reply = card.get_by_role("textbox", name="Reply", exact=True)
-    expect(reply).to_be_focused()
-    card.get_by_role("button", name="Previous thread").click()
+    user.keyboard.press("Shift+t")
+    expect(card).to_contain_text("The API review button needs explanation.")
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
     expect(widget.locator(".lf-trace-phase")).to_have_text("After checkpoint")
-    expect(reply).to_be_focused()
-    # Escape stands the user on the thread, where `t` walks rather than types.
-    user.keyboard.press("Escape")
-    expect(card.locator(".lf-page-thread")).to_be_focused()
     user.keyboard.press("t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
 

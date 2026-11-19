@@ -82,6 +82,7 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
                 "directory": directory,
                 "assets": f"/_leaf-release/{'0' * 64}/{route.strip('/').replace('/', '--') or 'root'}",
                 "states": {},
+                "revisions": [],
                 "kind": kind,
                 "title": f"The {route} page",
                 "description": f"What a user does at {route}.",

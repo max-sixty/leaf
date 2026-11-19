@@ -5311,6 +5311,30 @@ def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
     assert 0 <= start["top"] and start["bottom"] <= 600, start
 
 
+# What the page hears as it starts that its input clock counts as the user's
+# (document-inputs.js), and where focus lands: startup reopens a saved draft only while
+# neither has moved (`recoverComposer` in leaf.js). Registered before the reload, so its
+# listeners come before the clock's.
+HEARD_AS_IT_STARTS = """(() => {
+  const heard = (window.__lfHeard = []);
+  const named = (node) =>
+    node === window
+      ? 'window'
+      : node instanceof Element
+        ? node.localName + (node.id ? '#' + node.id : '') +
+          [...node.classList].slice(0, 2).map((name) => '.' + name).join('')
+        : String(node?.nodeName ?? node);
+  const types = ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart', 'blur', 'focusin'];
+  for (const type of types)
+    addEventListener(type, (event) => {
+      if (type === 'blur' && (event.target !== window || document.hasFocus())) return;
+      const trust = event.isTrusted ? 'trusted' : 'untrusted';
+      const at = named(event.composedPath()[0]);
+      heard.push(`${Math.round(event.timeStamp)} ms: ${trust} ${type} on ${at}`);
+    }, {capture: true, passive: true});
+})();"""
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request, serve):
     """The comment box of a draft on a passage that runs from the page's words into a
@@ -5348,8 +5372,15 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
           });
         }"""
     )
+    page.add_init_script(script=HEARD_AS_IT_STARTS)
     page.reload()
-    expect(page.locator(".lf-composer")).to_be_visible()
+    try:
+        expect(page.locator(".lf-composer")).to_be_visible()
+    except AssertionError as closed:
+        heard = page.evaluate("() => window.__lfHeard")
+        raise AssertionError(
+            f"the draft's box stayed closed; the page heard as it started: {heard}"
+        ) from closed
     page.evaluate("() => scrollTo(0, 0)")
     page.evaluate(
         """async () => {

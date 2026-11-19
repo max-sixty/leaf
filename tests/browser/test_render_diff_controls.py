@@ -936,8 +936,12 @@ def test_a_live_line_reply_wraps_without_resize_observer_feedback(
     expect(outlet).to_contain_text(reply)
     code = diff.get_by_role("region", name="uploader.py", exact=True)
     before = outlet.bounding_box()
-    code.focus()
-    page.keyboard.press("ArrowRight")
+    # Scrolled by a wheel rather than a key: Chromium drops a key's smooth scroll when
+    # the frame that starts it runs longer than the scroll's animation, as a loaded
+    # machine's can, and the compositor times a wheel's scroll itself.
+    box = code.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 12)
+    page.mouse.wheel(40, 0)
     page.wait_for_function("""() => document.getElementById('patch')
       .shadowRoot.querySelector('code[data-code]').scrollLeft > 0""")
     rendered(page)

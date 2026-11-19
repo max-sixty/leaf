@@ -12,7 +12,6 @@ from render_harness import (
     PANEL,
     expect_design_mode,
     expect_panel_offers,
-    field_press,
     open_page,
     panel_control,
     panel_field,
@@ -33,12 +32,11 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     """Undo, Draw mode, Design mode and search have no key under a finger, so the leaf's
-    menu holds each, read off the command's own row. Inside a mode, the panel's row
-    keeps its marks, and its way out is Close at the field's end, or the ✕ at the row's
-    end while the field says something else, as it does quoting words a finger
-    selects, in a mode too; a tap on those comments on them. Search owns the field, so
-    its way out is always that ✕. Design mode leaves Leaf's own chrome working, its way
-    out included."""
+    menu holds each, read off the command's own row. Inside a mode, the panel's row is
+    the mode's: its way out is the ✕ at the row's end, in the On Me mark's seat, with
+    the mode's name beside it, while the field quotes words a finger selects, in a mode
+    too; a tap on those comments on them. Search owns the field, so its way out is that
+    ✕ too. Design mode leaves Leaf's own chrome working, its way out included."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -49,8 +47,6 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
 
     def leave(name):
         return row.locator(f'.lf-fp-exit[aria-label="{name}"]')
-
-    close = field_press(page).filter(has_text="Close")
 
     expect_panel_offers(page, "command:history.undo", offered=False)
 
@@ -65,20 +61,20 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
-    # each mode's way out is the field's Close, its word alone under a finger, while
-    # the On Me mark keeps its seat.
-    for entry, stands in (
-        ("command:draw.mode.enter", "html[data-lf-draw-mode]"),
-        ("command:design.mode.enter", DESIGN_LEGEND),
+    # each mode's way out is the ✕ in the On Me mark's seat, its name beside it.
+    for entry, stands, name in (
+        ("command:draw.mode.enter", "html[data-lf-draw-mode]", "Draw"),
+        ("command:design.mode.enter", DESIGN_LEGEND, "Design"),
     ):
         panel_control(page, entry, at="annotate").tap()
         expect(page.locator(stands).first).to_be_attached()
-        expect(close).to_be_visible()
-        expect(close.locator("kbd")).to_have_count(0)
-        expect(on_me).to_be_visible()
-        close.tap()
+        way_out = leave(f"Exit {name} mode")
+        expect(way_out).to_be_visible()
+        expect(row.locator(".lf-fp-mode")).to_have_text(name)
+        expect(on_me).to_have_count(0)
+        way_out.tap()
         expect(page.locator(stands)).to_have_count(0)
-        expect(close).to_have_count(0)
+        expect(way_out).to_have_count(0)
         expect(on_me).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
@@ -112,15 +108,13 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator(".lf-inspect")).to_be_hidden()
 
     # Prose still selects in Design mode. On the narrowest phone row the panel's field
-    # names the mode before the quoted words, beside the mode's ✕, until the words are
-    # let go, when its own end says Close again, and a tap on it comments on them.
+    # quotes the words beside the mode's name and ✕, says the status once they are let
+    # go, and a tap on it while they stand comments on them.
     resized(page, 320, 700)
     field = panel_field(page)
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
     comment = selection_field(page)
-    expect(comment).to_have_attribute(
-        "placeholder", re.compile("^In Design mode · “Undo”")
-    )
+    expect(comment).to_have_attribute("placeholder", re.compile("^“Undo”"))
     expect(exit_design).to_be_visible()
     # The row is measured at rest: the panel's parts slide to their new places, past
     # the row's end on the way.
@@ -130,9 +124,8 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     )
     page.evaluate("getSelection().removeAllRanges()")
     expect(comment).to_have_count(0)
-    expect(field).to_have_attribute("placeholder", re.compile("^In Design mode"))
-    expect(close).to_be_visible()
-    expect(exit_design).to_have_count(0)
+    expect(field).to_have_attribute("data-lf-says", "status")
+    expect(exit_design).to_be_visible()
     panel_settled(page, open=False)
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the mode's way out overflows a 320px row"
@@ -141,10 +134,10 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     comment.tap()
     composer = page.locator(".lf-fab-input")
     expect(composer).to_be_focused()
-    expect(close).to_be_visible()
+    expect(exit_design).to_be_visible()
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
-    close.tap()
+    exit_design.tap()
     expect_design_mode(page, on=False)
 
     # Selecting words reaches only what is on screen; search finds the rest, and its
@@ -176,23 +169,25 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page.evaluate("getSelection().removeAllRanges()")
     expect(comment).to_be_hidden()
 
-    # Searching inside a mode puts search's ✕ in place of the mode's Close: it closes
-    # search, after which the field's Close leaves the mode.
+    # Searching inside a mode puts search's ✕ in place of the mode's: it closes
+    # search, after which the mode's ✕ leaves the mode.
     panel_control(page, "command:draw.mode.enter", at="annotate").tap()
-    expect(close).to_be_visible()
+    exit_draw = leave("Exit Draw mode")
+    expect(exit_draw).to_be_visible()
     panel_control(page, "command:page.search.open", at="navigate").tap()
     expect(next_match).to_be_visible()
-    expect(close).to_be_hidden()
+    expect(exit_draw).to_have_count(0)
     expect(on_me).to_have_count(0)
     leave("Close search").tap()
-    close.tap()
+    exit_draw.tap()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 
     # Picking an element has no `s` under a finger, and selecting words picks no
-    # widget; Annotations holds Select mode, whose Close closes it, and a tap on an
-    # element chooses it for a comment.
+    # widget; Annotations holds Select mode, named beside the ✕ that closes it, and a
+    # tap on an element chooses it for a comment.
     panel_control(page, "command:target.picker.open", at="annotate").tap()
-    cancel = close
+    cancel = row.locator(".lf-fp-quick .lf-fp-exit")
+    expect(row.locator(".lf-fp-mode")).to_have_text("Select")
     expect(cancel).to_be_visible()
     cancel.tap()
     expect(cancel).to_have_count(0)

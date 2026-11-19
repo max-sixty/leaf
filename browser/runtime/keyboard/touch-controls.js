@@ -3,7 +3,7 @@
  * stands in the floating panel's menu. A scope with a row marked `exit` is a stance, such
  * as page search or Draw mode: while the innermost one stands (dispatch.js,
  * `innermostStance`), the panel's row offers that row as its one way out, drawn as
- * Close's ✕, and the panel says the scope's `says`, else its title
+ * Close's ✕, and the panel names it beside the ✕ by the scope's `says`, else its title
  * (status-context.js). Words, availability and activation all come from the same row
  * as keyboard dispatch.
  *

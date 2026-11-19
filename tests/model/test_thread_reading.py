@@ -261,9 +261,9 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
 def test_a_summary_leaves_no_older_discussion_in_full_above_it(page_dir):
     """A summary that would leave an older message outside every summary is refused,
     naming the range admission takes, apart from the thread's opening message.
-    A reaction is a mark on a message and completed progress is drawn nowhere, so
-    neither counts; pending progress is drawn, so it does. A summary it overlaps is
-    replaced whole, so what that one covered counts too."""
+    A reaction is a mark on a message and progress is never drawn as a message, so
+    neither counts. A summary it overlaps is replaced whole, so what that one covered
+    counts too."""
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Plan the rollout."}
     )
@@ -310,15 +310,15 @@ def test_a_summary_leaves_no_older_discussion_in_full_above_it(page_dir):
         assert summarize(*taken) == []
         return taken
 
-    # Admitted from `first`, with the reaction and completed progress still above it.
+    # Admitted from `first`, with the reaction and progress still above it.
     assert retried(second["id"], third["id"]) == (first["id"], third["id"])
     # The same range again would replace that summary and leave `first` above it.
     assert retried(second["id"], third["id"]) == (first["id"], third["id"])
 
-    pending = say("agent", "Checking the east.", ephemeral=True)
+    say("agent", "Checking the east.", ephemeral=True)
     north = say("user", "And the north?")
     south = say("user", "Or the south?")
-    assert retried(north["id"], south["id"]) == (pending["id"], south["id"])
+    assert summarize(north["id"], south["id"]) == []
 
 
 @pytest.mark.parametrize("start", [1, 2], ids=["from-its-start", "from-inside-it"])
@@ -491,7 +491,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
     }
 
 
-def test_summary_hint_folds_completed_progress_and_stops_at_pending(page_dir):
+def test_summary_hint_passes_over_progress(page_dir):
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
@@ -503,31 +503,33 @@ def test_summary_hint_folds_completed_progress_and_stops_at_pending(page_dir):
         "ephemeral": True,
     }
     append_carried_log_record(page_dir, progress)
-    older = append_carried_log_record(
+    append_carried_log_record(
         page_dir,
         {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
     )
-    # A user who keeps writing while the agent is mid-work leaves its progress
-    # pending among spoken turns old enough to suggest.
+    # A user who keeps writing while the agent is mid-work leaves a step standing
+    # among spoken turns old enough to suggest, which the run passes over too.
     append_carried_log_record(page_dir, progress)
-    for author in ("user", "user", "user", "user"):
-        latest = append_carried_log_record(
+    said = [
+        append_carried_log_record(
             page_dir,
-            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+            {"kind": "reply", "author": "user", "parent": root["id"], "text": "Next?"},
         )
+        for _ in range(4)
+    ]
     [digest] = thread_context_model.batch_threads(
         events_model.read_events(page_dir),
-        [latest],
+        [said[-1]],
         page_view_model.PageView(page_dir).within,
     )
     assert digest["summaries"] == []
-    assert digest["summary_hint"] == {"from": root["id"], "through": older["id"]}
+    # The newest exchange stays whole.
+    assert digest["summary_hint"] == {"from": root["id"], "through": said[1]["id"]}
 
 
 def test_summary_hint_leaves_no_older_discussion_above_it(page_dir):
-    """Were progress completed mid-thread to split the earlier discussion into runs,
-    a hint that took the longest would leave the older run in full above the
-    summary."""
+    """Were a step mid-thread to split the earlier discussion into runs, a hint that
+    took the longest would leave the older run in full above the summary."""
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Plan the rollout."}
     )

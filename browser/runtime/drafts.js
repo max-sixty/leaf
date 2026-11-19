@@ -118,6 +118,7 @@ import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
 import { signal } from "./framework.js";
+import { takesNoWords } from "./composing/input.js";
 
 /** @typedef {object} DraftPayload
  * @typedef {{attempt: string, text: string, payload?: DraftPayload, held?: string, settled?: never}} ActiveDraft
@@ -783,8 +784,8 @@ const LISTED = ["anchor", "suggest", "about", "drawing"];
 const field = (payload, key) =>
   /** @type {Record<string, unknown> | undefined} */ (payload)?.[key];
 // Whether a draft holds the user's work: words, or a comment's drawing, which a
-// selection composer can hold with no words. Leaving asks over it, the drafts list
-// shows it, and words given back keep it.
+// selection composer can hold with no words. Leaving asks over it and the drafts list
+// shows it. Words given back test more widely (`giveBackWords`).
 /** @param {ActiveDraft | null} record */
 const holdsWork = (record) =>
   Boolean(record?.text.trim() || field(record?.payload, "drawing"));
@@ -1087,7 +1088,10 @@ const atEnd = (ctx) => {
 /** @param {string} ctx @param {string} text @param {DraftPayload} [payload] @param {string | null} [under] */
 export function giveBackWords(ctx, text, payload, under = null) {
   const current = activeDraftRecord(ctx);
-  const own = holdsWork(current) ? current : null;
+  // Any text counts here, whitespace included, so a box the user has begun keeps
+  // what they typed and its own payload, such as the passage of a comment begun since.
+  const own =
+    current && (current.text || field(current.payload, "drawing")) ? current : null;
   const reply = under === null ? null : activeDraftRecord(under);
   const words = [text, reply?.text, own?.text].filter(Boolean).join("\n\n");
   const drawing = field(payload, "drawing");
@@ -1290,10 +1294,13 @@ export function createWritingResume({
       (view) => view.ctx === place.context && editorInput(view) === input,
     );
     const field = editor && editorInput(editor);
+    // Whether the box takes words now (`takesNoWords`), not its painted `readOnly`,
+    // which still reads shut until the next paint after the same task ends a stance,
+    // as `g i` ends Go-to's.
     if (
       field?.isConnected &&
       field.checkVisibility() &&
-      !field.readOnly &&
+      !takesNoWords(field) &&
       !("disabled" in field && field.disabled)
     ) {
       // Coming back to the words is the user dealing with any error over them, as a

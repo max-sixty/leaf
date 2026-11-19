@@ -1635,8 +1635,8 @@ def retained_quote_full(page: Page) -> None:
 
 
 def progress_messages(page: Page) -> None:
-    """The completed answer beside its interim checks, in the floating panel's view of
-    the thread."""
+    """The answer with the checks it ended gone, in the floating panel's view of the
+    thread."""
     open_thread(page, "bg-progress-question")
 
 

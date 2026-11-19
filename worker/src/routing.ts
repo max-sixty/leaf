@@ -34,6 +34,7 @@ interface SitePage {
 // `SESSION_ROUTE_DIRS`, `LAYER_TOP_FILES`). The API directory is the page server's
 // protocol prefix, fixed with the endpoints under it that this Worker handles by name.
 const API_DIR = "api";
+const VERSIONS_DIR = "versions";
 interface PageRoutes {
   layer: string[];
   session: string[];
@@ -42,6 +43,8 @@ interface PageRoutes {
 
 export interface SiteManifest {
   release: string;
+  /** The page protocol this release's Leaf serves and writes (`kernel_protocol`). */
+  protocol: number;
   /** The header policy every HTML response adds, since a document's own <meta>
    * policy cannot govern its ancestors (`structure.FRAME_ANCESTORS_CSP`). */
   frame_ancestors: string;
@@ -121,6 +124,12 @@ export function isLivePageDocumentRequest(route: PageRoute | null): boolean {
   return route?.inside === "";
 }
 
+/** One of the page's stamped versions, `versions/vN.html` (`schema.VERSION_NAME`), the
+ * session directory whose files are named by number rather than by content. */
+export function isPageVersionRequest(route: PageRoute | null): boolean {
+  return route?.inside.startsWith(`${VERSIONS_DIR}/`) ?? false;
+}
+
 export function needsPageSlash(pathname: string, route: PageRoute): boolean {
   return route.inside === "" && pathname !== "/" && !pathname.endsWith("/");
 }
@@ -143,17 +152,18 @@ export function sessionFromCookie(
   return null;
 }
 
-/** Activation selects a private record in one release, like its Durable Object key. */
+/** Activation selects a private record in one record scope (`recordScope` in
+ * `index.ts`), like its Durable Object key. */
 export function activeFromCookie(
   cookie: string | null,
   secure: boolean,
   pageRoot: string,
-  release: string,
+  scope: string,
 ): boolean {
   if (cookie === null) return false;
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const expected = pageCookieName(prefix, pageRoot);
-  return cookie.split(";").some((item) => item.trim() === `${expected}=${release}`);
+  return cookie.split(";").some((item) => item.trim() === `${expected}=${scope}`);
 }
 
 function pageCookieName(prefix: string, pageRoot: string): string {
@@ -182,13 +192,9 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
   return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }
 
-export function activeCookie(
-  secure: boolean,
-  pageRoot: string,
-  release: string,
-): string {
+export function activeCookie(secure: boolean, pageRoot: string, scope: string): string {
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const name = pageCookieName(prefix, pageRoot);
   const security = secure ? "; Secure" : "";
-  return `${name}=${release}; Path=/${security}; HttpOnly; SameSite=Lax`;
+  return `${name}=${scope}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }

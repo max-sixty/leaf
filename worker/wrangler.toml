@@ -43,6 +43,14 @@ instance_type = { vcpu = 1, memory_mib = 3072, disk_mb = 4000 }
 name = "PAGES"
 class_name = "LeafWebsiteSession"
 
+# A visitor's session object outlives deploys, so it must run the deployed release's
+# code. By default Cloudflare lets an object that keeps receiving requests run the
+# previous version for up to five minutes after a deploy. That object answers from the
+# previous release's records while the edge names the new release, so an open tab
+# reloads onto the previous release's page at every answer until the object restarts.
+[durable_objects.code_update_strategy]
+mode = "immediate"
+
 [[analytics_engine_datasets]]
 binding = "WEBSITE_EVENTS"
 dataset = "leaf_website_events"
@@ -102,6 +110,9 @@ routes = []
   [[env.dev.durable_objects.bindings]]
   name = "PAGES"
   class_name = "LeafWebsiteSession"
+
+  [env.dev.durable_objects.code_update_strategy]
+  mode = "immediate"
 
   [[env.dev.analytics_engine_datasets]]
   binding = "WEBSITE_EVENTS"

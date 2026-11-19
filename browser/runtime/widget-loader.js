@@ -13,7 +13,7 @@ import { watchVideos } from "./video-controls.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring, upgrades } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
-import { revealLayer, admitResponse, sameLayer } from "./layer-client.js";
+import { revealLayer, sameLayer } from "./layer-client.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -249,8 +249,10 @@ async function settle(presentation, scope, arrived, presented) {
 
 /** @param {import("./version.js").InitialDocument} captured */
 export async function prepareDocument(captured) {
+  // A revision asset, whose headers may be cached from an earlier release
+  // (`admitResponse`). The initial state read answers for the server, and the
+  // registry's own `$layer` for its layer.
   const response = await fetch(registryUrl());
-  if (!admitResponse(response)) return false;
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
   adoptRegistry(await response.json());

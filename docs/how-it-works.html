@@ -2910,9 +2910,9 @@ flowchart TD
                   ><code>leaf thread reply &lt;answer.ref&gt; --ephemeral</code></strong
                 >
                 Names the upcoming work in the user’s thread before reads or edits. It
-                sets the page’s status and the comment’s Working label, then folds
-                behind
-                <em>Show 1 progress message</em> when the answer arrives.
+                sets the page’s status and the comment’s Working label, and stands as
+                the thread’s dim working message until the agent’s next message there
+                replaces it.
               </li>
               <li id="updates-written-working">
                 <strong><code>leaf task start … &lt;id&gt; --text "…"</code></strong>
@@ -3462,8 +3462,11 @@ EOF</code></pre>
               exchange outside, so a summary over it leaves the thread one summary; the
               agent decides whether to summarize. Editing a message inside a written
               summary's range removes the summary, so an outdated summary cannot hide
-              the correction. Progress messages an agent posts while working gather
-              behind the latest one, and disappear once its next ordinary reply arrives.
+              the correction. A thread shows only the latest progress message an agent
+              posts while working, and the one it left above each message the user has
+              written since. Its next message there replaces the latest, its next reply
+              the ones above the user's messages, and its turn ending does too where
+              nothing before them still waits on an answer.
             </p>
           </section></lf-tab
         ><lf-tab id="forks" label="Forks"
@@ -3660,8 +3663,8 @@ flowchart TD
                   >Further messages in a thread</a
                 >). The fork does the work with the session's tools and answers with its
                 own <code>leaf thread reply</code>, or, where the message turns out to
-                need the main thread, gives the thread back with
-                <code>HAND BACK:</code> and a reason. The fork's task is in
+                need the main thread, gives the thread back by leaving it unanswered,
+                ending its run with a line saying why. The fork's task is in
                 <a href="#anatomy-take">Anatomy of a fork journey</a>.
               </p>
               <figure id="take-figure" class="diagram-figure">
@@ -3851,12 +3854,13 @@ sequenceDiagram
                   <th scope="row"><code>hand_back</code></th>
                   <td>
                     A message it picked up still waits, and its closed turn still holds
-                    the thread: the fork gave it back with <code>HAND BACK:</code>,
-                    failed, or ended without answering.
+                    the thread: the fork chose to give it back, failed, or ended without
+                    answering.
                   </td>
                   <td>
-                    That the fork gave the thread back, and why, with the user's waiting
-                    messages as new input. Leaf wakes an idle session for it.
+                    That the fork gave the thread back, and why: its failure, or else
+                    its last words. The user's waiting messages come as new input. Leaf
+                    wakes an idle session for it.
                   </td>
                 </tr>
                 <tr id="ending-taken-over">
@@ -3996,12 +4000,12 @@ flowchart TD
               to the session's files, branch, page or pull requests, or research long
               enough to need progress of its own, does what it can without those
               changes, answers with what it found, and opens a to-do on the thread with
-              <code>leaf thread reply --todo</code>, as the main thread does. It keeps
-              <code>HAND BACK:</code> for a message the main thread has to act on now:
-              an answer to a question the main thread asked, steering its current work,
-              or a question it is weighing. The to-do is the session's and stays open
-              after the fork's turn ends; the main thread hears of it, and Leaf wakes an
-              idle session for it.
+              <code>leaf thread reply --todo</code>, as the main thread does. It gives
+              the thread back only for a message the main thread has to act on now: an
+              answer to a question the main thread asked, steering its current work, or
+              a question it is weighing. The to-do is the session's and stays open after
+              the fork's turn ends; the main thread hears of it, and Leaf wakes an idle
+              session for it.
             </p>
           </section>
 
@@ -4556,8 +4560,8 @@ I didn't change any files or the page.</span>&lt;/result&gt;
               <p id="navigation-go-to-exit">
                 Tab / Shift+Tab move through hints; Enter takes the announced hint.
                 Escape removes the last letter, then the filter, then cancels. While the
-                map waits, the panel's field says In Go-to, and its Close cancels from
-                any step. There is no timeout. Editors keep typed letters.
+                map waits, the panel's row names it Go to, and the ✕ beside the name
+                cancels from any step. There is no timeout. Editors keep typed letters.
               </p>
             </details>
           </section>

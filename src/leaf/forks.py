@@ -232,8 +232,6 @@ from .state import (
 # the working fork's task.
 LINE_OPENING = "<leaf-line-fork>"
 WORK_OPENING = "<leaf-fork-work>"
-# How a fork that took the work ends when the work belongs with the session after all.
-HAND_BACK = "HAND BACK:"
 
 # What a line fork answers (`line_prompt`): the agent's working line, and whether a fork
 # of the session could do the work beside it (`take`) or the work belongs with the
@@ -695,8 +693,9 @@ def work_prompt(delivery: dict, turn: str) -> str:
     `leaf` commands names, which is how Leaf tells them from the main thread's
     (`state.acting_agent_turn`), and the three ways it ends: an answer, an answer
     that opens a to-do for work bigger than a message, which the main thread
-    schedules, or `HAND_BACK` for a message the main thread has to act on now
-    (`docs/how-it-works.html`, "The main thread stays in charge")."""
+    schedules, or, for a message the main thread has to act on now, no answer and a
+    last line saying why, which `ended` passes on (`docs/how-it-works.html`, "The
+    main thread stays in charge")."""
     return f"""{WORK_OPENING}
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to do what the message asks beside the main session, which carries on with its own work and leaves this thread to you. You have the session's tools. Change nothing the main session is changing or about to change: its files and branch, the page's source, its pull requests.
 
@@ -705,7 +704,7 @@ Leaf's delivery of the thread to you; "events" are the user's messages, oldest f
 
 Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Leaf runs your work in a turn of its own, {turn}. Begin every `leaf` command you run with `leaf --turn {turn}`, as in `leaf --turn {turn} thread reply …`. Leaf takes a command as yours only where it names your turn; one without it acts as the main session's. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message.
 
-If the work proves bigger than a message, such as a change to the session's files, branch, page or pull requests, or research long enough to need progress of its own, do what you can without changing those, then answer with what you found and add `--todo "<the rest of the work, in a few words>"` to that reply. The to-do is the session's: the main session takes it up in its own order, after its current work. If instead the main session has to act on the message now, because it answers a question the session asked, steers its current work, or would settle a question it is weighing, don't answer: end your turn with "{HAND_BACK}" and one line saying why, and Leaf gives the thread to the main session. Leaf tells the main session what you did either way.
+If the work proves bigger than a message, such as a change to the session's files, branch, page or pull requests, or research long enough to need progress of its own, do what you can without changing those, then answer with what you found and add `--todo "<the rest of the work, in a few words>"` to that reply. The to-do is the session's: the main session takes it up in its own order, after its current work. If instead the main session has to act on the message now, because it answers a question the session asked, steers its current work, or would settle a question it is weighing, don't answer: end your turn with one line saying why, and Leaf gives the thread to the main session with that line. Leaf tells the main session what you did either way.
 </leaf-fork-work>"""
 
 
@@ -724,7 +723,7 @@ This message comes from Leaf, not the user. The user wrote again in the thread y
 Leaf's delivery of the thread to you; "events" are the user's new messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
 
-Answer as before: do the work, then reply with `leaf --turn {turn} thread reply` and the reference the delivery's `answer` names, adding `--todo` where the rest of the work is bigger than a message; or, if the main session has to act on the message now, end your turn with "{HAND_BACK}" and one line saying why.
+Answer as before: do the work, then reply with `leaf --turn {turn} thread reply` and the reference the delivery's `answer` names, adding `--todo` where the rest of the work is bigger than a message; or, if the main session has to act on the message now, don't answer, and end your turn with one line saying why.
 </leaf-fork-work>"""
 
 
@@ -1034,9 +1033,9 @@ def ended(
     """Close the turn of an agent of the session whose run ended, the one its
     harness names `agent`, or `turn`, and say what came of each thread it took,
     judged by the messages the turn picked up itself and what the turn wrote
-    (`holding.py`): a message still waiting that the closed turn holds means it gave
-    the thread back (`hand_back`), as its last words did (`HAND_BACK`), it failed
-    (`failed`) or it ended without answering, and the main thread owes it now
+    (`holding.py`): a message still waiting that the closed turn holds means the
+    fork gave the thread back (`hand_back`), whether it chose to, failed (`failed`)
+    or ended without answering, and the main thread owes it now
     (`activity.agent_holds`); otherwise a message another turn holds or answered
     means that turn took the thread over (`taken_over`); otherwise the turn answered
     every one (`answer`), and opened a to-do on the thread with a reply of its own
@@ -1046,6 +1045,12 @@ def ended(
     hears of an answer, a to-do or a thread given back (`clerk.queue`), and that the
     thread owes nothing only where nothing waits in it and no to-do on it is open;
     the take's line, if it hasn't heard it yet, leaves the queue (`clerk.unqueue`).
+    For a thread given back it hears why: the fork's failure, or else its last words
+    (`answer`), quoted as the fork's, since a fork whose reply Leaf refused may say it
+    answered; the fork's task asks for one line saying why. Those words
+    decide no outcome, since the log already says whether the fork answered. A
+    marker or structured answer in them would be a second answer to that question,
+    one that could disagree with the log, so the task asks for neither.
     A thread given back is the main thread's input again, which its next delivery
     hands over (`delivery.deliverable`). An idle session is woken for what it
     now owes: the watch wakes it for that input, and for a to-do, whose line wakes it
@@ -1066,12 +1071,12 @@ def ended(
     entries = agent_turns(session_id)
     [ran] = {entries[closing]["agent"] for closing in closed}
     fork = "Your fork" if ran is None else f"Your fork {ran}"
-    text = (answer or "").strip()
+    words = (answer or "").strip()
     why = (
-        text.removeprefix(HAND_BACK).strip()
-        if text.startswith(HAND_BACK)
-        else f"the fork failed: {failed}"
+        f"the fork failed: {failed}"
         if failed
+        else f'the fork\'s last words were "{words}"'
+        if words
         else "the fork ended without answering"
     )
     elapsed = {} if elapsed_ms is None else {"elapsedMs": elapsed_ms}

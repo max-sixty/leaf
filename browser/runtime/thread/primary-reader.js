@@ -126,7 +126,6 @@ export function createPrimaryReader(
       const whole = parts.find((part) => part instanceof ThreadView);
       return {
         node: drawingOf(parts) ?? last.node,
-        progressOpen: whole?.progressOpen ?? false,
         // A presentation that makes room for the agent's answer to the user's last turn
         // itself (`answersAtOnce`) is handed it whatever it moves. A whole thread moves
         // what a card's would (thread-card.js, `newsMoves`).

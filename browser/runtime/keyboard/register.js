@@ -68,7 +68,8 @@ const STACK = [
   // The modes keep their own letters here and declare their Escape on the ladder,
   // because a mode is the stance the whole page is in and a surface opened while one
   // holds is opened inside it: a view the floating panel opens in Design mode comes off
-  // first.
+  // first. A mode entered over a view comes off before it: the panel's rung yields to it
+  // (floating-panel.js, `openedIn`).
   "draw mode",
   "design mode",
   PAGE,

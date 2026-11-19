@@ -25,11 +25,11 @@
  * those facts is about counts on: it says its place alone after them, "5 changes since
  * v2 · 1 of 5" (walk-position.js, `walkWords`). In an open thread's reply box, where the
  * user stands is the stance alone, since the version, the comparison and the
- * annotations are the page's, which a reply never addresses. It leads Reply as it leads
- * the status, so the stance is named while a thread stands open too, beside the leaf
- * before whose turn it is (floating-panel.js, `turnLead`), and the stance's Close,
- * which Reply leaves no room for at the field's end, stands in the row's seat
- * (floating-panel.js, `fieldExit`).
+ * annotations are the page's, which a reply never addresses. It leads the words that
+ * pass there, and while the box says Reply it stands beside the leaf, before whose turn
+ * it is (floating-panel.js, `turnLead`), so the stance is named while a thread stands
+ * open too. Its Close, which Reply leaves no room for at the field's end, stands in the
+ * row's seat (floating-panel.js, `fieldExit`).
  *
  * The field's end offers one press, the one that matters most at that moment (`end`):
  * - "key": the key that enters the field, after the words, as Reply's c;
@@ -159,18 +159,17 @@ export const FIELD_READINGS = Object.freeze([
     end: "moment",
   },
   // An open thread's reply box says Reply with the key that enters it, while the
-  // thread stands open, with whose turn it is and a walk's position beside the leaf
-  // (floating-panel.js, `turnLead`), since the field there says no status they would
-  // hide. The user chose this so the next action reads apart from the agent's words,
-  // over the key beside Reply with the turn at the field's end in one face, Reply alone
-  // with the turn left to the thread's messages, and the agent's words in a lane of
-  // their own before the seat. Reply takes the one dim face the user chose for every
-  // comment box's word. The stance the user is in leads it (`lead`, above).
+  // thread stands open, with the stance the user is in, whose turn it is and a walk's
+  // position beside the leaf (floating-panel.js, `turnLead`), since the field there
+  // says no status they would hide. The user chose this so the next action reads apart
+  // from the agent's words, over the key beside Reply with the turn at the field's end
+  // in one face, Reply alone with the turn left to the thread's messages, and the
+  // agent's words in a lane of their own before the seat. Reply takes the one dim face
+  // the user chose for every comment box's word.
   {
     says: "turn",
     field: "thread",
     claims: () => leafSays(REPLY_HINT),
-    lead: "standing",
     end: "key",
     offers: true,
   },

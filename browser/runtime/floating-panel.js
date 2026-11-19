@@ -34,12 +34,13 @@
  *   change. That kept On Me beside the draft and the field narrower, and saved no
  *   rewrap, since the stance's arrival had already rewrapped the draft. An open view
  *   has its ✕ on a line of its own, its head line or its tabs, and the field takes the
- *   seat's room while the view stands (**Opened**), but for a stance's ✕: a thread's
- *   reply box ends in Reply, never Close, so beside it the ✕ keeps the seat, and a
- *   reply drafted there rewraps as a stance comes and goes, as a draft on the page
- *   does. Rejected:
- *   the ✕ waiting for the view to close, which left a stance entered from a thread, such
- *   as Go-to or Draw mode, unnamed and with no way out on screen.
+ *   seat's room while the view stands (**Opened**), but for a stance's ✕, which keeps
+ *   the seat there too wherever the field doesn't say Close at its end: always beside a
+ *   thread's reply box, which ends in Reply, and beside the page's field while the user
+ *   writes in it. So a reply or a draft there rewraps as a stance comes and goes, as a
+ *   draft does with no view open. Rejected: the ✕ waiting for the view to close, which
+ *   left a stance entered from a thread, such as Go-to or Draw mode, unnamed and with
+ *   no way out on screen.
  *   The user chose the one seat over a Threads mark beside On Me and a seat kept
  *   empty for the ✕, which leaves a gap at the row's end; Threads is the On view's
  *   tab, since On Me already lists a thread message that waits on the user. Rejected:
@@ -83,7 +84,8 @@
  *   ‹ hanging off the box beside the leaf, far from the name it leads away from; and no
  *   way back, which leaves a pointer two presses from Threads. The field below runs to
  *   the panel's edge while a view stands, at rest and widened alike, which the user
- *   chose over Close in the row's seat, which takes room from the field at rest. The
+ *   chose over Close in the row's seat, which takes room from the field at rest; only a
+ *   stance's ✕ takes the seat then (**The row**). The
  *   panel stands on the window's foot, so a view grows and shrinks from its top edge,
  *   and its head line moves with it: news, such as an answer growing a thread, carries
  *   the thread's presses up with its name. A press on the head line holds the view's
@@ -1325,10 +1327,11 @@ export function createFloatingPanel({
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the stance the user is in, which is where they
-  // stand in a thread and leads the reading's words (field-readings.js, `lead`), drawn
-  // at the row's start as it stands before the page's status, rather than against
-  // Reply, where it would read as a way of replying; then the thread's word, as
-  // Threads says it; then a walk's position. The thread walk standing on this thread
+  // stand in a thread (field-readings.js, `lead`), first, as it stands before the page's
+  // status, rather than against Reply, where it would read as a way of replying; then
+  // the thread's word, as Threads says it; then a walk's position. A row too narrow for
+  // them all cuts them from the end, as it cuts the page's status before where the user
+  // stands. The thread walk standing on this thread
   // says only its place, "11 of 11", since the view names the thread; any other walk
   // says what the screen lacks with no words standing before it (walk-position.js,
   // `walkWords`), so a comparison's changes are named here, "Change 1 of 5 since v2".
@@ -1396,8 +1399,6 @@ export function createFloatingPanel({
     const held = heldWords.value;
     if (says === "held" && held) return heldParts(held);
     const parts = [words].flat();
-    // A thread's lead stands beside the leaf (`turnLead`), so Reply's words are its own.
-    if (says === "turn" && lead.length) return voiced(parts.slice(lead.length));
     // Where the user stands, before the status, is drawn apart from it, so the ink a
     // status that asks wears stays the status's (floating-panel.css).
     if (says === "status" && lead.length)

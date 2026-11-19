@@ -789,7 +789,6 @@ def test_a_stance_entered_from_a_thread_leads_its_reply_with_its_way_out_beside(
     thread.focus()
     page.keyboard.press("w")
     expect(field(page)).to_have_attribute("data-lf-says", "turn")
-    expect(field(page)).to_have_attribute("placeholder", "In Draw mode · Reply… c")
     expect(lead(page)).to_have_text(re.compile(r"^In Draw mode\b"))
     words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     expect(words).to_have_text("Reply…")
@@ -797,7 +796,7 @@ def test_a_stance_entered_from_a_thread_leads_its_reply_with_its_way_out_beside(
     leave.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(thread).to_be_visible()
-    expect(field(page)).to_have_attribute("placeholder", "Reply… c")
+    expect(lead(page)).not_to_have_text(re.compile("Draw mode"))
     expect(leave).to_have_count(0)
 
     thread.focus()

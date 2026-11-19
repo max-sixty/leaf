@@ -1298,16 +1298,19 @@ class RevisionReading(SourceReading):
             self.manifest, _bundle_declarations(self.bundle), self.bundle.parent.parent
         )
 
-    @cached_property
+    @property
     def inventory(self):
         """Historical consumers outlive eviction of the expensive parse.
 
         A long history can exceed the document budget. Keeping only these compact
         immutable facts lets retries and new revisions reuse the completed scan.
+        Only `_CompactReadings` holds them, under its own budget. The reading keeps
+        no copy, since `_Readings` may hold it uncharged as long as the page's
+        memory lives.
         """
         return memo(self.marker.parent.parent, _CompactReadings).get(
             self.marker,
-            file_stamp(self.marker),
+            self.stamp,
             lambda: SourceReading.inventory.func(self),
             _inventory_size,
         )
@@ -1369,11 +1372,11 @@ class _Readings:
     to 8 MB, a median example's 11 KB to 0.2 MB). So 8 MB of source keeps one page's
     parses under about 160 MB. A reading is charged its source once it parses its
     document (`RevisionReading.document`), and nothing before, since until then it
-    holds little more than the revision's manifest. Each state read asks every
-    earlier revision for its obligation registrations, which `_CompactReadings`
-    keeps without a parse; charging those readings their source would push the
-    active revision's parse out of a long history's budget, to be parsed again on
-    the next read. A normal history fits whole: some 180 revisions of the largest
+    holds little more than the revision's manifest, once read. Each state read asks
+    every earlier revision for its obligation registrations, which
+    `_CompactReadings` keeps without a parse; charging those readings their source
+    would push the active revision's parse out of a long history's budget, to be
+    parsed again on the next read. A normal history fits whole: some 180 revisions of the largest
     shipped example page (44 KB), about 700 of the median one. A longer one
     re-parses an evicted revision a reader asks for again; a scan of the whole
     history reads each revision once (`revision_history`).

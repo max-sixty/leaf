@@ -4222,6 +4222,9 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
         assert len(parsed) <= 1
         kept = page_memory_model.memo(page_dir, artifact_model._CompactReadings)
         assert kept.size <= kept.BUDGET
+        # Held readings keep no inventory of their own, so that budget bounds them.
+        held = page_memory_model.memo(page_dir, artifact_model._Readings).held
+        assert not any("inventory" in vars(entry[1]) for entry in held.values())
 
 
 def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts(

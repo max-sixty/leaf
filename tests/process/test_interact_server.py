@@ -3909,7 +3909,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
         assert _news(server.origin) == {
             "reading": snapshot.reading,
             "pages": None,
-            "drafts": 0,
+            "drafts": {"store": snapshot.drafts()["store"], "version": 0},
         }
 
 

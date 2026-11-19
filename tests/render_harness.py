@@ -1332,7 +1332,7 @@ def fetch_whole_state(route, **fetch):
 
 
 # A tab a test holds stale is stale only while nothing reaches it: a state read brings
-# it the log, and a drafts read the server's drafts (runtime/drafts.js, `lookForDrafts`),
+# it the log, and a drafts read the server's drafts (runtime/drafts.js, `hearDrafts`),
 # so a stale view the assertions take their time reaching is a race a loaded runner
 # loses. Refusing both reads states it — but
 # only from before the page exists. `page.route` reaches no request already in the

@@ -610,7 +610,7 @@ class LocalWorker:
             "exec",
             "--interactive",
             "--env",
-            "LEAF_PAGE_COMMIT=leaf_website.storage:publish",
+            "LEAF_PAGE_COMMIT=leaf_website.storage",
             container,
             "/app/.venv/bin/python",
             "-",

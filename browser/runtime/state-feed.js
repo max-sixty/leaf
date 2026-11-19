@@ -2,8 +2,8 @@
    that re-applies what the page holds, and the phase the answers leave it in. A
    freshness read also names the reading of the machine's other pages, which it hands to
    their list (live-leaves.js, `hearPages`) and never compares with the page's own; a
-   look that hears nothing tells the list so too. It names the version of the user's
-   drafts as well, which drafts.js follows the same way (`lookForDrafts`).
+   look that hears nothing tells the list so too. It names the store and version of
+   the user's drafts as well, which drafts.js follows the same way (`hearDrafts`).
 
    `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
    while waiting means the log has not been read; it does not mean there are no comments.
@@ -28,7 +28,7 @@ import { offlineInteractive, offlineState, pageUrl, runtime } from "./context.js
 import { applicationState } from "./semantic-state.js";
 import { completeReadingReturn, readingReturn } from "./reading-continuity.js";
 import { hearPages } from "./live-leaves.js";
-import { lookForDrafts } from "./drafts.js";
+import { hearDrafts } from "./drafts.js";
 import {
   completeState,
   heldHeaders,
@@ -355,7 +355,6 @@ export function createStateFeed({
       const look = async () => {
         let delay = LOOK_MS;
         const returned = readingReturn();
-        const hearDrafts = lookForDrafts();
         try {
           const response = await fetch(pageUrl("api/news"), {
             headers: layerHeaders(),

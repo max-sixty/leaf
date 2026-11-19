@@ -1636,21 +1636,17 @@ def close_on_signal(httpd: LeafHTTPServer, agent_harness: WebsiteCodexHarness) -
     that started it and keep its memory.
 
     The handler runs at the re-raise, once serving has ended, and then dies of the
-    signal it was sent rather than turning it into an ordinary return. First it saves
-    the drafts the page store lacks (`storage.save_drafts`), since a stop is how a
-    sleeping or replaced container ends, and the next restores only what was saved. It
-    closes the listening socket before that, so a request arriving meanwhile is
+    signal it was sent rather than turning it into an ordinary return. It closes the
+    listening socket first, so a request arriving while the App Server closes is
     refused at once, as after the process ends, rather than waiting on a listener
     nothing serves.
     """
-    from leaf_website.storage import save_drafts
 
     def stop(signum, _frame):
         httpd.server_close()
         try:
-            save_drafts()
-        finally:
             agent_harness.close()
+        finally:
             signal.signal(signum, signal.SIG_DFL)
             signal.raise_signal(signum)
 

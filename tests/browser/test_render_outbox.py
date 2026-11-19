@@ -43,6 +43,7 @@ from render_harness import (
     Traffic,
     _traffic,
     available_commands,
+    clocked,
     consume_browser_errors,
     draft_control,
     expect_obligations_answered,
@@ -470,6 +471,38 @@ def test_z_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
     expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     page.go_back()
     expect(picks).not_to_be_in_viewport()
+
+
+# Whether the element with id `arg` wears the undo's ring now: a solid outline twice the
+# focus band's width, which nothing else on the page draws round it.
+RINGED = """(id) => {
+  const box = document.getElementById(id);
+  const band = parseFloat(getComputedStyle(box).getPropertyValue("--lf-focus-ring-w"));
+  const outline = getComputedStyle(box);
+  return outline.outlineStyle === "solid" && parseFloat(outline.outlineWidth) === 2 * band;
+}"""
+
+
+def test_an_undo_rings_what_it_took_back_and_its_notice_waits_for_the_next_input(
+    browser, serve
+):
+    """What ⌘Z took back out of view takes the undo's ring once the page has gone to it,
+    and the undo's notice stands until the user's next input rather than for a notice's
+    time, the user's choice."""
+    url = serve(FAR_CHOICE_PAGE)
+    _choose(serve.page_dir)
+    page = open_page(clocked(browser), url)
+    undo(page)
+    expect(page.locator("#picks")).to_be_in_viewport()
+    page.wait_for_function(RINGED, arg="picks")
+    said = "Undone: chose “Keep the mounts”"
+    expect_panel_says(page, said)
+    page.clock.run_for(
+        page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS") + 1000
+    )
+    expect_panel_says(page, said)
+    page.keyboard.press("Shift")
+    expect_panel_says(page, said, says=False)
 
 
 NEAR_CHOICE_PAGE = leaf_page(

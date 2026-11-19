@@ -475,9 +475,9 @@ server and every engine on the efficiency cores, as `leaf-dev suite flake` runs 
 copy: it reproduced ten of the nightly macOS
 job's failures that `--cpu-throttle 8` reproduced none of.
 `leaf-dev suite flake --load N` runs N busy loops in the same band beside the copies,
-which starve a test more steadily than more copies do. Run the merge base under the same condition to learn whether the change
-caused it. A test whose subject is a slow CPU slows its own page with
-`leaf_dev.browser.slow_cpu`.
+which starve a test more steadily than more copies do. Run the merge base under the
+same condition to learn whether the change caused it. A test whose subject is a slow
+CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 
 A failure only the nightly macOS job (`test-macos`) shows reproduces on that job's
 runner, from any machine. Dispatch `ci` on a branch with `flake` set to `leaf-dev suite

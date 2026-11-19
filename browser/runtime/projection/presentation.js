@@ -106,16 +106,22 @@ export function createProjectionPresentation() {
   // A live revision keeps that reading until its next projection completes. Current
   // document readiness belongs to the presentation coordinator, whose document:patch
   // region holds the installation, rather than to erasing and restoring this count.
+  // The fold keeps the coverage records while no event joins the log (`kept.js`), so
+  // once the stamp covers them a presentation that moves no widget event, such as a
+  // thread's repaint, returns without walking the log again.
+  /** @type {unknown} */
+  let stamped = null;
   const coverage = () => {
     const root = applicationState.read();
+    const records = root.effective.coverage;
     if (
+      records === stamped ||
       root.phase === "waiting" ||
       root.authoritative === null ||
       !projectionRegionsPresented([])
     )
       return;
     const projection = root.effective.projection;
-    const records = root.effective.coverage;
     const ready = records.every((record) => {
       if (record.coordinate === null) return true;
       const e = record.event;
@@ -126,8 +132,9 @@ export function createProjectionPresentation() {
         projectionRegionsPresented(record.coordinate.slice(0, 1))
       );
     });
-    if (ready)
-      keeps(document.body, PAGE_PAINT_ATTRIBUTE.applied, String(records.length));
+    if (!ready) return;
+    keeps(document.body, PAGE_PAINT_ATTRIBUTE.applied, String(records.length));
+    stamped = records;
   };
   let coverageQueued = false;
   const updateCoverage = () => {

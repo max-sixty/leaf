@@ -8,7 +8,7 @@ answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-
 
 On main, `src/leaf/forks.py` holds the states a thread moves through, keeping a
 message back and the working line a fork posts, and `hooks/claude-code.ts`
-(`lineFork`) makes the fork. How it works' Forks tab (`docs/how-it-works.html`)
+makes the fork Leaf's Python asks for (`src/leaf/carrier.py`). How it works' Forks tab (`docs/how-it-works.html`)
 explains what is built. This note holds the research behind it: what Claude Code lets
 a hooks module fork, measured, and how well the fork judges what to answer. The main thread is the session's own
 conversation, as against the forks and subagents made from it.

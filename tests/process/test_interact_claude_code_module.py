@@ -83,8 +83,8 @@ class ClaudeCode:
                 self.spawned.put(record["spawned"])
             elif "sent" in record:
                 self.sent.put(record["sent"])
-            elif "forkStep" in record:
-                self.steps.put(record["forkStep"])
+            elif "report" in record:
+                self.steps.put(record["report"])
             elif "completed" in record:
                 self.completions.put(record["completed"])
             elif {"copied", "toast"} & record.keys():
@@ -373,7 +373,7 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
     launcher.write_text(
         "#!/bin/sh\n"
         f"echo started >> {starts}\n"
-        f"echo '{json.dumps({'pages': [page], 'completions': []})}'\n"
+        f"echo '{json.dumps({'pages': [page], 'do': []})}'\n"
         f'[ "$(wc -l < {starts})" -gt 1 ] && exec sleep 60\n'
         "exit 75\n"
     )
@@ -387,6 +387,37 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
     )
     driven.settle()
     assert driven.diagnostics.empty()
+    driven.quit()
+
+
+def test_an_instruction_the_module_does_not_run_comes_back_failed_at_once(
+    spawn, sessionless, tmp_path
+):
+    """An instruction whose `do` the module doesn't know, as a Leaf newer than the
+    session's module can list one, is reported failed at once, without a word in the
+    conversation, so whatever waits on it moves on (`carrier.py`)."""
+    launcher = tmp_path / "bin" / "leaf"
+    launcher.parent.mkdir()
+    unknown = {"id": "x1", "do": "frobnicate", "basis": {"kind": "line"}}
+    launcher.write_text(
+        "#!/bin/sh\n"
+        'case "$*" in *--pages*)\n'
+        f"  echo '{json.dumps({'pages': [], 'do': [unknown]})}'\n"
+        "  exec sleep 60;;\n"
+        "esac\n"
+    )
+    launcher.chmod(0o755)
+    driven = ClaudeCode(spawn, "cc-unknown", {"pluginRoot": str(tmp_path)})
+    driven.emit("session.start", {"cwd": str(tmp_path), "isInteractive": True})
+    reported = driven.steps.get(timeout=STATED_TIMEOUT)
+    assert {name: reported[name] for name in ("done", "do", "basis", "failed")} == {
+        "done": "x1",
+        "do": "frobnicate",
+        "basis": {"kind": "line"},
+        "failed": 'the hooks module runs no "frobnicate"',
+    }, reported
+    driven.settle()
+    assert driven.steps.empty() and driven.diagnostics.empty()
     driven.quit()
 
 
@@ -798,7 +829,8 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
         {
             "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
             "agentId": "agent-1",
-            "forkStepFails": "started",
+            # The report that the fork runs, not the one saying that step failed.
+            "stepFails": {"do": "spawn", "ended": None, "failed": None},
         },
     )
     holding_page(driven, page_dir, monkeypatch)
@@ -941,23 +973,35 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     driven.quit()
 
 
+# A fork the module spawned, as `$.state` keeps it: when its run started and the
+# instruction it ran (`hooks/leaf-state.d.ts`).
+SPAWNED = {
+    "started": 1,
+    "id": "work:t7",
+    "do": "spawn",
+    "basis": {"kind": "work", "turn": "t7"},
+}
+
+
 def test_leaf_hears_of_the_end_of_a_fork_the_module_spawned_and_no_other(
     spawn, sessionless
 ):
-    """The module keeps the forks it spawned in `$.state`, with the turn Leaf opened
-    for each run, which a reload of its code leaves standing, so it tells Leaf as such
-    a fork's run ends, naming that turn, even one spawned before the module loaded,
-    and runs nothing for any other agent's end."""
-    driven = ClaudeCode(
-        spawn,
-        "cc-ends",
-        {"state": {"forks": {"agent-7": {"started": 1, "turn": "t7"}}}},
-    )
+    """The module keeps the forks it spawned in `$.state`, with the instruction each
+    ran, which a reload of its code leaves standing, so it reports that instruction
+    again as such a fork's run ends, even one spawned before the module loaded, and
+    runs nothing for any other agent's end."""
+    driven = ClaudeCode(spawn, "cc-ends", {"state": {"forks": {"agent-7": SPAWNED}}})
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-9"})
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
     step = driven.steps.get(timeout=STATED_TIMEOUT)
-    assert step["ended"] == {"agent": "agent-7", "turn": "t7", "answer": "Done."}, step
+    assert {name: step[name] for name in ("done", "do", "basis", "agent", "ended")} == {
+        "done": "work:t7",
+        "do": "spawn",
+        "basis": SPAWNED["basis"],
+        "agent": "agent-7",
+        "ended": {"answer": "Done."},
+    }, step
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
     driven.settle()
     assert driven.steps.empty()
@@ -974,14 +1018,11 @@ def test_a_forks_end_leaf_did_not_hear_of_is_told_again_as_the_next_turn_ends(
     driven = ClaudeCode(
         spawn,
         "cc-ends-again",
-        {
-            "state": {"forks": {"agent-7": {"started": 1, "turn": "t7"}}},
-            "forkStepFails": "ended",
-        },
+        {"state": {"forks": {"agent-7": SPAWNED}}, "stepFails": {"ended": True}},
     )
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
-    told = {"agent": "agent-7", "turn": "t7", "answer": "Done."}
+    told = {"answer": "Done."}
     assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
     driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
     assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
@@ -999,19 +1040,11 @@ def test_a_forks_end_leaf_did_not_hear_of_is_told_again_while_the_session_idles(
         spawn,
         "cc-ends-idle",
         {
-            "state": {
-                "forks": {
-                    "agent-7": {
-                        "started": 1,
-                        "turn": "t7",
-                        "ended": {"answer": "Done."},
-                    }
-                }
-            },
+            "state": {"forks": {"agent-7": {**SPAWNED, "ended": {"answer": "Done."}}}},
         },
     )
     holding_page(driven, page_dir, monkeypatch)
-    told = {"agent": "agent-7", "turn": "t7", "answer": "Done."}
+    told = {"answer": "Done."}
     assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
     driven.settle()
     driven.quit()

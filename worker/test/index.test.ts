@@ -269,6 +269,7 @@ describe("product-site delivery", () => {
       env,
       ctx,
     );
+    expect(allocation.headers.get("Leaf-Release")).toBe(RELEASE);
     expect(await allocation.json()).toEqual({
       url: `${sample}/`,
       page: `/api/samples/${sampleId}~${objectId}`,
@@ -300,6 +301,8 @@ describe("product-site delivery", () => {
         expect(response.status).toBe(method === "OPTIONS" ? 204 : 200);
         expect(response.headers.get("Set-Cookie")).toBeNull();
         expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+        // The container names no release; the edge names its own.
+        expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
         if (method === "POST" && path.endsWith("/api/samples"))
           expect(await response.json()).toEqual({
             url: `${sample}/api/samples/${"07".repeat(16)}/`,
@@ -1215,7 +1218,7 @@ describe("product-site delivery", () => {
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { reading: "private" },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
@@ -1238,85 +1241,48 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
-  // A container still on the previous image answers for a release the edge no longer
-  // serves. The browser's only move against a foreign release is to reload, and the
-  // document it reloads onto is the one the edge already gave it, so the answer has to
-  // stop here: while the rollout runs, the user reads the published projection.
-  it("reads the published projection while the container image rolls out", async () => {
-    const sessionId = "0c".repeat(16);
-    const containerFetch = vi.fn(async (_request: Request) =>
-      Response.json(
-        { reading: "old-release" },
-        { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
-      ),
-    );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const env = environment();
-
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/state", {
-        headers: {
-          Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
-          "Leaf-Layer": LAYER,
-          "Leaf-Release": RELEASE,
-        },
-      }),
-      env,
-      executionContext(),
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    expect(response.headers.get("Leaf-Layer")).toBe(LAYER);
-    expect(response.headers.get("Leaf-Session")).toBe("passive");
-    expect(await response.json()).toMatchObject({ reading: "published" });
-    expect(response.headers.get("Set-Cookie")).toBe(
-      "__Host-leaf-active-page-examples%2Ftriage-board=; Path=/; Secure; " +
-        "HttpOnly; SameSite=Lax; Max-Age=0",
-    );
-  });
-
-  // The browser waits out this answer and asks again (`requestJson` and `delivery.js`).
-  // A fresh visitor's first sample allocates in a container too, so it meets the
-  // rollout as an active page's gesture does.
+  // Only the edge names a release (`worker/src/index.ts`): whatever a container's
+  // answer carries, the browser reads the release the edge serves, so a foreign one
+  // always means the edge has moved on past the document.
   it.each([
-    ["an active page's gesture", "api/event", { kind: "comment", text: "hello" }, true],
-    ["a fresh visitor's sample", "api/samples", { template: "practice" }, false],
+    ["a state read", "GET", "api/state"],
+    ["a gesture", "POST", "api/event"],
   ])(
-    "holds %s back from a container the rollout has not reached",
-    async (_, inside, body, active) => {
+    "names the edge's release on %s a container answers",
+    async (_, method, inside) => {
       const sessionId = "0d".repeat(16);
-      const containerFetch = vi.fn(async (_request: Request) =>
-        Response.json(
-          { id: "e1" },
-          { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
-        ),
-      );
-      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-      const env = environment();
+      const containerReleases: Record<string, string>[] = [
+        {},
+        { "Leaf-Release": "b".repeat(64) },
+      ];
+      for (const named of containerReleases) {
+        const containerFetch = vi.fn(async (_request: Request) =>
+          Response.json(
+            { reading: "private" },
+            { headers: { "Leaf-Layer": LAYER, ...named } },
+          ),
+        );
+        vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
 
-      const response = await worker.fetch(
-        new Request(`https://leaf.page/examples/triage-board/${inside}`, {
-          method: "POST",
-          headers: {
-            ...(active && {
+        const response = await worker.fetch(
+          new Request(`https://leaf.page/examples/triage-board/${inside}`, {
+            method,
+            headers: {
               Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
-            }),
-            "Content-Type": "application/json",
-            "Leaf-Layer": LAYER,
-            "Leaf-Release": RELEASE,
-          },
-          body: JSON.stringify(body),
-        }),
-        env,
-        executionContext(),
-      );
+              "Content-Type": "application/json",
+              "Leaf-Layer": LAYER,
+              "Leaf-Release": RELEASE,
+            },
+            ...(method === "POST" && { body: JSON.stringify({ kind: "comment" }) }),
+          }),
+          environment(),
+          executionContext(),
+        );
 
-      expect(containerFetch).toHaveBeenCalledOnce();
-      expect(response.status).toBe(503);
-      expect(response.headers.get("Retry-After")).toBe("5");
-      expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-      expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
+        expect(containerFetch).toHaveBeenCalledOnce();
+        expect(response.status).toBe(200);
+        expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+      }
     },
   );
 
@@ -1541,7 +1507,6 @@ describe("product-site delivery", () => {
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(await response.text()).toContain("Private revision");
-    expect(response.headers.get("Leaf-Session")).toBe("active");
   });
 
   it("loads an active page's private document on every navigation", async () => {
@@ -1600,7 +1565,6 @@ describe("product-site delivery", () => {
     expect(getContainer).toHaveBeenCalledTimes(3);
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledTimes(3);
-    expect(marked.headers.get("Leaf-Session")).toBe("active");
   });
 
   it.each([
@@ -1759,7 +1723,6 @@ describe("product-site delivery", () => {
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
     );
     expect(active.status).toBe(204);
-    expect(active.headers.get("Leaf-Session")).toBe("active");
     expect(active.headers.get("Set-Cookie")).toBeNull();
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
@@ -1820,7 +1783,6 @@ describe("product-site delivery", () => {
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
     );
     expect(active.status).toBe(200);
-    expect(active.headers.get("Leaf-Session")).toBe("active");
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
   });
@@ -1830,7 +1792,7 @@ describe("product-site delivery", () => {
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { browser: { basis: { through_seq: 0 } } },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
@@ -1852,11 +1814,36 @@ describe("product-site delivery", () => {
     );
   });
 
+  it("leaves the reader passive when their container never answered", async () => {
+    const sessionId = "1c".repeat(16);
+    // The Containers SDK's own failure, as for a container that exited while starting:
+    // no answer from Python, so nothing in the container holds the page.
+    const containerFetch = vi.fn(
+      async (_request: Request) =>
+        new Response("Failed to start container", { status: 500 }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+
+    const response = await worker.fetch(
+      new Request(
+        "https://leaf.page/examples/triage-board/api/view?revision=2&through_seq=0",
+        { headers: { Cookie: `__Host-leaf-page=${sessionId}` } },
+      ),
+      environment(),
+      executionContext(),
+    );
+
+    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(response.status).toBe(500);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(response.headers.get("Leaf-Session")).toBeNull();
+  });
+
   it("routes concurrent first uploads through the identity minted by the document", async () => {
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { path: "/media/0123456789abcdef.png" },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
@@ -2136,7 +2123,7 @@ describe("website page agent", () => {
       );
       for (const [body, headers, expected] of [
         ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
-        ["private-adapter-error", { "Leaf-Release": RELEASE }, "adapter"],
+        ["private-adapter-error", { "Leaf-Session": "active" }, "adapter"],
       ] as const) {
         forwardedContainerFetch.mockResolvedValueOnce(
           new Response(body, { status: 500, headers }),

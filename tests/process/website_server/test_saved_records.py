@@ -248,15 +248,13 @@ def test_website_restore_streams_shared_chunks_once_across_files_and_pages(
         assert previous.read_bytes() == b"previous local input"
 
 
-def test_a_container_on_another_release_starts_without_the_saved_record(
-    tmp_path, monkeypatch
-):
+def test_a_container_on_another_release_does_not_start(tmp_path, monkeypatch):
     """After a deploy a session's container can still start on the previous image,
-    whose code may not read a record the new release shaped. The store refuses it, and
-    the container starts without the record and without publishing, rather than
-    failing to start: an answer from it names its own release, which the edge
-    replaces."""
-    from leaf_website.storage import restore
+    whose code may misread a record the new release shaped, and whose answers and
+    saved responses would name the previous release's document. The store refuses it
+    before it reads anything, and the refusal ends its start, so nothing it would
+    write reaches the session's record."""
+    from leaf_website.storage import PageStoreRefused, restore
 
     site = tmp_path / "site"
     site.mkdir()
@@ -265,7 +263,8 @@ def test_a_container_on_another_release_starts_without_the_saved_record(
         stored["release"] = "1" * 64
         stored["records"] = {"/first": {"page/kept.js": {"chunks": [], "modified": 0}}}
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        assert restore(site) is False
+        with pytest.raises(PageStoreRefused, match="409"):
+            restore(site)
         assert stored["restores"] == 0
     assert not (site / "first").exists()
 

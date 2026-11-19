@@ -1927,36 +1927,36 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
 def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, serve):
     """`503` is a wait the user is told about, not an answer the page could not read.
 
-    leaf.page's edge refuses every event with `503` and a plain-text body for the
-    minutes a container image takes to reach a user's allocation, and the outbox has
-    always retried through it. What it said meanwhile came from the JSON decode that
-    body fails, which reports the page failing to read an answer the server never sent.
+    A server that cannot take a gesture yet, as leaf.page's container host while no
+    container is free, answers `503` with a plain-text body, and the outbox retries
+    through it. What it said meanwhile came from the JSON decode that body fails, which
+    reports the page failing to read an answer the server never sent.
     """
     page = open_page(browser, serve(BOARD_PAGE))
-    starting = {"rollout": True}
+    starting = {"busy": True}
     refused = []
 
     def still_starting(route):
-        if not starting["rollout"]:
+        if not starting["busy"]:
             route.continue_()
             return
         refused.append(route.request.post_data_json["attempt"])
         route.fulfill(
             status=503,
-            body="this release is still starting",
-            headers={"Retry-After": "5", "Content-Type": "text/plain;charset=UTF-8"},
+            body="There is no Container instance available at this time.",
+            headers={"Content-Type": "text/plain;charset=UTF-8"},
         )
 
     page.route("**/api/event", still_starting)
     page.locator("#card-baffle .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
-    holding(page, refused, 2, "the move the rollout would not take")
+    holding(page, refused, 2, "the move the server would not take yet")
     expect_panel_says(page, "Not through yet")
     # The same gesture throughout: a refusal that admits nothing cannot mint a second.
     assert len(set(refused)) == 1
 
-    starting["rollout"] = False
+    starting["busy"] = False
     round_trip(page)
     page.unroute("**/api/event")
     assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [

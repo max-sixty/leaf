@@ -23,8 +23,7 @@
  * Reset starts the child. The browser's Find searches only the children that have
  * started. A frame the reader sees as it mounts starts at once, and the containing
  * page presents before it unless the frame's resize on arrival would move what the
- * reader sees then, and stops waiting for it once the host says its load waits on the
- * server (`waiting`). The sample's arrival is its child's: the child's presentation
+ * reader sees then. The sample's arrival is its child's: the child's presentation
  * and then whatever that document deferred, the samples it started included. The page
  * reads as arriving until every started child has arrived, and until the browser's
  * first reading of each waiting frame has said whether it starts. Each document the
@@ -43,10 +42,8 @@
  * tab, a link or a jump brings it into view, is theirs and applies at once. The user
  * chose to fit a frame they bring into view to its page as soon
  * as the page draws, over keeping its placeholder height until they look away or
- * click into it, which left a short page standing in a blank frame. A load that
- * waited on its server arrives as news, held the same way, whoever asked for it:
- * after minutes of waiting the reader may have moved on. The status line keeps its
- * room through loading, ready and failure, so the frame below it stays put; a
+ * click into it, which left a short page standing in a blank frame. The status line
+ * keeps its room through loading, ready and failure, so the frame below it stays put; a
  * failure's words that run past it stand in a disclosure the reader opens over the
  * frame.
  * Reset stays focusable
@@ -228,13 +225,10 @@ export class Sample extends HTMLElement {
 
   // Start the child. Its resize on arrival applies at once where the reader `asked`
   // for it, and otherwise waits while they see it (`#height`). Returns the frame's
-  // first fit to its child, or its readiness settling where it fits nothing then, or
-  // the server's wait.
+  // first fit to its child, or its readiness settling where it fits nothing then.
   /** @param {boolean} asked @returns {Promise<unknown>} */
   #start(asked, { present = false } = {}) {
     this.#mounting = true;
-    /** @type {PromiseWithResolvers<void>} */
-    const { promise: waiting, resolve: waited } = Promise.withResolvers();
     const ready = mountSample(this.#frame, {
       template: this.#template.id,
       window: this.hasAttribute("window") || isNativeLayer(this.#view),
@@ -259,14 +253,6 @@ export class Sample extends HTMLElement {
         host.on("loading", () => {
           this.#focusedContent = false;
           this.#track(host.ready);
-        });
-        // A child whose server can't take it yet, or that waits for a load slot behind
-        // one, may take minutes, as during a leaf.page deploy: the page presents
-        // without it, and it arrives as one below the window does, its growth held
-        // while seen.
-        host.on("waiting", () => {
-          this.#unclaimed = true;
-          waited();
         });
         host.on("current-location", ({ focused }) => {
           this.#focusedContent = focused;
@@ -301,13 +287,11 @@ export class Sample extends HTMLElement {
     const following = this.#track(ready);
     this.#starting.resolve(following);
     const shown = following.catch(() => {});
-    if (present) widgetController(this).present(Promise.race([shown, waiting]));
+    if (present) widgetController(this).present(shown);
     /** @type {PromiseWithResolvers<void>} */
     const { promise: fitted, resolve: fit } = Promise.withResolvers();
     this.#fitted = fit;
-    // A load its server makes wait arrives as news (`waiting`), so the fit is no
-    // longer the landing of what brought the frame near.
-    return Promise.race([fitted, shown, waiting]);
+    return Promise.race([fitted, shown]);
   }
 
   // Removal closes a modal Full view at once, so the view returns to its embedded

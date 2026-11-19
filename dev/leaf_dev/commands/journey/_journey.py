@@ -75,6 +75,7 @@ A failure receipt ends the journey on the first ask
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -357,6 +358,33 @@ def check_turn_answered(
     return published, answer
 
 
+# The words a release's name is drawn from: short, common and distinct, so a model
+# copies a pair of them as it would any two words.
+RELEASE_WORDS = (
+    "amber", "birch", "cedar", "coral", "delta", "ember", "fern", "flint",
+    "harbor", "heron", "iris", "juniper", "lantern", "maple", "meadow", "nectar",
+    "orchid", "otter", "pebble", "quartz", "raven", "river", "saffron", "summit",
+    "thistle", "tundra", "valley", "walnut", "willow", "yarrow", "zephyr", "zinnia",
+)  # fmt: skip
+
+
+def release_name(version: str) -> str:
+    """The name the user gives release `version`: two words drawn from its hash, such
+    as `heron-quartz`, so each release has its own. The maintainer chose a word pair
+    over the hash itself, which a hosted model can miscopy by one character, even at
+    git's seven; any shorter or looser hash check would widen the same check again.
+    The agent's casing of the words is its own (`names_release`)."""
+    digest = hashlib.sha256(version.encode()).digest()
+    first, second = (RELEASE_WORDS[byte % len(RELEASE_WORDS)] for byte in digest[:2])
+    return f"{first}-{second}"
+
+
+def names_release(text: str, marker: str) -> bool:
+    """Whether `text` names the release `marker`, in any case: an agent may capitalize
+    a name, and the theme may uppercase the eyebrow or heading that shows it."""
+    return marker.casefold() in text.casefold()
+
+
 def release_ask(marker: str) -> str:
     """What the user tells the agent: release `marker` passed its checks. It says what
     happened and leaves how the page shows it to the agent, as a user would, so the
@@ -371,9 +399,9 @@ def board_names_release(html: str, marker: str) -> bool:
     """Read board text and widget labels, excluding release-scoped resource URLs."""
     body = SourceDocument(html).tree.select_one("body")
     return body is not None and (
-        marker in body.to_text()
+        names_release(body.to_text(), marker)
         or any(
-            marker in (element.attrs.get("label") or "")
+            names_release(element.attrs.get("label") or "", marker)
             for element in body.find_all(True)
         )
     )
@@ -624,12 +652,10 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     reading of the ask; a harness's user breaks its reply down once the session
     ends (`User.sample`).
 
-    The page check finds the release's short hash in the authored board markup:
-    where on the board the agent records it is the agent's call. The hash is git's
-    seven characters, the length an agent abbreviates a longer one to, so a copy of
-    the asked hash and its own short form of it both contain it.
+    The page check finds the release's name (`release_name`) in the authored board
+    markup: where on the board the agent records it is the agent's call.
     """
-    marker = version[:7]
+    marker = release_name(version)
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     published, answer = check_turn_answered(end.url, marker, turn, asks, revision)
@@ -1214,8 +1240,6 @@ class BrowserEnd:
                 f"{url} reached revision {shown} but did not finish presenting it, "
                 f"with its status reading ‘{status}’",
             )
-            # `inner_text` applies the theme's text-transform, so a release recorded in
-            # an uppercase eyebrow or panel heading reads `35B3657`. Compare ignoring case.
             # The page is body less Leaf's own elements (passages.js, `inPage`).
             rendered = page.evaluate(
                 "() => [...document.body.children]"
@@ -1223,7 +1247,7 @@ class BrowserEnd:
                 ".map((el) => el.innerText).join('\\n')"
             )
             check(
-                marker.casefold() in rendered.casefold(),
+                names_release(rendered, marker),
                 f"{url} rendered a page that never names ‘{marker}’, which the agent's "
                 "published revision did",
             )

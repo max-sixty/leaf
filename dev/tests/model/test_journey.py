@@ -115,6 +115,9 @@ def test_release_publication_requires_the_marker_in_board_markup():
     assert end.names(active, marker)
     request.html = f'<main><lf-column label="Release {marker}"></lf-column></main>'
     assert end.names(active, marker)
+    # The agent's casing of the release's name is its own.
+    request.html = f"<main><h2>Release {marker.upper()} passed</h2></main>"
+    assert end.names(active, marker)
 
 
 def test_release_publication_ignores_rebased_resource_urls_in_board():
@@ -1055,7 +1058,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         index = page / "index.html"
         index.write_text(
             index.read_text().replace(
-                "</main>", "<p>Release abcd1234 passed.</p></main>"
+                "</main>",
+                f"<p>Release {journey.release_name(version)} passed.</p></main>",
             )
         )
         run_leaf(
@@ -1075,7 +1079,7 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         reading = journey.run_journey(journey.HttpEnd(url, page, pause), version)
         step = post(url, "ending")
     assert reading["change"] == {
-        "marker": "abcd123",
+        "marker": journey.release_name(version),
         "revision": 2,
         "reply": "Recorded.",
     }

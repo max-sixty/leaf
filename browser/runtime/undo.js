@@ -46,20 +46,24 @@
    the press followed the Escape closing a panel. The notice and the travel tell the user
    what a press took instead.
 
-   What ⌘Z, or a notice's Undo, took back takes a ring once the page shows the
-   withdrawal, after the page has gone there if it was out of view: the focus band at
-   twice its width, held, then faded within about a second (`ring`). It is the box's own
-   outline, standing where the box says its marks stand (tokens.css, "Where it stands"),
-   so it rings the widget, message, thread or passage the undo changed, and a message
-   the undo took away rings the thread that held it. The undo's notice stands until the
-   user's next input rather than for its time (notifications.js, `holds`). Under reduced
-   motion there is no ring, and the held notice says it alone. An exact control's
-   withdrawal rings nothing, since the user pressed it where the gesture is drawn. The
-   ring and the hold are the user's decision, over keeping a notice that leaves after
-   4 s, holding it in ink, and darkening the panel's field. The ring stands where the
+   What ⌘Z, or a notice's Undo, took back takes a tint once the page shows the
+   withdrawal, after the page has gone there if it was out of view (`tint`). It is the
+   tint a message arriving and a revision's changed block take (motion.js,
+   `backgroundFlash`), so the page marks every change it shows the same way. It tints
+   the widget, message, thread or passage the undo changed, and a message the undo took
+   away tints the thread that held it. The undo's notice stands until the user's next
+   input rather than for its time (notifications.js, `holds`). Under reduced motion
+   there is no tint, and the held notice says it alone. An exact control's withdrawal
+   tints nothing, since the user pressed it where the gesture is drawn. The tint and the
+   hold are the user's decision, over keeping a notice that leaves after 4 s, holding it
+   in ink, darkening the panel's field, and an outline at twice the focus band's width.
+   The user found the tint better to look at, and the band belongs to the marks of
+   where the user is and what a gesture addresses (tokens.css). The tint stands where the
    user is already looking, or where the undo took them, and shows what changed rather
-   than only naming it; a dark field is as loud, but at the window's foot, away from the
-   change, and gives one notice a face no other control wears.
+   than only naming it. It fades within about a second, since a tint held would lie
+   over what the user reads, so the notice is what holds. A dark field is as loud, but
+   at the window's foot, away from the change, and gives one notice a face no other
+   control wears.
 
    A choice the user has just made may still be on its way to the log when they press,
    which is when a misclick is caught. The press takes it by its attempt, as the
@@ -105,7 +109,7 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
 import { dragHeld } from "./widget-elements.js";
-import { flashDuration, motion } from "./motion.js";
+import { backgroundFlash, flashDuration } from "./motion.js";
 
 /** @template E
  * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts">> : never} GestureFields
@@ -397,29 +401,18 @@ export function createUndo({
     window.location.assign(url);
   }
 
-  // Ring what taking `event` back changed, as the page draws it now (the header): the
+  // Tint what taking `event` back changed, as the page draws it now (the header): the
   // nodes at its place still drawn, else the thread a message it took away was in.
   /** @param {UndoEvent} event */
-  function ring(event) {
+  function tint(event) {
     const place = placeOf(event);
     if (!place) return;
     const drawn = place.nodes.filter((node) => node?.isConnected);
     const thread =
       place.thread ??
       (event.kind === "reply" && event.parent ? threadIdNamed(event.parent) : null);
-    const band = `calc(2 * var(--lf-focus-ring-w)) solid`;
-    const at = "var(--lf-ring-at, var(--lf-focus-region-gap))";
     for (const node of new Set(drawn.length ? drawn : thread ? drawingsOf(thread) : []))
-      if (node)
-        motion(
-          node,
-          [
-            { outline: `${band} var(--lf-accent)`, outlineOffset: at, offset: 0 },
-            { outline: `${band} var(--lf-accent)`, outlineOffset: at, offset: 0.45 },
-            { outline: `${band} transparent`, outlineOffset: at, offset: 1 },
-          ],
-          flashDuration(),
-        );
+      if (node) backgroundFlash(node, flashDuration());
   }
 
   // The walk needs the page settled, not only the gesture it takes back: an
@@ -434,7 +427,7 @@ export function createUndo({
   // Take back `event`, then leave the user at its place: for a settlement this page
   // made, its thread in the reader it was made in, else the place where it stood out of
   // view when they pressed. Both are read before the withdrawal, which takes the
-  // settlement's reader with it. What it changed is ringed once the user is there.
+  // settlement's reader with it. What it changed is tinted once the user is there.
   /** @param {UndoEvent} event */
   function walkTo(event) {
     const settled = settledHere(event);
@@ -445,7 +438,7 @@ export function createUndo({
     void whenDocumentPresented()
       .then(async () => {
         if (travels) await show(event, intent, settled?.reader);
-        ring(event);
+        tint(event);
       })
       .catch(() => {});
     return answer;

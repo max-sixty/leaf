@@ -473,28 +473,25 @@ def test_z_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
     expect(picks).not_to_be_in_viewport()
 
 
-# Whether the element with id `arg` wears the undo's ring now: a solid outline twice the
-# focus band's width, which nothing else on the page draws round it.
-RINGED = """(id) => {
-  const box = document.getElementById(id);
-  const band = parseFloat(getComputedStyle(box).getPropertyValue("--lf-focus-ring-w"));
-  const outline = getComputedStyle(box);
-  return outline.outlineStyle === "solid" && parseFloat(outline.outlineWidth) === 2 * band;
-}"""
+# Whether the options with id `arg` are taking the tint of a change now (motion.js,
+# `backgroundFlash`), rows and all: each row paints its own ground over the box's.
+TINTED = """(id) => [document.getElementById(id), ...document.querySelectorAll(`#${id} > lf-option`)]
+  .every((box) => box.getAnimations().some((played) =>
+    played.effect.getKeyframes().some((frame) => "backgroundColor" in frame)))"""
 
 
-def test_an_undo_rings_what_it_took_back_and_its_notice_waits_for_the_next_input(
+def test_an_undo_tints_what_it_took_back_and_its_notice_waits_for_the_next_input(
     browser, serve
 ):
-    """What ⌘Z took back out of view takes the undo's ring once the page has gone to it,
-    and the undo's notice stands until the user's next input rather than for a notice's
-    time, the user's choice."""
+    """What ⌘Z took back out of view takes the tint of a change once the page has gone
+    to it, and the undo's notice stands until the user's next input rather than for a
+    notice's time, the user's choice."""
     url = serve(FAR_CHOICE_PAGE)
     _choose(serve.page_dir)
     page = open_page(clocked(browser), url)
     undo(page)
     expect(page.locator("#picks")).to_be_in_viewport()
-    page.wait_for_function(RINGED, arg="picks")
+    page.wait_for_function(TINTED, arg="picks")
     said = "Undone: chose “Keep the mounts”"
     expect_panel_says(page, said)
     page.clock.run_for(

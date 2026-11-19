@@ -767,7 +767,6 @@ def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
     # The import's rejection settles startup within the task that delivers it.
     page.evaluate("() => new Promise(done => setTimeout(() => setTimeout(done)))")
     assert page.evaluate("document.documentElement.dataset.lfStartupError") is None
-    consume_browser_errors(page, "Loading failed for the module")
     assert not page.lf_errors
     assert not [
         event

@@ -1552,8 +1552,10 @@ def clean_browser(test=None):
     assert not problems, "\n".join(problems)
 
 
-# How Firefox begins the warning it writes for a module import that did not complete.
-_MODULE_LOAD_FAILED = '[JavaScript Warning: "Loading failed for the module with source'
+# How Firefox words, in its console, a module import that did not complete.
+_MODULE_LOAD_FAILED = re.compile(
+    r'\[JavaScript Warning: "Loading failed for the module with source “([^”]+)”'
+)
 
 
 def _named_problems(captured):
@@ -1662,13 +1664,13 @@ def watched(page, *, java_script_enabled=True):
     (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
-    them: console warnings and errors, and uncaught exceptions. Leaving a document cuts
-    off what it was still loading, and Firefox says each module import among that
-    failed to load as it lets the document go, which no reader sees. So while the
-    page's own frame leaves its document, from its next navigation's request or the
-    first module it cuts off (`NS_BINDING_ABORTED`) until the next document commits,
-    that warning is dropped; an import that fails while a document stands is still
-    reported.
+    them: console warnings and errors, and uncaught exceptions. Firefox's warning that
+    a module failed to load counts where the network shows that module's load failing
+    too: its request failed other than by the browser's own cut (`NS_BINDING_ABORTED`),
+    or was answered with an error status. Leaving a document cuts off what it was
+    still loading, and as Firefox lets the document go it says each module import
+    there failed, the cut modules and those waiting on them, though no reader sees
+    any of it; the network shows no failure for those.
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
@@ -1692,32 +1694,22 @@ def watched(page, *, java_script_enabled=True):
     page.lf_errors = errors
     page.lf_java_script_enabled = java_script_enabled
 
-    leaving = False
-
-    def requested(request):
-        nonlocal leaving
-        if request.is_navigation_request() and request.frame == page.main_frame:
-            leaving = True
+    # The modules whose loads failed in the network rather than by a cut, which only
+    # a Firefox page asks of (`_MODULE_LOAD_FAILED`).
+    failed_loads = set()
 
     def request_failed(request):
-        nonlocal leaving
-        if (
-            request.failure == "NS_BINDING_ABORTED"
-            and request.resource_type == "script"
-            and request.frame == page.main_frame
-        ):
-            leaving = True
+        if request.failure != "NS_BINDING_ABORTED":
+            failed_loads.add(request.url)
 
-    def committed(frame):
-        nonlocal leaving
-        if frame == page.main_frame:
-            leaving = False
+    def responded(response):
+        if response.status >= 400:
+            failed_loads.add(response.url)
 
     def console_message(message):
         problem = render_gate_model.console_finding(message)
-        if problem is not None and not (
-            leaving and message.text.startswith(_MODULE_LOAD_FAILED)
-        ):
+        cut = _MODULE_LOAD_FAILED.match(message.text)
+        if problem is not None and (cut is None or cut[1] in failed_loads):
             errors.append(problem)
 
     def window_error(error):
@@ -1730,9 +1722,9 @@ def watched(page, *, java_script_enabled=True):
         else:
             errors.append(problem)
 
-    page.on("request", requested)
-    page.on("requestfailed", request_failed)
-    page.on("framenavigated", committed)
+    if page.context.browser.browser_type.name == "firefox":
+        page.on("requestfailed", request_failed)
+        page.on("response", responded)
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:

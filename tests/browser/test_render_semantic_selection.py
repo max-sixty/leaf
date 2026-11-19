@@ -855,6 +855,21 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     )
 
 
+def test_a_match_inside_a_word_reads_back_as_the_word(browser, serve):
+    """A listener hears each match in the words around it, and one inside a word, as
+    "the" in "rather", reads back as that word rather than with spaces put around it.
+    Enter, which selects the match, says its place as `n` does."""
+    html = leaf_page("search inside a word", "<p>Follow-ups rather than blockers.</p>")
+    page = open_page(browser, serve(html))
+    page.keyboard.press("/")
+    page.keyboard.type("the")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Match 1 of 1: …Follow-ups rather than blockers."
+    )
+
+
 def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     """The search prompt keeps letters as query text. Once Enter accepts that search,
     lowercase n advances through its matches and uppercase N goes back, while a focused

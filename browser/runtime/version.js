@@ -1486,11 +1486,15 @@ export async function showComparison(base) {
   commitDiff(diff);
   diffSavedAfter = loaded.savedAfter;
   setDiff(true, base);
+  // A notice about the comparison, which the page field's standing words say as it
+  // starts ("5 changes since v2", floating-panel.js, `standing`), so it shows where
+  // they don't, as on the folded leaf, and while this comparison stands.
   const n = diff.changes.length;
   notice(
     n
       ? `${counted(n, "change")} since ${base.name}`
       : `No text changes since ${base.name}`,
+    { about: "comparison", stands: () => comparisonBase() === base },
   );
 }
 // A base's document and the server's projection of it at the log this tab has applied,
@@ -1532,10 +1536,11 @@ export async function changesSince(base) {
   return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
 }
 // A press that ends a comparison says so, as `o` does when it hides annotations, so a
-// screen reader hears the marks go rather than keeping the comparison's count.
+// screen reader hears the marks go rather than keeping the comparison's count; the page
+// field's standing words go with it, so it shows where they don't.
 export const endComparison = () => {
   setDiff(false);
-  notice("Changes hidden");
+  notice("Changes hidden", { about: "comparison", stands: () => !comparisonBase() });
 };
 // A press names one stamped version, so pressing the current one again is the way off
 // it: Compare is a toggle where it is lit and a switch of base where it isn't. `v` is

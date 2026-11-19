@@ -1933,26 +1933,33 @@ customElements.define(
       );
     }
 
+    // A file's hunks, and the diff's files, are lists on screen, which their first and
+    // last heads bound (walk-declaration.js, `beginWalk`). Each returns the position a
+    // listener hears, "Hunk 2 of 5", before the file it is in.
     markHunkWalk() {
-      beginWalk("diff-hunk", "Hunk", () => {
+      const heads = () => {
         const entry = this.entryAroundFocus();
-        return entry
-          ? listWalkPosition(
-              hunkHeads(entry).map(({ node }) => node),
-              this.hereNode(),
-            )
-          : null;
-      });
+        return entry ? hunkHeads(entry).map(({ node }) => node) : [];
+      };
+      return beginWalk(
+        "diff-hunk",
+        "Hunk",
+        () => {
+          const nodes = heads();
+          return nodes.length ? listWalkPosition(nodes, this.hereNode()) : null;
+        },
+        { list: () => [heads()[0], heads().at(-1)] },
+      );
     }
 
     markFileWalk() {
-      beginWalk("diff-file", "File", () => {
-        const entries = this.navigationEntries();
-        return listWalkPosition(
-          entries.map(({ node }) => node),
-          this.entryAroundFocus()?.node,
-        );
-      });
+      const files = () => this.navigationEntries().map(({ node }) => node);
+      return beginWalk(
+        "diff-file",
+        "File",
+        () => listWalkPosition(files(), this.entryAroundFocus()?.node),
+        { list: () => [files()[0], files().at(-1)] },
+      );
     }
 
     /** @param {FileEntry} entry */
@@ -1985,8 +1992,8 @@ customElements.define(
         );
         if (!head) continue;
         this.land(head.node);
-        this.markHunkWalk();
-        announce(`${entry.record.path} · hunk ${head.hunk + 1} of ${heads.length}`);
+        const said = this.markHunkWalk() ?? `Hunk ${head.hunk + 1} of ${heads.length}`;
+        announce(`${said}: ${entry.record.path}`);
         return;
       }
       this.markHunkWalk();
@@ -2017,8 +2024,8 @@ customElements.define(
       // aligning it moves nothing, while aligning the file it heads starts the file at
       // its start. The header is still what takes the focus.
       this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
-      this.markFileWalk();
-      announce(entry.record.path);
+      const said = this.markFileWalk();
+      announce(said ? `${said}: ${entry.record.path}` : entry.record.path);
     }
 
     // Arrival: scrolled to the band the document declares landable, which the pinned

@@ -4518,7 +4518,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     expect(first).to_have_count(1)
     page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
-    expect_panel_says(page, "Hunk 1 of 1")
+    expect(page.locator(".lf-live")).to_contain_text("Hunk 1 of 1")
 
     page.keyboard.press("]")
     page.wait_for_function("typeof window.__leafReleaseSecond === 'function'")

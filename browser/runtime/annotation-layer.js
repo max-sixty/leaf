@@ -48,14 +48,22 @@ export function mountAnnotationControls() {
     title: () => (hidden.value ? "show annotations" : "hide annotations"),
     touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",
+    // A notice while the press's result stands. Where its words say only what the page
+    // field's standing "Annotations hidden" says (floating-panel.js, `standing`), or
+    // that it went, it is about the annotations and shows where those words don't, as
+    // on the folded leaf; hiding them with a key names the key that brings them back,
+    // which the standing words don't, so that one shows in the field too.
     run: () => {
-      setAnnotationsHidden(!hidden.value);
+      const on = !hidden.value;
+      setAnnotationsHidden(on);
+      const key = on && !coarsePointer.matches;
       notice(
-        !hidden.value
+        !on
           ? "Annotations shown"
-          : coarsePointer.matches
-            ? "Annotations hidden"
-            : "Annotations hidden — o shows them",
+          : key
+            ? "Annotations hidden — o shows them"
+            : "Annotations hidden",
+        { about: key ? null : "annotations", stands: () => hidden.value === on },
       );
     },
   });

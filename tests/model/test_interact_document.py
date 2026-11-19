@@ -4065,9 +4065,9 @@ def test_an_activated_revision_adopts_the_reading_its_check_took(page_dir, monke
 
 
 def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkeypatch):
-    """Held readings are charged their source size and the least recently read go
-    first, so resident parses stay bounded however long a history grows; the reading
-    just asked for is always kept."""
+    """A reading is charged its source size once it parses its document, and the
+    least recently read go first, so resident parses stay bounded however long a
+    history grows; the reading just parsed is always kept."""
     for edit in range(4):
         (page_dir / "index.html").write_text(
             PAGE.replace("</main>", f"<p>edit {edit}</p></main>")
@@ -4079,7 +4079,10 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
     with fresh_process():
         readings = [artifact_model.read_revision(page_dir, r) for r in revisions]
         kept = page_memory_model.memo(page_dir, artifact_model._Readings)
-        assert [reading for _stamp, reading in kept.held.values()] == readings[-2:]
+        assert kept.size == 0
+        for reading in readings:
+            assert reading.document
+        assert [held[1] for held in kept.held.values()] == readings[-2:]
         assert kept.size <= kept.BUDGET
         # Reading an evicted revision again takes a fresh reading, and one still
         # held answers with the same object.
@@ -4168,7 +4171,11 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
         activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
 
-    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 1)
+    # Room for one revision's parse.
+    latest = files_model.latest_revision(page_dir)
+    assert latest is not None
+    size = files_model.revision_path(page_dir, latest).stat().st_size
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", size + size // 2)
     parsed = []
     native = artifact_model.SourceDocument
 
@@ -4199,7 +4206,12 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
         assert initial["all"][0]["status"] == "withdrawn"
         parsed.clear()
         assert read() == initial
-        assert len(parsed) <= 1  # the active revision may have been evicted
+        assert len(parsed) <= 1  # the first read's history parses evicted the active
+        # The history asks earlier revisions only for their kept registrations, which
+        # parses none of them, so the active revision's parse stays held.
+        parsed.clear()
+        assert read() == initial
+        assert parsed == []
         (page_dir / "index.html").write_text(
             source.replace(ASKING, SETTLED).replace("</main>", "<p>new</p></main>")
         )

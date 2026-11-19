@@ -277,14 +277,13 @@ def cmd_pages(payload: dict) -> None:
     native notifications cannot replace this timer. It waits on the session's
     requests (`completions.watch`), so it lists one as it is written.
 
-    A payload asking for `forks` makes the follower the session's forks lane
-    (`forks.take_lane`) while it runs, and gives each page the threads a line turn
-    holds (`kept_back`), each as the `thread`, `inputs` and `turn` the module asks a
-    line fork about (`forks.look`). Between presence reads it waits on each page's
-    subscription (`file_changes.page_changes`) and on the lane's name, so it looks
-    again as a message is admitted or as a later follower takes the lane. It reads a
-    page again only once its reading has moved, since admission opens the line
-    turn.
+    The follower is the session's forks lane (`forks.take_lane`) while it runs,
+    and gives each page the threads a line turn holds (`kept_back`), each as the
+    `thread`, `inputs` and `turn` the module asks a line fork about (`forks.look`).
+    Between presence reads it waits on each page's subscription
+    (`file_changes.page_changes`) and on the lane's name, so it looks again as a
+    message is admitted or as a later follower takes the lane. It reads a page again
+    only once its reading has moved, since admission opens the line turn.
 
     It exits with `EX_TEMPFAIL`, without a last line, once the session's delivery
     runs another Leaf than its own (`_moved_on`), and the module starts it again,
@@ -301,10 +300,10 @@ def cmd_pages(payload: dict) -> None:
     that reads kept-back threads by an older contract; `session_runtime`'s header
     says what then becomes of them.
 
-    The follower notes once in each page it holds whether the module asked for
-    forks (`interaction_log.record_follower`), so a message admission found with no
-    lane (`forks.kept_from_main_at_admission`) says whether forks were off or the
-    follower that held the lane had gone (`leaf-dev logs timeline`)."""
+    The follower notes once in each page it holds that it runs
+    (`interaction_log.record_follower`), so a message admission found with no lane
+    (`forks.kept_from_main_at_admission`) says whether no follower had run or the
+    one that held the lane had gone (`leaf-dev logs timeline`)."""
     sid = payload.get("session_id") or ""
     from .harness import ClaudeCodeHarness
     from .leases import mark_module
@@ -318,25 +317,22 @@ def cmd_pages(payload: dict) -> None:
         return
 
     from .completions import pending, watch
-    from .file_changes import FileChanges, wait
+    from .file_changes import FileChanges, page_changes, wait
+    from .forks import lane_path, take_lane
     from .interaction_log import record_follower
+    from .leases import release_lease
+    from .page_memory import memory_of
     from .presence import PRESENCE_CACHE_S, live_leaves
 
     queued = watch(sid)
-    asked = bool(payload.get("forks"))
-    forking = asked
+    # Whether this follower still holds the lane, which a later one takes.
+    forking = True
     # The pages this follower has made its note in (`record_follower`), each once.
     noted: set = set()
-    if forking:
-        from .file_changes import page_changes
-        from .forks import lane_path, take_lane
-        from .leases import release_lease
-        from .page_memory import memory_of
-
-        lane = take_lane(sid)
-        # Resolved, as notifications name it.
-        named = lane_path(sid).resolve()
-        renamed = FileChanges({named.parent: False}, lambda path: path == named)
+    lane = take_lane(sid)
+    # Resolved, as notifications name it.
+    named = lane_path(sid).resolve()
+    renamed = FileChanges({named.parent: False}, lambda path: path == named)
     looked: dict = {}
     shown = None
     try:
@@ -345,7 +341,7 @@ def cmd_pages(payload: dict) -> None:
                 # EX_TEMPFAIL: the module starts it again, under that Leaf.
                 raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
-            record_follower(sorted(held - noted), sid, forks=asked)
+            record_follower(sorted(held - noted), sid)
             noted |= held
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process

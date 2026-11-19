@@ -22,8 +22,8 @@ waking the session says whether a watch ran and could read the page. A command's
 time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; one the
 sandbox bridge runs for Claude Code is timed from the bridge's start of it.
 
-Claude Code's pages follower records in each page the session holds whether it keeps
-threads back for line forks (`record_follower`).
+Claude Code's pages follower records in each page the session holds that it runs
+there, keeping threads back for line forks (`record_follower`).
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
@@ -164,12 +164,11 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
     _record_in(pages, record)
 
 
-def record_follower(pages: list[Path], session: str, *, forks: bool) -> None:
+def record_follower(pages: list[Path], session: str) -> None:
     """Record in each page a Claude Code session's pages follower starts listing
-    (`hooks.cmd_pages`) whether its hooks module asked for forks (`forks`), without
-    which it keeps no thread back for a line fork. Dropped where the page can't be
-    written, as `record_command` is."""
-    record = {"source": "cli", "type": "follower", "session": session, "forks": forks}
+    (`hooks.cmd_pages`) that the follower runs, holding the session's forks lane.
+    Dropped where the page can't be written, as `record_command` is."""
+    record = {"source": "cli", "type": "follower", "session": session}
     _record_in(pages, record)
 
 

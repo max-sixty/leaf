@@ -3,9 +3,9 @@
  * session's pages, the drawing of Leaf's own rows in the conversation, the fork
  * of the conversation Leaf's clerk asks at each turn's end (`clerk`), the
  * fork that writes the agent's working line on a thread's waiting messages at
- * once (`lineFork`), with `LEAF_FORK_WORK=on` a fork with the session's tools
- * that does a thread's work in a turn Leaf keeps for it, resumed for the thread's
- * later messages (`workFork`), telling Leaf as each run of that fork ends, which
+ * once (`lineFork`), the fork with the session's tools that does a thread's work
+ * in a turn Leaf keeps for it, resumed for the thread's later messages
+ * (`workFork`), telling Leaf as each run of that fork ends, which
  * closes its turn (`forks.ended`), and the completions a page server asks of the
  * session's model, such as a thread's title or a widget's `generate`
  * (`complete`). Claude Code runs none of this module's hooks for a working fork's
@@ -96,14 +96,6 @@ import type {
 let claudePid = "";
 // Whether the user reached this machine over SSH, read once by the band.
 let remote: boolean | undefined;
-// Whether a line fork writes kept-back thread messages' line (`lineFork`), read once with Claude
-// Code's process: `LEAF_FORK_REPLIES=off` in Claude Code's environment leaves every
-// message to the session, as the claude-code journey's delivery steps need.
-let lineForks = true;
-// Whether a thread whose line fork judged the work a fork's goes to a fork that does
-// it (`workFork`): `LEAF_FORK_WORK=on` in Claude Code's environment, while the design
-// in How it works' Forks tab (docs/how-it-works.html) is tried.
-let workForks = false;
 
 // The summary `hooks.json` gives the background watch's wake, which Claude Code
 // draws as a task notification's row, and the words of the nudge Leaf sends
@@ -176,8 +168,6 @@ let initialized: Promise<void> | undefined;
 async function sessionOf($: EngineInterface) {
   initialized ??= (async () => {
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
-    lineForks = (await $.env.get("LEAF_FORK_REPLIES")) !== "off";
-    workForks = (await $.env.get("LEAF_FORK_WORK")) === "on";
   })().catch((error) => {
     // A read that failed is read again by the next hook.
     initialized = undefined;
@@ -254,11 +244,7 @@ function follow($: EngineInterface, session: string) {
         "--pages",
       ],
       env: environment(session),
-      input: JSON.stringify({
-        hook_event_name: "Pages",
-        session_id: session,
-        forks: lineForks,
-      }),
+      input: JSON.stringify({ hook_event_name: "Pages", session_id: session }),
     });
   } catch (error) {
     $.ui.log(`Leaf: the pages follower could not start: ${error}`);
@@ -489,7 +475,6 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
       const outcome = await forkStep($, session, {
         thread: kept,
         running: calls,
-        work_forks: workForks,
         ...ran,
       });
       $.ui.log(`Leaf: the line fork for thread ${kept.thread}: ${outcome?.outcome}`, {

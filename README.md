@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/57f996522e7897f958735825fdcc9b7dd1f9372b/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/57f996522e7897f958735825fdcc9b7dd1f9372b/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/52e6394862fe1bbadbc5ff48a8754dedb9652c92/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/52e6394862fe1bbadbc5ff48a8754dedb9652c92/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/57f996522e7897f958735825fdcc9b7dd1f9372b/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/52e6394862fe1bbadbc5ff48a8754dedb9652c92/demo/demo.gif)
 
 </details>
 
@@ -36,11 +36,10 @@ Install the Leaf plugin, which includes the application, harness integration and
 the Leaf skill. The skill supplies the agent's instructions; copying its directory
 alone does not install the application.
 
-Claude Code:
+Claude Code 2.1.275 or later:
 
 ```
-/plugin marketplace add max-sixty/leaf
-/plugin install leaf@leaf
+/plugin install leaf --marketplace max-sixty/leaf
 ```
 
 Codex:

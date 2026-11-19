@@ -12,7 +12,7 @@
    string is said by no one: a name, such as a thread's title or a mode's, or where the
    user stands in a walk, which the interface states in its own face, but for a seat
    that also carries the agent's words, where Leaf says them (glossary.md,
-   "Reader-facing words"; floating-panel.js, `fieldReading`). An empty box's
+   "Reader-facing words"; field-readings.js). An empty box's
    words are Leaf's, each ending in an ellipsis: a comment box's Reply… or Comment…, as
    the user chose (words.js), and a search's prompt, such as Find
    text…, which every search box marks as Leaf's (control-labels.js, `searchField`).

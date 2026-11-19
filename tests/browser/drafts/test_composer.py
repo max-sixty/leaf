@@ -556,12 +556,13 @@ def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
     assert stored_draft_text(page, "general") == joined
 
 
-def test_words_whose_box_is_gone_stay_put_when_the_page_s_draft_turns_them_away(
+def test_words_whose_box_is_gone_join_what_another_device_wrote_on_the_page(
     browser, serve
 ):
     """Moving words into Comment on the page settles the draft they came from only once
-    the server holds them there: where another device wrote the page's draft
-    meanwhile, they stay where they were rather than going nowhere."""
+    the server holds them there. Where another device wrote the page's draft
+    meanwhile, the words, with those the draft held as they moved, join that device's
+    there before they leave where they were."""
     edited = (
         '<lf-draft id="editable"><pre>Initial words</pre></lf-draft>'
         "<p>The rest of the page.</p>"
@@ -588,9 +589,10 @@ def test_words_whose_box_is_gone_stay_put_when_the_page_s_draft_turns_them_away(
     page.keyboard.press("g")
     page.keyboard.press("i")
     box = page.locator('.lf-fp-field leaf-text[name="comment"]')
-    expect(box).to_have_js_property("value", elsewhere)
-    assert stored_draft_text(page, "general") == elsewhere
-    assert stored_draft_text(page, "edit:editable") == "An unsent edit."
+    joined = f"{elsewhere}\n\nA page-wide thought.\n\nAn unsent edit."
+    expect(box).to_have_js_property("value", joined)
+    assert stored_draft_text(page, "general") == joined
+    assert stored_draft_text(page, "edit:editable") is None
 
 
 def test_resume_writing_returns_to_an_option_being_added(browser, serve):

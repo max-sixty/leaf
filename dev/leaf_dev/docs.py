@@ -19,7 +19,9 @@ it here from that owner as it reads the source (`page_fixtures.authored_markup`)
 - `nav.reference-index` and `div.reference-list`: the core layer's `$keys`
   (`browser/registry.json`);
 - `div.schema-list`: each declared schema in the group its `data-schemas` names
-  (`SCHEMA_LISTS`), as a table of its fields.
+  (`SCHEMA_LISTS`), as a table of its fields;
+- `lf-text-document[data-prompt]`'s `<pre>`: the prompt its `data-prompt` names, as
+  Leaf writes it (`prompts.PROMPTS`).
 
 A slot that already holds content is refused, since a copy there would go stale
 silently. The edits splice into the authored source at the parser's own spans, so every
@@ -35,7 +37,7 @@ from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
 from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument, splice
-from leaf_dev import ROOT, declared_records
+from leaf_dev import ROOT, declared_records, prompts
 from leaf_dev.example_data import PRODUCT_DOCS, WORKED_EXAMPLES, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 
@@ -586,10 +588,12 @@ def inputs(source: Path) -> list[Path]:
     composed = tree.select("table#all-verbs, nav.reference-index, div.reference-list")
     schemas = tree.select("div.schema-list")
     packaged = tree.select("a.example-link .example-packages")
+    quoted = tree.select("lf-text-document[data-prompt]")
     return [
         *examples,
         *(registries() if composed or packaged else []),
         *([SERVED_SCHEMA, INTERACTION_SCHEMA, KERNEL_REGISTRY] if schemas else []),
+        *(prompts.references() if quoted else []),
     ]
 
 
@@ -654,4 +658,8 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
         name = listing.attrs["data-schemas"]
         assert isinstance(name, str)
         fill(listing, SCHEMA_LISTS[name]())
+    for quoted in document.tree.select("lf-text-document[data-prompt]"):
+        name = quoted.attrs["data-prompt"]
+        assert isinstance(name, str)
+        fill(quoted, f"<pre>{html.escape(prompts.PROMPTS[name](), quote=False)}</pre>")
     return splice(markup, edits)

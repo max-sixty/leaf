@@ -57,9 +57,9 @@ from leaf.served_state.reading import outside_inputs
 from leaf.service import PageTransaction
 from leaf.state import session_file
 
-# What Leaf's Claude Code hooks module gives the pages follower of session s1, asking
-# for forks (`hooks.cmd_pages`).
-FOLLOWER = {"session_id": "s1", "forks": True}
+# What Leaf's Claude Code hooks module gives the pages follower of session s1
+# (`hooks.cmd_pages`).
+FOLLOWER = {"session_id": "s1"}
 
 
 def take_lane():
@@ -180,12 +180,10 @@ def test_a_kept_back_message_gets_the_forks_working_line_and_goes_to_the_session
     handed = forks_model.route(
         "s1",
         question["thread"],
-        answer=judged(" checking why the poll is 2 s\n", "take"),
+        answer=judged(" checking why the poll is 2 s\n"),
         failed=None,
     )
-    # A fork that judges it could take the work still hands it over, for now, and
-    # the diagnostics keep its judgment.
-    assert (handed["outcome"], handed["work"]) == ("hand_over", "take")
+    assert (handed["outcome"], handed["work"]) == ("hand_over", "hand_over")
     [line] = [
         event for event in events_model.read_events(claimed) if event["kind"] == "reply"
     ]
@@ -431,7 +429,6 @@ def taken_by_a_fork(page_dir, text: str) -> tuple[dict, dict]:
         basis(page_dir, asked["id"], asked["id"]),
         answer=judged(f"looking into: {text}", "take"),
         failed=None,
-        work_forks=True,
     )
     assert taken["outcome"] == "take", taken
     return asked, taken
@@ -760,7 +757,6 @@ def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
         basis(claimed, asked["id"], asked["id"]),
         answer=judged("looking into the cache", "take"),
         failed=None,
-        work_forks=True,
     )
     starting = {"kind": "fork", "agent": None, "state": "running"}
     assert holders(claimed) == ({asked["id"]: starting}, {asked["id"]: starting})
@@ -905,7 +901,6 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
         basis(claimed, asked["id"], more["id"]),
         answer=judged("looking into East", "take"),
         failed=None,
-        work_forks=True,
     )
     forks_model.started(
         "s1", basis(claimed, asked["id"], more["id"]), taken["turn"], "agent-1"
@@ -1743,7 +1738,6 @@ def taken_again(page_dir, thread: str, more: dict) -> dict:
         basis(page_dir, thread, more["id"]),
         answer=judged("looking into it", "take"),
         failed=None,
-        work_forks=True,
     )
     assert taken["outcome"] == "take", taken
     return taken
@@ -2315,7 +2309,7 @@ def test_a_take_the_module_never_names_lets_its_thread_go_within_30_s(claimed, l
     listed = basis(claimed, asked["id"], asked["id"])
     opened_long_ago(listed["turn"], activity_model.STARTING_GRACE * 0.9)
     taken = forks_model.route(
-        "s1", listed, answer=judged("looking", "take"), failed=None, work_forks=True
+        "s1", listed, answer=judged("looking", "take"), failed=None
     )
     assert taken["outcome"] == "take", taken
     opened_long_ago(taken["turn"], activity_model.STARTING_GRACE / 2)
@@ -2519,7 +2513,6 @@ def test_a_message_while_kept_back_gives_a_new_line_fork_both(claimed, lane):
             earlier,
             answer=judged("checking why 30 s", "take"),
             failed=None,
-            work_forks=True,
         )["outcome"]
         == "dropped"
     )
@@ -2531,7 +2524,6 @@ def test_a_message_while_kept_back_gives_a_new_line_fork_both(claimed, lane):
         later,
         answer=judged("weighing 20 s against 30 s", "take"),
         failed=None,
-        work_forks=True,
     )
     assert taken["outcome"] == "take", taken
     lines = [
@@ -2580,7 +2572,6 @@ def test_a_rewrite_while_kept_back_gives_a_new_line_fork_the_new_words(claimed, 
         later,
         answer=judged("checking 40 s", "take"),
         failed=None,
-        work_forks=True,
     )
     assert taken["outcome"] == "take", taken
     assert deliverable(claimed) == []
@@ -2631,7 +2622,6 @@ def test_a_line_fork_answering_after_its_turn_lapsed_writes_nothing(claimed, lan
         listed,
         answer=judged("The fork.", "take"),
         failed=None,
-        work_forks=True,
     ) == {
         "outcome": "dropped",
         "why": "its line turn no longer runs",
@@ -2652,7 +2642,7 @@ def test_a_line_fork_step_repeated_after_its_take_changes_nothing(claimed, lane)
     asked = said(claimed, "Which Python?")
     listed = basis(claimed, asked["id"], asked["id"])
     taken = forks_model.route(
-        "s1", listed, answer=judged("looking", "take"), failed=None, work_forks=True
+        "s1", listed, answer=judged("looking", "take"), failed=None
     )
     assert taken["outcome"] == "take", taken
     forks_model.started("s1", listed, taken["turn"], "agent-1")
@@ -2754,8 +2744,8 @@ def test_the_running_tool_reaches_the_prompt(claimed, lane):
 def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
     claimed, monkeypatch, capsys
 ):
-    """Asked for forks, the follower is the session's lane while it runs and lists
-    each page's kept-back threads for the module. It waits on the page's subscription,
+    """The follower is the session's lane while it runs and lists each page's
+    kept-back threads for the module. It waits on the page's subscription,
     so a message wakes it as it is admitted rather than at the next presence read.
     Stopping with a thread kept back ends nothing: the line fork runs in the
     module."""

@@ -589,8 +589,6 @@
        contour of each shape it draws (surfaces.css).
      - A quiet ground (--lf-focus-surface): a large composite holding focus, such as a
        thread, where a band would be a second box round the box.
-     - The undo's ring, the band at twice its width fading within about a second: what
-       ⌘Z just took back (undo.js, `ring`).
 
      Where it stands, which the box decides and the mark never does. The box states it
      once, as `--lf-ring-at`, in the rule that draws its face rather than one that waits
@@ -726,6 +724,13 @@
      - --lf-work: the agent at work, on the leaf, the bar beside a block and a plan's
        progress.
      - --lf-news: what the user hasn't read, the unread dot.
+     - --lf-draft: words the user put away unsent, the dot the On Me mark and the
+       folded leaf wear for them where nothing has news. It is the neutral step
+       between --lf-border and --lf-muted that holds 3:1 against the panel's ground in
+       either scheme, the least WCAG 1.4.11 asks of a mark the user must see. The On Me
+       mark's symbol is drawn in the muted ink, and at a dot's size a dot in that ink is
+       hard to tell from news's, so the draft's dot stands nearer the ground. A draft's
+       margin entry keeps the muted ink (controls.css).
      - --lf-change: what changed since the version compared, the bar beside a block and
        its stretch of the contents.
      - --lf-settled: what the user chose or finished, such as a chosen option, a pressed
@@ -749,6 +754,18 @@
   --lf-thread: var(--lf-accent);
   --lf-work: var(--lf-accent);
   --lf-news: var(--lf-accent);
+  --lf-draft: light-dark(
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 44%) l
+        calc(a * min(3.2, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(3.2, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 48%) l
+        calc(a * min(1.8, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(1.8, 1 + 0.014 / hypot(a, b)))
+    )
+  );
   --lf-change: var(--lf-muted);
   --lf-settled: var(--lf-ink-2);
   --lf-settled-ink: var(--lf-ink);

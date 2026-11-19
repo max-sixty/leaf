@@ -107,7 +107,7 @@ def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "Original"}
     )
     payload = freeze_events(page_dir, [original])
-    (page_dir / "events.jsonl").write_text("")
+    events_model.start_log(page_dir)
     replacement = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Replacement"}
     )

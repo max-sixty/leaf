@@ -11,7 +11,7 @@
 # the ask is a widget in its text, such as a choice (true), or in words (false). A
 # stale label's `edit` is the words its fix must remove, or null where the turn-end
 # check's prompt asks for no edit (skills/leaf/references/turn-end-check.md). A reply case judges the working line
-# the fork posted as it handed the message to the session, and its label `work`
+# the fork posted as it handed the message on, and its label `work`
 # says who should do the work: `take` where a fork of the session could do it
 # beside the session without touching or awaiting what the session is doing.
 
@@ -39,7 +39,8 @@ rubrics:
       unbroken block. An ask whose text holds an `lf-options` group is a choice the
       user presses: its words and options ask it together, each option titled by what
       choosing it does, and an option marked recommended only where the agent
-      advised it. An action the agent takes once the user agrees, such as a merge, is
+      advised it, by the `recommended` attribute, which draws its chip, rather than
+      in its own words or a chip written by hand. An action the agent takes once the user agrees, such as a merge, is
       asked as such a choice. For a step only the user can take,
       it says what to do, and asks for an answer only for what the user alone can report or the agent's next step waits
       on, not for an effect the agent could check itself and nothing waits on, as a

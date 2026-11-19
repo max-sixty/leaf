@@ -12,8 +12,8 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
   message and the agent's words, pickups and receipts, and the records Leaf's hooks
   and commands leave: `fork_admission`, whether admission kept a message back for a line
   fork or a running fork turn held it, and where neither, whether the session's fork
-  lane was up, with why not by the session's last `follower` note (whether its hooks
-  module asked for forks, `leaf.hooks.cmd_pages`); `fork_asked`,
+  lane was up, with why not by the session's last `follower` note
+  (`leaf.hooks.cmd_pages`); `fork_asked`,
   as Leaf gave a line fork its question; `fork_outcome`, what came of it
   (`leaf.forks`), a working fork's turn and agent among it; `turn_end_check`, the
   clerk's fork (`leaf.clerk`); `leaf_command`, with the agent turn it named
@@ -96,8 +96,6 @@ DIAGNOSTICS = (
 )
 # Events no step of a message's story turns on.
 QUIET = {"seen", "read", "reanchor", "receipt"}
-# Why a follower whose hooks module asked for no forks keeps no thread back.
-FORKS_OFF = "the hooks module has forks off (LEAF_FORK_REPLIES=off)"
 # How long after a message `--message` reads where nothing answered it.
 UNANSWERED_WINDOW = timedelta(minutes=10)
 # A shell command that runs `leaf`, anywhere in it, as `hooks/claude-code.ts` finds one.
@@ -217,12 +215,7 @@ def page_entries(
                 entry(
                     at,
                     "leaf",
-                    "pages follower "
-                    + (
-                        "keeps threads back for line forks"
-                        if row["forks"]
-                        else f"keeps nothing back: {FORKS_OFF}"
-                    ),
+                    "pages follower keeps threads back for line forks",
                     session=row["session"],
                 )
             )
@@ -345,8 +338,8 @@ def in_turn(turn: str | None, agents: dict[str, str]) -> str:
 
 def without_lane(admission: dict, followers: list[dict]) -> str:
     """Why admission found the session with no fork lane (`fork_admission`), by the
-    last `follower` note of its session before it: forks off as that follower noted,
-    or else that follower no longer holding the lane."""
+    last `follower` note of its session before it: no follower noted, or that
+    follower no longer holding the lane."""
     noted = [
         row
         for row in followers
@@ -355,11 +348,9 @@ def without_lane(admission: dict, followers: list[dict]) -> str:
     ]
     if not noted:
         return "no fork lane: no pages follower noted"
-    last = noted[-1]
-    return "no fork lane: " + (
-        f"the follower from {local(last['ts']):%H:%M:%S} no longer holds it"
-        if last["forks"]
-        else FORKS_OFF
+    return (
+        f"no fork lane: the follower from {local(noted[-1]['ts']):%H:%M:%S} "
+        "no longer holds it"
     )
 
 

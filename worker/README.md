@@ -14,7 +14,7 @@ The pieces this runbook names:
 | `worker/src/agent.ts`, `worker/src/model-proxy.ts` | The hosted agent's dispatch and its outbound OpenAI handler                      |
 | `worker/leaf_website/`                             | The Python adapter each container runs in front of Leaf's server                 |
 | `worker/wrangler.toml`                             | Production (`leaf-website`) and the `dev` environment (`leaf-website-dev`)       |
-| `Dockerfile.website`                               | The container image                                                              |
+| `worker/Dockerfile`                                | The container image                                                              |
 | `.github/workflows/publish-site.yaml`              | The only production deploy                                                       |
 
 `uv run leaf-dev site build` builds the site into `.tmp/site`, with its edge assets in
@@ -168,7 +168,9 @@ The workflow:
 Cloudflare activates the Worker before the new container image has rolled out. Until
 it has, a container on the previous release answers, the Worker replaces that answer
 with the published state or a `503` with `Retry-After`, and the `--wait` reruns the
-check.
+check. The session's page store refuses such a container (`worker/src/storage.ts`), so
+it starts without the session's record rather than reading one the new release shaped,
+and logs `page_restore_refused`.
 
 ### One-time setup
 
@@ -624,8 +626,8 @@ storage and identity contract.
 The append lease admits one staged successor per page. Preparation stores its descriptor
 and returns its content identity plus missing chunk digests. Commit names that identity;
 the stored descriptor supplies every file and response reference. Identical preparations
-share an identity; different content replaces it. Commit checks the stored page and
-release against the current site manifest before promotion. Replacing or committing it
+share an identity; different content replaces it. Preparation refuses a page the current
+site manifest doesn't name. Replacing or committing it
 collects chunks no committed record, staged successor, delivery stream or restore
 snapshot uses.
 An interrupted upload therefore retains at most one successor until that page

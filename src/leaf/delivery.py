@@ -685,13 +685,15 @@ def stream_reply_target(payload: dict) -> dict | None:
 
 def handled(
     batch: dict,
+    registry: dict | None,
     delivery_id: str,
     batch_index: int,
     *,
     turn_replies: bool,
     preserve_refs: bool = False,
 ) -> dict:
-    """One captured batch with exact references, writer hints and handling.
+    """One captured batch with exact references, writer hints and handling, the
+    clauses its page's `registry` declares.
 
     A clause's `when` reads the event, the answer it owes, and its thread's
     digest, so each event is told only its own case and the answer it owes. The
@@ -700,7 +702,6 @@ def handled(
     freeze does."""
     from .registry.contract import event_clauses
 
-    registry = _registry(Path(batch["page"]))
     # A clause asking the agent to act on a thread (name it, summarize it) rides the
     # event and reads the thread's digest, so the event says only what applies to
     # its own thread: a reader skimming a batch for what is new reads its events and
@@ -752,6 +753,27 @@ def handled(
     }
 
 
+def envelope(
+    delivery_id: str,
+    created_at: float,
+    batches: list[dict],
+    *,
+    acknowledge: str | None = None,
+    correction: dict | None = None,
+) -> dict:
+    """The envelope `freeze_delivery` stores, around `batches` as `handled` left
+    them, each kept to the fields a delivered batch declares."""
+    return {
+        "id": delivery_id,
+        "created_at": created_at,
+        "acknowledge": acknowledge,
+        **({"correction": correction} if correction is not None else {}),
+        "batches": [
+            {field: batch[field] for field in _BATCH["properties"]} for batch in batches
+        ],
+    }
+
+
 def freeze_delivery(
     batches: Iterable[dict],
     *,
@@ -774,25 +796,23 @@ def freeze_delivery(
     supplied = delivery_id is not None
     delivery_id = delivery_id if delivery_id is not None else new_delivery_id()
     path = delivery_path(delivery_id)
-    payload = {
-        "id": delivery_id,
-        "created_at": created_at if created_at is not None else time.time(),
-        "acknowledge": acknowledge(delivery_id) if acknowledge else None,
-        **({"correction": correction} if correction is not None else {}),
-        "batches": [
-            {field: batch[field] for field in _BATCH["properties"]}
-            for batch in (
-                handled(
-                    batch,
-                    delivery_id,
-                    index,
-                    turn_replies=turn_replies,
-                    preserve_refs=correction is not None,
-                )
-                for index, batch in enumerate(batches)
+    payload = envelope(
+        delivery_id,
+        created_at if created_at is not None else time.time(),
+        [
+            handled(
+                batch,
+                _registry(Path(batch["page"])),
+                delivery_id,
+                index,
+                turn_replies=turn_replies,
+                preserve_refs=correction is not None,
             )
+            for index, batch in enumerate(batches)
         ],
-    }
+        acknowledge=acknowledge(delivery_id) if acknowledge else None,
+        correction=correction,
+    )
     if supplied and path.exists():
         if DELIVERY.read(path) != payload:
             raise DeliveryIdConflict(

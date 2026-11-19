@@ -5,7 +5,7 @@ against the supplied baseline, then record which one I want implemented. The rec
 are real captures of the same panel folding, unfolding and reversing mid-motion.
 I need to judge how the movement feels, rather than choose from timing numbers alone.
 
-The local files are in `evals/motion-design/` relative to your working directory:
+The local files are in your working directory:
 
 - `current.mp4`: Baseline, 300 ms. Fast departure with a long settling tail.
 - `a.mp4`: A · Crisp, 220 ms. Quick departure with a short settle.

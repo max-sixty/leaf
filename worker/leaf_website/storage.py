@@ -74,12 +74,23 @@ UPLOADS = 8
 class PageStoreRefused(OSError):
     """A call the page store answered with an error, carrying the store's reason
     (`worker/src/index.ts`, the `leaf-state.internal` handler), which a page fault
-    records as its detail. An `OSError`, as urllib's own errors are, so callers
-    handle it as they handle the store being unreachable."""
+    records as its detail, and its HTTP status. An `OSError`, as urllib's own errors
+    are, so callers handle it as they handle the store being unreachable."""
+
+    def __init__(self, path: str, status: int, reason: str) -> None:
+        super().__init__(f"{path} answered {status}: {reason}")
+        self.status = status
+
+
+# The store's answer to a container whose image runs a release other than the
+# Worker's (`worker/src/storage.ts`).
+FOREIGN_RELEASE = 409
 
 
 @contextmanager
-def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPResponse]:
+def _request(
+    path: str, release: str, payload: dict | bytes | None = None
+) -> Generator[HTTPResponse]:
     url = os.environ["LEAF_PAGE_STORE_URL"].rstrip("/") + path
     binary = path.startswith("/blobs/")
     request = urllib.request.Request(
@@ -93,7 +104,10 @@ def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPRe
         else None,
         method="PUT" if payload is not None else "GET",
         headers={
-            "Content-Type": "application/octet-stream" if binary else "application/json"
+            "Content-Type": "application/octet-stream"
+            if binary
+            else "application/json",
+            "Leaf-Release": release,
         },
     )
     certificate = os.environ.get("CODEX_CA_CERTIFICATE")
@@ -102,7 +116,7 @@ def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPRe
         response = urllib.request.urlopen(request, context=context, timeout=60)
     except urllib.error.HTTPError as error:
         reason = error.read().decode(errors="replace").strip()
-        raise PageStoreRefused(f"{path} answered {error.code}: {reason}") from error
+        raise PageStoreRefused(path, error.code, reason) from error
     with response:
         yield response
 
@@ -142,7 +156,9 @@ class _BlobSet:
 def restore(site_root: Path) -> bool:
     """Restore before serving, from the snapshot contract in worker/src/storage.ts, and
     say whether a page store backs the site, as the container then declares its
-    commits are published there (`PUBLISHER`)."""
+    commits are published there (`PUBLISHER`). A store serving another release
+    refuses this container, which then serves without it, so it answers for its own
+    release rather than failing to start."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
         return False
     from leaf_website import SITE_MANIFEST, elapsed_ms, log_agent
@@ -154,21 +170,27 @@ def restore(site_root: Path) -> bool:
     # containing each canonical digest once, before replacing any local inputs.
     with TemporaryFile() as buffer:
         blobs = _BlobSet(buffer)
-        with (
-            _request("/records") as response,
-            tarfile.open(fileobj=response, mode="r|") as archive,
-        ):
-            first = archive.next()
-            if first is None or first.name != "records.json":
-                raise ValueError("page restore snapshot has no records")
-            record_file = archive.extractfile(first)
-            assert record_file is not None
-            snapshot = json.load(record_file)
-            records = snapshot["records"]
-            while member := archive.next():
-                blob_file = archive.extractfile(member)
-                assert blob_file is not None
-                blobs.add(member.name, blob_file.read())
+        try:
+            with (
+                _request("/records", manifest["release"]) as response,
+                tarfile.open(fileobj=response, mode="r|") as archive,
+            ):
+                first = archive.next()
+                if first is None or first.name != "records.json":
+                    raise ValueError("page restore snapshot has no records")
+                record_file = archive.extractfile(first)
+                assert record_file is not None
+                snapshot = json.load(record_file)
+                records = snapshot["records"]
+                while member := archive.next():
+                    blob_file = archive.extractfile(member)
+                    assert blob_file is not None
+                    blobs.add(member.name, blob_file.read())
+        except PageStoreRefused as refused:
+            if refused.status != FOREIGN_RELEASE:
+                raise
+            log_agent("page_restore_refused", detail=str(refused))
+            return False
         if any(
             digest not in blobs.offsets
             for record in records.values()
@@ -221,8 +243,8 @@ def _page_directory(site_root: Path, manifest: dict, root: str) -> Path:
     return directory
 
 
-def _upload(blobs: _BlobSet, digest: str) -> None:
-    with _request(f"/blobs/{digest}", blobs.body(digest)):
+def _upload(blobs: _BlobSet, release: str, digest: str) -> None:
+    with _request(f"/blobs/{digest}", release, blobs.body(digest)):
         pass
 
 
@@ -442,20 +464,17 @@ def publish(page: PageTransaction) -> None:
         blobs = _BlobSet(buffer)
         record = _record(page.page_dir, files, blobs)
         responses = _responses(page, site_root, manifest, root, activation.error, blobs)
-        publication = {
-            "root": root,
-            "release": manifest["release"],
-            "record": record,
-            "responses": responses,
-        }
-        with _request("/prepare", publication) as response:
+        release = manifest["release"]
+        publication = {"root": root, "record": record, "responses": responses}
+        with _request("/prepare", release, publication) as response:
             prepared = json.load(response)
         # Each upload is a round trip to the Durable Object, and a session's first
         # write uploads its whole record, so they overlap rather than queue.
         with ThreadPoolExecutor(max_workers=UPLOADS) as uploads:
-            for _ in uploads.map(partial(_upload, blobs), prepared["missing"]):
+            for _ in uploads.map(partial(_upload, blobs, release), prepared["missing"]):
                 pass
-        with _request("/publication", {"root": root, "identity": prepared["identity"]}):
+        commit = {"root": root, "identity": prepared["identity"]}
+        with _request("/publication", release, commit):
             pass
     token.parent.mkdir(parents=True, exist_ok=True)
     PUBLISHED.write(token, {"fingerprint": fingerprint})
@@ -471,11 +490,6 @@ def publish_drafts(page_dir: Path, drafts: dict, replaces: dict | None) -> dict 
     if (site := _page_root(page_dir)) is None:
         return drafts
     _site_root, manifest, root = site
-    body = {
-        "root": root,
-        "release": manifest["release"],
-        "replaces": replaces,
-        "drafts": drafts,
-    }
-    with _request("/drafts", body) as response:
+    body = {"root": root, "replaces": replaces, "drafts": drafts}
+    with _request("/drafts", manifest["release"], body) as response:
         return json.load(response)["drafts"]

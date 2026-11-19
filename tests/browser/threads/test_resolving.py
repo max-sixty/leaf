@@ -146,7 +146,7 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
     summary = page.locator("#jobs .lf-resolved-summary")
     # Freeze the actual retirement when it becomes inert, so assertions cover the
     # interval before its natural finish without racing a wall-clock duration. It is
-    # the fold, not the ring an undo of the last Resolve may still be fading.
+    # the fold, not the tint an undo of the last Resolve may still be fading.
     thread.evaluate("""node => new MutationObserver(() => {
         if (!node.inert) return;
         const animation = node.getAnimations().find((played) =>

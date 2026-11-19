@@ -120,11 +120,9 @@ Generate = Callable[[str, Path], dict]
 
 
 def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
-    """The thread `message` is in, and what a harness is asked for its title: the
-    passage the thread is on and its first spoken message, each between its own
-    tags, then `ASK`. The request is empty when the thread has neither, as one a
-    drawing or a reaction opened and nobody has written in yet. None when `message`
-    is in no untitled thread, as for a widget's action or a thread named already.
+    """The thread `message` is in, and what a harness is asked for its title
+    (`title_text`). None when `message` is in no untitled thread, as for a widget's
+    action or a thread named already.
 
     Any message in the thread can ask, so a thread whose first words come in a reply
     to a reaction is named on that reply, and a request that failed is made again
@@ -135,12 +133,23 @@ def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
     thread = build_threads(events, active_enclosing(page_dir)).get(thread_id)
     if thread_id is None or thread is None or thread["title"] is not None:
         return None
-    parts = []
-    if quote := (thread["anchor"] or {}).get("quote"):
-        parts.append(f"<passage>\n{quote[:EXCERPT_LIMIT]}\n</passage>")
-    if opening := next((m for m in spoken_turns(thread) if m.get("text")), None):
-        parts.append(f"<message>\n{opening['text'][:EXCERPT_LIMIT]}\n</message>")
-    return thread_id, "\n\n".join([*parts, ASK]) if parts else ""
+    opening = next((m for m in spoken_turns(thread) if m.get("text")), None)
+    return thread_id, title_text(
+        (thread["anchor"] or {}).get("quote"), opening and opening["text"]
+    )
+
+
+def title_text(passage: str | None, message: str | None) -> str:
+    """What a harness is asked for a thread's title: the `passage` the thread is on
+    and its first spoken `message`, each between its own tags, then `ASK`. Empty
+    when the thread has neither, as one a drawing or a reaction opened and nobody
+    has written in yet."""
+    parts = [
+        f"<{tag}>\n{text[:EXCERPT_LIMIT]}\n</{tag}>"
+        for tag, text in (("passage", passage), ("message", message))
+        if text
+    ]
+    return "\n\n".join([*parts, ASK]) if parts else ""
 
 
 def title_reading(reading: dict) -> dict:

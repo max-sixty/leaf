@@ -3261,10 +3261,10 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     browser, serve
 ):
     """An error the page raises stands in the field's status place while the field can
-    say it: about its editor, or about nothing while the editor is empty. The user's
-    first edit passes every error the field says to Errors in the leaf's menu, where a
-    dot on the leaf and on the menu's Errors marks them until the list is opened and
-    each can be dismissed. Over
+    say it: about its editor, or about nothing while the editor is empty, the newest of
+    them. The user's first edit passes every error the field could say to Errors in the
+    leaf's menu, where a dot on the leaf and on the menu's Errors marks each the field
+    doesn't say until the list is opened, and each can be dismissed. Over
     words its editor holds, an error covers them until the first key there: an edit
     or a caret move lands in those words, and Enter only uncovers them, so nothing
     sends them unseen.
@@ -3281,16 +3281,18 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
     value = "node => node.value"
     page.evaluate(raise_error, ["Couldn't load v1", False])
-    page.evaluate(raise_error, ["That reaction target is no longer available", False])
     expect(field(page)).to_have_attribute("data-lf-says", "error")
+    expect(dot).to_be_hidden()
+    # A newer one takes the field, and the one it covers waits under the leaf's dot.
+    page.evaluate(raise_error, ["That reaction target is no longer available", False])
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^That reaction target is no longer available")
     )
+    expect(dot).to_be_visible()
     # Clicking in is no edit: the errors stay until the user writes, and the first
     # key passes both of them.
     field(page).click()
     expect(field(page)).to_have_attribute("data-lf-says", "error")
-    expect(dot).to_be_hidden()
     page.keyboard.type("Could")
     expect(field(page)).to_have_attribute("data-lf-says", "destination")
     expect(dot).to_be_visible()

@@ -28,8 +28,9 @@
  *   which the user questioned. The ✕ keeps the seat while the user writes in
  *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
  *   rest, so a draft standing through a stance rewraps as the stance comes and as it
- *   goes, which a path this rare may do (browser/AGENTS.md, "The page holds still
- *   under the user's aim"). Rejected: holding the seat for the draft until the next posture
+ *   goes, which a mode, a path this rare, may do, and Go-to, whose user aims at the
+ *   page's hints rather than the panel, may too (browser/AGENTS.md, "The page holds
+ *   still under the user's aim"). Rejected: holding the seat for the draft until the next posture
  *   change. That kept On Me beside the draft and the field narrower, and saved no
  *   rewrap, since the stance's arrival had already rewrapped the draft. An open view
  *   has its ✕ on a line of its own, its head line or its tabs, and the field takes the
@@ -42,83 +43,17 @@
  *   with `m` beside its count: a second place for a press and its key, where the
  *   field's end already offers the moment's. Nothing else stands in the row, so the
  *   field's width follows only the user's own moves, and what its end says never
- *   slides. The empty field says
- *   what the agent is doing or wants, in the status's words (`statusReading`), after
- *   where the user stands on the page, such as the stance they are in or an older
- *   version (`standing`), or what a passing notice says, where a placeholder would say
- *   "Comment", and the field's end
- *   says the one press that matters most at that moment: at rest, Open latest on an
- *   older version (`latestPress`), else Next On Me and m while On Me lists anything,
- *   else Comment and c (`pagePress`); while it passes, the press a notice of the
- *   user's own gesture offers, as a Resolve's Next thread and t (`noticePress`,
- *   thread/folding.js); and in a stance,
- *   such as Draw mode, whose name the field says, Close (`stanceClose`), in place of
- *   the seat's ✕. A press acts as a touch control does, wherever the caret stands, and
- *   says its key only while that key would make it now: `m` typed in a card's reply is
- *   a letter, and Escape closes a comment box standing in Design mode before the mode.
- *   The user chose a notice's press, so a Resolve that moves the panel on says which
- *   thread it resolved and offers its next step there, and the rest over Undo and z
- *   after a Resolve and the ✕ with Escape unsaid in a stance. The user chose Next On
- *   Me at rest while On Me lists anything over Comment and c, since from reading or
- *   backing out `m` is the press they most often make next; `c` still enters the
- *   field, and Comment and c stand again once nothing waits. Rejected: Next On Me only
- *   after an answer, until the user's next input, which left Comment and c at rest the
- *   rest of the time and waited on the server's reading of each gesture to offer it.
- *   The status is the field's own words, and something of the user's takes their
- *   place only while it answers or directs what the user is doing: an error until
- *   their first edit, the words they selected while those stand, keys pressed before
- *   the page was ready, the Go-to filter while its sequence waits for a key, a notice
- *   for its moment, or until the user's next input where it offers a press, and a
- *   walk's position for a notice's moment from each step (notifications.js,
- *   `answerStep`). Where the user stands by a choice that
- *   lasts until they undo it, a stance, an older version, a comparison or hidden
- *   annotations, leads the status instead (`standing`). The user asked for this for a
- *   walk's position, so the agent's updates show while they read at its stop; the
- *   stance follows by the same rule. An alternative is a walk's position leading the
- *   status as a version does, which fails since the position grows stale as the user
- *   reads on from its stop and costs the status the end of its words.
- *   In a thread it says the thread's word beside the leaf, in its speaker's
- *   face (voice.js), with a walk's position after it, and Reply with the key that
- *   enters the field at the field's end (`turnLead`). The user chose this so the next
- *   action reads apart from the agent's words, over three others:
- *   the key beside Reply with the turn at the field's end in one face, Reply alone with
- *   the turn left to the thread's messages, and the agent's words in a lane of their
- *   own before the seat, at rest too. Reply takes the one dim face the user chose for
- *   every comment box's word, rather than ink. While words stand selected
- *   on the page, the page's field quotes them, inside a stance too, and ends in Comment
- *   and c as at rest (the user's choice, over c alone after the
- *   quote), and a press there comments on them (`selectedWords`), the one route a
- *   finger has to them; the user
- *   chose that over a worded step standing in the marks' place, which
- *   took a stance's steps away while it stood, accepting that a press on the field
- *   addresses selected words whenever they stand. A status that reports reads dimmer
- *   than anything written, and while the agent works it carries the one sheen that marks
- *   work under way; one that asks the user to act reads in its tone's ink. The row
- *   shows no status tooltip: the user rejected the repeated words over the page.
- *   The leaf's menu holds the full status and the Errors list. Clicking in
- *   gives the placeholder to where the words go, and from then on nothing that passes
- *   is said while the caret is in the field: news, an acknowledgement, a walk's position and Go-to's word go unsaid
- *   there but for the live region, and the empty field says what still stands once the
- *   caret leaves. An error (errors.js) is no passing word: one about the field's
- *   editor covers its words, as at any box (composing/input.js), and the empty field
- *   says the newest one about nothing in its status's place and the danger's ink,
- *   until the user's first edit. An error the field has passed or no box stands for
- *   waits in the leaf's menu, under Errors, with a dot on the leaf and on Errors until
- *   the user opens the list (`errorsList`), where each copies with its context. The
- *   user chose this over errors riding the passing notice, which would fade
- *   after four seconds and go unsaid while the user writes. They
- *   asked for Errors to show in red that it is what the leaf's dot marks, which a
- *   count in the accent's ink leaves unclear. A draft takes precedence over passing notices,
- *   which still reach the live region. A selected passage is named by the field's
- *   mode chip when a draft hides its placeholder. No transient message adds a row.
- *   Keys pressed while the page loads, which wait for it, the field says in place of
- *   all of these but an error, which says why the page may not get ready; the mode
- *   chip says them where an error or a draft takes the field's words, and the field's
- *   end offers no press while they wait, where a key would only join them; before the
- *   panel stands, the row the document served from its first paint says them
- *   (`heldWords`; bootstrap.js).
- *   The user chose this over a notice of their own
- *   beside the panel.
+ *   slides. The empty field says one thing at a time, the agent's status at rest, and
+ *   its end the one press that matters most then (field-readings.js says which, for
+ *   how long, and why). Before the panel stands, the row the document served from its
+ *   first paint says the keys pressed while the page loads (`heldWords`;
+ *   bootstrap.js). No transient message adds a row. The row shows no status tooltip:
+ *   the user rejected the repeated words over the page. The leaf's menu holds the full
+ *   status, and the Errors list, where an error the field has passed or no box stands
+ *   for waits, with a dot on the leaf and on Errors until the user opens the list
+ *   (`errorsList`), each copying with its context. The user asked for Errors to show
+ *   in red that it is what the leaf's dot marks, which a count in the accent's ink
+ *   leaves unclear.
  *   The keys that send are Send's hover name, where Return sends with
  *   Shift+Return's new line beside it (composing/input.js).
  * - **Opened**: a view above the same row (On, whose tabs are the menu, On Me,
@@ -366,6 +301,7 @@ import {
   seeErrors,
 } from "./errors.js";
 import { statusContextReading } from "./keyboard/status-context.js";
+import { passingWords, readField } from "./field-readings.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import {
@@ -488,28 +424,32 @@ let copyRefused = false;
 /** @param {ReturnType<typeof pageControls>[number]} entry */
 const groupOf = (entry) =>
   entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
-// What passes in the panel's one seat for words that pass: a notice while one shows,
-// else the Go-to filter's word while its sequence waits for a key, or a walk's position
-// ("1 of 3 waiting on me") for a notice's moment after each step
-// (notifications.js, `answerStep`), in the words the screen lacks
-// (walk-position.js, `walkWords`). `says` is what the surface's own words say of where
-// the user stands: the page field's say each fact `standing` does (`STANDING`), so a
-// notice about one of them is left to those words and a walk over its list says its
-// place alone; the folded leaf's peek and a thread's field say none. The user asked
-// that whatever is not anchored to the page stand at the panel rather than against the
-// window.
+// What passes in the panel's one seat for words that pass, as a surface of the panel
+// hears it (`passingFacts`), on the page, as field-readings.js orders it
+// (`passingWords`), or null. The user asked that whatever is not anchored to the page
+// stand at the panel rather than against the window.
+function passing() {
+  return passingWords({ thread: false, ...passingFacts(NO_STANDING) });
+}
 /** @type {ReadonlySet<string>} */
 const NO_STANDING = new Set();
-function passing(says = NO_STANDING) {
+// What may pass in the panel's one seat, as a surface hears it: a notice while one
+// shows, the Go-to filter's word while its sequence waits for a key, and a walk's
+// position for a notice's moment after each step (notifications.js, `answerStep`), in
+// the words the screen lacks (walk-position.js, `walkWords`). `says` is what the
+// surface's own words say of where the user stands: the page field's say each fact
+// `standing` does (`STANDING`), so a notice about one of them is left to those words and
+// a walk over its list says its place alone; the folded leaf's peek and a thread's field
+// say none.
+/** @param {ReadonlySet<string>} says */
+function passingFacts(says) {
   const notice = noticeReading();
-  if (notice.visible && !(notice.about && says.has(notice.about)))
-    return { message: notice.message, visible: true, press: notice.press, news: true };
-  const message = navigationWords(says);
-  return { message, visible: Boolean(message), press: null, news: false };
-}
-function navigationWords(says = NO_STANDING) {
   const { goTo, walk } = statusContextReading();
-  return goTo ?? (walk && answeringStep() ? walkWords(walk, says) : null) ?? "";
+  return {
+    notice: notice.visible && !(notice.about && says.has(notice.about)) ? notice : null,
+    goTo,
+    step: walk && answeringStep() ? walkWords(walk, says) : null,
+  };
 }
 // An age the panel shows, which previews the clock time behind it as every age does
 // (presence.js, `agePreview`): short, in a room of its own (`.lf-fp-age`) at a line's
@@ -758,7 +698,7 @@ export function createFloatingPanel({
     const statusModel = initial ? CONNECTING : status();
     const onUser = initial ? 0 : onUserCount();
     const news = initial ? 0 : newCount();
-    const unseen = !initial && errorsWaiting(input);
+    const unseen = !initial && errorsWaiting(reading);
     const exit = initial ? null : fieldExit(search, top, input, reading);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
     // the head line, where a thread's presses stand and every other view's name. A
@@ -1247,74 +1187,78 @@ export function createFloatingPanel({
         ? voiced(leafSays(part))
         : html`<kbd class="lf-key-badge lf-held-key">${part.key}</kbd>`,
     );
-  // What the empty field says, and whose reading it is (`says`): the newest error it
-  // can say; once the caret is in a field that takes words, where they go; on the page,
-  // the selected words a press there comments on; a passing notice while one stands;
-  // else on the page what the agent is doing or wants, in
-  // the status's words, and in a thread whose turn it is. On the page, the status first
-  // says where the user stands (`standing`), the stance they are in leading, such as
-  // Draw mode (keyboard/status-context.js), which also heads a passing notice. The
-  // header's **The row** says which readings take the status's place, and for how long.
-  //
-  // In an open thread the field is the reply box, so it says the reply, with the key
-  // that enters it, but for a notice or the Go-to word for their moment; whose turn it
-  // is and a walk's position, which stand as long as the user stays in the thread,
-  // stand before it (`turnLead`), since the field there says no status they would
-  // hide. The user asked for this, since a walk's "Thread 11 of 11" in the field's
-  // place leaves nothing saying how to reply to the thread they are reading.
-  //
-  // A reading that offers a press (`offers`), the reply or the selected words, stands
-  // with the key that makes it; the page field's other readings end in the press the
-  // moment offers (`offer`), else in Comment and the key that enters the field. Every
-  // reading, and the words standing before the reply, are said by the agent or by
-  // Leaf, each in its face (voice.js), and read dim (floating-panel.css). The field
-  // carries the agent's words, so nothing in it is nobody's: Leaf says a stance's name,
-  // where the user stands and the words quoted, since the interface's upright face would
-  // read as the agent's (the user's choice).
-  // A notice offering a press after the user's own gesture is newer than any error the
-  // field says, so while it passes it says its words over that error,
-  // which waits in the menu's Errors meanwhile, as one the field has passed does, and
-  // the field says it again once the notice has gone. The caret in the field says
-  // nothing that passes.
-  /** @param {Element | null} input */
-  function noticePressing(input) {
-    return Boolean(passing().press) && input !== focused();
+  // What the empty field says and what its end offers, as field-readings.js orders the
+  // readings, from the moment's facts for the field asked about: the page's
+  // (`key` null) or an open thread's reply box. `drawn` is the thread as its view draws
+  // it, which the reply box's words read (`replyOptionsFor`).
+  /** @param {string | null} key @param {Element | null} input
+   * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
+  function fieldReading(key, input, drawn = null) {
+    const thread = key ? threadByKey(key) : null;
+    // A retained field can repaint between a thread leaving the reading and its
+    // route being retired. Its native row survives that interval, not its turn.
+    if (key && !thread) return ABSENT;
+    const { stance } = statusContextReading();
+    const held = heldWords.value;
+    const page = !key;
+    const { notice, goTo, step } = passingFacts(page ? STANDING : NO_STANDING);
+    return readField({
+      thread: !page,
+      writing: input === focused(),
+      error: fieldError(),
+      held: held && heldText(held),
+      selected: page && selectedWords ? excerptWords(selectedWords.quote, 60) : null,
+      notice: notice && {
+        message: notice.message,
+        press: notice.press ? noticePress(notice.press) : null,
+      },
+      goTo,
+      step,
+      stance: page ? stance : null,
+      standing: () => (page ? standing(stance) : []),
+      destination: () => whereTo(drawn ?? thread),
+      status: () => status().summaryParts,
+      close: () => (stance ? stanceClose() : null),
+      pagePress,
+    });
   }
+  /** @type {ReturnType<typeof readField>} */
+  const ABSENT = Object.freeze({
+    says: "absent",
+    words: [],
+    lead: [],
+    end: "",
+    exits: false,
+    offers: false,
+  });
+  // The newest error the field can say, which it says where nothing newer claims it
+  // (field-readings.js, "error").
+  const fieldError = () => sayable()[0] ?? null;
   // Whether an error waits unseen in the menu's Errors list: one the user hasn't opened
-  // the list on, which neither the field says now nor stands at its own box. The leaf
-  // and the Errors row wear the same dot for it, so the row a press on the dotted
-  // leaf opens to is the one dotted there.
-  /** @param {Element | null} input */
-  function errorsWaiting(input) {
-    const saying = noticePressing(input) ? [] : sayable();
+  // the list on, which neither the field says now (`reading`) nor stands at its own box.
+  // The leaf and the Errors row wear the same dot for it, so the row a press on the
+  // dotted leaf opens to is the one dotted there.
+  /** @param {ReturnType<typeof fieldReading> | null} reading */
+  function errorsWaiting(reading) {
+    const said = reading?.says === "error" ? fieldError() : null;
     return errorsReading().some(
-      (error) => !error.seen && !saying.includes(error) && !standsAtItsBox(error),
+      (error) => !error.seen && error !== said && !standsAtItsBox(error),
     );
   }
-  // The readings whose words say something other than a press there, so the field's
-  // end says the press: the status, a passing notice, and the words selected on the
-  // page, which the user chose to end in Comment… and c, as the field
-  // does at rest, over c alone right after the quote. A thread's field ends a notice in
-  // Reply… and c, as it says them at rest.
-  const SAYS_ELSE = new Set(["status", "notice", "selection"]);
-  // Where the user stands on the page, which the page field's words say before the
-  // status, the words selected on the page or a walk's position, each for as long as
-  // the user's own choice stands: the stance's name, the version
-  // the page shows where it is older than the latest (version.js, `shownBehind`), how
-  // many changes the page marks since the version it compares with (`v`, version.js),
-  // whose bars say only that a block changed, and that the user hid the annotation
-  // layer (`o`, annotation-layer.js), which a reload keeps, or a page whose marks are
-  // hidden would read as one with none. They stand in
-  // the field's words, so the field's width never follows them, and the status
-  // changing after them leaves them where they stand. Each part but the last carries
-  // its separator in its own speaker's face, so words all Leaf's keep the native
-  // placeholder (`saying`). The version stood in a tinted notice beside the On Me mark
-  // until #5642, which narrowed the field as it came and went and slid the press at
-  // the field's end from under the user's aim.
-  // Each fact where the user stands that the page field's words say while it holds, in
-  // the order they say them, with its words (`standing`): the stance's name, the version
-  // shown where it is older than the latest, a comparison's changes and hidden
-  // annotations.
+  // Where the user stands on the page, which leads the page field's words for as long
+  // as the user's own choice stands (field-readings.js, `lead`), each fact with its words
+  // in the order they are said (`STANDING_PARTS`): the stance's name, the version the
+  // page shows where it is older than the latest (version.js, `shownBehind`), how many
+  // changes the page marks since the version it compares with (`v`, version.js), whose
+  // bars say only that a block changed, and that the user hid the annotation layer (`o`,
+  // annotation-layer.js), which a reload keeps, or a page whose marks are hidden would
+  // read as one with none. What passes on the page field leaves to these words the
+  // facts they say (`STANDING`, `passingFacts`). They stand in the field's words, so
+  // the field's width never follows them, and the status changing after them leaves
+  // them where they stand. Each part carries its separator in its own speaker's face,
+  // so words all Leaf's keep the native placeholder (`saying`). The version stood in a
+  // tinted notice beside the On Me mark until #5642, which narrowed the field as it came
+  // and went and slid the press at the field's end from under the user's aim.
   /** @type {readonly [string, (stance: string | null) => ReturnType<typeof leafSays> | null][]} */
   const STANDING_PARTS = [
     ["stance", (stance) => (stance === null ? null : leafSays(stance))],
@@ -1342,93 +1286,11 @@ export function createFloatingPanel({
     ],
   ];
   const STANDING = new Set(STANDING_PARTS.map(([about]) => about));
-  /** @param {string | null} stance @param {boolean} [more] whether words follow */
-  function standing(stance, more = false) {
-    const parts = STANDING_PARTS.map(([, words]) => words(stance)).filter(
-      (part) => part !== null,
-    );
-    return parts.map((part, at) =>
-      !more && at === parts.length - 1
-        ? part
-        : typeof part === "string"
-          ? `${part} · `
-          : saidBy(part.voice, `${part.text} · `),
-    );
-  }
-  // `drawn` is the thread as its view draws it, which the reply box's words read
-  // (`replyOptionsFor`).
-  /** @param {string | null} key @param {Element | null} input
-   * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
-  function fieldReading(key, input, drawn = null) {
-    const notice = passing(key ? NO_STANDING : STANDING);
-    const [error] = sayable();
-    if (error && !noticePressing(input))
-      return { says: "error", words: leafSays(error.message) };
-    const held = heldWords.value;
-    if (held) return { says: "held", words: leafSays(heldText(held)) };
-    const thread = key ? threadByKey(key) : null;
-    // A retained field can repaint between a thread leaving the reading and its
-    // route being retired. Its native row survives that interval, not its turn.
-    if (key && !thread) return { says: "absent", words: "" };
-    if (input === focused())
-      return { says: "destination", words: whereTo(drawn ?? thread) };
-    if (thread && !noticeReading().visible && !statusContextReading().goTo)
-      return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
-    const stance = key ? null : statusContextReading().stance;
-    // Keep where the user stands and the current navigation context alongside the
-    // selection's comment offer. The field's own name says what a press does
-    // (`pageEditor`); on a narrow phone its ellipsis shortens the quote after them, not
-    // instead of them.
-    if (!key && selectedWords)
-      return {
-        says: "selection",
-        offers: true,
-        words: [
-          ...standing(stance, true),
-          leafSays(
-            [navigationWords(STANDING), `“${excerptWords(selectedWords.quote, 60)}”`]
-              .filter(Boolean)
-              .join(" · "),
-          ),
-        ],
-      };
-    // A notice says its words in the empty field's, and the press it offers, such as
-    // a Resolve's Next thread, is the one the field's end offers while it passes, said
-    // as Comment and its key are (`noticePress`, composing/input.js `enters`); one
-    // offering none leaves the page's own there (`pagePress`), as the walk a Next On
-    // Me makes says its place beside the press that takes it on.
-    // A notice of news says its words after the stance alone, since news often
-    // announces a change to where the user stands ("Annotations hidden — o shows
-    // them"), and holds the line for a moment; a walk's position or the Go-to word say
-    // the rest of where they stand first.
-    if (notice.visible) {
-      const own = notice.press ? noticePress(notice.press) : null;
-      const close = own || !stance ? null : stanceClose();
-      const lead =
-        notice.news || key
-          ? stance
-            ? [leafSays(`${stance} · `)]
-            : []
-          : standing(stance, true);
-      return {
-        says: "notice",
-        words: [...lead, ...[noticeWords(notice.message)].flat()],
-        offer: own ?? close ?? (key ? null : pagePress()),
-        exits: Boolean(close),
-      };
-    }
-    if (!key) {
-      const lead = standing(stance, true);
-      const close = stance ? stanceClose() : null;
-      return {
-        says: "status",
-        lead,
-        words: [...lead, ...status().summaryParts],
-        offer: close ?? pagePress(),
-        exits: Boolean(close),
-      };
-    }
-    return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
+  /** @param {string | null} stance */
+  function standing(stance) {
+    return STANDING_PARTS.map(([, words]) => words(stance))
+      .filter((part) => part !== null)
+      .map((part) => saidBy(part.voice, `${part.text} · `));
   }
   // The page's own press at the field's end: Open latest while the page shows an older
   // version (`latestPress`), else Next On Me while On Me lists anything, or null, where
@@ -1512,13 +1374,13 @@ export function createFloatingPanel({
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldHint(key, input, drawn = null) {
-    const { says, words, lead = [] } = fieldReading(key, input, drawn);
+    const { says, words, lead } = fieldReading(key, input, drawn);
     const held = heldWords.value;
     if (says === "held" && held) return heldParts(held);
     const parts = [words].flat();
     // Where the user stands, before the status, is drawn apart from it, so the ink a
     // status that asks wears stays the status's (floating-panel.css).
-    if (lead.length)
+    if (says === "status" && lead.length)
       return html`<span class="lf-fp-standing">${statusParts(lead)}</span>${statusParts(
           parts.slice(lead.length),
         )}`;
@@ -1545,16 +1407,8 @@ export function createFloatingPanel({
     const sync = wireInput(input, {
       hint: () => saying(null, input),
       hintParts: () => fieldHint(null, input),
-      // The agent's or Leaf's words at rest say nothing about the press, so the key
-      // that enters the field stands with its word (composing/input.js, `enters`),
-      // unless the moment offers a press of its own there: a passing notice's, the
-      // next On Me item after an answer, or a stance's Close (`fieldReading`). Held
-      // keys leave it nothing, since its key would only join them (`heldWords`).
-      enters: () => {
-        if (heldWords.value) return null;
-        const { says, words, offer } = fieldReading(null, input);
-        return offer ?? (SAYS_ELSE.has(says) && wordsText(words) ? COMMENT_HINT : "");
-      },
+      // The one press the moment offers at the field's end (field-readings.js, `end`).
+      enters: () => fieldReading(null, input).end,
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>
@@ -1640,13 +1494,8 @@ export function createFloatingPanel({
           hintParts: (drawn) => fieldHint(key, replyInput(), drawn),
           hintLead: (drawn) => turnLead(key, replyInput(), drawn),
           // A notice passing over the thread's field offers its press at the field's
-          // end, as over the page's (`fieldReading`, `offer`), and one offering none
-          // leaves Reply there with the key that enters the field, as the page's says
-          // Comment, so the key never stands alone after the notice's words.
-          enters: () => {
-            const { says, words, offer } = fieldReading(key, replyInput());
-            return offer ?? (SAYS_ELSE.has(says) && wordsText(words) ? REPLY_HINT : "");
-          },
+          // end, as over the page's (field-readings.js, `end`).
+          enters: () => fieldReading(key, replyInput()).end,
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it
@@ -2740,7 +2589,7 @@ export function createFloatingPanel({
       html`Errors<span
           class="lf-fp-error-dot"
           aria-hidden="true"
-          ?data-lf-shown=${errorsWaiting(fieldInput())}
+          ?data-lf-shown=${errorsWaiting(fieldReading(null, fieldInput()))}
         ></span>`,
       html`<span class="lf-fp-value">${errors.length}</span>`,
       () => {
@@ -5344,13 +5193,13 @@ export function createFloatingPanel({
   function peekPresentation() {
     const held = heldWords.value;
     const notice = passing();
-    const telling = (held || notice.visible) && host.dataset.lfRest === "mark";
+    const telling = (held || notice) && host.dataset.lfRest === "mark";
     return {
       content: !telling
         ? nothing
         : held
           ? heldParts(held)
-          : voiced(noticeWords(notice.message)),
+          : voiced(noticeWords(notice ?? "")),
       shown: Boolean(telling),
     };
   }
@@ -5359,7 +5208,7 @@ export function createFloatingPanel({
   // notice standing in the folded leaf's peek is all it says.
   function leafPreview() {
     if (host.dataset.lfRest !== "mark") return { name: "Page menu" };
-    if (passing().visible) return false;
+    if (passing()) return false;
     const fold = commandSteps(FOLD);
     return {
       name: "Unfold Leaf",

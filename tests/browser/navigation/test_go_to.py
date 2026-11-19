@@ -647,6 +647,45 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 
 
+def test_an_armed_go_to_names_itself_and_closes_from_any_step(browser, serve):
+    """While Go-to waits for a key, the panel's field names it where the user reads,
+    chips or none, and ends in Close, which says esc while Escape would close the map,
+    not while it would take a filter back, and takes the map off from any step."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Links", '<h1>Links</h1><p><a id="one" href="#one">One link</a></p>'
+            )
+        ),
+    )
+    field = page.locator(".lf-fp-field leaf-text")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^In Go-to · .+ · Close esc$")
+    )
+    # A filter that keeps the link's chip: Escape would take the filter back first.
+    page.keyboard.press("h")
+    expect(page.locator(f"{CHIPS}:visible")).to_have_count(1)
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^In Go-to · .+ · Close$")
+    )
+    page.keyboard.press("Escape")
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^In Go-to · .+ · Close esc$")
+    )
+    page.keyboard.press("t")
+    expect(field).to_have_attribute(
+        "placeholder", "In Go-to · No visible threads · Close"
+    )
+    page.locator(".lf-fp-field").get_by_text("Close", exact=True).click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
+    expect(field).not_to_have_attribute("placeholder", re.compile("Go-to"))
+
+
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     """A tab can be selected from elsewhere on the page through its generated hint.
 

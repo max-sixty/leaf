@@ -31,9 +31,10 @@ from typing import TYPE_CHECKING
 
 from leaf.event_log import (
     _append_event_unlocked,
+    _end_last_line,
     _matching_attempt,
-    _parse_events,
     initialized,
+    read_events,
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
@@ -322,6 +323,7 @@ class PageTransaction:
         self._lock = flocked(self.page_dir / EVENTS_FILE, deadline=self.deadline)
         self._log = self._lock.__enter__()
         try:
+            _end_last_line(self._log)
             if publications := unfinished_publications(self.page_dir, self.events):
                 from leaf.revisioning import finish_publications
 
@@ -708,9 +710,7 @@ class PageTransaction:
     @property
     def events(self) -> list:
         if self._events is None:
-            assert self._log is not None
-            self._log.seek(0)
-            self._events = _parse_events(self._log.read())
+            self._events = read_events(self.page_dir)
         return self._events
 
     def matching_attempt(self, event: dict) -> dict | None:

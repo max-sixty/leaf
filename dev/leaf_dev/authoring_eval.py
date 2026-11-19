@@ -27,7 +27,6 @@ from pathlib import Path
 
 from leaf.media import media_name
 from leaf.render_gate import command as render_command_model
-from leaf_dev import ROOT
 from leaf_dev.arms import (
     author_failure,
     blocks,
@@ -37,12 +36,12 @@ from leaf_dev.arms import (
     run_agent,
     run_leaf,
     scratch,
+    stage_task_files,
     trace_summary,
 )
 from leaf_dev.arrangement_eval import Run, capture_phase, is_leaf, preference
 from leaf_dev.browser import shell_executable
 from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
-from leaf_dev.leaf_assets import pinned_copy
 
 
 def capture_evidence(
@@ -155,19 +154,18 @@ def execute(
         (evidence / "instructions.txt").write_text(context)
     with scratch(payload) as cwd:
         page, state = cwd / "page", cwd / "state"
-        task = metadata["case"].split("/", 1)[0]
-        images = pinned_copy(ROOT / "evals" / task)
-        inputs = {}
-        if images is not None and images.is_dir():
-            destination = cwd / "evals" / task
-            shutil.copytree(images, destination)
-            inputs = {
+        images = stage_task_files(metadata["case"].split("/", 1)[0], cwd)
+        inputs = (
+            {
                 str(
-                    path.relative_to(cwd)
+                    path.relative_to(images)
                 ): f"/media/{media_name(path.read_bytes(), path.suffix)}"
-                for path in destination.rglob("*")
+                for path in images.rglob("*")
                 if path.is_file()
             }
+            if images is not None
+            else {}
+        )
         if leaf:
             run_leaf(payload, state, "page", "init", str(page), check=True)
         else:

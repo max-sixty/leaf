@@ -6,8 +6,10 @@ from typing import cast
 
 import pytest
 
+from leaf.delivery import DELIVERY
+from leaf.registry.schema import json_validator, with_leaf_resources
 from leaf.structure import SourceDocument
-from leaf_dev import docs
+from leaf_dev import docs, prompts
 from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import catalog_sources, document_metadata, named_source
 
@@ -83,6 +85,24 @@ def test_a_composed_part_refuses_an_authored_copy(slot, copy):
     assert slot in authored
     with pytest.raises(ValueError, match="composed from its owner"):
         docs.compose(source, authored.replace(slot, copy))
+
+
+def test_how_it_works_shows_each_prompt_as_leaf_writes_it():
+    """How it works shows every prompt `prompts.PROMPTS` renders, each in its own slot,
+    with the text Leaf's function writes, escaped so it reads back exactly. The
+    deliveries the prompts are written around take the shape a real one is stored
+    under, so the page shows a fork what Leaf would give it."""
+    source = named_source("how-it-works")
+    tree = SourceDocument(docs.compose(source, source.read_text())).tree
+    shown = {}
+    for slot in tree.select("lf-text-document[data-prompt]"):
+        text = slot.select_one("pre")
+        assert text is not None
+        shown[slot.attrs["data-prompt"]] = text.text
+    assert shown == {name: render() for name, render in prompts.PROMPTS.items()}
+    validator = json_validator(with_leaf_resources(DELIVERY.schema))
+    for captured in (prompts.ASKED, prompts.TAKEN, prompts.RESUMED, prompts.FOLDED):
+        validator.validate(prompts.delivery(prompts.TAKEN_DELIVERY, captured))
 
 
 def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():

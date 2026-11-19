@@ -547,7 +547,9 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     agent's working line, and the thread goes to the session."""
     said = "Checking why the poll is 2 s"
     driven = ClaudeCode(
-        spawn, "cc-reply", {"forkAnswer": json.dumps({"line": said, "work": "take"})}
+        spawn,
+        "cc-reply",
+        {"forkAnswer": json.dumps({"line": said, "work": "hand_over"})},
     )
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
@@ -680,19 +682,17 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
 def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     page_dir, monkeypatch, spawn, sessionless
 ):
-    """With forks that do the work, a thread the line fork judges `take` goes to a
-    fork the module spawns with Leaf's task, unnamed, so its agent id is the one
-    address the main thread has for it, and Leaf hears which agent runs the turn it
-    opened for it, which the task names for the fork's `leaf` commands. As that
-    agent's run ends its turn closes, and the main thread hears what came of the
-    thread."""
+    """A thread the line fork judges `take` goes to a fork the module spawns with
+    Leaf's task, unnamed, so its agent id is the one address the main thread has for
+    it, and Leaf hears which agent runs the turn it opened for it, which the task
+    names for the fork's `leaf` commands. As that agent's run ends its turn closes,
+    and the main thread hears what came of the thread."""
     driven = ClaudeCode(
         spawn,
         "cc-work",
         {
             "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
             "agentId": "agent-1",
-            "env": {"LEAF_FORK_WORK": "on"},
         },
     )
     holding_page(driven, page_dir, monkeypatch)
@@ -749,7 +749,6 @@ def test_a_fork_whose_run_ends_before_its_spawn_returns_still_ends_its_turn(
         {
             "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
             "agentId": "agent-1",
-            "env": {"LEAF_FORK_WORK": "on"},
             "spawnWaits": True,
         },
     )
@@ -799,7 +798,6 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
         {
             "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
             "agentId": "agent-1",
-            "env": {"LEAF_FORK_WORK": "on"},
             "forkStepFails": "started",
         },
     )
@@ -853,7 +851,6 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
         {
             "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
             "agentId": ["agent-1", "agent-2"],
-            "env": {"LEAF_FORK_WORK": "on"},
             **({} if resumes else {"sendRefuses": "No transcript found"}),
         },
     )
@@ -1011,7 +1008,6 @@ def test_a_forks_end_leaf_did_not_hear_of_is_told_again_while_the_session_idles(
                     }
                 }
             },
-            "env": {"LEAF_FORK_REPLIES": "off"},
         },
     )
     holding_page(driven, page_dir, monkeypatch)
@@ -1029,8 +1025,8 @@ def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
     completion on the session's own client and hands the reply back through the
     launcher, and the title goes in in the claimant's voice. The provider's first
     answer is a 429, which the module reports with its status, so the page server
-    asks again (`thread_titles.RETRY_INTERVAL`). Forks are off, so the follower
-    waits on the session's requests alone."""
+    asks again (`thread_titles.RETRY_INTERVAL`). The comment's line fork hands it
+    to the session meanwhile."""
     monkeypatch.setattr(thread_titles_model, "RETRY_INTERVAL", 0.1)
     driven = ClaudeCode(
         spawn,
@@ -1038,7 +1034,7 @@ def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
         {
             "completeReply": '{"title": "Poll interval"}',
             "completeRefusals": 1,
-            "env": {"LEAF_FORK_REPLIES": "off"},
+            "forkAnswer": json.dumps({"line": "Checking", "work": "hand_over"}),
         },
     )
     holding_page(driven, page_dir, monkeypatch)
@@ -1081,5 +1077,5 @@ def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
     )
     assert (logged["refusals"], logged["inputTokens"]) == (1, 300)
     assert logged["apiDurationMs"] >= 0
-    assert driven.forks.empty() and driven.diagnostics.empty()
+    assert driven.diagnostics.empty()
     driven.quit()

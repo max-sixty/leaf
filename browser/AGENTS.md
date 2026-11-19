@@ -15,8 +15,8 @@ These rules hold for everything Leaf draws: its runtime, its chrome and its bund
 packages. Each section opens with a goal, which
 `../skills/leaf/references/interface-goals.md` gives other authors too, and the specs
 under it are Leaf's own ways of meeting it; weigh a case no spec covers against its goal
-and `../SOUL.md`. A spec names its check and owner where one exists. How the owner meets
-it, and any exception the user chose for one surface, belong in that owner's header and
+and `../skills/leaf/SOUL.md`. A spec names its check and owner where one exists. How
+the owner meets it, and any exception the user chose for one surface, belong in that owner's header and
 the check's credit, not here. Which specs should also bind other authors is still being
 settled. Leaf targets desktop first, so judge layout at a representative desktop
 viewport.
@@ -25,10 +25,11 @@ viewport.
 
 A change the user didn't make moves nothing they are reading, pointing at or typing into,
 since that would take their place and their aim away in the middle of the task
-(`../SOUL.md`, "Preserve the user's attention and work"). Every hold costs code on each
-later change, so the guarantee is owed to the paths users take often: a rare path the
-user takes in at a glance may move what is on screen rather than carry a mechanism of its
-own (`../SOUL.md`, "Keep the foundation small and extensible").
+(`../skills/leaf/SOUL.md`, "Preserve the user's attention and work"). Every hold costs
+code on each later change, so the guarantee is owed to the paths users take often: a
+rare path the user takes in at a glance may move what is on screen rather than carry a
+mechanism of its own (`../skills/leaf/SOUL.md`, "Keep the foundation small and
+extensible").
 
 A hold rule is tested in `tests/journeys/test_page_holds_still.py`, whose cases cross
 places the user can be with changes that can arrive. A new rule joins it as a place, a
@@ -161,7 +162,8 @@ rule draws at once is drawn.
 ### Typed words survive
 
 Words the user has typed are work they haven't sent yet, so nothing Leaf does takes them
-away or moves them out of reach (`../SOUL.md`, "Preserve the user's attention and work").
+away or moves them out of reach (`../skills/leaf/SOUL.md`, "Preserve the user's
+attention and work").
 
 - **Typed words stay in their native editor until the user puts them away.** A box
   holding words closes only on a key or press meant to close it (Send, Cancel, Escape, a
@@ -189,8 +191,8 @@ away or moves them out of reach (`../SOUL.md`, "Preserve the user's attention an
 ### A gesture shows its result at once
 
 What the user's act decides by itself appears as they make it, so they see that it took
-effect without waiting on the server (`../SOUL.md`, "Make the work concrete and
-playable"). Root `AGENTS.md`, "Responsiveness" and "The document starts state; the log
+effect without waiting on the server (`../skills/leaf/SOUL.md`, "Make the work
+concrete and playable"). Root `AGENTS.md`, "Responsiveness" and "The document starts state; the log
 changes it", say which results the browser draws and which wait for the server's
 reading.
 
@@ -206,15 +208,16 @@ reading.
   gesture by its attempt.
 - **A refused or undone gesture gives back what it took.** A refusal restores the
   server's state, and delivery says why in the notice seat. A refused send returns the
-  words to their box (`standGesture` in `drafts.js`), and a gesture that moved the user,
-  such as resolving a thread, leaves them at its place again (`undo.js` owns where undo
-  leaves the user).
+  words to their box (`standGesture` in `drafts.js`), an undone message or rewrite
+  returns them to the draft they were written in (`giveBackWords`), and a gesture that
+  moved the user, such as resolving a thread, leaves them at its place again (`undo.js`
+  owns where undo leaves the user).
 
 ### Controls are few and quiet
 
 Leaf's controls compete with the page's own words for the reader's attention, so each
 earns its place against the content and takes no more room or emphasis than its task
-needs (`../SOUL.md`, "Let the user work as directly as in a terminal").
+needs (`../skills/leaf/SOUL.md`, "Let the user work as directly as in a terminal").
 
 - **A surface at rest shows only what its task needs**, and the leaf's menu holds the
   rest. Symbols, below, are no licence for more controls.
@@ -243,8 +246,8 @@ needs (`../SOUL.md`, "Let the user work as directly as in a terminal").
 
 Hovering, Tabbing onto or holding a press on a mark, control or value shows its whole word
 and a preview of what pressing it opens, or of the fact it stands for, so the user can
-judge whether to go there before going (`../SOUL.md`, "Make the work concrete and
-playable").
+judge whether to go there before going (`../skills/leaf/SOUL.md`, "Make the work
+concrete and playable").
 
 - **A preview reads and never acts.** It says where a thread stands, what a link points
   at, what caused a change or the time behind an age; a control's says its word and
@@ -310,7 +313,8 @@ playable").
 ### Visual treatment carries meaning
 
 Each treatment draws the eye, so each marks hierarchy or state, and a difference the
-reader sees always means something (`../SOUL.md`, "Let the user work as directly as in a terminal").
+reader sees always means something (`../skills/leaf/SOUL.md`, "Let the user work as
+directly as in a terminal").
 
 - **Contours are solid.** A dotted or dashed line marks a distinct state, such as a
   drag placeholder. One contour shows one control state, and a segmented group shares
@@ -331,7 +335,7 @@ reader sees always means something (`../SOUL.md`, "Let the user work as directly
 ### Motion is brief and keeps the user oriented
 
 Motion helps the eye follow a change, and costs the user time whenever they wait for it
-(`../SOUL.md`, "Preserve the user's attention and work").
+(`../skills/leaf/SOUL.md`, "Preserve the user's attention and work").
 
 - **Nothing the user must read, press or decide waits on a clock.** Motion the user waits
   on stays under 300ms. A delay may hide a flicker but never adds a minimum spinner time
@@ -355,8 +359,8 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
 ### A region that must scroll behaves like the document
 
 A region that scrolls by itself splits the reader's place in two, so it moves and is
-reached like the page around it (`../SOUL.md`, "Preserve the user's attention and
-work").
+reached like the page around it (`../skills/leaf/SOUL.md`, "Preserve the user's
+attention and work").
 
 - **A necessary scroller works like part of the document.** It passes scrolling on to
   the document at its edges, except at a bounded task or a modal. Wheel and touch keep
@@ -385,9 +389,9 @@ widget that also runs off Leaf only its part any document loads,
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
-`.dependency-cruiser.mjs` enforces these boundaries and knip (`knip.config.js`) rejects
-import cycles, so imports use literal paths; only the widget and interaction loaders
-compute theirs.
+`../.config/dependency-cruiser.mjs` enforces these boundaries and knip
+(`../.config/knip.js`) rejects import cycles, so imports use literal paths; only the
+widget and interaction loaders compute theirs.
 
 Entry points per concern (paths under `runtime/`; each header owns the details):
 
@@ -741,6 +745,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed; a style property needs no guard (`keeps.js` header)           | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
+| What the floating panel's empty field says, for how long, and what its end offers                     | `field-readings.js` `FIELD_READINGS`, `readField`                                  |
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `words.js` `labelWords`, `counted`, `capitalized`                                  |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                        |

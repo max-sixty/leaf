@@ -314,6 +314,7 @@ import { declareThreadParts } from "./thread/selectors.js";
 import { inPageOrder, threadPlace } from "./thread/placement.js";
 import { isComposerDraft } from "./composing/selection.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
+import { landSent } from "./thread/landing.js";
 import {
   PAGE_DRAFT,
   draftAnchor,
@@ -1568,40 +1569,41 @@ export function createFloatingPanel({
         retype();
       },
       send: (_text, raw, owns) => {
-        let flight = null;
         streamSend();
         // A page comment has no passage, so it records the sections on screen as the
         // user sends it (reading-place.js, `sectionsInView`).
         const viewing = sectionsInView();
+        /** @type {PanelRoute | null} */
+        let route = null;
         const handle = sendMessage(
           PAGE_DRAFT,
           owns,
           (attempt) =>
-            (flight = threadActions.create({
+            threadActions.create({
               attempt,
               text: raw,
               ...(viewing.length && { viewing }),
-            })?.delivery),
+            })?.delivery,
+          // A refusal takes back the thread the send drew, which the server never held,
+          // and its view goes with it (`paintPanel`); the words go back to the page's
+          // draft. Unless the user has opened another view since, the field stands for
+          // the page again holding them, and the user who has done nothing since in it
+          // (drafts.js, `sendMessage`).
+          () => {
+            if (trail.value.length && trail.value.at(-1) !== route) return;
+            caretToField = true;
+            paint();
+          },
         );
         if (!handle) return;
         // The box empties as the send leaves; the row reads it again once it has.
         queueMicrotask(paint);
         // A page comment starts a thread, keyed by the attempt that sent it, which the
-        // panel opens so its reply follows in the same field.
-        /** @type {PanelRoute} */
-        const route = { view: "thread", thread: handle.attempt };
-        open(route, { replace: true });
-        // A refusal takes back the thread the send drew, which the server never held,
-        // and its view goes with it (`paintPanel`); the words go back to the page's
-        // draft (drafts.js, `standGesture`). Unless the user has opened another view
-        // since, the field stands for the page again holding them. The caret follows
-        // only while no later input has changed where the user is reading.
-        const untouched = retainUserIntent({ source: host });
-        void Promise.resolve(flight).then((sent) => {
-          if (sent || (trail.value.length && trail.value.at(-1) !== route)) return;
-          caretToField = untouched();
-          paint();
-        });
+        // panel opens, its reply in the same field, and the send lands the user on its
+        // view, as every send leaves its box for its thread (thread/landing.js,
+        // `landSent`).
+        route = { view: "thread", thread: handle.attempt };
+        open(route, { replace: true, part: "thread" });
       },
     });
     sync();
@@ -1616,12 +1618,12 @@ export function createFloatingPanel({
   // the thread draws into the field where the panel gives it a place
   // (`nominateThread`), so ↑ to the user's last message, the draft's editing session
   // and Send work as in a card.
-  // The panel says what the empty box reads, and a send keeps the user in the field for
-  // the next turn, landing the view at its end. A resolved thread keeps its reply box,
-  // whose empty field says Resolved before Reply, and a reply reopens the thread, as
-  // the user expects and as every thread card does. Rejected: a field that takes no
-  // words there and says only Resolved, so writing in a resolved thread takes Reopen
-  // first.
+  // The panel says what the empty box reads, and a send leaves the user on the view, as
+  // in a card (thread/landing.js, `landSent`), landing the view at its end. A resolved
+  // thread keeps its reply box, whose empty field says Resolved before Reply, and a
+  // reply reopens the thread, as the user expects and as every thread card does.
+  // Rejected: a field that takes no words there and says only Resolved, so writing in
+  // a resolved thread takes Reopen first.
   const replyOutlet = el("div", "lf-fp-reply-outlet");
   const replyInput = () => replyOutlet.querySelector(TEXT_FIELD);
   /** @type {Map<string, import("./thread/thread-card.js").ThreadReplyOptions>} */
@@ -2023,8 +2025,13 @@ export function createFloatingPanel({
     const [over] = viewOf(route).over ?? [];
     return over ? [{ view: over }, route] : [route];
   };
-  /** @param {PanelRoute} route @param {{replace?: boolean, reopen?: boolean, focus?: boolean}} [options] */
-  function open(route, { replace = false, reopen = false, focus = true } = {}) {
+  // A thread lands the user in its reply (`focusView`), or on the thread itself
+  // (`part`), as the thread a send starts does.
+  /** @param {PanelRoute} route @param {{replace?: boolean, reopen?: boolean, focus?: boolean, part?: "reply" | "thread"}} [options] */
+  function open(
+    route,
+    { replace = false, reopen = false, focus = true, part = "reply" } = {},
+  ) {
     const before = trail.value.at(-1);
     if (before && routeKey(before) === routeKey(route) && !replace) {
       if (reopen) return;
@@ -2032,7 +2039,7 @@ export function createFloatingPanel({
       return;
     }
     if (route.thread && presentation && !presentation.primary) {
-      openInPackage(route.thread, { focus });
+      openInPackage(route.thread, { focus, part });
       return;
     }
     // A view opened from a list it opens over, as a thread from Threads or On, has that
@@ -2049,16 +2056,16 @@ export function createFloatingPanel({
     if (!trail.value.some((level) => level.view === "threads")) searching = false;
     if (route.thread) arriveAt(route.thread);
     openLayer(host);
-    transition(before, { focus });
+    transition(before, { focus, part });
   }
   // Where the page's package draws its conversations, a thread opens in its reader, in
-  // its reply as a row's opening does (`focusView`), and the view it was chosen from
-  // goes, uncovering the page.
-  /** @param {string} key @param {{focus?: boolean, message?: string | null}} [options] */
-  function openInPackage(key, { focus = true, message = null } = {}) {
+  // its reply as a row's opening does (`focusView`), or on the thread a send starts
+  // (`part`), and the view it was chosen from goes, uncovering the page.
+  /** @param {string} key @param {{focus?: boolean, message?: string | null, part?: "reply" | "thread"}} [options] */
+  function openInPackage(key, { focus = true, message = null, part = "reply" } = {}) {
     if (trail.value.length) close();
     void threadActions.open(threadByKey(key)?.key ?? key, {
-      part: "reply",
+      part,
       focus,
       message,
     });
@@ -2572,8 +2579,8 @@ export function createFloatingPanel({
       if (holdRoom()) paint();
     });
   }
-  /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean}} [options] */
-  function transition(before, { focus = true, handedOn = false } = {}) {
+  /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean, part?: "reply" | "thread"}} [options] */
+  function transition(before, { focus = true, handedOn = false, part = "reply" } = {}) {
     const after = trail.value.at(-1);
     postureMoved = true;
     // The thread the user is in as the change begins, on the page or in the panel,
@@ -2604,7 +2611,7 @@ export function createFloatingPanel({
     if (!changed || !motionPlays()) {
       leaving = null;
       paint();
-      if (focus) focusView(after, drawn, stoodIn);
+      if (focus) focusView(after, drawn, stoodIn, part);
       return;
     }
     // A view a send opens rises with the box as the stream does (`streamSend`).
@@ -2632,16 +2639,18 @@ export function createFloatingPanel({
         release();
       }, release);
     } else leaving = null;
-    if (focus) focusView(after, drawn, stoodIn);
+    if (focus) focusView(after, drawn, stoodIn, part);
   }
-  /** @param {PanelRoute | undefined} route @param {PromiseLike<unknown> | null} drawn @param {string | null} [stoodIn] */
-  function focusView(route, drawn, stoodIn = null) {
+  /** @param {PanelRoute | undefined} route @param {PromiseLike<unknown> | null} drawn
+   * @param {string | null} [stoodIn] @param {"reply" | "thread"} [part] */
+  function focusView(route, drawn, stoodIn = null, part = "reply") {
     if (!route) return;
     const view = shownView();
     // A thread opens with the caret in its reply, as the one field means, once Leaf's
     // reader has drawn the reply there, from a list's row by a key as by a press
     // (thread/focus.js, `openingPart`, says why a row differs from a card); one taking
-    // no reply, as a resolved thread does, holds focus itself, so the user is in it. A
+    // no reply, as a resolved thread does, holds focus itself, so the user is in it. The
+    // thread a send starts lands the user on its view, as a send does (`landSent`). A
     // list stands on the row of the thread the user was in, where it lists it, as `g T`
     // from a thread does; else, opened by a key, in the panel or on the page as `g T`
     // is, on its first row, or its first control where it has none, or itself where it
@@ -2662,9 +2671,13 @@ export function createFloatingPanel({
       const intent = retainUserIntent();
       void Promise.resolve(drawn).then(() => {
         const at = shownView();
-        const target = at && ((!coarsePointer.matches && viewParts.reply(at)) || at);
-        if (target && trail.value.at(-1) === route && intent())
-          focusDestination(target, "move");
+        if (!at || trail.value.at(-1) !== route || !intent()) return;
+        if (part === "thread") landSent(at);
+        else
+          focusDestination(
+            (!coarsePointer.matches && viewParts.reply(at)) || at,
+            "move",
+          );
       });
       return;
     }

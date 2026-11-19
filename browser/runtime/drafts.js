@@ -820,10 +820,20 @@ export async function sendDraft(ctx, owns, send) {
 // the page refuses before posting, such as a reply to a thread being settled, drew
 // nothing: the words stay in the box and the caller hears null, as for a draft it could
 // not claim.
-/** @param {string} ctx @param {() => boolean} owns @param {(attempt: string, payload: DraftPayload | undefined) => unknown} send */
-export function sendMessage(ctx, owns, send) {
+//
+// A refusal gives back what the send took (browser/AGENTS.md, "A refused or undone
+// gesture gives back what it took"): the words to their draft (`standGesture`), and,
+// while the user has done nothing since Send, the user to the box they come back in:
+// `back`, the caller's way into that box, which says itself where a box no longer
+// stands for those words. Only whether they have acted since counts, not where focus
+// stands, since withdrawing the thread the send landed them on hands their focus on.
+// After a later key or press the words wait for Resume writing.
+/** @param {string} ctx @param {() => boolean} owns @param {(attempt: string, payload: DraftPayload | undefined) => unknown} send
+ * @param {() => unknown} back */
+export function sendMessage(ctx, owns, send, back) {
   const current = claimDraft(ctx, owns);
   if (!current) return null;
+  const untouched = retainUserIntent({ source: document.documentElement });
   const flight = send(current.attempt, current.payload);
   const answer = standGesture(ctx, current);
   if (!flight) {
@@ -865,6 +875,7 @@ export function sendMessage(ctx, owns, send) {
       writingPlace.context === sentPlace.context
     )
       keepWritingPlace(previousPlace);
+    if (!sent) untouched.handoff(back);
   });
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
@@ -1044,7 +1055,7 @@ export function keepRefusedWords(attempts) {
       .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
   // Words back where Resume writing already goes are resumed at their end too, not at
-  // the caret the send left.
+  // the start of the box the send emptied.
   const resumes = returned.find((ctx) => ctx === writingPlace?.context);
   if (resumes !== undefined && writingPlace)
     keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });

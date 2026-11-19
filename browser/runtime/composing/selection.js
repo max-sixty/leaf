@@ -770,8 +770,6 @@ export function createSelectionComposer({
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
-        const untouched = retainUserIntent({ source: document.documentElement });
-        let flight = null;
         // A send that lands the user nowhere, its conversation unshown or a later
         // gesture taking over, lets them go from the bar it took down as the
         // settlement would have (`takeDownFab`).
@@ -794,7 +792,7 @@ export function createSelectionComposer({
                   ? { text: raw, drawing }
                   : { drawing }
                 : { text: raw };
-              return (flight = createComment({
+              return createComment({
                 ...content,
                 revision,
                 attempt,
@@ -802,7 +800,16 @@ export function createSelectionComposer({
                 ...(suggestion && { suggestion: true }),
                 ...(about && { about }),
                 ...(holds && { holds }),
-              }));
+              });
+            },
+            // A refusal withdraws the thread the send drew and hands the words back to
+            // this passage's draft, and the user who has done nothing since back to its
+            // box (drafts.js, `sendMessage`), as the page comment card's does, unless
+            // another passage's composer stands meanwhile.
+            () => {
+              if (composerEpoch !== epoch || composerOpen) return;
+              const record = composerRecord(ctx);
+              if (record) openDraft(record);
             },
           );
         } finally {
@@ -814,17 +821,6 @@ export function createSelectionComposer({
         // write to the live region and would otherwise be all a listener heard. What
         // being held means is the widget's to say, as it labelled the press.
         if (holds) notice("Held until resolved");
-        // A refusal withdraws the thread the send drew and hands the words back to this
-        // passage's draft. While the user has done nothing since Send, the box comes back
-        // with them, as the page comment card's does. Withdrawing the thread the send
-        // landed them on hands their focus on (`handBack`), so where focus stands is no
-        // reading of their intent here, only whether they have acted since. After a
-        // later gesture the words wait for Resume writing.
-        void Promise.resolve(flight).then((accepted) => {
-          if (accepted || composerEpoch !== epoch || composerOpen) return;
-          const record = composerRecord(ctx);
-          if (record && untouched()) untouched.handoff(() => openDraft(record));
-        });
         const revealSent = bindQueuedWork(
           /** @param {Parameters<typeof openPageThread>[1]} options */ (options) =>
             openPageThread(sent.id, options),

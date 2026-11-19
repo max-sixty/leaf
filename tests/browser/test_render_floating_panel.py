@@ -112,11 +112,12 @@ def lead(page):
 
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
-    its new thread above the row, the same field now replying there, and resolving the
-    thread from its controls moves the user on to Threads, and ⌘Z takes them back to
-    the thread, open again. The focused field says its word, Reply over the thread,
-    whose name says which. Escape, once the caret has left the field, puts the thread
-    away."""
+    its new thread above the row and leaves the user on it, the same field now holding
+    its reply, which `c` enters, and resolving the thread from its controls moves the
+    user on to Threads, and ⌘Z takes them back to the thread, open again. The field
+    says its word, Reply over the thread, whose name says which, and the key that
+    enters it until it is focused. Escape, once the caret has left the field, puts the
+    thread away."""
     page = floating(browser, serve(LONG_PAGE))
     write(field(page), "Could the rollback cover the weekend?")
     with sending(page, "the page comment"):
@@ -129,6 +130,10 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     expect(page.locator(panel_view("thread"))).to_contain_text(
         "Could the rollback cover the weekend?"
     )
+    expect(page.locator(panel_view("thread"))).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… c"))
+    page.keyboard.press("c")
     expect(field(page)).to_be_focused()
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
 
@@ -315,7 +320,13 @@ def test_a_send_into_a_full_thread_view_starts_where_the_view_stood(browser, ser
     )
     rendered(page)
     drawn = page.evaluate(read)
-    page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
+    # A reading later in the send's rendering, as the user's landing on the view takes,
+    # cancels the motion it carries on from; only the motions still running finish.
+    page.evaluate(
+        "() => window.__lfHeld.splice(0)"
+        ".filter(motion => motion.playState !== 'idle')"
+        ".forEach(motion => motion.finish())"
+    )
     settled(page)
     assert drawn[: len(stood)] == pytest.approx(stood, abs=1), (stood, drawn)
 
@@ -682,10 +693,11 @@ def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
 
 def test_the_field_is_the_thread_s_reply_box(browser, serve):
     """The field a thread opens with is that thread's reply box, as a card's is: a rewrite
-    opened on a message is a rung below it, so Escape or Save hands the caret back to
-    the field; ↑ from the empty field opens the rewrite of the user's last message, and
-    ↑ from the start of an unchanged rewrite the message before. Resolve leaves the
-    reply as a card's does, and the field says how to reopen the thread."""
+    opened on a message is a rung below it, so Escape hands the caret back to the
+    field, and Save leaves the user on the thread's view, as a send does; ↑ from the
+    empty field opens the rewrite of the user's last message, and ↑ from the start of
+    an unchanged rewrite the message before. Resolve leaves the reply as a card's does,
+    and the field says how to reopen the thread."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     for author, text in [
@@ -739,7 +751,7 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
         "edit",
         "What about the second cohort? And the third?",
     )
-    expect(field(page)).to_be_focused()
+    expect(thread).to_be_focused()
 
     page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").focus()
     with sending(page, "the resolve"):
@@ -3412,9 +3424,10 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     """A walk's position is said where the panel says whatever passes, not against the
     window: in the empty field's place, as a notice is. The room the page shows (geometry.js, `shownWindow`) runs from the window's
     head to the panel's row whether or not a walk is under way. The position goes
-    unsaid once the caret is in the field, though its moment has not passed: on the
-    line over the field, and in the leaf's peek, which would lie on the thread's last
-    words, once the comment's thread opens over the row."""
+    unsaid once the caret is in the field, though its moment has not passed, and stays
+    unsaid once the comment's thread opens over the row and the send leaves the user
+    on it: on the line over the field, and in the leaf's peek, which would lie on the
+    thread's last words."""
     heading = "<h3>How should the schema migrate?</h3>"
     tall = "<p>The old schema has three tables, each a year of records.</p>" * 30
     page = floating(browser, serve(OBLIGATION_PAGE.replace(heading, heading + tall)))
@@ -3444,8 +3457,8 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     field(page).click()
     write(field(page), "Is this the one?")
     page.keyboard.press("Enter")
-    expect(page.locator(panel_view("thread"))).to_be_visible()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
+    expect(page.locator(panel_view("thread"))).to_be_focused()
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… c"))
     expect(page.locator(".lf-fp-peek")).to_be_hidden()
 
 

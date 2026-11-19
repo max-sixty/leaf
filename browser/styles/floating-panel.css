@@ -750,12 +750,13 @@
   }
   /* An open thread's Reply, standing at the field's end, keeps the room drafting
      reserves for the Send corner, so it doesn't move by that corner's width as writing
-     starts and ends. */
+     starts and ends. In a stance the box offers no Reply and takes no words, so a
+     stance's Close stands at its end as on the page. */
   .lf-floating-panel:is([data-lf-writing], [data-lf-drafted])
     .lf-fp-field
     .lf-compose-field
     > leaf-text,
-  .lf-fp-field .lf-compose-field > leaf-text[data-lf-says="turn"] {
+  .lf-fp-field .lf-compose-field > leaf-text[data-lf-says="turn"][data-lf-offers] {
     --lf-field-end-room: var(--lf-fp-send-room);
   }
   /* Under a mouse, once the field holds words they run the whole line and Send takes

@@ -21,18 +21,19 @@
  * - **The row**: the leaf, the comment field, and at its end one seat: the On Me mark,
  *   counting what waits on the user, with a dot while a thread holds a reply they have
  *   not read; or, while a search or a stance stands, the ✕ that ends it, so the seat
- *   never stands empty and the stance has one way out on screen. A stance owns the row
- *   while it stands, on the page and in a thread alike: the field's mode chip names it
+ *   never stands empty and the stance always has a way out on screen. A stance owns the
+ *   row while it stands, on the page and in a thread alike: the field's mode chip names it
  *   beside its ✕ in a word ("Draw", "Go to"; its scope's `says`), as a search's chip
  *   names its scope beside its own ✕ (`stanceName`), and the field takes no words
  *   (field-readings.js, `still`), offering neither Reply nor the microphone, so the row
- *   reads whose turn it is or the status, the name and the ✕. The user chose this: the
+ *   reads whose turn it is or the status, Close and esc at the field's end while Escape
+ *   would end the stance (`stanceClose`), the name and the ✕. The user chose this: the
  *   name beside its way out over the name first beside the leaf, which stood it at the
  *   row's far end from the ✕ it names; one word over "In Draw mode"; and a mode that
  *   stops the field's writing over a reply, its Send and the microphone standing
- *   beside the mode's ✕. On the page too the ✕ is the stance's one way out, so On Me's
- *   count gives the seat up while a stance stands. A draft the field holds stays,
- *   unwritable, through the stance. The ✕ takes the leaf's width, beside the
+ *   beside the mode's ✕. On the page too the ✕ is the stance's way out for a pointer,
+ *   so On Me's count gives the seat up while a stance stands. A draft the field holds
+ *   stays, unwritable, through the stance. The ✕ takes the leaf's width, beside the
  *   field; filling the room On Me keeps for its count would stand it apart from the
  *   field, which the user questioned. An open view has its ✕ on a line of its own, its
  *   head line or its tabs, and the field takes the seat's room while the view stands
@@ -207,7 +208,13 @@ import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
-import { advertisesKeys, labelOf, parsed } from "./keyboard/bindings.js";
+import {
+  advertisesKeys,
+  labelOf,
+  parsed,
+  spell,
+  titleOf as rowTitle,
+} from "./keyboard/bindings.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -357,6 +364,7 @@ import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import {
   activeCommandLabel,
+  escapeInvocation,
   innermostStance,
   pressCommand,
   standingStances,
@@ -1219,6 +1227,7 @@ export function createFloatingPanel({
       standing: () => (page ? standing() : []),
       destination: () => whereTo(drawn ?? thread),
       status: () => status().summaryParts,
+      close: stanceClose,
       pagePress,
     });
   }
@@ -5041,10 +5050,12 @@ export function createFloatingPanel({
     };
     // The caret this paint puts in the page's field starts the writing posture in the
     // same paint, so the row draws it once rather than stepping out of it and back
-    // when the field takes focus (`onCurrentLocation`).
+    // when the field takes focus (`onCurrentLocation`). While a stance stands the field
+    // takes no words, so the row holds no room for Send, and the stance's Close stands
+    // at the field's end on the page and in a thread alike (field-readings.js, `still`).
     const caretLands = caretToField && !replying && !search;
     if (caretLands) writing = true;
-    posture("data-lf-writing", writing ? "" : null);
+    posture("data-lf-writing", writing && !stanceStands() ? "" : null);
     // A draft's Send takes the corner and the quick mark steps aside, unless a way
     // out holds that seat (`quickHidden`).
     const words = Boolean(draftOf(input));
@@ -5129,6 +5140,35 @@ export function createFloatingPanel({
         return key ? [key] : [];
       },
       run: press.run,
+    };
+  }
+  // The way out of the stance the user is in, as the field's end offers it while the
+  // stance stands, on the page and in a thread (field-readings.js, `still`): Close, a
+  // press that ends the stance at once, as the ✕ beside its name does
+  // (keyboard/touch-controls.js), with `esc`, the key that leaves it. It stands only
+  // while Escape takes the stance off now, as the dispatcher reads it
+  // (`escapeInvocation`): its step is the stance's exit, or one titled as that exit, the
+  // ladder's step for the stance. Where something stands over the stance, such as a
+  // thread opened inside it or a widget's comment box in Design mode, Escape closes that
+  // first, so Close leaves the end. A finger, shown no keys, has the ✕ as its way out,
+  // so Close stands only where the page shows keys. It asks the dispatcher whether a
+  // stance stands now (`innermostStance`), as `fieldExit` does.
+  /** @returns {import("./composing/input.js").BoxPress | null} */
+  function stanceClose() {
+    const held = innermostStance();
+    const exit = held ? rows().find((entry) => entry.exit) : null;
+    if (!held || !exit || !advertisesKeys()) return null;
+    return {
+      word: actionName("close"),
+      // Read at each ask, as a notice's press's key is (`noticePress`).
+      get keys() {
+        const escape = escapeInvocation();
+        const ends =
+          escape !== null &&
+          (escape.row === held.exit || rowTitle(escape.row) === rowTitle(held.exit));
+        return ends ? [spell("Escape")] : [];
+      },
+      run: () => exit.press?.(null),
     };
   }
   // Open latest, which the field's end offers while the page shows an older version

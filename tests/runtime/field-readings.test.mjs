@@ -9,6 +9,7 @@ import { leafSays, wordsText } from "/runtime/voice.js";
 
 /** @param {string} word */
 const press = (word) => ({ word, keys: [], run: () => {} });
+const CLOSE = press("Close");
 const NEXT_ON_ME = press("Next On Me");
 const NEXT_THREAD = press("Next thread");
 
@@ -26,6 +27,7 @@ const facts = (over = {}) => ({
   standing: () => [],
   destination: () => leafSays("Comment…"),
   status: () => [leafSays("Running the browser suite")],
+  close: () => null,
   pagePress: () => null,
   ...over,
 });
@@ -108,22 +110,23 @@ test("a notice leads with nothing, a walk's step with where the user stands", ()
   assert.equal(said(behind), "v1 of 2 · “the queue fills”");
 });
 
-test("while a stance stands the field offers nothing that enters it", () => {
-  const still = { still: true, pagePress: () => NEXT_ON_ME };
+test("while a stance stands the field's end offers its Close, on the page and in a thread", () => {
+  const still = { still: true, close: () => CLOSE, pagePress: () => NEXT_ON_ME };
   const page = readField(facts(still));
   assert.deepEqual(
     [wordsText(page.words), page.end],
-    ["Running the browser suite", NEXT_ON_ME],
+    ["Running the browser suite", CLOSE],
   );
-  assert.equal(readField(facts({ still: true })).end, null);
+  // Where Escape would close something over the stance first, nothing stands there.
+  assert.equal(readField(facts({ ...still, close: () => null })).end, null);
   const thread = readField(facts({ ...still, thread: true }));
   assert.deepEqual(
     [thread.says, wordsText(thread.words), thread.end],
-    ["turn", "", null],
+    ["turn", "", CLOSE],
   );
   assert.equal(
     readField(facts({ ...still, error: { message: "Couldn't load v3" } })).end,
-    null,
+    CLOSE,
   );
   // Words selected on the page are commented on in a box of their own.
   assert.equal(

@@ -4529,9 +4529,9 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
 
 def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode takes the
-    row: the field says the status and takes no words, its end offers nothing that
-    would enter it, and its mode chip names the mode in a word beside the ✕ at the
-    row's end, which stands where the On Me mark ends, as close to the field as the leaf
+    row: the field says the status and takes no words, its end offers Close and esc,
+    the mode's way out, rather than Next On Me, and its mode chip names the mode in a
+    word beside the ✕ at the row's end, which stands where the On Me mark ends, as close to the field as the leaf
     stands at the row's start; the ✕ leaves the mode and the On Me mark comes back.
     A press on the field leaves the caret where it was and moves neither the field nor
     its ✕, and `c`, which would write there, leaves it too. A thread opened in the mode,
@@ -4555,7 +4555,10 @@ def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
     annotations.locator(".lf-fp-item", has_text="Draw mode").click()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(field(page)).to_have_attribute("data-lf-says", "status")
-    expect(field(page)).not_to_have_attribute("placeholder", re.compile("Draw|Close"))
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile("Draw|Next"))
+    close = field_press(page)
+    expect(close.locator(".lf-compose-press-word")).to_have_text("Close")
+    expect(close.locator("kbd")).to_have_text("esc")
     assert field(page).evaluate("el => el.readOnly")
     expect(page.locator(".lf-fp-mode")).to_have_text("Draw")
     exit_step = page.locator('.lf-fp-quick .lf-fp-exit[aria-label="Exit Draw mode"]')
@@ -4588,6 +4591,7 @@ def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(panel_view("threads"))).to_have_count(0)
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    expect(close.locator("kbd")).to_have_text("esc")
     exit_step.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-fp-on-user")).to_be_visible()

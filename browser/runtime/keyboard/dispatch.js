@@ -519,8 +519,10 @@ export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 // (close-requests.js): whether a press would take a step now, and taking it, through
 // the row's `keep` where it declares one (bindings.js).
 const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
-/** The step Escape would take now, or null. */
-const escapeInvocation = () => {
+/** The step Escape would take now, or null: what a surface that names Escape's step
+ * reads, as the floating panel's Close says `esc` only while Escape takes the stance
+ * off. */
+export const escapeInvocation = () => {
   const matched = resolveKey(escapePress());
   return matched && matched !== INPUT_PENDING ? matched : null;
 };

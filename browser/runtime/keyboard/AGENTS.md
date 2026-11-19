@@ -125,8 +125,9 @@ between matches, a drawing's composer can undo a stroke, and the page's field ca
 comment on selected words. Page scope rows therefore have no touch labels: each row
 that runs a press declares `touch: false` or is the `exit` of a stance accessible by
 touch. Examples include page search, the target picker and Draw mode. The panel
-offers the innermost active stance's exit as one ✕ at its row's end, named beside it.
-It leaves the stance even where Escape would first
+offers the innermost active stance's exit as one ✕ at its row's end, named beside it,
+and as Close with `esc` at its field's end while Escape would take the stance off. The ✕
+leaves the stance even where Escape would first
 close something inside it or take back a typed hint letter. The register
 refuses a page command without `touch` and a scope row whose `run` is neither `exit`
 nor `touch: false`.

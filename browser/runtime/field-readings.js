@@ -26,28 +26,34 @@
  *
  * While a stance stands the field takes no words (`still`): the user asked that a mode
  * stop writing in the field, and that its Reply… and microphone go, so the row reads the
- * field's words, the mode's name and its ✕. Its end then offers no press that enters
- * the field; a press that acts elsewhere, such as commenting on selected words in a
- * box of their own, stays. A draft the field holds stays in it, unwritable, until the
- * stance ends.
+ * field's words, then Close and esc at its end, then the mode's name and its ✕. Its
+ * end offers the stance's Close (`close`) in place of a press that enters the field and
+ * of the page's own; a press that acts elsewhere, a notice's after the user's gesture or
+ * commenting on selected words in a box of their own, stays. The user chose Close and
+ * esc there over Next On Me, since the end shows the key for the press that matters
+ * most, and in a stance that is the way out; `m` still walks On Me. A draft the field
+ * holds stays in it, unwritable, until the stance ends.
  *
  * The field's end offers one press, the one that matters most at that moment (`end`):
  * - "key": the key that enters the field, after the words, as Reply's c;
  * - "comment": Comment… and that key, as the field says at rest;
  * - "moment": a notice's own press after the user's gesture, such as a Resolve's Next
- *   thread and t (notifications.js, `press`); else the page's own press, Open latest on
- *   an older version or Next On Me while On Me lists anything (floating-panel.js,
- *   `pagePress`); else Comment… and its key. In a thread, Reply… and its key, as the
- *   field says at rest, so the key never stands alone after the notice's words;
+ *   thread and t (notifications.js, `press`); else in a stance its Close; else the
+ *   page's own press, Open latest on an older version or Next On Me while On Me lists
+ *   anything (floating-panel.js, `pagePress`); else Comment… and its key. In a thread,
+ *   Reply… and its key, as the field says at rest, so the key never stands alone after
+ *   the notice's words;
  * - "none": nothing.
  * While the page holds keys pressed before it was ready, the end offers nothing, since a
  * key there would only join them. The end shows the page's shortcuts, so a press stands
  * there only while one of its keys would make it now, as the dispatcher reads it, and
  * otherwise the end shows nothing: with the caret in a card's reply, `m` types a letter,
- * so Next On Me leaves the end (composing/input.js, `enters`). A finger, which is shown
- * no keys, is shown the press's word alone, its route to the press. The user chose this,
- * since the end is there to show shortcuts, over a press standing without its key
- * wherever the caret stood. They chose a notice's press, so a Resolve that moves the
+ * so Next On Me leaves the end; with a thread opened inside a stance, Escape closes the
+ * thread before the stance, so Close leaves it (composing/input.js, `enters`). A finger,
+ * which is shown no keys, is shown the press's word alone, its route to the press, but
+ * for Close, whose route is the ✕ beside it (floating-panel.js, `stanceClose`). The user
+ * chose this, since the end is there to show shortcuts, over a press standing without
+ * its key wherever the caret stood. They chose a notice's press, so a Resolve that moves the
  * panel on says which thread it resolved and offers its next step there, over Undo and
  * ⌘Z after a Resolve. They chose Next On Me at rest while On Me lists anything over
  * Comment and c, since from reading or backing out `m` is the press they most often make
@@ -58,8 +64,8 @@
  *
  * A reading whose words name what a press on the field does (`offers`), the reply or
  * the selected words, reads in full ink with its key, and every other reads dim
- * (floating-panel.css). Every reading is said by the agent or by Leaf, each in its face
- * (voice.js). The field carries the agent's words, so nothing in it is nobody's: Leaf
+ * (floating-panel.css); a thread's in a stance says no words, so it names no press.
+ * Every reading is said by the agent or by Leaf, each in its face (voice.js). The field carries the agent's words, so nothing in it is nobody's: Leaf
  * says a stance's name, where the user stands and the words quoted, since the
  * interface's upright face would read as the agent's (the user's choice). A draft hides
  * whatever the field says, and the live region still hears what passes. */
@@ -91,6 +97,7 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * page, each part ending in its separator; nothing in a thread
  * @property {() => Words} destination where words typed in the field go
  * @property {() => Words} status the status's words
+ * @property {() => BoxPress | null} close the stance's Close
  * @property {() => BoxPress | null} pagePress the page's own press
  */
 
@@ -224,22 +231,23 @@ export function readField(f) {
       words,
       lead,
       end: endOf(reading.end, f, words),
-      offers: Boolean(reading.offers),
+      offers: Boolean(reading.offers) && words.length > 0,
     };
   }
   throw new Error("No reading claimed the field");
 }
 
 /** While the page holds keys, every reading's end offers nothing (`held`), and while a
- * stance stands, nothing that enters the field (`still`).
+ * stance stands, its Close in place of what enters the field or the page's own press
+ * (`still`).
  * @param {End} kind @param {FieldFacts} f @param {readonly (string | Said)[]} words
  * @returns {BoxPress | string | null} */
 function endOf(kind, f, words) {
   if (kind === "none" || f.held) return null;
   if (kind === "comment") return COMMENT_HINT;
-  if (kind === "key") return f.still ? null : "";
-  if (f.notice?.press) return f.notice.press;
-  if (f.still) return f.thread ? null : f.pagePress();
+  if (kind === "moment" && f.notice?.press) return f.notice.press;
+  if (f.still) return f.close();
+  if (kind === "key") return "";
   if (f.thread) return wordsText(words) ? REPLY_HINT : "";
   return f.pagePress() ?? (wordsText(words) ? COMMENT_HINT : "");
 }

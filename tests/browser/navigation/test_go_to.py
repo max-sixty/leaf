@@ -652,7 +652,8 @@ def test_an_armed_go_to_is_named_beside_the_way_out_that_closes_it_from_any_step
 ):
     """While Go-to waits for a key, the panel's row names it beside its ✕, chips or
     none, where the field says what Go-to found, and the ✕ takes the map off from any
-    step, a filter typed or none."""
+    step, a filter typed or none. The field's end says Close and esc while Escape would
+    take the map off, and nothing while it would take back a typed letter first."""
     page = open_page(
         browser,
         serve(
@@ -669,12 +670,15 @@ def test_an_armed_go_to_is_named_beside_the_way_out_that_closes_it_from_any_step
     expect(page.locator(CHIPS).first).to_be_visible()
     expect(name).to_have_text("Go to")
     expect(leave).to_be_visible()
-    expect(field).not_to_have_attribute("placeholder", re.compile("Go-to|Close"))
+    expect(field).to_have_attribute("placeholder", re.compile(r" · Close esc$"))
+    expect(field).not_to_have_attribute("placeholder", re.compile("Go-to"))
     # A filter that keeps the link's chip.
     page.keyboard.press("h")
     expect(page.locator(f"{CHIPS}:visible")).to_have_count(1)
     expect(name).to_have_text("Go to")
+    expect(field).not_to_have_attribute("placeholder", re.compile("Close"))
     page.keyboard.press("Escape")
+    expect(field).to_have_attribute("placeholder", re.compile(r" · Close esc$"))
     page.keyboard.press("t")
     expect(field).to_have_attribute("placeholder", "No visible threads")
     leave.click()

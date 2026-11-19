@@ -899,17 +899,17 @@ export function boxMotion({
       motions.set(part.element, { from, to, gaveUp: gaveUp + left });
       // A line a key takes away leaves the words before it where they stand from the
       // field's start edge and those after it where they stand from its end edge, so
-      // the words after the line the change ended in ride the end edge: drawn farther by
-      // the height the field gave up (`--lf-field-after`, composing/text-field.js). Where
-      // the end edge rose, as on a box standing on its top, they would set out from
-      // below the field's box, which cuts them off, so they stand where layout puts
-      // them. Rejected: carrying every word by one edge, the start edge or the edge
-      // that stayed, either of which moved the words on the other side of the line two
-      // ways; and drawing them below a rising edge by holding the field's overflow
-      // open, which lays a one-line field's caret out below its box.
+      // the words after the change ride the end edge, drawn farther than the rest by
+      // `--lf-field-after` (composing/text-field.js). Where the end edge rose, as on a
+      // box standing on its top, they would set out from below the field's box, which
+      // cuts them off, so they stand where layout puts them. Rejected: carrying every
+      // word by one edge, the start edge or the edge that stayed, either of which moved
+      // the words on the other side of the line two ways; and drawing them below a
+      // rising edge by holding the field's overflow open, which lays a one-line
+      // field's caret out below its box.
       const after =
         gesture === "typing"
-          ? Math.max(0, Math.min(height(from) - height(to), -dy))
+          ? Math.max(0, Math.min(from.bottom - to.bottom, 0) - dy)
           : 0;
       const reach = Math.max(0, rtl ? dx : -dx, -dy);
       if (reach > 0) hold(part.element, "overflow", "visible");

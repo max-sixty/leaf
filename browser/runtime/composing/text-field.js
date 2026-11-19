@@ -232,10 +232,13 @@ sheet.replaceSync(`
     translate: var(--lf-field-carry);
     clip-path: inset(var(--lf-field-cut));
   }
-  /* The words after the line a change ended in (data-lf-edited, field-editor.js) keep
-     their place from the field's end edge, as layout keeps them, so an owner carrying
-     the words by the start edge draws these farther by --lf-field-after. */
-  .cm-content > [data-lf-edited] ~ * { translate: var(--lf-field-after); }
+  /* The words after a change (data-lf-after, field-editor.js) keep their place from the
+     field's end edge, as layout keeps them, so an owner carrying the words by the start
+     edge draws these farther by --lf-field-after. */
+  .cm-content > [data-lf-after],
+  .cm-content > [data-lf-after] ~ * {
+    translate: var(--lf-field-after);
+  }
   /* The placeholder is one line that never widens the box — a response bar sizes to the
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */

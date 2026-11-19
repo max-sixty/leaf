@@ -1157,12 +1157,13 @@ function fieldEditor(
       EditorView.atomicRanges.of((view) => view.state.field(field)),
     ],
   });
-  // The line the last change to the words ended in. A line a key takes away moves the
-  // words after it with the field's end edge, and those before it with its start edge,
-  // so an owner carrying the words splits its carry there (text-field.js,
-  // `--lf-field-after`).
-  const editedLine = Decoration.line({ attributes: { "data-lf-edited": "" } });
-  const edited = StateField.define({
+  // The first line whose words all come after the last change: the line the change
+  // ended in where it ended at that line's start, as Backspace at the start of a line
+  // leaves it, and otherwise the line below. A line a key takes away moves those words
+  // with the field's end edge, and the words before them with its start edge, so an
+  // owner carrying the words splits its carry there (text-field.js, `--lf-field-after`).
+  const afterMark = Decoration.line({ attributes: { "data-lf-after": "" } });
+  const afterChange = StateField.define({
     create: () => Decoration.none,
     update(lines, tr) {
       if (!tr.docChanged) return lines;
@@ -1170,7 +1171,11 @@ function fieldEditor(
       tr.changes.iterChangedRanges((_fromA, _toA, _fromB, toB) => {
         end = Math.max(end, toB);
       });
-      return Decoration.set([editedLine.range(tr.state.doc.lineAt(end).from)]);
+      const { doc } = tr.state;
+      const line = doc.lineAt(end);
+      if (end === line.from) return Decoration.set([afterMark.range(line.from)]);
+      if (line.number === doc.lines) return Decoration.none;
+      return Decoration.set([afterMark.range(line.to + 1)]);
     },
     provide: (field) => EditorView.decorations.from(field),
   });
@@ -1722,7 +1727,7 @@ function fieldEditor(
         reading,
         message.of(field.message()),
         joints,
-        edited,
+        afterChange,
         livePreview,
         EditorView.lineWrapping,
         editable.of(EditorState.readOnly.of(field.readOnly)),

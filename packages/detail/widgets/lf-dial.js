@@ -183,9 +183,9 @@ const secondsAt = (block, depth) =>
 // to read: a heading a short dark bar, a picture a tinted box, text a pale bar.
 /** @param {Sizes} sizes @param {string} pointed */
 const sizeMap = (sizes, pointed) => {
-  const width = 40;
-  const gap = 18;
-  const tall = 104;
+  const width = 56;
+  const gap = 22;
+  const tall = 150;
   const scale = tall / Math.max(sizes.all, 1);
   const columns = DEPTHS.map(({ name, label }, i) => {
     const x = i * (width + gap);

@@ -32,9 +32,9 @@ each, give:
 - `text`: the message that asks it, written as that guidance says the agent writes
   one, a choice included, which Leaf posts as the agent's `leaf thread` command
   would. It holds the question, in a paragraph of its own, and around it the facts
-  true of every option and any advice, and leaves what is true of one option alone,
-  such as what choosing it does and costs, to that option's card. It marks an option
-  recommended only where the agent advised it.
+  true of every option and any advice; what is true of one option alone, such as what
+  choosing it does, goes on that option's card. It marks an option recommended only
+  where the agent advised it.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
   stands on; otherwise empty, and it stands on the page as a whole.

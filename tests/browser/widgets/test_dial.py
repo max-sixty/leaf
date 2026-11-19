@@ -158,8 +158,8 @@ def test_skim_keeps_every_picture(browser, serve):
     the page's words alone. Skim keeps each picture the page shows, with a figure's
     caption, and the heading above it: a figure, a chart, a picture in a tab, and a
     paragraph, list item or open disclosure holding one, whole, words and links
-    beside it included. A list item of blocks is laid out in place, so a gist in one
-    keeps its support folded. A picture inside a closed
+    beside it included. A section or list item of blocks is laid out in place, a
+    button among its blocks included, so a gist in one keeps its support folded. A picture inside a closed
     disclosure stays closed, since Skim shows nothing Read doesn't, and an icon HTML
     marks as decoration is no picture, so a section holding only those folds whole."""
     chart = (
@@ -181,6 +181,7 @@ def test_skim_keeps_every_picture(browser, serve):
                 '<figcaption id="key-caption">The key, before and after.</figcaption>'
                 "</figure>"
                 '<p id="cause-1">More detail.</p>'
+                '<button id="cause-copy" type="button">Copy the key</button>'
                 '<p id="shot-line">The dashboard then: '
                 '<img id="shot" alt="The dashboard" width="40" height="30"> at 3%.</p>'
                 '<p id="captioned"><img alt="The cache" width="40" height="30"><br>'
@@ -228,6 +229,7 @@ def test_skim_keeps_every_picture(browser, serve):
     for folded in (
         "#cause-0",
         "#cause-1",
+        "#cause-copy",
         "#finding-support",
         "#latency-0",
         "#views-0",

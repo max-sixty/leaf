@@ -1071,7 +1071,7 @@ def ended(
     why = (
         f"the fork failed: {failed}"
         if failed
-        else f'its last words were "{words}"'
+        else f'the fork\'s last words were "{words}"'
         if words
         else "the fork ended without answering"
     )

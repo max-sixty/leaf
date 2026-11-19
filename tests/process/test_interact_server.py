@@ -3489,6 +3489,28 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     ]
 
 
+def test_a_record_torn_before_its_newline_still_answers_its_retry(page_dir):
+    """A crash can tear an append after its record and before its newline. The
+    sender saw its send fail and sends the same attempt again, which must find the
+    record rather than append it a second time."""
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "before"}
+    )
+    torn = {
+        "id": "0badc0de",
+        "ts": "2026-11-18T12:00:00.000+00:00",
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "torn",
+        "attempt": "retried",
+    }
+    with open(page_dir / "events.jsonl", "ab") as f:
+        f.write(event_model.jsonl_line(torn).encode())
+    with service_model.PageTransaction(page_dir) as page:
+        assert page.matching_attempt(torn) == {**torn, "seq": 2}
+
+
 def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
     page_dir, monkeypatch
 ):

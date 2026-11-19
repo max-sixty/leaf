@@ -110,6 +110,24 @@ def new_event_id(events: list[dict]) -> str:
             return candidate
 
 
+def _end_last_line(f) -> None:
+    """End the log's last line, under its exclusive lease, before an append and
+    before a transaction reads the log (`service.PageTransaction`).
+
+    A crash can tear an append mid-line: SIGKILL under a buffered flush, a full
+    disk. The line discipline is the writer's, so the lease holder restores it.
+    Without this, the next event glues onto the torn fragment and one lost event
+    becomes an unreadable line mid-file. And a reader takes only whole lines
+    (`_Tail`), so a record the tear left complete but for its newline would stay
+    unread, and a retry of its attempt would be appended again."""
+    f.seek(0, os.SEEK_END)
+    if f.tell():
+        f.seek(-1, os.SEEK_END)
+        if f.read(1) != b"\n":
+            f.write(b"\n")
+            f.flush()
+
+
 def _append_event_unlocked(
     f, event: dict, events: list[dict], *, context: dict | None = None
 ) -> dict:
@@ -124,15 +142,7 @@ def _append_event_unlocked(
     else:
         event["id"] = new_event_id(events)
     event.setdefault("ts", now_iso())
-    # A crash can tear the previous append mid-line: SIGKILL under a buffered
-    # flush, a full disk. The line discipline is the writer's, so the writer
-    # restores it — without this, the next event glues onto the torn fragment
-    # and one lost event becomes an unreadable line mid-file.
-    f.seek(0, os.SEEK_END)
-    if f.tell():
-        f.seek(-1, os.SEEK_END)
-        if f.read(1) != b"\n":
-            f.write(b"\n")
+    _end_last_line(f)
     f.seek(0)
     seq = f.read().count(b"\n") + 1
     stored = event if context is None else {**event, "context": context}
@@ -228,17 +238,40 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
     return events
 
 
-# Each state read (`served_state.service.LivePage.events`) and each page transaction
-# (`service.PageTransaction.events`) parses the whole log again: in a profile of the
-# cards page `leaf-dev bench` generates, at 1,024 events, a fifth of an append and a
-# quarter of a state read. Not yet built: the page server keeps the parsed events
-# under the log's inode and length, and parses only the lines appended since, as
-# `_Tail` reads on from its place.
-def read_events(page_dir: Path) -> list:
-    path = page_dir / EVENTS_FILE
-    if not path.exists():
-        return []
-    return _parse_events(path.read_bytes())
+class _Read:
+    """The events one page's log holds, as this process has read them so far, beside
+    the place in the log they were read to."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.tail: _Tail | None = None
+        self.events: list[dict] = []
+
+
+def read_events(page_dir: Path) -> list[dict]:
+    """Every event in the page's log, as application readings take them
+    (`_parse_events`), or none where the page has no log.
+
+    The page's memory keeps the events read so far (`page_memory`), and each read
+    parses only the lines appended since (`_Tail`), so parsing costs what the log
+    gained since the last read, not its length. The list is the caller's, but every
+    reader of the page in this process shares its events, so none may change one in
+    place."""
+    log = page_dir.resolve() / EVENTS_FILE
+    held = memo(page_dir, _Read)
+    with held.lock:
+        held.tail = held.tail or _Tail(log)
+        try:
+            events = held.tail.read_on()
+        except FileNotFoundError:
+            # Another log from here on, read whole, or none.
+            held.tail, held.events = _Tail(log), []
+            try:
+                events = held.tail.read_on()
+            except FileNotFoundError:
+                return []
+        held.events += events
+        return list(held.events)
 
 
 def read_stored_events(page_dir: Path) -> list[dict]:
@@ -298,37 +331,15 @@ class _Tail:
         return events
 
 
-class _Attempts:
-    """The attempts one page's log admitted, as this process has read them so far,
-    beside the place in the log they were read to."""
-
-    def __init__(self) -> None:
-        self.lock = threading.Lock()
-        self.read: tuple[_Tail, set[str]] | None = None
-
-
 def admitted_attempts(page_dir: Path, attempts: Iterable[str]) -> set[str]:
     """Which of `attempts` the page's log holds an event sent with. The log keeps every
-    attempt it admitted, so an answer never lapses. The page's memory keeps the
-    attempts read from its log (`page_memory`), and each question reads only what was
-    appended since (`_Tail`), so asking costs what the log gained since the last
-    question, not its length."""
-    log = page_dir.resolve() / EVENTS_FILE
-    held = memo(page_dir, _Attempts)
-    with held.lock:
-        tail, admitted = held.read or (_Tail(log), set())
-        try:
-            events = tail.read_on()
-        except FileNotFoundError:
-            # Another log from here on, read whole, or none.
-            tail, admitted = _Tail(log), set()
-            try:
-                events = tail.read_on()
-            except FileNotFoundError:
-                return set()
-        admitted.update(event["attempt"] for event in events if event.get("attempt"))
-        held.read = tail, admitted
-        return admitted.intersection(attempts)
+    attempt it admitted, so an answer never lapses."""
+    asked = set(attempts)
+    return {
+        event["attempt"]
+        for event in read_events(page_dir)
+        if event.get("attempt") in asked
+    }
 
 
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:

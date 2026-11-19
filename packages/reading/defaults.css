@@ -159,6 +159,27 @@ h1 + .lede {
   margin: var(--lf-callout-margin-block) 0;
   --lf-block-frame: 1;
 }
+/* A terminal session, a command and what it printed. The command is a `<b>`, which the
+   browser already sets bold, so the eye finds each one in its output. A cut is the
+   code's muted ink rather than a sloped line, and the one thing to notice takes the
+   accent's tint under the code's own ink, which the browser's yellow and black ignore.
+   Lines wrap, breaking anywhere a path or hash offers no break: output that scrolls
+   sideways is unreadable on a phone. Copying the block copies what is selected, output
+   included; taking only the commands would need a script that rewrites the clipboard,
+   or output the selection cannot reach, which would also keep a comment from pointing
+   at it. */
+pre.terminal {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+pre.terminal i {
+  font-style: normal;
+  color: var(--lf-code-muted);
+}
+pre.terminal mark {
+  background: color-mix(in srgb, var(--lf-accent) 40%, transparent);
+  color: inherit;
+}
 /* A panel groups one working region by its heading and spacing. The content owns
    any frame it needs; a table or log does not need a second card around it. */
 section.panel {

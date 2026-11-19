@@ -54,7 +54,10 @@ type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
 /** What the ledger hands `foldThreads`: each message or rewrite as the thread draws it,
  * each settlement, and each undo. */
 export type ThreadGesture =
-  LocalMessage | LocalEdit | Settlement | Extract<Command, { kind: "undo" }>;
+  | LocalMessage
+  | LocalEdit
+  | Settlement
+  | Extract<Command, { kind: "undo" }>;
 /** A message as a served thread holds it (`Message` in `state.schema.json`): a logged
  * comment or reply naming its current content version, or a provisional reply. Its
  * `edited` joins a rewrite this tab has not sent yet, which has no `seq`, and its

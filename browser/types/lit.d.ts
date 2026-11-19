@@ -1,4 +1,4 @@
-/* @noformat Generated from Lit's package exports by build/browser/build.mjs. */
+/* Generated from Lit's package exports by build/browser/build.mjs. */
 export * from "lit";
 export * from "lit/async-directive.js";
 export * from "lit/decorators.js";

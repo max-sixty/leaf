@@ -63,6 +63,8 @@ export const NOTICE_MS = 4000;
 let noticeTimer = 0;
 // Ends the watch on what the standing notice says (`showNotice`).
 let stopWatching = () => {};
+// Whether the standing notice stands until the user's next input (`holds`, below).
+let holding = false;
 /** @type {Background | null} */
 let showingBackground = null;
 /** @type {Background[]} */
@@ -125,14 +127,22 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 // `named`). A notice offering a press (`press`) has the field's end say that press's
 // word and key, where the page's own press stands at rest.
 /** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press]
- * @param {(() => boolean) | null} [stands] @param {string | null} [about] */
-function showNotice(msg, background = null, press = null, stands = null, about = null) {
+ * @param {(() => boolean) | null} [stands] @param {string | null} [about] @param {boolean} [holds] */
+function showNotice(
+  msg,
+  background = null,
+  press = null,
+  stands = null,
+  about = null,
+  holds = false,
+) {
   presentNotice(msg, true, press, about);
   if (!background) gesture("notice");
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatching();
-  if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+  holding = holds || Boolean(press);
+  if (!holding) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
   // What the words say, and that the press can still act.
   const premises = [stands, press?.stands].filter((premise) => premise != null);
   if (!premises.length) return;
@@ -150,9 +160,10 @@ function retireNotice() {
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
-// A press stands until the user's next input rather than for its time, and no longer
-// than it can act: a gesture the log refused, or one taken back by any route, takes its
-// notice away. The panel says the
+// A notice offering a press, or one its caller holds (`holds`), as an undo's is
+// (undo.js), stands until the user's next input rather than for its time. A press
+// stands no longer than it can act: a gesture the log refused, or one taken back by any
+// route, takes its notice away. The panel says the
 // press at the field's end (field-readings.js, `end`), so one leaving on a
 // timer would take it from under a hand on its way there. An input on the press itself,
 // which `keepsNotice` marks, keeps it.
@@ -161,7 +172,7 @@ export const keepsNotice = elementDirective("keepsNotice", (element) =>
   keeps(element, NOTICE_PRESS, ""),
 );
 onUserInput((event) => {
-  if (!noticePresentation.peek().press) return;
+  if (!holding || !noticeVisible()) return;
   const path = event.composedPath?.() ?? [];
   if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
     return;
@@ -218,9 +229,11 @@ function queueBackground(entry, front = false) {
 // A held status line coalesces each producer's news; the live region announces it now.
 // `stands` says whether what the words say still holds, by signals it reads; a notice
 // offering a press stands while its press does too. `about` names the fact where the
-// user stands that the notice reports a change to (the header).
+// user stands that the notice reports a change to (the header). `holds` keeps the
+// notice until the user's next input rather than for its time, as a press does.
 /** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null,
- * press?: NoticePress | null, stands?: (() => boolean) | null, about?: string | null}} options */
+ * press?: NoticePress | null, stands?: (() => boolean) | null, about?: string | null,
+ * holds?: boolean}} options */
 export function notice(
   msg,
   {
@@ -230,6 +243,7 @@ export function notice(
     press = null,
     stands = null,
     about = null,
+    holds = false,
   } = {},
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
@@ -243,7 +257,7 @@ export function notice(
   }
   if (stands && !stands()) return;
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg, null, press, stands, about);
+  showNotice(msg, null, press, stands, about, holds);
 }
 
 // Take the notice down for something the user asked for, putting a background notice

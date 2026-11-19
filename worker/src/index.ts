@@ -35,6 +35,7 @@ import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 import type {
   Event,
+  ServedDraftsAnswer,
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
@@ -43,6 +44,7 @@ import {
   CHUNK_BYTES,
   PageStore,
   prepareStateDelivery,
+  readPageDrafts,
   readPublication,
   readPublicationCommit,
 } from "./storage";
@@ -181,6 +183,12 @@ export class LeafWebsiteSession extends Container<Env> {
     const commit = readPublicationCommit(value);
     const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
     this.pages.publish(commit, manifest);
+  }
+
+  async saveDrafts(value: unknown): Promise<ServedDraftsAnswer | null> {
+    const drafts = readPageDrafts(value);
+    const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
+    return this.pages.saveDrafts(drafts, manifest);
   }
 
   private async forward(request: Request): Promise<Response> {
@@ -333,6 +341,9 @@ async function answerPageStore(
   if (request.method === "PUT" && path === "/publication") {
     await session.savePublication(await request.json());
     return new Response(null, { status: 204 });
+  }
+  if (request.method === "PUT" && path === "/drafts") {
+    return Response.json({ drafts: await session.saveDrafts(await request.json()) });
   }
   return new Response("unknown page storage operation", { status: 404 });
 }

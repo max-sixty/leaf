@@ -1,7 +1,7 @@
 """The user's drafts on the page's server (`leaf.drafts`): a write takes only the
-generation it names, admitting a send settles the generation it carries, and tabs hear
-drafts through their own news, which moves no reading of the page and reaches no part of
-what the agent reads."""
+generation it names, admitting a send settles the generation it carries, the store
+names itself, and tabs hear drafts through their own news, which moves no reading of
+the page and reaches no part of what the agent reads."""
 
 import json
 
@@ -56,6 +56,20 @@ def test_a_draft_write_takes_only_the_generation_it_names(tmp_path):
     assert _write(tmp_path, ["a2", "a3"], "a5")["written"]
 
 
+def test_a_store_keeps_its_identity_until_its_file_is_replaced(tmp_path):
+    """A page's first reading starts its store, and every reading and write after
+    names that store, whichever process serves the page. A page directory whose drafts
+    file is replaced starts another store, whose versions say nothing of the first's."""
+    first = drafts_model.read_drafts(tmp_path)
+    assert first["version"] == 0
+    assert _write(tmp_path, [], "a1")["store"] == first["store"]
+    assert drafts_model.read_drafts(tmp_path)["store"] == first["store"]
+    (tmp_path / "drafts.json").unlink()
+    replaced = drafts_model.read_drafts(tmp_path)
+    assert replaced["store"] != first["store"]
+    assert replaced["drafts"] == {}
+
+
 def test_admitting_a_send_settles_the_generation_it_carries(server, page_dir):  # noqa: F811
     """The send settles its own generation in every tab and device, and only that one."""
     publish(page_dir)
@@ -84,7 +98,9 @@ def test_admitting_a_send_settles_the_generation_it_carries(server, page_dir):  
     status, body = fetch(f"{server}/api/event", data=json.dumps(comment).encode())
     assert status == 200, body
     # Every tab hears the send settle its draft at its next look.
-    assert json.loads(fetch(f"{server}/api/news")[1])["drafts"] > before
+    after = json.loads(fetch(f"{server}/api/news")[1])["drafts"]
+    assert after["store"] == before["store"]
+    assert after["version"] > before["version"]
 
     status, body = fetch(f"{server}/api/drafts")
     assert status == 200, body
@@ -113,7 +129,10 @@ def test_a_draft_moves_the_tabs_news_and_nothing_the_page_or_agent_reads(
     assert status == 200, body
     after = json.loads(fetch(f"{server}/api/news")[1])
     assert after["reading"] == before["reading"]
-    assert after["drafts"] == before["drafts"] + 1
+    assert after["drafts"] == {
+        "store": before["drafts"]["store"],
+        "version": before["drafts"]["version"] + 1,
+    }
 
     status, document = fetch(f"{server}/")
     assert status == 200
@@ -153,7 +172,11 @@ def test_the_log_settles_every_generation_it_admitted(tmp_path):
     sending = _write(tmp_path, [], "a2", "Words a tab in another window shows")
     append_event(tmp_path, {"kind": "comment", "text": "Sent", "attempt": "a2"})
     reading = drafts_model.read_drafts(tmp_path)
-    assert reading == {"version": sending["version"] + 1, "drafts": {}}
+    assert reading == {
+        "store": sending["store"],
+        "version": sending["version"] + 1,
+        "drafts": {},
+    }
     assert _write(tmp_path, [], "a3", "A new thought")["written"]
 
     for n in range(page_memory_model.PageMemories.LIMIT):

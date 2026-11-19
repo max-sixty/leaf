@@ -85,8 +85,5 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
     for (const [holder, record] of claims) release(holder, record);
   }
 
-  // The blocks the notes stand on.
-  const holders = () => claims.keys();
-
-  return { present, destroy, holders };
+  return { present, destroy };
 }

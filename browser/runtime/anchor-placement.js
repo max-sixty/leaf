@@ -46,10 +46,10 @@
    as well, since no reader draws the page's marks: the browser paints their live
    ranges, which the DOM moved, and a block the page drew anew wears none of what its
    old copy wore. Those who draw from placement hear which threads it placed again
-   (`hearPlaced`), as the anchor paint paints them and finds the pointer in them, and the
-   anchor controls seat a note again where its block was drawn anew, so they read no
-   change to the page themselves. A change elsewhere, as a counter a widget redraws each
-   frame, places no thread again, and reads the page again only once something asks. */
+   (`hearPlaced`), after the script that moved them, and read where each now stands
+   (`placedAt`), so they read no change to the page themselves. A change elsewhere, as a
+   counter a widget redraws each frame, places no thread again, and reads the page again
+   only once something asks. */
 import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
 import { resolvedInMessage, targetElement } from "./resolved-target.js";
 import {

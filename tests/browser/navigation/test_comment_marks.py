@@ -1258,6 +1258,42 @@ def test_notes_of_one_passage_across_two_blocks_each_follow_their_block_redrawn(
     assert _ring_round(page, "#p1[data-redrawn]")
 
 
+def test_a_note_follows_its_words_into_another_block_while_their_first_stays(
+    browser, serve
+):
+    """A script that moves a commented passage's words into another block, leaving the
+    block they stood in on the page, takes the note with them: the block that now holds
+    the words names it, and the block they left names none."""
+    url = serve(NOTED_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Moves on.",
+            "anchor": {"quote": "to land in it."},
+        },
+    )
+    page = open_page(browser, url)
+    expect_comment_notes(page, "#p1", 1)
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('p1').firstChild;
+          const moved = text.splitText(text.data.indexOf('to land in it.'));
+          document.getElementById('p2').append(moved);
+        }"""
+    )
+    rendered(page)
+    assert page.evaluate(
+        """() => [...document.querySelectorAll('.lf-mark-note')].map((note) =>
+          [...document.querySelectorAll('[aria-details]')].filter(
+            (block) => block.isConnected && block.ariaDetailsElements?.includes(note),
+          ).map((block) => block.id),
+        )"""
+    ) == [["p2"]]
+
+
 def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations(
     browser, serve
 ):

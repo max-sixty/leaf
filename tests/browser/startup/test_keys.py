@@ -345,18 +345,19 @@ def test_a_document_the_runtime_gives_up_on_lets_its_held_keys_go(browser, serve
     watched(page)
     answered = []
 
-    # The runtime's own read of the registry names another layer. The source it asks
-    # next has not moved, so the page waits on this document rather than reloading.
+    # The registry the runtime reads names another layer in its own `$layer`, which
+    # speaks for the layer since its headers may be cached from an earlier release. The
+    # source it asks next has not moved, so the page waits on this document rather
+    # than reloading.
     def foreign(route):
         if answered:
             route.continue_()
             return
         answered.append(route)
-        route.fulfill(
-            status=200,
-            headers={"Content-Type": "application/json", "Leaf-Layer": "another-layer"},
-            body="{}",
-        )
+        response = route.fetch()
+        registry = response.json()
+        registry["$layer"]["generation"] = "another-layer"
+        route.fulfill(response=response, json=registry)
 
     page.route("**/registry.json", foreign)
     held, release = _hold_startup(page, "module")

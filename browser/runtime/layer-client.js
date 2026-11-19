@@ -7,15 +7,18 @@
    session metadata and checks every successful payload against the document's layer,
    runtime and website release, including a freshness token whose body has not
    changed: a server restarted under another runtime serves state this code may not
-   read, and refuses what it sends. A foreign answer is always refused;
-   whether the page also reloads is the document source's to answer, through the same
-   probe startup recovery uses, because only a source that has moved on has a different
-   document to give and a page that reloads without one never stops. A page's record
-   survives replacement of its serving process, including a website container, so
-   process identity cannot invalidate the document. Do not let one delivery interpret
-   another's state. A refused key is read here too, for every response: it is the page
-   cut off from its log rather than an answer about any request, so the event door
-   throws it as it throws a lost connection and the page status names the link that ends it.
+   read, and refuses what it sends. A foreign answer is always refused. Only leaf.page's
+   edge names a release (`worker/src/index.ts`), so another release means the edge has
+   moved on and has a newer document to give, and the page reloads at once. Whether a
+   foreign layer or runtime reloads it is the document source's to answer, through the
+   same probe startup recovery uses, because only a source that has moved on has a
+   different document to give and a page that reloads without one never stops. A
+   page's record survives replacement of its serving process, including a website
+   container, so process identity cannot invalidate the document. Do not let one
+   delivery interpret another's state. A refused key is read here too, for every
+   response: it is the page cut off from its log rather than an answer about any
+   request, so the event door throws it as it throws a lost connection and the page
+   status names the link that ends it.
 
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but a presentation
@@ -46,14 +49,12 @@ import { failureContext, failureOf } from "./widget-upgrade.js";
 
 const { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 
-// Which delivery this page belongs to is settled by whatever serves its documents, not
-// by whoever answered last. An answer naming another generation may come from a party a
-// reload will never reach — a website container still starting the release the edge has
-// already moved past — and reloading at each such answer lands on the same document and
-// is told again, so the user spends the rollout watching the page restart. The probe
-// is the document source's own reading, as it is for startup recovery: the page's
-// release-scoped assets are gone once the edge has moved on, and the registry still
-// answers with this document's `Leaf-Layer` while it has not.
+// Which layer this page belongs to is settled by whatever serves its documents, not by
+// whoever answered last. An answer naming another generation may come from a party a
+// reload will never reach, and reloading at each such answer lands on the same document
+// and is told again, so the user watches the page restart. The probe is the document
+// source's own reading, as it is for startup recovery: the registry still answers with
+// this document's `Leaf-Layer` while the source has not moved on.
 // True when the source has a different document, false when it does not, and undefined
 // when the probe could not be read or names no layer, which settles nothing and leaves
 // the question open for the next foreign answer.
@@ -65,10 +66,7 @@ async function sourceMovedOn() {
   } catch {
     return undefined;
   }
-  if (response.status === 404) return Boolean(release);
   if (!response.ok) return undefined;
-  const servedRelease = response.headers.get("Leaf-Release");
-  if (release && servedRelease) return servedRelease !== release;
   if (!sameRuntime(response)) return true;
   const generation = response.headers.get("Leaf-Layer");
   return generation ? generation !== layerGeneration : undefined;
@@ -270,38 +268,22 @@ export class RequestError extends Error {
   /** @param {string} message
    * @param {{status: number; body: string; cause?: unknown;
    *   current?: import("../types/contract.js").ServedFileSnapshot | undefined;
-   *   said?: string | undefined; retryAfter?: number | undefined}} details */
-  constructor(message, { status, body, cause, current, said, retryAfter }) {
+   *   said?: string | undefined}} details */
+  constructor(message, { status, body, cause, current, said }) {
     super(message, { cause });
     this.status = status;
     this.body = body;
     this.current = current;
     this.said = said;
-    this.retryAfter = retryAfter;
   }
-}
-
-// A server that can't take a request yet answers 503 and names in `Retry-After` the
-// seconds to wait before sending it again, as the website's edge does for the minutes
-// a deploy takes to roll a visitor's container onto the new release
-// (`worker/src/index.ts`, `rollingOut`). That wait in milliseconds, or undefined for
-// any other answer.
-/** @param {Response} response */
-function retryWait(response) {
-  const seconds = Number(response.headers.get("Retry-After") ?? NaN);
-  return response.status === 503 && Number.isFinite(seconds)
-    ? seconds * 1000
-    : undefined;
 }
 
 // The page's JSON requests beside the event door and the state reads: the layer's
 // headers out, the answer admitted, and the JSON read off the text so an error page a
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
-// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body, the wait a
-// server that can't take the request yet names (`retryAfter`) and, for a file the
-// server holds newer than the draft, its `current`. Whether to send it again is the
-// caller's: the server may already have run the request, since the website's edge
-// refuses a container's answer only after the container has handled it.
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a file
+// the server holds newer than the draft, its `current`. Whether to send it again is the
+// caller's.
 /** The server owns the response contract named by each endpoint caller.
  * @template T @param {string} url @param {RequestInit} init @param {string} what
  * @returns {Promise<T>} */
@@ -317,7 +299,6 @@ export async function requestJson(url, init, what) {
       status: response.status,
       body: text,
       cause,
-      retryAfter: retryWait(response),
       ...details,
     });
   let answer = null;
@@ -378,7 +359,7 @@ function admitted(response, ofThisLayer) {
     return false;
   }
   if (release && responseRelease && responseRelease !== release) {
-    reloadDelivery("Leaf has been updated — reloading this page.");
+    reloadNow("Leaf has been updated — reloading this page.");
     return false;
   }
   holdWaiting(null);

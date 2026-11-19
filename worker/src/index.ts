@@ -7,8 +7,10 @@
  * Python Leaf server, which restores the record before admission and publishes the
  * record and matching delivery atomically before acknowledgement. Python owns all
  * event and activity rules; this Worker stores and routes their output.
- * New releases select new demo records. A previous container image during rollout is
- * refused rather than letting it interpret the new release's document.
+ * New releases select new demo records. Only the edge names a release to the browser:
+ * it stamps its own on every answer, a container's included, and the page store refuses
+ * a container whose image runs another release, so a previous image still starting
+ * during a rollout fails rather than reading or writing the new release's records.
  * Disposable sample URLs carry the opaque container object ID alongside their own
  * random capability, so an opaque-origin child uses native requests without a browser
  * session cookie. This routing reference selects a container only beneath that sample
@@ -60,7 +62,6 @@ import { proxyModelRequest } from "./model-proxy";
 import {
   activeCookie,
   activeFromCookie,
-  clearActiveCookie,
   isLivePageDocumentRequest,
   isPageApiRequest,
   isPageSessionFileRequest,
@@ -255,10 +256,11 @@ interface HttpFailure {
 // 500, and that 500's body is the SDK's sentence about the failure, such as a
 // connection lost mid-request or a container that did not accept one. The SDK logs
 // the exception behind some of those, not reliably with its message, and none for a
-// lost connection. Python stamps its own answers and logs page_fault. Retain the
-// SDK's sentence as `detail`, and add neither Python's body nor the request URL.
+// lost connection. Python names the session on its own answers (`Leaf-Session`,
+// `WebsitePageEndpoint`) and logs page_fault. Retain the SDK's sentence as `detail`,
+// and add neither Python's body nor the request URL.
 async function httpFailure(response: Response): Promise<HttpFailure> {
-  if (response.headers.has("Leaf-Release")) return { source: "adapter" };
+  if (response.headers.has("Leaf-Session")) return { source: "adapter" };
   const body = await readBoundedText(response.clone(), 1024).catch(() => null);
   return body === "Container suddenly disconnected, try again" ||
     body?.startsWith("Error proxying request to container:")
@@ -644,39 +646,6 @@ async function staticState(
   return answer;
 }
 
-// Cloudflare activates a Worker and its assets in one operation and rolls the container
-// application's image out in another, so for the first minutes of a deployment the edge
-// already serves the new release while containers still answer for the previous one. The
-// browser's only move against a foreign release is to reload, and the document it would
-// reload onto is the one this edge just gave it, so handing that answer on leaves the
-// page restarting for as long as the rollout runs. The edge answers for itself instead:
-// the user is unseated, reads the published projection at the release their document
-// belongs to, and waits to send rather than landing a gesture in a container that is
-// about to be replaced.
-async function rollingOut(
-  request: Request,
-  env: Env,
-  manifest: SiteManifest,
-  route: PageRoute,
-  reference: string,
-  cookies: string[],
-): Promise<Response> {
-  let answer: Response;
-  if (request.method === "GET" && route.inside === "api/state") {
-    answer = await staticState(request, env, manifest, route, reference);
-  } else {
-    // A history load reuses a stored answer without asking, so a stored refusal would
-    // stand in for the document or API answer after the rollout ends.
-    answer = new Response("this release is still starting", {
-      status: 503,
-      headers: { "Retry-After": "5", "Cache-Control": "no-store" },
-    });
-    stampDelivery(answer.headers, route, manifest, reference);
-  }
-  for (const cookie of cookies) answer.headers.append("Set-Cookie", cookie);
-  return answer;
-}
-
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestStarted = Date.now();
@@ -743,6 +712,7 @@ export default {
       const fetched = await env.PAGES.get(id).fetch(request);
       const response = new Response(fetched.body, fetched);
       response.headers.delete("Set-Cookie");
+      response.headers.set("Leaf-Release", manifest.release);
       // Only the container can admit this capability. After admission, retain the
       // same bounded, redacted cloud evidence as a parent batch; the clone lets
       // the native request also keep its full local trace.
@@ -841,12 +811,6 @@ export default {
     }
     const posted = request.method === "POST" && route.inside === "api/event";
     const response = await getContainer(env.PAGES, privateContainer).fetch(request);
-    const containerRelease = response.headers.get("Leaf-Release");
-    if (containerRelease !== null && containerRelease !== manifest.release) {
-      const cookies = [clearActiveCookie(secure, route.root)];
-      if (existing === null) cookies.push(sessionCookie(sessionId, secure));
-      return rollingOut(request, env, manifest, route, reference, cookies);
-    }
     if (posted) {
       const accepted = await acceptedEvent(response);
       if (accepted) {
@@ -887,6 +851,7 @@ export default {
       answer.headers.delete("Content-Encoding");
     }
     answer.headers.set("Leaf-Session", "active");
+    answer.headers.set("Leaf-Release", manifest.release);
     answer.headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
       answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));

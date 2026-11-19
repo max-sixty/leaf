@@ -170,26 +170,25 @@ sequenceDiagram
           deploy attempt gets its own. Published runtime files are served under
           <code>/_leaf-release/&lt;release&gt;/</code> with immutable cache headers. The
           document names its release, the browser sends it with every API request, and
-          each API response names the release that produced it.
+          the Worker names the release it serves on every API response, a container's
+          included.
         </p>
         <p id="releases-refusal">
           The runtime refuses a response from another release. The page's state is read
           by the scripts and widgets the document has loaded, and a document cannot
           replace those in place, so state from another build would be read by code not
-          built for it. The runtime then asks the document's source whether it now
-          serves a different release. If it does, the page says Leaf has been updated
-          and reloads; if not, it waits for the server to finish updating.
+          built for it. Only the Worker names a release, so a response from another
+          release means the site was deployed after the page loaded: the page says Leaf
+          has been updated and reloads onto the new release's document.
         </p>
         <p id="releases-rollout">
           Cloudflare activates a new Worker and its assets before the new container
-          image has rolled out, so for some minutes a new container can still start on
-          the previous release. The session's Durable Object refuses that container its
-          saved record, which the new release may store in a form the previous one can't
-          read, so the container starts without it. When a container answers with a
-          release other than the Worker's, the Worker does not pass that answer on. It
-          clears the page's active cookie, serves the published state for
-          <code>api/state</code>, and answers other requests with a 503 asking the
-          browser to retry, until containers on the new release answer.
+          image has rolled out, so for some minutes a session's container can still
+          start on the previous image. The session's Durable Object refuses that
+          container before it reads or writes anything, and the container exits, so
+          every record a release's sessions hold was written by that release. Until the
+          rollout reaches a visitor's container, what they do on the page shows as not
+          through yet and is sent again until it lands, and a reload shows an error.
         </p>
         <p id="releases-deploy">
           A push to <code>main</code> that changes the site runs the

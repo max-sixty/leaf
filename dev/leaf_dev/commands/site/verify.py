@@ -32,7 +32,6 @@ from leaf_dev.browser import go_to_threads, headless_shell, panel_view
 from leaf_dev.startup import startup_line, startup_profile, startup_reading
 from leaf_dev.website import (
     SITE,
-    STILL_STARTING,
     AgentSession,
     LocalWorker,
     activation_read,
@@ -140,7 +139,6 @@ def verify_page(
     activation = activation_url(url, passive_response.json())
     # No wait here: `--wait` reruns the whole pass until the release verifies.
     activation_response = activation_read(context, activation)
-    activation_response = check(activation_response, f"{activation} {STILL_STARTING}")
     check(
         activation_response.headers.get("leaf-session") == "active",
         f"{activation} did not activate a private container",
@@ -161,13 +159,10 @@ def verify_page(
         state_response.headers.get("leaf-session") == "active",
         f"{state_url} did not reach a private container",
     )
-    check(
-        state_response.headers.get("leaf-release") == release,
-        f"{state_url} reached a different container release",
-    )
     state = state_response.json()
     check(
-        state.get("release") == release, f"{state_url} body belongs to another release"
+        state.get("release") == release,
+        f"{state_url} reached a container on another release",
     )
     check(
         state.get("publication", {}).get("kind") == kind,
@@ -215,10 +210,7 @@ def verify_cross_tab_activation(
         neighbor = f"{origin}/"
         state_url = urljoin(neighbor, "api/state")
         state = read_state(context.request, state_url).json()
-        check(
-            activation_read(context, activation_url(neighbor, state)) is not None,
-            f"{neighbor} {STILL_STARTING}",
-        )
+        activation_read(context, activation_url(neighbor, state))
         settle_after_activation()
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")

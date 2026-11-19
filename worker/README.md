@@ -166,11 +166,11 @@ The workflow:
   to answer a real turn with a reply and a published revision.
 
 Cloudflare activates the Worker before the new container image has rolled out. Until
-it has, a container on the previous release answers, the Worker replaces that answer
-with the published state or a `503` with `Retry-After`, and the `--wait` reruns the
-check. The session's page store refuses such a container (`worker/src/storage.ts`), so
-it starts without the session's record rather than reading one the new release shaped,
-and logs `page_restore_refused`.
+it has, a session's container can still start on the previous image. The session's
+page store refuses that container (`worker/src/storage.ts`), so it exits before
+serving and the `--wait` reruns the check. A visitor who acts on the page meanwhile
+sees it as not through yet, and the page sends it again until the rollout reaches
+their container.
 
 ### One-time setup
 
@@ -241,9 +241,9 @@ deploy.
 Do not use `wrangler rollback`. It reactivates an earlier Worker version, whose assets
 name the earlier release. Cloudflare's rollback documentation says resources connected
 to the Worker are not changed and does not mention containers, so expect the container
-image to stay on the newer release. Every container would then name a release other than
-the Worker's, and the Worker answers each private request with `503` (`rollingOut` in
-`worker/src/index.ts`), so no visitor could comment or act until the next deploy.
+image to stay on the newer release. Every container would then run a release other
+than the Worker's, which the page store refuses (`worker/src/storage.ts`), so no
+container would start and no visitor could comment or act until the next deploy.
 
 ## Diagnostics
 
@@ -536,7 +536,7 @@ The records to read first:
 
 The session's `component=leaf-container`, `event=http_error` records identify
 forwarded HTTP 5xx responses by status, method, `source` and `retried`:
-`adapter` means the response carried Python's `Leaf-Release` stamp;
+`adapter` means the response carried Python's `Leaf-Session` stamp;
 `disconnected` means it matched one of the Containers SDK's proxy-failure
 responses; `unclassified` means neither was established. A `disconnected`
 record's `detail` is the SDK's sentence, which names the failure:
@@ -637,9 +637,9 @@ Each container is a custom instance of one vCPU and 3 GiB (`wrangler.toml` gives
 reason). `max_instances` caps them at 1,470 for production and 20 for `dev`, under the
 account's default limit of 1,500 concurrent vCPU. A container with no requests stops
 after ten minutes (`sleepAfter` in `worker/src/index.ts`). A rollout replaces a
-container as soon as it reaches it, however recently the container started
-(`rollout_active_grace_period = 0`, whose reason `wrangler.toml` gives). The adapter
-exits on the `SIGTERM` that replacement sends, ending any agent turn it was running.
+container as soon as it reaches it, however recently the container started. The
+adapter exits on the `SIGTERM` that replacement sends, ending any agent turn it was
+running.
 
 ### Sandbox and rate limits
 

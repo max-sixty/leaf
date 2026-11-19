@@ -157,12 +157,14 @@ export {
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
 // `whenNear` for the reader to near a node, then each starts the work;
-// `deferredArrival` counts work the widget has already started.
+// `deferredArrival` counts work the widget has already started, and `frameArrival`
+// work in a frame's document, while the browser renders it.
 export {
   PAGE_INTERFACE,
   PRESENTATION,
   afterPresentation,
   deferredArrival,
+  frameArrival,
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";

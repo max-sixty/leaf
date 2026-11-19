@@ -218,8 +218,12 @@ Run a heavy renderer that can wait until the user has the page through
 `afterPresentation(() => …)`, or until they come near its element through
 `whenNear(element, () => …)`, which returns the step that stops waiting. Pass work that starts now but need not delay
 presentation, such as a slow load whose result moves nothing visible, to
-`deferredArrival(promise)`. Checks and tests that wait for the page wait for the work
-each has started; `page check --render` starts what `whenNear` holds.
+`deferredArrival(promise)`. Work in an iframe's document that has an origin of its own,
+whose landing waits for the browser to render that document, goes to
+`frameArrival(frame, promise)` instead: Chrome stops rendering such a frame while it is
+off screen or folded away, so the page counts the work only while the frame shows.
+Checks and tests that wait for the page wait for the work each has started;
+`page check --render` starts what `whenNear` holds and brings each such frame into view.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
 now would move what the user sees, pass the work to the widget controller's
 `present(promise)` instead, so it lands before presentation.

@@ -45,19 +45,22 @@ const readings = new Map();
 let readingId = 0;
 
 /** What `frame`'s holding page shows of it: `shown()` says whether any of the frame is
- * drawn on screen. `callback` runs when the frame crosses into or out of the
+ * drawn on screen, and `read()` whether the browser has said yet, which it does at its
+ * next rendering. `callback` runs when the frame crosses into or out of the
  * containing viewports, and when an attribute that can hide or exclude it changes on
  * the frame or an element holding it, which no observer of geometry hears. `stop`
  * disconnects. */
 /** @param {Element} frame @param {() => unknown} callback */
 export function watchFrame(frame, callback) {
   let intersecting = false;
+  let read = false;
   const seen = new IntersectionObserver(
     (entries) => {
       for (const {
         intersectionRect: { width, height },
       } of entries)
         intersecting = width > 0 && height > 0;
+      read = true;
       callback();
     },
     // Edge adjacency is already "intersecting" at zero area, so a positive threshold
@@ -80,6 +83,7 @@ export function watchFrame(frame, callback) {
       intersecting &&
       frame.checkVisibility({ visibilityProperty: true }) &&
       getComputedStyle(frame).contentVisibility !== "hidden",
+    read: () => read,
     stop: () => {
       seen.disconnect();
       styled.disconnect();

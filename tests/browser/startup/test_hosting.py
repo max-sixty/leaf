@@ -20,7 +20,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered, start_near_work, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -356,10 +356,11 @@ def held_sample_page(
     return page, release
 
 
+READINESS = "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+
+
 def readiness(frame):
-    return frame.evaluate(
-        "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
-    )
+    return frame.evaluate(READINESS)
 
 
 def live_sample(sample_id, attributes="", content="<p>Practice</p>"):
@@ -402,8 +403,9 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     browser, serve
 ):
     """A block sample below the window but near it starts loading before the reader
-    reaches it, and the page presents and takes keys without it, reading as arriving
-    until it has. A reader who scrolls
+    reaches it, and the page presents and takes keys without it. Off screen, where the
+    browser stops rendering it, the page counts none of its arrival; once the reader
+    scrolls to it, the page reads as arriving until it has. A reader who scrolls
     to it while it loads sees its frame keep its loading height as the child arrives,
     so what follows stays put, until the frame leaves their sight or the tab is
     hidden. A wheel over the frame scrolls past it and claims nothing. Once they click
@@ -449,9 +451,10 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     )
     holding(page, held, 1, "the sample's document")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    assert readiness(page) == "arrived"
+    page.wait_for_function(f"{READINESS} !== 'arrived'")
     frame = page.locator("#practice iframe")
     frame.scroll_into_view_if_needed()
+    page.wait_for_function(f"{READINESS} === 'arrived'")
     loading = frame.bounding_box()["height"]
     after = page.locator("#after").bounding_box()
     # The sample's document goes on; the inner sample's, once asked for, waits.
@@ -534,6 +537,46 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     expect(child.locator("#more")).to_have_attribute("open", "")
     grows_to(child.locator("body").evaluate(body))
     grows_to(child_grows(2000))
+
+
+def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it(
+    browser, serve
+):
+    """Chrome gives a sample's page off screen one rendering and no more, so a chart in
+    a sample a window below draws only once its frame shows. The page reads as ready
+    without it, and a check that reads every document the page can show brings the
+    frame into view, waits for its chart, and puts the window back."""
+    chart = (
+        '<lf-chart id="line" data-height="120"><pre>'
+        '{ariaLabel: "A rising line", marks: [Plot.lineY([1, 3, 2, 4])]}'
+        "</pre></lf-chart>"
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.goto(
+        serve(
+            leaf_page(
+                "Charts",
+                "<h1>Charts</h1>"
+                + live_sample("shown", " window", chart)
+                + '<div style="height: 900px"></div>'
+                + live_sample("below", " window", chart),
+            )
+        )
+    )
+
+    def drawn(sample):
+        return (
+            page.locator(f"#{sample} iframe")
+            .content_frame.locator("lf-chart.lf-rendered")
+            .count()
+        )
+
+    wait_until_ready(page)
+    assert (drawn("shown"), drawn("below")) == (1, 0)
+    start_near_work(page)
+    assert drawn("below") == 1
+    assert page.evaluate("scrollY") == 0
 
 
 def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(

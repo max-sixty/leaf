@@ -2,6 +2,8 @@ import {
   USER_VIEW_RESTORE_CASES,
   scrolling,
   exceptionText,
+  scrollIntoView,
+  unshownFrames,
   upFrom,
 } from "/runtime/check-api.js";
 import { readThreads, threadActions } from "/runtime/widget-api.js";
@@ -11,6 +13,22 @@ import { openRoots } from "./open-roots.js";
 // Work the page holds back until the reader nears its node, such as each live
 // sample's page, started at once (`start_near_work`).
 export { startNearWork } from "/runtime/check-api.js";
+
+// The frames this check has brought into view (`showUnshownFrame`).
+const shownForCheck = new WeakSet();
+// Bring into view the next frame whose document waits for it to show and that scrolling
+// can show, such as a live sample's a window below; false once none is left that this
+// has not shown. A frame in a shut tab or a closed disclosure stays as the page has it.
+export function showUnshownFrame() {
+  for (const frame of unshownFrames()) {
+    if (shownForCheck.has(frame) || !frame.checkVisibility({ visibilityProperty: true }))
+      continue;
+    shownForCheck.add(frame);
+    scrollIntoView(frame, { block: "nearest" });
+    return true;
+  }
+  return false;
+}
 
 // The runtime has started once its chrome, the floating panel, is in the page.
 export const runtimeStarted = () =>

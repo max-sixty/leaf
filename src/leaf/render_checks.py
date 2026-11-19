@@ -478,9 +478,22 @@ def start_near_work(page, state: dict | None = None, **ready) -> None:
     """Start the work the page holds back until the reader nears its node, such as
     each live sample's page, and wait until the page has taken it in, as
     `wait_until_ready` waits with `state` and `ready`. A check reads every document the
-    page can show, not only those near the window it opened at."""
+    page can show, not only those near the window it opened at.
+
+    A sample's page off screen gets no rendering after its first, so the page counts
+    what it still has to draw only while its frame shows (presentation.js,
+    `frameArrival`). Each such frame is brought into view in turn and waited for, then
+    the window goes back to where it stood."""
     evaluate_probe(page, "startNearWork")
     wait_until_ready(page, state, **ready)
+    place = page.evaluate("() => [scrollX, scrollY]")
+    moved = False
+    while evaluate_probe(page, "showUnshownFrame"):
+        moved = True
+        wait_until_ready(page, state, **ready)
+    if moved:
+        page.evaluate("([x, y]) => scrollTo(x, y)", place)
+        wait_until_ready(page, state, **ready)
 
 
 def install_window_errors(page, heard) -> None:

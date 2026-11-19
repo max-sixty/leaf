@@ -856,7 +856,10 @@ export default {
     if (existing === null) {
       answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active)
+    // Only Python's own answer, which names its session, shows the container holds the
+    // page. The Containers SDK's failure for a container that never started would
+    // otherwise pin every later read to that container until the visitor's cookie ends.
+    if (!active && response.headers.has("Leaf-Session"))
       answer.headers.append(
         "Set-Cookie",
         activeCookie(secure, route.root, manifest.release),

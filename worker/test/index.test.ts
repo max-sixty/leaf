@@ -1218,7 +1218,7 @@ describe("product-site delivery", () => {
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { reading: "private" },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
@@ -1797,7 +1797,7 @@ describe("product-site delivery", () => {
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { browser: { basis: { through_seq: 0 } } },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
@@ -1819,11 +1819,35 @@ describe("product-site delivery", () => {
     );
   });
 
+  it("leaves the reader passive when their container never answered", async () => {
+    const sessionId = "1c".repeat(16);
+    // The Containers SDK's own failure, as for a container that exited while starting:
+    // no answer from Python, so nothing in the container holds the page.
+    const containerFetch = vi.fn(
+      async (_request: Request) =>
+        new Response("Failed to start container", { status: 500 }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+
+    const response = await worker.fetch(
+      new Request(
+        "https://leaf.page/examples/triage-board/api/view?revision=2&through_seq=0",
+        { headers: { Cookie: `__Host-leaf-page=${sessionId}` } },
+      ),
+      environment(),
+      executionContext(),
+    );
+
+    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(response.status).toBe(500);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+  });
+
   it("routes concurrent first uploads through the identity minted by the document", async () => {
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { path: "/media/0123456789abcdef.png" },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);

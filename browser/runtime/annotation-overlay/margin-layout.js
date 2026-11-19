@@ -295,13 +295,18 @@ export const THREAD_CARD = "lf-margin-preview";
 // The selector names a held row or the part inside it that holds it (`heldRows`), so
 // one query over the layer finds them all without asking `:has()` of every row.
 const ROW = ".lf-margin-cluster";
-const HELD = `${ROW}:is(:hover, :focus-within, [data-lf-options-expanded]), ${ROW} :is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HOLDS_ROW = ":is(:hover, :focus-within, [data-lf-options-expanded])";
+const HOLDS_PART = `:is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HELD = `${ROW}${HOLDS_ROW}, ${ROW} ${HOLDS_PART}`;
 /** @param {Layer} layer */
 const heldRows = (layer) =>
   new Set(
     [...layer.projection.querySelectorAll(HELD)].map((part) => part.closest(ROW)),
   );
 let pending = 0;
+// The rows the last pass held (`layoutMountedRows`), which `letGo` asks after.
+/** @type {ReturnType<typeof heldRows>} */
+let heldAtPass = new Set();
 
 // What the last pass read to seat each row it can seat again without reading: the row's
 // read, its home before any push, a pin's prepared seats and cover, and the band of the
@@ -776,7 +781,7 @@ function heardFaces(records) {
   if (!restyled.size || faceCheck) return;
   faceCheck = nextRender(() => {
     faceCheck = 0;
-    if (resizedFaces()) layoutMarginRows();
+    if (resizedFaces() || letGo()) layoutMarginRows();
   });
 }
 const faces = new MutationObserver(heardFaces);
@@ -796,6 +801,24 @@ function resizedFaces() {
   }
   restyled.clear();
   return resized;
+}
+// Whether a row the last pass held, as an open card or options hold one, is held no
+// longer. A held row keeps no record and stands where it stood, as a row since gone
+// pushed it, so a pass seats it afresh beside its target. The attribute that lets it go
+// changes no size, so it brings that pass here, in the rendering of the gesture that
+// let it go, rather than leaving the row at its old seat until some later change takes
+// it there with no input. It asks only the rows held, so a face's change costs the
+// same however many rows the page holds.
+function letGo() {
+  for (const row of heldAtPass)
+    if (
+      row instanceof HTMLElement &&
+      rows.has(row) &&
+      !row.matches(HOLDS_ROW) &&
+      !row.querySelector(HOLDS_PART)
+    )
+      return true;
+  return false;
 }
 // Takes in the face records a pass would otherwise drop with its own (`heardFaces`).
 function takeFaceRecords() {
@@ -1917,6 +1940,7 @@ function layoutMountedRows(layer) {
   const { scrollX: windowX, scrollY: windowY } = window;
   // A row the user holds is read afresh, so it is seated from where it stands.
   const holding = heldRows(layer);
+  heldAtPass = holding;
   /** @param {HTMLElement} row */
   const keptSeating = (row) => (holding.has(row) ? null : seatings.get(row));
   /** @type {Map<HTMLElement, Seating>} */

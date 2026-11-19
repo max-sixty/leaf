@@ -840,6 +840,7 @@ export class MessageView {
               options,
             ),
           land: () => this.#commands.edit.land(this.node),
+          saved: () => this.#commands.edit.saved(this.node),
           paint: () => this.#commands.edit.paint(this.node),
           previous: () => this.#commands.edit.previous(presentation.model.id),
           reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),

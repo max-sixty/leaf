@@ -262,10 +262,10 @@ ROW_FOOT = """box => {
 def send_reply(page, thread, box, words):
     """Type `words` into the thread's reply box, its lines on Shift+Enter, and send
     them; return where the row's foot stood before the send and after it drew."""
-    # A send keeps the caret in the box, so only the first reply clicks into it: a
-    # click scrolls its target, ring room and all, into view, which no typing does.
-    if not box.evaluate("box => box.matches(':focus')"):
-        box.click()
+    # A send leaves the user on the thread, and a click on the box takes them back to
+    # it where it stands.
+    box.click()
+    expect(box).to_be_focused()
     for at, line in enumerate(words.split("\n")):
         if at:
             page.keyboard.press("Shift+Enter")
@@ -498,10 +498,9 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
 def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
     """Pressing a box's submit control is its send key pressed from the box, so it leaves
     the user where Enter would, never on the button, where the next letters fall on
-    nothing. A box that stays to take more keeps them in it, typing on, and so does a
-    reply's, on a card, in a widget's thread and in the panel alike. The comment that
-    starts a thread finishes what they were writing, whichever of a box's two sends
-    starts it: they stand on the thread's card or title, and `c` writes the follow-up."""
+    nothing: on the thread, a reply's on a card, in a widget's thread and in the panel
+    alike, and the comment that starts a thread, whichever of a box's two sends starts
+    it, on that thread's card, seat or view. `c` writes the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`,
@@ -523,9 +522,8 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
     rendered(page)
     expect(after).to_be_focused()
     expect(after).to_be_visible()
-    if after != reply:
-        page.keyboard.press("c")
-        expect(reply).to_be_focused()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
     page.keyboard.type("ok")
     expect(reply).to_have_js_property("value", "ok")
     expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
@@ -647,13 +645,10 @@ def test_a_seat_send_in_a_bounded_block_moves_the_block_and_not_the_page(
             f"send {n + 1} moved the page {after - before}px"
         )
         assert shown_in(page, sent, hub), f"send {n + 1} left its turn out of view"
-        # The first send leaves the user on the thread it started, a reply in its box.
-        focused = page.locator("#jobs :is(leaf-text, .lf-page-thread):focus")
-        expect(focused).to_have_count(1)
+        # Each send leaves the user on the thread, the first on the one it started.
+        expect(page.locator("#jobs .lf-page-thread")).to_be_focused()
         if n:
-            assert shown_in(page, focused, hub), (
-                f"send {n + 1} left the box out of view"
-            )
+            assert shown_in(page, box, hub), f"send {n + 1} left the box out of view"
 
 
 def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_panel(browser, serve):

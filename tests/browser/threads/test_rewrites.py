@@ -400,8 +400,9 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     in Feed mode, across by its inset. The rewrite is a comment box whose
     frame and padding stand around the words, which keep their place; where the thread
     draws its reply box under the message, the rewrite takes its width. Discard and
-    Save take the message's head, and every way out steps back up to the reply box,
-    leaving the thread as it was.
+    Save take the message's head. Escape and Discard step back up to the reply box,
+    and Save leaves the user on the thread, as a send does, leaving the thread as it
+    was.
 
     In the margin card, the reply box's growth-following reading a reply row the
     rewrite has none of would throw on each keystroke in the rewrite; the browser
@@ -478,17 +479,31 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(thread).to_be_visible()
     expect(reply).to_be_focused()
-    # Saved, the new words take the box's place, and the user is located in the reply box.
+    # Saved, the new words take the box's place, and the user stands on the thread.
     words.dblclick()
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Fit the bracket.")
     page.keyboard.press("Enter")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(words).to_have_text("Fit the bracket.")
-    expect(reply).to_be_focused()
+    landed = {
+        "panel": thread,
+        "seat": thread,
+        "card": thread.locator(".lf-page-thread"),
+        "feed": thread.locator(
+            ".lf-primary-part",
+            has=page.locator(
+                f'.lf-msg[data-lf-event="{message.get_attribute("data-lf-event")}"]'
+            ),
+        ),
+    }[surface]
+    expect(landed).to_be_focused()
     round_trip(page)
     rendered(page)
     unmoved()
+    # From there, `c` writes in the thread's reply box.
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
 
     # Editing an earlier message is still work in this thread; the reply being
     # composed keeps its own words while the rewrite opens and closes beside it.
@@ -1546,9 +1561,9 @@ def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
 @pytest.mark.watch_shifts
 def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serve):
     """Saving a rewrite reopens its thread, which would drop the user's focus on the list
-    the thread was read from. The save carries them into the open thread, landing in its
-    reply box, with nothing moving after the key (the user's decision)."""
-    page, _, message = _rewrite_surface(browser, serve, "panel", resolved=True)
+    the thread was read from. The save leaves them on the open thread, as a send does,
+    with nothing moving after the key."""
+    page, view, message = _rewrite_surface(browser, serve, "panel", resolved=True)
     settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     expect(settle).to_have_accessible_name("Reopen")
     reply = page.locator(PANEL_REPLY)
@@ -1565,11 +1580,12 @@ def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serv
     page.keyboard.press("Enter")
     holding(page, held, 1, "the rewrite")
     expect(settle).to_have_accessible_name("Resolve thread")
-    expect(reply).to_be_focused()
+    expect(view).to_be_focused()
     held.pop().continue_()
     round_trip(page)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket. Now.")
-    expect(reply).to_be_focused()
+    expect(view).to_be_focused()
+    expect(reply).to_be_visible()
     page.unroute_all(behavior="wait")
 
 

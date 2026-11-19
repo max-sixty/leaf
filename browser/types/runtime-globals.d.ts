@@ -366,7 +366,8 @@ interface Element {
     | import("../runtime/annotation-overlay/margin-cluster-view.js").MarginEntry
     | undefined;
   lfFirstSpilledOption?:
-    import("../runtime/annotation-overlay/margin-cluster-view.js").Item | undefined;
+    | import("../runtime/annotation-overlay/margin-cluster-view.js").Item
+    | undefined;
 }
 
 interface DocumentEventMap {

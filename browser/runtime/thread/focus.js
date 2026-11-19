@@ -116,7 +116,7 @@ export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 // a resolved one too, which the reply reopens. A resolved thread takes the user's box
 // along only while a reply is being written in it (`replyIsEditing`): carrying the
 // caret would otherwise open a card that settlement closed again, over a box the user
-// had finished with or never began in, as the empty box a send or an opening leaves.
+// never began in, as the empty box an opening leaves.
 /** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
   restrictUserIntent(intent, () => {

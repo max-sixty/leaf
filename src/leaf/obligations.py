@@ -912,11 +912,12 @@ class _ObligationReducer:
         earlier = []
         remaining = iter(prior()) if prior is not None else iter(())
 
+        # Each earlier revision's registrations, asked of its reading once per read.
         def history():
             yield from earlier
-            for previous in remaining:
-                earlier.append(previous)
-                yield previous
+            for old_revision, old in remaining:
+                earlier.append((old_revision, old, old.inventory.items))
+                yield earlier[-1]
 
         for record in self.records:
             unit = record["attrs"].get("id")
@@ -945,8 +946,8 @@ class _ObligationReducer:
                 and "restated" not in record["attrs"]
                 and prior is not None
             ):
-                for old_revision, old in history():
-                    registration = old.inventory.items.get(unit)
+                for old_revision, old, registrations in history():
+                    registration = registrations.get(unit)
                     if registration is None or registration.tag != record["tag"]:
                         break
                     if registration.asking:

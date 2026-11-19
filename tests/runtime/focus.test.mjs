@@ -234,6 +234,24 @@ test("delayed work gives way to any input since its gesture", () => {
   assert.equal(typed(), false);
 });
 
+// A send refused after it moved the user onto a thread that a widget draws in its own
+// shadow root returns them to the box, as it does where the thread sits in the page.
+test("delayed work taken for the page counts a move inside a widget's shadow tree as its own", () => {
+  scene();
+  const host = document.createElement("div");
+  const box = document.createElement("input");
+  const thread = document.createElement("section");
+  thread.tabIndex = -1;
+  host.attachShadow({ mode: "open" }).append(box, thread);
+  document.body.append(host);
+  focusDestination(box, "move");
+  const untouched = retainUserIntent({ source: document.documentElement });
+  focusDestination(thread, "move");
+  assert.equal(untouched(), true);
+  key(thread);
+  assert.equal(untouched(), false);
+});
+
 test("a placement takes an element of another window as an element", () => {
   // A playground's preview is a same-origin frame, whose elements are instances of its
   // own window's `Element`, not this one's, and its range control puts focus back

@@ -856,18 +856,21 @@ def open_card(page, built, thread):
     return card
 
 
-def put_card(thread, *, words=False, on=None, tabbed=False):
+def put_card(thread, *, words=False, on=None, tabbed=False, left=False):
     def put(page, built):
         card = open_card(page, built, thread)
         if words:
             card.get_by_role("textbox", name="Reply", exact=True).click()
             page.keyboard.type("Half a thought")
+        if left:
+            page.keyboard.press("Escape")
+            expect(card.locator(".lf-page-thread")).to_be_focused()
         rest(page, on, tabbed)
 
     return put
 
 
-def put_panel(thread, *, words=False, on=None, tabbed=False):
+def put_panel(thread, *, words=False, on=None, tabbed=False, left=False):
     def put(page, built):
         """Open `thread` in the floating panel from Threads."""
         scroll_to(page, "#p-20", 300)
@@ -880,6 +883,9 @@ def put_panel(thread, *, words=False, on=None, tabbed=False):
         if words:
             page.locator(PANEL_REPLY).click()
             page.keyboard.type("Half a thought")
+        if left:
+            page.keyboard.press("Escape")
+            expect(view).to_be_focused()
         rest(page, on, tabbed)
 
     return put
@@ -888,9 +894,11 @@ def put_panel(thread, *, words=False, on=None, tabbed=False):
 def floating_places():
     """The places in a thread's two floating boxes, the margin card and the floating
     panel's view: writing a reply, on Send with the reply written, the caret in the
-    empty reply box, and the pointer resting on Resolve at the box's head, with and
-    without words in the reply box, in a thread whose next message is news (`told`) and
-    in one whose next message answers the user (`asked`)."""
+    empty reply box, on the thread itself, where a send and Escape from the box leave
+    the user, which waits at its reply box (thread/reply-landing.js, `standsAt`), and
+    the pointer resting on Resolve at the box's head, with and without words in the
+    reply box, in a thread whose next message is news (`told`) and in one whose next
+    message answers the user (`asked`)."""
     for thread in ("told", "asked"):
         for box, put, reply, resolve, send in (
             ("card", put_card, CARD_REPLY, CARD_RESOLVE, CARD_SEND),
@@ -914,6 +922,13 @@ def floating_places():
                 f"{box}-caret-{thread}",
                 "floating",
                 put(thread),
+                Found(reply),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-thread-{thread}",
+                "floating",
+                put(thread, left=True),
                 Found(reply),
                 {"thread above": thread},
             )
@@ -1761,9 +1776,9 @@ MOVES_ON_MAIN = {
 # rule's owner records the choice, and a change of mind there flips the case to a pass,
 # whose strict mark then fails until its entry goes.
 EMPTY_REPLY = (
-    "a card grows down past the empty reply box a send or an opening left the caret "
-    "in, 239px, so the answer shows under the words read (thread-preview.js, the "
-    "user's choices)"
+    "a card grows down past the empty reply box an opening left the caret in, or the "
+    "thread a send left the user on, 239px, so the answer shows under the words read "
+    "(thread-preview.js, the user's choices)"
 )
 # News that grows a thread's box may carry its secondary controls from under a resting
 # pointer, while the words the user is writing and their Send stay (browser/AGENTS.md,
@@ -1786,7 +1801,8 @@ RESOLVE_OVER_WORDS = (
 )
 MOVES_BY_CHOICE = {
     **{
-        f"card-caret-{thread}-reply-above-{engine}": EMPTY_REPLY
+        f"card-{place}-{thread}-reply-above-{engine}": EMPTY_REPLY
+        for place in ("caret", "thread")
         for thread in ("told", "asked")
         for engine in ENGINES.values()
     },

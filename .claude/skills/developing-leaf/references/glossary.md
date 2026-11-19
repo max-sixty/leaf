@@ -1,6 +1,3 @@
-<!-- @noformat -->
-<!-- Table padding exceeds the harness's 30,000-character single-read limit. -->
-
 # Leaf glossary
 
 The canonical names for the page a user sees and operates. Use them in element

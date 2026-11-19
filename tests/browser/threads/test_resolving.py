@@ -318,8 +318,10 @@ class Surface(NamedTuple):
     unreachable: frozenset = frozenset()
 
 
-# A Reopen lands the caret in the thread's reply, which keeps ⌘Z for its words.
-REOPENED_IN_THE_BOX = frozenset({"landing"})
+# A Reopen lands the caret in the thread's reply, which keeps ⌘Z for its words, so
+# neither ⌘Z nor the notice's Undo, which stands only while ⌘Z would make it, takes
+# the Reopen back there.
+REOPENED_IN_THE_BOX = frozenset({"landing", "notice"})
 
 FILLER = "".join(
     f"<p id='f{i}'>Filler {i}. " + "Words. " * 30 + "</p>" for i in range(30)
@@ -411,7 +413,7 @@ def panel_surface(browser, serve, gesture):
         aside,
         away,
         returned,
-        REOPENED_IN_THE_BOX | {"notice"} if gesture == "reopen" else frozenset(),
+        REOPENED_IN_THE_BOX if gesture == "reopen" else frozenset(),
     )
 
 

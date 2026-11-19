@@ -20,9 +20,9 @@ export const WALK = "lf-walk";
 /** @typedef {{target: unknown, position: number, total: number, qualifier: string}} WalkPosition
  * @typedef {{list?: (() => readonly (Element | null | undefined)[]) | null, about?: string | null}} WalkFacts
  * @typedef {{key: string, noun: string | null, read: () => WalkPosition | null,
- *   target: unknown, list: WalkFacts["list"], about: string | null}} Walking */
+ *   target: unknown, about: string | null}} Walking */
 /** @type {Walking | null} */
-let walking = null; // never a list snapshot
+let walking = null;
 
 // "Thread 2 of 5"; for a walk over several kinds, which names its list in the
 // qualifier, "2 of 5 waiting on me".
@@ -96,7 +96,7 @@ export function beginWalk(key, noun, read, { list = null, about = null } = {}) {
     return null;
   }
   const before = walking;
-  walking = { key, noun, read, list, about, target: position.target };
+  walking = { key, noun, read, about, target: position.target };
   const words = walkPosition()?.text ?? null;
   if (!window.dispatchEvent(new CustomEvent(WALK, { cancelable: true, detail: list })))
     walking = before;

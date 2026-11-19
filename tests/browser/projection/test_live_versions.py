@@ -21,6 +21,7 @@ from render_harness import (
     is_problem,
     latest_press,
     leaf_page,
+    open_latest,
     open_page,
     open_threads,
     page_comment,
@@ -498,7 +499,9 @@ def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_com
         expect(page.locator("#wt-line")).to_have_text(
             "The cutover has not started yet."
         )
-        latest.click()
+        # The caret in the comment leaves the field's end no press; its run is a
+        # finger's press there, which shows its word alone.
+        open_latest(page)
         wait_for_revision(page, 2)
         expect(page.locator("#wt-line")).to_have_text(
             "The cutover finished on Tuesday."

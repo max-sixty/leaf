@@ -336,20 +336,35 @@ const placeOf = (node) => {
   const [scroller] = scrollersOf(place);
   return scroller && !stuckBox(place, scroller) ? place : null;
 };
-// The caret a click on a focused container's words leaves, where it lies in what the
-// container shows outside the box it stands at: the letter after it, which the keep
-// holds as it holds words at the reading line. A message the user clicked in a thread
-// is where they stand, though the thread waits at its reply box, so it stays as a
-// message above it grows or an answer joins below it, and the box moves. A caret in
-// the box, or in a field the user types in, is the box's or field's to hold, since
-// typing and a send rewrite the words the range holds.
+// The words a click on a focused container left the caret in, outside the box it
+// stands at. A message the user clicked in a thread is where they stand, though the
+// thread waits at its reply box. A caret in the box, or in a field the user types in,
+// is the box's or field's, since typing and a send rewrite the words there.
+/** @param {Element} node */
+const caretWords = (node) => {
+  const text = getSelection()?.focusNode;
+  return text instanceof Text &&
+    text.length &&
+    node.contains(text) &&
+    !boxStoodAt(node)?.contains(text)
+    ? text
+    : null;
+};
+// Where the user on `node` stands: on the words a click there left the caret in, else at
+// the box `node` stands at, as a user on a thread, where a send leaves them, waits at its
+// reply box, else on `node` itself.
+/** @param {Element} node @returns {Element} */
+export const standingAt = (node) =>
+  caretWords(node)?.parentElement ?? boxStoodAt(node) ?? node;
+// The caret a click on a focused container's words leaves (`caretWords`), where it lies
+// in what the container shows: the letter after it, which the keep holds as it holds
+// words at the reading line, so the message stays as a message above it grows or an
+// answer joins below it, and the box moves.
 /** @param {Element} node @returns {Range | null} */
 const caretPlace = (node) => {
+  const text = caretWords(node);
   const selection = getSelection();
-  const text = selection?.focusNode;
-  if (!selection || !(text instanceof Text) || !text.length || !node.contains(text))
-    return null;
-  if (boxStoodAt(node)?.contains(text)) return null;
+  if (!text || !selection) return null;
   const at = Math.min(selection.focusOffset, text.length - 1);
   const caret = document.createRange();
   caret.setStart(text, at);

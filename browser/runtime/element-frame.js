@@ -109,7 +109,7 @@ export function elementFrame(source) {
       ]),
     };
   }
-  const layout = elementBorderFrame(source);
+  const layout = elementBorderFrame(source, box);
   if (!layout) return null;
   const { width, height, matrix } = layout;
   const style = getComputedStyle(source);
@@ -159,12 +159,10 @@ export function elementFrame(source) {
   return { box, width, height, matrix };
 }
 
-// The element's CSS border box, for consumers cloning its computed presentation.
-// Intrinsic content coordinates are a separate reading supplied by elementFrame.
-/** @param {Element} source */
-function elementBorderFrame(source) {
-  const box = shownBox(source);
-  if (!box?.width || !box?.height) return null;
+// The element's CSS border box, given the box elementFrame already read. Intrinsic
+// content coordinates are a separate reading elementFrame adds.
+/** @param {Element} source @param {DOMRect} box */
+function elementBorderFrame(source, box) {
   const style = getComputedStyle(source);
   if (style.display === "contents")
     return {

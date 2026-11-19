@@ -683,7 +683,7 @@ def test_an_armed_go_to_names_itself_and_closes_from_any_step(browser, serve):
     page.locator(".lf-fp-field").get_by_text("Close", exact=True).click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
-    expect(field).not_to_have_attribute("placeholder", re.compile("Go to"))
+    expect(field).not_to_have_attribute("placeholder", re.compile("Go-to"))
 
 
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):

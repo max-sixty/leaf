@@ -5559,8 +5559,8 @@ def test_a_pasted_image_s_thumbnail_arrives_at_its_picture_s_size(browser, serve
         }"""
     )
     field(page).click()
-    with page.expect_request(re.compile(r"/media/[^/]+\.png$")):
-        dispatch_paste(field(page), solid_png(40, 30, (255, 128, 64)))
+    dispatch_paste(field(page), solid_png(40, 30, (255, 128, 64)))
+    holding(page, held, 1, "the picture's bytes")
     page.evaluate(
         "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
     )

@@ -1290,10 +1290,11 @@ export function createFloatingPanel({
       (error) => !error.seen && !saying.includes(error) && !standsAtItsBox(error),
     );
   }
-  // The page field's readings whose words say something other than a press there, so
-  // its end says the press: the status, a passing notice, and the words selected on the
+  // The readings whose words say something other than a press there, so the field's
+  // end says the press: the status, a passing notice, and the words selected on the
   // page, which the user chose to end in Comment… and c, as the field
-  // does at rest, over c alone right after the quote.
+  // does at rest, over c alone right after the quote. A thread's field ends a notice in
+  // Reply… and c, as it says them at rest.
   const SAYS_ELSE = new Set(["status", "notice", "selection"]);
   // Where the user stands on the page, which the page field's words say before the
   // status, the words selected on the page or a walk's position, each for as long as
@@ -1637,8 +1638,13 @@ export function createFloatingPanel({
           hintParts: (drawn) => fieldHint(key, replyInput(), drawn),
           hintLead: (drawn) => turnLead(key, replyInput(), drawn),
           // A notice passing over the thread's field offers its press at the field's
-          // end, as over the page's (`fieldReading`, `offer`).
-          enters: () => fieldReading(key, replyInput()).offer ?? "",
+          // end, as over the page's (`fieldReading`, `offer`), and one offering none
+          // leaves Reply there with the key that enters the field, as the page's says
+          // Comment, so the key never stands alone after the notice's words.
+          enters: () => {
+            const { says, words, offer } = fieldReading(key, replyInput());
+            return offer ?? (SAYS_ELSE.has(says) && wordsText(words) ? REPLY_HINT : "");
+          },
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it
@@ -2143,7 +2149,7 @@ export function createFloatingPanel({
   // a layer the command opens records the leaf as where its close returns (focus.js,
   // `openLayer`), folding leaves the user on the leaf it folds to, and a command that
   // places the user elsewhere still does. The command runs on the panel the put-away
-  // drew, and may then open a view or fold the panel, as `z` showing a thread does. The
+  // drew, and may then open a view or fold the panel, as ⌘Z showing a thread does. The
   // row's posture (`rowPress`) waits for the command to return, so it is written once,
   // from where the press found the panel to where the command leaves it, rather than for
   // the empty row in between as well; a view the command opens after an `await` changes

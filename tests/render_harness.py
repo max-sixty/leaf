@@ -1236,11 +1236,11 @@ def ticked(page):
     page.wait_for_function("() => window.__lfTicked")
 
 
-# `z` is the one press whose subject is read rather than pointed at, so the dispatcher
+# ⌘Z is the one press whose subject is read rather than pointed at, so the dispatcher
 # holds it dead while the page holds a gesture no log read has accounted for — this
 # press's own trip included (unrecordedGesture). Every other press acts on what is under
 # the user and can be made the moment the paint is there; the paint arrives a turn
-# before the trip it was made on is over, so a `z` made on it is a press the dispatcher
+# before the trip it was made on is over, so a ⌘Z made on it is a press the dispatcher
 # refuses, and what the refusal leaves behind is the page an assertion on the un-undone
 # state would find anyway. A test cannot tell that from an undo that did the wrong thing:
 # it reads the no-op as the wrong answer, or waits its budget out and calls it a hang.
@@ -1252,13 +1252,13 @@ def ticked(page):
 # moment it is made, and a `round_trip` that reads the counters before the browser has
 # reported the request is a wait on a page that has not started moving.
 def undo(page):
-    """Take the last gesture back, from the moment the dispatcher would take `z`."""
+    """Take the last gesture back, from the moment the dispatcher would take ⌘Z."""
     page.evaluate(AVAILABLE_COMMANDS)
     page.wait_for_function(
-        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('Mod+z') ?? false"
     )
     with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
 
 
 # Each command the dispatcher would run from the current location, by its id, with the

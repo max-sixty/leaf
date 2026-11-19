@@ -27,7 +27,7 @@ vars:
       <p>
         A card's Resolve is a ✓ beside ✕. One press closes the card, removes the
         marker and the passage underline, and ends the thread's open questions. The
-        only way back is <kbd>z</kbd> or Threads → Resolved. Once resolved, the panel
+        only way back is <kbd>⌘Z</kbd> or Threads → Resolved. Once resolved, the panel
         says “Resolved · reopen to reply”, but that line can't be pressed. The only
         Reopen is the same ✓ in green, which reads as a “done” badge.
       </p>

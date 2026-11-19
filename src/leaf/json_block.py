@@ -13,6 +13,15 @@ takes past it goes by pointer. Printing the value compactly, to fit more deliver
 inline, is the alternative a later change might reach for; it puts the value back on
 one line among the instructions.
 
+The text that holds a block, this one or another fenced block such as a delivery's
+pointer (`delivery.delivery_pointer_prompt`), sets it apart with a blank line before
+it, as it sets apart any paragraph, so the fence doesn't read as the last line of the
+sentence that introduces it. The maintainer asked for that blank line before every
+code block in Leaf's prompts. The block holds no blank line of its own: a value can
+stand alone, as Codex's hook context does, where a block that opened with one would
+start the text with a stray blank line, and the prompt that holds a block would
+get a blank line its own text doesn't show.
+
 A value inside a sentence, such as a tool call's argument a fork's prompt names or a
 value a finding quotes, stays inline as a word of that sentence (`json.dumps`,
 `registry.schema.json_value`). A tool result that holds the value alone, such as

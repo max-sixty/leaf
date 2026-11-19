@@ -13,6 +13,7 @@ metadata:
 vars:
   prompt: |
     You are a Claude Code session using Leaf. You just received this complete inline envelope from Leaf's prompt hook:
+
     ```json
     {
      "format": "leaf-delivery/51",
@@ -126,6 +127,7 @@ variants:
     vars:
       prompt: |
         You are a Claude Code session using Leaf, two hours into reviewing this page with the user. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of their comments since, so act on this delivery without reloading them. You just received this complete inline envelope from Leaf's prompt hook:
+
         ```json
         {
          "format": "leaf-delivery/51",

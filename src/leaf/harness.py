@@ -1123,10 +1123,10 @@ def claude_code_entered(transcript: Path) -> set[str]:
         except ValueError:
             continue
         for content in attachment.get("content") or []:
-            if (delivery := inline_delivery(content)) is not None:
+            if (inline := inline_delivery(content)) is not None:
                 entered.update(
                     event["id"]
-                    for batch in delivery["batches"]
+                    for batch in inline[0]["batches"]
                     for event in batch["events"]
                 )
     return entered

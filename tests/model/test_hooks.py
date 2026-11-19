@@ -66,7 +66,7 @@ from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
-from leaf.json_block import json_block, read_json_block
+from leaf.json_block import read_json_block
 from leaf.registry.storage import LAYER, layer_record
 from leaf.served_state import context as context_model
 
@@ -1111,9 +1111,7 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
     Escape dropped. A reminder, another hook's context, a record still being written
     and a missing transcript show nothing."""
     delivery = {"batches": [{"events": [{"id": "e1"}, {"id": "e2"}]}]}
-    inline = "\n".join(
-        [hook_transport_model.INLINE_OPENING, json_block(delivery), "Leaf needs"]
-    )
+    inline = "\n".join([hook_transport_model.inline_context(delivery), "Leaf needs"])
     records = [
         {"type": "user", "promptId": "p1", "message": {"content": "hi"}},
         {
@@ -1621,10 +1619,10 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     observations["the watch wakes the session"] = hooks_model.cmd_watch(
         "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
     )
-    # The context is an instruction line, the delivery's block after it, then what
-    # the turn owes; shown apart so the delivery reads as data.
+    # The context is an instruction line, a blank line and the delivery's block, then
+    # what the turn owes; shown apart so the delivery reads as data.
     context = hook("UserPromptSubmit")["hookSpecificOutput"]["additionalContext"]
-    instruction, _, rest = context.partition("\n")
+    instruction, _, rest = context.partition("\n\n")
     envelope, attention = read_json_block(rest)
     observations["delivered at prompt"] = {
         "instruction": instruction,

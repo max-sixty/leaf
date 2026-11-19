@@ -20,9 +20,8 @@ from playwright.sync_api import Page as BrowserPage
 
 from leaf import harness
 from leaf.harness import NUDGE_WORDS
-from leaf.hook_transport import INLINE_OPENING
+from leaf.hook_transport import inline_context
 from leaf.interaction_log import read_interactions
-from leaf.json_block import json_block
 from leaf_dev import ROOT
 from leaf_dev.commands.journey import _claude_code as journey_claude_code
 from leaf_dev.commands.journey import _journey as journey
@@ -590,7 +589,7 @@ def test_a_delivered_update_waits_for_the_turn_it_opened_to_end():
             "attachment": {
                 "type": "hook_additional_context",
                 "hookEvent": "UserPromptSubmit",
-                "content": [INLINE_OPENING + "\n" + json_block(delivery)],
+                "content": [inline_context(delivery)],
             },
         },
     ]

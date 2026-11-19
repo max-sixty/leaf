@@ -148,6 +148,7 @@ def prompt(thread: str, hint: dict) -> str:
 This message comes from Leaf, not the user. The user just wrote in a long thread on a Leaf page this session holds, and the main session is answering them. You are a fork of the session, made meanwhile to fold the thread's earlier discussion into one summary, as the session would, so the user reads one account of it above the current exchange. Every tool call is denied here, so don't call tools.
 
 The whole thread, as Leaf delivers it but with every message; "events" are the user's newest messages, which the main session answers:
+
 {thread}
 
 Leaf suggests folding the messages from {hint["from"]} through {hint["through"]}, a range that takes in every summary in force among them, which yours replaces. Choose the range yourself, as the session's guidance has it:

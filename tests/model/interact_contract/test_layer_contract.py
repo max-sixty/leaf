@@ -898,7 +898,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    instruction, _, rest = context.partition("\n")
+    instruction, _, rest = context.partition("\n\n")
     hooked, attention = read_json_block(rest)
 
     pinned = {

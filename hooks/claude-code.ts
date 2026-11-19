@@ -509,7 +509,7 @@ const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"
 // when its present run started and the instruction it ran (`kept`), which the run's end
 // reports under. `$.state` keeps them, which a reload of this module's code leaves
 // standing, so a fork made before a reload still reports its end
-// (types/leaf-state.d.ts). A fork whose run ended stays, with how it ended, until Leaf
+// (leaf-state.d.ts). A fork whose run ended stays, with how it ended, until Leaf
 // has heard (`endFork`).
 const FORKS = { plugin: "leaf", key: "forks" } as const;
 type Run = { answer: string } | { failed: string };

@@ -171,8 +171,10 @@ for (const name of new Set(
     Object.entries(closures).flatMap(([root, names]) => [root, ...names]),
   ),
 ))
-  if (!fs.existsSync(new URL(`./${runtime}${name}`, import.meta.url)))
-    throw new Error(`.dependency-cruiser.mjs names a missing runtime module: ${name}`);
+  if (!fs.existsSync(new URL(`../${runtime}${name}`, import.meta.url)))
+    throw new Error(
+      `.config/dependency-cruiser.mjs names a missing runtime module: ${name}`,
+    );
 
 export default {
   forbidden: [

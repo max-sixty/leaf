@@ -40,7 +40,7 @@ from leaf_dev.example_data import (
     page_files,
     seed_log,
 )
-from leaf_dev.leaf_assets import assets_lock, pinned_assets, pinned_copy
+from leaf_dev.leaf_assets import assets_checkout, pinned_assets, pinned_copy
 
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 # Where a page directory built from an example holds the files its editors edit.
@@ -270,8 +270,8 @@ def import_referenced_media(
     explicitly, so draft markup is validated against its own bytes rather than the
     ordinary pin. Unresolved references keep capture's ordinary refusal.
     """
-    lock = assets_lock(source)
-    if assets is None and lock is None:
+    checkout = assets_checkout(source)
+    if assets is None and checkout is None:
         return
 
     @functools.cache
@@ -280,8 +280,8 @@ def import_referenced_media(
         if assets is not None:
             directory = assets
         else:
-            assert lock is not None
-            directory = pinned_assets(lock.parent)
+            assert checkout is not None
+            directory = pinned_assets(checkout)
         return {
             media_name(candidate.read_bytes(), candidate.suffix): candidate
             for candidate in sorted(directory.rglob("*"))

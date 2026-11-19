@@ -974,7 +974,7 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
 
 
 # A fork the module spawned, as `$.state` keeps it: when its run started and the
-# instruction it ran (`types/leaf-state.d.ts`).
+# instruction it ran (`hooks/leaf-state.d.ts`).
 SPAWNED = {
     "started": 1,
     "id": "work:t7",

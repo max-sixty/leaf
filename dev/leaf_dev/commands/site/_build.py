@@ -6,7 +6,7 @@ such as the route bar and the catalog's previews and captions, composed in as it
 (`leaf_dev.docs`). The Worker serves the
 build-generated initial projection at the edge, then gives an interacting browser a
 private copy through Leaf's canonical Python server. The catalog previews and the
-product card come from the max-sixty/leaf-assets revision pinned in `leaf-assets.json`.
+product card come from the max-sixty/leaf-assets revision pinned in `.config/leaf-assets.json`.
 
 The worked examples and developer package galleries become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture records

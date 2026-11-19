@@ -15,7 +15,7 @@
 // HTML or Markdown file named it as a word, which kept every facade re-export whose
 // name the package references document alive.
 import { relative } from "node:path";
-import { ROOTS } from "./tests/served-paths.mjs";
+import { ROOTS } from "../tests/served-paths.mjs";
 
 // TypeScript's `paths` takes the first candidate that holds the name, so the root a
 // served page prefers comes first.
@@ -44,7 +44,7 @@ export default {
     "{build,dev,evals,.github/scripts}/**/*.{js,mjs,cjs}",
     "hooks/*.ts",
     "worker/{src/index,test/**/*}.ts",
-    ".dependency-cruiser.mjs",
+    ".config/dependency-cruiser.mjs",
   ],
   project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**"],
   // Declarations generated per schema definition or bundle export, whichever a reader

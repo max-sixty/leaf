@@ -27,8 +27,9 @@
  * walk and travel to a comment still reach folded text and open the run holding it
  * (`beforematch`). Folding walks the dial's document (the view or `main`
  * holding it, as `lf-toc`'s outline does) and descends only into HTML's sections and
- * groups of blocks (`section`, `div`, a list and the like) that hold the lede, a gist,
- * a picture or a heading that stands, and have no words of their own. Everything else
+ * groups of blocks (`section`, `div`, a list item, a quote and the like) that hold the
+ * lede, a gist, a picture or a heading that stands, and have no words of their own.
+ * Everything else
  * is folded or kept whole: a paragraph or other line of text, which keeps a picture in
  * its line whole; a table, whose cells stand in its grid; a disclosure, whose summary
  * is its control; and a Leaf element, whose children are its own. A heading stands at
@@ -102,10 +103,10 @@ const DECORATIVE =
   '[aria-hidden="true"], img[alt=""], [role="presentation"], [role="none"]';
 // A Leaf element that draws its own content, whose pictures are its drawing.
 const DRAWS = '[data-lf-content="data"], [data-lf-content="empty"]';
-// HTML's sections and groups of blocks, the only structure the dial lays out in place
-// of itself.
+// HTML's sections and the elements that group blocks, a list's items and a quote's
+// included, the only structure the dial lays out in place of itself.
 const SECTIONING =
-  "main, section, article, div, header, footer, nav, search, ul, ol, dl";
+  "main, section, article, div, header, footer, nav, search, ul, ol, menu, li, dl, dd, blockquote";
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";

@@ -19,8 +19,17 @@ let version = 0;
 let held = null;
 // Whether draft writes fail as they do while the server is out of reach.
 let unreachable = false;
+// Each draft write's request, settled or not, for a test that reads what follows it.
+/** @type {Promise<unknown>[]} */
+const draftWrites = [];
 // A canonical page also posts diagnostic interactions, which the server takes.
-globalThis.fetch = async (url, init) => {
+globalThis.fetch = (url, init) => {
+  const answer = answerFetch(url, init);
+  if (String(url).endsWith("/api/draft")) draftWrites.push(answer);
+  return answer;
+};
+/** @param {RequestInfo | URL} url @param {RequestInit} [init] */
+const answerFetch = async (url, init) => {
   if (!String(url).endsWith("/api/draft")) return new Response(null, { status: 204 });
   if (unreachable) throw new TypeError("Failed to fetch");
   const { context, expect, record } = JSON.parse(String(init?.body));
@@ -63,6 +72,19 @@ const writtenElsewhere = (ctx, text, payload) => {
   version += 1;
   server.set(ctx, { attempt: `elsewhere-${ctx}`, text, payload, version });
 };
+/** Waits until every draft write has settled and the document has heard each answer
+ * or failure: the handlers run in the request's own microtasks, so a timer turn after
+ * the last request settles follows them, and a write an answer sends next joins the
+ * wait. */
+const writesSettled = async () => {
+  for (let seen = -1; seen !== draftWrites.length; ) {
+    seen = draftWrites.length;
+    await Promise.allSettled(draftWrites);
+    await new Promise((resolve) => setTimeout(resolve));
+  }
+};
+const leave = () =>
+  window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
 /** The next words and payload every view of the draft at `ctx` is told of.
  * @param {string} ctx @returns {Promise<{value: string | null, payload: unknown}>} */
 const told = (ctx) =>
@@ -167,45 +189,46 @@ test("a page going away leaves its tab no copy of saved words it is sending", as
 // Words no write is carrying go with the document, so leaving asks first; words the
 // server has taken leave quietly.
 test("leaving asks first while words wait that no write carries", async () => {
-  const leave = () =>
-    window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
-  const answered = async () => {
-    for (let turn = 0; turn < 20; turn += 1)
-      await new Promise((resolve) => setTimeout(resolve));
-  };
+  await writesSettled();
+  const waiting = draftsWaiting();
   assert.equal(leave(), true);
   unreachable = true;
   saveDraft("reply:stranded", "Words typed while the server was away.");
-  await answered();
+  await writesSettled();
+  assert.equal(draftsWaiting(), waiting + 1);
   assert.equal(leave(), false);
   unreachable = false;
   saveDraft("reply:stranded", "Words typed while the server was away, and after.");
-  await answered();
+  await writesSettled();
+  assert.equal(
+    server.get("reply:stranded")?.text,
+    "Words typed while the server was away, and after.",
+  );
+  assert.equal(draftsWaiting(), waiting);
   assert.equal(leave(), true);
 });
 
 // A comment's drawing is the user's work as its words are, so a draft holding only a
 // drawing that no write carries asks before leaving too.
 test("leaving asks first while a drawing waits that no write carries", async () => {
-  const leave = () =>
-    window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
-  const answered = async () => {
-    for (let turn = 0; turn < 20; turn += 1)
-      await new Promise((resolve) => setTimeout(resolve));
-  };
   const drawing = {
     strokes: [[[0, 0], [10, 10]]],
     box: [100, 100],
     viewport: [800, 600],
     scheme: "light",
   };
+  await writesSettled();
+  const waiting = draftsWaiting();
   assert.equal(leave(), true);
   unreachable = true;
   saveDraft("composer:drawn", "", { drawing });
-  await answered();
+  await writesSettled();
+  assert.equal(draftsWaiting(), waiting + 1);
   assert.equal(leave(), false);
   unreachable = false;
   saveDraft("composer:drawn", "", { drawing });
-  await answered();
+  await writesSettled();
+  assert.deepEqual(server.get("composer:drawn")?.payload, { drawing });
+  assert.equal(draftsWaiting(), waiting);
   assert.equal(leave(), true);
 });

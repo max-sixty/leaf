@@ -718,7 +718,13 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     undo(page)
     expect(old).to_be_visible()
     assert page.evaluate(at) == pytest.approx(tall, abs=1)
-    assert old.evaluate("el => el.getAnimations().length") == 0
+    # The undo's tint of what it took back may still be fading on the slot; no fold is.
+    assert (
+        old.evaluate("""el => el.getAnimations().filter((played) =>
+            !played.effect.getKeyframes().some((frame) => "backgroundColor" in frame)
+        ).length""")
+        == 0
+    )
 
 
 def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, serve):

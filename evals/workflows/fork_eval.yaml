@@ -39,7 +39,8 @@ rubrics:
       unbroken block. An ask whose text holds an `lf-options` group is a choice the
       user presses: its words and options ask it together, each option titled by what
       choosing it does, and an option marked recommended only where the agent
-      advised it. An action the agent takes once the user agrees, such as a merge, is
+      advised it, by the `recommended` attribute, which draws its chip, rather than
+      in its own words or a chip written by hand. An action the agent takes once the user agrees, such as a merge, is
       asked as such a choice. For a step only the user can take,
       it says what to do, and asks for an answer only for what the user alone can report or the agent's next step waits
       on, not for an effect the agent could check itself and nothing waits on, as a

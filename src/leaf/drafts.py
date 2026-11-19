@@ -12,7 +12,8 @@ A record is a generation, `{attempt, text, payload?, held?}`, which the edit tha
 it minted, and a send carries its attempt into the log. Each write names the
 generations it may replace (`expect`), and the store takes it only over one of those or
 over none: a tab whose words another tab or device has since replaced hears the current
-record back and adopts it, rather than overwriting it. A write names more than one
+record back rather than overwriting it, and writes over it a generation holding its
+words and the tab's (`browser/runtime/drafts.js`, `adopt`). A write names more than one
 where it can't know which the store holds, as a page going away does after leaving
 cancelled an earlier write of its own that the store may already have taken. A send or
 a Cancel settles a generation, which removes it (`{attempt, settled}` names the one to

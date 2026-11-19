@@ -19,6 +19,12 @@
         font-weight: 600;
       }
 
+      /* A reader opens a prompt to read it whole, so its box takes most of the
+         window rather than the default bound. */
+      lf-text-document[data-prompt] {
+        --lf-bound: 80vh;
+      }
+
       /* Keep delivery field names readable on a phone. */
       #delivery-fields :is(th, td):first-child {
         width: 36%;
@@ -1242,6 +1248,23 @@ flowchart TD
                   no page shows
                 </li>
               </ul>
+              <details id="turn-end-fork-prompt">
+                <summary>The turn-end check's prompt</summary>
+                <p id="turn-end-fork-prompt-values">
+                  Leaf's hooks module resends the main thread's last request with this
+                  message added. It holds <code>turn-end-check.md</code> whole, the
+                  paragraphs of the agent's guidance the check applies, quoted from the
+                  references the agent reads, each page's facts, and the answer's JSON
+                  form. Only the page facts change from turn to turn; the page here is
+                  illustrative.
+                </p>
+                <lf-text-document
+                  id="prompt-turn-end-check"
+                  label="fork_prompt, src/leaf/clerk.py"
+                  preview="markdown"
+                  data-prompt="turn-end"
+                ></lf-text-document>
+              </details>
               <p id="fork-excludes">
                 Among asks, the fork leaves out what an On Me item already holds, what
                 the user has answered since, and what the agent will settle itself. For
@@ -2447,11 +2470,12 @@ flowchart TD
               Outside a text box, <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac) withdraws
               the user's latest action at once, then leaves the user at what it took
               back: where that was out of view, the page goes there, and Back returns to
-              where they pressed. A ring marks what changed for about a second, and a
+              where they pressed. A tint marks what changed for about a second, and a
               notice names the action and how long ago it was made until the user's next
               key, press or scroll. Undoing a resolve opens the thread again where they
-              had it open. Each undo appends an event naming its target, so the
-              recomputed result survives reloads.
+              had it open. Undoing a message or a rewrite puts its words back in the box
+              they were written in, as a draft to edit or send again. Each undo appends
+              an event naming its target, so the recomputed result survives reloads.
             </p>
           </section></lf-tab
         ><lf-tab id="progress" label="Progress"
@@ -3380,6 +3404,27 @@ EOF</code></pre>
               the panel shows animated dots in place of the title; a thread nobody named
               shows its opening words.
             </p>
+            <details id="title-prompt">
+              <summary>The title request</summary>
+              <p id="title-prompt-values">
+                In Claude Code, Leaf's hooks module asks Haiku with the system prompt
+                and request below, and Claude Code puts its own identity block before
+                the system prompt. Leaf fills in the thread's passage and first message,
+                here illustrative.
+              </p>
+              <lf-text-document
+                id="prompt-title-system"
+                label="system prompt, src/leaf/thread_titles.py and src/leaf/inference.py"
+                preview="markdown"
+                data-prompt="title-system"
+              ></lf-text-document>
+              <lf-text-document
+                id="prompt-title-request"
+                label="request: title_text, src/leaf/thread_titles.py"
+                preview="markdown"
+                data-prompt="title-request"
+              ></lf-text-document>
+            </details>
           </section>
           <section id="summaries">
             <h2>Summaries</h2>
@@ -3469,6 +3514,23 @@ EOF</code></pre>
               hooks module is running for the session to list it; otherwise the message
               goes to the main thread as any input does.
             </p>
+            <details id="line-fork-prompt">
+              <summary>The line fork's prompt</summary>
+              <p id="line-fork-prompt-values">
+                Leaf's hooks module resends the main thread's last request with this
+                message added at its end. For each message Leaf fills in the thread,
+                given whole, and the sentence naming the call the session is running;
+                when no call is running, that sentence says the conversation ends where
+                the session last sent it to the model. The thread and the call here are
+                illustrative.
+              </p>
+              <lf-text-document
+                id="prompt-line-fork"
+                label="line_prompt, src/leaf/forks.py"
+                preview="markdown"
+                data-prompt="line"
+              ></lf-text-document>
+            </details>
             <figure id="states-figure" class="diagram-figure">
               <lf-diagram id="states-diagram" data-height="480" parts="all">
                 <pre>
@@ -3506,6 +3568,23 @@ flowchart TD
               message's delivery to the main thread leaves the suggestion out, and if
               the fork fails, Leaf tells the main thread the range it suggested.
             </p>
+            <details id="summary-fork-prompt">
+              <summary>The summary fork's prompt</summary>
+              <p id="summary-fork-prompt-values">
+                Like the line fork, the summary fork resends the main thread's last
+                request with this message added. For each thread Leaf fills in the
+                thread, given whole, and the range it suggests folding. The quoted
+                paragraphs are the agent's own guidance for choosing a range and writing
+                a summary, which Leaf reads from <code>threads.md</code> as it writes
+                the prompt. The thread here is illustrative.
+              </p>
+              <lf-text-document
+                id="prompt-summary-fork"
+                label="prompt, src/leaf/summary_fork.py"
+                preview="markdown"
+                data-prompt="summary"
+              ></lf-text-document>
+            </details>
 
             <section id="sorting">
               <h3>How the line fork sorts a message</h3>
@@ -3597,6 +3676,23 @@ sequenceDiagram
                   the fork's answer at 9.9 s.
                 </figcaption>
               </figure>
+              <details id="working-fork-prompt">
+                <summary>The working fork's task</summary>
+                <p id="working-fork-prompt-values">
+                  Leaf's hooks module spawns the working fork with this task. For each
+                  take Leaf fills in the turn it opened for the fork and its delivery of
+                  the thread: an envelope like the main thread's, but with the thread
+                  whole, the working line among its messages. The delivery here is
+                  illustrative, apart from its handling clauses, which are the ones
+                  Leaf's kernel registry gives this case.
+                </p>
+                <lf-text-document
+                  id="prompt-working-fork"
+                  label="work_prompt, src/leaf/forks.py"
+                  preview="markdown"
+                  data-prompt="work"
+                ></lf-text-document>
+              </details>
             </section>
           </section>
 
@@ -3877,6 +3973,21 @@ flowchart TD
                 unasked answers nothing, so the thread stays the fork's.
               </li>
             </ul>
+            <details id="resumed-fork-prompt">
+              <summary>The message that resumes a fork</summary>
+              <p id="resumed-fork-prompt-values">
+                Leaf's hooks module sends this message to the fork that answered the
+                thread last, whose transcript already holds its first task. For each
+                resume Leaf fills in the fork's new turn, the page's path and the
+                delivery of the user's new messages, here illustrative.
+              </p>
+              <lf-text-document
+                id="prompt-resumed-fork"
+                label="resume_prompt, src/leaf/forks.py"
+                preview="markdown"
+                data-prompt="resume"
+              ></lf-text-document>
+            </details>
           </section>
 
           <section id="coordinator">
@@ -4100,8 +4211,9 @@ flowchart TD
               </p>
               <p id="navigation-go-to-exit">
                 Tab / Shift+Tab move through hints; Enter takes the announced hint.
-                Escape removes the last letter, then the filter, then cancels. There is
-                no timeout. Editors keep typed letters.
+                Escape removes the last letter, then the filter, then cancels. While the
+                map waits, the panel's field says In Go-to, and its Close cancels from
+                any step. There is no timeout. Editors keep typed letters.
               </p>
             </details>
           </section>

@@ -710,14 +710,17 @@ class PageEndpoint:
         route that remembers them.
         """
         headers = {}
+        # A server running a release names it on every answer, whatever the route,
+        # so whoever stands in front of it can tell its answers from another
+        # release's, as leaf.page's Worker does during a rollout.
+        if self.release is not None:
+            headers["Leaf-Release"] = self.release
         if self.path.startswith(
             ("/api/", "/versions/", "/revisions/")
         ) or self.path in {"/registry.json", "/"}:
             headers["Leaf-Layer"] = self.response_layer
             headers["Leaf-Server"] = self.server.server_id
-            if self.release is not None:
-                headers["Leaf-Release"] = self.release
-            else:
+            if self.release is None:
                 headers["Leaf-Runtime"] = serving_runtime().identity
         if self.set_cookie:
             headers["Set-Cookie"] = (

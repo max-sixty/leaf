@@ -52,14 +52,12 @@ async function records(
 function page(root: string, chunks: string[]): PagePublication {
   return {
     root,
-    release: "release",
     record: { "events.jsonl": { chunks, modified: 1_700_000_000.125 } },
     responses: {},
   };
 }
 
 const manifest = {
-  release: "release",
   pages: Object.fromEntries(
     ["/", "/other", "/examples/board", "/examples/heat-loss"].map((root) => [root, {}]),
   ),
@@ -93,7 +91,7 @@ describe("durable website page records", () => {
       }
       expect(Buffer.byteLength(JSON.stringify(publication))).toBeGreaterThan(2_000_000);
       const publicationCommit = await stage(store, publication, blobs);
-      store.publish(publicationCommit, manifest);
+      store.publish(publicationCommit);
       expect((await records(new PageStore(storage)))[publication.root]).toEqual(
         publication.record,
       );
@@ -148,7 +146,6 @@ describe("durable website page records", () => {
       );
       const publication = {
         root: "/examples/board",
-        release: "release",
         record: { "media/private.png": { chunks: image, modified: 1_700_000_000.125 } },
         responses: {
           "api/state": {
@@ -167,10 +164,10 @@ describe("durable website page records", () => {
       };
       expect(JSON.stringify(publication).length).toBeLessThan(10_000);
       const publicationCommit = await stage(store, publication, blobs);
-      store.publish(publicationCommit, manifest);
+      store.publish(publicationCommit);
       const empty = page("/", []);
       const emptyCommit = await stage(store, empty, blobs);
-      store.publish(emptyCommit, manifest);
+      store.publish(emptyCommit);
       const restored = new PageStore(storage);
       expect((await records(restored))["/examples/board"]).toEqual(publication.record);
       const response = (await restored.response(
@@ -244,7 +241,7 @@ describe("durable website page records", () => {
       };
       const { identity } = await restored.prepare(unfinished, manifest);
       const unfinishedCommit = { root: unfinished.root, identity };
-      expect(() => restored.publish(unfinishedCommit, manifest)).toThrow(
+      expect(() => restored.publish(unfinishedCommit)).toThrow(
         "missing page storage chunk",
       );
       expect(
@@ -267,7 +264,7 @@ describe("durable website page records", () => {
     }
   });
 
-  it("commits identical prepared content by identity and rejects replaced content or a changed release", async () => {
+  it("commits identical prepared content by identity and rejects replaced content or a page outside the release", async () => {
     const { storage, close } = sqliteStorage();
     try {
       const store = new PageStore(storage);
@@ -276,27 +273,19 @@ describe("durable website page records", () => {
       const commit = await stage(store, first, blobs);
       // Dictionary order is serialization detail, while chunk order is content.
       const repeated = await store.prepare(
-        {
-          responses: first.responses,
-          record: first.record,
-          release: first.release,
-          root: first.root,
-        },
+        { responses: first.responses, record: first.record, root: first.root },
         manifest,
       );
       expect(repeated.identity).toBe(commit.identity);
-      store.publish(commit, manifest);
+      store.publish(commit);
       const successor = page("/", await capture(new Uint8Array([2]), blobs));
       const next = await stage(store, successor, blobs);
-      expect(() => store.publish(commit, manifest)).toThrow("was not staged");
-      expect(() =>
-        store.publish(next, { ...manifest, release: "new-release" }),
-      ).toThrow("does not name a page in this website release");
-      expect(() => store.publish(next, { ...manifest, pages: {} })).toThrow(
+      expect(() => store.publish(commit)).toThrow("was not staged");
+      await expect(store.prepare(page("/missing", []), manifest)).rejects.toThrow(
         "does not name a page in this website release",
       );
       expect((await records(store))["/"]).toEqual(first.record);
-      store.publish(next, manifest);
+      store.publish(next);
       expect((await records(store))["/"]).toEqual(successor.record);
     } finally {
       await new Promise((resolve) => setImmediate(resolve));
@@ -336,14 +325,11 @@ describe("durable website page records", () => {
               blobs,
             ),
           };
-        store.publish(await stage(store, publication, blobs), manifest);
+        store.publish(await stage(store, publication, blobs));
       };
       await commit();
       const latest = reading(3, "Words typed since");
-      store.saveDrafts(
-        { root: "/", release: "release", replaces: null, drafts: latest },
-        manifest,
-      );
+      store.saveDrafts({ root: "/", replaces: null, drafts: latest }, manifest);
       // A commit that captured its drafts before the latest write lands after it.
       await commit();
       const get = (path: string) =>
@@ -360,10 +346,7 @@ describe("durable website page records", () => {
       // A page whose only write is a draft has no saved document to serve, and its
       // store still restores.
       const other = reading(1, "Typed on a page never sent to");
-      store.saveDrafts(
-        { root: "/other", release: "release", replaces: null, drafts: other },
-        manifest,
-      );
+      store.saveDrafts({ root: "/other", replaces: null, drafts: other }, manifest);
       expect(
         await store.response("/other", "api/drafts", new Request("https://leaf.page/")),
       ).toBeNull();
@@ -373,7 +356,7 @@ describe("durable website page records", () => {
       });
       expect(() =>
         store.saveDrafts(
-          { root: "/", release: "previous", replaces: null, drafts: latest },
+          { root: "/missing", replaces: null, drafts: latest },
           manifest,
         ),
       ).toThrow("not name a page in this website release");
@@ -395,8 +378,7 @@ describe("durable website page records", () => {
       const save = (
         replaces: { store: string; version: number } | null,
         drafts: ServedDraftsAnswer,
-      ) =>
-        store.saveDrafts({ root: "/", release: "release", replaces, drafts }, manifest);
+      ) => store.saveDrafts({ root: "/", replaces, drafts }, manifest);
       const first = reading(1, "First words");
       expect(save(null, first)).toEqual(first);
       // Two saves over the same store, with the same next version: the one taken
@@ -428,10 +410,10 @@ describe("durable website page records", () => {
         tail[tail.length - 1] = index;
         const publication = page("/", await capture(tail, blobs));
         const publicationCommit = await stage(store, publication, blobs);
-        store.publish(publicationCommit, manifest);
+        store.publish(publicationCommit);
       }
       expect(store.blob(held.record["events.jsonl"].chunks[0])).not.toBeNull();
-      store.publish(heldCommit, manifest);
+      store.publish(heldCommit);
       expect(
         storage.sql
           .exec<{ size: number }>("SELECT sum(length(bytes)) size FROM leaf_blobs")
@@ -445,7 +427,7 @@ describe("durable website page records", () => {
       expect((await records(store))["/"]["events.jsonl"].chunks).not.toEqual(
         next.record["events.jsonl"].chunks,
       );
-      store.publish(nextCommit, manifest);
+      store.publish(nextCommit);
       expect(
         storage.sql
           .exec<{ size: number }>("SELECT sum(length(bytes)) size FROM leaf_blobs")
@@ -480,10 +462,10 @@ describe("durable website page records", () => {
         modified: 1_700_000_000,
       };
       const firstCommit = await stage(store, first, blobs);
-      store.publish(firstCommit, manifest);
+      store.publish(firstCommit);
       const neighbor = page("/other", chunks);
       const neighborCommit = await stage(store, neighbor, blobs);
-      store.publish(neighborCommit, manifest);
+      store.publish(neighborCommit);
       const reading = (await store.response(
         "/",
         "media/file",
@@ -498,10 +480,10 @@ describe("durable website page records", () => {
       const cancelledRestore = store.records();
       const next = page("/", []);
       const nextCommit = await stage(store, next, blobs);
-      store.publish(nextCommit, manifest);
+      store.publish(nextCommit);
       const emptyNeighbor = page("/other", []);
       const emptyNeighborCommit = await stage(store, emptyNeighbor, blobs);
-      store.publish(emptyNeighborCommit, manifest);
+      store.publish(emptyNeighborCommit);
       expect(Buffer.from(await reading.arrayBuffer()).equals(bytes)).toBe(true);
       expect(store.blob(chunks[2])).not.toBeNull();
       const archive = await unpackTar(restored.body!);

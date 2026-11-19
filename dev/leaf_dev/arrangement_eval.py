@@ -58,6 +58,7 @@ from leaf_dev.arms import (
     run_agent,
     run_leaf,
     scratch,
+    stage_task_files,
     trace_result,
     trace_summary,
 )
@@ -78,7 +79,6 @@ from leaf_dev.eval_user import (
     comment_on_passage,
     decide,
 )
-from leaf_dev.leaf_assets import pinned_copy
 
 TASKS = ROOT / "evals"
 DEFINITION = definition("arrangement_eval")
@@ -403,10 +403,7 @@ def author(run: Run, cwd: Path) -> None:
     window once the page is handed over (`open_as_user`), not the fixed one the
     harness pins for its own checks (`arms.environment`)."""
     cwd.mkdir(parents=True, exist_ok=True)
-    task = CASES[run.subject].request
-    fixtures = pinned_copy(TASKS / task)
-    if fixtures is not None and fixtures.is_dir():
-        shutil.copytree(fixtures, cwd / "evals" / task)
+    stage_task_files(CASES[run.subject].request, cwd)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
     page = run.authored_page
@@ -678,7 +675,7 @@ def judge_pages(
             command = [
                 "/usr/bin/env",
                 *(f"{key}={value}" for key, value in variables.items()),
-                *cli(),
+                *cli(cwd),
             ]
             addresses = {}
             restorations = {}

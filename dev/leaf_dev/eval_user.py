@@ -269,17 +269,23 @@ USER = DEFINITION["prompt"]
 REPORT = DEFINITION["output_schema"]
 
 
-def cli() -> list[str]:
-    """The browser CLI supplied by Leaf's pinned Playwright development dependency."""
+def cli(cwd: Path) -> list[str]:
+    """The browser CLI supplied by Leaf's pinned Playwright development dependency,
+    for an agent working in `cwd`. The CLI prints its own location, and Node runs a
+    linked script from the file the link names, so the package is copied into `cwd`
+    rather than linked: a path in the checkout would name the branch."""
     from leaf_dev import ROOT
 
     node = shutil.which("node")
-    script = ROOT / "node_modules/playwright/cli.js"
-    if node is None or not script.is_file():
+    if node is None or not (ROOT / "node_modules/playwright/cli.js").is_file():
         raise click.ClickException(
             "Browser agents need Node and eval dependencies; run pnpm install --frozen-lockfile"
         )
-    return [node, str(script), "cli"]
+    modules = cwd / "node_modules"
+    if not modules.exists():
+        # pnpm keeps a package beside the packages it depends on.
+        shutil.copytree((ROOT / "node_modules/playwright").resolve().parent, modules)
+    return [node, str(modules / "playwright/cli.js"), "cli"]
 
 
 def decide(url: str, task: str, evidence: Path, *, window: Window) -> dict:
@@ -316,7 +322,7 @@ def decide(url: str, task: str, evidence: Path, *, window: Window) -> dict:
 
         def playwright(*args: str) -> subprocess.CompletedProcess:
             return subprocess.run(
-                [*cli(), f"-s={session}", *args],
+                [*cli(cwd), f"-s={session}", *args],
                 cwd=cwd,
                 env=environment(**variables),
                 capture_output=True,
@@ -330,7 +336,7 @@ def decide(url: str, task: str, evidence: Path, *, window: Window) -> dict:
             raise click.ClickException(
                 f"playwright-cli could not attach: {attached.stdout}{attached.stderr}"
             )
-        prompt = USER.format(cli=shlex.join(cli()), session=session, task=task)
+        prompt = USER.format(cli=shlex.join(cli(cwd)), session=session, task=task)
         (evidence / "prompt.txt").write_text(prompt)
         try:
             trace = run_agent(

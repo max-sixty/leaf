@@ -1,22 +1,22 @@
 """Forks of a Claude Code session's conversation that answer the user's thread
 messages: a line fork, which posts the agent's working line on a thread's waiting
-messages at once and sorts them, and, with `LEAF_FORK_WORK=on` in Claude Code's
-environment while the design is tried, a working fork with the session's tools, which
-does a thread's work and answers it. Both run only in Claude Code, from Leaf's hooks
-module (`hooks/claude-code.ts`). How it works' Forks tab (`docs/how-it-works.html`)
-explains the design, diagrams included; this header holds the rules this module keeps
-and the choices behind them, and `holding.py` the rule for which turn holds a message.
+messages at once and sorts them, and a working fork with the session's tools, which
+does a thread's work and answers it. Both run in every Claude Code session, and only
+there, from Leaf's hooks module (`hooks/claude-code.ts`). How it works' Forks tab
+(`docs/how-it-works.html`) explains the design, diagrams included; this header holds
+the rules this module keeps and the choices behind them, and `holding.py` the rule for
+which turn holds a message.
 
 On a real page the session's answer to a thread message takes tens of seconds, longer
 when it is busy, and the thread shows nothing from the agent after a message until the
 session's first model call ends (`notes/fork-replies.md`, "Forks on real pages").
 `$.model.fork` resends the session's last request with one more message, at any moment,
 mid-command too, and a fork decides in seconds. The user had the fork post only
-the agent's working line and always hand over, rather than answer or hand over: a line
+the agent's working line and hand the thread on, rather than answer it: a line
 fork can't call tools (`$.model.fork` denies every one), and answering is left to a fork
 that can act. The line fork also judges whether a working fork could do the work beside
-the session (`ANSWER`'s `work`): `take` gives the thread to one, where the module makes
-them (`_take`), and otherwise Leaf records the judgment and hands the thread over.
+the session (`ANSWER`'s `work`): `take` gives the thread to one (`_take`), and
+`hand_over` hands the thread to the session; Leaf records the judgment either way.
 
 A thread's waiting messages are the user's messages the agent still owes an answer
 in it while it stands open (`holding.rounds`). Each thread with
@@ -26,7 +26,7 @@ log and its session's agent turns; nothing stores the state itself:
 | State | Means | Entered by |
 | --- | --- | --- |
 | kept back | a running line turn holds the thread's waiting messages while a line fork writes its line | while the session's lane is up, a user message that is its thread's only waiting message, in a thread no running agent turn took, or any event that joins the waiting turns of a thread a running line turn holds, which it replaces: admission opens the line turn and records its pickup of the thread's waiting messages (`kept_from_main_at_admission`) |
-| taken | a working fork does the work in a turn of its own, which holds the thread until another turn takes it (`holding.py`) | the line fork judging `take`, where the module makes working forks (`_take`) |
+| taken | a working fork does the work in a turn of its own, which holds the thread until another turn takes it (`holding.py`) | the line fork judging `take` (`_take`) |
 | with the session | delivered as any input is | the agent turn ending with the thread unanswered: the line posted, a failed line fork, a line turn or an unconfirmed fork's turn lapsing (`activity.STARTING_GRACE`), a working fork's run ending (`ended`); or the main thread's answer taking the thread from either |
 
 Each thread message Leaf keeps back opens an agent turn of its own
@@ -236,8 +236,7 @@ HAND_BACK = "HAND BACK:"
 
 # What a line fork answers (`line_prompt`): the agent's working line, and whether a fork
 # of the session could do the work beside it (`take`) or the work belongs with the
-# session (`hand_over`). Leaf records the judgment, and acts on `take` where the module
-# makes working forks (`route`).
+# session (`hand_over`). Leaf records the judgment and acts on it (`route`).
 ANSWER = {
     "type": "object",
     "properties": {
@@ -456,9 +455,9 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
     """One step of a thread's forks, as `leaf hook --fork` hands it over: with the
     kept-back thread in `payload["thread"]` and without `answer` or `failed`, the line
     fork's question (`ask`); with one, what Leaf did with the line fork's answer
-    (`route`), giving the work to a working fork where `work_forks` asks for that. The module then says which agent its
-    harness started for that fork's turn (`started`), and, as any agent of the
-    session's run ends, what it ended with (`ended`). With `beside`, the basis of a
+    (`route`), which may give the work to a working fork. The module then says which
+    agent its harness started for that fork's turn (`started`), and, as any agent of
+    the session's run ends, what it ended with (`ended`). With `beside`, the basis of a
     fork Leaf asked for beside the line fork (`ask`), what Leaf did with its answer,
     by the duty it names (`BESIDE`)."""
     if "beside" in payload:
@@ -499,7 +498,6 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
             elapsed_ms=payload.get("elapsed_ms"),
             running=payload.get("running") or [],
             request=payload.get("request"),
-            work_forks=bool(payload.get("work_forks")),
         )
     return ask(session_id, basis, payload.get("running") or [])
 
@@ -667,14 +665,13 @@ def route(
     elapsed_ms: float | None = None,
     running: list[dict] | None = None,
     request: dict | None = None,
-    work_forks: bool = False,
 ) -> dict:
     """Route a kept-back thread by its line fork's answer: post the line as the
     agent's working line and hand the thread to the session, or, where the line fork
-    judged the work a fork's (`take`) and the module makes such forks (`work_forks`),
-    give the thread to a working fork (`_take`); or hand it over bare where the line
-    fork failed (`failed`, its reason) or its answer doesn't fit `ANSWER`; or do
-    nothing where the line turn no longer runs (`_line_runs`). What came of it, with
+    judged the work a fork's (`take`), give the thread to a working fork (`_take`);
+    or hand it over bare where the line fork failed (`failed`, its reason) or its
+    answer doesn't fit `ANSWER`; or do nothing where the line turn no longer runs
+    (`_line_runs`). What came of it, with
     the fork's judgment of who should do the work (`work`), is recorded in the page's
     diagnostics."""
     from .clerk import read_answer
@@ -700,7 +697,7 @@ def route(
         outcome = _hand_over(
             session_id, basis, f"the fork failed: {failed or 'no answer'}"
         )
-    elif read["work"] == "take" and work_forks:
+    elif read["work"] == "take":
         outcome = {**_take(session_id, basis, read["line"].strip()), "work": "take"}
     else:
         outcome = {

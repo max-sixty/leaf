@@ -48,3 +48,71 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   display: flex;
   margin-block: calc(-1 * var(--lf-sp-1)) var(--lf-sp-2);
 }
+
+/* PROTOTYPE: each depth's size. The gauge: a track under the depths as long as
+   Everything takes to read, filled as far as the chosen depth's share, with a tick at
+   Skim's and Read's. */
+.lf-dial-gauge {
+  position: relative;
+  block-size: 3px;
+  margin-block-start: 3px;
+  margin-inline: var(--lf-sp-1);
+  border-radius: 2px;
+  background: var(--lf-rule);
+}
+.lf-dial-gauge-fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--at, 100%);
+  border-radius: inherit;
+  background: var(--lf-accent);
+  transition: inline-size 200ms ease;
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+.lf-dial-gauge-mark {
+  position: absolute;
+  inset-block: -2px;
+  inline-size: 1px;
+  background: var(--lf-muted);
+}
+.lf-dial-gauge-skim {
+  inset-inline-start: var(--skim);
+}
+.lf-dial-gauge-read {
+  inset-inline-start: var(--read);
+}
+.lf-dial-gauge-all {
+  display: none;
+}
+
+/* The map: the page at each depth to one scale, in the depth's preview. */
+.lf-dial-map {
+  display: block;
+  margin-block-start: var(--lf-sp-1);
+  overflow: visible;
+}
+.lf-dial-map rect {
+  fill: currentColor;
+}
+.lf-dial-map .lf-dial-map-page {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.35;
+}
+.lf-dial-map .lf-dial-map-text {
+  fill-opacity: 0.3;
+}
+.lf-dial-map .lf-dial-map-picture {
+  fill: var(--lf-series-1);
+}
+.lf-dial-map .lf-dial-map-other {
+  opacity: 0.4;
+}
+.lf-dial-map text {
+  font: var(--lf-font-fine);
+  fill: currentColor;
+  text-anchor: middle;
+}

@@ -84,6 +84,7 @@ import {
   viewDocument,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { html, svg } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
 const DEPTHS = [
@@ -143,6 +144,75 @@ const outermost = (blocks) => {
 /** @param {Element} node */
 const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
 
+// PROTOTYPE: how long each depth takes, shown three ways for the maintainer to pick
+// from (`--lf-dial-size`: `minutes`, `gauge` or `map`).
+//
+// A depth's time is its words at a silent reading rate of 238 a minute, Brysbaert's
+// (2019) mean for non-fiction, and 12 seconds for each picture.
+const WORDS_PER_SECOND = 238 / 60;
+const PICTURE_SECONDS = 12;
+// What holds no words a reader reads: Leaf's chrome, a drawing, a widget's data.
+const UNREAD = `${STANDS}, svg, [data-lf-content="data"]`;
+
+/** @typedef {{kind: "heading" | "picture" | "text", skim: boolean, read: number, all: number}} Sized */
+/** @typedef {{skim: number, read: number, all: number, blocks: Sized[]}} Sizes */
+
+/** @param {number} seconds */
+const duration = (seconds) =>
+  seconds < 45 ? "under a minute" : `${Math.round(seconds / 60)} min`;
+/** @param {Sized} block @param {string} depth */
+const secondsAt = (block, depth) =>
+  depth === "skim"
+    ? block.skim
+      ? block.read
+      : 0
+    : depth === "read"
+      ? block.read
+      : block.all;
+
+// The page at each depth, drawn to one scale, each block a bar as long as it takes
+// to read: a heading a short dark bar, a picture a tinted box, text a pale bar.
+/** @param {Sizes} sizes @param {string} pointed */
+const sizeMap = (sizes, pointed) => {
+  const width = 40;
+  const gap = 18;
+  const tall = 104;
+  const scale = tall / Math.max(sizes.all, 1);
+  const columns = DEPTHS.map(({ name, label }, i) => {
+    const x = i * (width + gap);
+    let y = 0;
+    const bars = [];
+    for (const block of sizes.blocks) {
+      const seconds = secondsAt(block, name);
+      if (!seconds) continue;
+      const high = seconds * scale;
+      bars.push(
+        svg`<rect class=${`lf-dial-map-${block.kind}`} x=${x} y=${y} width=${
+          block.kind === "heading" ? width * 0.6 : width
+        } height=${Math.max(high - 0.6, 0.6)}></rect>`,
+      );
+      y += high;
+    }
+    const time = sizes[/** @type {"skim" | "read" | "all"} */ (name)];
+    return svg`<g class=${name === pointed ? "lf-dial-map-pointed" : "lf-dial-map-other"}>
+      <rect class="lf-dial-map-page" x=${x - 3} y=${-3} width=${width + 6} height=${y + 6}></rect>
+      ${bars}
+      <text x=${x + width / 2} y=${tall + 16}>${label}</text>
+      <text class="lf-dial-map-time" x=${x + width / 2} y=${tall + 29}>${duration(time)}</text>
+    </g>`;
+  });
+  const across = 3 * width + 2 * gap;
+  return html`<svg
+    class="lf-dial-map"
+    viewBox=${`-4 -4 ${across + 8} ${tall + 38}`}
+    width=${across + 8}
+    height=${tall + 38}
+    aria-hidden="true"
+  >
+    ${columns}
+  </svg>`;
+};
+
 /** @typedef {{after: Element | null, blocks: Element[]}} FoldRun */
 
 customElements.define(
@@ -160,6 +230,12 @@ customElements.define(
     #opened = new Set();
     /** @type {AbortController | null} */
     #listening = null;
+    // PROTOTYPE: the page's reading time at each depth, measured once for each
+    // presentation of the page.
+    /** @type {Sizes | null} */
+    #sizes = null;
+    /** @type {HTMLElement | null} */
+    #gauge = null;
 
     get #key() {
       return `lf-dial:${this.id}`;
@@ -197,17 +273,27 @@ customElements.define(
         depth.value = name;
         // An attribute, so the theme seats it as a chooser from its first paint.
         depth.setAttribute("appearance", "button");
-        depth.title = title;
+        /** @type {any} */ (depth).lfPreview = () => this.#preview(name, title);
         group.append(depth);
       }
       group.addEventListener("change", () => this.turn(String(group.value)));
       this.append(group);
+      if (this.#variant.includes("gauge")) {
+        this.#gauge = offer("div", "lf-dial-gauge");
+        this.#gauge.append(offer("span", "lf-dial-gauge-fill"));
+        for (const { name } of DEPTHS)
+          this.#gauge.append(offer("span", `lf-dial-gauge-mark lf-dial-gauge-${name}`));
+        this.append(this.#gauge);
+      }
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
         this.ownerDocument.addEventListener(
           PAGE_INTERFACE,
-          () => this.#apply(this.#depth, { moving: false }),
+          () => {
+            this.#sizes = null;
+            this.#apply(this.#depth, { moving: false });
+          },
           { signal },
         );
         const stored = tabStore.get(this.#key);
@@ -232,6 +318,98 @@ customElements.define(
 
     #draw() {
       if (this.#depths) this.#depths.value = this.#depth;
+      const sizes = this.#gauge && this.#measure();
+      if (this.#gauge && sizes) {
+        const share = (/** @type {number} */ seconds) =>
+          `${(100 * seconds) / Math.max(sizes.all, 1)}%`;
+        this.#gauge.style.setProperty("--skim", share(sizes.skim));
+        this.#gauge.style.setProperty("--read", share(sizes.read));
+        this.#gauge.style.setProperty(
+          "--at",
+          share(sizes[/** @type {"skim" | "read" | "all"} */ (this.#depth)]),
+        );
+      }
+    }
+
+    // PROTOTYPE: which way the dial shows each depth's size.
+    get #variant() {
+      return (
+        getComputedStyle(this).getPropertyValue("--lf-dial-size").trim() || "minutes"
+      );
+    }
+
+    // What pointing at a depth shows: what it is, how long it takes to read, and with
+    // the map, the page at each depth to scale.
+    /** @param {string} name @param {string} title */
+    #preview(name, title) {
+      const sizes = this.#measure();
+      if (!sizes) return { detail: [title] };
+      const time = sizes[/** @type {"skim" | "read" | "all"} */ (name)];
+      const words =
+        time < 45 ? "Under a minute to read" : `About ${duration(time)} to read`;
+      return this.#variant.includes("map")
+        ? { detail: [title, sizeMap(sizes, name)] }
+        : { detail: [title, words] };
+    }
+
+    // Seconds to read `block` as Read shows it, or with `all` as Everything does.
+    /** @param {Element} block @param {Element} scope @param {boolean} all */
+    #secondsIn(block, scope, all) {
+      let words = 0;
+      if (!block.matches(UNREAD)) {
+        const walker = block.ownerDocument.createTreeWalker(
+          block,
+          NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+          (node) =>
+            node instanceof Element &&
+            (node.matches(UNREAD) ||
+              (!all &&
+                node.parentElement !== null &&
+                this.#closed(node.parentElement) &&
+                node.localName !== "summary"))
+              ? NodeFilter.FILTER_REJECT
+              : NodeFilter.FILTER_ACCEPT,
+        );
+        for (let node = walker.nextNode(); node; node = walker.nextNode())
+          if (node.nodeType === Node.TEXT_NODE)
+            words += node.textContent?.match(/\S+/g)?.length ?? 0;
+      }
+      const pictures = [block, ...block.querySelectorAll(PICTURE)].filter((node) =>
+        this.#isPicture(node, scope, all),
+      ).length;
+      return words / WORDS_PER_SECOND + pictures * PICTURE_SECONDS;
+    }
+
+    // The page's reading time at each depth, and each block's part in it.
+    #measure() {
+      if (this.#sizes) return this.#sizes;
+      const scope = this.#scope;
+      if (!scope) return null;
+      /** @type {Sized[]} */
+      const blocks = [];
+      for (const block of this.#blocks(scope, scope)) {
+        if (block === this) continue;
+        blocks.push({
+          kind: block.matches(HEADING)
+            ? "heading"
+            : [block, ...block.querySelectorAll(PICTURE)].some((node) =>
+                  this.#isPicture(node, scope),
+                )
+              ? "picture"
+              : "text",
+          skim: this.#kept(block, scope),
+          read: this.#secondsIn(block, scope, false),
+          all: this.#secondsIn(block, scope, true),
+        });
+      }
+      const total = (/** @type {string} */ depth) =>
+        blocks.reduce((sum, block) => sum + secondsAt(block, depth), 0);
+      return (this.#sizes = {
+        skim: total("skim"),
+        read: total("read"),
+        all: total("all"),
+        blocks,
+      });
     }
 
     /** @param {string} name @param {{moving: boolean}} options */
@@ -295,14 +473,14 @@ customElements.define(
     // Whether `node` is a picture Skim keeps: not decoration, and standing in the
     // author's markup in `scope`, so not inside another picture, Leaf's chrome, a
     // widget that draws its own content or a closed disclosure.
-    /** @param {Element} node @param {Element} scope */
-    #isPicture(node, scope) {
+    /** @param {Element} node @param {Element} scope @param {boolean} [all] */
+    #isPicture(node, scope, all = false) {
       if (!node.matches(PICTURE) || node.matches(DECORATIVE)) return false;
       for (let at = node.parentElement; at && at !== scope; at = at.parentElement)
         if (
           at.matches(`${PICTURE}, ${STANDS}, ${DRAWS}, [aria-hidden="true"]`) ||
           (isLeafElement(at) && !at.hasAttribute("data-lf-content")) ||
-          this.#closed(at)
+          (!all && this.#closed(at))
         )
           return false;
       return true;

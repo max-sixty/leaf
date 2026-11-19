@@ -479,8 +479,8 @@ which starve a test more steadily than more copies do. Run the merge base under 
 same condition to learn whether the change caused it. A test whose subject is a slow
 CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 
-A failure only the nightly macOS job (`test-macos`) shows reproduces on that job's
-runner, from any machine. Dispatch `ci` on a branch with `flake` set to `leaf-dev suite
+A failure the nightly macOS job (`test-macos`) shows and this machine doesn't reproduces
+on that job's runner, from any machine. Dispatch `ci` on a branch with `flake` set to `leaf-dev suite
 flake`'s arguments, and `test-macos` runs them in place of the suite, at normal
 priority as the nightly runs, ending its log with each test's counts:
 

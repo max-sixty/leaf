@@ -40,7 +40,7 @@ leaf-composition-field {
   --lf-compose-pad-inline-start: 10px;
   /* A field: the ring a surface draws round it for the words being typed stands on
      its edge (base.css, "Where it stands"). */
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);

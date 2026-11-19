@@ -67,7 +67,7 @@
   border: 1px solid transparent;
   border-radius: var(--lf-chip-r);
   font: var(--lf-font-chip);
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
 }
 
 .lf-react {
@@ -1261,7 +1261,7 @@ wa-copy-button.lf-icon-action {
   scroll-margin-block: var(--lf-focus-ring-landing);
   /* On its edge (:root, "Where it stands"), since a cluster's entries stand 4px apart
      (`--lf-margin-gap`), closer than a control's ring reaches. */
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   /* The raised face a pressable entry wears, beneath any pulse that rings it. */
   --lf-entry-lift: 0 1px 0 var(--lf-border), var(--lf-raise-1);
 }
@@ -1511,7 +1511,7 @@ wa-copy-button.lf-icon-action {
 .lf-response-control[data-lf-focus-visible],
 .lf-response-face[data-lf-focus-visible] {
   outline: var(--lf-focus-ring);
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   border-color: transparent;
   --lf-wears-ring: 1;
 }
@@ -1594,7 +1594,7 @@ wa-copy-button.lf-icon-action {
   color: var(--lf-muted);
   box-shadow: none;
   cursor: pointer;
-  outline-offset: 0;
+  outline-offset: 0px;
 }
 :where(button).lf-mark-action:hover,
 .lf-mark-action.lf-ui::part(button):hover {
@@ -1692,7 +1692,7 @@ wa-copy-button.lf-icon-action {
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
   width: auto;
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }
@@ -1721,7 +1721,7 @@ wa-copy-button.lf-icon-action {
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }

@@ -45,7 +45,7 @@
 :host(lf-file-editor) .lf-file-editor-retry,
 :host(lf-file-editor) .lf-file-editor-conflict {
   /* On its edge (base.css, "Where it stands"): it fills the header's line. */
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
 }
 :host(lf-file-editor) .lf-file-editor-conflict {
   align-self: stretch;

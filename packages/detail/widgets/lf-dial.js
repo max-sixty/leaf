@@ -7,10 +7,10 @@
  * closed `details`. Skim shows nothing Read doesn't, so it keeps nothing inside a
  * closed `details`.
  *
- * A picture is one HTML draws (a figure, an image, a drawing, a video, a canvas) or a
- * widget whose entry says it draws one (`visual`, painted `data-lf-visual`), such as a
- * chart, a diagram or a screenshot pair, with its caption where a `figure` gives it
- * one. A reader on a quick pass reads a page by its pictures as much as by its words,
+ * A picture is what Leaf reads as one wherever a reader points at it (`visualTags`): a
+ * figure, an image, an inline drawing, or a widget whose entry declares `visual`, such
+ * as a chart, a diagram or a screenshot pair, with its caption where a `figure` gives
+ * it one. A reader on a quick pass reads a page by its pictures as much as by its words,
  * so Skim keeps every picture the page shows rather than only the ones an author marks
  * (the maintainer's choice). Rejected: folding every picture the author left unmarked,
  * which made Skim words alone. What HTML marks as decoration (`aria-hidden`, an empty
@@ -83,6 +83,7 @@ import {
   shownWindow,
   tabStore,
   viewDocument,
+  visualTags,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { html, svg } from "/vendor/lit.js";
@@ -98,7 +99,6 @@ const HEADING = `${RANKED}, hgroup`;
 // What Skim keeps for its own sake, with every picture; a heading stands for the ones
 // it heads.
 const SUMMARY = ".lede, .gist";
-const PICTURE = "figure, img, picture, svg, video, canvas, [data-lf-visual]";
 // What HTML says is decoration, which no reader looks at for its own sake.
 const DECORATIVE =
   '[aria-hidden="true"], img[alt=""], [role="presentation"], [role="none"]';
@@ -245,6 +245,8 @@ customElements.define(
     #sizes = null;
     /** @type {HTMLElement | null} */
     #gauge = null;
+    // The tags Leaf reads as a picture, from the page's layer.
+    #pictures = "";
 
     get #key() {
       return `lf-dial:${this.id}`;
@@ -263,6 +265,7 @@ customElements.define(
     }
 
     setup() {
+      this.#pictures = visualTags().join(", ");
       const group = (this.#depths = offer(
         "wa-radio-group",
         "lf-dial-depths lf-label-hidden",
@@ -383,8 +386,8 @@ customElements.define(
           if (node.nodeType === Node.TEXT_NODE)
             words += node.textContent?.match(/\S+/g)?.length ?? 0;
       }
-      const pictures = [block, ...block.querySelectorAll(PICTURE)].filter((node) =>
-        this.#isPicture(node, scope, all),
+      const pictures = [block, ...block.querySelectorAll(this.#pictures)].filter(
+        (node) => this.#isPicture(node, scope, all),
       ).length;
       return words / WORDS_PER_SECOND + pictures * PICTURE_SECONDS;
     }
@@ -401,7 +404,7 @@ customElements.define(
         blocks.push({
           kind: block.matches(HEADING)
             ? "heading"
-            : [block, ...block.querySelectorAll(PICTURE)].some((node) =>
+            : [block, ...block.querySelectorAll(this.#pictures)].some((node) =>
                   this.#isPicture(node, scope),
                 )
               ? "picture"
@@ -484,10 +487,10 @@ customElements.define(
     // widget that draws its own content or a closed disclosure.
     /** @param {Element} node @param {Element} scope @param {boolean} [all] */
     #isPicture(node, scope, all = false) {
-      if (!node.matches(PICTURE) || node.matches(DECORATIVE)) return false;
+      if (!node.matches(this.#pictures) || node.matches(DECORATIVE)) return false;
       for (let at = node.parentElement; at && at !== scope; at = at.parentElement)
         if (
-          at.matches(`${PICTURE}, ${STANDS}, ${DRAWS}, [aria-hidden="true"]`) ||
+          at.matches(`${this.#pictures}, ${STANDS}, ${DRAWS}, [aria-hidden="true"]`) ||
           (isLeafElement(at) && !at.hasAttribute("data-lf-content")) ||
           (!all && this.#closed(at))
         )
@@ -525,7 +528,7 @@ customElements.define(
       return (
         child.contains(this) ||
         [...child.querySelectorAll(SUMMARY)].some(inside) ||
-        [...child.querySelectorAll(PICTURE)].some((node) =>
+        [...child.querySelectorAll(this.#pictures)].some((node) =>
           this.#isPicture(node, scope),
         ) ||
         [...child.querySelectorAll(HEADING)].some((heading) =>

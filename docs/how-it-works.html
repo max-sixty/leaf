@@ -3686,8 +3686,8 @@ flowchart TD
                   >Further messages in a thread</a
                 >). The fork does the work with the session's tools and answers with its
                 own <code>leaf thread reply</code>, or, where the message turns out to
-                need the main thread, gives the thread back with
-                <code>HAND BACK:</code> and a reason.
+                need the main thread, gives the thread back by leaving it unanswered,
+                ending its run with a line saying why.
               </p>
               <figure id="take-figure" class="diagram-figure">
                 <lf-diagram id="take-sequence" data-height="520" parts="all">
@@ -3894,12 +3894,13 @@ sequenceDiagram
                   <th scope="row"><code>hand_back</code></th>
                   <td>
                     A message it picked up still waits, and its closed turn still holds
-                    the thread: the fork gave it back with <code>HAND BACK:</code>,
-                    failed, or ended without answering.
+                    the thread: the fork chose to give it back, failed, or ended without
+                    answering.
                   </td>
                   <td>
-                    That the fork gave the thread back, and why, with the user's waiting
-                    messages as new input. Leaf wakes an idle session for it.
+                    That the fork gave the thread back, and why: its failure, or else
+                    its last words. The user's waiting messages come as new input. Leaf
+                    wakes an idle session for it.
                   </td>
                 </tr>
                 <tr id="ending-taken-over">
@@ -4054,12 +4055,12 @@ flowchart TD
               to the session's files, branch, page or pull requests, or research long
               enough to need progress of its own, does what it can without those
               changes, answers with what it found, and opens a to-do on the thread with
-              <code>leaf thread reply --todo</code>, as the main thread does. It keeps
-              <code>HAND BACK:</code> for a message the main thread has to act on now:
-              an answer to a question the main thread asked, steering its current work,
-              or a question it is weighing. The to-do is the session's and stays open
-              after the fork's turn ends; the main thread hears of it, and Leaf wakes an
-              idle session for it.
+              <code>leaf thread reply --todo</code>, as the main thread does. It gives
+              the thread back only for a message the main thread has to act on now: an
+              answer to a question the main thread asked, steering its current work, or
+              a question it is weighing. The to-do is the session's and stays open after
+              the fork's turn ends; the main thread hears of it, and Leaf wakes an idle
+              session for it.
             </p>
           </section>
 

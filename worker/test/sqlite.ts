@@ -5,7 +5,12 @@ import { DatabaseSync } from "node:sqlite";
  */
 export function sqliteStorage(): { storage: DurableObjectStorage; close: () => void } {
   const database = new DatabaseSync(":memory:");
+  const values = new Map<string, unknown>();
   const storage = {
+    kv: {
+      get: (key: string) => values.get(key),
+      put: (key: string, value: unknown) => void values.set(key, value),
+    },
     sql: {
       exec(query: string, ...bindings: (string | number | Uint8Array)[]) {
         if (bindings.length === 0 && query.includes(";")) {

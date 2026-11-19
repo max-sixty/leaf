@@ -5,6 +5,7 @@ an experiment while developing it, rather than maintaining regression matrices.
 """
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -278,10 +279,19 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(
         f"print({json.dumps(result)!r})"
     )
 
-    def child(cwd, *args, **kwargs):
+    def child(cwd, *args, env=None, **kwargs):
         home = cwd.with_name("home")
+        script = program
+        # The resume that reaches no API only writes the environment it announces.
+        if (env or {}).get("ANTHROPIC_BASE_URL") == fork_eval.UNREACHABLE:
+            session = args[args.index("--resume") + 1]
+            kept = home / ".claude/projects" / re.sub(r"[^A-Za-z0-9]", "-", str(cwd))
+            record = {"type": "attachment", "uuid": "env", "parentUuid": "prompt"}
+            record["attachment"] = {"type": "environment"}
+            line = json.dumps(record) + "\n"
+            script = f"open({str(kept / f'{session}.jsonl')!r}, 'a').write({line!r})"
         return {
-            "args": [sys.executable, "-c", program],
+            "args": [sys.executable, "-c", script],
             "cwd": cwd,
             "env": {**os.environ, "HOME": str(home)},
         }
@@ -291,7 +301,11 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(
     metadata = response["metadata"]
     assert metadata["checks"] == checks
     assert "<leaf-fork-check>" in asked.read_text()
-    assert (work / "transcript.jsonl").is_file()
+    first, environment, after = [
+        json.loads(line)
+        for line in (work / "transcript.jsonl").read_text().splitlines()[:3]
+    ]
+    assert (environment["parentUuid"], after["parentUuid"]) == (first["uuid"], "env")
     assert judged in metadata["texts"]["judge"]
 
 

@@ -84,19 +84,22 @@ sequenceDiagram
         <p id="sessions-activation">
           The first request that needs private, mutable state, such as posting a comment
           or picking an option, goes to the visitor's container. Its response sets a
-          cookie marking that one page active for the current release. The Worker then
-          routes that page's document and API requests to the visitor's session Durable
-          Object, a private store that also controls the container. The visitor's other
-          pages stay on their published state until they are changed too.
+          cookie marking that one page active at the current page protocol and session
+          store format, the versions of the files Leaf keeps for a page and of the
+          tables that hold them. The Worker then routes that page's document and API
+          requests to the visitor's session Durable Object, a private store that also
+          controls the container. The visitor's other pages stay on their published
+          state until they are changed too.
         </p>
         <p id="sessions-container">
-          Each session belongs to one browser identity and one release. Its container
-          image holds the whole site build and runs <code>leaf_website</code>, an
-          adapter that maps each public route to its page directory and hands the
-          request to the HTTP routes and event admission a locally served Leaf uses.
-          Before accepting a mutation, Python restores the session's saved page files
-          over that image. A comment is appended to <code>events.jsonl</code> in the
-          private page directory, without changing the page anyone else sees.
+          Each session belongs to one browser identity, page protocol and store format,
+          so it lasts across deploys that keep both. Its container image holds the whole
+          site build and runs <code>leaf_website</code>, an adapter that maps each
+          public route to its page directory and hands the request to the HTTP routes
+          and event admission a locally served Leaf uses. Before accepting a mutation,
+          Python restores each page the session saved, in place of the image's copy. A
+          comment is appended to <code>events.jsonl</code> in the private page
+          directory, without changing the page anyone else sees.
         </p>
         <p id="sessions-storage">
           Each successful page transaction saves the canonical page files and matching
@@ -108,20 +111,22 @@ sequenceDiagram
           responses.
         </p>
         <p id="sessions-documents">
-          An active page loads its private document on ordinary visits and reloads.
-          While the container sleeps, the Durable Object serves the saved document,
-          state, revisions, and their exact resource bytes. Private revision resources
-          have immutable addresses under <code>revisions/rN-&lt;hash&gt;/</code>; public
-          runtime bundles cannot substitute for them. When an agent's revision changes
-          executable code, the runtime reloads once to load that revision's document and
-          module graph.
+          An active page loads its private document and versions on ordinary visits and
+          reloads. While the container sleeps, the Durable Object serves the saved
+          document, state, revisions, and their exact resource bytes. Private revision
+          resources have immutable addresses under
+          <code>revisions/rN-&lt;hash&gt;/</code>; public runtime bundles cannot
+          substitute for them. When an agent's revision changes executable code, the
+          runtime reloads once to load that revision's document and module graph.
         </p>
         <p id="sessions-startup">
           Reading saved pages and polling their state leave the container asleep. A
-          missing saved response starts Python. Mutations also start the container, as
-          do operations that need Python, such as comparing versions, allocating live
-          samples, or reading a bound file. Browser geometry reports do not start it. On
-          container startup, Codex App Server starts and the <code>leaf</code>
+          missing saved response starts Python, as does one an earlier release saved,
+          since its document names that release's runtime files. Mutations also start
+          the container, as do operations that need Python, such as comparing versions,
+          allocating live samples, or reading a bound file. Browser geometry reports do
+          not start it. On container startup, Codex App Server starts and the
+          <code>leaf</code>
           command runs once ahead of the first agent turn.
         </p>
       </section>
@@ -179,17 +184,19 @@ sequenceDiagram
           replace those in place, so state from another build would be read by code not
           built for it. Only the Worker names a release, so a response from another
           release means the site was deployed after the page loaded: the page says Leaf
-          has been updated and reloads onto the new release's document.
+          has been updated and reloads onto the new release's document, which for a page
+          the visitor has acted on is their own copy.
         </p>
         <p id="releases-rollout">
           Cloudflare activates a new Worker and its assets before the new container
           image has rolled out, so for some minutes a session's container can still
           start on the previous image. The session's Durable Object refuses that
           container before it reads or writes anything, and the container exits, so
-          every record a release's sessions hold was written by that release. Until the
-          rollout reaches a visitor's container, what they do on the page shows as not
-          through yet and is sent again until it lands, and a live sample opened then
-          fails until Reset.
+          nothing the previous image runs changes a record after the deploy. A container
+          the previous release started before the deploy is stopped at its session's
+          next request. Until the rollout reaches a visitor's container, what they do on
+          the page shows as not through yet and is sent again until it lands, and a live
+          sample opened then fails until Reset.
         </p>
         <p id="releases-deploy">
           A push to <code>main</code> that changes the site runs the
@@ -220,8 +227,11 @@ sequenceDiagram
             session's saved record.
           </li>
           <li>
-            A new release selects a new session record and container. It starts from the
-            published page rather than interpreting the previous release's files.
+            A deploy keeps the session's record. The new release's container restores
+            each page as the visitor left it, with the revisions they read, and serves
+            it on the new runtime, even where the published page has changed since. A
+            new page protocol or store format, both rare, selects a new record and
+            container, which start from the published page.
           </li>
         </ul>
         <p id="state-restart">
@@ -229,9 +239,9 @@ sequenceDiagram
           mutation. Container replacement does not force an open page to reload. Each
           unsent draft is saved in the session's record before the container confirms
           it, so a replacement container restores every confirmed draft, even when the
-          container before it was lost without stopping. A new release starts its
-          session record with no drafts, and a tab still holding drafts from the
-          previous release saves them into it once the visitor next acts on the page.
+          container before it was lost without stopping. A new page protocol or store
+          format starts its session record with no drafts, and a tab still holding
+          drafts from before saves them into it once the visitor next acts on the page.
           Running agent turns belong to the container process, so saving page content
           does not preserve a running turn.
         </p>

@@ -674,14 +674,16 @@ def line_prompt(data: dict, running: list[dict]) -> str:
     """The one message a fork answers: what it is for, the thread as Leaf would
     deliver it (`delivery.batch_data`) but whole, and what the session is running."""
     return f"""{LINE_OPENING}
-This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to acknowledge them at once while the main session carries on. The main session takes the message from here and does what it asks. Every tool call is denied here, so don't call tools, and reply straight away without thinking it over. {_running_line(running)}
+This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds. You are a fork of the session, and Leaf asks you for two things: the working line it posts in the thread at once, saying what the agent will do about the message, and who should do that work, a fork of the session beside the main session or the main session itself.
 
-The whole thread, as Leaf delivers it; "events" are the user's messages, oldest first:
+Every tool call is denied here, so don't call tools, and reply straight away without thinking it over.
+
+{_running_line(running)} The whole thread, as Leaf delivers it; "events" are the user's messages, oldest first:
 {thread_json(data)}
 
-Leaf posts your line in the thread at once as the agent's working line, until the main session's own words replace it. Write that one line: what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer to the main session, even where the conversation above holds it.
+The line stands in the thread as the agent's until the agent's answer replaces it. Write what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer out of the line, even where the conversation above holds it.
 
-Then judge who should do what the message asks. "take": a fork of the session with the session's tools could do it start to finish beside the main session, because it needs nothing the main session is changing or about to change (its files and branch, the page's source, its pull requests), settles no question the main session is weighing, and waits on nothing the session is running; answering from reading, a lookup, or research that writes only its own scratch files are such work. "hand_over": it belongs with the main session.
+The work is "take" where a fork of the session with the session's tools could do it start to finish beside the main session: it changes nothing the main session works on (its files and branch, the page's source, its pull requests), settles no question the main session is weighing, and waits on nothing the session has under way, such as a command it is running or a change it has started and not finished. Reading, a lookup, or research that writes only its own scratch files is such work, in the session's files and the page's source too. Otherwise it is "hand_over", and the main session does it.
 
 Reply with this JSON alone: {{"line": "<the line>", "work": "take" or "hand_over"}}
 </leaf-line-fork>"""

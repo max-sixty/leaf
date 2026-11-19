@@ -788,6 +788,57 @@ def test_a_notice_over_a_thread_s_field_ends_in_reply_and_its_key(browser, serve
     expect(placeholder.locator(".lf-key-badge")).to_have_text("c")
 
 
+def test_a_stance_entered_from_a_thread_owns_the_row_and_escape_ends_it_first(
+    browser, serve
+):
+    """A stance entered while a thread stands open in the panel owns the row: its ✕
+    takes the seat, the field's mode chip names it in a word right beside that ✕, as a
+    search's chip names its scope, and the reply box takes no words, offering neither
+    Reply nor its key; whose turn it is stays beside the leaf. Escape ends the stance
+    before the thread, since it came last, and the ✕ ends it too, leaving the thread
+    open with its Reply back."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(panel_view("thread"))
+    expect(thread).to_be_visible()
+    thread.focus()
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    name = page.locator(".lf-fp-mode")
+    expect(name).to_have_text("Draw")
+    expect(field(page)).to_have_attribute("data-lf-says", "turn")
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile("Reply"))
+    assert field(page).evaluate("el => el.readOnly")
+    expect(lead(page)).not_to_have_text(re.compile("Draw"))
+    leave = page.locator('.lf-fp-quick .lf-fp-exit[aria-label="Exit Draw mode"]')
+    named, seat = name.bounding_box(), leave.bounding_box()
+    assert named and seat
+    assert 0 <= seat["x"] - (named["x"] + named["width"]) < 12, (named, seat)
+    page.keyboard.press("Escape")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(thread).to_be_visible()
+    expect(name).to_be_hidden()
+    expect(leave).to_have_count(0)
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply"))
+    assert not field(page).evaluate("el => el.readOnly")
+
+    thread.focus()
+    page.keyboard.press("w")
+    leave.click()
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(thread).to_be_visible()
+
+    thread.focus()
+    page.keyboard.press("g")
+    expect(name).to_have_text("Go to")
+    page.locator('.lf-fp-quick .lf-fp-exit[aria-label="Close Go to"]').click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    expect(thread).to_be_visible()
+
+
 def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     """`t` opens the next thread in the panel and stands on it, as the walk stands on a
     card's title in Threads, so `t` and `T` go on walking from there rather than typing
@@ -4481,16 +4532,19 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
     ]
 
 
-def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
-    """Annotations, a row of the leaf's menu, opens a list whose Draw mode the field
-    names before the status, ending in Close and its key, the mode's way out, while
-    the On Me mark keeps its seat; Close leaves the mode. While the user writes in the
-    mode, the way out is the ✕ at the row's end, where the On Me mark ends, as close to
-    the field as the leaf stands at the row's start, and typing moves neither the field
-    nor its ✕, since the ✕ keeps its seat while the user writes. Annotations also lists
-    Select mode for a mouse, with the `s` that reaches it from the keyboard, since
-    selecting words picks no widget or picture. The row previews nothing: it shows its
-    words and key whole, and how the mode works is the command reference's to say."""
+def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
+    """Annotations, a row of the leaf's menu, opens a list whose Draw mode takes the
+    row: the field says the status and takes no words, its end offers Close and esc,
+    the mode's way out, rather than Next On Me, and its mode chip names the mode in a
+    word beside the ✕ at the row's end, which stands where the On Me mark ends, as close to the field as the leaf
+    stands at the row's start; the ✕ leaves the mode and the On Me mark comes back.
+    A press on the field leaves the caret where it was and moves neither the field nor
+    its ✕, and `c`, which would write there, leaves it too. A thread opened in the mode,
+    as Threads is, closes before the mode on Escape, since it came last. Annotations
+    also lists Select mode for a mouse, with the `s` that reaches it from the keyboard,
+    since selecting words picks no widget or picture. The row previews nothing: it
+    shows its words and key whole, and how the mode works is the command reference's
+    to say."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     settled(page)
     mark = page.locator(".lf-fp-on-user").bounding_box()
@@ -4504,32 +4558,17 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     rendered(page)
     assert not page.locator(PREVIEW).is_visible(), page.locator(PREVIEW).inner_text()
     annotations.locator(".lf-fp-item", has_text="Draw mode").click()
-    # The field names the mode before the status, and its end the way out.
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(field(page)).to_have_attribute("data-lf-says", "status")
-    expect(field(page)).to_have_attribute(
-        "placeholder", re.compile(r"^In Draw mode · \S")
-    )
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile("Draw|Next"))
     close = field_press(page)
     expect(close.locator(".lf-compose-press-word")).to_have_text("Close")
     expect(close.locator("kbd")).to_have_text("esc")
-    node = accessible_node(close)
-    assert not node.get("ignored") and node["role"]["value"] == "button", node
-    exit_step = page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]')
-    expect(exit_step).to_have_count(0)
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
-    close.click()
-    expect(close).to_have_count(0)
-    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    expect(field(page)).to_have_attribute("data-lf-says", "status")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
-
-    page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu .lf-fp-item", has_text="Annotations").click()
-    page.locator(".lf-fp-item", has_text="Draw mode").click()
-    expect(close).to_be_visible()
-    field(page).click()
+    assert field(page).evaluate("el => el.readOnly")
+    expect(page.locator(".lf-fp-mode")).to_have_text("Draw")
+    exit_step = page.locator('.lf-fp-quick .lf-fp-exit[aria-label="Exit Draw mode"]')
     expect(exit_step).to_be_visible()
-    expect(close).to_have_count(0)
+    expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     settled(page)
     way_out = exit_step.bounding_box()
     end = (mark["x"] + mark["width"], mark["y"], mark["height"])
@@ -4539,12 +4578,29 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     assert beside == pytest.approx(box["x"] - (leaf["x"] + leaf["width"]), abs=0.5)
     assert way_out["width"] == pytest.approx(leaf["width"], abs=0.5)
     stood = [box, way_out]
-    page.keyboard.type("Keep these words where they stand")
+    field(page).click()
+    expect(field(page)).not_to_be_focused()
     settled(page)
     assert [
         page.locator(".lf-fp-field").bounding_box(),
         exit_step.bounding_box(),
     ] == stood
+
+    page.locator("body").focus()
+    page.keyboard.press("c")
+    rendered(page)
+    expect(field(page)).not_to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    expect(page.locator(panel_view("threads"))).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(panel_view("threads"))).to_have_count(0)
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    expect(close.locator("kbd")).to_have_text("esc")
+    exit_step.click()
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
 
 
 def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out(

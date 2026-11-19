@@ -235,8 +235,8 @@ against the rate limits below.
 
 Revert the change on `main` and land the revert. The revert touches the same files, so
 its push runs `publish-site`, which deploys it as a new release through the same checks.
-A release starts new containers, so every visitor's private state resets, as on any
-deploy.
+As on any deploy, visitors keep their private pages unless the revert moves the page
+protocol or the session store's format (`STORE_FORMAT`).
 
 Do not use `wrangler rollback`. It reactivates an earlier Worker version, whose assets
 name the earlier release. Cloudflare's rollback documentation says resources connected
@@ -619,8 +619,9 @@ The Durable Object serves each saved response with the headers Python gave it,
 so the browser caches it as it would the live answer, and Back restores a page the
 visitor has acted on from the back/forward cache, as it does a locally served page
 ([browser support](../notes/browser-support.md), "Page cache"). File modification
-dates survive restore, including the publication date of an unstamped revision. A release selects fresh demo records, while container
-replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
+dates survive restore, including the publication date of an unstamped revision. A deploy keeps every session's records until the page
+protocol or the store's format moves (`worker/src/storage.ts`), and so does
+container replacement. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
 
 The append lease admits one staged successor per page. Preparation stores its descriptor

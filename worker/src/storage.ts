@@ -22,13 +22,26 @@
  * follows once as a regular file named by its hex digest. Capture and stream
  * retention share one synchronous reading. The container consumes the snapshot
  * before replacing any local inputs.
+ * A page's record is its whole page directory as the session left it, every revision
+ * it reads included, so a later release at the same page protocol restores and serves
+ * it as a local Leaf serves a page an earlier Leaf wrote. A captured response names the
+ * assets of the release whose container captured it, so the store keeps that release
+ * beside each committed page and serves the page's responses only to it; under another
+ * release the request wakes the container, which serves the page on its own runtime;
+ * its first read of the page, a transaction like any write, saves the responses again.
  * Each request a container makes names the release its image runs (`Leaf-Release`).
  * Cloudflare activates a Worker before its container image has rolled out, so after a
  * deploy a session's container can still start on the previous image. The store
  * answers a release other than the Worker's with 409 before reading or writing
  * anything (`answerPageStore` in `index.ts`), and that container fails to start. So
- * every record a release's session holds was written by that release's image, and
- * nothing a previous image wrote outlives the rollout.
+ * every commit since a deploy was written by the deployed release's image.
+ * The store itself also outlives deploys, so every later release reads the tables and
+ * stored values an earlier one wrote. `STORE_FORMAT` names their shape: the tables
+ * (`STORE_TABLES`, which a test pins to the format), the encodings stored in their
+ * columns, and the session object's own keys (`index.ts`). A change to any of them moves
+ * it, which, as a page protocol bump does, starts every visitor on the published page,
+ * since the session's key names it (`recordScope`), rather than leaving a later
+ * release to misread an earlier one's rows. Nothing migrates a store.
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be
@@ -73,7 +86,7 @@ type PageDrafts = z.infer<typeof draftsSchema>;
 export function readPageDrafts(value: unknown): PageDrafts {
   return draftsSchema.parse(value);
 }
-type WebsitePages = { pages: Record<string, unknown> };
+type WebsitePages = { release: string; pages: Record<string, unknown> };
 const commitSchema = z.strictObject({ root: z.string(), identity: digest });
 type PublicationCommit = z.infer<typeof commitSchema>;
 export function readPublicationCommit(value: unknown): PublicationCommit {
@@ -111,23 +124,26 @@ export function prepareStateDelivery(
     state.data = { version: state.data.version };
 }
 
+export const STORE_FORMAT = 1;
+export const STORE_TABLES = `CREATE TABLE IF NOT EXISTS leaf_pages (
+  root TEXT, staged INTEGER, identity TEXT, release TEXT, PRIMARY KEY(root, staged)
+); CREATE TABLE IF NOT EXISTS leaf_files (
+  root TEXT, staged INTEGER, path TEXT, chunks TEXT, modified REAL,
+  PRIMARY KEY(root, staged, path)
+); CREATE TABLE IF NOT EXISTS leaf_responses (
+  root TEXT, staged INTEGER, path TEXT, headers TEXT, chunks TEXT,
+  PRIMARY KEY(root, staged, path)
+); CREATE TABLE IF NOT EXISTS leaf_blobs (
+  digest TEXT PRIMARY KEY, bytes BLOB
+); CREATE TABLE IF NOT EXISTS leaf_drafts (
+  root TEXT PRIMARY KEY, drafts TEXT
+)`;
+
 export class PageStore {
   private deliveries = new Set<string[]>();
 
   constructor(private storage: DurableObjectStorage) {
-    storage.sql.exec(`CREATE TABLE IF NOT EXISTS leaf_pages (
-      root TEXT, staged INTEGER, identity TEXT, PRIMARY KEY(root, staged)
-    ); CREATE TABLE IF NOT EXISTS leaf_files (
-      root TEXT, staged INTEGER, path TEXT, chunks TEXT, modified REAL,
-      PRIMARY KEY(root, staged, path)
-    ); CREATE TABLE IF NOT EXISTS leaf_responses (
-      root TEXT, staged INTEGER, path TEXT, headers TEXT, chunks TEXT,
-      PRIMARY KEY(root, staged, path)
-    ); CREATE TABLE IF NOT EXISTS leaf_blobs (
-      digest TEXT PRIMARY KEY, bytes BLOB
-    ); CREATE TABLE IF NOT EXISTS leaf_drafts (
-      root TEXT PRIMARY KEY, drafts TEXT
-    )`);
+    storage.sql.exec(STORE_TABLES);
   }
 
   private references(staged?: boolean, root?: string): string[] {
@@ -201,7 +217,12 @@ export class PageStore {
     return this.storage.transactionSync(() => {
       const root = publication.root;
       this.erase(root, true);
-      this.storage.sql.exec("INSERT INTO leaf_pages VALUES (?, 1, ?)", root, identity);
+      this.storage.sql.exec(
+        "INSERT INTO leaf_pages VALUES (?, 1, ?, ?)",
+        root,
+        identity,
+        manifest.release,
+      );
       for (const [path, file] of Object.entries(publication.record)) {
         this.storage.sql.exec(
           "INSERT INTO leaf_files VALUES (?, 1, ?, ?, ?)",
@@ -412,19 +433,24 @@ export class PageStore {
     );
   }
 
+  /** The response the page's last commit captured at `path`, or null where it captured
+   * none under `release`. */
   async response(
     root: string,
     path: string,
     request: Request,
+    release: string,
   ): Promise<Response | null> {
     const rows = this.storage.sql
       .exec<{
         headers: string;
         chunks: string;
       }>(
-        "SELECT headers, chunks FROM leaf_responses WHERE root = ? AND path = ? AND staged = 0",
+        `SELECT headers, chunks FROM leaf_responses JOIN leaf_pages USING (root, staged)
+         WHERE root = ? AND path = ? AND staged = 0 AND release = ?`,
         root,
         responseIdentity(path),
+        release,
       )
       .toArray();
     if (rows.length === 0) return null;

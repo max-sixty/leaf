@@ -1282,8 +1282,65 @@ cases:
       work: hand_over
     assert:
       - *line
-  # The journey's `fork-lookup` question, after the session recorded a passed release
-  # in the page's source and ended its turn.
+  # A message that changes how the session does work it has said it will do next.
+  steer-plan:
+    fork: line
+    page: line-fork/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+      - user: Which fix do you recommend?
+      - assistant: >-
+          I'm leaning toward awaiting the warmup, since it's three lines, but the 200 ms
+          is an estimate. I'll measure startup on a production-size cache next, and
+          recommend one once I have the number.
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Don't build a production-size cache for that, a staging-size one is close enough.
+        anchor:
+          section: ft-fixes
+          quote: Two fixes
+    labels:
+      work: hand_over
+    assert:
+      - *line
+  # A message that changes a command the session is running.
+  steer-running:
+    fork: line
+    page: line-fork/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+      - user: Make the await fix and run the whole suite.
+      - tool: Edit
+        input:
+          file_path: src/search/cache.py
+          old_string: "        self._task = asyncio.create_task(self._warm())"
+          new_string: "        await self._warm()"
+        result: The file src/search/cache.py has been updated successfully.
+    running:
+      - tool: Bash
+        input:
+          command: pytest -n 8 -q
+          description: Run the full suite with the warmup awaited
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: The whole suite takes twenty minutes. Stop it and just run tests/test_cache.py.
+        anchor:
+          section: ft-fix-await
+          quote: Await the warmup in
+    labels:
+      work: hand_over
+    assert:
+      - *line
+  # The journey's `fork-lookup` question, after the session added a card for a passed
+  # release to the page's source and ended its turn.
   source-edited:
     fork: line
     page: line-fork/pages/release-board.html
@@ -1313,32 +1370,29 @@ cases:
         input:
           file_path: "{page}/index.html"
           old_string: |-
-            <dd><strong>2 days</strong></dd>
-                      </dl>
+            <lf-card id="card-search">Search misses renamed projects</lf-card>
+                    </lf-column>
           new_string: |-
-            <dd><strong>2 days</strong></dd>
-                      </dl>
-                      <dl id="count-deploy-checks" class="metric">
-                        <dt>deployment checks, release <code>bf40b427</code></dt>
-                        <dd><strong>passed</strong></dd>
-                      </dl>
+            <lf-card id="card-search">Search misses renamed projects</lf-card>
+                    </lf-column>
+                    <lf-column id="col-checks" label="Passed deployment checks" tone="ok">
+                      <lf-card id="card-release-bf40b427"><strong>Release bf40b427</strong> Passed its deployment checks.</lf-card>
+                    </lf-column>
         result: The file {page}/index.html has been updated successfully.
       - tool: Bash
         input:
           command: |-
             cat > reply.md <<'EOF'
-            Done. Release `bf40b427` now shows **passed** for deployment checks, in a new tile in the [triage status](#count-deploy-checks).
-
-            The cards and columns are unchanged.
+            Done. Release `bf40b427` has a card in a new **Passed deployment checks** column at the end of the [board](#rt-board).
             EOF
             leaf thread reply d1:0:r1 --done --file reply.md
           description: Post the reply, which also checks and publishes the edit
-        result: '{"kind": "reply", "author": "agent", "parent": "r1", "id": "r3", "revision": 2, "text": "Done. Release `bf40b427` now shows **passed** for deployment checks, in a new tile in the [triage status](#count-deploy-checks).\n\nThe cards and columns are unchanged.\n"}'
+        result: '{"kind": "reply", "author": "agent", "parent": "r1", "id": "r3", "revision": 2, "text": "Done. Release `bf40b427` has a card in a new **Passed deployment checks** column at the end of the [board](#rt-board).\n"}'
       - assistant: >-
-          I've recorded on the board that release bf40b427 passed its deployment
-          checks: a new tile in the status panel, beside the countdown to the
-          Thursday cut. I didn't change any cards or columns. The update is live, and
-          I've answered your comment on the page.
+          I recorded release bf40b427 on the board: it has a card in a new green
+          Passed deployment checks column at the end. I didn't move any other card,
+          and the migration card is still the one release blocker. The update is
+          live, and I've answered your comment on the page.
     waiting: &count-cards
       - kind: comment
         author: user
@@ -1351,8 +1405,8 @@ cases:
       work: take
     assert:
       - *line
-  # The same question while the session is part way through a change to the page's
-  # source that changes the count.
+  # The same question once the session has started on a change to the page's source
+  # that changes the count, before its first edit.
   source-editing:
     fork: line
     page: line-fork/pages/release-board.html
@@ -1375,12 +1429,10 @@ cases:
           "card-retry"}, "handling": ["h1"], "answer": {"kind": "reply", "parent":
           "r1", "ref": "d1:0:r1"}}]}]}
       - assistant: Splitting the webhook retries card into three, one per partner, starting with Acme.
-      - tool: Edit
+    running:
+      - tool: Read
         input:
           file_path: "{page}/index.html"
-          old_string: <lf-card id="card-retry">Webhook retries ignore Retry-After</lf-card>
-          new_string: <lf-card id="card-retry-acme">Acme rate limits our webhook retries, which ignore Retry-After</lf-card>
-        result: The file {page}/index.html has been updated successfully.
     waiting: *count-cards
     labels:
       work: hand_over

@@ -942,7 +942,8 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another {
  * takes (above), without moving its words, and its pick keeps its ground as a live
  * cell's does. */
 @media screen {
-  lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option:not([selected]):hover {
+  lf-options[settled]:not(:where([data-lf-exhibit]) *)
+    > lf-option:not([selected]):hover {
     --lf-ground: color-mix(in srgb, var(--lf-card) 92%, var(--lf-ink));
     background: var(--lf-ground);
   }

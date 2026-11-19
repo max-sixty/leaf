@@ -1157,6 +1157,23 @@ function fieldEditor(
       EditorView.atomicRanges.of((view) => view.state.field(field)),
     ],
   });
+  // The line the last change to the words ended in. A line a key takes away moves the
+  // words after it with the field's end edge, and those before it with its start edge,
+  // so an owner carrying the words splits its carry there (text-field.js,
+  // `--lf-field-after`).
+  const editedLine = Decoration.line({ attributes: { "data-lf-edited": "" } });
+  const edited = StateField.define({
+    create: () => Decoration.none,
+    update(lines, tr) {
+      if (!tr.docChanged) return lines;
+      let end = 0;
+      tr.changes.iterChangedRanges((_fromA, _toA, _fromB, toB) => {
+        end = Math.max(end, toB);
+      });
+      return Decoration.set([editedLine.range(tr.state.doc.lineAt(end).from)]);
+    },
+    provide: (field) => EditorView.decorations.from(field),
+  });
 
   // Return in a field that reads as a file begins a line the body shows too, carrying
   // the markers of the containers the caret's line stands in. Among a paragraph's words
@@ -1705,6 +1722,7 @@ function fieldEditor(
         reading,
         message.of(field.message()),
         joints,
+        edited,
         livePreview,
         EditorView.lineWrapping,
         editable.of(EditorState.readOnly.of(field.readOnly)),

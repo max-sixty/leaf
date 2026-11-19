@@ -40,7 +40,9 @@
  *   the user types. That box cuts its words off at its edges, so where the editor's
  *   start moved up or back, as more room re-wrapping a paragraph moves it, the editor
  *   is carried whole instead; while the user types, as when a line is removed, the
- *   box stops cutting them as far as they travel (`--lf-field-reach`). A field that
+ *   box stops cutting them as far as they travel (`--lf-field-reach`). A line a key
+ *   takes away moves the words after it with the field's end edge rather than its
+ *   start, as far as the field's box holds them (`--lf-field-after`). A field that
  *   stops scrolling carries its words by the scroll it gave up too. A part that
  *   scrolls and changed size shows what its scroll puts in it, which the reader
  *   landing in it measures mid-tween, so it only grows from where it stood; one that
@@ -895,6 +897,20 @@ export function boxMotion({
       const left = (moved.get(part.element)?.gaveUp ?? 0) * (1 - progress);
       dy -= gaveUp + left;
       motions.set(part.element, { from, to, gaveUp: gaveUp + left });
+      // A line a key takes away leaves the words before it where they stand from the
+      // field's start edge and those after it where they stand from its end edge, so
+      // the words after the line the change ended in ride the end edge: drawn farther by
+      // the height the field gave up (`--lf-field-after`, composing/text-field.js). Where
+      // the end edge rose, as on a box standing on its top, they would set out from
+      // below the field's box, which cuts them off, so they stand where layout puts
+      // them. Rejected: carrying every word by one edge, the start edge or the edge
+      // that stayed, either of which moved the words on the other side of the line two
+      // ways; and drawing them below a rising edge by holding the field's overflow
+      // open, which lays a one-line field's caret out below its box.
+      const after =
+        gesture === "typing"
+          ? Math.max(0, Math.min(height(from) - height(to), -dy))
+          : 0;
       const reach = Math.max(0, rtl ? dx : -dx, -dy);
       if (reach > 0) hold(part.element, "overflow", "visible");
       // The field's line-end caret needs its 2px paint margin during motion too,
@@ -904,11 +920,13 @@ export function boxMotion({
       start(part.element, [
         {
           "--lf-field-carry": `${dx}px ${dy}px`,
+          "--lf-field-after": `0px ${after}px`,
           "--lf-field-cut": fieldCut.map((side) => `${side}px`).join(" "),
           "--lf-field-reach": `${Math.max(caretRoom, reach)}px`,
         },
         {
           "--lf-field-carry": "0px 0px",
+          "--lf-field-after": "0px 0px",
           "--lf-field-cut": `0px -${caretRoom}px 0px -${caretRoom}px`,
           "--lf-field-reach": `${Math.max(caretRoom, reach)}px`,
         },

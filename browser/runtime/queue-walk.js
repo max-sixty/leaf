@@ -539,8 +539,13 @@ export function createQueueWalk({
     const at = listWalkPosition(list, currentLocationStop(list), {
       identity: (stop) => stop.key,
     });
-    return at && { ...at, qualifier: region ? WITHIN : QUALIFIER };
+    return at && { ...at, qualifier: qualifier(region, list) };
   }
+  // "Here" says the walk counts only the region's stops; a region holding every stop On
+  // Me lists counts On Me's, which the words say plainly.
+  /** @param {Element | null} region @param {readonly QueueStop[]} list */
+  const qualifier = (region, list) =>
+    region && list.length < stopsOf(null).length ? WITHIN : QUALIFIER;
 
   // Resolves whether it arrived.
   /** @param {Step} dir @param {Element | null} region @param {Origin} origin */
@@ -560,7 +565,7 @@ export function createQueueWalk({
             null,
             list.indexOf(next) + 1,
             list.length,
-            region ? WITHIN : QUALIFIER,
+            qualifier(region, list),
           ),
       );
       return true;

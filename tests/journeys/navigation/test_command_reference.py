@@ -38,10 +38,10 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
-    # The walk says its place where the panel says what passes, in the empty field's
-    # place, and names no list, since the reference stands open above it.
+    # The walk says its position where the panel says what passes, in the empty
+    # field's place, naming what it counts, since the panel stands apart from the list.
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", f"1 of {commands.count()}"
+        "placeholder", f"Command 1 of {commands.count()}"
     )
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
         re.compile(r" · ⏎ activate$")

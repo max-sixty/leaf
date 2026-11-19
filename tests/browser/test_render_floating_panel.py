@@ -34,6 +34,7 @@ from render_harness import (
     clocked,
     close_panel_menu,
     consume_browser_errors,
+    expect_panel_says,
     expect_preview_words,
     field_press,
     holding,
@@ -3523,6 +3524,31 @@ def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
     last = menu.locator(".lf-fp-item").last
     last.scroll_into_view_if_needed()
     expect(last).to_be_in_viewport()
+
+
+def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, serve):
+    """Annotations hidden is where the user stands, which the page field's standing
+    words say at once. Hiding them by key names the key that brings them back, which
+    those words don't, so its notice shows there too; showing them again only undoes
+    what the field said, so the field leaves its notice to them. Folded, the leaf's
+    peek says no standing words, so it shows both."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    page.locator("body").focus()
+    page.keyboard.press("o")
+    expect_panel_says(page, "Annotations hidden — o shows them")
+    expect(page.locator(".lf-live")).to_have_text("Annotations hidden — o shows them")
+    page.keyboard.press("o")
+    # Read once the press has drawn, while its notice's moment still stands.
+    rendered(page)
+    assert field(page).get_attribute("data-lf-says") == "status"
+    assert "Annotations" not in (field(page).get_attribute("placeholder") or "")
+    expect(page.locator(".lf-live")).to_have_text("Annotations shown")
+    page.keyboard.press(".")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
+    page.keyboard.press("o")
+    expect_panel_says(page, "Annotations hidden — o shows them")
+    page.keyboard.press("o")
+    expect_panel_says(page, "Annotations shown")
 
 
 def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):

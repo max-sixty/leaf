@@ -77,6 +77,7 @@ import {
   PREVIEW_ENDED,
   PendingTaskEvent,
   announce,
+  beginWalk,
   bodyText,
   commandsChanged,
   keeps,
@@ -92,7 +93,6 @@ import {
   previewChanged,
   registerVisualParts,
   sizeObserver,
-  walkPositionLabel,
 } from "/runtime/portable-api.js";
 import {
   cross,
@@ -704,17 +704,26 @@ customElements.define(
 
     // A key's step is a walk along the reading's series, a new aim wherever it lands; a
     // redraw that keeps the reader on their point is none. It tells a listener where it
-    // landed: the point's words, then its place in its series. The drawing shows that
-    // place to the eye, so the panel says none.
+    // landed: the point's words, then its place in its series. The series' first and
+    // last points bound the list, each by its shape, or by the drawing where the chart
+    // draws no shape of the point's own, as a line's or a dot's.
     /** @param {Point | null} point */
     #step(point) {
       this.#place = null;
       this.#choose(point, "key", true);
       const reading = this.#reading;
       if (!point || !reading) return;
-      const at = listWalkPosition(reading.series[point.series] ?? [], this.#at);
+      const series = reading.series[point.series] ?? [];
+      const ends = [series[0], series.at(-1)];
+      const place = beginWalk(
+        "chart-point",
+        "Point",
+        () => listWalkPosition(series, this.#at),
+        {
+          list: () => ends.map((end) => (end && shapeOf(reading, end)) ?? reading.svg),
+        },
+      );
       const { name, detail } = sayPoint(point);
-      const place = at && walkPositionLabel("Point", at.position, at.total);
       announce([name, ...detail, place].filter(Boolean).join(", "));
     }
 

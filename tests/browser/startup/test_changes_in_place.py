@@ -21,18 +21,22 @@ from render_cases_interaction import live_url
 from render_harness import (
     compare_with,
     example_media,
+    expect_panel_says,
     open_page,
+    panel_field,
     preview_parts,
+    sending,
     stamp_page,
     told,
     wait_for_revision,
+    write,
 )
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import scroll_settled
+from leaf_dev.browser import PANEL_THREAD, scroll_settled
 
 PAGE = leaf_page(
     "Since",
@@ -160,11 +164,44 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
 
 
+def test_a_change_s_place_names_the_comparison_where_the_field_does_not(browser, serve):
+    """The page's field says "2 changes since v1" while a comparison stands, so a
+    change's place there is its place alone. A thread open in the panel says no such
+    words before its reply, so the walk's position there names the comparison's
+    changes."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    revise(d, BETA)
+    revise(d, DELTA)
+    wait_for_revision(page, 3)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(page.locator("main .lf-ins-block")).to_have_count(2)
+    expect(panel_field(page)).to_have_attribute("data-lf-says", "status")
+    page.locator("body").focus()
+    page.keyboard.press("h")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile(r"^2 changes since v1 · 1 of 2\b")
+    )
+    write(panel_field(page), "Does Delta still hold?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    view = page.locator(PANEL_THREAD)
+    expect(view).to_be_visible()
+    view.focus()
+    page.keyboard.press("h")
+    lead = page.locator(".lf-fp-field .lf-compose-placeholder-lead")
+    expect(lead).to_contain_text(re.compile(r"\bChange \d of 2 since v1"))
+
+
 def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     browser, serve
 ):
     """`v` compares with the newest version older than the one being read, and takes
-    any comparison off again, one a Compare in Versions started included."""
+    any comparison off again, one a Compare in Versions started included. The field's
+    standing words say the comparison, and a notice that none is marked goes as soon
+    as one marks some."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -173,14 +210,27 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     revise(d, DELTA)
     wait_for_revision(page, 3)
     marked = page.locator("main .lf-ins-block")
-    # Since v2, not v1: only Delta changed.
+    # The arrivals' news passes first, so what follows is the presses' alone.
+    expect(panel_field(page)).to_have_attribute("data-lf-says", "status")
+    page.keyboard.press("h")
+    expect_panel_says(page, "No changes marked")
+    # Since v2, not v1: only Delta changed. The field's standing words say the
+    # comparison at once, and a listener hears it; no notice repeats them, read once
+    # the press has drawn, while its notice's moment still stands.
     page.keyboard.press("v")
     expect(page.locator('.lf-change-bar[data-lf-for="d"]')).to_have_count(1)
     assert marked_ids(page) == ["d"]
+    rendered(page)
+    assert re.match(
+        r"1 change since v2 · ", panel_field(page).get_attribute("placeholder") or ""
+    ), panel_field(page).get_attribute("placeholder")
+    expect(panel_field(page)).to_have_attribute("data-lf-says", "status")
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2")
     page.keyboard.press("v")
     expect(marked).to_have_count(0)
     # A screen reader hears the marks go.
     expect(page.locator(".lf-live")).to_have_text("Changes hidden")
+    expect_panel_says(page, "since v2", says=False)
     compare_with(page, 1)
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
@@ -203,10 +253,15 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
 
     visibility(page, "visible")
     expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
+    expect_panel_says(page, "v shows them")
     expect(marked).to_have_count(0)
     page.keyboard.press("v")
     expect(marked).to_have_count(2)
     assert marked_ids(page) == ["b", "d"]
+    # Once the comparison stands, the news that v would show it goes with it, read
+    # once the press has drawn, well before its moment would end.
+    rendered(page)
+    assert "v shows them" not in (panel_field(page).get_attribute("placeholder") or "")
 
 
 def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(

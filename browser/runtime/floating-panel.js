@@ -319,7 +319,7 @@ import {
   rove,
   currentLocationIn,
 } from "./focus.js";
-import { rowWalk } from "./walk-position.js";
+import { rowWalk, walkWords } from "./walk-position.js";
 import {
   capitalized,
   COMMENT_HINT,
@@ -422,22 +422,33 @@ let copyRefused = false;
 /** @param {ReturnType<typeof pageControls>[number]} entry */
 const groupOf = (entry) =>
   entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
-// What passes in the panel's one seat for words that pass, on the page, as
-// field-readings.js orders them (`passingWords`), or null. The user asked that whatever
-// is not anchored to the page stand at the panel rather than against the window.
+// What passes in the panel's one seat for words that pass, as a surface of the panel
+// hears it (`passingFacts`), on the page, as field-readings.js orders it
+// (`passingWords`), or null. The user asked that whatever is not anchored to the page
+// stand at the panel rather than against the window.
 function passing() {
-  const notice = noticeReading();
-  return passingWords({
-    thread: false,
-    notice: notice.visible ? notice : null,
-    goTo: statusContextReading().goTo,
-    step: stepWords(),
-  });
+  return passingWords({ thread: false, ...passingFacts(NO_STANDING) });
 }
-// A walk's position for a notice's moment from each step (notifications.js,
-// `answerStep`); the walk itself stands where it landed after the moment.
-const stepWords = () =>
-  answeringStep() ? (statusContextReading().walk?.text ?? null) : null;
+/** @type {ReadonlySet<string>} */
+const NO_STANDING = new Set();
+// What may pass in the panel's one seat, as a surface hears it: a notice while one
+// shows, the Go-to filter's word while its sequence waits for a key, and a walk's
+// position for a notice's moment after each step (notifications.js, `answerStep`), in
+// the words the screen lacks (walk-position.js, `walkWords`). `says` is what the
+// surface's own words say of where the user stands: the page field's say each fact
+// `standing` does (`STANDING`), so a notice about one of them is left to those words and
+// a walk over its list says its place alone; the folded leaf's peek and a thread's field
+// say none.
+/** @param {ReadonlySet<string>} says */
+function passingFacts(says) {
+  const notice = noticeReading();
+  const { goTo, walk } = statusContextReading();
+  return {
+    notice: notice.visible && !(notice.about && says.has(notice.about)) ? notice : null,
+    goTo,
+    step: walk && answeringStep() ? walkWords(walk, says) : null,
+  };
+}
 // An age the panel shows, which previews the clock time behind it as every age does
 // (presence.js, `agePreview`): short, in a room of its own (`.lf-fp-age`) at a line's
 // end, or in Leaf's voice inside a sentence Leaf says (`spoken`), as a sentence words
@@ -1185,26 +1196,24 @@ export function createFloatingPanel({
     // A retained field can repaint between a thread leaving the reading and its
     // route being retired. Its native row survives that interval, not its turn.
     if (key && !thread) return ABSENT;
-    const notice = noticeReading();
-    const { goTo, stance } = statusContextReading();
+    const { stance } = statusContextReading();
     const held = heldWords.value;
     const page = !key;
+    const { notice, goTo, step } = passingFacts(page ? STANDING : NO_STANDING);
     return readField({
       thread: !page,
       writing: input === focused(),
       error: fieldError(),
       held: held && heldText(held),
       selected: page && selectedWords ? excerptWords(selectedWords.quote, 60) : null,
-      notice: notice.visible
-        ? {
-            message: notice.message,
-            press: notice.press ? noticePress(notice.press) : null,
-          }
-        : null,
+      notice: notice && {
+        message: notice.message,
+        press: notice.press ? noticePress(notice.press) : null,
+      },
       goTo,
-      step: stepWords(),
+      step,
       stance: page ? stance : null,
-      standing: () => standing(stance),
+      standing: () => (page ? standing(stance) : []),
       destination: () => whereTo(drawn ?? thread),
       status: () => status().summaryParts,
       close: () => (stance ? stanceClose() : null),
@@ -1220,7 +1229,6 @@ export function createFloatingPanel({
     exits: false,
     offers: false,
   });
-  const HIDDEN = "Annotations hidden";
   // The newest error the field can say, which it says where nothing newer claims it
   // (field-readings.js, "error").
   const fieldError = () => sayable()[0] ?? null;
@@ -1236,30 +1244,49 @@ export function createFloatingPanel({
     );
   }
   // Where the user stands on the page, which leads the page field's words for as long
-  // as the user's own choice stands (field-readings.js, `lead`): the stance's name, the
-  // version the page shows where it is older than the latest (version.js, `shownBehind`),
-  // how many changes the page marks since the version it compares with (`v`,
-  // version.js), whose bars say only that a block changed, and that the user hid the
-  // annotation layer (`o`, annotation-layer.js), which a reload keeps, or a page whose
-  // marks are hidden would read as one with none. They stand in the field's words, so
+  // as the user's own choice stands (field-readings.js, `lead`), each fact with its words
+  // in the order they are said (`STANDING_PARTS`): the stance's name, the version the
+  // page shows where it is older than the latest (version.js, `shownBehind`), how many
+  // changes the page marks since the version it compares with (`v`, version.js), whose
+  // bars say only that a block changed, and that the user hid the annotation layer (`o`,
+  // annotation-layer.js), which a reload keeps, or a page whose marks are hidden would
+  // read as one with none. What passes on the page field leaves to these words the
+  // facts they say (`STANDING`, `passingFacts`). They stand in the field's words, so
   // the field's width never follows them, and the status changing after them leaves
   // them where they stand. Each part carries its separator in its own speaker's face,
   // so words all Leaf's keep the native placeholder (`saying`). The version stood in a
   // tinted notice beside the On Me mark until #5642, which narrowed the field as it came
   // and went and slid the press at the field's end from under the user's aim.
+  /** @type {readonly [string, (stance: string | null) => ReturnType<typeof leafSays> | null][]} */
+  const STANDING_PARTS = [
+    ["stance", (stance) => (stance === null ? null : leafSays(stance))],
+    [
+      "version",
+      () => {
+        const { shown } = versionsReading().latest;
+        return shown === null ? null : leafSays(shown);
+      },
+    ],
+    [
+      "comparison",
+      () => {
+        const base = comparisonBase();
+        return base
+          ? leafSays(
+              `${counted(comparisonChanges().length, "change")} since ${base.name}`,
+            )
+          : null;
+      },
+    ],
+    [
+      "annotations",
+      () => (annotationsHidden() ? leafSays("Annotations hidden") : null),
+    ],
+  ];
+  const STANDING = new Set(STANDING_PARTS.map(([about]) => about));
   /** @param {string | null} stance */
   function standing(stance) {
-    const { shown } = versionsReading().latest;
-    const base = comparisonBase();
-    const compared = base
-      ? leafSays(`${counted(comparisonChanges().length, "change")} since ${base.name}`)
-      : null;
-    return [
-      stance === null ? null : leafSays(stance),
-      shown === null ? null : leafSays(shown),
-      compared,
-      annotationsHidden() ? leafSays(HIDDEN) : null,
-    ]
+    return STANDING_PARTS.map(([, words]) => words(stance))
       .filter((part) => part !== null)
       .map((part) => saidBy(part.voice, `${part.text} · `));
   }
@@ -1288,10 +1315,13 @@ export function createFloatingPanel({
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
   // walk's position. The thread walk standing on this thread says only its place,
-  // "11 of 11", since the view names the thread. The agent's own line, a to-do's title
-  // or a start's, stays in the thread, where the working message says it. A notice or
-  // the Go-to word, which pass in a moment, take the reply's place. The thread's word
-  // is the one its view draws (`drawn`), held news included, as its Resolve says it.
+  // "11 of 11", since the view names the thread; any other walk says what the screen
+  // lacks with no words standing before it (walk-position.js, `walkWords`), so a
+  // comparison's changes are named here, "Change 1 of 5 since v2". The agent's own
+  // line, a to-do's title or a start's, stays in the thread, where the working message
+  // says it. A notice or the Go-to word, which pass in a moment, take the reply's place.
+  // The thread's word is the one its view draws (`drawn`), held news included, as its
+  // Resolve says it.
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread} drawn */
   function turnLead(key, input, drawn) {
@@ -1301,8 +1331,8 @@ export function createFloatingPanel({
     const position = !walk
       ? ""
       : walk.kind === "thread" && walk.target === thread?.id
-        ? `${walk.position} of ${walk.total}`
-        : walk.text;
+        ? walk.place
+        : walkWords(walk, NO_STANDING);
     // A walk gone on to the page, leaving the thread's view open above the stop it
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.
@@ -5355,8 +5385,13 @@ export function createFloatingPanel({
       run: () => focusDestination(leaf, "return"),
     },
   ]);
-  // Folding to the leaf is the page's command, so it has a key and a row in the menu.
-  const foldPanel = () => setRest(prefs().rest === "mark" ? "row" : "mark");
+  // Folding to the leaf is the page's command, so it has a key and a row in the menu. A
+  // listener hears the panel go, or come back, which nothing else says to them.
+  const foldPanel = () => {
+    const folding = prefs().rest !== "mark";
+    setRest(folding ? "mark" : "row");
+    announce(folding ? "Folded to the leaf" : "Unfolded");
+  };
   pageCommand({
     id: FOLD,
     keys: ["."],

@@ -16,11 +16,14 @@
  * costs the status the end of its words.
  *
  * What stands before a reading's words (`lead`) is where the user stands ("standing";
- * floating-panel.js, `standing`), or the stance alone ("stance"), or nothing. Words that
- * pass take the stance alone: the field's end may offer the stance's Close, which the
- * words should name, and the rest of where the user stands comes back with the status a
- * moment later, where a notice announcing it ("Annotations hidden — o shows them") would
- * otherwise say it twice.
+ * floating-panel.js, `standing`), or the stance alone ("stance"), or nothing. A notice
+ * takes the stance alone, since news often announces a change to where the user stands
+ * ("Annotations hidden — o shows them"), which would otherwise be said twice, and the
+ * field's end may offer the stance's Close, which the words should name; the rest of
+ * where the user stands comes back with the status a moment later. The Go-to word and
+ * a walk's position take all of where the user stands, which a walk over a list one of
+ * those facts is about counts on: it says its place alone after them, "5 changes since
+ * v2 · 1 of 5" (walk-position.js, `walkWords`).
  *
  * The field's end offers one press, the one that matters most at that moment (`end`):
  * - "key": the key that enters the field, after the words, as Reply's c;
@@ -73,18 +76,20 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @property {{message: Words, press: BoxPress | null} | null} notice a notice while it
  * shows
  * @property {string | null} goTo the Go-to filter's word while its sequence waits
- * @property {string | null} step a walk's position for its step's moment
+ * @property {string | null} step a walk's position for its step's moment, in the words
+ * the field's own leave unsaid
  * @property {string | null} stance the stance the user is in, by name, on the page
- * @property {() => readonly (string | Said)[]} standing where the user stands, each part
- * ending in its separator
+ * @property {() => readonly (string | Said)[]} standing where the user stands on the
+ * page, each part ending in its separator; nothing in a thread
  * @property {() => Words} destination where words typed in the field go
  * @property {() => Words} status the status's words
  * @property {() => BoxPress | null} close the stance's Close
  * @property {() => BoxPress | null} pagePress the page's own press
  */
 
-/** @typedef {{says: string, field?: "page" | "thread", claims: (f: FieldFacts) => Words | null,
- * lead?: "standing" | "stance", end: End, offers?: boolean}} FieldReading */
+/** @typedef {"standing" | "stance"} Lead
+ * @typedef {{says: string, field?: "page" | "thread", claims: (f: FieldFacts) => Words | null,
+ * lead?: Lead | ((f: FieldFacts) => Lead), end: End, offers?: boolean}} FieldReading */
 
 /** The readings in the order they claim the field; each names how long it stands.
  * @type {readonly FieldReading[]} */
@@ -135,14 +140,16 @@ export const FIELD_READINGS = Object.freeze([
     end: "comment",
     offers: true,
   },
-  // What passes in the panel's one seat for passing words (`passingWords`).
+  // What passes in the panel's one seat for passing words (`passingWords`), a notice
+  // after the stance alone and the Go-to word or a walk's position after where the user
+  // stands (`lead`, above).
   {
     says: "notice",
     claims: (f) => {
       const passing = passingWords(f);
       return passing ? noticeWords(passing) : null;
     },
-    lead: "stance",
+    lead: (f) => (f.notice ? "stance" : "standing"),
     end: "moment",
   },
   // An open thread's reply box says Reply with the key that enters it, while the
@@ -201,10 +208,11 @@ export function readField(f) {
     if (reading.field && reading.field !== field) continue;
     const said = reading.claims(f);
     if (said === null) continue;
+    const leads = typeof reading.lead === "function" ? reading.lead(f) : reading.lead;
     const lead =
-      reading.lead === "standing"
+      leads === "standing"
         ? f.standing()
-        : reading.lead === "stance" && f.stance
+        : leads === "stance" && f.stance
           ? [leafSays(`${f.stance} · `)]
           : [];
     const words = [...lead, ...[said].flat()];

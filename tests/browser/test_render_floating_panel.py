@@ -34,6 +34,7 @@ from render_harness import (
     clocked,
     close_panel_menu,
     consume_browser_errors,
+    expect_panel_says,
     expect_preview_words,
     field_press,
     holding,
@@ -112,7 +113,7 @@ def lead(page):
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and resolving the
-    thread from its controls moves the user on to Threads, and `z` takes them back to
+    thread from its controls moves the user on to Threads, and ⌘Z takes them back to
     the thread, open again. The focused field says its word, Reply over the thread,
     whose name says which. Escape, once the caret has left the field, puts the thread
     away."""
@@ -325,7 +326,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     view puts the caret back in the reply with its words, and so does `c`, from the
     view an Escape left the user on and from a message in it, the thread staying open.
     `r` resolves the thread from the view, a message in it or its Resolve and moves the
-    user on, here back to Threads with no other thread open, `z` takes the resolve back
+    user on, here back to Threads with no other thread open, ⌘Z takes the resolve back
     and opens the thread again, Enter on a resolved thread puts the caret in its reply,
     which a reply reopens, `r` there reopens it, and `e` on a message opens the agent's
     reactions."""
@@ -460,7 +461,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     which thread was resolved, by name, beside the press that matters most next: the
     next open thread, with `t`, while one stands open, and once none does, the Undo
     that takes the Resolve back. A bare "Resolved the thread" would read as the thread
-    now open. `z` returns the user to the thread they resolved; with none left, the
+    now open. ⌘Z returns the user to the thread they resolved; with none left, the
     user is back at Threads and the field says that every thread is resolved. Escape
     there puts the view away and returns the user to the page."""
     url = serve(LONG_PAGE)
@@ -524,7 +525,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     assert rings_drawn(page) == []
     # With no open thread left, the press takes the Resolve back.
     expect(press.locator(".lf-compose-press-word")).to_have_text("Undo")
-    expect(press.locator("kbd")).to_have_text("z")
+    # The platform spells undo's chord: ⌘z on a Mac, Ctrl+z elsewhere.
+    expect(press.locator("kbd")).to_have_text(re.compile(r"^(⌘z|Ctrl\+z)$"))
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
     expect(page.locator(".lf-fp-leaf")).not_to_be_focused()
@@ -534,7 +536,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's notice of a Resolve and its press name one gesture. A Resolve that
     leaves no thread open says so and offers the Undo that takes it back. The log refusing that Resolve takes
     the notice away with it, and its press takes back that Resolve even once another
-    gesture of the user's is the newest, the one `z` would take: a press that ran `z`
+    gesture of the user's is the newest, the one ⌘Z would take: a press that ran ⌘Z
     would take back an earlier gesture once its own was refused. The agent having picked
     that Resolve up changes nothing: the press still takes that Resolve, not the
     newest gesture."""
@@ -600,7 +602,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     expect(page.locator(panel_view("threads"))).to_be_visible()
     expect(said).to_have_text("All threads resolved")
     expect(undo).to_contain_text("Undo")
-    # Another tab of the user's reopens one of the others, so `z` would take that.
+    # Another tab of the user's reopens one of the others, so ⌘Z would take that.
     append_carried_log_record(
         serve.page_dir,
         {"kind": "unresolve", "author": "user", "parent": roots[others[0]]},
@@ -744,6 +746,29 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
         page.keyboard.press("Enter")
     expect(page.locator(panel_view("threads"))).to_be_visible()
     expect(field(page)).to_have_attribute("name", "comment")
+
+
+def test_a_notice_over_a_thread_s_field_ends_in_reply_and_its_key(browser, serve):
+    """A notice offering no press of its own passes over an open thread's field as it
+    does over the page's: its words, then Reply and the key that enters the field, as
+    the page's field says Comment, rather than the key alone after the notice."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(panel_view("thread"))
+    expect(thread).to_be_visible()
+    thread.focus()
+    placeholder = page.locator(".lf-fp-field .lf-compose-placeholder")
+    words = placeholder.locator(".lf-compose-placeholder-words")
+    enters = placeholder.locator(".lf-compose-placeholder-enters")
+    expect(words).to_have_text("Reply…")
+    expect(enters).to_have_text("")
+    page.keyboard.press("n")
+    expect(words).to_have_text("No search to repeat")
+    expect(enters).to_have_text("Reply…")
+    expect(placeholder.locator(".lf-key-badge")).to_have_text("c")
 
 
 def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
@@ -3497,6 +3522,31 @@ def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
     last = menu.locator(".lf-fp-item").last
     last.scroll_into_view_if_needed()
     expect(last).to_be_in_viewport()
+
+
+def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, serve):
+    """Annotations hidden is where the user stands, which the page field's standing
+    words say at once. Hiding them by key names the key that brings them back, which
+    those words don't, so its notice shows there too; showing them again only undoes
+    what the field said, so the field leaves its notice to them. Folded, the leaf's
+    peek says no standing words, so it shows both."""
+    page = floating(browser, serve(LONG_PAGE, comments=1))
+    page.locator("body").focus()
+    page.keyboard.press("o")
+    expect_panel_says(page, "Annotations hidden — o shows them")
+    expect(page.locator(".lf-live")).to_have_text("Annotations hidden — o shows them")
+    page.keyboard.press("o")
+    # Read once the press has drawn, while its notice's moment still stands.
+    rendered(page)
+    assert field(page).get_attribute("data-lf-says") == "status"
+    assert "Annotations" not in (field(page).get_attribute("placeholder") or "")
+    expect(page.locator(".lf-live")).to_have_text("Annotations shown")
+    page.keyboard.press(".")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
+    page.keyboard.press("o")
+    expect_panel_says(page, "Annotations hidden — o shows them")
+    page.keyboard.press("o")
+    expect_panel_says(page, "Annotations shown")
 
 
 def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):

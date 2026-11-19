@@ -198,11 +198,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     page.evaluate(AVAILABLE_COMMANDS)
     page.wait_for_function(
-        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('Mod+z') ?? false"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     holding(page, held, 1, "the undo")
     expect(answer).to_have_attribute("data-lf-obligations", "answered")
     held[0].continue_()

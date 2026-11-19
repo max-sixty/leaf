@@ -33,6 +33,7 @@ from render_harness import (
     stored_draft,
     stored_draft_settled,
     stored_draft_text,
+    stored_drafts,
     told,
     until_draft_settled,
     write,
@@ -891,6 +892,51 @@ def test_words_typed_on_a_reload_stand_over_the_resend_of_the_page_it_left(
     expect(field).to_have_js_property("value", "Kept words")
 
 
+def test_words_typed_on_a_reload_stand_over_a_write_taken_as_it_was_served(
+    browser, serve, one_user
+):
+    """A reload asks for its document before the page it replaces goes away, so that
+    page can hear the server take its last write after the reload was served the
+    drafts from before it. The reload starts from that page's copy, newer than what it
+    was served, so it shows the words typed before it, and the words typed on arrival
+    go on after them."""
+    page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    write(page_comment(page), "K")
+    assert stored_draft_text(page, "general") == "K"
+    writes = []
+    page.route("**/api/draft", lambda route: writes.append(route))
+    page.keyboard.insert_text("ept")
+    holding(page, writes, 1, "the write of Kept")
+    page.unroute("**/api/draft")
+    # The document the reload is served, asked for while the server holds "K".
+    served = page.request.get(page.url)
+    _land(writes[0])
+    assert stored_draft_text(page, "general") == "Kept"
+
+    def document(route):
+        if route.request.resource_type != "document":
+            route.fallback()
+            return
+        route.fulfill(response=served)
+
+    page.route("**/*", document)
+    # The reload hears what the server holds only through its writes' answers.
+    reads = []
+    page.route("**/api/drafts", lambda route: reads.append(route))
+    with restarting(page):
+        page.reload()
+    page.unroute("**/*", document)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    expect(field).to_have_js_property("value", "Kept")
+
+    _type_on_arrival(page, " words")
+    assert stored_draft_text(page, "general") == "Kept words"
+    page.unroute("**/api/drafts")
+    for route in reads:
+        route.continue_()
+    expect(field).to_have_js_property("value", "Kept words")
+
+
 def test_words_typed_on_a_reload_stand_however_late_the_page_it_left_writes(
     firefox_browser, serve
 ):
@@ -959,9 +1005,9 @@ def test_words_typed_on_a_reload_stand_over_a_resend_landing_after_a_rewrite(
     firefox_browser, serve
 ):
     """A reload goes on counting the writes of the page it replaced as its own after
-    the server takes a generation those writes can still land over, as when the reload
-    gives the server back the words it was served and the server then lost. Firefox's
-    routes hold the resend, which Chromium's don't see."""
+    the server takes a generation those writes can still land over, as when the page's
+    drafts store is replaced and the reload writes the words it was served into the
+    new one. Firefox's routes hold the resend, which Chromium's don't see."""
     page = open_page(firefox_browser, serve(LONG_PAGE))
     sends = []
     _, says, reads = _reload_while_writing(
@@ -1088,21 +1134,76 @@ def test_a_draft_follows_the_user_to_another_device(browser, serve):
     expect(page_comment(laptop)).to_have_js_property("value", finished)
 
 
-def test_a_tab_gives_back_the_words_a_server_lost(browser, serve):
-    """A server that comes back holding less than a tab heard from it, as one restarting
-    from an older copy of its page does, gets the tab's words back."""
+def test_a_tab_gives_its_words_to_a_store_that_replaced_its_own(browser, serve):
+    """A page's drafts store replaced by another, as a new leaf.page release starts
+    one, holds none of the words a tab heard the first store take. The tab hears the
+    new store at its next look and writes its words into it."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
-    typed = "Words the server is about to lose."
+    typed = "Words the first store held."
     write(page_comment(page), typed)
     assert stored_draft_text(page, "general") == typed
     (serve.page_dir / "drafts.json").unlink()
     wait_for(
         lambda: stored_draft_text(page, "general"),
         lambda text: text == typed,
-        failure="the tab never gave its words back to the server",
+        failure="the tab never gave its words to the new store",
     )
     expect(page_comment(page)).to_have_js_property("value", typed)
+
+
+def test_a_reload_gives_a_replaced_store_its_words_with_a_write_or_two_each(
+    browser, serve, one_user
+):
+    """A reload can find its page's drafts store replaced by another, as a new
+    leaf.page release starts one, whose versions say nothing of the copies the page
+    it replaced left. The reload writes each draft's words into the new store, those
+    the old store held and those still waiting alike, with a write or two each rather
+    than one after another for as long as the page stands, and words typed after the
+    reload reach the store too."""
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url, context=one_user)
+    kept = "A reply the old store held."
+    write_draft_elsewhere(page, "reply:elsewhere", kept)
+    heard_draft(page, "reply:elsewhere", kept)
+    box = page_comment(page)
+    # Each write the old store takes moves the version the page's copy of the draft
+    # holds past any the new store reaches by the reload's writes.
+    for words in ("H", "He", "Held"):
+        write(box, words)
+        assert stored_draft_text(page, "general") == words
+    # No look tells the page of the new store before it reloads.
+    page.route("**/api/news", refuse)
+    writes = []
+    page.route("**/api/draft", lambda route: writes.append(route))
+    write(box, "Held, and waiting")
+    holding(page, writes, 1, "the write still waiting")
+    (serve.page_dir / "drafts.json").unlink()
+    refuse(writes[0])
+    page.unroute("**/api/draft")
+    posts = []
+    page.on(
+        "request",
+        lambda request: (
+            posts.append(request)
+            if request.method == "POST" and request.url.endswith("/api/draft")
+            else None
+        ),
+    )
+    with restarting(page):
+        page.reload()
+
+    expect(page_comment(page)).to_have_js_property("value", "Held, and waiting")
+    stored = {ctx: record["text"] for ctx, record in stored_drafts(page).items()}
+    assert stored == {"general": "Held, and waiting", "reply:elsewhere": kept}
+    # The page's resend as it went, then for each draft a write into the new store and
+    # at most one more over the resend landing first.
+    assert len(posts) <= 5, [request.post_data_json for request in posts]
+    after = "Held, and waiting, and typed after the reload"
+    write(page_comment(page), after)
+    assert stored_draft_text(page, "general") == after
+    assert len(posts) <= 6, [request.post_data_json for request in posts]
+    page.unroute("**/api/news")
 
 
 def test_a_reading_older_than_a_write_s_answer_leaves_the_words_typed_since(

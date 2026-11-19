@@ -691,24 +691,26 @@ export function shownRect(item, clips) {
 // since a pinch zoom's visual viewport is a pan across the page and not a clip, and read
 // with its sides a message wider than the zoomed view was never seen whole across, and
 // never counted read. `item` is an element or a Range, and `box` the extent asked about,
-// the item's own by default, or wider, as a focus ring's room is.
-/** @param {Element | Range} item @param {ClipCache} clips @param {Box} [box] */
-export function seenRect(item, clips, box = placeBox(item)) {
+// the item's own by default, or wider, as a focus ring's room is. `rest` reads the
+// covers where they come to rest (`coverBoxes`), for a key that acts on the page as
+// its motion will leave it.
+/** @param {Element | Range} item @param {ClipCache} clips @param {Box} [box] @param {boolean} [rest] */
+export function seenRect(item, clips, box = placeBox(item), rest = false) {
   const holder = placeHolder(item);
   // What clips a box only cuts it, so a box the visible viewport's height doesn't reach
   // shows nothing in front of the user, and its walk goes unread.
   const { offsetTop, height } = visualViewport;
   if (!holder || box.bottom <= offsetTop || box.top >= offsetTop + height) return null;
   const shown = clippedPlace(item, clips, box);
-  return shown ? inFront(shown, holder) : null;
+  return shown ? inFront(shown, holder, rest) : null;
 }
 // What of `box`, already cut by every box clipping `item`, is in front of the user: its
 // part within the visible viewport's height, less the boxes the chrome covers
 // (`uncovered`), or null where none of it is. `seenRect` reads every item through it,
 // and a box with no element of its own, a search match's line, asks it directly
 // (key-badge-placement.js, `clearPart`).
-/** @param {Box} box @param {Node} item */
-export function inFront(box, item) {
+/** @param {Box} box @param {Node} item @param {boolean} [rest] */
+export function inFront(box, item, rest = false) {
   const { offsetTop, height } = visualViewport;
   return uncovered(
     {
@@ -718,6 +720,7 @@ export function inFront(box, item) {
       bottom: Math.min(box.bottom, offsetTop + height),
     },
     item,
+    rest,
   );
 }
 // The span `top` to `bottom` less what a cover in its columns takes: everything from the

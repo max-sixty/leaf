@@ -29,6 +29,7 @@ const stanceWords = (scope) => (scope ? word(scope.says ?? scope.title) : null) 
 const same = (a, b) =>
   a.goTo === b.goTo &&
   a.stance === b.stance &&
+  a.walk?.kind === b.walk?.kind &&
   a.walk?.text === b.walk?.text &&
   a.walk?.target === b.walk?.target;
 
@@ -39,15 +40,7 @@ export function paintStatusContext(goToStatus) {
   const goTo = goToStatus();
   const next = Object.freeze({
     goTo,
-    walk: position
-      ? Object.freeze({
-          kind: position.kind,
-          target: position.target,
-          position: position.position,
-          total: position.total,
-          text: position.text,
-        })
-      : null,
+    walk: position ? Object.freeze(position) : null,
     stance: stanceWords(innermostStance()?.scope),
   });
   setNoticeContext(Boolean(goTo));

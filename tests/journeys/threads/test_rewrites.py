@@ -23,7 +23,7 @@ def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser,
     message and its Save turning to Delete; the message then reads Deleted in its place,
     above the answer given to it, offering no rewrite, and still does after a reload.
 
-    A deletion, as any rewrite, can be taken back: `z` gives the message its words back
+    A deletion, as any rewrite, can be taken back: ⌘Z gives the message its words back
     in the press, and the log keeps them."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     words = message.locator(".lf-msg-text")
@@ -64,7 +64,7 @@ def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser,
     # The log answers only once the words are back.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     expect(words).to_have_text("Fit the north bracket.")
     expect(deleted).to_have_count(0)
     page.unroute("**/api/event")

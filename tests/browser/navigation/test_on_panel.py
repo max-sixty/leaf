@@ -494,13 +494,12 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     assert answer["widget"] == "second"
     button.click()
     expect(first).to_be_focused()
-    # Next put the answer out of view in its tab, so the first press shows it there
-    # and the second takes it back.
-    page.keyboard.press("z")
-    expect(page.locator("#second")).to_be_focused()
+    # Next put the answer out of view in its tab, so the press takes it back and then
+    # shows it there.
     with sending(page, "undo the second item's answer after Next"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
+    expect(page.locator("#second")).to_be_focused()
     expect(words).to_have_text("2 left to answer")
     assert events_model.read_events(serve.page_dir)[-1]["undoes"] == answer["id"]
     # Leave the next press at the region's start, as on initial arrival.
@@ -541,7 +540,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(count).not_to_have_css("color", waiting_color)
     expect(button).to_be_disabled()
     with sending(page, "undo the first decision's answer"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(words).to_have_text("1 left to answer")
     expect(count).to_have_css("color", waiting_color)

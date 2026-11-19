@@ -1913,11 +1913,12 @@ flowchart TD
               <em>After the canary is healthy</em> into <em>Another option</em>, and
               press <kbd>Enter</kbd>: press the notice counting new rows to reveal an
               <code>add</code> and then a pick. Pick <em>Later</em>. Then press
-              <kbd>z</kbd> three times. The first press brings back the pick of the
-              added option, the second leaves nothing picked while the added option
-              stays, and the third removes the option. Press the activity notice to read
-              the changed history; it waits so arrivals never move the text being read.
-              The three undos return the choices to their starting state.
+              <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac) three times. The first press
+              brings back the pick of the added option, the second leaves nothing picked
+              while the added option stays, and the third removes the option. Press the
+              activity notice to read the changed history; it waits so arrivals never
+              move the text being read. The three undos return the choices to their
+              starting state.
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
               <lf-group id="ship-ask" label="When should this ship?">
@@ -2057,17 +2058,17 @@ flowchart TD
                   </td>
                 </tr>
                 <tr>
-                  <td><kbd>z</kbd></td>
+                  <td><kbd>⌘Z</kbd></td>
                   <td>undoes the pick of Later</td>
                   <td>The new option picked again, restoring the previous selection</td>
                 </tr>
                 <tr>
-                  <td><kbd>z</kbd></td>
+                  <td><kbd>⌘Z</kbd></td>
                   <td>undoes the first pick</td>
                   <td>Nothing picked; the new option is still there</td>
                 </tr>
                 <tr>
-                  <td><kbd>z</kbd></td>
+                  <td><kbd>⌘Z</kbd></td>
                   <td>undoes the <code>add</code></td>
                   <td>Now and Later, nothing picked</td>
                 </tr>
@@ -2443,14 +2444,15 @@ flowchart TD
               action's original meaning.
             </p>
             <p id="undo">
-              <kbd>z</kbd> withdraws the user's latest action, naming that action and
-              how long ago it was made. Where that action is out of view, or the agent
-              has already picked it up, the first press shows it and the second takes it
-              back. Either way it leaves the user at what it took back, so undoing a
-              resolve opens the thread again where they had it open. Undoing a message
-              or a rewrite puts its words back in the box they were written in, as a
-              draft to edit or send again. Each undo appends an event naming its target,
-              so the recomputed result survives reloads.
+              Outside a text box, <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac) withdraws
+              the user's latest action at once, then leaves the user at what it took
+              back: where that was out of view, the page goes there, and Back returns to
+              where they pressed. A ring marks what changed for about a second, and a
+              notice names the action and how long ago it was made until the user's next
+              key, press or scroll. Undoing a resolve opens the thread again where they
+              had it open. Undoing a message or a rewrite puts its words back in the box
+              they were written in, as a draft to edit or send again. Each undo appends
+              an event naming its target, so the recomputed result survives reloads.
             </p>
           </section></lf-tab
         ><lf-tab id="progress" label="Progress"
@@ -4070,7 +4072,6 @@ flowchart TD
                     <td><kbd>z</kbd></td>
                     <td>
                       Scroll the current item to the top, keeping focus and selection.
-                      Bare z is Undo.
                     </td>
                   </tr>
                   <tr>
@@ -4100,9 +4101,9 @@ flowchart TD
               </table>
               <p id="navigation-go-to-filters">
                 Lowercase <kbd>m</kbd>, <kbd>t</kbd>, <kbd>h</kbd> and
-                <kbd>f</kbd> filter hints to margin targets, thread controls, hyperlinks
-                and folds (collapsible sections). Further letters choose a target: g
-                then t filters thread controls; g then T opens Threads.
+                <kbd>f</kbd> filter hints to margin entries, threads, hyperlinks and
+                folds (collapsible sections). Further letters choose a target: g then t
+                filters threads; g then T opens Threads.
               </p>
               <p id="navigation-go-to-exit">
                 Tab / Shift+Tab move through hints; Enter takes the announced hint.

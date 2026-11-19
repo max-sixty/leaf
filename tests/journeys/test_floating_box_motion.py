@@ -25,6 +25,7 @@ from browser.margin import LONG_THREAD_ROOT, LOW_PASSAGE_PAGE
 from browser_sources import browser_source
 from hypothesis import HealthCheck, Phase, example, given, settings
 from hypothesis import strategies as st
+from render_cases_interaction import HOLD_MOTION
 from render_harness import open_page, resized, scroll_settled, write
 
 from leaf.render_checks import rendered, wait_for_probe
@@ -216,3 +217,103 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
         assert not found, "\n".join(found[:8])
 
     moves_one_way()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("composer", sorted(COMPOSERS))
+def test_a_line_removed_among_the_words_moves_only_what_layout_moved(
+    composer, engine, request, serve
+):
+    """A line a key takes away from among the words moves only what layout moved, each
+    part one way. The panel and a card stand on their foot, so the words before the line
+    travel down with the box's top edge, setting out from where they stood, and the
+    words after it stand. The comment box beside its passage stands on its top, so the
+    words after the line go up with its rising foot, in the frame the key lands, as
+    layout puts them. The line Shift+Enter adds first takes its place in one frame, as
+    every key that adds words does, so nothing travels (box-motion.js). The property
+    test never puts words after the caret, so this one adds and takes away a line with
+    two after it: by Backspace at the end of a line, where the change ends inside a
+    line; at the start of the next, where it ends at a line's start; and, in the panel,
+    from a field at its cap scrolled to its end, which the removal lets stop scrolling.
+    The card's and the comment box's fields have no cap short of the window's edge."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT]),
+        init_script=MOTION_FRAMES,
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    field = open_composer(page, composer)
+    hold = "() => { window.__lfAnimate = Element.prototype.animate;" + HOLD_MOTION + "}"
+    release = (
+        "() => { Element.prototype.animate = window.__lfAnimate;"
+        " __lfHeld.splice(0).forEach((motion) => motion.play()); }"
+    )
+    count = "() => lfMotionFrames.count()"
+    frames_past = "count => lfMotionFrames.count() >= count"
+
+    def removal(scrolled=False):
+        """Press Shift+Enter, then Backspace, recording the box, the Backspace's first
+        frame held while a few frames are read."""
+        at_rest(page, composer)
+        page.evaluate("parts => lfMotionFrames.begin(parts)", COMPOSERS[composer])
+        page.wait_for_function(frames_past, arg=2)
+        marks = [page.evaluate("() => lfMotionFrames.inputs()")]
+        page.keyboard.press("Shift+Enter")
+        at_rest(page, composer)
+        if scrolled:
+            # The line that takes the field to its cap goes unchecked: the field draws
+            # the words after it a frame before its scroll takes them back up by what
+            # overflows.
+            marks = []
+            assert field.evaluate("field => field.scrollHeight > field.clientHeight")
+            field.evaluate("field => { field.scrollTop = field.scrollHeight; }")
+            rendered(page)
+        page.evaluate(hold)
+        marks.append(page.evaluate("() => lfMotionFrames.inputs()"))
+        page.keyboard.press("Backspace")
+        page.wait_for_function("() => window.__lfHeld.length > 0")
+        page.wait_for_function(frames_past, arg=page.evaluate(count) + 3)
+        page.evaluate(release)
+        at_rest(page, composer)
+        if scrolled:
+            assert field.evaluate("field => field.scrollHeight <= field.clientHeight")
+        page.wait_for_function(frames_past, arg=page.evaluate(count) + 5)
+        frames = page.evaluate("() => lfMotionFrames.end()")
+        found = jerks(frames, marks)
+        assert not found, "\n".join(found[:8])
+        stood = [frame for frame in frames if frame["inputs"] <= marks[-1]][-1]["parts"]
+        first = next(frame for frame in frames if frame["inputs"] > marks[-1])["parts"]
+        last = frames[-1]["parts"]
+        words = [part for part in stood if part.startswith("words") and part in first]
+        assert any(abs(last[part] - stood[part]) > SLACK for part in words), (
+            "the removed line moved no words"
+        )
+        # On a box standing on its foot, the removal's first frame draws every word
+        # where it stood.
+        jumped = {
+            part: (stood[part], first[part])
+            for part in words
+            if abs(first[part] - stood[part]) > SLACK
+        }
+        assert composer == "comment" or not jumped, jumped
+
+    write(field, "waits waits while while\nwaits\nwaits waits while while\nwaits")
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("End")
+    removal()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Home")
+    removal()
+    if composer != "panel":
+        return
+    # As many lines as the field holds without scrolling, so one more takes it to its
+    # cap, overflowing by less than the line.
+    page.keyboard.press("ControlOrMeta+End")
+    while field.evaluate("field => field.scrollHeight <= field.clientHeight"):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.insert_text("waits")
+    for key in ("Shift+Home", "Backspace", "Backspace", "ArrowUp", "ArrowUp", "End"):
+        page.keyboard.press(key)
+    removal(scrolled=True)

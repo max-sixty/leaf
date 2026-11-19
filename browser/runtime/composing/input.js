@@ -1035,7 +1035,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         // input, so each picture is decoded first and the tile's image draws from it.
         await Promise.all(
           paths.map((path) => {
-            const picture = new Image();
+            const picture = document.createElement("img");
             picture.src = scopedMediaUrl(path);
             return picture.decode().catch(() => {});
           }),

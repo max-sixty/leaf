@@ -63,7 +63,7 @@ window.lfStorage.tabStore = {
   where: (key) => ({ store: "session", key }),
   keys: () => [...tabMemory.keys()],
 };
-const { draftsWaiting, loadDraft, saveDraft, sendDraft, watchDraft } =
+const { draftsWaiting, giveBackWords, loadDraft, saveDraft, sendDraft, watchDraft } =
   await import("/runtime/drafts.js");
 
 /** Another tab's or device's generation of the draft at `ctx`, written to the server
@@ -236,4 +236,20 @@ test("leaving asks first while a drawing waits that no write carries", async () 
   assert.deepEqual(server.get("composer:drawn")?.payload, { drawing });
   assert.equal(draftsWaiting(), waiting);
   assert.equal(leave(), true);
+});
+
+// Words an undo gives back to a box the user has begun keep what the box holds, even
+// only whitespace, and the box's own payload rather than the sent message's.
+test("words given back to a box holding only whitespace keep it and its payload", async () => {
+  const own = { anchor: { says: "the bracket" }, mode: "comment" };
+  saveDraft("composer:spaced", "  ", own);
+  await writesSettled();
+  const back = told("composer:spaced");
+  giveBackWords("composer:spaced", "Fit the bracket.", {
+    anchor: { says: "the cable" },
+  });
+  const { value, payload } = await back;
+  assert.equal(value, "Fit the bracket.\n\n  ");
+  assert.deepEqual(payload, own);
+  assert.deepEqual(loadDraft("composer:spaced")?.payload, own);
 });

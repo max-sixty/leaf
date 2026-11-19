@@ -783,8 +783,8 @@ const LISTED = ["anchor", "suggest", "about", "drawing"];
 const field = (payload, key) =>
   /** @type {Record<string, unknown> | undefined} */ (payload)?.[key];
 // Whether a draft holds the user's work: words, or a comment's drawing, which a
-// selection composer can hold with no words. Leaving asks over it, the drafts list
-// shows it, and words given back keep it.
+// selection composer can hold with no words. Leaving asks over it and the drafts list
+// shows it. Words given back test more widely (`giveBackWords`).
 /** @param {ActiveDraft | null} record */
 const holdsWork = (record) =>
   Boolean(record?.text.trim() || field(record?.payload, "drawing"));
@@ -1087,7 +1087,10 @@ const atEnd = (ctx) => {
 /** @param {string} ctx @param {string} text @param {DraftPayload} [payload] @param {string | null} [under] */
 export function giveBackWords(ctx, text, payload, under = null) {
   const current = activeDraftRecord(ctx);
-  const own = holdsWork(current) ? current : null;
+  // Any text counts here, whitespace included, so a box the user has begun keeps
+  // what they typed and its own payload, such as the passage of a comment begun since.
+  const own =
+    current && (current.text || field(current.payload, "drawing")) ? current : null;
   const reply = under === null ? null : activeDraftRecord(under);
   const words = [text, reply?.text, own?.text].filter(Boolean).join("\n\n");
   const drawing = field(payload, "drawing");

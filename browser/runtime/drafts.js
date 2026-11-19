@@ -1040,6 +1040,33 @@ const atEnd = (ctx) => {
   const end = (activeDraftRecord(ctx)?.text ?? "").length;
   return [end, end];
 };
+// Words an undo took back from the log, given back to the draft they were written in
+// (undo.js, `withdraw`), so taking a message back puts it to draft rather than
+// discarding it. They come first, then the words of the box `under` them, the reply box
+// of a thread that went with them, then any words the draft holds now, which the user
+// wrote after them. A draft holding something of its own keeps its own `payload`, such
+// as the passage and mode of a comment begun since, taking only a drawing it lacks; one
+// holding nothing takes the words'. A new generation, so the log's record of the send
+// settles nothing here (`drafts.py`). They are the user's newest unsent words, so
+// Resume writing goes to their end, wherever the box stands.
+/** @param {string} ctx @param {string} text @param {DraftPayload} [payload] @param {string | null} [under] */
+export function giveBackWords(ctx, text, payload, under = null) {
+  const current = activeDraftRecord(ctx);
+  const own =
+    current && (current.text || field(current.payload, "drawing")) ? current : null;
+  const reply = under === null ? null : activeDraftRecord(under);
+  const words = [text, reply?.text, own?.text].filter(Boolean).join("\n\n");
+  const drawing = field(payload, "drawing");
+  const kept = !own
+    ? payload
+    : drawing && !field(own.payload, "drawing")
+      ? { ...own.payload, drawing }
+      : own.payload;
+  saveDraft(ctx, words, kept);
+  tellDraft(ctx, words, kept);
+  if (reply && under !== null) clearDraft(under);
+  keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
+}
 // What a refusal left the user, given every attempt it refused, read once each sender's
 // own answer has returned its words (`standGesture`) and any owner has reopened its box
 // for them.

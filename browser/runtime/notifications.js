@@ -4,7 +4,7 @@
    focus or scroll the panel. `notice` is the one visible surface for a moment's news,
    such as an arrived version or an undo, and it stands in one seat: the floating
    panel's seat for passing words, whose own words come back when the notice's time is
-   up (floating-panel.js, `passing`). A walk's step holds the seat for the same moment,
+   up (field-readings.js). A walk's step holds the seat for the same moment,
    said in the walk's live position rather than words given here (`answerStep`). The
    live region hears the same words. It is text, but for the one press a notice of the
    user's own gesture may carry: the press that matters most after that gesture
@@ -164,7 +164,7 @@ function retireNotice() {
 // (undo.js), stands until the user's next input rather than for its time. A press
 // stands no longer than it can act: a gesture the log refused, or one taken back by any
 // route, takes its notice away. The panel says the
-// press at the field's end (floating-panel.js, `fieldReading`), so one leaving on a
+// press at the field's end (field-readings.js, `end`), so one leaving on a
 // timer would take it from under a hand on its way there. An input on the press itself,
 // which `keepsNotice` marks, keeps it.
 const NOTICE_PRESS = "data-lf-notice-press";
@@ -273,7 +273,7 @@ function yieldNotice() {
 
 // A walk's step is a command of the user's whose answer is the walk's live position
 // rather than words of its own (walk-position.js), so the seat says that position for
-// a notice's moment from the latest step (floating-panel.js, `passing`), and news
+// a notice's moment from the latest step (field-readings.js, "notice"), and news
 // arriving meanwhile waits for it as it waits for a notice. The walk itself stands
 // where it landed after the moment; only the seat goes back to its own words.
 // beginWalk dispatches the step only for gestures, so ordinary repaints never restart

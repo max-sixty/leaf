@@ -1034,10 +1034,15 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
 ):
     """An empty text field builds its editor only when the user arrives in it. The box
     drawn in its place, were it a textbox in Chromium's accessibility tree but not an
-    editable one, with its value empty where the editor's is a line break, would let a
-    screen reader describe the field differently before the user arrived. Every
-    named node the field gives the tree reads the same before Tab builds the editor and
-    after, and the key typed on arrival lands in the field."""
+    editable one, would let a screen reader describe the field differently before the
+    user arrived. Every named node the field gives the tree reads the same before Tab
+    builds the editor and after, and the key typed on arrival lands in the field.
+
+    The box is a textarea, and Chromium's tree reads two things of it differently
+    from the editor: the empty textarea gives no value where the editor's empty
+    document gives one line break, and the textarea states `invalid: false`, which
+    the editor's node leaves out. The test holds each value to exactly its own empty
+    form; no screen reader has been run against either."""
     page = open_page(
         browser,
         serve(
@@ -1058,22 +1063,35 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
     cdp = page.context.new_cdp_session(page)
 
     def field_nodes():
-        return sorted(
+        """The field's named nodes, and apart the value of the one that takes input."""
+        nodes = [
+            node
+            for node in cdp.send("Accessibility.getFullAXTree")["nodes"]
+            if not node["ignored"] and node.get("name", {}).get("value") == "Reply"
+        ]
+        values = [
+            node.get("value", {}).get("value")
+            for node in nodes
+            if any(prop["name"] == "editable" for prop in node.get("properties", []))
+        ]
+        return values, sorted(
             (
                 node["role"]["value"],
                 node.get("description", {}).get("value") or "",
-                node.get("value", {}).get("value") or "",
                 sorted(
                     (prop["name"], prop["value"].get("value"))
                     for prop in node.get("properties", [])
                     if prop["name"] != "focused"
+                    and (prop["name"], prop["value"].get("value"))
+                    != ("invalid", "false")
                 ),
             )
-            for node in cdp.send("Accessibility.getFullAXTree")["nodes"]
-            if not node["ignored"] and node.get("name", {}).get("value") == "Reply"
+            for node in nodes
         )
 
-    before = field_nodes()
+    values, before = field_nodes()
+    # The textarea's empty value gives the tree no value at all.
+    assert values == [None]
     field = page.locator("#holder leaf-text")
     page.locator("#before").focus()
     page.keyboard.press("Tab")
@@ -1086,4 +1104,7 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
     assert field.evaluate("node => node.value") == "x"
     page.keyboard.press("Backspace")
     page.evaluate(RELEASE_FOCUS)
-    assert field_nodes() == before
+    values, after = field_nodes()
+    # The editor's empty document is one line, which the tree reads as a line break.
+    assert values == ["\n"]
+    assert after == before

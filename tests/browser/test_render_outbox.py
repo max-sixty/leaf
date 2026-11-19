@@ -50,6 +50,7 @@ from render_harness import (
     expect_panel_offers,
     expect_panel_says,
     fetch_whole_state,
+    held_frames,
     holding,
     http_error_console,
     is_problem,
@@ -471,6 +472,32 @@ def test_z_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
     expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     page.go_back()
     expect(picks).not_to_be_in_viewport()
+
+
+def test_z_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser, serve):
+    """A fast user walks to a thread far above their choice and presses ⌘Z before the
+    walk's scroll has drawn a frame. The press reads the page that scroll leaves, where
+    the choice is out of view, so it takes the choice and then goes to it, rather than
+    taking it where it stood and letting the scroll carry the user away from it."""
+    url = serve(FAR_CHOICE_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Is the opening right?",
+        anchor={"section": "p0"},
+        author="agent",
+    )
+    choice = _choose(serve.page_dir)
+    page = open_page(browser, url)
+    picks = page.locator("#picks")
+    picks.scroll_into_view_if_needed()
+    undo_offered(page)
+    with sending(page, "the withdrawal"), held_frames(page):
+        page.keyboard.press("Shift+t")
+        page.keyboard.press("ControlOrMeta+z")
+    assert _undos(serve.page_dir) == [choice["id"]]
+    expect(page).to_have_url(re.compile("#picks$"))
+    scroll_settled(page)
+    expect(picks).to_be_in_viewport()
 
 
 # Whether the options with id `arg` are taking the tint of a change now (motion.js,

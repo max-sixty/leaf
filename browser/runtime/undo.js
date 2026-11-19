@@ -34,10 +34,11 @@
    a thread opening and an element travelled to as its fragment, so Back returns to
    where the user pressed. Its notice says what was taken and how long ago. Visibility
    decides only whether the press travels, never whether it takes, so a reading of it
-   that misses costs a scroll and never a press. It is read with each cover where it
-   comes to rest, so a press as a panel closes reads the page the closing leaves. An
-   exact control, such as a widget's Undo or a reaction chip, is pressed where its
-   gesture is drawn, so its withdrawal moves nobody.
+   that misses costs a scroll and never a press. It is read where each cover and each
+   scroll Leaf runs comes to rest, so a press as a panel closes reads the page the
+   closing leaves, and a press during the scroll a walk starts reads the page that
+   scroll leaves. An exact control, such as a widget's Undo or a reaction chip, is
+   pressed where its gesture is drawn, so its withdrawal moves nobody.
 
    Taking at once is the user's decision. Rejected: showing an out-of-view gesture with
    the first press and taking it with a second, so that a press never took what the user
@@ -100,7 +101,8 @@ import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { elementById, inChrome } from "./passages.js";
 import { focusDestination } from "./focus.js";
-import { placeBox, placeHolder, seenRect } from "./geometry.js";
+import { placeBox, placeHolder } from "./geometry.js";
+import { seenLanded } from "./scroll-containers.js";
 import { messageHolding, threadName } from "./thread/messages.js";
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -219,12 +221,12 @@ function placeOf(event) {
   return { fragment: id, nodes: [elementById(id)] };
 }
 
-// Whether the user sees any of a destination (an element or a Range), past whatever
-// covers it where it comes to rest.
+// Whether the user sees any of a destination (an element or a Range) where the glides
+// under way leave it, past whatever covers it where it comes to rest.
 /** @param {Element | Range | null | undefined} where */
 const seen = (where) => {
   const holder = where && placeHolder(where);
-  return Boolean(where && holder && seenRect(holder, new Map(), placeBox(where), true));
+  return Boolean(where && holder && seenLanded(holder, placeBox(where), true));
 };
 
 const UNDO_KEYS = ["Mod+z"];

@@ -242,10 +242,11 @@ SEEN_SHARE = """async (selector) => {
 
 def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, serve):
     """While anything waits on the user, the panel field's end offers Next On Me with
-    `m`, and still does once an answer leaves one item there. With the caret in the
-    card's reply box, where `m` is a letter typed, the field's end shows nothing, and
-    the press and its key stand again once the caret leaves. Once nothing is On Me,
-    the field's end offers it no more."""
+    `m`, and still does once an answer leaves one item there, the send leaving the user
+    on the thread, where `m` walks. With the caret back in the card's reply box, where
+    `m` is a letter typed, the field's end shows nothing, and the press and its key
+    stand again once the caret leaves. Once nothing is On Me, the field's end offers it
+    no more."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -279,11 +280,16 @@ def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, s
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me")
     page.keyboard.press("Enter")
-    box = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"] leaf-text')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"]')
+    box = thread.locator("leaf-text")
     write(box, "Weekly.")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect_on_me(page, 1)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(thread).to_be_focused()
+    expect(press.locator("kbd")).to_have_text("m")
+    page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(press).to_have_count(0)
     page.locator("h1").click()

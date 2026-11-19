@@ -74,7 +74,7 @@ import { raiseError } from "./errors.js";
  * anchorTravel: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>,
  * wireInput: ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"],
  * landInThread: typeof import("./thread/landing.js").landInThread,
- * landSent: typeof import("./thread/landing.js").returnToThread,
+ * landSent: typeof import("./thread/landing.js").landSent,
  * sendReaction: Parameters<typeof createThreadActions>[0]["sendReaction"],
  * registerReactSurface: ReturnType<typeof import("./reactions.js").createReactionController>["registerReactSurface"],
  * compositionSurface: ThreadPresentationOptions["surfaceView"]["composition"],

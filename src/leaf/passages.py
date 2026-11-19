@@ -753,9 +753,15 @@ class SourceReading:
         self.document = document
         self.registry = registry or {}
 
-    @cached_property
+    @property
     def inventory(self) -> SourceInventory:
-        """Read historical consumers together, without retaining parser records."""
+        """Read historical consumers together, without retaining parser records.
+        A stored revision keeps its own in its page's compact memo instead
+        (`RevisionReading.inventory`)."""
+        return self._inventory
+
+    @cached_property
+    def _inventory(self) -> SourceInventory:
         from .data_contracts import data_document_readings
         from .obligations import obligation_registrations
 

@@ -91,7 +91,7 @@ import {
   declareThreadKeys,
   landIn,
   landInThread,
-  returnToThread,
+  landSent,
   scrollThreadIntoView,
   currentLocationThread,
 } from "./runtime/thread/landing.js";
@@ -431,7 +431,7 @@ async function boot() {
       finishPlacement: () => responseSurface?.finishPlacement(),
     },
     landInThread,
-    landSent: returnToThread,
+    landSent,
     registerReactSurface: (...args) => reactions.registerReactSurface(...args),
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
@@ -562,7 +562,7 @@ async function boot() {
     responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
     revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
     createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-    landSent: returnToThread,
+    landSent,
     wireInput: inputs.wireInput,
     drawingEdits,
   });

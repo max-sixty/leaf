@@ -14,7 +14,9 @@
  * new records. The maintainer chose this over a record per release, which reset every
  * visitor's comments, choices and agent thread at each deploy. Only the edge names a
  * release to the browser: it stamps its own on every answer, a container's included.
- * Nothing a previous release runs reaches a visitor: the page store refuses a container
+ * Nothing a previous release runs reaches a visitor: Cloudflare resets an active session
+ * object at the deploy, so it runs the deployed release's code from then on
+ * (`code_update_strategy` in `wrangler.toml`); the page store refuses a container
  * whose image runs another release, so a previous image still starting during a
  * rollout fails before it reads or writes the records; the store serves a saved
  * response only to the release that captured it; and this object stops a container

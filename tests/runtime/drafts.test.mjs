@@ -245,7 +245,9 @@ test("words given back to a box holding only whitespace keep it and its payload"
   saveDraft("composer:spaced", "  ", own);
   await writesSettled();
   const back = told("composer:spaced");
-  giveBackWords("composer:spaced", "Fit the bracket.", { anchor: { says: "the cable" } });
+  giveBackWords("composer:spaced", "Fit the bracket.", {
+    anchor: { says: "the cable" },
+  });
   const { value, payload } = await back;
   assert.equal(value, "Fit the bracket.\n\n  ");
   assert.deepEqual(payload, own);

@@ -26,29 +26,69 @@ from leaf_dev.eval_cases import definition
 
 REQUEST = definition("delivery_eval")["prompts"]["initial"]
 
-# Each step's comment, on the section it is posted on.
+# Each step's comment, on the section it is posted on. A Claude Code session's line
+# fork hands a request for a change to the page to the session, and a working fork
+# would take a question the session could answer by reading (`leaf.forks`), so the
+# steps that check the session's own delivery each ask for a small change.
 COMMENTS = {
-    "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
+    "mid-turn": (
+        "triage-why",
+        "Add “It is the first blocker we found, maybe not the last.” to the end of "
+        "this section.",
+    ),
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
     "reconnect": ("triage-lede", "Is the same review still connected?"),
-    "escape": ("triage-why", "Did the interrupted check change anything?"),
+    "escape": (
+        "triage-why",
+        "Add “The interrupted check changed nothing.” to the end of this section.",
+    ),
     "resume": ("triage-why", "Did resuming the check change anything?"),
     "unload": ("triage-lede", "Who signs off once the migration is fixed?"),
     "held-escape": (
         "triage-lede",
         "If the migration slips, which work can still ship?",
     ),
-    "woken": ("triage-lede", "Which item would you cut if we had to ship today?"),
-    "after-wake": ("triage-why", "And which one would you keep at any cost?"),
-    "dropped": ("triage-why", "Does the export bug block the release too?"),
-    "deferred": ("triage-lede", "Could the export fix ship in a patch release?"),
-    "first-wake": ("triage-lede", "Which card should I read first?"),
-    "boundary": ("triage-why", "Is the timezone bug a regression?"),
-    "first": ("triage-lede", "Who owns the migration fix?"),
-    "ending": ("triage-why", "When could that fix land?"),
-    "compacting": ("triage-lede", "Which risk worries you most for this release?"),
-    # A question the conversation already answers and a request for work, on each of
-    # which a fork posts the agent's working line before the session answers.
+    "woken": (
+        "triage-lede",
+        "Add “If we ship today, cut the export fix.” to the end of this paragraph.",
+    ),
+    "after-wake": (
+        "triage-why",
+        "Add “Keep the migration fix at any cost.” to the end of this section.",
+    ),
+    "dropped": (
+        "triage-why",
+        "Add “The export bug does not block the release.” to the end of this section.",
+    ),
+    "deferred": (
+        "triage-lede",
+        "Add “The export fix can ship in a patch release.” to the end of this "
+        "paragraph.",
+    ),
+    "first-wake": (
+        "triage-lede",
+        "Add “Read the migration card first.” to the end of this paragraph.",
+    ),
+    "boundary": (
+        "triage-why",
+        "Add “The timezone bug is not a regression.” to the end of this section.",
+    ),
+    "first": (
+        "triage-lede",
+        "Add “The platform team owns the migration fix.” to the end of this paragraph.",
+    ),
+    "ending": (
+        "triage-why",
+        "Add “The migration fix could land this week.” to the end of this section.",
+    ),
+    "compacting": (
+        "triage-lede",
+        "Add “The migration is the risk that worries us most.” to the end of this "
+        "paragraph.",
+    ),
+    # A question the conversation already answers, which a working fork takes, and a
+    # request for work, which the line fork hands to the session; on each, a line
+    # fork posts the agent's working line first.
     "fork-idle": ("triage-lede", "What did I ask you to do with this page?"),
     "fork-work": (
         "triage-why",

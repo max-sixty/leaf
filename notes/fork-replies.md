@@ -296,14 +296,13 @@ them, `clerk` and the new `agent-turns`, start at 44.
 ### Steps
 
 1. **The judgment** (built): the working-line fork answers `{"line", "work"}`; Leaf
-   records `work` in the page's diagnostics (`fork_outcome`) and still hands every
-   thread over, and `line-fork/*` scores the judgment against each case's label.
-   Real pages then show how often a fork would take a message, and what the session
-   did with those.
-2. **Doing and joining** (a prototype, only with `LEAF_FORK_WORK=on` in Claude
-   Code's environment): the taken state (`forks.TAKEN`), the fork spawned on `take`,
-   follow-ups passed to it, its answer posted at the join, and the clerk's lines to
-   the main thread. `leaf-dev journey run claude-code --fork-work` runs it live: on
+   records `work` in the page's diagnostics (`fork_outcome`) and acts on it, and
+   `line-fork/*` scores the judgment against each case's label. Real pages show how
+   often a fork takes a message.
+2. **Doing and joining** (a prototype, whose ownership record step 3 replaced): the
+   taken state (`forks.TAKEN`), the fork spawned on `take`, follow-ups passed to it,
+   its answer posted at the join, and the clerk's lines to the main thread. The
+   claude-code journey's fork steps (`leaf-dev journey run claude-code`) run it live: on
    2026-11-05 the question "What did I ask you to do with this page?" had the fork's
    line 2.1 s after sending and the working fork's answer at 6.9 s, after 4.6 s of
    work, while the session stayed idle; the session's next turn took the message in,
@@ -322,7 +321,7 @@ them, `clerk` and the new `agent-turns`, start at 44.
    module reload, a failed join or an exit lost. Each could be patched, but each
    patch would teach one more reader about a second record of who holds a message.
 
-3. **A turn per agent** (built, behind the same flag): the fork's ownership is in
+3. **A turn per agent** (built): the fork's ownership is in
    the log. Leaf keeps a turn per agent the session runs beside its main thread
    (`state.AGENT_TURNS`). The take, while the thread is still kept back, opens one for the fork
    and records that turn's pickup of the thread, with the receipt and the answer
@@ -346,8 +345,8 @@ them, `clerk` and the new `agent-turns`, start at 44.
    (`state.acting_agent_turn`). Until 2026-11-15 Leaf's PreToolUse hook marked the
    fork's commands instead, rewriting each to name the agent's id; it had to deny any
    `leaf` that didn't begin its Bash call, and every agent's `leaf` command while a new
-   fork's agent id was still unknown. In three runs of
-   `leaf-dev journey run claude-code --fork-work` on 2026-11-15, the forks ran 17
+   fork's agent id was still unknown. In three runs of the claude-code journey's
+   fork steps on 2026-11-15, the forks ran 17
    `leaf` commands (14 replies, 3 page states), and every one named its fork's turn,
    each resumed fork its new one. 11 of them followed another command in their Bash
    call, as `cd … && leaf …` does, which the hook had denied. The fork's PostToolBatch,
@@ -407,7 +406,7 @@ them, `clerk` and the new `agent-turns`, start at 44.
    wasteful, one standing fork per session would take every small message in turn:
    cheaper, but slower when messages in several threads arrive together.
 
-   Follow-ups are built, behind the same flag. Where a thread's last answer names a
+   Follow-ups are built. Where a thread's last answer names a
    fork's turn that has closed in the session's present generation
    (`forks._resumable`), the take opens a new turn and records its pickup while the
    thread is still kept back, as a first take does, naming the turn with the fork's
@@ -443,8 +442,7 @@ them, `clerk` and the new `agent-turns`, start at 44.
    while the fork's turn is still open.
 
 5. **Measuring it**: an outcome eval comparing a fork's answers with the session's on
-   replayed hand-overs, and the decision and coherence evals below, before forks that
-   act become the default.
+   replayed hand-overs, and the decision and coherence evals below.
 
 Evals are viable at three levels, each on the harness `fork_eval.py` already has:
 

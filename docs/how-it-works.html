@@ -3441,13 +3441,10 @@ EOF</code></pre>
               <dd><strong>2.4 s</strong></dd>
             </dl>
           </div>
-          <p id="forks-flags">
-            The first line comes from a fork in every Claude Code session unless
-            <code class="nowrap">LEAF_FORK_REPLIES=off</code> is set. A fork that does
-            the work acts only with <code class="nowrap">LEAF_FORK_WORK=on</code> in
-            Claude Code's environment; without it, Leaf posts the line and gives every
-            message to the main thread. The waits above, from the user sending a thread
-            message on real pages, and the parts of the design still to build, are in
+          <p id="forks-notes">
+            Forks run in every Claude Code session. The waits above, from the user
+            sending a thread message on real pages, and the parts of the design still to
+            build, are in
             <a href="https://github.com/max-sixty/leaf/blob/main/notes/fork-replies.md"
               ><code>notes/fork-replies.md</code></a
             >.
@@ -3497,9 +3494,7 @@ flowchart TD
                 >
                 The main thread can answer it in any of them, which takes the thread
                 over. Leaf reads the state from the page's log and the session's record
-                of its turns; nothing stores it. Without
-                <code class="nowrap">LEAF_FORK_WORK=on</code>, a <code>take</code> goes
-                to the main thread too.
+                of its turns; nothing stores it.
               </figcaption>
             </figure>
 

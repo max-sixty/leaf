@@ -1,7 +1,7 @@
 """The `claude-code` journey: a real interactive Claude Code session with Leaf's
 plugin, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey run claude-code [--forks | --fork-work]
+    uv run leaf-dev journey run claude-code [--sandbox]
 
 The suite stands in for Claude Code around Leaf's hooks (`hooks.json`, and
 `tests/claude_code_driver.mjs` for the hooks module); this runs Claude Code itself,
@@ -21,17 +21,20 @@ the prompt in the step (`ClaudeCode.approve`). Bypassing permissions instead wou
 change what is under test: Claude Code then holds admission's nudge, which reaches
 the session as a message from another session (`crossSessionInbound`), unread.
 
-A fork of the conversation answers a thread message the session hasn't received
-(`leaf.forks`), and would answer the delivery steps' questions in the session's
-place, so by default the session runs with forks off (`LEAF_FORK_REPLIES=off`).
-`--forks` turns them on, and runs the fork steps in place of the delivery steps.
+As in every Claude Code session, Leaf keeps each comment back from the session
+while a line fork posts the agent's working line on it and judges whether a working
+fork could do its work beside the session (`take`) or the work belongs with the
+session (`hand_over`) (`leaf.forks`). A working fork would answer a question in the
+session's place, so each delivery step's comment asks for a change to the page,
+which the line fork hands to the session (`evals/line-fork/case.yaml`,
+`work-request`), and the step tests the session's own delivery from then on.
 
 The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
 more than one harness takes, as `_journey.Terminal` has them:
 
 - `setup`;
-- `release`, which asks for work, so with `--forks` a fork hands it over and the
-  session answers it as before.
+- `release`, which asks for work, so its line fork hands it over and the session
+  answers it.
 
 Then the delivery steps:
 
@@ -66,35 +69,33 @@ Then the delivery steps:
   running through it, and Claude Code holds that watch's wake until the
   compaction is done.
 
-Or, with `--forks`, the fork steps, each timed from the comment's admission to the
-reply, with the fork's own time and tokens from its record in the page's
-diagnostics (`fork_outcome`):
+Then the fork steps, each timed from the comment's admission to the reply, with the
+fork's own time and tokens from its record in the page's diagnostics
+(`fork_outcome`):
 
 - `fork-idle`: with the session idle, a question the conversation already answers
-  gets the agent's working line from a fork as its first reply, and the session
-  wakes for it and answers it;
+  goes to a fork that does the work: the line fork judges it a fork's and posts the
+  agent's working line as its first reply, and a fork spawned from the conversation,
+  in a turn of its own that picked the comment up, answers it in the thread itself
+  with `leaf thread reply` while the session stays idle;
+- `fork-follow-up`: a question a fork takes and looks up in the page's source, and
+  the user's further message in its thread sent as the fork starts, which the fork's
+  next tool boundary hands it: the fork's turn picks it up and the fork answers it,
+  while the session stays idle;
+- `fork-resume`: once that fork's run has ended, a further message in its thread
+  goes to the same fork, which Claude Code resumes under the same agent id in a new
+  turn of its own that picks the message up and answers it, while the session stays
+  idle; the session then wakes for Claude Code's notice that the resumed fork
+  finished, and doesn't answer the message again;
+- `fork-todo`: a question a fork takes, whose rest the user leaves as work for
+  later, which the fork answers with a to-do on the thread (`--todo`), ending its
+  turn as `todo`; Leaf's wake for that to-do starts a turn of the idle session, whose
+  prompt hook hands it the line naming the to-do, and the session does the work and
+  ends the to-do or leaves it open on its list, as it judges;
 - `fork-work`: a request for a change to the page, sent during the user's own
-  turn's shell command, gets the fork's working line before the command ends, and
-  the session picks it up and answers it in that turn or the next.
-
-With `--fork-work` (`LEAF_FORK_WORK=on`), `fork-idle`'s question goes to a fork that
-does the work: the line fork judges it a fork's, and a fork spawned from the
-conversation, in a turn of its own that picked the comment up, answers it in the
-thread itself with `leaf thread reply` while the session stays idle. Then
-`fork-follow-up`: a question a fork takes and looks up in the page's source, and the
-user's further message in its thread sent as the fork starts, which the fork's next
-tool boundary hands it: the fork's turn picks it up and the fork answers it, while the
-session stays idle. Then `fork-resume`: once that fork's run has ended, a further
-message in its thread goes to the same fork, which Claude Code resumes under the same
-agent id in a new turn of its own that picks the message up and answers it, while the
-session stays idle; the session then wakes for Claude Code's notice that the resumed
-fork finished, and doesn't answer the message again. Then `fork-todo`: a question a
-fork takes, whose rest the user leaves as work for later, which the fork answers with
-a to-do on the thread (`--todo`), ending its turn as `todo`; Leaf's wake for that
-to-do starts a turn of the idle session, whose prompt hook hands it the line naming
-the to-do, and the session does the work and ends the to-do or leaves it open on its
-list, as it judges. `fork-work` then checks
-that the session's next turn didn't answer the forks' questions again.
+  turn's shell command, gets the line fork's working line before the command ends,
+  and the session picks it up and answers it in that turn or the next, and doesn't
+  answer the forks' questions again.
 
 Then `quit`, by `/exit`.
 
@@ -191,9 +192,9 @@ DEFERRING_TURN = USER_TURN.replace(
 )
 
 
-def claude_code_environment(place: Isolation, **extra: str) -> dict[str, str]:
-    """The environment of an interactive Claude Code session in `place`, `extra`
-    added: a home holding only the host's login (`arms.claude_home`), whose own
+def claude_code_environment(place: Isolation) -> dict[str, str]:
+    """The environment of an interactive Claude Code session in `place`: a home
+    holding only the host's login (`arms.claude_home`), whose own
     record says onboarding is done and trusts the session's cwd and the plugin it
     adds (`--add-dir`), which Claude Code 2.1.326 asks about before the prompt, so
     the session opens at its prompt."""
@@ -209,7 +210,7 @@ def claude_code_environment(place: Isolation, **extra: str) -> dict[str, str]:
         )
     )
     return claude_environment(
-        home, XDG_STATE_HOME=str(place.state), TERM="tmux-256color", **extra
+        home, XDG_STATE_HOME=str(place.state), TERM="tmux-256color"
     )
 
 
@@ -474,16 +475,8 @@ def runs(pid: int, command: str) -> bool:
     return False
 
 
-def steps(
-    cc: ClaudeCode,
-    user: User,
-    place: Isolation,
-    *,
-    forks: bool,
-    fork_work: bool = False,
-) -> None:
-    """The steps after setup, as the module docstring lists them: with `forks` the
-    fork steps, else the delivery steps."""
+def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
+    """The steps after setup, as the module docstring lists them."""
     page, session = place.page, cc.session
     step = partial(cc.passed, user, page)
 
@@ -685,7 +678,7 @@ def steps(
         step("compacting", started, "compacting")
 
     def forked() -> None:
-        """The fork steps, `fork-idle` and `fork-work`."""
+        """The fork steps, from `fork-idle` to `fork-work`."""
 
         def picked(name: str) -> list[str]:
             """The turns that picked up step `name`'s comment."""
@@ -704,10 +697,10 @@ def steps(
             )
 
         def forked_work(started: float) -> None:
-            """`fork-idle` with forks that do the work: its fork judges the question a
-            fork's and posts the agent's working line, and a fork it spawns, in a
-            turn of its own that picked the comment up, answers it in the thread with
-            `leaf thread reply`, while the session stays idle."""
+            """`fork-idle`: its line fork judges the question a fork's and posts the
+            agent's working line, and a fork it spawns, in a turn of its own that
+            picked the comment up, answers it in the thread with `leaf thread reply`,
+            while the session stays idle."""
             comment = user.ids["fork-idle"]
             cc.until(
                 lambda: user.answered("fork-idle"),
@@ -1073,23 +1066,10 @@ def steps(
 
         started = time.monotonic()
         user.comment("fork-idle")
-        if fork_work:
-            forked_work(started)
-            asked, taken = followed_up(time.monotonic())
-            resumed(time.monotonic(), asked, taken)
-            opened_todo(time.monotonic())
-        else:
-            cc.until(answered("fork-idle"), "fork-idle: the session did not answer it")
-            first = lined("fork-idle")
-            require(
-                bool(picked("fork-idle")), "fork-idle: no turn picked the comment up"
-            )
-            step(
-                "fork-idle",
-                started,
-                "fork-idle",
-                detail=f"`fork-idle` had its first reply after {first:.1f} s",
-            )
+        forked_work(started)
+        asked, taken = followed_up(time.monotonic())
+        resumed(time.monotonic(), asked, taken)
+        opened_todo(time.monotonic())
 
         started = time.monotonic()
         turn = cc.user_turn(page)
@@ -1112,11 +1092,10 @@ def steps(
             "fork-work: neither the user's turn nor the next picked the request up",
         )
         where = "the user's turn" if took[0] == turn else "the next turn"
-        if fork_work:
-            require(
-                len(answers(page, user.ids["fork-idle"])) == 1,
-                "fork-idle: the session answered again the comment its fork answered",
-            )
+        require(
+            len(answers(page, user.ids["fork-idle"])) == 1,
+            "fork-idle: the session answered again the comment its fork answered",
+        )
         step(
             "fork-work",
             started,
@@ -1126,17 +1105,10 @@ def steps(
 
     started = time.monotonic()
     cc.release(user)
-    fork = user.fork("release")
-    step(
-        "release",
-        started,
-        "release",
-        detail=None if fork is None else f"`release`: {fork_summary(fork)}",
-    )
-    if forks:
-        forked()
-    else:
-        delivered()
+    fork = require(user.fork("release"), "release: no fork decided on the ask")
+    step("release", started, "release", detail=f"`release`: {fork_summary(fork)}")
+    delivered()
+    forked()
 
     started = time.monotonic()
     cc.quit(page)
@@ -1255,21 +1227,12 @@ def delivery_ended(records: list[dict], update: str) -> bool:
 
 
 @contextmanager
-def answering(
-    browser, *, sandbox: bool, forks: bool, fork_work: bool = False
-) -> Generator[tuple[User, Callable]]:
+def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
     """The user at the page an interactive Claude Code session serves, once it has,
-    and the steps that follow: with `forks`, forks of its conversation answer the
-    user's thread messages, and with `fork_work` a fork does the work of one the
-    line fork judges a fork's."""
+    and the steps that follow."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
 
-    environment = partial(
-        claude_code_environment,
-        **({} if forks else {"LEAF_FORK_REPLIES": "off"}),
-        **({"LEAF_FORK_WORK": "on"} if fork_work else {}),
-    )
-    with isolated("claude-code", environment) as place:
+    with isolated("claude-code", claude_code_environment) as place:
         prepare(ROOT, place.state, place.page)
         # Another plugin's prompt hook, slower than Leaf's while the `dropped` steps
         # ask it to be, so an Escape can land after Leaf's hook has handed an
@@ -1311,7 +1274,7 @@ def answering(
             with user_at(browser, place, cc, started) as user:
                 yield (
                     user,
-                    lambda: steps(cc, user, place, forks=forks, fork_work=fork_work),
+                    lambda: steps(cc, user, place),
                 )
         finally:
             # A failed step's screen; once Claude Code exits there is none.

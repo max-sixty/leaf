@@ -59,18 +59,12 @@ fetch a pull request's code, and `running-tend` tells it to drop the token befor
 running that code. Nothing enforces that instruction. In yolo mode, code Tend merges to
 `main` can run in a later job that holds the token.
 
-On the maintainer's machine, the `Cloudflare Leaf agent administration` item in the
-`Max` 1Password vault holds the agent token. Load it with the 1Password service account,
-which needs no approval, straight into the process that uses it, and never print it or
-write it to a file:
-
-```sh
-export CLOUDFLARE_API_TOKEN=$(~/.claude/skills/using-1password/scripts/op-read.sh \
-  "op://Max/Cloudflare Leaf agent administration/credential")
-```
-
-A bare `op` command signs in as the person and waits for an approval that an
-unattended session cannot give.
+On the maintainer's machine, the agent token is the 1Password secret
+`op://Max/Cloudflare Leaf agent administration/credential`. Read it with the 1Password
+service account, which needs no approval, straight into the process that uses it as
+`CLOUDFLARE_API_TOKEN`, and never print it or write it to a file. A bare `op` command
+signs in as the person and waits for an approval that an unattended session cannot
+give.
 
 ## Local development
 

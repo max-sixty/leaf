@@ -17,10 +17,8 @@ paragraph says what to do; these rules say how.
   commands it can't verify (pipelines with computed names, `cd x && …`, `-C` to
   another dir). Run one plain command per call, or put a compound sequence in a
   script under `.tmp/` (written with the Write tool) and run it as `bash .tmp/x.sh`.
-- Load the skills `developing-leaf` (required), `developing-code`, and, as they
-  apply, `writing-tests`, `developing-python`, `writing-prose` (for the commit and PR
-  text). Read the root `AGENTS.md` and the `AGENTS.md` of every area you change before
-  changing it.
+- Load `/developing-leaf`. Read the root `AGENTS.md` and the `AGENTS.md` of every area
+  you change before changing it.
 - Check that the item is still live on current main before building anything. If it
   is already fixed, or the brief's premise is false, stop and report that; it is a
   useful result.

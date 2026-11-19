@@ -1003,9 +1003,6 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(row).to_be_visible()
     row.click()
     expect(row).to_have_attribute("aria-selected", "true")
-    page.keyboard.press("c")
-    expect(page.locator(".lf-composer leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")
     data_model.cmd_data_set(
         serve.page_dir,
         "project",

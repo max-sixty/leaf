@@ -20,7 +20,7 @@
 
    The marks are annotations, so `o` hides them with the rest, and nothing here stops
    them: a comparison ends with `v` or its Compare in Versions. The user decided
-   on 31 October against a stop of their own, an Escape step and a menu row, which no
+   against a stop of their own, an Escape step and a menu row, which no
    other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
    routes"): every change is marked where it stands, and its margin entry and Page Map
    row reach it with a tap.
@@ -62,6 +62,9 @@ const currentChange = (list, origin = currentLocationOrigin()) =>
       ) ?? null)
     : null;
 
+// "Change 1 of 5 since v2". The changes are the comparison's (`about`), which the
+// panel's field says while it stands, "5 changes since v2" (floating-panel.js,
+// `standing`), so the field says the walk's place alone, "1 of 5".
 const position = () => {
   const list = comparisonChanges();
   const base = comparisonBase();
@@ -84,11 +87,12 @@ function step(dir) {
   if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
-  const said = beginWalk("change", "Change", position);
-  // A listener hears what the version was saved after, as the ⇄ entry's label says it
-  // under what the change did (change-provenance.js).
+  const said = beginWalk("change", "Change", position, { about: "comparison" });
+  if (!said) return;
+  // A listener hears what the version was saved after too, as the ⇄ entry's label says
+  // it under what the change did (change-provenance.js).
   const savedAfter = (versionProvenance()?.lines ?? []).map(wordsText).join(" ");
-  if (said) announce(savedAfter ? `${said}. ${savedAfter}` : said);
+  announce(savedAfter ? `${said}. ${savedAfter}` : said);
 }
 
 export function createChangeWalk() {
@@ -107,6 +111,8 @@ export function createChangeWalk() {
     runKey: (binding) =>
       comparisonChanges().length
         ? step(binding === "h" ? 1 : -1)
-        : notice("No changes marked"),
+        : notice("No changes marked", {
+            stands: () => !comparisonChanges().length,
+          }),
   });
 }

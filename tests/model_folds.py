@@ -23,18 +23,20 @@ into the log. A fold is only worth what its premise is worth, and a premise
 assembled beside the door can be one the product would never have accepted: an
 action naming a widget the page has not got, a `holds` on a widget that does
 not take one, a coordinate written by hand rather than derived. Each of those
-now raises `EventRefused` instead of folding.
+raises `EventRefused` instead of folding.
 
 Every value the server would read from a file is a literal in this module, so a
 reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
+from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
 from interact_support import ModelPage, model_layer, served_state_error, served_thread
 
+from leaf.data import data_version, value_revision
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
@@ -55,7 +57,6 @@ UNCLAIMED = {
     "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
-    "forked": [],
     "pending": 0,
     "agent": "Agent",
     "session_alive": None,
@@ -66,10 +67,14 @@ UNCLAIMED = {
     "turn_closed": None,
     "turn_opened": None,
     "turn_takes_input": False,
+    "agent_turns": {},
     "input_wakes": False,
-    "fork_lane": None,
     "session_cwd": None,
 }
+
+# The page whose memory keeps the readings a fold names (`served_state.tail`). It is
+# no directory, since a fold reads none.
+FOLDED_PAGE = Path("folded-page")
 
 # The Layouts that shape `main` (layouts.css), and None for a `main` with none.
 PAGE_LAYOUTS = ("column", "sidebar", "workspace", None)
@@ -97,6 +102,24 @@ def leaf_page(
 </body>
 </html>
 """
+
+
+def served_data(sources: Mapping[str, tuple[str, object]], contract: str) -> dict:
+    """The data a page holds whose sources each hold a value under `contract`, keyed
+    by source to the run that wrote it and the value, as `data.read_data` reads them:
+    each source's revision is its value's (`value_revision`), so a rerun of the same
+    value keeps it, and the version is theirs together (`data_version`)."""
+    readings = {
+        source: {
+            "contract": contract,
+            "revision": value_revision(value),
+            "run": run,
+            "updated": NOW,
+            "value": value,
+        }
+        for source, (run, value) in sources.items()
+    }
+    return {"version": data_version(readings), "sources": readings}
 
 
 def served_reading(
@@ -141,7 +164,7 @@ def served_reading(
         _fold(documents, events, registry=registry, presence=presence, data=data),
         view_revision=view_revision,
     ).state
-    sent = answer(state, held, "model")
+    sent = answer(state, held, FOLDED_PAGE)
     assert (error := served_state_error(sent, ("Reading", "Tail"))) is None, error
     return sent
 
@@ -163,7 +186,7 @@ def served_answer(
     state = PageStateService(Path(), source=_FoldedPage(folded)).page_state(
         view_revision
     )
-    sent = answer(state, None, "model")
+    sent = answer(state, None, FOLDED_PAGE)
     assert (error := served_state_error(sent, "answer")) is None, error
     return sent
 

@@ -11,7 +11,7 @@
  * wears the neutral undo icon and says "Undo", the word of every other control that takes
  * a gesture back, because removing a reaction is an undo of it. A red ✕ read as "close
  * this", nearly matched the ❌ reaction, and caught phone taps meant to dismiss the
- * cluster; Max chose undo over it on 23 October 2026. Commands enter only through the
+ * cluster; Max chose undo over it. Commands enter only through the
  * constructor.
  */
 import { nextRender } from "./rendering.js";
@@ -41,14 +41,12 @@ import {
   inChrome,
   pageDocument,
   pageQueryAll,
-  pageReadingVersion,
   readingElements,
 } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
-import { documentChanged, readPart } from "./semantic-state.js";
+import { kept } from "./kept.js";
 import { tokenEntry } from "./registry.js";
-import { isElement } from "./shadow-tree.js";
-import { shadowHost, upFrom } from "./shadow.js";
+import { isElement, shadowHost, upFrom } from "./shadow-tree.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
 import { offer, offeredAction } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
@@ -56,7 +54,6 @@ import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 import { raiseError } from "./errors.js";
 
-const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 // Why a message's link to a section the shown version lacks goes nowhere.
 /** @param {string | null} id */
@@ -245,30 +242,27 @@ export function createAnchorControls({
   }
 
   // The plan is a reading of the page's own pictures, their labels and the parts their
-  // widgets register, none of which a thread changes. It is planned again when the page
-  // might have: its words moved (passages.js, `pageReadingVersion`), a caller said the
-  // document changed (`presentDocument`), the shown document was replaced, or a visual
-  // signalled new parts (`onLayoutInvalidated`). A thread pass over an unchanged page keeps
-  // the responses it published. The pictures are found in each piece of the page's
-  // reading, kept until that piece changes (passages.js, `readingElements`), so planning
-  // again after one part of the page changed searches that part alone.
-  /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>, ReturnType<typeof shownDocument>] | null} */
-  let plannedFor = null;
+  // widgets register, none of which a thread changes, kept until something it read
+  // changes (kept.js, `kept`): the page's reading, a visual's parts (visual-parts.js), or
+  // the document presented or a widget's layout changing, which is what tells of a new
+  // press around a picture (anchor-resolution.js, `unclaimedVisualGesture`). A thread
+  // pass over an unchanged page keeps the responses it published. The pictures are
+  // found in each piece of the page's reading, kept until that piece changes
+  // (passages.js, `readingElements`), so planning again after one part of the page
+  // changed searches that part alone.
+  const plan = kept(visualActionPlan);
+  /** @type {Map<Element, VisualAction[]> | null} */
+  let planned = null;
   function prepareVisualActions() {
-    /** @type {NonNullable<typeof plannedFor>} */
-    const key = [pageReadingVersion(), documentChanged(), shownDocument()];
-    if (
-      plannedFor?.every((part, index) => part === key[index]) &&
-      !pendingVisualActions.size
-    )
-      return;
-    plannedFor = key;
-    pendingVisualActions = visualActionPlan();
+    const next = plan();
+    if (next === planned && !pendingVisualActions.size) return;
+    planned = next;
+    pendingVisualActions = next;
     if (pageUpgraded()) publishVisualActions();
   }
 
   function withholdVisualActions() {
-    plannedFor = null;
+    planned = null;
     pendingVisualActions = new Map();
     reconcileVisualActions(pendingVisualActions);
   }
@@ -490,9 +484,6 @@ export function createAnchorControls({
     // though it stands in the runtime's chrome. The chrome's own scaffolding holds no
     // target, so a Threads card opening or closing asks for none.
     if (inChrome(target) && authoredScope(target) === pageDocument()) return;
-    // Only the page holds the visuals whose actions the pass plans (visual-parts.js,
-    // `update`).
-    if (!inChrome(target)) plannedFor = null;
     queueInvalidation();
   };
 

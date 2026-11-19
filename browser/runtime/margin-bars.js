@@ -22,12 +22,12 @@
    bar beside it, nearer the block than the work's, so a block being reworked that has
    already changed shows both. A change that only took blocks out has no block to stand
    beside, and its bar is the same bar at zero blocks' length: a short one in the gap the
-   blocks left, which the user asked for on 3 November so that nothing breaks where a
+   blocks left, which the user asked for so that nothing breaks where a
    change's new side reaches zero. A change's mark is an annotation, so hiding
    annotations (`o`) hides its bar. The bar marks the block, not its words: its change's
-   Change entry opens which words went and came. The user chose the bar on 31 October
+   Change entry opens which words went and came. The user chose the bar
    over a wash of the block's own background, which hid whatever the block shades
-   itself, an option's card and the chosen option's green among them, and over leaving
+   itself, an option's card and the chosen option's tint among them, and over leaving
    the Change entry in the right margin as the only mark, which is hard to pick out at a
    glance. A widget names only which of its parts changed (its registry's `record`); how
    the change looks is this owner's, as it is for every annotation, so no widget

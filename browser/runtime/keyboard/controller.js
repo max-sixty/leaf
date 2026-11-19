@@ -33,6 +33,7 @@ import {
   focused,
 } from "../focus.js";
 import { focusPlace } from "../user-place.js";
+import { landForKey } from "../scrolling.js";
 import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
@@ -132,6 +133,10 @@ export function mountKeyboard({
         letGo();
         ev.stopPropagation();
       }
+      // Tab and the paging keys go on to the browser, which moves focus or scrolls from
+      // where the page stands, so the glides under way land first (scrolling.js,
+      // `landForKey`), once the let-go has read where they were headed.
+      landForKey(ev);
       if (away || ev.key.length === 1 || ev.target === document.body) readAt(ev);
       else if (armed()) {
         if (run(ev)) read.add(ev);

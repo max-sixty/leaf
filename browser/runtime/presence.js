@@ -63,52 +63,94 @@ export const observeServerNow = (now) => {
 // room for the figure alone, so two seats never give one moment two different ages.
 /** @param {string | null | undefined} ts @param {boolean} compact */
 const age = (ts, compact) =>
-  clockValue((now) => {
-    if (!ts) return "";
-    const secs = Math.max(0, (now - new Date(ts).getTime()) / 1000);
-    if (secs < 45) return compact ? "now" : "just now";
-    const [count, unit] =
-      secs < 3600
-        ? [Math.round(secs / 60), "m"]
-        : secs < 86400
-          ? [Math.round(secs / 3600), "h"]
-          : [Math.round(secs / 86400), "d"];
-    return `${count}${unit}${compact ? "" : " ago"}`;
-  });
+  clockValue((now) => (ts ? ageWords(elapsed(Date.parse(ts), now), compact) : ""));
 /** @param {string | null | undefined} ts */
 export const ago = (ts) => age(ts, false);
 /** @param {string | null | undefined} ts */
 export const shortAgo = (ts) => age(ts, true);
+// The figure and unit of an age, none under 45 seconds. The rounded figure picks the
+// unit, so 59 minutes and 40 seconds reads "1h", never "60m".
+/** @param {number} then @param {number} now
+ * @returns {[number, "m" | "h" | "d"] | null} */
+const elapsed = (then, now) => {
+  const secs = Math.max(0, (now - then) / 1000);
+  if (secs < 45) return null;
+  const minutes = Math.round(secs / 60);
+  if (minutes < 60) return [minutes, "m"];
+  const hours = Math.round(secs / 3600);
+  return hours < 24 ? [hours, "h"] : [Math.round(secs / 86400), "d"];
+};
+/** @param {ReturnType<typeof elapsed>} span @param {boolean} compact */
+const ageWords = (span, compact) =>
+  span ? `${span[0]}${span[1]}${compact ? "" : " ago"}` : compact ? "now" : "just now";
 
-// The clock time behind an age, in the reader's own zone: "Sat 15 Aug 2026, 14:02 PT".
-// An age says how long ago, and a reader checking a message against a commit, a
-// meeting or a log line needs when. The day before its month and a 24-hour clock read
-// one way to every reader, and the zone is the one the reader's browser keeps, named
-// as briefly as the platform names it. The instant is the server's, as written, so no
-// skew applies.
+// A time of day as the reader's platform writes it: its locale's hour cycle, in the
+// zone the browser keeps ("3:24 PM" in American English, "15:24" in British), as are
+// the dates below. A reader checks a time against their own clock, calendar and logs,
+// which already read that way. The instant is the server's, as written, so no skew
+// applies.
+/** @param {Date | number} at */
+export const timeOfDay = (at) =>
+  new Date(at).toLocaleTimeString(undefined, { timeStyle: "short" });
+
+// The clock time behind an age or a time, with its weekday, date and zone, named as
+// briefly as the platform names it: "Sat, Aug 15, 2026, 2:02 PM PT". An age says how
+// long ago, and a reader checking a message against a commit, a meeting or a log line
+// needs when.
 /** @param {string | null | undefined} ts */
 export function clockTime(ts) {
   const at = new Date(ts ?? NaN);
   if (Number.isNaN(at.getTime())) return "";
-  const part = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      weekday: "short",
+  return at.toLocaleString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "shortGeneric",
+  });
+}
+// The reader's calendar day an instant falls on, counted in days, so consecutive days
+// differ by one.
+/** @param {Date} at */
+const dayOf = (at) =>
+  Math.round(Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) / 86400000);
+
+// When a message was said. Within the hour, how long ago ("just now", "12m ago"),
+// which reads at a glance and is as exact as a clock to the minute. After that, its
+// time of day, and its day unless that is today ("3:24 PM", "Yesterday 3:24 PM",
+// "Nov 13 3:29 PM"), which its preview names with the weekday and zone
+// (`clockTime`): each reply says what was true when it was sent ("I'm building it
+// now"), and an age past the hour rounds to hours or days, so replies hours apart
+// both read "1d ago" a day later. Each time names its own day, so one read alone, in
+// a sticky head or below the first message scrolled away, is never taken for today's.
+/** @param {string | null | undefined} ts
+ * @returns {{day: string, time: string} | null} */
+export function saidAt(ts) {
+  const at = new Date(ts ?? NaN);
+  if (Number.isNaN(at.getTime())) return null;
+  const recent = clockValue((now) => {
+    const span = elapsed(at.getTime(), now);
+    return !span || span[1] === "m" ? ageWords(span, false) : "";
+  });
+  if (recent) return { day: "", time: recent };
+  const day = clockValue((now) => {
+    const today = dayOf(new Date(now));
+    if (dayOf(at) === today) return "";
+    if (dayOf(at) === today - 1) return "Yesterday";
+    const thisYear = at.getFullYear() === new Date(now).getFullYear();
+    return at.toLocaleDateString(undefined, {
       day: "numeric",
       month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-      timeZoneName: "shortGeneric",
-    })
-      .formatToParts(at)
-      .map(({ type, value }) => [type, value]),
-  );
-  return `${part.weekday} ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute} ${part.timeZoneName}`;
+      ...(thisYear ? {} : { year: "numeric" }),
+    });
+  });
+  return { day, time: timeOfDay(at) };
 }
-// What an age previews (preview.js): the clock time of the instant its `<time>` holds,
-// so every age the page draws declares one function and holds its instant once, in
-// `datetime`, where the platform keeps it.
+// What an age or a time previews (preview.js): the clock time, day and zone of the
+// instant its `<time>` holds, so every one the page draws declares one function and
+// holds its instant once, in `datetime`, where the platform keeps it.
 /** @this {Element} @returns {import("./preview.js").Preview | null} */
 export function agePreview() {
   const at = clockTime(this.getAttribute("datetime"));
@@ -134,18 +176,15 @@ export const quietSince = (ts) =>
 // Temporal policy belongs to the server's canonical activity fold. The browser uses
 // its calibrated copy of server time only to ask for the next projection when that
 // fold says an answer can change; it never decides what the new answer is.
-// `activityTransitionAt` is when, on the server's clock, the earliest activity in an
-// answer can next change without any file moving, or Infinity when none is timed.
+// `activityTransitionAt` is when, on the server's clock, the page's activity in an
+// answer can next change without any file moving, or Infinity when none is timed. A
+// neighbour's needs no clock here: its own server republishes its row at its
+// transition, which moves the pages reading the news names (live-leaves.js).
 /** @param {import("../types/contract.js").ServedState | null} state */
-export const activityTransitionAt = (state) =>
-  Math.min(
-    ...[
-      state?.activity,
-      ...(state?.others ?? []).map((entry) => entry?.activity),
-    ].flatMap((activity) =>
-      activity?.next_transition_at ? [Date.parse(activity.next_transition_at)] : [],
-    ),
-  );
+export const activityTransitionAt = (state) => {
+  const at = state?.activity.next_transition_at;
+  return at ? Date.parse(at) : Infinity;
+};
 /** @param {import("../types/contract.js").ServedState | null} state */
 export const activityTransitionDue = (state) =>
   serverNow() >= activityTransitionAt(state);

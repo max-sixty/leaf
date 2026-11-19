@@ -1,7 +1,8 @@
-"""Replay Leaf's two conversation forks on short constructed conversations, and score
-each answer: the turn-end check (`leaf.clerk`) and the fork that writes the agent's
-working line on a thread message before Leaf hands it to the session (`leaf.forks`). Claude Code makes both forks, so
-every case runs on that harness alone.
+"""Replay Leaf's conversation forks on short constructed conversations, and score
+each answer: the turn-end check (`leaf.clerk`), the fork that writes the agent's
+working line on a thread message before Leaf hands it to the session (`leaf.forks`),
+and the fork beside it that summarizes a long thread (`leaf.summary_fork`). Claude
+Code makes every fork, so every case runs on that harness alone.
 
 A case in `workflows/fork_eval.yaml` is a conversation written for one decision a
 fork's prompt asks about, the page the session holds (an authored source with the
@@ -15,10 +16,11 @@ command (`Leaf`). The executor builds the page in a throwaway state home, opens 
 turn for a fresh session id and claims the page as that session
 (`CLAUDE_CODE_SESSION_ID`, with this process as `CLAUDE_PID`). It asks `leaf hook
 --fork` for the prompt as `forkStep` in `hooks/claude-code.ts` does, and hands it
-the answer the same way. For a reply, a process of the arm's holds the session's
-forks lane (`forks.take_lane`) from before the user's waiting messages are admitted
-until the answer is taken, as the pages follower holds it; no follower runs, so no
-hold runs out (`forks.BOUND_S`) while the fork thinks. A turn-end case's Leaf line
+the answer the same way. For a line or summary fork, a process of the arm's holds the session's
+forks lane (`forks.take_lane`) from before the user's waiting messages are admitted,
+as the event endpoint admits them (`KEEP`), until the answer is taken, as the pages
+follower holds it, and asks about the thread the follower would list
+(`forks.look`). A turn-end case's Leaf line
 (`found`) is rendered by the arm's `clerk._found`, so a change to its wording
 reaches the conversation; an arm without it passes no findings on and gets no line.
 
@@ -40,20 +42,22 @@ error. Plugins and MCP servers are off.
 What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 `answered`. Its asks are the records it wrote (`wrote`), as the user reads them; its
 findings are those its `turn_end_check` note lists for the page, which leaves out
-anything named for a page the session doesn't hold. A reply fork's line is what
-its `fork_reply` note says Leaf posted. An answer or line Leaf refused fails
+anything named for a page the session doesn't hold. A line fork's line is what
+its `fork_outcome` note says Leaf posted. An answer or line Leaf refused fails
 `answered` where the note says so (`refused`).
 
 An item is matched to a label by the words it rests on: one of the label's `words`
 stands in its quote, passage, title, text or edit words. An `expect` label needs an
 item of its kind, and one naming a `thread` needs an ask written in that thread, or
-in a new thread where it names null. A stale one's `edit` is either null, as the item's must be, or
+in a new thread where it names null. A question label's `choice` says whether Leaf
+asked it with a widget in its text, such as a choice (true), or in words (false). A stale
+one's `edit` is either null, as the item's must be, or
 the words its fix must remove: Leaf changed the page, and the page as the user reads
 it no longer shows them. An item of any kind in the same part of the answer (asks or
 findings) matching an `absent` label fails the case, since it names what the case's
 guardrail leaves out. Every item and change goes to the text judge
 (`metadata.texts.judge`), which reads whether each says the right thing and whether
-an unlabelled one is real. A reply fork's line is scored on the judge.
+an unlabelled one is real. A line fork's line is scored on the judge.
 
 Cost is priced from the result's `usage` at the fork model's list prices (`PRICES`).
 Its `total_cost_usd` prices the same call, since the rendered records carry no
@@ -77,10 +81,13 @@ from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
+    arm_python,
+    blocks,
     build_source,
     claude_child,
     environment,
     read_trace,
+    run_leaf,
     trace_result,
 )
 from leaf_dev.eval_cases import definition
@@ -94,7 +101,10 @@ MODEL = MODELS[ClaudeCodeHarness.name]
 SESSION_EFFORT = "xhigh"
 
 # The parts of a turn-end answer, with the kinds each holds.
-PARTS = {"asks": ("question",), "findings": ("stale", "settled", "unshown")}
+PARTS = {
+    "asks": ("question",),
+    "findings": ("stale", "settled", "unshown", "overtaken"),
+}
 
 # The fork's settings: a hook that refuses every tool call, keeping the definitions.
 BLOCKED = {
@@ -124,16 +134,31 @@ PRICES = {
     }
 }
 
-# Holds the session's forks lane until stdin closes, waiting past the take's
-# millisecond, since a message admitted within it stays with the session.
+# Holds the session's forks lane until stdin closes.
 LANE = """
-import sys, time
-from leaf.forks import lane_since, take_lane
+import sys
+from leaf.forks import take_lane
 lane = take_lane(sys.argv[1])
-while time.time() < lane_since(sys.argv[1]) + 0.002:
-    time.sleep(0.0005)
 print("held", flush=True)
 sys.stdin.read()
+"""
+
+# Admits the user's waiting messages as the event endpoint does, which opens the line
+# turn (`forks.kept_from_main_at_admission`), and prints the thread the pages follower
+# would list (`forks.look`).
+KEEP = """
+import json, sys
+from pathlib import Path
+from leaf.event_contracts import append_admitted
+from leaf.forks import kept_from_main_at_admission, look
+from leaf.service import PageTransaction
+
+page, session = Path(sys.argv[1]), sys.argv[2]
+with PageTransaction(page) as transaction:
+    for event in json.load(sys.stdin):
+        admitted, _ = append_admitted(transaction, event)
+        kept_from_main_at_admission(transaction, admitted)
+print(json.dumps([kept.basis(page) for kept in look(session, page)]))
 """
 
 # The page's newest diagnostics note of one type, or null.
@@ -143,6 +168,15 @@ from pathlib import Path
 from leaf.interaction_log import read_interactions
 notes = read_interactions(Path(sys.argv[1]), types=(sys.argv[2],))
 print(json.dumps(notes[-1] if notes else None))
+"""
+
+# The text of the summary event with the given id, or null.
+SUMMARY = """
+import json, sys
+from pathlib import Path
+from leaf.event_log import read_events
+found = [e for e in read_events(Path(sys.argv[1])) if e["id"] == sys.argv[2]]
+print(json.dumps(found[0]["text"] if found else None))
 """
 
 # The page's words as the user reads them, as the turn-end check reads them.
@@ -167,13 +201,16 @@ else:
 
 def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     scenario = CASES[case]
-    if scenario["fork"] == "reply":
-        return ["answered", "lined"]
+    if scenario["fork"] == "line":
+        return ["answered", "lined", "judged"]
+    if scenario["fork"] == "summary":
+        return ["answered", "declined" if scenario.get("declines") else "summarized"]
     expect = scenario.get("labels", {}).get("expect", [])
     return [
         "answered",
         *(["labels-found"] if expect else []),
         *(["edits-land"] if any("edit" in label for label in expect) else []),
+        *(["choices-right"] if any("choice" in label for label in expect) else []),
         *(["guardrails-held"] if scenario.get("labels", {}).get("absent") else []),
     ]
 
@@ -211,21 +248,26 @@ def execute_scenario(
     leaf.run("page", "claim", str(page))
     turns = conversation(scenario, leaf, page)
     metadata: dict = {"fork": scenario["fork"], "session": session, "harness": harness}
-    if scenario["fork"] == "reply":
+    if scenario["fork"] in ("line", "summary"):
         with leaf.lane():
-            leaf.python(
-                ADMIT, str(page), "0", "0", stdin=json.dumps(scenario["waiting"])
+            [thread] = leaf.python(
+                KEEP, str(page), session, stdin=json.dumps(scenario["waiting"])
             )
-            thread = {
-                "page": str(page),
-                "thread": scenario["thread"],
-                "inputs": [message["id"] for message in scenario["waiting"]],
-            }
-            held = {"thread": thread, "running": scenario.get("running", [])}
-            asked = leaf.fork(held)
+            kept = {"thread": thread, "running": scenario.get("running", [])}
+            asked = leaf.fork(kept)
+            if scenario["fork"] == "summary":
+                # The fork Leaf asks for beside the line fork, scored alone.
+                [asked] = [
+                    beside
+                    for beside in asked.get("beside", [])
+                    if beside["basis"]["duty"] == "summary"
+                ]
             run = fork(asked, session, turns, work)
             if run["text"] is not None:
-                leaf.fork({**held, **taken(run)})
+                if scenario["fork"] == "summary":
+                    leaf.fork({"beside": asked["basis"], **taken(run)})
+                else:
+                    leaf.fork({**kept, **taken(run)})
     else:
         asked = leaf.fork({})
         run = fork(asked, session, turns, work)
@@ -245,8 +287,10 @@ def execute_scenario(
         if run["tool_calls"]:
             return response
         return {**response, "error": f"the fork gave no answer: {run['failed']}"}
-    if scenario["fork"] == "reply":
-        metadata.update(score_reply(leaf, page, scenario, turns))
+    if scenario["fork"] == "line":
+        metadata.update(score_line(leaf, page, scenario, turns))
+    elif scenario["fork"] == "summary":
+        metadata.update(score_summary(leaf, page, scenario, asked, turns))
     else:
         metadata.update(score_turn_end(leaf, page, scenario, asked, run, turns))
     metadata["checks"] = {name: metadata["checks"].get(name, False) for name in checks}
@@ -268,20 +312,17 @@ class Leaf:
         )
 
     def run(self, *args: str, stdin: dict | None = None, check: bool = True):
-        result = subprocess.run(
-            [str(self.payload / "bin/leaf"), *args],
-            input=json.dumps({"session_id": self.session, **stdin}) if stdin else None,
-            capture_output=True,
-            text=True,
+        return run_leaf(
+            self.payload,
+            None,
+            *args,
             env=self.env,
-            check=False,
+            check=check,
+            error=RuntimeError,
+            input_text=json.dumps({"session_id": self.session, **stdin})
+            if stdin
+            else None,
         )
-        if check and result.returncode:
-            raise RuntimeError(
-                f"leaf {' '.join(args)} exited {result.returncode}: "
-                + result.stderr.strip()
-            )
-        return result
 
     def fork(self, payload: dict, *, check: bool = True):
         """One step of a fork, as `forkStep` runs it: what it printed, or with
@@ -300,7 +341,7 @@ class Leaf:
     def python(self, program: str, *args: str, stdin: str = "") -> Any:
         """What `program` prints, as JSON, run by the arm's Python."""
         result = subprocess.run(
-            [str(self.payload / ".venv/bin/python"), "-I", "-c", program, *args],
+            [*arm_python(self.payload), "-c", program, *args],
             input=stdin,
             capture_output=True,
             text=True,
@@ -315,7 +356,7 @@ class Leaf:
     def lane(self):
         """Hold the session's forks lane, as its pages follower does."""
         holder = subprocess.Popen(
-            [str(self.payload / ".venv/bin/python"), "-I", "-c", LANE, self.session],
+            [*arm_python(self.payload), "-c", LANE, self.session],
             env=self.env,
             text=True,
             stdin=subprocess.PIPE,
@@ -551,11 +592,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
     trace = read_trace(stream)
     result = trace_result(trace)
     calls = [
-        block["name"]
-        for record in trace
-        if record.get("type") == "assistant"
-        for block in record["message"].get("content", [])
-        if block.get("type") == "tool_use"
+        block["name"] for block in blocks(trace) if block.get("type") == "tool_use"
     ]
     text = result.get("result") if result.get("subtype") == "success" else None
     failed = (
@@ -677,6 +714,9 @@ def score_turn_end(
                 "passage": (record.get("anchor") or {}).get("quote", ""),
                 # The thread a follow-up replies in; an ask in a new thread has none.
                 "thread": record.get("parent"),
+                # Asked by a widget in its text, such as a choice, rather than in
+                # words, which an obligation declares.
+                "choice": not record.get("obligation"),
             }
             for record in applied["wrote"]
         ),
@@ -703,6 +743,11 @@ def score_turn_end(
                 if "edit" in label
             ),
             "guardrails-held": not matched["named"],
+            "choices-right": all(
+                index in found and found[index]["choice"] == label["choice"]
+                for index, label in enumerate(labels.get("expect", []))
+                if "choice" in label
+            ),
         },
         "items": items,
         "found": {str(index): item for index, item in found.items()},
@@ -752,10 +797,43 @@ def judge_text(
     )
 
 
-def score_reply(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
-    """Score the working line the arm's Leaf posted from a reply fork's answer, as its
-    `fork_reply` note records it."""
-    note = leaf.python(NOTE, str(page), "fork_reply") or {}
+def score_summary(
+    leaf: Leaf, page: Path, scenario: dict, asked: dict, turns: list
+) -> dict:
+    """Score the summary the arm's Leaf wrote from a summary fork's answer, as its
+    `summary_fork` note records it, against the conversation and the thread as the
+    case's log holds it."""
+    note = leaf.python(NOTE, str(page), "summary_fork") or {}
+    written = leaf.python(SUMMARY, str(page), note.get("summary") or "")
+    thread = json.dumps(
+        [*scenario["log"], *scenario["waiting"]], indent=1, ensure_ascii=False
+    )
+    basis = asked["basis"]
+    # The range the summary folds, as the note records it: the fork's choice, or on a
+    # Leaf whose fork folds the suggestion, the suggestion itself.
+    folded = note if "from" in note else basis
+    return {
+        "checks": {
+            "answered": bool(note) and note.get("outcome") != "failed",
+            "summarized": note.get("outcome") == "summarized",
+            "declined": note.get("outcome") == "declined",
+        },
+        "outcome": note.get("outcome"),
+        "note": note,
+        "texts": {
+            "summary": f"<conversation>\n{conversation_text(turns)}\n"
+            f"</conversation>\n\n<thread>\n{thread}\n</thread>\n\n"
+            f"<suggested>\n{basis['from']} through {basis['through']}\n</suggested>"
+            f"\n\n<range>\n{folded['from']} through {folded['through']}\n</range>"
+            f"\n\n<summary>\n{written or '(no summary)'}\n</summary>",
+        },
+    }
+
+
+def score_line(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
+    """Score the working line the arm's Leaf posted from a line fork's answer, as its
+    `fork_outcome` note records it."""
+    note = leaf.python(NOTE, str(page), "fork_outcome") or {}
     if note.get("refused") or not note:
         return {"checks": {"answered": False}, "refused": note.get("refused")}
     thread = json.dumps(scenario["waiting"], indent=1, ensure_ascii=False)
@@ -763,7 +841,13 @@ def score_reply(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
     running = json.dumps(scenario.get("running", []), indent=1, ensure_ascii=False)
     line = note.get("text") if "line" in note else None
     return {
-        "checks": {"answered": True, "lined": line is not None},
+        "checks": {
+            "answered": True,
+            "lined": line is not None,
+            # Who should do the work: `take` where a fork of the session could do it
+            # beside the session, the case's label.
+            "judged": note.get("work") == scenario["labels"]["work"],
+        },
         "outcome": note["outcome"],
         "note": note,
         "texts": {

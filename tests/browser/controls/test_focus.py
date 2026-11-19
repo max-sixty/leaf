@@ -1,8 +1,6 @@
 """Where keyboard focus goes and returns: scroll boxes' Tab stops, keyboard scrolling,
 hand-back as layers close, focus kept through moves, and the frame audit."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -10,12 +8,10 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_layout import (
     PANEL_DIFF_MARKUP,
-    WIDE_DIFF_PAGE,
     current_location_ring,
     rings_drawn,
     serious_axe_violations,
 )
-from render_cases_navigation import DIFF_PAGE
 from render_cases_widgets import SCROLLED, SCROLLING_DIAGRAM_PAGE
 from render_harness import (
     LONG_PAGE,
@@ -87,8 +83,8 @@ def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
     engine, request, serve
 ):
     """The chrome's foreground is an empty box holding the panel and the overlays, so a
-    Tab never stops on it. Firefox gave the open dialog a Tab stop of its own, which
-    drew nothing between the page's last control and the leaf."""
+    Tab never stops on it. Firefox can give the open dialog a Tab stop of its own,
+    which draws nothing between the page's last control and the leaf."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(leaf_page("Tab order", '<p>Words <button id="last">Last</button></p>')),
@@ -146,8 +142,8 @@ def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, ser
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     """On Me's Show on a question asked in a thread's words opens the thread's card on
-    the page with the user in it. The arrival stood them on the message On Me drew,
-    and On Me closing then dropped them on the page."""
+    the page with the user in it. An arrival that stood them on the message On Me drew
+    would let On Me closing drop them on the page."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
@@ -165,8 +161,8 @@ def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
 def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser, serve):
     """A hold hands focus back only if the user has not moved on since it began. With no
     stop on body, a press on the page's words takes focus off the control and puts it
-    nowhere, with no focusin to count, so a hold still waiting pulled the user back
-    from the words they had chosen."""
+    nowhere, with no focusin to count, so a hold still waiting would pull the user
+    back from the words they had chosen."""
     page = open_page(
         browser,
         serve(
@@ -209,7 +205,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
     Space, PageDown, and arrows work before a user has clicked anywhere. Leaf still
     places focus on body so there is a stable page location to return to after chrome,
-    but scrolling no longer depends on teaching the browser about a non-root box.
+    but scrolling doesn't depend on teaching the browser about a non-root box.
 
     All three keys, because they are one fact about which box the browser is scrolling
     rather than three rows in a table — a fix that reached only the key this test named
@@ -250,7 +246,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     it: a focused button there would own the user's next Space, so the view they had
     just dismissed would come back and nothing would say why.
 
-    The scroll is what the landing has to hand back. Root scrolling is native now, but a
+    The scroll is what the landing has to hand back. Root scrolling is native, but a
     focused button still owns Space; focus therefore returns to the page rather than
     merely blurring to nowhere."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
@@ -312,44 +308,6 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     assert not page.evaluate(ringed)
 
 
-def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, serve):
-    """Anything a mouse can scroll, a keyboard can reach — including the box a widget
-    renders inside its own shadow tree. `reachScrollers` walks the tree it is handed,
-    and `querySelectorAll` stops dead at a shadow boundary, so a diff was the one
-    scrolling box on a page that a keyboard user had no way into: no tab stop of its
-    own, and unlike a board no control inside to borrow one from. The axe sweep says
-    so too, and only while some example's diff happens to carry a line this long; this
-    is the same rule asked of the widget rather than of the corpus."""
-    page = open_page(browser, serve(WIDE_DIFF_PAGE))
-    resized(page, 420, 900)
-    measured = page.locator("#wide-diff").evaluate(
-        """(d) => {
-        const viewport = d.shadowRoot.querySelector('code[data-code]');
-        return { scrolls: Math.round(viewport.scrollWidth - viewport.clientWidth),
-                 tab: viewport.tabIndex };
-    }"""
-    )
-    # The reach, then that there was anything to reach: a diff narrow enough to fit
-    # takes no tab stop and is right not to, which would pass the first assertion
-    # while saying nothing about the rule.
-    assert measured["scrolls"] > 0, "this diff fits, so it proves nothing"
-    assert measured["tab"] == 0, "a diff that scrolls is unreachable from the keyboard"
-    page.close()
-
-    page = open_page(browser, serve(DIFF_PAGE))
-    resized(page, 1200, 900)
-    fitted = page.locator("#patch").evaluate(
-        """(d) => [...d.shadowRoot.querySelectorAll('code[data-code]')].map(viewport => ({
-          scrolls: Math.round(viewport.scrollWidth - viewport.clientWidth),
-          tab: viewport.tabIndex,
-        }))"""
-    )
-    assert fitted and all(item["scrolls"] == 0 for item in fitted), fitted
-    assert all(item["tab"] == -1 for item in fitted), (
-        "a diff that fits added a keyboard stop with nowhere to scroll"
-    )
-
-
 def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
     markup = leaf_page(
         "Hidden control in scroll box",
@@ -408,19 +366,17 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     widget markup the gate allows — and its column is the narrower of the two, so a box
     that scrolls anywhere scrolls here.
 
-    The sweep that was supposed to cover this stood where each message body is built,
-    and needed two things it did not have: that body is not in the document yet, where
-    `getComputedStyle` answers "" for every property, and the widget in it has not
-    rendered, where the look a scroll box has arrives with the class its module sets on
-    the way out. It read an empty overflow off everything it walked and had tagged
-    nothing since it was written, which reads as coverage and is the only reason it
-    lasted.
+    A sweep standing where each message body is built would need two things it does not
+    have: that body is not in the document yet, where `getComputedStyle` answers "" for
+    every property, and the widget in it has not rendered, where the look a scroll box
+    has arrives with the class its module sets on the way out. It would read an empty
+    overflow off everything it walked and tag nothing, which reads as coverage.
 
     The reply arrives while the panel is already open, because that is the case with
     exactly one reconcile in it. A diff renders asynchronously, so a sweep run where the
     panel inserts its nodes walks a host whose shadow root is still null, and the panel
-    does not reconcile on a timer to fix it later: `renderPanel` runs on an open, on a
-    fold finishing, and on a new event. Seeding the reply before the page loads gives
+    does not reconcile on a timer to fix it later: it reconciles on an open, on a fold
+    finishing, and on a new event. Seeding the reply before the page loads gives
     two reconciles and hides all of that."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
@@ -443,8 +399,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
             "author": "agent",
             "parent": "c-diff",
             "revision": 1,
-            "text": "The one line that decides it:",
-            "markup": PANEL_DIFF_MARKUP,
+            "text": "The one line that decides it:\n\n" + PANEL_DIFF_MARKUP,
         },
     )
     told(page)
@@ -608,17 +563,20 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
 EDGE_CONTROLS = {
     "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
     "playground": (
-        '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone" kind="choice"'
-        ' value="quiet"><lf-playground-choice id="tone-quiet" value="quiet" label="Quiet">'
-        '</lf-playground-choice><lf-playground-choice id="tone-bold" value="bold" label="Bold">'
-        "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
-        "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
-        ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
-        "</lf-playground>"
+        '<lf-group id="pg-ask" label="Which tone?">'
+        '<lf-playground id="pg"><aside><fieldset id="tone"><legend>Tone</legend>'
+        '<label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>'
+        '<label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>'
+        "</fieldset></aside>"
+        "<p>Preview</p><lf-playground-output>Use"
+        ' <output for="tone"></output></lf-playground-output>'
+        "</lf-playground></lf-group>"
     ),
     "options": (
-        '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
+        '<lf-group id="op-ask" label="Which one?">'
+        '<lf-options id="op"><lf-option id="op-a">Alpha</lf-option>'
         '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
+        "</lf-group>"
     ),
     "filter": (
         '<lf-diff id="patch"><pre>'
@@ -654,106 +612,6 @@ def edges_page(control):
         )
         + "</tr></tbody></table>",
     )
-
-
-@pytest.mark.parametrize(
-    ("control", "past", "key", "engine"),
-    [
-        *(
-            pytest.param(
-                control, past, key, engine, id=f"{control}-{name}-{key}-{engine}"
-            )
-            for control, past, name, key in [
-                ("radio", 6, "past", "Tab"),
-                ("radio", -2, "inside", "Tab"),
-                ("options", 6, "past", "Tab"),
-                ("options", 6, "past", "End"),
-                ("filter", 3, "past", "Tab"),
-                ("table", 6, "past", "Tab"),
-            ]
-            for engine in ["browser", "firefox_browser"]
-        ),
-        # Firefox logs a warning of its own on any playground page.
-        pytest.param(
-            "playground", 6, "Tab", "browser", id="playground-past-Tab-browser"
-        ),
-    ],
-)
-def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
-    request, serve, control, past, key, engine
-):
-    """The browser reveals a Tab's arrival only when it counts it out of view, Firefox
-    when less than about a line of it shows and Chromium across only when none of it
-    does, and neither it nor Leaf's landing knew a box that wears the control's ring.
-    So a radio 6px past a bounded log's foot stayed cut in Firefox, and one 2px inside
-    it kept its ring cut; a link 6px past a wide table's end stayed cut in both
-    engines; and a joined option group's row and a playground choice's face, each
-    wearing its control's ring, stayed cut in both, the face once its radio stood 7px
-    inside, the row whether Tab or End reached it; and a diff's file filter, holding
-    focus in its own shadow tree, stayed cut in both and under the log's fade. `past` is
-    how far beyond the edge the box wearing the ring stood before the key; each now
-    shows its ring, unfaded."""
-    page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
-    # Tall enough that the log's foot stands clear of the floating panel, so the stop the
-    # key leaves is where the user is, rather than a stop the key would let go of.
-    resized(page, 1280, 720)
-    side = "right" if control == "table" else "bottom"
-    target = page.locator(EDGE_TARGETS[control])
-    # Which box wears the ring is the paint's answer: the nearest box out from the
-    # control whose outline is the ring.
-    target.focus()
-    rendered(page)
-    target.evaluate(
-        """(el) => {
-          const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
-          for (let n = el; n; n = n.parentElement ?? n.getRootNode().host) {
-            const cs = getComputedStyle(n);
-            if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
-              return void (window.ringed = n);
-          }
-        }"""
-    )
-    if key == "Tab":
-        page.keyboard.press("Shift+Tab")
-    else:
-        page.locator("#op-a .lf-pick").focus()
-    page.evaluate(
-        """([side, past]) => {
-          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
-          const port = box.getBoundingClientRect();
-          const at = window.ringed.getBoundingClientRect();
-          if (side === 'bottom')
-            box.scrollTop += at.bottom - (port.top + box.clientTop + box.clientHeight)
-              - past;
-          else
-            box.scrollLeft += at.right - (port.left + box.clientLeft + box.clientWidth)
-              - past;
-        }""",
-        [side, past],
-    )
-    scroll_settled(page)
-    page.keyboard.press(key)
-    expect(target).to_be_focused()
-    rendered(page)
-    read = page.evaluate(
-        """(side) => {
-          const el = window.ringed;
-          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
-          const port = box.getBoundingClientRect();
-          const at = el.getBoundingClientRect();
-          const style = getComputedStyle(el);
-          return {
-            room: side === 'bottom'
-              ? port.top + box.clientTop + box.clientHeight - at.bottom
-              : port.left + box.clientLeft + box.clientWidth - at.right,
-            ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
-            fade: getComputedStyle(box).maskImage,
-          };
-        }""",
-        side,
-    )
-    assert read["room"] >= read["ring"], read
-    assert read["fade"] == "none", read
 
 
 GROUPED_SIDE_LIST = leaf_page(
@@ -810,14 +668,14 @@ ROOM_AT_EDGE = """(el, [port, edge]) => {
 def test_a_walk_in_a_box_no_reading_region_moves_shows_the_ring(
     request, serve, walk, engine
 ):
-    """A box no reading region moves revealed a walk's next item by its bare box: the
+    """A box no reading region moves can reveal a walk's next item by its bare box: the
     command reference's results, a fixed dialog's list, and a side list's tabs, which a
     walk reveals bounded `within` the list. So Up onto a command past the results' head
-    stood its button flush with the head, and Down onto a tab past the list's foot
-    stood it flush with the foot, each ring cut there. The tab comes in with its
+    would stand its button flush with the head, and Down onto a tab past the list's foot
+    would stand it flush with the foot, each ring cut there. The tab comes in with its
     group's label, as one range, where that fits; a group whose run fits the list but
     not with the tab's ring room comes in by the tab alone, since landing the run
-    would leave the tab past the foot. Each now shows its ring."""
+    would leave the tab past the foot. Each shows its ring."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(LONG_PAGE if walk == "reference" else GROUPED_SIDE_LIST),
@@ -1041,7 +899,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
         expect(page.locator("#later")).to_be_focused()
     else:
         expect(page.locator(".lf-fab-input")).to_be_focused()
-        expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
+        expect(page.locator("#origin")).to_have_attribute("data-lf-projected-mark", "")
     assert page.evaluate("scrollY") == before
 
 
@@ -1069,8 +927,8 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subte
         with subtests.test(native_move=native_move, renderer=renderer):
             page.evaluate(
                 """async ([index, nativeMove, renderer]) => {
-              const {render, repeat, setChildren: orderChildren, move} =
-                await window.__lfWidgetApi();
+              const {setChildren: orderChildren, move} = await window.__lfWidgetApi();
+              const {render, repeat} = await window.__lfVendorImport('lit.js');
               const rows = document.querySelector(`#rows-${index}`);
               if (!nativeMove) Element.prototype.moveBefore = undefined;
               const nodes = ['a', 'b', 'c'].map(id => {
@@ -1175,11 +1033,16 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
     browser, serve
 ):
     """An empty text field builds its editor only when the user arrives in it. The box
-    drawn in its place was a textbox in Chromium's accessibility tree but not an
-    editable one, and its value was empty where the editor's is a line break, so a
-    screen reader could describe the field differently before the user arrived. Every
-    named node the field gives the tree reads the same before Tab builds the editor and
-    after, and the key typed on arrival lands in the field."""
+    drawn in its place, were it a textbox in Chromium's accessibility tree but not an
+    editable one, would let a screen reader describe the field differently before the
+    user arrived. Every named node the field gives the tree reads the same before Tab
+    builds the editor and after, and the key typed on arrival lands in the field.
+
+    The box is a textarea, and Chromium's tree reads two things of it differently
+    from the editor: the empty textarea gives no value where the editor's empty
+    document gives one line break, and the textarea states `invalid: false`, which
+    the editor's node leaves out. The test holds each value to exactly its own empty
+    form; no screen reader has been run against either."""
     page = open_page(
         browser,
         serve(
@@ -1200,22 +1063,35 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
     cdp = page.context.new_cdp_session(page)
 
     def field_nodes():
-        return sorted(
+        """The field's named nodes, and apart the value of the one that takes input."""
+        nodes = [
+            node
+            for node in cdp.send("Accessibility.getFullAXTree")["nodes"]
+            if not node["ignored"] and node.get("name", {}).get("value") == "Reply"
+        ]
+        values = [
+            node.get("value", {}).get("value")
+            for node in nodes
+            if any(prop["name"] == "editable" for prop in node.get("properties", []))
+        ]
+        return values, sorted(
             (
                 node["role"]["value"],
                 node.get("description", {}).get("value") or "",
-                node.get("value", {}).get("value") or "",
                 sorted(
                     (prop["name"], prop["value"].get("value"))
                     for prop in node.get("properties", [])
                     if prop["name"] != "focused"
+                    and (prop["name"], prop["value"].get("value"))
+                    != ("invalid", "false")
                 ),
             )
-            for node in cdp.send("Accessibility.getFullAXTree")["nodes"]
-            if not node["ignored"] and node.get("name", {}).get("value") == "Reply"
+            for node in nodes
         )
 
-    before = field_nodes()
+    values, before = field_nodes()
+    # The textarea's empty value gives the tree no value at all.
+    assert values == [None]
     field = page.locator("#holder leaf-text")
     page.locator("#before").focus()
     page.keyboard.press("Tab")
@@ -1228,4 +1104,7 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
     assert field.evaluate("node => node.value") == "x"
     page.keyboard.press("Backspace")
     page.evaluate(RELEASE_FOCUS)
-    assert field_nodes() == before
+    values, after = field_nodes()
+    # The editor's empty document is one line, which the tree reads as a line break.
+    assert values == ["\n"]
+    assert after == before

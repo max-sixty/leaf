@@ -5,7 +5,6 @@ import json
 import re
 import threading
 from contextlib import contextmanager
-from html import escape
 from urllib.parse import urlsplit
 
 import pytest
@@ -35,18 +34,9 @@ from render_cases_layout import (
     CUSTOM_WIDGET_PAGE,
     HIDDEN_SCROLLERS,
     IDENTIFIERS_IN_CODE_PAGE,
-    NOTE_BESIDE_A_CHANGE,
     RESIZE_LOOP_EVENT,
-    SHOT_SRC,
-    SHOTS,
     WIDE_TABLE_PAGE,
-    apply_restore_case,
     arrival_findings,
-    motions,
-    moved_at,
-    page_at_rest,
-    toggle_queue,
-    user_view_restore_cases,
 )
 from render_cases_navigation import (
     CODE_PAGE,
@@ -55,9 +45,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     FAN_OUT,
-    GENERIC_VISUAL_LAYER,
-    prefixed_visual_layer,
-    visual_widgets,
 )
 from render_harness import (
     EXAMPLE_PACKAGES,
@@ -76,7 +63,6 @@ from render_harness import (
     left_alone,
     live_counts,
     open_page,
-    open_threads,
     pane_scroll_behavior,
     panel_control,
     panel_menu,
@@ -108,7 +94,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.findings import Finding
 from leaf.registry.contract import is_element_name
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
@@ -139,67 +125,10 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch):
-    """Platform entries survive the real JS probe and report boundary as advice.
-
-    Supply deterministic PerformanceObserver readings rather than depending on
-    whether the compositor happened to paint before a particular module loaded.
-    """
-    probe = render_gate_scheme.evaluate_probe
-
-    def with_shifts(page, name, *args, **kwargs):
-        if name == "startupLayoutShifts":
-            page.evaluate("""() => {
-                const driver = globalThis.__leafRenderDriver;
-                globalThis.__leafRenderDriver = {
-                    ...driver,
-                    startupLayoutShifts: () => [
-                        {startTime: 0, value: .1, sources: []},
-                        {startTime: 500, value: .2, sources: [{
-                            node: document.querySelector('#shifted'),
-                            before: {x: 0, y: 10, width: 100, height: 20},
-                            after: {x: 0, y: 60, width: 100, height: 20},
-                        }]},
-                        {startTime: 2000, value: .15, sources: []},
-                    ],
-                };
-            }""")
-        return probe(page, name, *args, **kwargs)
-
-    monkeypatch.setattr(render_gate_scheme, "evaluate_probe", with_shifts)
-    findings, _, completed = render_gate_scheme._render_scheme(
-        browser,
-        serve(leaf_page("Shift evidence", '<p id="shifted">Reading.</p>'), packages=()),
-        "light",
-        {"width": 1200, "height": 900},
-        3_000,
-        [],
-    )
-    assert completed
-    shifts = [
-        finding.json() for finding in findings if finding.code == "startup-layout-shift"
-    ]
-    assert len(shifts) == 1
-    shift = shifts[0]
-    assert shift["severity"] == "advice"
-    assert shift["values"]["cls"] == pytest.approx(0.3)
-    assert "startup CLS 0.3000" in shift["text"]
-    movement = shift["values"]["entries"][1]["sources"][0]
-    assert movement["node"] == "<p id=shifted>"
-    assert (movement["before"]["y"], movement["after"]["y"]) == (10, 60)
-
-
 # A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
 # its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
 # diagram package's does.
-SKETCH_DECLARATION = {
-    **{
-        key: value
-        for key, value in element_declaration("lf-sketch", upgrade=True).items()
-        if key != "x-verbatim"
-    },
-    "x-height": True,
-}
+SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
 SKETCH_WIDGET = """
 import {PendingTaskEvent, once} from '/runtime/portable-api.js';
 customElements.define('lf-sketch', class extends HTMLElement {
@@ -226,7 +155,7 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     takes the drawing's height, as an inline diff's source text can.
     """
     findings = []
-    _, _, completed = render_gate_scheme._render_scheme(
+    _, _, completed = render_gate_scheme._render_page(
         browser,
         serve(
             leaf_page(
@@ -246,12 +175,11 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
             layer_registry={"lf-sketch": SKETCH_DECLARATION},
             layer_widgets={"lf-sketch.js": SKETCH_WIDGET},
         ),
-        "light",
         {"width": 1200, "height": 900},
         3_000,
         [],
         then=lambda page, _: findings.extend(
-            render_gate_readings.drawn_height_advice(page, "1200x900")
+            render_gate_readings.drawn_height_advice(page)
         ),
     )
     assert completed, findings
@@ -497,13 +425,12 @@ def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, re
 
         page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
 
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         primed(browser.unwatched, configure),
         serve(
             leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),
             packages=(),
         ),
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
@@ -563,10 +490,9 @@ def test_an_unanswered_entry_fails_the_render_gate(
         def new_page(self, **options):
             return page
 
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         ExistingPage(),
         dropped,
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
@@ -604,66 +530,27 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     controlled = primed(
         browser.unwatched, lambda page: page.set_default_timeout(EXPECTED_STALL_MS)
     )
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         controlled,
         refused,
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
     )
     assert completed is False
     [failure] = failures
-    assert (failure.code, failure.scheme) == ("probe-failed", "light")
+    assert failure.code == "probe-failed"
     assert {
         "code": "console-error",
         "severity": "error",
         "values": {
             "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
-            "url": refused,
+            # The gate asks for the document startup recovery would not replace.
+            "url": asked_again(refused),
         },
     } in failure.values["console"], failure
 
     assert "401 (Unauthorized)" in str(failure)
-
-
-def test_a_frame_of_another_live_leaf_page_is_checked_on_its_own(
-    browser, serve, live_leaf
-):
-    """The gate's browser holds no key for another live Leaf page, whose server
-    refuses the gate as a framer, so its frame would fail the page framing it with a
-    fault that page's author can't fix. The gate shows a stand-in there, and a frame
-    of any other server still reports. Only the frame stands in: a request the
-    framing page itself makes to that server, such as a fetch, still reaches it."""
-    framed, _ = live_leaf("framed", "Framed")
-    other = urlsplit(serve(leaf_page("Other", "<h1>Other</h1>"), packages=()))
-    other = f"{other.scheme}://{other.netloc}"
-    frames = "".join(
-        f'<iframe src="{src}/" title="{title}" '
-        'style="display:block;width:100%;height:200px;border:0"></iframe>'
-        for src, title in ((framed, "Another Leaf page"), (other, "Another server"))
-    )
-    failures = render_gate_model.render_version(
-        browser.unwatched,
-        serve(leaf_page("Framing", f"<h1>Framing</h1>{frames}"), packages=()),
-    ).failures
-    assert failures and all(
-        failure.code == "console-error"
-        and other in failure.values["text"] + failure.values["url"]
-        for failure in failures
-    ), failures
-
-    page = browser.unwatched.new_page()
-    render_gate_scheme.stand_in_other_leaves(page)
-    page.set_content(f'<iframe src="{framed}/"></iframe>')
-    expect(page.frame_locator("iframe").locator("p")).to_have_text(
-        "Another Leaf page, checked on its own."
-    )
-    state = f"{framed}/api/state"
-    with page.expect_response(state) as answer:
-        page.evaluate("url => fetch(url, {mode: 'no-cors'}).catch(() => {})", state)
-    # The live server's own refusal of a browser without its key.
-    assert answer.value.status == 401
 
 
 RECURSIVE_ROWS_PAGE = leaf_page(
@@ -678,8 +565,8 @@ RECURSIVE_ROWS_PAGE = leaf_page(
   </div>
 """,
     head="""<style>
-#rows { display: grid; gap: var(--sp-4); }
-#lower { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+#rows { display: grid; gap: var(--lf-sp-4); }
+#lower { display: grid; grid-template-columns: 1fr 1fr; gap: var(--lf-sp-4); }
 </style>""",
     layout="workspace",
 )
@@ -755,6 +642,41 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     page.evaluate("() => releaseProbeOlder()")
     page.evaluate("() => probeOlder")
     assert page.evaluate(readiness) != "presented"
+
+
+def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, serve):
+    """A page whose deferred work lands a piece at a time is waited for however long
+    the whole takes, as a gallery's samples load on a starved machine, while a page
+    whose arrivals only make way for others is wedged and fails, naming `arrived`."""
+    page = open_page(browser, serve(leaf_page("Arrivals", "<p>Words.</p>")))
+    step_ms = EXPECTED_STALL_MS // 10
+    # Fifteen arrivals a step apart: one and a half bounds in all.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          for (let i = 1; i <= 15; i++)
+            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
+        }""",
+        step_ms,
+    )
+    wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+
+    # One arrival never lands, and above it each new one lands a step after the next
+    # has taken its place, so the arrivals left swing between two and three.
+    page.evaluate(
+        """async step => {
+          const {deferredArrival} = await window.__lfWidgetApi();
+          deferredArrival(new Promise(() => {}));
+          window.churn = setInterval(() => {
+            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
+          }, step);
+        }""",
+        step_ms,
+    )
+    with pytest.raises(render_checks_model.PageNotReady) as unready:
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
+    page.evaluate("() => clearInterval(window.churn)")
+    assert unready.value.stage == "arrived", unready.value
 
 
 def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
@@ -876,7 +798,7 @@ def test_a_rendering_turn_ends_after_its_intersection_observer_deliveries(
     """A reader waiting on a rendering turn sees what that turn's IntersectionObserver
     callbacks did, such as a Copy control leaving layout once a resize and a scroll
     put its code block more than a screen away. Chrome runs those callbacks in a task
-    after one the animation frame queues, so a turn marked from that task let
+    after one the animation frame queues, so a turn marked from that task would let
     `rendered` read the page before those callbacks ran."""
     page = open_page(browser, serve(LONG_PAGE))
     rendered(page)
@@ -1062,6 +984,34 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
     ], "a notice after the classified navigation was hidden too"
 
 
+def test_a_navigation_made_again_to_confirm_a_notice_counts_its_problems_once(
+    browser, serve
+):
+    """A navigation that raised a ResizeObserver notice is made again to confirm it, and
+    what the page raises on both loads, as a widget's refusal, stands once, beside what
+    only the first load raised."""
+    first_load_notices = (
+        """addEventListener('DOMContentLoaded', () => {
+      const seen = Number(sessionStorage.getItem('lf-test-resize-loads') || 0);
+      sessionStorage.setItem('lf-test-resize-loads', String(seen + 1));
+      console.error('raised on every load');
+      if (seen === 0) {
+        console.error('raised on the first load');
+        """
+        + RESIZE_LOOP_EVENT
+        + """
+      }
+    });"""
+    )
+    page = open_page(browser, serve(LONG_PAGE), init_script=first_load_notices)
+
+    errors = take_browser_errors(page)
+    assert sorted(e.values.get("text") for e in errors) == [
+        "raised on every load",
+        "raised on the first load",
+    ]
+
+
 def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     every_load = (
         "addEventListener('DOMContentLoaded', () => {" + RESIZE_LOOP_EVENT + "});"
@@ -1071,58 +1021,6 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     errors = take_browser_errors(page)
     assert [(e.code, e.values.get("confirmation")) for e in errors] == [
         ("resize-loop", "recurred")
-    ]
-
-
-def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
-    browser, serve, tmp_path, monkeypatch
-):
-    """A provider registers its inventory and declares which generated ids it admits."""
-    monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
-    callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
-        "lf-callout"
-    ]
-    callout["properties"]["parts"] = {"type": "string", "minLength": 1}
-    callout["x-visual"] = {"parts": "parts"}
-    prefixed = prefixed_visual_layer("out", "inn")["lf-test-visual"]
-    layer = {
-        **GENERIC_VISUAL_LAYER,
-        "lf-test-visual-prefixed": {
-            **prefixed,
-            "x-example": '<lf-test-visual-prefixed id="example"></lf-test-visual-prefixed>',
-        },
-        "lf-callout": callout,
-    }
-    widgets = visual_widgets() | visual_widgets(tag="lf-test-visual-prefixed")
-    markup = CUSTOM_WIDGET_PAGE.replace(
-        "</main>",
-        """<lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
-</main>""",
-    )
-    failures = render_gate_model.render_version(
-        browser.unwatched,
-        serve(markup, layer_registry=layer, layer_widgets=widgets),
-    ).failures
-
-    def problems(tag):
-        return [
-            (f.scheme, f.at, problem)
-            for f in failures
-            if f.code == "visual-parts" and f.at.startswith(f"<{tag} ")
-            for problem in f.values["problems"]
-        ]
-
-    assert {problem["kind"] for _, _, problem in problems("lf-callout")} == {
-        "unregistered"
-    }, failures
-    assert problems("lf-test-visual-prefixed") == [
-        (
-            scheme,
-            "<lf-test-visual-prefixed id=prefixed>",
-            {"kind": "unadmitted-parts", "parts": ["html"]},
-        )
-        for scheme in ("light", "dark")
     ]
 
 
@@ -1147,7 +1045,8 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
 
 
 def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):
-    """Both sources used to draw successfully while silently dropping their words."""
+    """Both sources keep their words, where a draw can succeed while silently dropping
+    them."""
     page = open_page(
         browser,
         serve(
@@ -1296,16 +1195,19 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
         monkeypatch.setattr(render_gate_scheme, "wait_for_probe", moving)
     else:
+        ready = render_gate_scheme.wait_until_ready
 
-        def unready(*_args, **_kwargs):
+        def unready(page, *args, through=None, **kwargs):
+            # The page upgrades, and then stops at the stage held.
+            if through == "upgraded":
+                return ready(page, *args, through=through, **kwargs)
             raise render_checks_model.PageNotReady(failed_stage, f"held {failed_stage}")
 
         monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)
 
-    failures, _notices, completed = render_gate_scheme._render_scheme(
+    failures, _notices, completed = render_gate_scheme._render_page(
         browser,
         serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")),
-        "light",
         {"width": 1200, "height": 900},
         3_000,
         [],
@@ -1331,7 +1233,7 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
                 "a transition in a closed disclosure",
                 "<h1>Settles</h1><details><summary>More</summary>"
                 '<input id="hidden-field" style="transition: color 150ms; '
-                'color: var(--ink)"></details>',
+                'color: var(--lf-ink)"></details>',
             )
         ),
     )
@@ -1475,181 +1377,9 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "Ready" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
+        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
-
-
-def test_the_render_gate_holds_project_widgets_to_their_declarations(
-    browser, serve, tmp_path, monkeypatch, declared_reading_package
-):
-    """Bug-backs for the module contracts the gate enforces, one project widget each,
-    on one page, beside the DevTools issues the page owns.
-
-    `lf-callout` declares x-verbatim while its module renders other words in the
-    body's stead (quotes would strand on words the screen no longer shows).
-    `author-card` is the clean control beside it: a page script's own custom element
-    with a shadow root it attached itself, which the gate accepts, since the passage
-    reading leaves an undeclared root's words alone and reads its host by its light
-    children, as the file does.
-
-    `lf-dusk` replaces its words in the dark scheme only, so the verbatim check runs in
-    each color scheme and reports it once, there.
-
-    `lf-stager` breaks the other thing a declaration promises: that the words arrive.
-    The word pass stops at a shadow boundary on purpose — which widgets the page holds
-    is the document's question — so an element a module stages into its own tree keeps
-    its declarations and gets no pass, and the failure is silence: no error, no missing
-    box. It stages a declared lf-reading whose declaration names an x-says word, and
-    the gate is asked for it. A staged element rather than a module that wipes its own
-    body after the pass has run, which is the same failure by a route that races the
-    module's own render, and a bug-back that has to win a race is a bug-back that
-    reports the machine.
-
-    `lf-veil` is the host case of that failure: its declarations are on the element that
-    stages the tree, so the pass finds it and writes into a light DOM the shadow root
-    hides. It is the half a reading of the markup cannot see. `textContent` returns a
-    hidden light-DOM span and `querySelector` finds it, so a check written against the
-    markup passes on a page whose user is never handed the word. Asking `says()` for
-    the words is what tells the two apart — the layer's own reading enters a declared
-    root in the host's stead."""
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / ".leaf"
-    _author_lying_callout(tmp_path)
-    for tag in ("lf-dusk", "lf-stager", "lf-veil"):
-        add_test_widget(package, tag, upgrade=True)
-    registry_path = package / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    for tag in ("lf-stager", "lf-veil"):
-        # Each module shows a tree of its own rather than the body, and declares it.
-        declarations[tag].pop("x-verbatim")
-        declarations[tag]["x-shadow"] = True
-    veil = declarations["lf-veil"]
-    veil["properties"]["label"] = {"type": "string"}
-    veil["x-says"] = {"label": "before"}
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    modules = {
-        "lf-dusk": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    if (matchMedia("(prefers-color-scheme: dark)").matches)\n'
-            '      this.textContent = "Dark replacement.";\n'
-            "  }\n"
-        ),
-        "lf-stager": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    const staged = document.createElement("lf-reading");\n'
-            '    staged.id = "staged-reading";\n'
-            '    staged.setAttribute("label", "09:00");\n'
-            '    staged.textContent = "The feeder stopped.";\n'
-            "    shadowStage(this, [staged]);\n"
-            "  }\n"
-        ),
-        "lf-veil": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    const stage = document.createElement("p");\n'
-            '    stage.textContent = "The feeder stopped overnight.";\n'
-            "    shadowStage(this, [stage]);\n"
-            "  }\n"
-        ),
-    }
-    for tag, body in modules.items():
-        (package / "widgets" / f"{tag}.js").write_text(
-            'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-            f'customElements.define("{tag}", class extends HTMLElement {{\n'
-            + body
-            + "});\n"
-        )
-    # A lazy image that holds no room is reported only in DevTools' Issues panel. The
-    # page owns an image it authors in a form-associated control's light DOM, and a
-    # frame it embeds, whose issue is placed at the frame. The same image in the
-    # control's shadow tree is the control's implementation, even inside a frame, so
-    # the page is not refused for it.
-    src = SHOT_SRC["before"]
-    control = f"""<script type="module">
-customElements.define("field-host", class extends HTMLElement {{
-  static formAssociated = true;
-  constructor() {{
-    super();
-    this.attachShadow({{ mode: "open" }}).innerHTML =
-      '<slot></slot><img src="{src}" alt="" loading="lazy">';
-  }}
-}});
-</script></head>"""
-    shadow_frame = escape(
-        "<head>" + control + "<body><field-host></field-host></body>", quote=True
-    )
-    # Its root shows words of its own, slots one light child and leaves another out.
-    author_card = """<script type="module">
-customElements.define("author-card", class extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: "open" }).innerHTML =
-      '<h3>Shown by the root</h3><p><slot name="lead"></slot></p>';
-  }
-});
-</script>"""
-    source = (
-        CUSTOM_WIDGET_PAGE.replace("</head>", author_card + control)
-        .replace(
-            '<h1 id="title">Project vocabulary</h1>',
-            f"""<h1 id="title">Project vocabulary</h1>
-<img id="unsized" src="{src}" alt="A panel" loading="lazy">
-<img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
-<field-host id="host"><img id="authored" src="{src}" alt="" loading="lazy"></field-host>
-<iframe id="frame" title="A frame" srcdoc='<img src="{src}" alt="" loading="lazy">'>
-</iframe>
-<iframe id="shadow-frame" title="A control’s shadow tree" srcdoc="{shadow_frame}"></iframe>""",
-        )
-        .replace(
-            "</main>",
-            '<lf-dusk id="dusk-note"><strong>Heads up</strong> Read in both schemes.'
-            "</lf-dusk>\n"
-            '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
-            '<lf-veil id="veiled-note" label="Escalated">'
-            "<strong>Heads up</strong> Clipped words.</lf-veil>\n"
-            '<author-card id="author-card"><span slot="lead">Slotted lead.</span>'
-            "Unslotted source.</author-card>\n</main>",
-        )
-    )
-
-    reading = render_gate_model.render_version(
-        browser,
-        serve(
-            source,
-            packages=(*EXAMPLE_PACKAGES, "./.leaf"),
-            media={src: SHOTS["before"]},
-        ),
-    )
-    failures = reading.failures
-
-    def reported(code, at=""):
-        return [f for f in failures if f.code == code and at in f.at]
-
-    assert reported("verbatim", "custom-note"), failures
-    assert not [f for f in failures if "author-card" in f.at + str(f)], failures
-    dusk = reported("verbatim", "dusk-note")
-    assert [f.scheme for f in dusk] == ["dark"], failures
-    assert {f.values["value"] for f in reported("silent-word")} >= {
-        "09:00",
-        "Escalated",
-    }, failures
-    # Delivery serves media under the revision, so the issue names that URL.
-    issues = [f for f in reading.advice if f.code == "devtools-issue"]
-    # Chromium may emit the same issue for a frame more than once. The gate's
-    # contract is which owned source nodes receive it, not CDP's event count.
-    assert {(f.scheme, f.at, f.values["issue"]) for f in issues} == {
-        (scheme, where, "LazyLoadImageIssue")
-        for scheme in ("light", "dark")
-        for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
-    }, failures
-    assert all(
-        [key for key, _ in f.values["details"]] == ["url"]
-        and dict(f.values["details"])["url"].endswith(src)
-        for f in issues
-    ), issues
 
 
 def _author_stateful_verbatim_widget(tmp_path):
@@ -1659,7 +1389,7 @@ def _author_stateful_verbatim_widget(tmp_path):
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     stateful = declarations["lf-stateful"]
-    stateful["properties"].update(
+    stateful["attributes"]["properties"].update(
         {
             "user": {"type": "string"},
             "agent": {"type": "string"},
@@ -1667,7 +1397,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             "overruled": {"type": "boolean"},
         }
     )
-    stateful["x-state"] = {
+    stateful["verbs"] = {
         "change": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "user"},
@@ -1680,14 +1410,15 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": True,
-        "x-verbatim": True,
-        "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "verbatim": True,
+        "example": '<lf-shell id="shell-example">Example</lf-shell>',
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
@@ -1721,7 +1452,8 @@ SCROLL_PASS = (30,) * 8 + (-30,) * 8
 
 
 def unread_syntax(page):
-    """Code tokens the page paints too faint to read, in each colour scheme."""
+    """Code tokens the page paints too faint to read, each with the colour scheme it
+    was read in."""
     unread = []
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
@@ -1731,7 +1463,7 @@ def unread_syntax(page):
             "(a) => a instanceof CSSTransition && a.finish())"
         )
         unread += [
-            Finding.read(u, scheme=scheme)
+            (scheme, Finding.read(u))
             for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
         ]
     return unread
@@ -2604,11 +2336,11 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 <p>Before.</p>
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
-<section id="eyebrow-led"><p class="eyebrow">Eyebrow</p><h2>Heading</h2></section>
+<section id="eyebrow-led"><hgroup><p>Eyebrow</p><h2>Heading</h2></hgroup></section>
 <div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
 <section id="prose-led"><p>Prose first.</p></section>
 <section id="list-led"><ol><li>A list first.</li></ol></section>
-<section class="layout-flow" id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
+<section id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
             )
         ),
     )
@@ -2652,7 +2384,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
               }))"""
         )
         tokens = page.evaluate(
-            """() => ['--h2-start', '--h3-start', '--callout-margin-block'].map(name =>
+            """() => ['--lf-h2-start', '--lf-h3-start', '--lf-callout-margin-block'].map(name =>
               parseFloat(getComputedStyle(document.querySelector('main'))
                 .getPropertyValue(name)))"""
         )
@@ -2814,8 +2546,8 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     out of the widget floor: generated from the others, it can only repeat them.
 
     Every key is put to the engine, so a key that is not a selector fails here too.
-    `pre > code.language-*` was one for as long as nothing asked — readable, matching
-    nothing, and the only member of the catalog with no way to be checked."""
+    `pre > code.language-*` would be one: readable, matching nothing, and with no
+    other way to be checked."""
     registry = validation_model.incoming_registry(
         [
             schema_model.ASSETS,
@@ -2940,9 +2672,7 @@ RESTORE_ADOPTED = """async () => {
 # to follow it there. The rule states both floors; a control that hangs a reach leaves
 # the block floor to it, and one a flex or grid container could squeeze states it as
 # padding.
-AIM_FLOOR_RULE = (
-    "min-width: var(--aim-floor); min-height: var(--lf-face-floor, var(--aim-floor));"
-)
+AIM_FLOOR_RULE = "min-width: var(--lf-aim-floor); min-height: var(--lf-face-floor, var(--lf-aim-floor));"
 
 
 def aim_selectors():
@@ -3011,8 +2741,8 @@ def adopted_sheet_findings(page):
     delivered, and a rule that wins by it beats the page's own rule at equal specificity
     — a default outranking the thing it is a default for. Nothing catches that, because
     no test and no browser gate can read a rule that never applied: .lf-ui's face stated
-    there drew .lf-ref at 14px ink where its own rule asked for 11.5px muted, and
-    .lf-margin-more's ink never reached the `…` it was written for.
+    there would draw .lf-ref at 14px ink where its own rule asks for 11.5px muted, and
+    .lf-margin-more's ink would never reach the `…` it is written for.
 
     So the same rules are served from a stylesheet standing first in the head instead.
     Specificity does not change, so every computed value that moves was decided by sheet
@@ -3068,10 +2798,10 @@ def adopted_sheet_findings(page):
 def short_aim_findings(page):
     """One floor, and it has to reach the page as well as the chrome.
 
-    The rule naming Leaf's aims used to stand inside chrome.css's `@scope`, so it floored
-    the controls in the runtime's own chrome and nothing else: under a finger, 41 of this
-    page's 73 buttons and all 21 of its margin entries stood below 44px while the six
-    inside the chrome were correct. Stated in shadow.css it reaches the document, the
+    The rule naming Leaf's aims inside chrome.css's `@scope` would floor the controls in
+    the runtime's own chrome and nothing else: under a finger, the page's buttons and
+    its margin entries would stand below 44px while those inside the chrome were
+    correct. Stated in shadow.css it reaches the document, the
     chrome, and the declared widget trees alike.
 
     Reach is only half of it. The floor is one rule at each control's own weight, so any
@@ -3088,8 +2818,8 @@ def short_aim_findings_in_every_tab(page):
 
     A page's own CSS can shrink a control under a narrow window's rules, and a tab's
     content stands in the layout only while that tab is open, so a reading of the first
-    tab at desktop width never met the three examples whose controls fell below the
-    floor at 390px. Each tab, and each tab inside it, is opened once, and what that
+    tab at desktop width would never meet a control that falls below the floor at a
+    phone's width. Each tab, and each tab inside it, is opened once, and what that
     shows, its panel and the chrome, is read; the rest of the page was read before the
     first tab opened."""
     return _short_aims(page, every_tab=True)
@@ -3186,18 +2916,17 @@ def under_a_finger(page):
 def pressable_paper_findings(page):
     """Nothing on a sheet is interactive, so nothing on it should look as though it is.
 
-    Injected controls go on paper, which the layer has always done — but the ones whose
-    label is the page speaking stay, because their words are the page's only statement of
-    what they say, and twenty of the corpus's 236 came through still dressed as controls:
-    the command hub's counts as filled pills with a pointer hand, its worktree heads with
-    a disclosure marker, a decision's links underlined. The words are what data-lf-said
+    Injected controls go on paper — but the ones whose label is the page speaking stay,
+    because their words are the page's only statement of what they say, and they can
+    come through still dressed as controls: the command hub's counts as filled pills
+    with a pointer hand, its worktree heads with a disclosure marker, a decision's
+    links underlined. The words are what data-lf-said
     keeps; the shape was never part of that bargain.
 
     A shut disclosure is the same fault from the other side — the words are in the
     document, nothing on the sheet says so, and there is no press to open it with. The
-    layer already prints a settled group's cards and an inactive tab's panel open;
-    <details> was the one way of putting content behind a gesture that was missed. Six of
-    them printed as stubs, one holding 3270px of an exact source.
+    layer prints a settled group's cards and an inactive tab's panel open; <details>
+    puts content behind a gesture too, and printed shut it is a stub.
 
     Both readings are taken on screen first, and that half is what makes the print half
     mean anything: a corpus whose controls were bare and whose disclosures were open
@@ -3271,12 +3000,12 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
 ):
     """macOS draws an overlay scrollbar over a scroller's own block end and widens it to
     a 15px track under the pointer, so a thread's code block, 8px of padding under its
-    last line, lost half that line to the bar the moment the user reached for it. A code
-    block or table that scrolls sideways keeps 15px clear under its last line, and the
-    room costs it none of its width: a block child dropped the code block's inline-end
-    padding from what it scrolls, enough to stop a block that overflowed by less than
-    that and loop. One that fits keeps the same clearance, so becoming scrollable
-    never moves the following content a frame after layout."""
+    last line, would lose half that line to the bar the moment the user reached for it.
+    A code block or table that scrolls sideways keeps 15px clear under its last line,
+    and the room costs it none of its width: a block child would drop the code block's
+    inline-end padding from what it scrolls, enough to stop a block that overflowed by
+    less than that and loop. One that fits keeps the same clearance, so becoming
+    scrollable never moves the following content a frame after layout."""
     url = serve(WIDE_TABLE_PAGE)
     wide = "word " * 60
     root = panel_comment(
@@ -3614,23 +3343,23 @@ FRAMED_TABLES_PAGE = leaf_page(
 <table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
-<lf-ask id="figure-asked">
-<h2>Which session ends?</h2>
+<lf-group id="figure-asked" label="Which session ends?">
+<h2 id="figure-asked-h">Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
-<lf-options id="figure-asked-choice" choose>
-<lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
-<lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
+<lf-options id="figure-asked-choice">
+<lf-option id="figure-asked-early" label="Early"><strong>Early</strong> End it at 16:00.</lf-option>
+<lf-option id="figure-asked-late" label="Late"><strong>Late</strong> End it at 18:00.</lf-option>
 </lf-options>
-</lf-ask>
+</lf-group>
 </figure>
-<lf-ask id="asked">
-<h2>Which session moves?</h2>
+<lf-group id="asked" label="Which session moves?">
+<h2 id="asked-h">Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
-<lf-options id="asked-choice" choose>
-<lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
-<lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
+<lf-options id="asked-choice">
+<lf-option id="asked-early" label="Early"><strong>Early</strong> Move it to 8:00.</lf-option>
+<lf-option id="asked-late" label="Late"><strong>Late</strong> Move it to 10:00.</lf-option>
 </lf-options>
-</lf-ask>
+</lf-group>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
@@ -3646,9 +3375,9 @@ FRAMED_TABLES_PAGE = leaf_page(
 
 def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, serve):
     """A table that scrolls its columns keeps its caption on the part of it on screen,
-    where the caption used to run on past the scrollport; and a status tag in a narrow
-    column holds its word, where `overflow-wrap: anywhere` let the table's automatic
-    layout squeeze "passed" to "pas" over "sed"."""
+    rather than running on past the scrollport; and a status tag in a narrow column
+    holds its word, where `overflow-wrap: anywhere` lets the table's automatic layout
+    squeeze "passed" to "pas" over "sed"."""
     caption = "What the final revision demonstrates and what remains to be measured"
     source = WIDE_TABLE_PAGE.replace(
         '<table id="sessions">', f'<table id="sessions"><caption>{caption}</caption>'
@@ -3692,8 +3421,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-callout"].pop("x-verbatim")
-    entries["lf-callout"]["x-shadow"] = True
+    entries["lf-callout"].pop("verbatim")
+    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -3742,8 +3471,8 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
     browser, serve, subtests
 ):
     """The theme contains a code block, so it asks what holds it for no width, and a box
-    sized to its content sizes without it: two short commands in a flex row stood 30px
-    wide each, showing none of their lines, and `page check --render` said nothing. The
+    sized to its content sizes without it: two short commands in a flex row would
+    show none of their lines, and `page check --render` would say nothing. The
     gate's reading names each block left a few characters, at a phone's widths: in a
     flex row, in an `auto` track beside an `fr` track, beside a heading that sets its
     flex item's width, in a box sized to fit, in one of four `1fr` tracks, and in a
@@ -3751,9 +3480,9 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
     width for the block can't help the tracks, so the words also offer letting them wrap
     or stack, and cite the `page-layout.md` sections that give `layout-tiles` and a grid
     that stacks below a width. A heading or a cell's label gives its holder the width
-    its font draws, so those holders' labels are three letters, which left their blocks
-    13–22px inside in every font tried, against the 54px floor; under "Before" a Linux
-    runner's serif left 59px.
+    its font draws, so those holders' labels are three letters, which leaves their
+    blocks inside the floor in every font tried, where "Before" can leave more than the
+    floor under a Linux runner's serif.
 
     The controls scroll long lines and read well, so the reading leaves them alone: a
     block in the column, `flex: 1` halves, `1fr` halves, `flex: auto` halves under
@@ -3850,9 +3579,9 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve, subt
     columns hold what is in them, so it takes the measure only when it needs to
     and wraps its cells past that; when even wrapping can't fit it scrolls inside
     itself — like pre, like lf-board — rather than out into the margin
-    where a suggestion's controls hang. `width: 100%` had no third case: the
-    table spilled, and at this viewport the window is wide enough that nothing
-    scrolled to say so.
+    where a suggestion's controls hang. `width: 100%` has no third case: the
+    table would spill, and at this viewport the window is wide enough that nothing
+    would scroll to say so.
 
     A widget hangs a word clipped to nothing among the page's own words (.lf-quiet),
     out of flow so it holds no room. Out of flow with no positioned ancestor is
@@ -4006,7 +3735,7 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
         "Contained exhibits",
         """<div class="layout-column">
           <h1>Evidence</h1>
-          <section id="plain">
+          <div id="plain">
             <table id="wide-table" data-width="wide"><tr><td>Wide evidence</td></tr></table>
             <lf-diff id="declared-wide"><pre>diff --git a/count.py b/count.py
 --- a/count.py
@@ -4016,14 +3745,14 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
 +new
 </pre></lf-diff>
             <table id="ordinary-table"><tr><td>Ordinary evidence</td></tr></table>
-          </section>
+          </div>
           <aside id="framed" class="callout">
             <table id="framed-table" data-width="wide"><tr><td>Framed evidence.</td></tr></table>
           </aside>
-          <section id="wrapper"><section class="layout-flow">
+          <div id="wrapper"><section>
             <table id="nested-table" data-width="wide"><tr><td>Nested evidence.</td></tr></table>
-          </section></section>
-          <section id="flow" class="layout-flow">
+          </section></div>
+          <section id="flow">
             <div id="wide-flow" data-width="wide">Shared tracks.</div>
             <div id="allocated" data-width="available"><section id="inside-wide">
               <div id="nested-wide" data-width="wide">Already has room.</div>
@@ -4042,17 +3771,17 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
     contained = reading["contained"]
     assert {finding["at"]: finding["holders"] for finding in contained} == {
-        "<table id=wide-table>": ["<section id=plain>"],
-        "<lf-diff id=declared-wide>": ["<section id=plain>"],
+        "<table id=wide-table>": ["<div id=plain>"],
+        "<lf-diff id=declared-wide>": ["<div id=plain>"],
         "<div id=grid-wide>": ["<div id=custom-grid>"],
         "<table id=framed-table>": ["<aside id=framed>"],
-        "<table id=nested-table>": ["<section id=wrapper>"],
+        "<table id=nested-table>": ["<div id=wrapper>"],
     }
     findings = render_gate_readings.swept_faults([(1280, reading)])
     advice = [finding for finding in findings if finding.code == "contained-space"]
     assert len(advice) == 5
     assert all(finding.severity == "advice" for finding in advice)
-    assert 'class="layout-flow"' in str(advice[0])
+    assert "as a section, article or details" in str(advice[0])
     assert "put data-width on the frame" in str(advice[0])
 
 
@@ -4061,23 +3790,19 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
 ):
     """A text block starts at its holder's edge, so a wrapper reaching before the prose
     moves its words off the column, on a page the rest of which stands on it. A wide
-    wrapper keeps the prose's start edge, a caption belongs to its figure, and a
-    question takes no width at all."""
+    wrapper keeps the prose's start edge, and a caption belongs to its figure."""
     source = leaf_page(
         "Words off the column",
         """<h1>Words off the column</h1><p>Prose sets the column.</p>
         <section id="words" data-width="available"><h2>Off</h2><p>Words.</p></section>
         <details id="more" data-width="available" open><summary>More</summary>
           <p>Words.</p></details>
-        <section id="flowing" class="layout-flow"><section id="inner" data-width="available">
+        <section id="flowing"><section id="inner" data-width="available">
           <p>Words.</p></section></section>
         <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
         <figure id="pictured" data-width="available"><div>Picture.</div>
           <figcaption>Caption.</figcaption></figure>
-        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>
-        <lf-ask id="asked" data-width="available"><h2>Ship it?</h2><p>Words.</p>
-          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
-        </lf-ask>""",
+        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>""",
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -4091,16 +3816,16 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
     advice = render_gate_readings.swept_faults([(1440, reading)])
     worded = [finding for finding in advice if finding.code == "words-off-column"]
     assert all(finding.severity == "advice" for finding in worded) and len(worded) == 3
-    assert 'class="layout-flow"' in str(worded[0])
+    assert "move data-width to the block inside" in str(worded[0])
 
 
 def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
     """A width the sweep steps to is read as it settles, not partway through a
     transition the step started, which no load at that width shows. A sidebar's
     contents map, once the window is wide enough to lay it in the margin, fades its
-    labels out at the places they take over the column; the sweep up from a phone's
-    window read them mid-fade and failed the page for words they covered for a fifth
-    of a second."""
+    labels out at the places they take over the column; a sweep up from a phone's
+    window that read them mid-fade would fail the page for words they cover for a
+    moment."""
     source = leaf_page(
         "Settling",
         """<div id="stage"><p id="prose">Words a fading label passes over.</p>
@@ -4154,10 +3879,10 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     column, and a box pulled off the leading edge, which no scroll reaches, is also
     clipped out. A box sized past only the trailing edge is reached by the root's
     sideways scroll, so it is not clipped out."""
-    item = """<lf-ask id="{id}"><h2>Which one?</h2>
+    item = """<lf-group id="{id}" label="Which one?"><h2 id="{id}-h">Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
-  <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
-</lf-ask>"""
+  <lf-options id="{id}-o"><lf-option id="{id}-a">This one</lf-option></lf-options>
+</lf-group>"""
     source = leaf_page(
         "Reaching past the column",
         f"""
@@ -4183,7 +3908,9 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
 
-    assert grown > 100, "the lf-ask never spanned its block, so nothing here was tested"
+    assert grown > 100, (
+        "the question never spanned its block, so nothing here was tested"
+    )
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
         ("clipped-out", "<div id=bare>"),
@@ -4232,42 +3959,6 @@ def test_an_item_its_content_holds_past_the_column_is_told_to_drop_its_minimum(
     offered = str(Finding.read(past["<div id=flexed>"]))
     assert offered.index("min-width: 0") < offered.index('data-width="wide"'), offered
     assert "min-width: 0" not in str(Finding.read(past["<div id=sized>"]))
-
-
-def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
-    """Both elements in the right margin stand level with what they belong to — the
-    controls with the change they decide, the note with the block it annotates — so the
-    controls of a change beside a note would be drawn over the note's first line. The
-    note holds the rail's strip there, so the controls stand as a pin on the change
-    instead, clear of the note, and the gate has no covered words to read."""
-    url = serve(NOTE_BESIDE_A_CHANGE)
-    page = open_page(browser, url)
-    # A note hangs in the margin only where the room beside the column holds it.
-    resized(page, 1600, 900)
-    page.locator("#sug-level").scroll_into_view_if_needed()
-    geometry = """() => {
-        const note = document.getElementById('level-note');
-        const prose = document.getElementById('sug-level').getBoundingClientRect();
-        const row = document.querySelector("[data-lf-margin-for='sug-level']");
-        const n = note.getBoundingClientRect(), b = row.getBoundingClientRect();
-        return {beside: n.left >= prose.right, place: row.dataset.lfPlace,
-                across: Math.min(n.right, b.right) - Math.max(n.left, b.left),
-                down: Math.min(n.bottom, b.bottom) - Math.max(n.top, b.top)};
-    }"""
-    level = page.evaluate(geometry)
-    covered = render_checks_model.evaluate_probe(page, "coveredWords")
-    page.close()
-
-    assert level["beside"], (
-        f"the note never hung in the margin, so nothing here was tested: {level}"
-    )
-    assert level["place"] == "pin", level
-    assert level["across"] <= 0 or level["down"] <= 0, (
-        f"the change's controls were drawn over the note: {level}"
-    )
-    assert not [
-        f for f in covered if "level-note" in f["at"] or "level-note" in f["under"]
-    ], covered
 
 
 def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve):
@@ -4367,33 +4058,6 @@ def test_words_the_panel_covers_at_the_page_s_end_are_reported(
     assert all(f["at"] in str(Finding.read(f)) for f in under_panel)
 
 
-# A sidenote beside a section of prose and tiles, the content a strip crushing the
-# column would push out of it.
-COMPARE_NOTE_PAGE = leaf_page(
-    "compare note",
-    """
-<h1 id="title">Maps</h1>
-<section id="comparison" class="layout-flow">
-  <h2>Compare, Variants, and Chips</h2>
-  <div class="layout-note"><p id="compare-guide">Ordinary sections compare alternatives. Small labels carry their
-  attributes.</p><aside class="note" id="compare-note">The page puts short alternatives in a row
-  and longer explanations below. Narrow the window to see this note follow the text.
-  </aside></div>
-  <div id="compare" class="layout-tiles">
-    <section class="panel"><small class="tag">power: none</small><small class="tag ok"
-    >weight: low</small> <strong>Paper map</strong> Easy to annotate and fold.</section>
-    <section class="panel"><small class="tag">power: daily</small><small class="tag warn"
-    >weight: medium</small> <strong>Tablet map</strong> Searchable and backlit.</section>
-  </div>
-</section>
-"""
-    + "\n".join(
-        f"<p id='after-{i}'>Paragraph {i}. " + "Filler. " * 30 + "</p>"
-        for i in range(8)
-    ),
-).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
-
-
 def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
@@ -4424,17 +4088,19 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     )
     syntax = unread_syntax(page)
     page.close()
-    assert {"var(--syn-comment)", "var(--syn-keyword)", "var(--syn-string)"} <= set(
-        population["document"]
-    ), population
-    assert "var(--syn-number)" in population["shadow"], population
+    assert {
+        "var(--lf-syn-comment)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+    } <= set(population["document"]), population
+    assert "var(--lf-syn-number)" in population["shadow"], population
     assert population["comment"] == "italic", population
     readable, faint = population["names"]
     assert readable["style"] == faint["style"], population
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    assert len(syntax) == 4, "\n".join(map(str, syntax))
+    assert len(syntax) == 4, syntax
     for appearance, color in (
         ("light", "keyword"),
         ("light", "string"),
@@ -4442,10 +4108,10 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
         ("dark", "number"),
     ):
         assert any(
-            finding.scheme == appearance
-            and finding.values["style"].startswith(f"color: var(--syn-{color});")
+            scheme == appearance
+            and finding.values["style"].startswith(f"color: var(--lf-syn-{color});")
             and finding.values["ratio"] < 4.5
-            for finding in syntax
+            for scheme, finding in syntax
         ), syntax
 
     page = open_page(browser, serve(CODE_CONTROL_PAGE))
@@ -4582,123 +4248,6 @@ def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
     ], trapped
 
 
-def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
-    browser, serve
-):
-    """A page put back the way the user left it is simply there, and does not assemble
-    itself in front of them.
-
-    Turning on design mode or hiding the annotations is a gesture, and gestures may
-    move. Coming back to a page where it was already done is not a gesture — nothing
-    was just decided, and a page that replays the decisions on arrival would be showing
-    the user furniture instead of what they came back to read. The runtime puts the
-    arrangement back before the page is presented (`restoreUserView`,
-    restore-state.js), so it appears without the motion its gesture plays.
-
-    What is read is every motion the browser reports, which it does through the
-    inspector's animation agent as it reports a request or a response: nothing is
-    injected, and nothing is timed. The report outlives the motion, so what has to be
-    caught is the frame a slide begins on and never the fifth of a second it runs
-    for — which is the whole difference from reading `getAnimations` once the page is
-    up, a race this machine wins and a loaded one does not.
-
-    Held against a first visit rather than against a list of what may move. The page
-    plays one animation of its own while it arrives — the waiting surface's — and a
-    list would have had to name it, which is naming the page's furniture, the closed
-    list this project keeps not writing. A return may move less than a first visit; it
-    may not move more.
-
-    That only works if every load here arrives the same way, and left to itself none
-    of them does: the waiting surface is what the page shows when the first poll has
-    not answered yet, so on a load quick enough to present without painting a frame it
-    never runs at all. Comparing two loads then compares two guesses about how busy
-    the machine was — the first visit came up too quickly to show it, the return did
-    not, and the return was reported as having moved a surface neither of them owns.
-    So the poll is held on every load and let go once the surface is up, which is this
-    suite's answer to a race wherever it finds one, and the reading it waits for is the
-    page's own. The window that opens is also the one this test is about: it is where a
-    restore is put back, and waiting in it is strictly more than catching it.
-
-    What the user left open is the restore case the runtime declares, all of them
-    in turn, so another remembered surface is covered the day it starts remembering.
-    """
-    url = serve(CHANGE_SHAPES_PAGE)
-    page = open_page(browser, url)
-    # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
-    # one document; one heard on these loads is the platform under load and says
-    # nothing, so the harness hands them here rather than to the fixture.
-    page.lf_resize_notices = []
-    resized(page, 1200, 900)
-
-    cdp = page.context.new_cdp_session(page)
-    started = []
-    cdp.on("Animation.animationStarted", lambda event: started.append(event))
-    cdp.send("DOM.enable")
-    cdp.send("Animation.enable")
-
-    def moved():
-        # The inspector's report outlives the motion, so consume it only after the
-        # page's own finite-motion reading says the transition has ended. One rendering
-        # frame was merely a guess at when Chrome would emit animationStarted; under
-        # contention the gesture could be visible while its report was still queued.
-        page_at_rest(page)
-        # Flush protocol events sent before this command's reply.
-        cdp.send("Animation.getPlaybackRate")
-        found = motions(started)
-        started.clear()
-        return found
-
-    def arrive():
-        """One load, waiting in the arrival rather than catching it as it goes past."""
-        held = []
-        polls = itertools.count()
-        page.route(
-            "**/api/state*",
-            lambda route: held.append(route) if next(polls) == 0 else route.continue_(),
-        )
-        page.goto(url, wait_until="load")
-        render_checks_model.wait_for_probe(page, "upgraded")
-        # The page's own statement that it is waiting: the surface it shows while the
-        # log is outstanding has finished its dwell and is painting. Waiting for it is
-        # what makes every load here the same load, so what a return moves can be held
-        # against what a first visit moves without either answer depending on how busy
-        # the machine was.
-        page.wait_for_function(
-            "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
-        )
-        assert held, "the first poll went through, so no arrival was stood in"
-        held.pop(0).continue_()
-        wait_until_ready(page)
-        # This arrival is complete and the next call navigates away, so no later wait
-        # depends on a poll this unroute might strand.
-        page.unroute("**/api/state*")
-        return moved()
-
-    restore_cases = user_view_restore_cases(page)
-    assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
-
-    # The control, and the whole reason the silences below say anything: opening On Me
-    # by hand is the gesture whose motion the arrivals must not have. What it paints
-    # is the runtime's business and is not named here; that it paints at all is this
-    # reading's, and a reading that reports nothing when something moved would pass
-    # every assertion after it.
-    toggle_queue(page)
-    gesture = moved()
-    assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
-
-    page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
-    first_visit = arrive()
-
-    for restore_case in restore_cases:
-        apply_restore_case(page, restore_case)
-        extra = {k: v for k, v in arrive().items() if k not in first_visit}
-        assert not extra, (
-            f"returning to {restore_case['name']} moved what a first visit does not: "
-            + "; ".join(f"{k} at {moved_at(cdp, node)}" for k, node in extra.items())
-        )
-    assert take_browser_errors(page) == []
-
-
 def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     browser, serve, tmp_path, monkeypatch
 ):
@@ -4714,8 +4263,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-callout"].pop("x-verbatim")
-    entries["lf-callout"]["x-shadow"] = True
+    entries["lf-callout"].pop("verbatim")
+    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'
@@ -4943,11 +4492,11 @@ def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
 
 def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, serve):
     """On a page that takes no theme, a table keeps the browser's layout, so on a
-    phone's window its last column stands past the right edge. The page scrolls
-    sideways to it, as on the open web: a wheel over the table brings that column
-    into view. While the live root clipped sideways overflow, the wheel moved the page
-    0px and the column could not be reached. `page check --render` still refuses
-    such a page (`page-scrolls`)."""
+    phone's window its last column stands past the right edge. The page scrolls sideways
+    to it, as on the open web: a wheel over the table brings that column into view. Were
+    the live root to clip sideways overflow, the wheel would move the page nowhere and
+    the column could not be reached. `page check --render` still refuses such a page
+    (`page-scrolls`)."""
     page = open_page(
         browser,
         serve(
@@ -4982,11 +4531,11 @@ def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, 
 
 
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
-    """The theme's second case, reached by a table that used to fall through to the
-    third: a column of test names beside a column of prose. A name is one word to
-    the line breaker, and unbreakable it held its column at 583px of the 720px
-    measure, squeezed the prose to 118px and a few words a line, and scrolled the
-    table 83px sideways for the rest. In <code> it breaks inside its cell where it
+    """The theme's second case, reached by a table that would otherwise fall through
+    to the third: a column of test names beside a column of prose. A name is one word
+    to the line breaker, and unbreakable it holds its column at most of the measure,
+    squeezes the prose to a few words a line, and scrolls the table sideways for the
+    rest. In <code> it breaks inside its cell where it
     must, and the table fits. The names are longer than any share of the measure a
     column gets, so a name that did not break is a name that fitted by luck rather
     than by the rule, and the test says so."""
@@ -5010,46 +4559,99 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
         assert scrolls == 0, (width, scrolls)
 
 
-def test_a_short_name_in_a_rows_first_cell_stays_on_one_line(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_row_headings_name_stays_on_one_line(engine, request, serve):
     """The other side of the rule above: an option table, a column of short names beside
     a column of sentences. With every name breakable anywhere, the table's automatic
-    layout gave the name column almost nothing past one character, so `--output-dir`
-    stood as `--output-` over `dir` on the full measure and every name took two or
-    three lines in a 420px window. A row's first cell keeps its name whole, and the
-    table still fits."""
+    layout would give the name column almost nothing past one character, so
+    `--output-dir` would stand as `--output-` over `dir` on the full measure and every
+    name take two or three lines in a 420px window. A row heading keeps its name whole,
+    and the table still fits. A name wider than a third of the column breaks inside a
+    box that third wide, and the sentence beside it keeps the rest. A name in another
+    column is the table's to break until the page keeps its cells on one line, which it
+    can, and the render check names such a name so its author can (`brokenNames`). It
+    holds in every engine: a rule using a feature Firefox lacks would leave the names
+    broken there."""
     rows = (
-        ("--plugin", "Loads the named plugin before the run starts, so its commands"),
-        ("--dry-run", "Reports what the run would change without writing anything,"),
-        ("--output-dir", "Writes every generated file under this directory instead of"),
+        ("--plugin", "lf-options", "Loads the named plugin before the run starts, so"),
+        ("--dry-run", "lf-ask", "Reports what the run would change without writing,"),
+        ("--output-dir", "lf-options", "Writes every generated file under this folder"),
     )
     body = "".join(
-        f"<tr><td><code>{name}</code></td><td>{does} {does.lower()} {does.lower()}</td></tr>"
-        for name, does in rows
+        f'<tr><th scope="row"><code>{name}</code></th><td><code>{by}</code></td>'
+        f"<td>{does} {does.lower()} {does.lower()}</td></tr>"
+        for name, by, does in rows
+    )
+    head = (
+        "<thead><tr><th>Option</th><th>Read by</th><th>What it does</th></tr></thead>"
     )
     page = open_page(
-        browser,
+        request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "Options",
-                '<h1>Options</h1><table id="options"><thead><tr><th>Option</th>'
-                f"<th>What it does</th></tr></thead><tbody>{body}</tbody></table>",
+                f'<h1>Options</h1><table id="options">{head}<tbody>{body}</tbody></table>'
+                f'<table id="kept">{head}<tbody>{body}</tbody></table>'
+                '<table id="tests"><tbody><tr><th scope="row">'
+                "<code>test_a_long_name_beside_a_sentence_keeps_a_third</code></th>"
+                f"<td>{rows[0][2]} {rows[1][2].lower()} {rows[2][2].lower()}</td>"
+                "</tr></tbody></table>",
+                head="<style>#kept td:nth-child(2) { white-space: nowrap; }</style>",
             )
         ),
     )
+    lines = """(c) => { const range = document.createRange();
+        range.selectNodeContents(c.firstChild);
+        return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+    }"""
+    long_name = page.locator("#tests code")
+    third = (
+        page.evaluate(
+            "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-col'))"
+        )
+        / 3
+    )
+    assert long_name.evaluate(lines) > 1
+    assert long_name.evaluate("(c) => c.getBoundingClientRect().width") <= third + 1
+    assert (
+        page.locator("#options td code").first.evaluate(
+            "(c) => getComputedStyle(c).display"
+        )
+        == "inline"
+    )
     for width in (1600, 800, 420):
         resized(page, width, 900)
-        measured = page.locator("#options").evaluate(
-            """(t) => {
-            const range = document.createRange();
-            return { scrolls: t.scrollWidth - t.clientWidth,
-                     lines: [...t.querySelectorAll('td code')].map((c) => {
-                         range.selectNodeContents(c.firstChild);
-                         return new Set([...range.getClientRects()]
-                             .map((r) => Math.round(r.top))).size;
-                     }) };
-        }"""
-        )
-        assert measured == {"scrolls": 0, "lines": [1, 1, 1]}, (width, measured)
+        for table, cells in (
+            ("#options", "th[scope=row]"),
+            ("#kept", "th[scope=row], td"),
+        ):
+            measured = page.locator(table).evaluate(
+                """(t, cells) => {
+                const range = document.createRange();
+                return { scrolls: t.scrollWidth - t.clientWidth,
+                         lines: [...t.querySelectorAll(cells)].flatMap((cell) =>
+                             [...cell.querySelectorAll(':scope > code')].map((c) => {
+                                 range.selectNodeContents(c.firstChild);
+                                 return new Set([...range.getClientRects()]
+                                     .map((r) => Math.round(r.top))).size;
+                             })) };
+            }""",
+                cells,
+            )
+            names = 3 if table == "#options" else 6
+            assert measured == {"scrolls": 0, "lines": [1] * names}, (
+                width,
+                table,
+                measured,
+            )
+        # The gate names the short names the table breaks, and only those: neither the
+        # column the page keeps on one line nor a name past a third of the table.
+        broken = {
+            f["at"]: f["names"]
+            for f in render_checks_model.evaluate_probe(page, "brokenNames")
+        }
+        assert set(broken) <= {"<table id=options>"}, (width, broken)
+    assert broken == {"<table id=options>": ["lf-options", "lf-ask"]}, broken
 
 
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
@@ -5057,7 +4659,7 @@ def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, 
     that body while still fitting on screen, so measuring body would invent sideways
     document overflow where the canonical root scrollport has none. Sized in vw, the page
     keeps that contrast at every width the gate reads, so `rootOverflow`, the gate's
-    own reading, is asked at both of its viewports."""
+    own reading, is asked at a desktop width and a narrow one."""
     source = leaf_page(
         "root scrollport width",
         """
@@ -5080,54 +4682,6 @@ body { width: 40vw; }
         assert root_overflow(page) == 0, (width, body)
 
 
-def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
-    """The margin form is granted by the room beside the page's column, and the thread
-    panel stands over the page rather than taking room from it, so the panel decides
-    nothing about where a note stands: the window does.
-
-    `page check --render` and the render sweep normally open with no panel, so this
-    test exercises the panel's state they do not otherwise visit.
-
-    Three readings distinguish a real container response from either never floating the
-    note or releasing it whenever the panel opens: the note begins in the margin, returns
-    to flow in a window too narrow for it, and stays in the margin with the panel open
-    in one wide enough."""
-    url = serve(COMPARE_NOTE_PAGE)
-    page = open_page(browser, url)
-    page.evaluate("location.hash = 'compare-note'")
-    expect(page.locator("#compare-note")).to_be_visible()
-    resized(page, 1600, 900)
-    reading = """() => {
-        const note = document.querySelector('aside.note').getBoundingClientRect();
-        const prose = document.querySelector('#compare-guide').getBoundingClientRect();
-        const main = document.querySelector('main'), s = getComputedStyle(main);
-        return {beside: note.left >= prose.right,
-                column: Math.round(main.getBoundingClientRect().width
-                    - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight))};
-    }"""
-    roomy = page.evaluate(reading)
-    resized(page, 1024, 900)
-    open_threads(page)
-    cramped = page.evaluate(reading)
-    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
-    resized(page, 1728, 900)
-    wide = page.evaluate(reading)
-    page.close()
-
-    assert roomy["beside"], (
-        f"no note stood in the margin to begin with, so this proves nothing: {roomy}"
-    )
-    assert not cramped["beside"], (
-        f"the strip outlived the room for it: {cramped}, {misplaced}"
-    )
-    assert misplaced == [], (
-        f"content set outside a column the strip had crushed: {misplaced}"
-    )
-    assert wide["beside"], (
-        f"a window wide enough for both moved the notes anyway: {wide}"
-    )
-
-
 def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serve):
     """An HTML template appended under SVG is not an SVG label; it must not
     crash the label probe or hide the genuine small SVG label beside it."""
@@ -5145,7 +4699,7 @@ def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serv
     # Lit's html template creates HTML elements even when its result is rendered
     # into an SVG parent; the svg template is what creates SVG elements.
     page.locator("#drawing").evaluate("""async drawing => {
-      const {html, render} = await window.__lfWidgetApi();
+      const {html, render} = await window.__lfVendorImport('lit.js');
       render(html`<text>HTML template content</text>`, drawing.querySelector('g'));
     }""")
     reading = render_checks_model.evaluate_probe(page, "shrunkLabelReading")

@@ -10,8 +10,10 @@ from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_cases_layout import token_colour
+from render_cases_widgets import chart_markup
 from render_harness import (
     PREVIEW,
+    cursor_over,
     draft_control,
     leaf_page,
     long_press,
@@ -41,8 +43,7 @@ def _refreshes_restate_no_margin_name(page, population):
     `render` follows semantic and viewport refreshes, so an unconditional write here
     restates itself on a page nobody has touched: the mutation stream a
     screen reader rebuilds its buffer from, and a dirty box for whatever reads
-    next. The corpus used to restate 205 attributes and the margin entry's
-    words on every pass.
+    next.
 
     What the pass wrote without changing anything is one reading rather than two.
     An attribute the pass leaves carrying the value it opened with said nothing,
@@ -63,7 +64,7 @@ def _refreshes_restate_no_margin_name(page, population):
     Half of `render` runs in a frame callback — `scheduleMarginLayout` and
     `scheduleRoving` are its whole tail — and five refreshes in one synchronous task
     never reach it. Each refresh is therefore
-    read across a settled frame, which both pages now allow. The layout pass
+    read across a settled frame, which both pages allow. The layout pass
     places every row from what it writes, so a refresh that restated a posture, an
     offset or a push shows up here as a restatement.
     """
@@ -340,18 +341,18 @@ OBLIGATION_MARKERS_PAGE = leaf_page(
     "Question markers",
     """
 <h1 id="h">Two open questions</h1>
-<lf-ask id="short-ask"><h2>Where should sessions live?</h2>
-<lf-options id="short-choice" choose>
-  <lf-option id="short-a"><strong>Keep the store</strong></lf-option>
-  <lf-option id="short-b"><strong>Signed tokens</strong></lf-option>
-</lf-options></lf-ask>
+<lf-group id="short-ask" label="Where should sessions live?"><h2 id="short-ask-h">Where should sessions live?</h2>
+<lf-options id="short-choice">
+  <lf-option id="short-a" label="Keep the store"><strong>Keep the store</strong></lf-option>
+  <lf-option id="short-b" label="Signed tokens"><strong>Signed tokens</strong></lf-option>
+</lf-options></lf-group>
 <p id="between">Between the two questions, a paragraph of ordinary prose.</p>
-<lf-ask id="long-ask"><h2>Should the nightly export keep writing one file per tenant,
+<lf-group id="long-ask" label="Should the nightly export keep writing one file per tenant, or roll every tenant into a single partitioned archive?"><h2 id="long-ask-h">Should the nightly export keep writing one file per tenant,
 or roll every tenant into a single partitioned archive?</h2>
-<lf-options id="long-choice" choose>
-  <lf-option id="long-a"><strong>One file per tenant</strong></lf-option>
-  <lf-option id="long-b"><strong>One archive</strong></lf-option>
-</lf-options></lf-ask>
+<lf-options id="long-choice">
+  <lf-option id="long-a" label="One file per tenant"><strong>One file per tenant</strong></lf-option>
+  <lf-option id="long-b" label="One archive"><strong>One archive</strong></lf-option>
+</lf-options></lf-group>
 """,
 )
 
@@ -364,7 +365,7 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     heading already says the question, and a preview nobody pointed at covers the ask's
     controls.
 
-    Hovering an obligation's marker shows the obligation's question, where it used to show only
+    Hovering an obligation's marker shows the obligation's question, not only
     "Ask…", which the marker's glyph already says. Its accessible name identifies
     the question too, independently of how the visible label fits."""
     page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
@@ -456,7 +457,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     resized(page, 1280, 900)
     marker = page.locator('[data-lf-margin-for="how-cap"] > .lf-margin-marker')
     icon = marker.locator(":scope > .lf-margin-entry-icon")
-    badge = marker.locator(":scope > .lf-margin-count")
+    badge = marker.locator(":scope > .lf-badges > .lf-badge-count")
     icon.evaluate("node => { window.__heldMarginEntryIcon = node; }")
     badge.evaluate("node => { window.__heldMarginEntryBadge = node; }")
     marker.evaluate(
@@ -831,8 +832,8 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
 </p>
 <lf-board id="packing">
   <lf-column id="ready" label="Ready">
-    <lf-card id="map"><strong>Print the workshop map</strong></lf-card>
-    <lf-card id="signs"><strong>Pack the direction signs</strong></lf-card>
+    <lf-card id="map" label="Print the workshop map"><strong>Print the workshop map</strong></lf-card>
+    <lf-card id="signs" label="Pack the direction signs"><strong>Pack the direction signs</strong></lf-card>
   </lf-column>
 </lf-board>
 """,
@@ -887,14 +888,14 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         inks = [face.pop("ink") for face in faces]
         assert faces == [faces[0]] * len(faces), faces
         assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
-        assert faces[0]["background"] == token_colour(page, "--paper"), faces[0]
-        assert faces[0]["border"] == ["1px", token_colour(page, "--border-2")]
+        assert faces[0]["background"] == token_colour(page, "--lf-paper"), faces[0]
+        assert faces[0]["border"] == ["1px", token_colour(page, "--lf-border")]
         # The glyphs keep what they say on the rail: Accept's tone, a thread's blue.
         assert inks == [
-            token_colour(page, "--ink-2"),
-            token_colour(page, "--ok-ink"),
-            token_colour(page, "--accent"),
-            token_colour(page, "--ink-2"),
+            token_colour(page, "--lf-ink-2"),
+            token_colour(page, "--lf-ok-ink"),
+            token_colour(page, "--lf-accent"),
+            token_colour(page, "--lf-ink-2"),
         ], inks
         status.hover()
         assert status.evaluate(read_face) == {**faces[0], "ink": inks[0]}
@@ -907,7 +908,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         page.keyboard.press("Tab")
         assert reject.evaluate(read_face) == {
             **faces[0],
-            "ink": token_colour(page, "--danger-ink"),
+            "ink": token_colour(page, "--lf-danger-ink"),
         }
         # The Tab showed Reject's preview, which the first Escape puts away; the
         # second folds the cluster.
@@ -932,7 +933,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         reject.press("Enter")
     expect(page.locator("#schedule")).to_have_attribute("data-lf-state", "reject")
     with sending(page, "undo the suggestion rejection"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     with sending(page, "accept the suggestion from its pin"):
         accept.click()
     expect(page.locator("#schedule")).to_have_attribute("data-lf-state", "accept")
@@ -1078,7 +1079,7 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     page.keyboard.press("w")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     edit = draft_control(page, "edit", "draft")
-    assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    assert cursor_over(page, edit) != "crosshair"
     edit.click()
     expect(page.locator("#draft leaf-text")).to_be_focused()
     draft_control(page, "cancel", "draft").click()
@@ -1087,9 +1088,10 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
 
 
-def test_a_row_leaving_renames_the_rows_after_it(browser, serve):
-    """A marker's name says where its row stands among the rows, so a listener's count
-    stays true when another row leaves, though nothing else about the marker changed."""
+def test_a_row_leaving_renames_the_focused_row_after_it(browser, serve):
+    """The name of the marker focus is on says where its row stands among the rows, so a
+    listener's count stays true when another row leaves, though nothing else about the
+    marker changed."""
     body = "<h1>Rows</h1>" + "".join(
         f'<p id="line-{n}">Line {n}, with a thread on it.</p>' for n in range(1, 4)
     )
@@ -1100,13 +1102,157 @@ def test_a_row_leaving_renames_the_rows_after_it(browser, serve):
     page = open_page(browser, live_url(url))
     resized(page, 1440, 900)
     last = page.locator('[data-lf-margin-for="line-3"] > .lf-margin-marker')
+    last.focus()
     expect(last).to_have_attribute("aria-label", re.compile(r"3 of 3"))
     append_command(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": roots[0]["id"]}
     )
     told(page)
     expect(page.locator('[data-lf-margin-for="line-1"]')).to_have_count(0)
-    expect(last).to_have_attribute("aria-label", re.compile(r"2 of 2"))
+    # Read once the margin has laid out after the row left, not whenever a later
+    # repaint of the marker's own row would rename it.
+    rendered(page)
+    assert re.search(r"\b2 of 2\b", last.get_attribute("aria-label") or ""), (
+        last.get_attribute("aria-label")
+    )
+
+
+WEEKS = """{
+  ariaLabel: "Sessions by week, rising from 4,100 to 9,300",
+  x: {label: "week"},
+  y: {label: "sessions"},
+  marks: [
+    Plot.dot(
+      [4100, 5200, 8412, 9300].map((sessions, i) => ({week: i + 1, sessions})),
+      {x: "week", y: "sessions"},
+    ),
+  ],
+}"""
+PICTURE_PARTS_PAGE = leaf_page(
+    "parts of pictures",
+    '<h1 id="t">Parts</h1>'
+    + chart_markup("weeks", WEEKS).replace("<lf-chart ", '<lf-chart data-height="220" ')
+    + '<lf-diagram id="flow" parts="all"><pre>\ngraph LR\n'
+    "  S[Start request] --> H[Handle request] --> U[Result]\n</pre></lf-diagram>",
+)
+
+
+def test_threads_on_two_parts_of_a_picture_stand_an_entry_each_tracing_its_part(
+    browser, serve
+):
+    """Threads on two points of a chart, and on two nodes of a diagram, stand a margin
+    entry each, named by its part as the comment box names it, and pointing at one
+    traces that part alone rather than the picture: the ring round the chart's point,
+    which the chart finds by its datum, and the node the diagram lists."""
+    parts = {
+        "weeks": ("point:0;x=2;y=5200", "point:0;x=3;y=8412"),
+        "flow": ("node:S", "node:U"),
+    }
+    url = serve(
+        PICTURE_PARTS_PAGE,
+        events=[
+            {**_comment_on(picture), "anchor": {"section": picture, "visual": visual}}
+            for picture, visuals in parts.items()
+            for visual in visuals
+        ],
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    expect(page.locator("#weeks svg[role=img]")).to_be_visible()
+    margins_laid_out(page)
+    third_dot = page.locator("#weeks svg[role=img] [data-lf-part=dot] circle").nth(2)
+    traced = page.locator("[data-lf-traced]")
+    for picture, word, names, hovered, part in (
+        (
+            "weeks",
+            "chart",
+            ["week 2, sessions 5,200", "week 3, sessions 8,412"],
+            "week 3, sessions 8,412",
+            page.locator("#weeks .lf-chart-marks > :not(.lf-chart-aim)"),
+        ),
+        (
+            "flow",
+            "diagram",
+            ["Start request", "Result"],
+            "Result",
+            page.locator('#flow g[data-id="U"]'),
+        ),
+    ):
+        markers = page.locator(
+            f'.lf-margin-cluster[data-lf-margin-for="{picture}"] .lf-margin-marker'
+        )
+        expect(markers).to_have_count(2)
+        assert sorted(
+            markers.evaluate_all("nodes => nodes.map((n) => n.ariaLabel)")
+        ) == sorted(f"Thread, {word} · {name}" for name in names)
+        markers.and_(page.locator(f'[aria-label="Thread, {word} · {hovered}"]')).hover()
+        expect(traced).to_have_count(1)
+        assert traced.evaluate(
+            "(node, parts) => parts.includes(node)", part.element_handles()
+        ), picture
+        if picture == "weeks":
+            # Of the rings round the two commented points, the one round week 3.
+            ring, dot = traced.bounding_box(), third_dot.bounding_box()
+            assert ring and dot
+            assert ring["x"] + ring["width"] / 2 == pytest.approx(
+                dot["x"] + dot["width"] / 2, abs=1
+            )
+            assert ring["y"] + ring["height"] / 2 == pytest.approx(
+                dot["y"] + dot["height"] / 2, abs=1
+            )
+        page.mouse.move(2, 2)
+        expect(traced).to_have_count(0)
+
+
+def test_a_draft_on_a_chart_s_point_traces_the_point_after_the_chart_draws_again(
+    browser, serve
+):
+    """A comment the user put away unsent on a chart's point has a margin entry of its
+    own, which traces the point, and still traces it once the chart has drawn itself
+    again for a narrower box, though no thread on the page names the chart."""
+    page = open_page(browser, serve(PICTURE_PARTS_PAGE))
+    resized(page, 1440, 900)
+    chart = page.locator("#weeks")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    dot = chart.locator("svg[role=img] [data-lf-part=dot] circle").nth(2)
+
+    def middle(locator):
+        box = locator.bounding_box()
+        assert box
+        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+    x, y = middle(dot)
+    page.mouse.move(x - 2, y - 2)
+    page.mouse.move(x, y)
+    page.keyboard.down("Alt")
+    page.mouse.click(x, y)
+    page.keyboard.up("Alt")
+    composer = page.locator(".lf-composer")
+    expect(composer).to_be_visible()
+    page.keyboard.type("Why the jump?")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    marker = page.locator('[data-lf-margin-for="weeks"] .lf-margin-marker')
+    expect(marker).to_have_count(1)
+    traced = page.locator("[data-lf-traced]")
+
+    def traces_the_dot():
+        marker.hover()
+        expect(traced).to_have_count(1)
+        assert traced.evaluate("node => Boolean(node.closest('.lf-chart-marks'))")
+        assert middle(traced) == pytest.approx(middle(dot), abs=1)
+        page.mouse.move(2, 2)
+        expect(traced).to_have_count(0)
+
+    traces_the_dot()
+    drawn = chart.evaluate("el => el.drawn")
+    # The chart's box narrows with the window as it was, as when a pane beside it opens.
+    chart.evaluate("el => { el.style.width = '500px'; }")
+    page.wait_for_function(
+        "(drawn) => document.getElementById('weeks').drawn !== drawn", arg=drawn
+    )
+    rendered(page)
+    traces_the_dot()
 
 
 def test_a_row_follows_words_rewrapped_as_the_margin_begins_watching_their_box(

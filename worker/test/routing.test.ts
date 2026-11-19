@@ -77,7 +77,7 @@ describe("website page routing", () => {
       ),
     ).toBe(true);
     // The layer's own files are routed to the page and served from it, rather than
-    // held as session files. Both sheets: a page reads /theme.css, and an x-shadow
+    // held as session files. Both sheets: a page reads /theme.css, and a `shadow`
     // widget reads /shadow.css for the tree no document selector reaches.
     expect(route("/examples/triage-board/theme.css")?.inside).toBe("theme.css");
     expect(route("/examples/triage-board/shadow.css")?.inside).toBe("shadow.css");

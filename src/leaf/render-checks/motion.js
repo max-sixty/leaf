@@ -6,7 +6,8 @@
  * page's content are still running: an endless spinner or pulse, or a long animation
  * not yet done. Leaf's own interface is held out, since its motion is Leaf's to stop.
  * A transition runs only while a property changes, so a settled page shows none; one
- * the page starts on a gesture is outside this reading. */
+ * the page starts on a gesture is outside this reading, and so is one a scroll timeline
+ * drives, such as lf-trace's overview window, which moves only as the reader scrolls. */
 import { inPage } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 
@@ -16,6 +17,7 @@ export function unreducedMotion() {
     const { effect } = animation;
     const target = effect && "target" in effect ? effect.target : null;
     if (!(target instanceof Element) || animation.playState !== "running") continue;
+    if (!(animation.timeline instanceof DocumentTimeline)) continue;
     if (!inPage(target) || target.closest(".lf-ui")) continue;
     found.set(target, { code: "unreduced-motion", at: at(target) });
   }

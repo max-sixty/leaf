@@ -22,8 +22,12 @@ from leaf import harness
 from leaf.harness import NUDGE_WORDS
 from leaf.hook_transport import INLINE_OPENING
 from leaf.interaction_log import read_interactions
-from leaf_dev import ROOT, journey_claude_code, journey_pi
-from leaf_dev.commands import journey, journey_chart
+from leaf_dev import ROOT
+from leaf_dev.commands.journey import _claude_code as journey_claude_code
+from leaf_dev.commands.journey import _journey as journey
+from leaf_dev.commands.journey import _pi as journey_pi
+from leaf_dev.commands.journey import chart as journey_chart
+from leaf_dev.commands.journey import run as journey_run
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.reply_phases import (
     LEAF_WAKE,
@@ -351,7 +355,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         {
             "ts": at(4),
             "source": "cli",
-            "type": "fork_reply",
+            "type": "fork_outcome",
             "thread": "c1",
             "inputs": ["c1"],
             "outcome": "hand_over",
@@ -363,7 +367,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         {
             "ts": at(12),
             "source": "cli",
-            "type": "fork_reply",
+            "type": "fork_outcome",
             "thread": "c2",
             "inputs": ["c2"],
             "outcome": "hand_over",
@@ -1071,7 +1075,7 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         reading = journey.run_journey(journey.HttpEnd(url, page, pause), version)
         step = post(url, "ending")
     assert reading["change"] == {
-        "marker": "abcd1234",
+        "marker": "abcd123",
         "revision": 2,
         "reply": "Recorded.",
     }
@@ -1101,7 +1105,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, sandbox, preview, forks):
+    def target_session(browser, target, release, *, sandbox, preview, forks, fork_work):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
@@ -1123,15 +1127,15 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
         monkeypatch.setattr(end, "close", lambda: None)
         yield journey.User(end, "v"), {"target": target}, lambda: None
 
-    monkeypatch.setattr(journey, "headless_shell", headless_shell)
-    monkeypatch.setattr(journey, "target_session", target_session)
-    monkeypatch.setattr(journey, "samples_path", lambda: Path(os.devnull))
+    monkeypatch.setattr(journey_run, "headless_shell", headless_shell)
+    monkeypatch.setattr(journey_run, "target_session", target_session)
+    monkeypatch.setattr(journey_run, "samples_path", lambda: Path(os.devnull))
     runner = CliRunner()
-    result = runner.invoke(journey.journey, ["claude-code"])
+    result = runner.invoke(journey_run.journey, ["claude-code"])
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([], [None])
     assert json.loads(result.stdout)["userEnd"] == "http"
-    result = runner.invoke(journey.journey, ["claude-code", "--browser"])
+    result = runner.invoke(journey_run.journey, ["claude-code", "--browser"])
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"

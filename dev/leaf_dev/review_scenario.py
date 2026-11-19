@@ -4,7 +4,7 @@ Every harness starts with the same request and one stamped, undecided document. 
 scenario uses only the current triage source on the default layer: the catalog's
 packages, companion history and prior versions are outside the delivery experiment.
 The runners own transport, timing and assertions. The journey's harness steps
-(`journey.Terminal` and each harness's own) also share the comments a step sends,
+(`_journey.Terminal` and each harness's own) also share the comments a step sends,
 and the readings of the page they check: its claim, the turns that picked up a
 comment, its status, and what holds between steps.
 """
@@ -53,6 +53,23 @@ COMMENTS = {
     "fork-work": (
         "triage-why",
         "Rename this heading to ‘Why the migration alone blocks the release’.",
+    ),
+    # A question a fork takes and looks up in the page's source, which the user
+    # follows up in its thread as the fork starts (`FOLLOW_UP`).
+    "fork-lookup": (
+        "triage-lede",
+        "How many cards does this page's source hold? Count them in the file.",
+    ),
+    # A question a fork takes, whose rest the user leaves as work for later, which
+    # the fork answers with a to-do on the thread for the session. The message asks
+    # only for the list and leaves the change for later, since the line fork can
+    # judge a request for the change itself, even after the session's current work,
+    # the session's, as a change to the page is.
+    "fork-todo": (
+        "triage-lede",
+        "Which cards on this page mention customers or partners? List them here. "
+        "Tagging those cards on the page is a bigger job for later: don't do it now, "
+        "keep it as a to-do.",
     ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (

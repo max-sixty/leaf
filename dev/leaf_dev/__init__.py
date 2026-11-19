@@ -5,6 +5,7 @@ Nothing here ships to a harness's environment: the package is a workspace member
 the root dev group installs (`dev/pyproject.toml`).
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +13,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 # Children of this environment reuse its interpreter; another checkout uses its launcher.
 LEAF_COMMAND = (sys.executable, "-m", "leaf")
+
+
+def state_home() -> Path:
+    """$XDG_STATE_HOME/leaf-dev (~/.local/state/leaf-dev/): what the tooling keeps
+    outside any checkout, because it accumulates across worktrees or because an agent
+    reads its paths, which inside a checkout would name the branch."""
+    state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
+    return Path(state) / "leaf-dev"
 
 
 def declared_records() -> dict:

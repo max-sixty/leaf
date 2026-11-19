@@ -41,10 +41,12 @@
  * open?: () => void | (() => void), present?: () => unknown, hasContent?: boolean}} EditorDestination */
 
 import { selectEnds } from "./native-selection.js";
+import { focusElement } from "./focus.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { fragmentUrl } from "./anchor-coordinate.js";
 import {
   addressedElements,
+  addressedFocus,
   fragmentAddress,
   fragmentTarget,
   resolveAnchor,
@@ -57,7 +59,7 @@ import { renderedParent, under } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
-import { pageScroller, stopScroll } from "./scrolling.js";
+import { pageScroller, stopBrowserScroll } from "./scrolling.js";
 import {
   alreadyShown,
   fitsWhole,
@@ -95,7 +97,7 @@ export const fragmentShown = (address) =>
  * @typedef {import("./user-intent.js").UserIntent} UserIntent
  * @typedef {import("./focus.js").Caret} Caret
  * @typedef {{at: Destination, align?: Destination, block?: ScrollLogicalPosition | "fragment", behavior?: ScrollBehavior, when?: () => boolean}} ScrollPlacement
- * @typedef {{where: Destination, focus?: Element | null | false, caret?: Caret | null,
+ * @typedef {{where: Destination, focus?: import("./focus.js").FocusDestination | null | false, caret?: Caret | null,
  * selection?: {range: Range, backward: boolean}, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
  * @typedef {{plan: (where: Destination | null | undefined, options?: {there?: (readable: (where: Destination) => boolean) => boolean}) => boolean, commit: () => void}} NavigationStep
  * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions
@@ -133,12 +135,12 @@ export function createAnchorTravel({
     if (!intent()) return false;
     const initial = resolve();
     if (!initial) return false;
-    // Every new navigation step takes over the outgoing native placement, including when
-    // the new destination still looks readable before the old navigation step's first frame.
-    // Read geometry only after its last compositor update has passed; another
-    // gesture during that wait retains the place it chose.
+    // Every new navigation step takes over the outgoing native placement, and lands from
+    // where a glide of Leaf's is headed (scrolling.js, `stopBrowserScroll`). Read
+    // geometry only after the stopped scroll's last compositor update has passed;
+    // another gesture during that wait retains the place it chose.
     if (initial.scroll.length)
-      await stopScroll(
+      await stopBrowserScroll(
         new Set([
           pageScroller,
           ...unconcealedReadingRegions().map((region) => region.body),
@@ -367,10 +369,15 @@ export function createAnchorTravel({
       return arrive(
         () => {
           const where = fragmentTarget(url.hash);
+          const keyed = fragmentAddress(url.hash);
+          const focusing =
+            keyed?.key != null && keyed.place
+              ? addressedFocus(keyed.element, keyed.key)
+              : where;
           return (
             where && {
               where,
-              focus: focus ? where : null,
+              focus: focus ? focusing : null,
               scroll: [{ at: where, block: "fragment" }],
             }
           );
@@ -427,7 +434,7 @@ export function createAnchorTravel({
         return (
           where && {
             where,
-            focus: focus ? where : null,
+            focus: focus ? addressedFocus(source, key) : null,
             scroll: [
               {
                 at: where,
@@ -555,6 +562,30 @@ export function createAnchorTravel({
     );
   };
 
+  // Where an arrival at a thread lands: on `target`, a node of the thread's or in its
+  // card, at the nearest edge, then at the thread's place unless that already shows.
+  // A part inside a place taller than its room, as a seat's thread can be inside its
+  // element, skips the second landing, since landing the place would scroll the part
+  // back out of view. A card stands fixed over the page by its thread's place, so an
+  // arrival in it, as `m` reaching a question in an agent's answer, lands here too.
+  /** @param {string} id @param {import("./focus.js").FocusDestination | null} target */
+  const threadLanding = (id, target) => {
+    const where = threadDestination(id);
+    if (!where) return null;
+    const at = target && focusElement(target);
+    /** @type {ScrollPlacement[]} */
+    const scroll = [];
+    if (at) scroll.push({ at, block: "nearest" });
+    const inside =
+      at !== null && at !== where && where instanceof Element && under(at, where);
+    scroll.push({
+      at: where,
+      when: () =>
+        !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
+    });
+    return { where, focus: target, scroll };
+  };
+
   /** @param {string} id
    * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, history?: boolean}} [options] */
   async function scrollToThread(
@@ -592,31 +623,20 @@ export function createAnchorTravel({
     // press left it.
     // A route naming no part of the thread lands on the place it is about, where the
     // page shows that place but no view of the thread (thread/destination.js,
-    // `reader: "page"`).
+    // `reader: "page"`), and on a part of a drawing where the drawing names for it
+    // (`addressedFocus`). A part lands on the page's drawing of it, since this is travel
+    // on the page (thread/destination.js, `threadFocusTarget`'s `page`).
     return arrive(
       () => {
-        const where = threadDestination(id);
-        if (!where) return null;
         const placement = anchors.placedAt(id);
+        const source = hydrationTarget && sectionOf(hydrationTarget.anchor);
         const target = !focus
           ? null
           : part
-            ? threadFocusTarget(id, { part })
-            : (targetElement(placement) ?? targetPlace(placement));
-        /** @type {ScrollPlacement[]} */
-        const scroll = [];
-        if (target) scroll.push({ at: target, block: "nearest" });
-        // Then the place lands unless it already shows. A part inside a place taller
-        // than its room, as a seat's thread can be inside its element, skips that
-        // landing, since landing the place would scroll the part back out of view.
-        const inside =
-          target !== where && where instanceof Element && under(target, where);
-        scroll.push({
-          at: where,
-          when: () =>
-            !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
-        });
-        return { where, focus: target, scroll };
+            ? threadFocusTarget(id, { part, page: true })
+            : (anchor?.visual && source && addressedFocus(source, anchor.visual)) ||
+              (targetElement(placement) ?? targetPlace(placement));
+        return threadLanding(id, target);
       },
       {
         intent: mayArrive,
@@ -642,5 +662,6 @@ export function createAnchorTravel({
     scrollToRange,
     scrollToThread,
     threadDestination,
+    threadLanding,
   };
 }

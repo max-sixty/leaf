@@ -6,6 +6,17 @@ together to the container's Durable Object before acknowledging the write. The
 record overlays this release's immutable image on startup; captured responses are
 disposable delivery output and never an input to a fold. Responses retain their
 exact bytes: the separately bundled public assets are a different module graph.
+
+The user's drafts change with every keystroke and move no page reading
+(`reading.UNWATCHED`), so they take a path of their own. Each write of a page's drafts
+store replaces the Durable Object's copy of the store before the container replaces
+its file or answers the write (`publish_drafts`), so a replacement container restores
+every write a tab was answered for. The object's copy is the store of record: it
+takes a save only over the store the container's file held, so a save that reaches it
+late finds a newer store and changes nothing. While the container sleeps, the object serves that copy as `api/drafts`
+and as `api/news`'s `drafts`, in place of what the page's last commit captured. A
+page's record leaves `drafts.json` out, so no commit, however late it lands, puts an
+older store back.
 """
 
 from __future__ import annotations
@@ -37,12 +48,16 @@ import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
+from leaf.drafts import DRAFTS, read_drafts
 from leaf.files import latest_revision, revision_path
+from leaf.http import assets_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
+    DRAFTS_FILE,
+    MEDIA_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
@@ -124,10 +139,12 @@ class _BlobSet:
             return self.buffer.read(length)
 
 
-def restore(site_root: Path) -> None:
-    """Restore before serving, from the snapshot contract in worker/src/storage.ts."""
+def restore(site_root: Path) -> bool:
+    """Restore before serving, from the snapshot contract in worker/src/storage.ts, and
+    say whether a page store backs the site, as the container then declares its
+    commits are published there (`PUBLISHER`)."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
-        return
+        return False
     from leaf_website import SITE_MANIFEST, elapsed_ms, log_agent
 
     started = time.monotonic()
@@ -146,7 +163,8 @@ def restore(site_root: Path) -> None:
                 raise ValueError("page restore snapshot has no records")
             record_file = archive.extractfile(first)
             assert record_file is not None
-            records = json.load(record_file)
+            snapshot = json.load(record_file)
+            records = snapshot["records"]
             while member := archive.next():
                 blob_file = archive.extractfile(member)
                 assert blob_file is not None
@@ -159,9 +177,7 @@ def restore(site_root: Path) -> None:
         ):
             raise ValueError("page restore snapshot is missing referenced chunks")
         for root, record in records.items():
-            directory = (site_root / manifest["pages"][root]["directory"]).resolve()
-            if not directory.is_relative_to(site_root.resolve()):
-                raise ValueError("stored page directory escapes site root")
+            directory = _page_directory(site_root, manifest, root)
             targets = []
             for name, content in record.items():
                 target = (directory / name).resolve()
@@ -184,6 +200,10 @@ def restore(site_root: Path) -> None:
                         output.write(blobs.body(digest))
                 os.utime(target, (content["modified"], content["modified"]))
                 files += 1
+        for root, drafts in snapshot["drafts"].items():
+            DRAFTS.write(
+                _page_directory(site_root, manifest, root) / DRAFTS_FILE, drafts
+            )
         log_agent(
             "page_restore_completed",
             durationMs=elapsed_ms(started),
@@ -191,7 +211,14 @@ def restore(site_root: Path) -> None:
             chunks=len(blobs.offsets),
             bytes=sum(length for _, length in blobs.offsets.values()),
         )
-    os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
+    return True
+
+
+def _page_directory(site_root: Path, manifest: dict, root: str) -> Path:
+    directory = (site_root / manifest["pages"][root]["directory"]).resolve()
+    if not directory.is_relative_to(site_root.resolve()):
+        raise ValueError("stored page directory escapes site root")
+    return directory
 
 
 def _upload(blobs: _BlobSet, digest: str) -> None:
@@ -200,8 +227,11 @@ def _upload(blobs: _BlobSet, digest: str) -> None:
 
 
 def _record_files(page_dir: Path, published: set[int]) -> list[Path]:
+    # The drafts store is published on its own (`publish_drafts`).
     files = [
-        page_dir / name for name in PAGE_OWNED_FILES if name not in PAGE_PROCESS_FILES
+        page_dir / name
+        for name in PAGE_OWNED_FILES
+        if name not in PAGE_PROCESS_FILES and name != DRAFTS_FILE
     ]
     for name in PAGE_OWNED_DIRS:
         if name != "revisions":
@@ -259,24 +289,29 @@ def _responses(
         transaction=page,
         process=False,
     )
-    snapshot = replace(snapshot, source_error=source_error)
-    paths = {"", "api/state", "api/news", "registry.json"}
+    # Reading the drafts settles the generations this commit's sends carried, and
+    # starts a store for a page that has none, publishing either (`publish_drafts`).
+    # The Durable Object serves its own copy of the store in place of the one
+    # captured here.
+    snapshot = replace(
+        snapshot, source_error=source_error, frozen_drafts=read_drafts(page.page_dir)
+    )
+    paths = {"", "api/state", "api/news", "api/drafts", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
     published = set(map(int, manifest["pages"][root]["states"]))
     for item, artifact in snapshot.artifacts.items():
         if item in published:
             continue
-        name = snapshot.revision_names[item]
-        paths.add(f"revisions/{name}")
-        # Where the container serves the revision's resources: under the identity of
-        # the runtime and layer it executes (`http.PageEndpoint._named_root`).
-        served = (
-            f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
-        )
+        paths.add(f"revisions/{snapshot.revision_names[item]}")
+        # Where the container serves the revision's resources, which the revisions
+        # that differ only in their document share. Media answers at the page root
+        # (below), never there.
+        served = assets_path(execution_identity(artifact)).lstrip("/")
         for logical in set(executing(artifact).resources) | set(
             artifact.widget_aliases
         ):
-            paths.add(f"{served}{logical}")
+            if not logical.startswith(f"/{MEDIA_DIR}/"):
+                paths.add(f"{served}{logical}")
     paths.update(
         f"versions/v{version['version']}.html" for version in snapshot.context.versions
     )
@@ -351,36 +386,54 @@ PUBLISHED = Record(
                     "The page reading the publication was made from "
                     "(`record_reading`).",
                     STRING,
-                )
+                ),
             }
         ),
     ),
-    since=13,
+    since=51,
 )
 
 
-def publish(page: PageTransaction) -> None:
-    """Publish under the caller's append lease; failure remains a failed commit."""
-    if not os.environ.get("LEAF_PAGE_STORE_URL"):
-        return
+# The page commit provider (`service.commit_provider`) a container declares once it
+# has restored its pages, so every transaction its leaf processes finish publishes its
+# record (`publish`), and every write of a page's drafts its drafts (`publish_drafts`).
+PUBLISHER = "leaf_website.storage"
+
+
+def _published(page_dir: Path) -> Path:
+    return state_home() / "website-publications" / f"{page_key(page_dir)}.json"
+
+
+def _site() -> tuple[Path, dict]:
     from leaf_website import SITE_MANIFEST
 
     site_root = Path(os.environ["LEAF_SITE_ROOT"]).resolve()
-    manifest = json.loads((site_root / SITE_MANIFEST).read_text())
-    root = next(
-        (
-            root
-            for root, value in manifest["pages"].items()
-            if (site_root / value["directory"]).resolve() == page.page_dir
-        ),
-        None,
-    )
-    if root is None:
+    return site_root, json.loads((site_root / SITE_MANIFEST).read_text())
+
+
+def _page_root(page_dir: Path) -> tuple[Path, dict, str] | None:
+    """The site, its manifest and the root the site serves `page_dir` at, or None
+    where it serves the directory at none."""
+    site_root, manifest = _site()
+    for root, value in manifest["pages"].items():
+        if (site_root / value["directory"]).resolve() == page_dir.resolve():
+            return site_root, manifest, root
+    return None
+
+
+def publish(page: PageTransaction) -> None:
+    """Publish a page whose reading moved since this container last published it,
+    under the caller's append lease; failure remains a failed commit."""
+    if not os.environ.get("LEAF_PAGE_STORE_URL"):
         return
+    if (site := _page_root(page.page_dir)) is None:
+        return
+    site_root, manifest, root = site
     activation = activate_source(page.page_dir, transaction=page)
     fingerprint = record_reading(page.page_dir)
-    token = state_home() / "website-publications" / f"{page_key(page.page_dir)}.json"
-    if (published := PUBLISHED.read(token)) and published["fingerprint"] == fingerprint:
+    token = _published(page.page_dir)
+    published = PUBLISHED.read(token)
+    if published is not None and published["fingerprint"] == fingerprint:
         return
     files = _record_files(
         page.page_dir, set(map(int, manifest["pages"][root]["states"]))
@@ -406,3 +459,23 @@ def publish(page: PageTransaction) -> None:
             pass
     token.parent.mkdir(parents=True, exist_ok=True)
     PUBLISHED.write(token, {"fingerprint": fingerprint})
+
+
+def publish_drafts(page_dir: Path, drafts: dict, replaces: dict | None) -> dict | None:
+    """Replace the Durable Object's copy of a page's drafts store where it still holds
+    `replaces`, the store and version the container's file held (None for none), and
+    return the store the object holds once it answers, None for none. `drafts.py`
+    calls this under the store's lock before it replaces the file; failure fails the
+    write. The store travels whole in one request, since it holds only what the user
+    is writing."""
+    if (site := _page_root(page_dir)) is None:
+        return drafts
+    _site_root, manifest, root = site
+    body = {
+        "root": root,
+        "release": manifest["release"],
+        "replaces": replaces,
+        "drafts": drafts,
+    }
+    with _request("/drafts", body) as response:
+        return json.load(response)["drafts"]

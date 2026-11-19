@@ -95,8 +95,8 @@ def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
 
 def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     """Threads opens in the panel, the region named Leaf, under its title, and a thread
-    card on the page is where a send or a walk can stand the user. Both were once
-    unnamed, so a screen reader arriving on either heard only "dialog" or "group"."""
+    card on the page is where a send or a walk can stand the user. Were either unnamed,
+    a screen reader arriving on it would hear only "dialog" or "group"."""
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -347,7 +347,7 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
             "The linked destination begins here.</lf-shadow-reading>"
         )
         declaration = element_declaration("lf-shadow-reading", upgrade=True)
-        declaration["x-shadow"] = True
+        declaration["shadow"] = True
         layer_registry = {"lf-shadow-reading": declaration}
         layer_widgets = {
             "lf-shadow-reading.js": """
@@ -454,6 +454,38 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
                 )
             ).to_be_focused()
         page.keyboard.press("Escape")
+
+
+def test_the_thread_walk_reaches_a_thread_in_view_ahead_of_the_first_paragraph(
+    browser, serve
+):
+    """With nothing focused the walk starts from what the window shows, so `t` at the top
+    of a page opening with a question of options alone opens the thread on those
+    options, not the one on the paragraph below them that is the first the page
+    reads."""
+    url = serve(
+        leaf_page(
+            "a thread on options alone",
+            """
+<lf-group id="ask" label="Which route?"><lf-options id="routes">
+  <lf-option id="routes-left">Take the left route</lf-option>
+  <lf-option id="routes-right">Take the right route</lf-option>
+</lf-options></lf-group>
+<p id="later">The later discussion follows the question.</p>
+""",
+        ),
+        anchored=[("routes-left", "left route"), ("later", "later discussion")],
+    )
+    first = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{first}"]')
+    ).to_be_focused()
 
 
 def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, subtests):
@@ -605,6 +637,9 @@ CARD_ROUTES = {
 def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, subtests):
     """A card's reply wears `c`; closing the card hands `c` to the page comment.
 
+    While On Me lists anything the panel's row offers Next On Me rather than `c`, so
+    once the card closes no box wears `c`, and `c` still enters the page comment.
+
     Escape from a reply returns to its thread; Escape from the thread closes the card.
     The badge and the press must agree in both states. The box's placeholder is the
     runtime's own record of the hint, even while it is not drawn. Each route writes
@@ -646,9 +681,7 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, su
                 assert box.evaluate("box => box === document.activeElement")
             else:
                 expect(card).to_be_hidden()
-                # The panel's page comment wears `c` now.
-                expect(badged).to_have_count(1)
-                expect(badged).to_have_attribute("name", "comment")
+                expect(badged).to_have_count(0)
                 page.keyboard.press("c")
                 rendered(page)
                 expect(
@@ -707,8 +740,8 @@ def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     """A walk shows the thread it lands on and no other, so `c` and the walk's position
     have one thread to mean. From a thread open in the panel, `t` to a thread about a
     passage opens its card and puts the panel's view away; from that card, `t` to a
-    thread about the whole page opens it in the panel and closes the card. Both once
-    stayed open, and the panel said "Thread 2 of 2" under the thread the user had
+    thread about the whole page opens it in the panel and closes the card. Were both to
+    stay open, the panel would say "Thread 2 of 2" under the thread the user had
     left."""
     url = serve(INLINE_PAGE)
     first = panel_comment(
@@ -1075,8 +1108,8 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
 def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve):
     """r settles the thread holding focus, not only a focused card.
 
-    A click on a thread's words focuses the message, so a card-only reach left the
-    user's most common way in pressing a letter that did nothing. The Resolve button,
+    A click on a thread's words focuses the message, so a card-only reach would leave
+    the user's most common way in pressing a letter that did nothing. The Resolve button,
     a link in a reply, and the message each reach it; the reply box keeps the letter."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
@@ -1359,6 +1392,11 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
     assert page.locator("#second").is_visible()
     expect(linked_thread(page, "anchor01")).to_be_visible()
     assert urlsplit(page.url).fragment == ""
+    # The card stands under its passage at the full measure, over the link below it,
+    # so the reader puts it away before the press.
+    preview = page.locator(".lf-margin-preview")
+    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
+    expect(preview).to_be_hidden()
     # Opening an authored fragment link in a new document inherits the query,
     # just as Copy Link or Open in New Tab does.
     heading_url = page.get_by_role("link", name="Return to the heading").evaluate(

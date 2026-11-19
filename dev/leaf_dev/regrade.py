@@ -1,6 +1,6 @@
 """Grade a retained run's saved outputs again, through Promptfoo.
 
-`leaf-dev eval --from RUN` writes a Promptfoo config whose tests replay saved results
+`leaf-dev eval run --from RUN` writes a Promptfoo config whose tests replay saved results
 instead of running an author. `replay` is the provider of every column: it returns
 the saved response a test names in `metadata.saved`, output, metadata and error, so
 an assertion reading either grades the sample as it graded the original, and a
@@ -11,7 +11,7 @@ judgment replaces them:
 - `pair` judges two columns' samples of one task on live copies of their saved
   pages, each served by its original runtime. A pair runs as two tests, one per
   presentation order, and a winner counts only where both completed orders name it
-  (`eval-report` reads them together). Exploration the judge could not finish is
+  (`eval report` reads them together). Exploration the judge could not finish is
   insufficient evidence rather than a tie, and a pair with a failed response is
   unscored.
 - `discovery` explores one sample's saved pages for observations, choosing its own
@@ -161,11 +161,12 @@ def discovery(output, context: dict) -> dict:
 
 
 def evidence(context: dict, name: str) -> Path:
-    """A fresh directory for one judgment's native evidence."""
+    """A fresh directory for one judgment's native evidence. The judge is told to
+    save its captures there, so its name leaves out the case, whose name describes
+    what is measured; the test's metadata keeps the subject."""
     root = Path(context["config"]["evidence"])
     root.mkdir(parents=True, exist_ok=True)
-    subject = context["test"]["metadata"]["subject"].replace("/", "-")
-    return Path(tempfile.mkdtemp(prefix=f"{subject}-{name}-", dir=root))
+    return Path(tempfile.mkdtemp(prefix=f"{name}-", dir=root))
 
 
 def graded(response: dict, reason: Callable[[dict], str]) -> dict:

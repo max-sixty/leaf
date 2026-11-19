@@ -54,7 +54,7 @@ import {
   threadList,
 } from "./thread/state.js";
 import { inPageOrder } from "./thread/placement.js";
-import { renderedOrder, under } from "./shadow.js";
+import { renderedOrder, under } from "./shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -111,8 +111,9 @@ async function arriveAtThread(id, { openPageThread }, intent) {
 // From anywhere but a thread, the walk steps by the page walks' one rule (`stepFrom`,
 // current-target.js): a place on the page against each thread's place (`threadPlace`).
 // A thread at the user's current location, or whose place holds where they are, is
-// where they are without being in it, so the press opens it. A general thread has no
-// place and stands after every placed one.
+// where they are without being in it, so the press opens it, unless what the window
+// shows puts them at a thread ahead of it. A general thread has no place and stands
+// after every placed one.
 /** @param {Step} dir @param {ThreadDestinations} destinations @param {PlacedAt} placedAt */
 function stepThread(dir, destinations, placedAt) {
   const { threadAtCurrentLocation, threadPlace } = destinations;
@@ -124,7 +125,7 @@ function stepThread(dir, destinations, placedAt) {
   const atTarget = targetId && threads.includes(targetId) ? targetId : null;
   const next = current
     ? cycledRow(threads, current, dir)
-    : (atTarget ?? stepFrom(threads, origin, dir, threadPlace));
+    : stepFrom(threads, origin, dir, threadPlace, atTarget);
   if (!next) return;
   // The walk reads the current destination, so begin it once the arrival has moved
   // focus, as the queue walk does; an arrival that failed registers nothing.

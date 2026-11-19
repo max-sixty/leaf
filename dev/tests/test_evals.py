@@ -18,7 +18,7 @@ from click.testing import CliRunner
 
 from leaf_dev import arms
 from leaf_dev.arms import LiveSession, private_program
-from leaf_dev.commands import eval as module
+from leaf_dev.commands.eval import run as module
 from leaf_dev.eval_codex import records_for
 from leaf_dev.eval_records import run_samples
 
@@ -206,31 +206,72 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
     assert trace == activities
 
 
-def test_fork_replay_hands_the_answer_through_the_arms_leaf(tmp_path, monkeypatch):
+# What a stand-in fork answers in each case, the checks the grader then passes, and
+# words the judge reads: a stale lede's fix, which lands on the page, and a decision
+# asked as a choice of the answers the agent offered, which the user presses.
+REPLAYED = {
+    "stale-edit": (
+        {
+            "asks": [],
+            "findings": [
+                {
+                    "kind": "stale",
+                    "page": "{page}",
+                    "summary": "The lede still says 2 of 5 shards are rebuilt.",
+                    "quote": "all 5 shards rebuilt; alias search -> search-v7",
+                    "edit": {
+                        "words": "2 of 5 shards are rebuilt",
+                        "replacement": "all 5 shards are rebuilt",
+                    },
+                }
+            ],
+        },
+        {"answered": True, "labels-found": True, "edits-land": True},
+        "all 5 shards are rebuilt",
+    ),
+    "ask-choice": (
+        {
+            "asks": [
+                {
+                    "page": "{page}",
+                    "title": "When to rebuild production",
+                    "text": "Both regions pass the preflight. When should I run the "
+                    "production rebuild?\n\n"
+                    '<lf-options id="rebuild-when">\n'
+                    '<lf-option id="rebuild-tonight" label="Rebuild tonight" '
+                    "recommended><strong>Rebuild tonight</strong></lf-option>\n"
+                    '<lf-option id="rebuild-now" label="Rebuild now">'
+                    "<strong>Rebuild now</strong> p95 up 30%</lf-option>\n"
+                    '<lf-option id="rebuild-saturday" label="Rebuild on Saturday">'
+                    "<strong>Rebuild on Saturday</strong></lf-option>\n</lf-options>",
+                    "passage": "",
+                    "again": "",
+                    "quote": "I'd go tonight.",
+                }
+            ],
+            "findings": [],
+        },
+        {"answered": True, "labels-found": True, "choices-right": True},
+        "<strong>Rebuild on Saturday</strong>",
+    ),
+}
+
+
+@pytest.mark.parametrize("case", REPLAYED)
+def test_fork_replay_hands_the_answer_through_the_arms_leaf(
+    case, tmp_path, monkeypatch
+):
     # No model runs: a stand-in for Claude Code reads the turn-end check's prompt
     # and answers it, so this shows the question reaching the fork and the answer
-    # reaching the grader through the arm's Leaf, its edit landing on the page.
+    # reaching the grader through the arm's Leaf.
     import os
 
     from leaf_dev import ROOT, fork_eval
 
     work = tmp_path / "work"
     asked = tmp_path / "prompt"
-    answer = {
-        "asks": [],
-        "findings": [
-            {
-                "kind": "stale",
-                "page": str(work / "page"),
-                "summary": "The lede still says 2 of 5 shards are rebuilt.",
-                "quote": "all 5 shards rebuilt; alias search -> search-v7",
-                "edit": {
-                    "words": "2 of 5 shards are rebuilt",
-                    "replacement": "all 5 shards are rebuilt",
-                },
-            }
-        ],
-    }
+    answer, checks, judged = REPLAYED[case]
+    answer = json.loads(json.dumps(answer).replace("{page}", str(work / "page")))
     result = {"type": "result", "subtype": "success", "result": json.dumps(answer)}
     program = (
         f"import sys; open({str(asked)!r}, 'w').write(sys.stdin.read()); "
@@ -246,16 +287,12 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(tmp_path, monkeypatc
         }
 
     monkeypatch.setattr(fork_eval, "claude_child", child)
-    response = fork_eval.execute_scenario("stale-edit", ROOT, work)
+    response = fork_eval.execute_scenario(case, ROOT, work)
     metadata = response["metadata"]
-    assert metadata["checks"] == {
-        "answered": True,
-        "labels-found": True,
-        "edits-land": True,
-    }
+    assert metadata["checks"] == checks
     assert "<leaf-fork-check>" in asked.read_text()
     assert (work / "transcript.jsonl").is_file()
-    assert "all 5 shards are rebuilt" in metadata["texts"]["judge"]
+    assert judged in metadata["texts"]["judge"]
 
 
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
@@ -387,6 +424,20 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
         assert execution["requested_viewports"] == ["desktop"]
 
 
+def test_children_inherit_nothing_that_names_the_checkout(monkeypatch):
+    """An eval's agent can read its environment, and the checkout's path names the
+    branch under test; the parent session's own variables don't reach it either."""
+    checkout = str(arms.ROOT)
+    monkeypatch.setenv("VIRTUAL_ENV", f"{checkout}/.venv")
+    monkeypatch.setenv("OLDPWD", checkout)
+    monkeypatch.setenv("CODEX_COMPANION_TRANSCRIPT_PATH", "/transcripts/session.jsonl")
+    monkeypatch.setenv("PATH", f"{checkout}/node_modules/.bin:/usr/bin")
+    env = arms.environment()
+    assert not [key for key, value in env.items() if checkout in value]
+    assert "CODEX_COMPANION_TRANSCRIPT_PATH" not in env
+    assert env["PATH"] == "/usr/bin"
+
+
 def test_model_option_sets_the_author_of_every_condition(tmp_path):
     config = module.prepare(
         ["configuration"],
@@ -422,7 +473,17 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
 
     monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
     monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setattr(arms, "build_arm", build_arm)
+    # A stored run lasts as long as its link: one whose worktree is gone goes, one
+    # whose link remains stays.
+    store = tmp_path / "state" / "leaf-dev" / "eval"
+    for name, linked in (("run-gone", False), ("run-kept", True)):
+        (store / name).mkdir(parents=True)
+        if linked:
+            (tmp_path / "runs").mkdir()
+            (tmp_path / "runs" / name).symlink_to(store / name)
+        (store / f"{name}.link").symlink_to(tmp_path / "runs" / name)
     result = CliRunner().invoke(
         module.eval,
         [
@@ -441,17 +502,28 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     )
     assert result.exit_code == 100, result.output
     assert calls.read_text().strip().endswith("--repeat 3")
-    (run,) = (tmp_path / "runs").iterdir()
+    (run,) = (path for path in (tmp_path / "runs").iterdir() if path.name != "run-kept")
+    stored = run.resolve()
+    assert stored.parent == store.resolve()
+    assert sorted(path.name for path in store.iterdir()) == sorted(
+        ["run-kept", "run-kept.link", run.name, f"{run.name}.link"]
+    )
     config = json.loads((run / "promptfooconfig.json").read_text())
     assert len(config["tests"]) == 1
-    # Each arm is its own payload copy, kept with the run for grading again.
-    assert {
-        provider["label"]: provider["config"]["payload"]
+    # Each arm is its own payload copy, kept with the run for grading again. Every
+    # path an agent is handed is in the stored run, named for neither the arm nor
+    # the case, since agents read these paths and those names describe what is
+    # being measured.
+    payloads = {
+        provider["label"]: Path(provider["config"]["payload"])
         for provider in config["providers"]
-    } == {
-        f"claude-code/{arm}/workflow": str(run / "arms" / arm)
-        for arm in ("base", "head")
     }
+    assert set(payloads) == {f"claude-code/{arm}/workflow" for arm in ("base", "head")}
+    assert {path.parent for path in payloads.values()} == {stored / "arms"}
+    for provider in config["providers"]:
+        for key in ("payload", "samples", "screenshots"):
+            parts = Path(provider["config"][key]).relative_to(stored).parts
+            assert not {"base", "head", "patch-review"} & set(parts), parts
     assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
     assert "--viewport" not in calls.read_text()
 
@@ -528,6 +600,7 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
     promptfoo.chmod(0o755)
     monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
     monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     run = saved_run(tmp_path / "saved")
     original = (run / "results.json").read_bytes()
 
@@ -569,7 +642,7 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     """Only the live judge is replaced: the tests, their replayed samples, page
     roles, evidence and the report's reading of both orders are real."""
     from leaf_dev import regrade
-    from leaf_dev.commands import eval_report
+    from leaf_dev.commands.eval import report as eval_report
 
     run = saved_run(tmp_path / "saved")
     base, head = (
@@ -672,7 +745,7 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     import turbohtml
     from PIL import Image
 
-    from leaf_dev.commands import eval_report
+    from leaf_dev.commands.eval import report as eval_report
 
     run = saved_run(tmp_path / "saved")
     for sample in ("document-base-0", "document-head-1"):
@@ -752,14 +825,14 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     assert (page / "index.html").read_text() == written
 
 
-def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
+def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch, browser):
     from contextlib import ExitStack, contextmanager
 
     from playwright.sync_api import expect
 
     from leaf_dev import ROOT
     from leaf_dev import arrangement_eval as workflow
-    from leaf_dev.browser import headless_shell, load, settle, tab
+    from leaf_dev.browser import load, settle, tab
 
     work = tmp_path / "originals"
     directory = tmp_path / "sample"
@@ -795,11 +868,11 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
             f'<a id="handoff" href="{urls[handoff]}#result">Open handoff</a>'
             '<a id="external" href="https://example.com/">External</a>'
             f'<p id="quoted">The original address was {urls[handoff]}</p>'
-            '<lf-ask id="question"><h2>Keep this decision?</h2>'
-            '<lf-options id="answer" choose><lf-option id="keep">Keep</lf-option>'
-            "</lf-options></lf-ask></main></body></html>"
+            '<lf-group id="question" label="Keep this decision?"><h2 id="question-h">Keep this decision?</h2>'
+            '<lf-options id="answer"><lf-option id="keep">Keep</lf-option>'
+            "</lf-options></lf-group></main></body></html>"
         )
-        with headless_shell() as browser, tab(browser) as view:
+        with tab(browser) as view:
             load(view, urls[main])
             view.locator("#keep .lf-pick").click()
             expect(view.locator("#keep .lf-pick")).to_have_attribute(
@@ -814,31 +887,30 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
             workflow.snapshot_phase(run, phase)
     shutil.rmtree(work)
     originals = {p: p.read_bytes() for p in directory.rglob("*") if p.is_file()}
-    with headless_shell() as browser:
-        for phase in (1, 2):
-            saved = {"page": run.page(phase), "payload": ROOT, "condition": "leaf"}
-            with workflow.restored_page(saved) as (url, restored), tab(browser) as view:
-                assert set(restored) == set(urls.values())
-                load(view, url)
-                expect(view.locator("#keep .lf-pick")).to_have_attribute(
-                    "aria-checked", "true"
-                )
-                expect(view.locator("#quoted")).to_contain_text(urls[handoff])
-                expect(view.locator("#external")).to_have_attribute(
-                    "href", "https://example.com/"
-                )
-                with view.expect_popup() as opened:
-                    view.get_by_role("link", name="Open handoff").click()
-                linked = opened.value
-                settle(linked)
-                expect(
-                    linked.get_by_role("heading", name=f"Handoff phase {phase}")
-                ).to_be_visible()
-                with linked.expect_popup() as returned:
-                    linked.get_by_role("link", name="Back to queue").click()
-                expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
-                    "aria-checked", "true"
-                )
+    for phase in (1, 2):
+        saved = {"page": run.page(phase), "payload": ROOT, "condition": "leaf"}
+        with workflow.restored_page(saved) as (url, restored), tab(browser) as view:
+            assert set(restored) == set(urls.values())
+            load(view, url)
+            expect(view.locator("#keep .lf-pick")).to_have_attribute(
+                "aria-checked", "true"
+            )
+            expect(view.locator("#quoted")).to_contain_text(urls[handoff])
+            expect(view.locator("#external")).to_have_attribute(
+                "href", "https://example.com/"
+            )
+            with view.expect_popup() as opened:
+                view.get_by_role("link", name="Open handoff").click()
+            linked = opened.value
+            settle(linked)
+            expect(
+                linked.get_by_role("heading", name=f"Handoff phase {phase}")
+            ).to_be_visible()
+            with linked.expect_popup() as returned:
+                linked.get_by_role("link", name="Back to queue").click()
+            expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
+                "aria-checked", "true"
+            )
     assert {p: p.read_bytes() for p in originals} == originals
 
     # The judge receives delivered addresses as well as navigable page links.
@@ -878,7 +950,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
     cleanup.directory.mkdir()
     cleanup_work = tmp_path / "cleanup-originals"
     monkeypatch.setattr(workflow, "LiveChild", lambda *args, **kwargs: None)
-    monkeypatch.setattr(workflow, "pinned_copy", lambda *args: None)
+    monkeypatch.setattr(workflow, "stage_task_files", lambda *args: None)
 
     @contextmanager
     def authored(*args, **kwargs):

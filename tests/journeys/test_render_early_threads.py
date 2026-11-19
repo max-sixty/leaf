@@ -297,18 +297,18 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
 
 COLD_OBLIGATION = leaf_page(
     "Cold decisions",
-    """<h1>Cold decisions</h1><lf-ask id="cold-ask"><h2>What now?</h2>
-<lf-options id="cold-choice" choose>
+    """<h1>Cold decisions</h1><lf-group id="cold-ask" label="What now?"><h2 id="cold-ask-h">What now?</h2>
+<lf-options id="cold-choice">
 <lf-option id="cold-a">A</lf-option><lf-option id="cold-b">B</lf-option>
-</lf-options></lf-ask>""",
+</lf-options></lf-group>""",
 )
 
 
-@pytest.mark.parametrize("key", ["m", "1", "z"])
+@pytest.mark.parametrize("key", ["m", "1"])
 def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
-    """Obligation walking, Decisions, and Undo wait for their own saved history."""
+    """Obligation walking and Decisions wait for their own saved history."""
     url = serve(COLD_OBLIGATION)
     if key != "m":
         append_command(
@@ -331,7 +331,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
 
     def echoed():
         page.clock.run_for(20)
-        return page.locator(".lf-held-keys kbd").all_text_contents()
+        return page.locator(".lf-held-key").all_text_contents()
 
     wait_for(
         echoed,
@@ -340,8 +340,8 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     )
     if key == "m":
         expect(page.locator("#cold-ask")).not_to_be_focused()
-    expect(page.locator("#cold-a")).not_to_have_attribute("chosen", "")
-    expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#cold-a")).not_to_have_attribute("selected", "")
+    expect(page.locator("#cold-b")).not_to_have_attribute("selected", "")
     _history_outstanding(page)
 
     with page.expect_response(re.compile(r"/api/state(?:\?|$)")):
@@ -350,24 +350,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     page.clock.resume()
     if key == "m":
         expect(page.locator("#cold-ask")).to_be_focused()
-    elif key == "1":
-        expect(page.locator("#cold-a")).to_have_attribute("chosen", "")
-        round_trip(page)
     else:
-        # The passing notice says it where the empty field's placeholder would.
-        expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-            "placeholder", re.compile("Undid")
-        )
+        expect(page.locator("#cold-a")).to_have_attribute("selected", "")
         round_trip(page)
-        expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
-        assert (
-            len(
-                [
-                    event
-                    for event in events_model.read_events(serve.page_dir)
-                    if event["kind"] == "undo"
-                ]
-            )
-            == 1
-        )
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)

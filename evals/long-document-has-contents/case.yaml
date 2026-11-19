@@ -1,6 +1,5 @@
-# Added when restoring the contents default after its advice was removed (#1242).
-# Measures whether the main authoring route supplies navigation for a long report.
-# Before restoration, the outline appeared in 1 of 3 runs; afterward, in 3 of 3.
+# Measures whether the main authoring route supplies navigation for a long report
+# (the contents default).
 description: long-document-has-contents
 metadata:
   purpose:

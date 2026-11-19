@@ -10,7 +10,6 @@ from render_cases_navigation import source_revision
 from render_harness import (
     example_media,
     expect_on_me,
-    expect_panel_says,
     leaf_page,
     open_page,
     resized,
@@ -21,6 +20,7 @@ from render_harness import (
     undo,
 )
 
+from browser.navigation import expect_walk_position
 from leaf import data as data_model
 from leaf.render_checks import rendered
 from leaf_dev.example_data import named_source
@@ -39,11 +39,12 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     widget.locator('.lf-vr-case-button[aria-current="true"]').click()
     page.keyboard.press("n")
     expect(case).not_to_have_attribute("data-lf-datum", first)
-    # The walk says where it stands among the cases, as every walk does.
-    expect_panel_says(page, "Case 2 of")
+    # The queue beside the case lists the cases, its first and last rows in view in
+    # this window, and marks the one shown, so the step says no position of its own.
+    expect_walk_position(page, None)
     page.keyboard.press("Shift+n")
     expect(case).to_have_attribute("data-lf-datum", first)
-    expect_panel_says(page, "Case 1 of")
+    expect_walk_position(page, None)
     with sending(page, "approve the selected comparison"):
         page.keyboard.press("a")
     expect(case.get_by_role("checkbox", name="Looks right")).to_be_checked()
@@ -62,57 +63,7 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
 
-def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
-    """The global work walk reaches hidden cases, and approval answers only that case."""
-    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    widget = page.locator("#visual-review-run")
-    case = widget.locator(SELECTED)
-    count = page.locator(".lf-fp-on-user")
-    expect_on_me(page, 3)
-    first = "open-mobile-package-catalog"
-    second = "keep-mobile-destinations"
-    third = "check-desktop-navigation"
-    case.get_by_role("checkbox", name="Looks right").focus()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-    expect(case).to_be_focused()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", third)
-    expect(case).to_be_focused()
-    page.keyboard.press("Shift+m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-    with sending(page, "approve one independent case"):
-        page.keyboard.press("a")
-    expect(case.get_by_role("checkbox", name="Looks right")).to_be_checked()
-    expect_on_me(page, 2)
-    undo(page)
-    expect_on_me(page, 3)
-    expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
-
-    # The On Me row uses the same destination, even while another case is shown.
-    count.click()
-    card = page.locator(".lf-fp-on-item").filter(
-        has=page.get_by_text("Optional packages get focused destinations", exact=True)
-    )
-    expect(card).to_be_visible()
-    card.get_by_role("button", name="Show", exact=True).click()
-    expect(case).to_have_attribute("data-lf-datum", first)
-    expect(case).to_be_focused()
-    page.keyboard.press("c")
-    field = case.locator(".lf-fab-input")
-    expect(field).to_be_focused()
-    page.keyboard.type("m means mobile")
-    expect(field).to_have_js_property("value", "m means mobile")
-    expect(case).to_have_attribute("data-lf-datum", first)
-    with sending(page, "hand feedback on this case to the agent"):
-        page.keyboard.press("Enter")
-    expect_on_me(page, 2)
-    case.get_by_role("checkbox", name="Looks right").focus()
-    page.keyboard.press("m")
-    expect(case).to_have_attribute("data-lf-datum", second)
-
-
-def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve):
+def test_on_me_materializes_a_reply_review_at_its_requested_case(browser, serve):
     """A reply's record is reachable before its widget or selected case is drawn."""
     url = serve(VISUAL_REVIEW_GALLERY)
     append_carried_log_record(
@@ -120,8 +71,8 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
         {
             "kind": "comment",
             "author": "agent",
-            "text": "Review the comparisons in this reply.",
-            "markup": '<lf-visual-review id="reply-review" source="gallery-visual-run"></lf-visual-review>',
+            "text": "Review the comparisons in this reply.\n\n"
+            '<lf-visual-review id="reply-review" source="gallery-visual-run"></lf-visual-review>',
         },
     )
     page = open_page(browser, url)

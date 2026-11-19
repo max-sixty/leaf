@@ -6,7 +6,7 @@
    - runtime apparatus is in neither reading;
    - projected external or derived data is in `says` and not in `wrote`.
 
-   A widget whose tag declares `x-data` names the items it drew from its bound value
+   A widget whose tag declares `inputs` names the items it drew from its bound value
    with plain attributes, and Leaf stamps them (`projectMarked`) once the widget
    reports the value it drew (element-data.js, "Bound values"):
 
@@ -67,7 +67,8 @@
 
 import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
-import { composedParentNode, shadowRootsIn } from "../shadow.js";
+import { queryAllUnder } from "../shadow.js";
+import { composedParentNode } from "../shadow-tree.js";
 import { keeps } from "../keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 
@@ -77,14 +78,14 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 // dropped the key from a node it retired, so this reads Leaf's own stamp.
 /** @param {Element} root */
 const projectedDescendants = (root) =>
-  [root, ...shadowRootsIn(root)]
-    .flatMap((scope) => [...scope.querySelectorAll("[data-lf-projection]")])
-    .filter((element) => element.getAttribute("data-lf-projection") === root.id);
+  queryAllUnder(root, "[data-lf-projection]").filter(
+    (element) => element.getAttribute("data-lf-projection") === root.id,
+  );
 
 /** @param {Element} node */
 const markOwner = (node) => {
   for (let at = composedParentNode(node); at; at = composedParentNode(at))
-    if (at instanceof Element && registry[at.localName]?.["x-data"]) return at;
+    if (at instanceof Element && registry[at.localName]?.inputs) return at;
   return null;
 };
 
@@ -92,8 +93,7 @@ const markOwner = (node) => {
 // stamp's refusals reduce to emptiness, duplicates and a malformed path.
 /** @param {Element} root */
 const markedDatums = (root) =>
-  [root, ...shadowRootsIn(root)]
-    .flatMap((scope) => [...scope.querySelectorAll("[data-lf-datum]")])
+  queryAllUnder(root, "[data-lf-datum]")
     .filter((node) => markOwner(node) === root)
     .map((node) => ({
       node,
@@ -170,8 +170,8 @@ export function createDataProjection({ invalidateDom }) {
     const who = `<${root.localName} id=${root.id}>`;
     /** @param {Element} node */
     const stampBasis = (node) => {
-      keeps(node, "data-lf-source", snapshot?.source ?? null);
-      keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
+      keeps(node, PAGE_PAINT_ATTRIBUTE.source, snapshot?.source ?? null);
+      keeps(node, PAGE_PAINT_ATTRIBUTE.sourceRevision, snapshot?.revision ?? null);
     };
     stampBasis(root);
     keeps(root, PAGE_PAINT_ATTRIBUTE.drawReported, "");
@@ -222,8 +222,8 @@ export function createDataProjection({ invalidateDom }) {
       if (!nodes.has(node)) {
         node.removeAttribute("data-lf-gen");
         node.removeAttribute("data-lf-projection");
-        node.removeAttribute("data-lf-source");
-        node.removeAttribute("data-lf-source-revision");
+        node.removeAttribute(PAGE_PAINT_ATTRIBUTE.source);
+        node.removeAttribute(PAGE_PAINT_ATTRIBUTE.sourceRevision);
         node.removeAttribute("data-lf-origin");
         unmirror(node);
       }

@@ -11,7 +11,7 @@
    helps it by keeping the nodes it doesn't change, since a
    node it replaces is an anchor lost: neither engine anchors again, so whatever grew
    above moves the reader by its full height (dom-children.js, `setRenderedChildren`,
-   for a message's words; `x-patch: members` for a widget a revision edits inside). A
+   for a message's words; a module's `lfPatch` for a widget a revision edits inside). A
    revision restores the reader's landmark after anchoring as well (version.js), which
    also returns them where a patch moved what they read between scrollers or into a
    closed disclosure.
@@ -33,12 +33,12 @@
      the paragraph began above the window (lf-dial.js).
    A reader who focused nothing is anchoring's to keep, by the first block in view.
    Rejected: holding the reading line for every reader, which kept a diff's line still
-   as five rows joined above it (100px on main) but moved what it left alone: words
-   above the line stood at -55px where anchoring left them at 45px, and a drag
+   as five rows joined above it but moved what it left alone: words
+   above the line went out of view where anchoring kept them in it, and a drag
    selecting them ran on through the rows that joined; a pointer resting over a second
-   column made that column's line the place and moved the first column's words from
-   234px to 134px; and a press inside an embedded frame, which the page hears nothing
-   of, left the keep to move what it opened by 140px.
+   column made that column's line the place and moved the first column's words; and a
+   press inside an embedded frame, which the page hears nothing
+   of, left the keep to move what it opened.
    `holdPlace(node, standIn)` reads where `node` stands and returns the step that,
    once the change has drawn, scrolls it, or what `standIn(node)` names once the change
    hid or removed it, back there. The change itself scrolls nothing. A forced layout
@@ -47,12 +47,12 @@
    nothing once a scroll was chosen since. Rejected: the hold inside every surface's
    focus hold, which had to guess whether each re-render answered the user's own input
    and whether each box followed its scroller's flow, and guessed wrong for a widget's
-   own landing in a shadow tree (87px) and for Send in its editor (132px). A revision
+   own landing in a shadow tree and for Send in its editor. A revision
    takes no hold: after its landmark restore, the hold put back what it read where it
-   stood and undid the restore (82px off a line the restore had kept), and before it,
+   stood and undid the restore, and before it,
    the restore undid the hold.
 
-   The user chose this on 2026-11-04 over a keeper wrapped around every re-render,
+   The user chose this over a keeper wrapped around every re-render,
    accepting that a re-render that replaces the very element they read can move them
    by what grew above it. Rejected: that keeper, which recorded every item on screen
    under the identity it was rendered with, handed the place to a replacement drawn
@@ -93,12 +93,13 @@ import {
   typesText,
 } from "./focus.js";
 import { PRESSES } from "./control-selectors.js";
+import { CARRY } from "./box-motion.js";
 import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
 
 // The box a control stands at, where a rule names one: a thread where its reply box
-// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On me
+// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On Me
 // card the `m` walk rings for the stop it reached (floating-panel.js). The first rule
 // matching the node that names a box decides.
 /** @type {[string, (node: Element) => Element | null][]} */
@@ -126,14 +127,18 @@ const boxStoodAt = (node) => {
 // there, so a key pressed on the way is meant for the stop. `g g` carries a control
 // mid-page away, so `c` or Tab pressed as it sets off lets go of the control though it
 // is still on screen, and acts from where `g g` lands (reading-place.js,
-// `landingPlace`). The user chose this on 2026-11-14. Rejected: judging a node still on
+// `landingPlace`). The user chose this, as the one rule for every key
+// pressed during a glide, which tests/journeys/navigation/test_reading_place.py holds
+// each glide and key to. A key whose work goes to a reader that can't ask where the
+// glides land, the browser's answer to Tab or PageDown or a placement, lands them first
+// (scrolling.js, `landGlides`). Rejected: judging a node still on
 // screen as the place, which opened a comment box on the control and let the glide
 // carry it off screen with focus in it, and moved Tab on from the control as though
 // the glide had not run; and counting every glide that carries focus, which took the
 // page back down to comment on the control. A user who scrolled away from the control they stand on is reading
 // something else, though the control keeps focus, so a key they press there lets go of
 // it first, and scrolling back to it doesn't make it theirs again until they click or
-// Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
+// Tab there: the user chose this. A control in a stuck box, as the floating
 // panel's row is, is in front of them, so a key acts there, though it rides along with
 // every scroll, a glide's too, and marks no place in what it stands over (geometry.js,
 // `stuckBox`). Its
@@ -172,8 +177,11 @@ watchScrollEnds(() => {
   if (node && node !== document.body) repaint();
 });
 // Whether a finite animation moves a box holding `node`, as the slide a moved card makes
-// from where it stood to where layout put it. The sheen's endless one, a fade, one held
-// paused and one on a box's pseudo-element bring the user nowhere.
+// from where it stood to where layout put it, or a floating box's part box-motion.js
+// carries from where it was drawn (`CARRY`), as the thread card's list travels from the
+// passage a walk left to the one it reached, drawn below the window meanwhile. The
+// sheen's endless one, a fade, a cut, one held paused and one on a box's pseudo-element
+// bring the user nowhere.
 /** @param {Element} node */
 const slides = (node) =>
   document.getAnimations().some((animation) => {
@@ -183,7 +191,9 @@ const slides = (node) =>
       effect?.target != null &&
       !effect.pseudoElement &&
       effect.getComputedTiming().endTime !== Infinity &&
-      effect.getKeyframes().some((key) => "transform" in key || "translate" in key) &&
+      effect
+        .getKeyframes()
+        .some((key) => "transform" in key || "translate" in key || CARRY in key) &&
       under(node, effect.target)
     );
   });

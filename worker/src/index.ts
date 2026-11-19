@@ -35,6 +35,7 @@ import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 import type {
   Event,
+  ServedDraftsAnswer,
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
@@ -43,6 +44,7 @@ import {
   CHUNK_BYTES,
   PageStore,
   prepareStateDelivery,
+  readPageDrafts,
   readPublication,
   readPublicationCommit,
 } from "./storage";
@@ -183,6 +185,12 @@ export class LeafWebsiteSession extends Container<Env> {
     this.pages.publish(commit, manifest);
   }
 
+  async saveDrafts(value: unknown): Promise<ServedDraftsAnswer | null> {
+    const drafts = readPageDrafts(value);
+    const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
+    return this.pages.saveDrafts(drafts, manifest);
+  }
+
   private async forward(request: Request): Promise<Response> {
     // A connection lost while the container starts or restarts says nothing about
     // the request, so a request Python answers the same way twice gets one more
@@ -199,14 +207,14 @@ export class LeafWebsiteSession extends Container<Env> {
           : null;
     const response = await super.fetch(request);
     if (response.status < 500) return response;
-    const source = await errorSource(response);
-    const retry = source === "disconnected" && replay !== null;
-    logHttpError(request, response, source, retry);
+    const failure = await httpFailure(response);
+    const retry = failure.source === "disconnected" && replay !== null;
+    logHttpError(request, response, failure, retry);
     if (!retry) return response;
     await response.body?.cancel();
     const second = await super.fetch(replay);
     if (second.status >= 500) {
-      logHttpError(request, second, await errorSource(second), false);
+      logHttpError(request, second, await httpFailure(second), false);
     }
     return second;
   }
@@ -240,22 +248,30 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 }
 
-// The Containers SDK converts connection loss into an ordinary 500 without
-// logging an exception. Python stamps its own answers and logs page_fault;
-// retain the missing proxy evidence, never the body or private request URL.
-async function errorSource(response: Response): Promise<string> {
-  if (response.headers.has("Leaf-Release")) return "adapter";
+interface HttpFailure {
+  source: "adapter" | "disconnected" | "unclassified";
+  detail?: string;
+}
+
+// The Containers SDK turns a failed attempt to reach the container into an ordinary
+// 500, and that 500's body is the SDK's sentence about the failure, such as a
+// connection lost mid-request or a container that did not accept one. The SDK logs
+// the exception behind some of those, not reliably with its message, and none for a
+// lost connection. Python stamps its own answers and logs page_fault. Retain the
+// SDK's sentence as `detail`, and add neither Python's body nor the request URL.
+async function httpFailure(response: Response): Promise<HttpFailure> {
+  if (response.headers.has("Leaf-Release")) return { source: "adapter" };
   const body = await readBoundedText(response.clone(), 1024).catch(() => null);
   return body === "Container suddenly disconnected, try again" ||
     body?.startsWith("Error proxying request to container:")
-    ? "disconnected"
-    : "unclassified";
+    ? { source: "disconnected", detail: body }
+    : { source: "unclassified" };
 }
 
 function logHttpError(
   request: Request,
   response: Response,
-  source: string,
+  failure: HttpFailure,
   retried: boolean,
 ): void {
   console.error({
@@ -263,7 +279,7 @@ function logHttpError(
     event: "http_error",
     method: request.method,
     status: response.status,
-    source,
+    ...failure,
     retried,
   });
 }
@@ -325,6 +341,9 @@ async function answerPageStore(
   if (request.method === "PUT" && path === "/publication") {
     await session.savePublication(await request.json());
     return new Response(null, { status: 204 });
+  }
+  if (request.method === "PUT" && path === "/drafts") {
+    return Response.json({ drafts: await session.saveDrafts(await request.json()) });
   }
   return new Response("unknown page storage operation", { status: 404 });
 }

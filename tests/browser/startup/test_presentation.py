@@ -33,20 +33,35 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_the_document_is_readable_before_runtime_at_its_authored_position(
     browser, serve, width, has_touch
 ):
+    """The page and the floating panel's row both stand from the first paint, before
+    the runtime loads, and the runtime moves neither: the panel takes the row over
+    with its leaf, field and On Me mark where the row's stood."""
     boot = []
     context = browser.new_context(
         viewport={"width": width, "height": 900}, has_touch=has_touch
     )
     page = context.new_page()
     watched(page)
+    # Whether the row stood in the first frame the page drew.
+    page.add_init_script("""requestAnimationFrame(() => {
+      window.__rowAtFirstFrame = Boolean(
+        document.querySelector('.lf-floating-panel[data-lf-served]'));
+    })""")
     page.route("**/leaf.js", lambda route: boot.append(route))
+    row = {
+        part: f"{PANEL} .lf-fp-{part}" for part in ("card", "leaf", "field", "on-user")
+    }
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(
                 serve(leaf_page("Startup", "<h1>Startup</h1>")), wait_until="commit"
             )
         expect(page.locator("h1")).to_be_visible()
+        expect(page.locator(f"{PANEL}[data-lf-served]")).to_be_visible()
+        page.wait_for_function("() => window.__rowAtFirstFrame !== undefined")
+        assert page.evaluate("() => window.__rowAtFirstFrame"), "the row came late"
         initial = page.locator("body > main").bounding_box()
+        served = {part: page.locator(at).bounding_box() for part, at in row.items()}
         assert boot, "the positive control did not hold the boot module"
         boot.pop().continue_()
         wait_until_ready(page)
@@ -54,6 +69,10 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         ), "runtime startup moved the shell"
+        expect(page.locator(PANEL)).to_have_count(1)
+        assert {part: page.locator(at).bounding_box() for part, at in row.items()} == {
+            part: pytest.approx(box, abs=1) for part, box in served.items()
+        }, "the panel took the row over somewhere else"
         expect(page.locator("h1")).to_be_visible()
         assert page.locator("body > main").bounding_box()["y"] == pytest.approx(
             0, abs=1
@@ -144,7 +163,7 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
     module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
-        DATA_PROJECTION_MODULE.replace("{keeps,", "{keeps, keepsText,").replace(
+        DATA_PROJECTION_MODULE.replace("{ keeps,", "{ keeps, keepsText,").replace(
             "const row = document.createElement('p');\n"
             "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
@@ -234,18 +253,25 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     """
     entry = {
         "description": "A package motion control.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
     }
     registry = {
         tag: {
             **entry,
-            **({"x-shadow": True} if tree == "shadow" else {}),
-            "x-example": f'<{tag} id="{tree}-example"></{tag}>',
+            **(
+                {
+                    "shadow": True,
+                }
+                if tree == "shadow"
+                else {}
+            ),
+            "example": f'<{tag} id="{tree}-example"></{tag}>',
         }
         for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
     }
@@ -272,7 +298,7 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
     for tag, declaration in registry.items():
         stage = (
             "shadowStage(this, nodes)"
-            if declaration.get("x-shadow")
+            if declaration.get("shadow")
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
@@ -353,20 +379,24 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
     async work finishes after the first dress, and declared shadow words live beyond it."""
     entry = {
         "description": "A project-supplied link.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
+        "content": "empty",
     }
-    settled = {**entry, "x-example": '<lf-settled-link id="settled"></lf-settled-link>'}
+    settled = {
+        **entry,
+        "example": '<lf-settled-link id="settled"></lf-settled-link>',
+    }
     shadow = {
         **entry,
-        "x-shadow": True,
-        "x-example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
+        "shadow": True,
+        "example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
     }
     authored = leaf_page(
         "late links",

@@ -56,8 +56,8 @@ def test_a_write_from_zero_moves_a_box_as_far_as_the_browser_lets_it(browser, se
     reaches on that side, or writes nothing where that side is the one it stands at. A
     box scrolls on the negative side where its content flows from the bottom or right
     edge, which nothing but its style shows while it stands at zero: a reversed flex
-    column's first move up was dropped as a write past its top, and a plain box's move
-    past its top was written though it moved nothing. The write watch fails any write
+    column's first move up can be dropped as a write past its top, and a plain box's
+    move past its top written though it moves nothing. The write watch fails any write
     that moves nothing (`write_watch.js`)."""
     boxes = "".join(
         f'<div class="origin" id="{name}" '

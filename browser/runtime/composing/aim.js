@@ -9,17 +9,17 @@ import {
   eventSource,
 } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
-import { aimTargetAt } from "../anchor-resolution.js";
-import { setRuntimeRootAttribute, setRuntimeRootStyle } from "../root-state.js";
-import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
+import { aimTargetAt, captured } from "../anchor-resolution.js";
+import { legendRoot } from "../design.js";
 import { pointInto } from "../pointed-place.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the sequence
 // answers "which" before the click rather than asking the user to press and find out.
-// `aiming` is the modifier's state and `data-lf-aiming` on body is a rendering of the
-// page being armed, an attribute the margin's observer of classes does not hear
-// (page-paint.js); nothing reads it back.
+// `aiming` is the modifier's state. The page shows it only where the pointer is: the
+// aim's box, and the hand over an item a press takes (refreshAim). A mark of it on
+// `body` that the cursor rules read made Firefox visit every element of the page each
+// time ⌥ went down or came up, about 55 ms each way on #4781's 1.5 million elements.
 //
 // The target picker (`s`) arms the page the same way for as long as it stands: its hints
 // name targets for the keyboard, and the pointer takes any of them, or one between them,
@@ -54,9 +54,7 @@ export function createAim({
     !drawModeActive() && (!designMode.active() || targetPicker.active());
   // Whether the page is armed, given whether the modifier is held: the one reading the
   // box and the press claim both derive from, so the box cannot promise what the press
-  // does not do. The cursor class (armChanged) reads the two sources without the mode
-  // gate, since Design and Draw state cursors of their own and a gated class would go
-  // stale when Design ends under a held key.
+  // does not do.
   /** @param {boolean} held */
   const armedBy = (held) => aimIsAvailable() && (held || targetPicker.active());
   // The picker's promise under the pointer waits for a pointer that hovers: a finger's
@@ -81,8 +79,8 @@ export function createAim({
   // What the pointer is over, asked of the page rather than of an event, so pressing the key
   // without moving the mouse answers too — the user holds ⌥ to find out what they would
   // get, and the answer cannot wait for them to jiggle the mouse first. An open composer
-  // is no reason to say nothing: the press still acts (it moves the draft onto another
-  // target), so the promise still paints — what stood down here left that one press made
+  // is no reason to say nothing: the press still acts (it opens another target's own
+  // draft), so the promise still paints — what stood down here left that one press made
   // blind.
   //
   // The margin layer is chrome that stands over the page, and a row there is about the
@@ -109,21 +107,13 @@ export function createAim({
     const point = target?.anchor.visual ? null : pointInto(target?.element, at);
     return target && { ...target, point };
   }
-  // The armed page's one writer, called when either source of the arm changes.
+  // Called when either source of the arm changes.
   function armChanged() {
-    setRuntimeRootAttribute(
-      document.body,
-      RUNTIME_PAINT_ATTRIBUTE.aiming,
-      aiming || targetPicker.active() ? "" : null,
-    );
-    // Picker keys name the Design legend's corners while the picker owns the choice.
-    // Inherit through the paint stages, whose boxes may live in shadow roots, and into
-    // the chrome after body, which holds the legend.
-    setRuntimeRootStyle(
-      document.documentElement,
-      "--lf-design-tag-visibility",
-      targetPicker.active() ? "hidden" : "visible",
-    );
+    // Picker keys name the Design legend's corners while the picker owns the choice, so
+    // the legend's tags step aside (chrome.css). The mark stands on the legend, which
+    // holds every box and tag, since a custom property changing on the root restyles
+    // every element of the page (root-state.js).
+    legendRoot.classList.toggle("lf-picking", targetPicker.active());
     refreshAim();
   }
   /** @param {boolean} on */
@@ -149,6 +139,13 @@ export function createAim({
     if (held !== aiming) setAiming(held);
     else refreshAim();
   };
+  // A mouse that leaves the window stands over nothing a press could take, so the hand and
+  // the box come off while the page stays armed. The shared recorder hears the same
+  // event first and forgets the position (pointer.js).
+  /** @param {PointerEvent} ev */
+  const pointerOut = (ev) => {
+    if (ev.pointerType === "mouse" && !ev.relatedTarget) refreshAim();
+  };
 
   // ⌥-click means the item under the pointer, whatever it holds. It costs the page no
   // chrome and the user no selection, and it reaches an item whose words are all
@@ -168,12 +165,13 @@ export function createAim({
   // otherwise leave a press already taken from the page doing nothing at all.
   //
   // What is armed is the page rather than the items on it: an armed press aims where there
-  // is an item under it, and acts on nothing where there isn't. That is what the cursor is
-  // already saying, over everything the chrome doesn't hold out of it. Falling through to
-  // the page instead would leave the user reading the box to find out which of the
-  // two a press is about to be — and a suggestion's ✓ Accept stands in the margin
-  // layer over the page, so a press let through there sends Claude a decision. The aim
-  // takes it as a press on the change it stands by.
+  // is an item under it, and acts on nothing where there isn't. The hand says which over
+  // an item; elsewhere the page keeps its own cursor, the I-beam over words no item holds
+  // and over content the user edits (chrome.css). Falling through to the page instead
+  // would leave the user reading the box to find out which of the two a press is about
+  // to be — and a suggestion's ✓ Accept stands in the margin layer over the page, so a
+  // press let through there sends Claude a decision. The aim takes it as a press on the
+  // change it stands by.
   //
   // A press is its down, its up and the click they make, a double press one event more, and
   // the aim takes every one of them: which a widget listens on is not something the runtime
@@ -231,10 +229,12 @@ export function createAim({
       // A user ⌥-pressing on that seam was outlined one option and commented on the next.
       //
       // Under the picker the press chooses, which closes the picker, rather than comments.
+      // Either way the press commits its target, so it captures it here, once for the
+      // press and any continuation (anchor-resolution.js, `captured`).
       claimedPress = designTarget
-        ? { designMode: designMode.target(pressed) }
+        ? { designMode: captured(designMode.target(pressed)) }
         : armed
-          ? { aim: aimedTarget(), choosing: targetPicker.active() }
+          ? { aim: captured(aimedTarget()), choosing: targetPicker.active() }
           : null;
     }
     if (!claimedPress && ev.type === "mousedown" && ev.detail > 1 && previousPress)
@@ -264,6 +264,7 @@ export function createAim({
     addEventListener("keyup", keyUp, true);
     addEventListener("blur", blur);
     document.addEventListener("pointermove", pointerMove);
+    document.addEventListener("pointerout", pointerOut);
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
   pageCommand(AIM);

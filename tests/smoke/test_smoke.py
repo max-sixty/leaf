@@ -110,11 +110,11 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
     """A reply sent by key or by Send shows its words at the transcript's end while
     its delivery is held, in a sidebar layout's card.
 
-    On a narrow window the card's fitting once took room from the transcript after
-    Send, and the scroll destination stayed at 33px while its end moved to 60px,
-    hiding the reply's body. Such a window now opens the thread in the floating panel,
-    so this holds the route where cards still open. Hold delivery so admission cannot
-    repaint and conceal the failure.
+    The card's fitting can take room from the transcript after Send, leaving the
+    scroll destination short of the transcript's moved end and hiding the reply's
+    body. A narrow window opens the thread in the floating panel, so this holds the
+    route where cards open. Hold delivery so admission cannot repaint and conceal the
+    failure.
     """
     source = leaf_page(
         "Margin reply",

@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
-from .findings import Finding, note
+from .findings import Finding, note, with_held
 from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import (
     end_if_terminated,
@@ -68,10 +68,9 @@ if TYPE_CHECKING:
     from .server import PageAddress
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
-# 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
-# connections it closes or exits with, so its fixed address can stay in use after
-# it stops. Wait out what address reuse cannot pass, without waiting forever for an
-# address another live process holds.
+# 30 s on macOS. A server is that side for the keep-alive connections it closes or
+# exits with, so a wildcard address there, which address reuse cannot rebind, stays
+# in use for that long after it stops (`listening_socket`).
 PORT_WAIT_SECONDS = 90
 
 # How long a stopping server lets its clients finish before it drops their
@@ -79,6 +78,16 @@ PORT_WAIT_SECONDS = 90
 # still unfinished after this has stopped sending or reading. It is generous, so a
 # route slowed by a loaded machine still delivers its answer.
 STOP_GRACE_SECONDS = 30
+
+# How long the server keeps an idle keep-alive connection before closing it. A
+# client that pools connections reuses an idle one until its own idle timeout, and a
+# request it sends on a connection the server is closing at that moment is lost
+# unanswered. The Workers runtime keeps its connections to a leaf.page container for
+# 5 s (`kj::HttpClientSettings::idleTimeout`), uvicorn's default keep-alive too, and
+# a request that reuses a connection idle for 5 s then fails as "Network connection
+# lost". A server that outlasts the client's pool leaves every idle close to the
+# client.
+KEEP_ALIVE_SECONDS = 60
 
 # Linux refuses a SO_REUSEADDR bind beside any listener on an overlapping address
 # (socket(7)). BSD kernels, macOS among them, admit one at a specific address beside
@@ -90,9 +99,14 @@ def listening_socket(bind: str, port: int) -> socket.socket:
     """Open an exclusive listener, rebinding a fixed address over its own TIME_WAIT.
 
     A new service asks the OS for a port with zero; a recorded address binds its
-    port again, retrying EADDRINUSE for up to PORT_WAIT_SECONDS. Other failures keep
-    their original error. The kernel's bind checks keep two Leaf listeners, in any
-    processes, off overlapping addresses; no port lease or record stands beside them.
+    port again. The kernel's bind checks keep two Leaf listeners, in any processes,
+    off overlapping addresses; no port lease or record stands beside them. A bind
+    that sets SO_REUSEADDR passes TIME_WAIT, so EADDRINUSE there means a live
+    listener holds the port, and it raises at once: a previous Leaf server closes
+    its listener before it releases the lease a restart waits on (`cmd_stop`), so
+    the holder is a process waiting would not move. Only a bind without the option
+    retries EADDRINUSE, for up to PORT_WAIT_SECONDS. Other failures keep their
+    original error.
 
     SO_REUSEADDR lets a restart pass the TIME_WAIT connections the previous server
     left on its port, and it is set wherever it keeps the exclusion. On Linux every
@@ -114,10 +128,13 @@ def listening_socket(bind: str, port: int) -> socket.socket:
     is unavailable; a literal IPv6 address never widens to every interface.
     """
 
-    def bound(family: int, host: str) -> socket.socket:
-        reuse = REUSE_EXCLUDES_LISTENERS or (
+    def reuses(host: str) -> bool:
+        return REUSE_EXCLUDES_LISTENERS or (
             bool(port) and not ipaddress.ip_address(host).is_unspecified
         )
+
+    def bound(family: int, host: str) -> socket.socket:
+        reuse = reuses(host)
         sock = socket.socket(family, socket.SOCK_STREAM)
         try:
             if reuse:
@@ -133,6 +150,8 @@ def listening_socket(bind: str, port: int) -> socket.socket:
             raise
         return sock
 
+    # `::` falls back to `0.0.0.0`, which reuses exactly when `::` does.
+    waits = bool(port) and not reuses(bind)
     deadline = time.monotonic() + PORT_WAIT_SECONDS
     while True:
         try:
@@ -146,7 +165,7 @@ def listening_socket(bind: str, port: int) -> socket.socket:
                 return bound(socket.AF_INET, "0.0.0.0")
         except OSError as error:
             if (
-                not port
+                not waits
                 or error.errno != errno.EADDRINUSE
                 or time.monotonic() >= deadline
             ):
@@ -223,6 +242,7 @@ class LeafHTTPServer:
                 page_app(endpoint, self),
                 log_config=None,
                 access_log=False,
+                timeout_keep_alive=KEEP_ALIVE_SECONDS,
                 lifespan="off",
                 # A page speaks HTTP. Left on, an upgrade would arrive as a scope the
                 # page's own gate never sees, ahead of the key and the page's routes.
@@ -428,7 +448,10 @@ def cmd_serve_temporary(page_dir: Path, host: str | None = None) -> None:
         raise Refused("a temporary server is loopback-only; omit --host")
     exited = caller_exited()
     server = TemporaryPageServer(page_dir)
-    print(json.dumps({"url": server.url, "lifetime": "temporary"}), flush=True)
+    print(
+        json.dumps(with_held({"url": server.url, "lifetime": "temporary"})),
+        flush=True,
+    )
 
     def stop_with_caller() -> None:
         while not exited():
@@ -493,11 +516,12 @@ def _serve_claim(
 
 
 def _announce_server(page_dir: Path, url: str) -> bool:
-    """Print a committed foreground server's reading (`started_server`) before it
-    serves, since the command returns only when the server stops."""
+    """Print a committed foreground server's reading (`started_server`), with what
+    the command noted (`findings.with_held`), before it serves, since the command
+    returns only when the server stops."""
     from .event_log import jsonl_line
 
-    print(jsonl_line(started_server(page_dir, url)), flush=True)
+    print(jsonl_line(with_held(started_server(page_dir, url))), flush=True)
     return True
 
 
@@ -589,6 +613,7 @@ def cmd_serve(
     private preparation cannot advertise a retained service or neighbor row.
     A revival takes no acquisition.
     """
+    from .delivery import retire_gone_deliveries
     from .http import page_endpoint
     from .layer import payload_provenance
     from .render_gate.handover_pass import HandoverPass
@@ -686,6 +711,7 @@ def cmd_serve(
             return
         threading.Thread(target=rows.run, daemon=True).start()
         threading.Thread(target=HandoverPass(page_dir).run, daemon=True).start()
+        threading.Thread(target=retire_gone_deliveries, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),
@@ -727,10 +753,10 @@ def _starting_server(
     harness: Harness | None,
     acquire: bool = False,
     claim: dict | None = None,
-    timeout: float | None = None,
+    deadline: float | None = None,
 ):
     """Prepare a private serving resource and expose its owner before accepting,
-    refusing a start that is not ready within `timeout`."""
+    refusing a start that is not ready by `deadline`, a `time.monotonic()` reading."""
     with starting_detached(
         [
             "server",
@@ -747,7 +773,7 @@ def _starting_server(
         ],
         harness=harness,
         what=f"the server for {page_dir}",
-        timeout=timeout,
+        deadline=deadline,
     ) as ready:
         yield PageStart(ready["url"], ready["claim"], page_dir)
 
@@ -781,7 +807,7 @@ def claim_and_start(
     persistent: bool = False,
     *,
     prepared_claim: dict | None = None,
-    timeout: float | None = None,
+    deadline: float | None = None,
 ):
     """Prepare delivery and serving, expose their acquisition, then commit.
 
@@ -794,10 +820,8 @@ def claim_and_start(
     claim it prepared, and holds delivery preparation through this commit: a
     detached preview's launcher, whose child uses the captured lifetime and cwd
     rather than discovering its own ancestry, and a prompt hook, whose payload names
-    the session (`reconnect`). Neither selects a checkout here. The hook also bounds
-    the wait with `timeout`, since a server binding a port another process holds
-    retries for PORT_WAIT_SECONDS, past the hook's own timeout; a start not ready by
-    then is refused.
+    the session (`reconnect`). Neither selects a checkout here. The hook also passes
+    its own `deadline`; a start not ready and confirmed by then is refused.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     claim = prepared_claim
@@ -818,13 +842,59 @@ def claim_and_start(
                 harness=harness,
                 acquire=True,
                 claim=claim,
-                timeout=timeout,
+                deadline=deadline,
             ) as ready:
                 yield ready
         except BaseException:
             if claim is not None:
                 cmd_stop(page_dir, owner=claim)
             raise
+
+
+def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
+    """`leaf server start`: take and serve the page (`claim_and_start`) with this
+    Leaf, restarting at its address a running server another Leaf started.
+
+    A server keeps the Leaf it started under, and markup and layout contracts move
+    between commits with no protocol change, so the agent asking to serve a page
+    must get the Leaf whose `page check` it read, not one an older session or a
+    deleted checkout left running. Another Leaf is another install or checkout, or
+    this one at another commit (`layer.payload_provenance`). Uncommitted edits don't
+    count, since the record can't say whether they changed after the server started.
+
+    Whether this Leaf can serve the page is decided first, as a fresh bind decides
+    it (`http.page_endpoint`), so a refusal leaves the page with its owner and the
+    other Leaf serving it. The restart is `page init`'s (`restarting_server`), made
+    once the page is taken, since a session service comes back only for the
+    session holding it; one that can't start again leaves the service enabled and
+    down, for a revival to bring back. Only this command restarts: a hook or watch
+    reviving a page may run an older Leaf than the server it finds."""
+    from .http import page_endpoint
+
+    replacing = _served_by_another_leaf(page_dir)
+    if replacing:
+        with page_locked(page_dir):
+            page_endpoint(page_dir, host_key())
+    with claim_and_start(page_dir, host, persistent) as started:
+        pass
+    if replacing:
+        with restarting_server(page_dir, session_harness()):
+            pass
+    return started
+
+
+def _served_by_another_leaf(page_dir: Path) -> bool:
+    """Whether the page's running server records a Leaf other than this one, by
+    path or commit (`start_page`)."""
+    from .layer import payload_provenance
+
+    existing = running_server(page_dir)
+    if not existing:
+        return False
+    here = payload_provenance(include_path=True)
+    return any(
+        existing["runtime"].get(key) != here.get(key) for key in ("path", "commit")
+    )
 
 
 class _StopScope(Enum):

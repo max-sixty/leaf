@@ -6,6 +6,12 @@ lf-text-document {
   margin: 14px 0;
   min-height: 2px;
 }
+/* The frame, caption and listing are code, in the code's scheme (tokens.css, at
+   --lf-pre-bg). A document that previews its text stands on the page's paper instead,
+   since the preview is prose, so only its Source tab is code (below). */
+lf-text-document:not([preview]) {
+  color-scheme: var(--lf-code-scheme, inherit);
+}
 /* The frame clips its rounded corners with `clip`, which makes no scroll container
    (base.css, at `--lf-top`), so the Preview/Source strip sticks against the page's
    scroller as every horizontal tab strip does. `hidden` made the frame the strip's
@@ -13,10 +19,10 @@ lf-text-document {
    below the caption and over the preview's first lines. */
 lf-text-document > .lf-text-document-view {
   margin: 0;
-  border: 1px solid var(--code-border);
-  border-radius: var(--r);
+  border: 1px solid var(--lf-code-border);
+  border-radius: var(--lf-r);
   overflow: clip;
-  background: var(--pre-bg);
+  background: var(--lf-pre-bg);
   --lf-block-frame: 1;
 }
 /* The caption is the frame's header bar, not a line of reading, so it spans the frame:
@@ -27,9 +33,9 @@ html[data-lf-interactive]
   lf-text-document:not(:has(> :not(pre, [data-lf-prepaint])))::before {
   max-inline-size: none;
   padding: 7px 11px;
-  border-bottom: 1px solid var(--rule);
-  color: var(--muted);
-  font: var(--font-small);
+  border-bottom: 1px solid var(--lf-rule);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -54,11 +60,11 @@ lf-text-document pre {
    selecting or copying never takes. Every number takes the width of the text's widest
    one (`--lf-number-digits`), so every row's text starts at the same x. */
 lf-text-document .lf-text-document-listing > pre {
-  font-family: var(--mono);
-  font-size: var(--code-size);
-  line-height: var(--code-line);
-  color: var(--code-ink);
-  background: var(--pre-bg);
+  font-family: var(--lf-mono);
+  font-size: var(--lf-code-size);
+  line-height: var(--lf-code-line);
+  color: var(--lf-code-ink);
+  background: var(--lf-pre-bg);
   tab-size: 2;
   word-break: break-word;
 }
@@ -77,9 +83,10 @@ lf-text-document .lf-text-document-run > * {
   padding-inline: calc((var(--lf-number-digits) + 4) * 1ch + 2px) 1ch;
   counter-increment: lf-line;
 }
-/* A run counts on from the lines before it. The count starts on its first row: a
-   skipped run's style containment keeps a count its own box starts from its rows, and
-   every run after the first numbered its rows from 1. */
+/* A run counts on from the lines before it, which its first row holds
+   (lf-text-document.js, `number`). The count starts on that row: a skipped run's style
+   containment keeps a count its own box starts from its rows, and every run after the
+   first numbered its rows from 1. */
 lf-text-document .lf-text-document-run > :first-child {
   counter-reset: lf-line var(--lf-lines-before);
 }
@@ -88,7 +95,7 @@ lf-text-document .lf-text-document-run > *::before {
   position: absolute;
   inset-inline-start: 2ch;
   inline-size: calc(var(--lf-number-digits) * 1ch);
-  color: var(--code-muted);
+  color: var(--lf-code-muted);
   text-align: end;
 }
 /* Syntax colour on a listing's text (lf-text-document.js, `tokenHighlight`): one
@@ -97,40 +104,30 @@ lf-text-document .lf-text-document-run > *::before {
    rule names the rows, whose text is all these ranges paint (browser/AGENTS.md,
    "Runtime ownership"). */
 lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-comment) {
-  color: var(--syn-comment);
+  color: var(--lf-syn-comment);
 }
 lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-keyword) {
-  color: var(--syn-keyword);
+  color: var(--lf-syn-keyword);
 }
 lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-string) {
-  color: var(--syn-string);
+  color: var(--lf-syn-string);
 }
 lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-number) {
-  color: var(--syn-number);
+  color: var(--lf-syn-number);
 }
 lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-name) {
-  color: var(--syn-name);
+  color: var(--lf-syn-name);
 }
 lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-type) {
-  color: var(--syn-type);
+  color: var(--lf-syn-type);
 }
 lf-text-document .lf-text-document-run > *::highlight(lf-token-ok-ink) {
-  color: var(--ok-ink);
+  color: var(--lf-ok-ink);
 }
 lf-text-document .lf-text-document-run > *::highlight(lf-token-danger-ink) {
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
-/* A folded panel's rows (`hidden="until-found"`, as a closed tab's) count no numbers
-   until it opens. Firefox styles and builds the generated content of rows it doesn't
-   draw: in a folded document of 70,000 lines the numbers took about 120 of the 150 ms
-   its styling cost. */
-:where([hidden="until-found"]) lf-text-document .lf-text-document-run > * {
-  counter-increment: none;
-  &::before {
-    content: none;
-  }
-}
-/* A run of rows (lf-text-document.js, `inRuns`) is drawn only while it is in view. */
+/* A run of rows (lf-text-document.js, `run`) is drawn only while it is in view. */
 lf-text-document .lf-text-document-run {
   content-visibility: auto;
 }
@@ -138,6 +135,29 @@ lf-text-document .lf-text-document-run {
    document scrolls into view, and save nothing. */
 lf-text-document .lf-text-document-run:only-child {
   content-visibility: visible;
+}
+/* A fold, a closed tab's `hidden="until-found"` panel or a shut details, skips every
+   run it holds, and find-in-page still reaches their text. Until the fold opens:
+   - A run skips nothing itself, so the browser decides afresh which runs are in view
+     as the fold opens. Firefox reports an `auto` run under a fold drawn and keeps it
+     drawn as the fold opens (notes/browser-support.md, "An `auto` box under a fold in
+     Firefox").
+   - Its rows count no numbers. Firefox styles and builds the generated content of
+     rows it doesn't draw, and in a long folded document the numbers can be most of its
+     styling cost. */
+:where([hidden="until-found"], details:not([open]))
+  lf-text-document
+  .lf-text-document-run {
+  content-visibility: visible;
+  /* Each row's rule names the run as its ancestor, which lets Chromium pass over the
+     rule for an element outside one (browser/AGENTS.md, "A rule costs only the
+     elements it could style"); `&::before` nested in `& > *` names none. */
+  & > * {
+    counter-increment: none;
+  }
+  & > *::before {
+    content: none;
+  }
 }
 /* A document scrolls its listing in a box `--lf-bound` tall under a caption that
    stays put: the Source tab's box with a preview, the listing's own without one. The
@@ -148,7 +168,7 @@ lf-text-document .lf-text-document-run:only-child {
    scrolling inside the box rather than at full length in the page.
 
    A Markdown preview of written text is the exception the first paint allows: Leaf
-   draws its rendering beside the `<pre>` before the module does (`x-prepaint`), so the
+   draws its rendering beside the `<pre>` before the module does (`prepaint`), so the
    page first paints at the preview's own height up to the bound, which the Source tab
    takes too. A one-paragraph quote in a 28rem box drew a 530px frame around 156px of
    text.
@@ -168,9 +188,8 @@ lf-text-document .lf-text-document-run:only-child {
   /* The listing restarts the sticky-header slot from the first paint with every value
      the runtime's mark on a box that scrolls sets (state.css, `[data-lf-scrolls]`), so
      the mark changes nothing its rows inherit. Firefox styles the rows of runs it
-     skips too (notes/browser-support.md, "Styling content Firefox skips"), and a mark
-     that changed three of the values took a 270 to 570 ms frame on a listing of 97,000
-     rows. */
+     skips too (notes/browser-support.md, "Styling content Firefox skips"), so a mark
+     that changed the values would restyle every row of a long listing. */
   lf-text-document:not([preview])[data-lf-bound] pre {
     block-size: var(--lf-bound, 28rem);
     overflow: auto;
@@ -185,9 +204,9 @@ lf-text-document .lf-text-document-run:only-child {
   }
   html[data-lf-interactive]
     lf-text-document:not(:has(> :not(pre, [data-lf-prepaint]))) {
-    border: 1px solid var(--code-border);
-    border-radius: var(--r);
-    background: var(--pre-bg);
+    border: 1px solid var(--lf-code-border);
+    border-radius: var(--lf-r);
+    background: var(--lf-pre-bg);
     &::before {
       content: attr(label);
       display: block;
@@ -210,7 +229,7 @@ lf-text-document .lf-text-document-run:only-child {
        below it are the tabs' card (tabs.css), which the rendering wears from the strip's
        room down, clipped at the frame's rounded corners as the figure clips the tabs. */
     &:has(> [data-lf-prepaint]) {
-      background: var(--paper);
+      background: var(--lf-paper);
       overflow: clip;
       &::after {
         content: none;
@@ -219,9 +238,9 @@ lf-text-document .lf-text-document-run:only-child {
     & > [data-lf-prepaint] {
       box-sizing: border-box;
       max-block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
-      padding-block-start: calc(var(--lf-tabstrip-h) + var(--sp-4));
+      padding-block-start: calc(var(--lf-tabstrip-h) + var(--lf-sp-4));
       overflow: hidden;
-      background: var(--card);
+      background: var(--lf-card);
     }
   }
 }
@@ -251,7 +270,7 @@ lf-text-document .lf-text-document-listing::after {
 /* Source and preview share one inspection viewport. Its height doesn't follow the tab
    shown, so switching keeps the strip and following page still. */
 lf-text-document[preview] > .lf-text-document-view {
-  background: var(--paper);
+  background: var(--lf-paper);
 }
 lf-text-document[preview] .lf-text-document-view > lf-tabs {
   margin: 0;
@@ -262,6 +281,15 @@ lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab {
   margin: 0;
   padding: 0;
 }
+/* The Source tab is code to its foot, in the code's scheme: it takes the preview's
+   height (below), which a short listing doesn't fill. */
+lf-text-document[preview]
+  .lf-text-document-view
+  > lf-tabs
+  > lf-tab:has(> .lf-text-document-listing) {
+  color-scheme: var(--lf-code-scheme, inherit);
+  background: var(--lf-pre-bg);
+}
 /* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face
    (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does, the
    server's first paint of it included. */
@@ -269,7 +297,7 @@ lf-text-document div.lf-text-document-preview,
 lf-text-document > [data-lf-prepaint] {
   --lf-reading-face: 1;
   --lf-block-frame: 1;
-  padding: var(--sp-4);
+  padding: var(--lf-sp-4);
   overflow-wrap: anywhere;
 }
 lf-text-document iframe.lf-text-document-preview {
@@ -307,8 +335,8 @@ lf-text-document iframe.lf-text-document-preview {
   lf-text-document .lf-text-document-cut {
     position: absolute;
     inset: auto 0 0;
-    padding: calc(2 * var(--sp-5)) var(--sp-4) var(--sp-2);
-    background: linear-gradient(transparent, var(--pre-bg) 70%);
+    padding: calc(2 * var(--lf-sp-5)) var(--lf-sp-4) var(--lf-sp-2);
+    background: linear-gradient(transparent, var(--lf-pre-bg) 70%);
     text-align: center;
   }
   lf-text-document iframe.lf-text-document-preview {

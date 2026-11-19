@@ -30,7 +30,7 @@ const stamped = (registry) => ({
       .map(([tag, entry]) => [
         tag,
         Object.fromEntries(
-          Object.entries(entry["x-state"] ?? {}).map(([verb, verbSpec]) => [
+          Object.entries(entry.verbs ?? {}).map(([verb, verbSpec]) => [
             verb,
             { writer: verbSpec.writer, definition: definition(tag, verbSpec) },
           ]),
@@ -51,7 +51,9 @@ const descriptor = {
   id: "choice",
   tag: "lf-choice",
   document: { kind: "page", revision: 1 },
-  declaration: { "x-state": { decide: { ...spec, writer: "user" } } },
+  declaration: {
+    verbs: { decide: { ...spec, writer: "user" } },
+  },
   parent: null,
   ancestors: [],
   quoted: false,
@@ -155,7 +157,12 @@ const capture = (extraDescriptors = [], extraAuthored = []) => {
     ...app.read().document,
     registry: stamped(
       Object.fromEntries([
-        ["lf-choice", { "x-state": { decide: { ...spec, writer: "user" } } }],
+        [
+          "lf-choice",
+          {
+            verbs: { decide: { ...spec, writer: "user" } },
+          },
+        ],
         ...extraDescriptors.map(([, captured]) => [captured.tag, captured.declaration]),
       ]),
     ),
@@ -460,7 +467,7 @@ test("message capture preserves a deferred document's identity and immutable fie
     app.identify(1, stamp, true);
     const shown = app.read().document;
     const body = { text: "A newly read message" };
-    const messageBodies = new Map([["message", body]]);
+    const messageBodies = new Map([["thread", new Map([["message", body]])]]);
     const read = state(2, [], { active: { revision: 2, version: 2 } });
 
     assert.equal(app.adopt(read, { ...shown, messageBodies }), true);
@@ -474,7 +481,10 @@ test("message capture preserves a deferred document's identity and immutable fie
       body.text = "Changed after transfer";
     }, TypeError);
     assert.throws(() => messageBodies.clear(), /read-only/);
-    assert.equal(admitted.messageBodies.get("message").text, "A newly read message");
+    assert.equal(
+      admitted.messageBodies.get("thread").get("message").text,
+      "A newly read message",
+    );
     assert.throws(() => admitted.authored.clear(), /read-only/);
   }
 });
@@ -893,7 +903,7 @@ test("admitted edits, a raced undo refusal, and revisions share one sequence", (
     const app = createSemanticApplication();
     app.identify(1);
     const declaration = sequence.declaration;
-    const specs = new Map(Object.entries(declaration["x-state"]));
+    const specs = new Map(Object.entries(declaration.verbs));
     const document = (revision) => ({
       ...app.read().document,
       revision,
@@ -1042,6 +1052,16 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   assert.equal(decision(app), null);
   assert.equal(app.nameEvents("undo"), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
+});
+
+test("an undo of an action the log has answered but no reading holds withdraws it at once", () => {
+  const app = setup();
+  const first = app.enqueue(action("first"), "now");
+  app.accept("first", { ...action("first"), id: "e1", seq: 1 });
+  assert.equal(app.entry("first").state, "accepted");
+  assert.equal(decision(app), "accept");
+  app.enqueue({ kind: "undo", undoes: first.localId, attempt: "undo" }, "now");
+  assert.equal(decision(app), null);
 });
 
 // Each step is a signal and the entry's state after it: `null` once it has left. What
@@ -1464,24 +1484,24 @@ test("the publisher carries the server's obligation reading, page obligations be
   }
 
   const read = state(2);
-  const page = wireObligation("question", "lf-ask", "choice", "lf-choice");
-  const frozen = {
-    ...wireObligation("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", "root-1"),
+  const page = wireObligation("question", "section", "choice", "lf-choice");
+  const threadAsk = {
+    ...wireObligation("thread-ask", "section", "thread-choice", "lf-choice", "root-1"),
     status: "withdrawn",
     next_actor: null,
   };
-  read.browser.views[1].obligations = [page, frozen];
+  read.browser.views[1].obligations = [page, threadAsk];
   app.adopt(read);
 
   const record = page;
   assert.deepEqual(app.read().effective.obligations, {
     phase: "ready",
-    all: [record, frozen],
+    all: [record, threadAsk],
     user: [record],
     unanswered: [record],
     byId: new Map([
       [record.id, record],
-      [frozen.id, frozen],
+      [threadAsk.id, threadAsk],
     ]),
   });
   assert.throws(() => {
@@ -1507,8 +1527,10 @@ test("an unsettled report supplies desired widget state", () => {
   const source = {
     ...descriptor,
     declaration: {
-      properties: { choice: { type: "string" } },
-      "x-state": { preview: { ...valueSpec, writer: "agent" } },
+      attributes: {
+        properties: { choice: { type: "string" } },
+      },
+      verbs: { preview: { ...valueSpec, writer: "agent" } },
     },
   };
   const app = setup([[source.id, source]]);
@@ -1588,8 +1610,10 @@ test("a revision preserves pending delivery while replacing incompatible specula
     record: { kind: "value", attr: "status" },
   };
   const declaration = {
-    properties: { status: { type: "integer" } },
-    "x-state": { decide: revisedSpec },
+    attributes: {
+      properties: { status: { type: "integer" } },
+    },
+    verbs: { decide: revisedSpec },
   };
   document.registry = stamped({ ...document.registry, "lf-choice": declaration });
   document.descriptors.set("choice", {
@@ -1638,7 +1662,9 @@ test("a pending undo keeps withdrawing its target once the log admits it under a
   document.revision = 2;
   document.registry = stamped({
     ...document.registry,
-    "lf-choice": { "x-state": { decide: broadened } },
+    "lf-choice": {
+      verbs: { decide: broadened },
+    },
   });
   document.descriptors.set("choice", {
     ...descriptor,
@@ -1660,7 +1686,9 @@ test("a revision changing a verb's writer retains delivery without drawing the o
   const document = structuredClone(app.read().document);
   document.revision = 2;
   const agentSpec = { ...spec, writer: "agent" };
-  const declaration = { "x-state": { decide: agentSpec } };
+  const declaration = {
+    verbs: { decide: agentSpec },
+  };
   document.registry = stamped({ ...document.registry, "lf-choice": declaration });
   document.descriptors.set("choice", {
     ...descriptor,
@@ -1682,7 +1710,7 @@ test("An obligation contains the local typed answer while completion waits for a
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      "x-awaits": { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide", answered: { decide: {} } },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1710,13 +1738,13 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
   const choose = {
     unit: "widget",
     writer: "user",
-    record: { kind: "attribute", attr: "chosen" },
+    record: { kind: "attribute", attr: "selected" },
   };
   const declared = {
     ...descriptor,
     declaration: {
-      "x-state": { choose },
-      "x-awaits": { value: "choose", answered: { choose: {} } },
+      verbs: { choose },
+      awaits: { value: "choose", answered: { choose: {} } },
     },
   };
   const app = capture(
@@ -1755,7 +1783,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
 
 test("pending undo removes completed empty obligation values and refusal restores them", () => {
   for (const [record, value] of [
-    [{ kind: "attribute", attr: "chosen" }, []],
+    [{ kind: "attribute", attr: "selected" }, []],
     [{ kind: "body" }, ""],
   ]) {
     const choose = { unit: "widget", writer: "user", record };
@@ -1763,8 +1791,8 @@ test("pending undo removes completed empty obligation values and refusal restore
     const declared = {
       ...descriptor,
       declaration: {
-        "x-state": { choose, answer },
-        "x-awaits": { value: "choose", answered: { answer: {} } },
+        verbs: { choose, answer },
+        awaits: { value: "choose", answered: { answer: {} } },
       },
     };
     const app = capture(
@@ -1821,11 +1849,12 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      "x-awaits": { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide", answered: { decide: {} } },
     },
   };
   const app = capture([[declared.id, declared]]);
-  // Before #2329 the recorded definition carried the verb flag as `update`.
+  // A recorded definition carrying a field this Leaf's definition lacks: the verb flag
+  // as `update`.
   const accepted = {
     ...action("decided"),
     id: "e1",
@@ -1856,7 +1885,7 @@ test("pending undo removes a custom obligation answer before authoritative compl
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      "x-awaits": { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide", answered: { decide: {} } },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1907,7 +1936,9 @@ test("unchanged selection republishes when a move changes its members", () => {
     ...descriptor,
     id,
     tag,
-    declaration: { "x-state": verbs },
+    declaration: {
+      verbs: verbs,
+    },
     parent: parent && { id: parent, tag: "lf-audit-manifest" },
     ancestors: [],
   });
@@ -1977,13 +2008,15 @@ test("parent memberships include flat creations until undone", () => {
   const choose = {
     unit: "widget",
     writer: "user",
-    record: { kind: "attribute", attr: "chosen" },
+    record: { kind: "attribute", attr: "selected" },
   };
   const tray = {
     ...descriptor,
     id: "tray",
     tag: "lf-tray",
-    declaration: { "x-state": { sow, choose } },
+    declaration: {
+      verbs: { sow, choose },
+    },
   };
   const app = setup(
     [[tray.id, tray]],
@@ -2016,7 +2049,7 @@ test("parent memberships include flat creations until undone", () => {
     },
     "now",
   );
-  assert.deepEqual(selected.read().memberships.chosen, ["elm"]);
+  assert.deepEqual(selected.read().memberships.selected, ["elm"]);
   app.enqueue({ kind: "undo", undoes: created.localId, attempt: "undo-sow" }, "now");
-  assert.deepEqual(selected.read().memberships.chosen, []);
+  assert.deepEqual(selected.read().memberships.selected, []);
 });

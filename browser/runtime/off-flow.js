@@ -40,9 +40,8 @@
 import { seenRect } from "./geometry.js";
 import { glideGap } from "./scroll-containers.js";
 import { scrollBehavior } from "./motion.js";
-import { under } from "./shadow.js";
 import { onCurrentLocation } from "./focus.js";
-import { isElement } from "./shadow-tree.js";
+import { isElement, under } from "./shadow-tree.js";
 
 /** @typedef {{surface: Element, floats: () => boolean, away: () => boolean,
  * bringBack: (behavior: ScrollBehavior) => unknown}} OffFlowSurface */
@@ -94,6 +93,13 @@ onCurrentLocation((node, cause, left) => {
       follow(reading, node, scrollBehavior());
   }
 });
+
+// Whether `node` stands in a surface floating over the page.
+/** @param {Element} node */
+export const offFlow = (node) =>
+  [...surfaces.values()].some(
+    ({ surface, floats }) => floats() && under(node, surface),
+  );
 
 // Bring back the surface holding `node`, where the window does not show all of it; a
 // node in flow needs nothing.

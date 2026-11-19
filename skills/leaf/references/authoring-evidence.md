@@ -50,7 +50,7 @@ named for what the part is, since the thread reports it to you. For `lf-diagram`
 entry says which boxes `parts="all"` makes commentable.
 
 A comment's mark stays where its part was when the mark was drawn, so a part that moves
-leaves its mark behind. Draw moving parts in a page widget that declares `x-visual`
+leaves its mark behind. Draw moving parts in a page widget that declares `visual`
 parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
@@ -89,7 +89,9 @@ or the colour scheme, the reader should be able to tell each capture's value on 
 axis from where it stands rather than from prose away from the images, with each axis
 labelled once. The default is a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's. Captures of an option's outcome go inside that option, in such a table where
+row's. Give each capture's `<img>` an `id`, so the user can point at one capture and
+comment on it alone (`page-authoring.md`, "Stable anchors"). Captures of an option's
+outcome go inside that option, in such a table where
 there are several (`authoring-on-me.md`). Place captures the reader compares side by
 side or one above the other, so whatever moved shows as a misalignment.
 
@@ -109,5 +111,3 @@ For recordings compared inside `lf-motion`, use its shared transport as the moti
 package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
-
-Put invented examples inside `lf-sample` and make them visibly fictional.

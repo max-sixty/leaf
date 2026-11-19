@@ -21,10 +21,13 @@ from interact_support import (
 )
 
 import leaf_website as website_server
+from leaf import drafts as drafts_model
+from leaf import media as media_model
 from leaf.event_log import read_events
-from leaf.files import revision_path
+from leaf.files import latest_revision, revision_path
 from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
+from leaf_dev.page_fixtures import example_media
 from process.website_server import (
     write_manifest,
 )
@@ -36,6 +39,7 @@ def durable_page_store():
     stored: dict = {
         "publications": [],
         "records": {},
+        "drafts": {},
         "staged": {},
         "blobs": {},
         "uploads": [],
@@ -43,6 +47,8 @@ def durable_page_store():
         "truncate": False,
         "inventories": 0,
         "fail": False,
+        # Whether the next drafts save loses its answer after the store has had it.
+        "lose": False,
     }
 
     class Store(BaseHTTPRequestHandler):
@@ -59,7 +65,12 @@ def durable_page_store():
                     member.size = len(data)
                     archive.addfile(member, io.BytesIO(data))
 
-                add("records.json", json.dumps(stored["records"]).encode())
+                add(
+                    "records.json",
+                    json.dumps(
+                        {"records": stored["records"], "drafts": stored["drafts"]}
+                    ).encode(),
+                )
                 names = dict.fromkeys(
                     digest
                     for record in stored["records"].values()
@@ -79,6 +90,24 @@ def durable_page_store():
                 assert hashlib.sha256(body).hexdigest() == digest
                 stored["blobs"][digest] = body
                 stored["uploads"].append(digest)
+            elif self.path == "/drafts":
+                # As the Durable Object does (`saveDrafts`), take the store only over
+                # the one it replaces, and answer with the store held.
+                save = json.loads(body)
+                held = stored["drafts"].get(save["root"])
+                if save["replaces"] == (
+                    held and {"store": held["store"], "version": held["version"]}
+                ):
+                    held = stored["drafts"][save["root"]] = save["drafts"]
+                if stored["lose"]:
+                    stored["lose"] = False
+                    self.send_response(503)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({"drafts": held}).encode())
+                return
             elif self.path == "/prepare":
                 stored["inventories"] += 1
                 publication = json.loads(body)
@@ -209,7 +238,7 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
     remembered readings alone, and the tab's next answer is still only what changed
     (`served_state.tail`), even where the server remembers a single reading."""
     from leaf.served_state import tail
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
     monkeypatch.setattr(tail, "REMEMBERED", 1)
     site = tmp_path / "site"
@@ -218,12 +247,12 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
     write_manifest(site, {"/example": ("page", "example")})
     assert website_server.activate_source(private).error is None
     service = website_server.PageStateService(private)
-    page = str(private)
-    held = tail.answer(service.page_state(), None, page)["browser"]["basis"]["key"]
+    held = tail.answer(service.page_state(), None, private)["browser"]["basis"]["key"]
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        restore(site)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
 
         def commit():
             with PageTransaction(private):
@@ -233,13 +262,13 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
         with ThreadPoolExecutor(max_workers=1) as executor:
             executor.submit(commit).result()
         assert stored["publications"]
-    assert "since" in tail.answer(service.page_state(), held, page)
+    assert "since" in tail.answer(service.page_state(), held, private)
 
 
 def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     page_dir, tmp_path, monkeypatch
 ):
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
     site = tmp_path / "site"
     private = site / "page"
@@ -257,7 +286,8 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, _stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        restore(site)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
 
         async def commit_with_running_loop():
             with PageTransaction(private):
@@ -286,7 +316,7 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     resources: the release publishes those beside the runtime it runs, so the saved
     document names them there, and a reload while the container sleeps loads them
     from the edge rather than waking it for them."""
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
     publish(page_dir)
     site = tmp_path / "site"
@@ -301,8 +331,8 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
-        restore(site)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
         append_command(
             private,
             {
@@ -321,3 +351,139 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     published = f"{page['assets']}/revisions/{revision_path(private, 1).stem}"
     assert f'data-lf-entry="{published}/leaf.js"'.encode() in document
     assert not any(path.startswith("revisions/") for path in publication["responses"])
+
+
+def test_a_session_that_swaps_an_image_goes_on_saving(page_dir, tmp_path, monkeypatch):
+    """Revisions that differ only in the images they show share the address their
+    resources answer at, and an image answers at the page root, never there. A
+    session that shows a screenshot, swaps it for another and goes on editing saves
+    every revision, and both images at the page root."""
+    from leaf_website.storage import PUBLISHER, restore
+
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    manifest["pages"]["/example"]["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        shots = media_model.cmd_media(
+            private,
+            [
+                example_media() / "051bee487bfb5d13.png",
+                example_media() / "006a318b091c6d1d.png",
+            ],
+        )
+        for heading in [
+            f'<h2>Plan</h2><p><img src="{shot["path"]}" alt="A shot"></p>'
+            for shot in shots
+        ] + ["<h2>Plan, later</h2>"]:
+            (private / "index.html").write_text(PAGE.replace("<h2>Plan</h2>", heading))
+            with PageTransaction(private):
+                pass
+        publication = stored["publications"][-1]
+    assert latest_revision(private) == 4
+    assert b"Plan, later" in b"".join(
+        stored["blobs"][digest] for digest in publication["responses"][""]["chunks"]
+    )
+    assert {shot["path"].lstrip("/") for shot in shots} <= set(publication["responses"])
+
+
+def test_a_draft_write_is_answered_only_once_the_page_store_holds_it(
+    page_dir, tmp_path, monkeypatch
+):
+    """A container answers a draft write once the page store holds it, with no commit
+    of the page, so one that dies without stopping loses no words a tab was told were
+    saved: the next container restores them, under the store and at the version the
+    answer named."""
+    from leaf_website.storage import PUBLISHER, restore
+
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    words = "Words typed after the last send"
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        answer = drafts_model.write_draft(
+            private,
+            {
+                "context": "general",
+                "expect": [],
+                "record": {"attempt": "a1", "text": words},
+            },
+        )
+        assert answer["written"]
+        assert not stored["publications"]
+
+        # The container dies where it stands: the next starts from the release's image.
+        shutil.rmtree(private)
+        shutil.copytree(page_dir, private)
+        assert restore(site)
+    restored = drafts_model.read_drafts(private)
+    assert restored["store"] == answer["store"]
+    assert restored["version"] == answer["version"]
+    assert restored["drafts"]["general"]["text"] == words
+
+
+def test_a_drafts_save_answered_too_late_is_the_store_the_next_write_runs_on(
+    page_dir, tmp_path, monkeypatch
+):
+    """The page store holds the drafts store of record. A save it took whose answer
+    the container never heard leaves it a version ahead of the container's file. The
+    next write finds that store there, takes it as the file and runs once more against
+    it, so it is answered as any write is, and the page store keeps both writes."""
+    from leaf_website.storage import PUBLISHER, PageStoreRefused, restore
+
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+
+    def write(context, attempt, expect=()):
+        return drafts_model.write_draft(
+            private,
+            {
+                "context": context,
+                "expect": list(expect),
+                "record": {"attempt": attempt, "text": f"Words {attempt}"},
+            },
+        )
+
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        write("general", "a1")
+        stored["lose"] = True
+        with pytest.raises(PageStoreRefused):
+            write("general", "a2", ["a1"])
+        answer = write("reply:other", "b1")
+        assert answer["written"]
+        assert answer["version"] == 3
+        assert drafts_model.read_drafts(private) == stored["drafts"]["/example"]
+
+        shutil.rmtree(private)
+        shutil.copytree(page_dir, private)
+        assert restore(site)
+    restored = drafts_model.read_drafts(private)
+    assert restored["version"] == 3
+    assert {
+        context: draft["attempt"] for context, draft in restored["drafts"].items()
+    } == {
+        "general": "a2",
+        "reply:other": "b1",
+    }

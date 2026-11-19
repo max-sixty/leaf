@@ -116,6 +116,7 @@ const exactClosures = {
     "widget-upgrade.js",
     "exception.js",
     "page-paint.js",
+    "kept.js",
   ],
 };
 
@@ -136,7 +137,6 @@ const applicationOwners = [
 // them and must stay above them.
 const forbiddenClosures = Object.fromEntries([
   ...[
-    "thread/box.js",
     "thread/folding.js",
     "thread/inline.js",
     "thread/landing.js",
@@ -154,7 +154,7 @@ const forbiddenClosures = Object.fromEntries([
     "addressable-names.js",
     "anchor-resolution.js",
     "anchor-controls.js",
-    "annotation-overlay/anchor-paint.js",
+    "anchor-paint.js",
     "anchor-travel.js",
     "page-layout.js",
     "annotation-overlay/composing/drawing-paint.js",

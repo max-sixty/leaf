@@ -40,7 +40,7 @@ export const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
 // without changing its semantic reading. Its own owner restores its state; an ancestor
 // may own its placement, so refresh each mounted ancestor once for the new parent. The
 // caller remembers the parent, which keeps the ancestor's corrective move from looping.
-// A widget can also first appear when thread presentation mounts frozen markup after the
+// A widget can also first appear when thread presentation mounts message markup after the
 // global projection pass, so coordinate and provenance work runs again now that it and
 // its units exist; state application coalesces the request.
 /** @param {Element} owner @param {WidgetDescriptor} descriptor @param {boolean} parentChanged */

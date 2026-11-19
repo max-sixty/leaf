@@ -14,7 +14,7 @@ status and reason for every outcome, including an unscored run, and on completio
 the defects with their check readings and the findings the author's checks raised,
 so a run's defect rate and the checks' recall read from `results.json`. Each
 grading keeps its evidence in a fresh `defects-*` directory under the sample, so
-grading the sample again with `eval --from` keeps the earlier judge's.
+grading the sample again with `eval run --from` keeps the earlier judge's.
 """
 
 import json

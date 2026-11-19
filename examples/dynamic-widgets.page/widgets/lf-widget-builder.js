@@ -1,10 +1,10 @@
 // The two arms share one request and host inference settings. Only the output
 // contract changes: component configuration or complete HTML/CSS/JavaScript.
+import { nothing } from "/vendor/lit.js";
 import {
   LeafElement,
-  nothing,
   generate,
-  highlightBlocks,
+  dressCode,
   keepsHidden,
   keepsText,
   publishOutput,
@@ -161,7 +161,7 @@ customElements.define(
                   keepsText(get("compiled"), catalog.compile(result.value));
                   delete get("compiled").dataset.lfSyntax;
                 }
-                void highlightBlocks(region);
+                void dressCode(region);
                 await draw(result.value);
                 if (signal.aborted) return;
                 record.timing.renderMs = performance.now() - generated;

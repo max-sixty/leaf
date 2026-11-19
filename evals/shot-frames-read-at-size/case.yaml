@@ -1,10 +1,8 @@
-# From session aa9e996c. Fixing the gaps between an lf-diff's file rows, the agent
-# probed a bare fixture whose diff spanned a 1440px window, cropped full-width
-# strips before reading the lf-shot guidance, and the page drew them at half size; the
-# user asked why the diff read so small. The captures are that session's. Against the
-# earlier wording, 7 of 9 base runs kept their frames near the column (6 of 9 on their
-# first crop) and 12 of 12 head runs did; a variant handing over the session's
-# full-width crops passed on both arms (3 of 3 each).
+# Fixing the gaps between an lf-diff's file rows, a session's agent probed a bare
+# fixture whose diff spanned a 1440px window, cropped full-width strips before reading
+# the lf-shot guidance, and the page drew them at half size; the user asked why the
+# diff read so small. The captures are that session's. A variant hands over the
+# session's full-width crops.
 description: shot-frames-read-at-size
 metadata:
   purpose: "Source files and media: the rendered pair makes the relevant change readable
@@ -28,8 +26,8 @@ vars:
     and scrolled to the collapsed rows. The gaps sit between the rows at y 622 to 800,
     across the diff's full width. The captures are:
 
-        evals/shot-frames-read-at-size/captures/before.png  (main)
-        evals/shot-frames-read-at-size/captures/after.png   (the branch)
+        captures/before.png  (main)
+        captures/after.png   (the branch)
 
     Write the Leaf page's section on the gaps, with its before/after pair.
 assert:

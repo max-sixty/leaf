@@ -26,14 +26,14 @@
    about over its messages, since nothing beside it shows them; a margin card stands the
    notice and the settlement on its row of presses, which stands in the thread over its
    first message's head. The thread draws each of them there, so the panel's view and a
-   card share one notice, one settlement and one reply box. The card tried a head line
-   above its messages and dropped it: the line made the card 36px taller for little more
-   than its presses, which cost the card too much density. A title could fill the line,
+   card share one notice, one settlement and one reply box. Rejected: a head line above
+   the card's messages, which makes the card taller for little more than its presses,
+   costing it too much density. A title could fill the line,
    but the passage the card points at already says what the thread is about, so the card
    draws no quote either.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
-   a container's places and presses, and frozen message widgets keep their mechanical
+   a container's places and presses, and widgets in messages keep their mechanical
    lifetime outside those values. The card draws its messages as every reader of a
    whole thread does, folds and working message included (transcript.js), around them
    its head's controls and its reply box. The owner alone renders its native card root,
@@ -63,19 +63,21 @@
    (`settled`). The agent's answer to the user's own last turn, work under way and a
    reply streaming included, may then have arrived past the box's foot. Where the user
    stood at the box's end and their turn and the answer together fit in the box, its end
-   follows the answer into sight. Otherwise New reply stands at the box's foot until a
-   press on it, or the user scrolling there, shows the answer, or they send another turn,
-   and a user who stood at the end keeps their turn wholly in sight above the press, its
-   head included. A user whose wheel or key has the box scrolling as the answer arrives
-   stands wherever that scroll takes them, though the browser has yet to move the box
-   (arrivals.js, `readerScrolls`). Until then the answer is this thread's to place
-   (`answering`), and a box that follows its end, as a card's transcript does
-   (thread-preview.js), leaves it be. An answer the end followed into sight that grows afterwards, as a picture in it
-   loads, is placed again by the same rule (`placesEnd`). The user chose New reply for
-   the panel on 14 October 2026, and the rest of the floating panel's growth with it
-   (floating-panel.js, which records it); the margin card gained it on 4 November, so
-   one mechanism serves both, and that mechanism's rule at its end, under the user's
-   request for one thread view (thread-preview.js). */
+   glides to follow the answer into sight, so the turns above slide up as it comes, as
+   the user asked, rather than jumping up in one frame. Otherwise New reply stands at
+   the box's foot until a press on it, or the user scrolling there, shows the answer, or
+   they send another turn, and a user who stood at the end keeps their turn wholly in
+   sight above the press, its head included. A user whose wheel or key has the box
+   scrolling as the answer arrives stands wherever that scroll takes them, though the
+   browser has yet to move the box (arrivals.js, `readerScrolls`), or has moved it
+   before the page heard the input, as it does for macOS's precise wheels. Until then
+   the answer is this thread's to place (`answering`), and a box that follows its end,
+   as a card's transcript does (thread-preview.js), leaves it be. An answer the end
+   followed into sight that grows afterwards, as a picture in it loads, is placed again
+   by the same rule (`placesEnd`). The user chose New reply for the panel, and the rest
+   of the floating panel's growth with it (floating-panel.js, which records it); the
+   margin card takes it too, so one mechanism serves both, and that mechanism's rule at
+   its end, under the user's request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
@@ -98,6 +100,7 @@ import {
 import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
+  HOLDS,
   anchorPlace,
   messageReading,
   threadPassage,
@@ -115,14 +118,15 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  moveScrollerBy,
+  glideTo,
   SCROLL_SLACK,
+  scrollGoal,
   scrollLimit,
   scrollToEnd,
 } from "../scrolling.js";
 import { browserScrolls, readerScrolls } from "../arrivals.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { renderedOrder } from "../shadow.js";
+import { renderedOrder } from "../shadow-tree.js";
 import { iconTemplate } from "../icons.js";
 import { threadNamed } from "./state.js";
 import { settleThread } from "./folding.js";
@@ -137,7 +141,6 @@ import {
 import { leafSays, voiced } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
-import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, pinnedReply } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
@@ -151,12 +154,11 @@ import { addressableLabel } from "../addressable-names.js";
 /** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @typedef {ReturnType<typeof messageReading>} MessageReading */
 /** @typedef {{who: string, position: number, timestamp: string | null,
- * age: string | null, words: string, feedback: {
+ * words: string, feedback: {
  * input_id?: string, reply_id: string | null, attempt?: string | null,
  * reply_kind: "work" | "progress"} | null,
  * live: boolean, condition: import("../voice.js").Said | null}} WorkingMessage */
 /** @typedef {{key: string, summary: ReturnType<typeof threadSummary>,
- * recency: {short: string, long: string} | null,
  * id: string, attempt: string | null, surface: string, resolved: boolean,
  * attention: ReturnType<typeof threadAttention>, resolvedBy: string,
  * settlement: {kind: "resolve" | "unresolve", word: string, label: string},
@@ -332,7 +334,6 @@ function workingMessage(thread, messages) {
     who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
     position,
     timestamp,
-    age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),
     feedback,
     live,
@@ -353,7 +354,7 @@ export function threadReading(thread, surface, commands) {
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
   const attention = threadAttention(thread, agentName());
-  // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
+  // An answer says what it leaves (a question, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
   // thread.
   const asking = new Set(
@@ -380,8 +381,9 @@ export function threadReading(thread, surface, commands) {
     .map((message) =>
       messageReading(message, {
         // Where a message's widgets stand when several drawings show it (messages.js,
-        // `authoredHolders`): the primary reader's, then a margin card, then a seat.
-        authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
+        // `HOLDS`).
+        authoredRank:
+          commands.authoredRank ?? (surface === "margin" ? HOLDS.margin : HOLDS.page),
         workflows: message.workflows,
         leaves: leaves(message),
       }),
@@ -390,11 +392,6 @@ export function threadReading(thread, surface, commands) {
   return Object.freeze({
     key: threadKey(thread),
     summary,
-    // How long ago the thread last moved, read here with the rest of the reading, so a
-    // card whose reading did not change shows the same age and need not draw again.
-    recency: summary.latest
-      ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) })
-      : null,
     id: thread.id,
     attempt: thread.root.attempt ?? null,
     surface,
@@ -1031,9 +1028,14 @@ export class ThreadView {
     // A reader whose wheel or key has the box scrolling stands where it takes them
     // (header), though the box hasn't moved yet: the browser applies that scroll a frame
     // or more after the input, and a write of the box meanwhile cancels it. The delayed
-    // write below asks again, for an input made since.
-    const atEnd =
-      !readerScrolls(scroller) && before.limit - scroller.scrollTop <= SCROLL_SLACK;
+    // write below asks again, for an input made since, and stands back where the box no
+    // longer stands where this read it: the browser can apply a wheel's scroll before the
+    // page hears the wheel or the scroll, as it does for macOS's precise wheels.
+    // A glide this placement set going toward the end, which a growth arriving before
+    // it lands finds under way, still stands the user there: where the box stands is
+    // where it is headed (`scrollGoal`).
+    const stood = scrollGoal(scroller);
+    const atEnd = !readerScrolls(scroller) && before.limit - stood <= SCROLL_SLACK;
     const pad = Number.parseFloat(getComputedStyle(scroller).paddingTop);
     const from = () =>
       turn.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pad;
@@ -1042,7 +1044,7 @@ export class ThreadView {
       atEnd &&
       scroller.scrollHeight - scroller.scrollTop - from() <= scroller.clientHeight
     ) {
-      scrollToEnd(scroller);
+      scrollToEnd(scroller, "smooth");
       this.#followed = answer;
       return;
     }
@@ -1060,13 +1062,22 @@ export class ThreadView {
     nextRender(() => {
       if (this.#waiting !== next) return;
       this.repaint();
-      if (waiting || !atEnd || !turn.isConnected || readerScrolls(scroller)) return;
+      if (
+        waiting ||
+        !atEnd ||
+        !turn.isConnected ||
+        readerScrolls(scroller) ||
+        scrollGoal(scroller) !== stood
+      )
+        return;
       // The user's turn stands wholly in sight, between the box's top edge and New
-      // reply's ground, its head first where it is taller than that.
+      // reply's ground, its head first where it is taller than that, measured where the
+      // box is headed: New reply sticks at the box's foot, and the turn rises by what
+      // the glide has yet to move. The box glides there, as it glides to the end.
+      const ahead = stood - scroller.scrollTop;
       const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
-      const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
-      const by = Math.min(Math.max(below, 0), from());
-      moveScrollerBy(scroller, by);
+      const below = foot ? turn.getBoundingClientRect().bottom - ahead - foot.top : 0;
+      glideTo(scroller, stood + Math.min(Math.max(below, 0), from() - ahead));
     });
   }
 
@@ -1414,7 +1425,7 @@ export class ThreadView {
 
   // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn
   // done on a resolved thread (browser/AGENTS.md, "Controls are few and quiet"), in one corner:
-  // settling moves nothing beside it. A margin card once said Reopen as a word.
+  // settling moves nothing beside it. Rejected: a margin card saying Reopen as a word.
   /** @param {ThreadViewModel} model
    * @param {NonNullable<ThreadViewModel["settlement"]>} state */
   #settlement(model, state) {

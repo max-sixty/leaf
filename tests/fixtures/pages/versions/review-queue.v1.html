@@ -18,8 +18,10 @@
   <body>
     <main class="layout-workspace" id="review-workspace">
       <header>
-        <p class="eyebrow">release review · eight items</p>
-        <h1>Review the 2.8 release</h1>
+        <hgroup>
+          <p>release review · eight items</p>
+          <h1>Review the 2.8 release</h1>
+        </hgroup>
       </header>
 
       <div id="review-regions">
@@ -130,23 +132,31 @@
 verify counts
 switch readers
 expire old keys</code></pre>
-              <lf-ask id="review-cache-decision">
-                <h4>What should happen if post-switch verification fails?</h4>
+              <lf-group
+                id="review-cache-decision"
+                label="What should happen if post-switch verification fails?"
+              >
+                <h4 id="review-cache-decision-h">
+                  What should happen if post-switch verification fails?
+                </h4>
                 <p>
                   Both choices keep the old keys available while the migration is
                   checked.
                 </p>
-                <lf-options id="review-cache-rollback" choose>
-                  <lf-option id="review-cache-auto">
+                <lf-options id="review-cache-rollback">
+                  <lf-option
+                    id="review-cache-auto"
+                    label="Switch readers back automatically"
+                  >
                     <strong>Switch readers back automatically</strong> Mirror writes for
                     24 hours, then return to the old keys if counts diverge.
                   </lf-option>
-                  <lf-option id="review-cache-hold">
+                  <lf-option id="review-cache-hold" label="Stop for operator review">
                     <strong>Stop for operator review</strong> Keep readers on the new
                     keys until an operator inspects the mismatch.
                   </lf-option>
                 </lf-options>
-              </lf-ask>
+              </lf-group>
             </section>
             <section id="review-email">
               <h3>Receipt email</h3>
@@ -212,23 +222,34 @@ expire old keys</code></pre>
                   corrected ledger entry.
                 </p>
               </div>
-              <lf-ask id="review-billing-decision">
-                <h4>Where should the legacy invoice be reconciled?</h4>
+              <lf-group
+                id="review-billing-decision"
+                label="Where should the legacy invoice be reconciled?"
+              >
+                <h4 id="review-billing-decision-h">
+                  Where should the legacy invoice be reconciled?
+                </h4>
                 <p>
                   The one-cent difference is confined to invoices created before the
                   reporting migration.
                 </p>
-                <lf-options id="review-billing-path" choose>
-                  <lf-option id="review-billing-legacy">
+                <lf-options id="review-billing-path">
+                  <lf-option
+                    id="review-billing-legacy"
+                    label="Keep it on the old reporting path"
+                  >
                     <strong>Keep it on the old reporting path</strong> Close the current
                     run without changing the historical ledger entry.
                   </lf-option>
-                  <lf-option id="review-billing-correct">
+                  <lf-option
+                    id="review-billing-correct"
+                    label="Correct the ledger entry"
+                  >
                     <strong>Correct the ledger entry</strong> Move the invoice into the
                     new path after finance approves the adjustment.
                   </lf-option>
                 </lf-options>
-              </lf-ask>
+              </lf-group>
             </section>
             <section id="review-webhook">
               <h3>Webhook delivery</h3>

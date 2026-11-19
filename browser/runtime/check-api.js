@@ -12,6 +12,7 @@ export {
   applicationPresented,
   readApplicationPresentation,
   presentDocument,
+  projectionRegionsPresented,
   whenApplicationPresented,
   whenApplicationRegionsPresented,
   whenDocumentPresented,
@@ -23,6 +24,7 @@ export {
   resolveAnchor,
   aimTargets,
   aimTargetAt,
+  captured,
 } from "./anchor-resolution.js";
 export {
   shownBand,
@@ -38,10 +40,17 @@ export {
   shownParts,
   coverBoxes,
 } from "./geometry.js";
-export { drawnElements, skipped } from "./shadow-tree.js";
+export {
+  drawnElements,
+  skipped,
+  renderedParent,
+  uiInside,
+  upFrom,
+} from "./shadow-tree.js";
 export { windowHoldsRail } from "./content-layout.js";
-export { renderedParent, uiInside, upFrom } from "./shadow.js";
-export { authoredBody } from "./widget-elements.js";
+export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
+export { clockValue } from "./presence.js";
+export { NOTICE_MS, notice } from "./notifications.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -51,6 +60,8 @@ export {
   effectiveScroller,
   readingRegion,
   unconcealedReadingRegions,
+  regionScrollBehavior,
+  watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export {
   layoutBox,
@@ -78,7 +89,7 @@ export {
   live,
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
-export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
+export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
   onCurrentLocation,
   releaseFocus,
@@ -88,7 +99,7 @@ export {
 } from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
 // A range's owner's word of where the pointer rests, as a passage mark's is.
-export { pointRange } from "./preview.js";
+export { PREVIEW_TIMERS, pointRange } from "./preview.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
 export {
@@ -110,10 +121,9 @@ export {
   chromeSharedClasses,
   marksSheet,
   annotationSheets,
-  annotationMarkSheets,
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
-export { draftStore, userStore, PAGE_SCOPE } from "./storage.js";
+export { writingStore, userStore, PAGE_SCOPE } from "./storage.js";
 export { tabStore } from "./tab-store.js";
 export {
   frameVisibility,
@@ -127,11 +137,11 @@ export { reveal, dragHeld } from "./widget-elements.js";
 export { flashDuration, agentArrivalDuration } from "./motion.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
-export { alignInlineText, sentenceUnits } from "./text-alignment.js";
+export { alignInlineText, alignText, sentenceUnits } from "./text-alignment.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
-export { WORKS } from "./control-selectors.js";
+export { TEXT_BOX, WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
 export { observeOutputs } from "./data.js";
@@ -139,3 +149,4 @@ export { servedElements } from "./version.js";
 export { colourableAs, colouredAs } from "./syntax.js";
 
 export { pageRange } from "./native-selection.js";
+export { leavesOffered } from "./live-leaves.js";

@@ -72,10 +72,9 @@ same step, through its row's `keep` where `run` would throw away unsent words
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, a find box to its panel. A layer
   opened from the floating panel's menu returns to the panel.
-- After Send, a reply box keeps the caret for the next message, in a card, a seat and
-  the panel's field alike (`thread/replies.js`), and so does a box that stays open for
-  more messages such as a widget's thread box (`x-thread-seat`). A thread's first
-  comment leaves focus on the thread's card or title, never on the page.
+- After Send, a reply box keeps the caret for the next message, in a card, a widget's
+  outlet and the panel's field alike (`thread/replies.js`). A thread's first comment
+  leaves focus on the thread's card or title, never on the page.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing beside it while it is in view, else on the
   visible block, rather than on the control that opened it, so Tab carries on from it.
@@ -103,7 +102,9 @@ on its row; every other command leaves the control it was pressed on where it st
 screen (`bindings.js`). A surface
 may reuse a page key for the same intent with a nearer destination. While the user is
 on an obligation, or its margin or thread representative, core forwards only the
-widget's declared `contextKeys`, and widgets assign their own `1`–`9`.
+widget's declared `contextKeys`, and widgets assign their own `1`–`9`. A thread's
+view represents the question still open that the agent's latest message in it asks,
+before the one the thread is about (`current-target.js`, `questionAsked`).
 
 ## Touch routes
 
@@ -128,9 +129,9 @@ element, so it can't be the only place a state's reason or the rest of a cut wor
 said. A state says its word on the surface that holds it (`quoteReading`), a panel
 row's cut words stand whole where no pointer can hover (`floating-panel.css`), and
 whatever previews, a control's word and keys among it, shows its preview to a finger
-holding it. The hold reads and its release presses nothing, while a tap still presses;
-until 5 November 2026 the release pressed, so a finger couldn't read without acting
-short of sliding off, which on touch often scrolls instead (`preview.js`).
+holding it. The hold reads and its release presses nothing, while a tap still presses,
+so a finger reads without acting and without sliding off, which on touch often scrolls
+instead (`preview.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the
@@ -138,6 +139,13 @@ words. Suggest and reactions share an anchored Other responses picker, reached b
 (in one, Tab nests the item, `nestItems` in `composing/field-editor.js`), or the
 contextual reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
+
+A comment box that offers a second send, as one standing in a widget's outlet whose
+`lfHold` names it does (`composing/surface.js`, `fabHoldAt`), leaves Tab its native
+order and opens no picker by it. The second send is a press of its own beside the
+primary action, and Tab is its keyboard route: from the field it reaches the primary
+action, then the ⋯ while the field is empty, then the second send. The ⋯ still opens
+the picker there.
 
 A command that should leave the user where they are declares `retainCurrentLocation`: the
 row's press restores the focus, caret and selection the floating panel saved as the

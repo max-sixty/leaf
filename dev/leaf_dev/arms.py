@@ -1,7 +1,7 @@
 """Arms, served pages, and isolated CC, Codex and Pi sessions for the commands and eval
 harnesses that run a version of Leaf.
 
-A command that runs Leaf at two versions, such as `stills`, `probe` or `compare`, runs
+A command that runs Leaf at two versions, such as `stills`, `probe` or `preview --base`, runs
 `head`, this working tree in place with its uncommitted edits, and `base`, the merge
 base with the local `main` unless `--base REF` names another commit (`choose_arms`,
 `base_option`). The base is the whole tree at its commit, so it serves pages, runs the
@@ -27,6 +27,7 @@ their provider's restrictions; Codex's sandbox cannot nest inside a macOS sandbo
 """
 
 import base64
+import filecmp
 import http.cookiejar
 import json
 import os
@@ -43,7 +44,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
@@ -55,12 +56,19 @@ import click
 
 from leaf.codex import APP_SERVER_ENV
 from leaf.event_log import initialized
-from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.harness import (
+    IDENTITY_VARIABLES,
+    ClaudeCodeHarness,
+    CodexHarness,
+    claude_code_config,
+)
+from leaf.harness import codex_home as host_codex_home
 from leaf.registry.kernel import kernel_event_kinds
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
-from leaf_dev import ROOT, plain_html
+from leaf_dev import LEAF_COMMAND, ROOT, plain_html
 from leaf_dev.browser import shell_executable
+from leaf_dev.leaf_assets import pinned_copy
 from leaf_dev.page_fixtures import (
     admit_events,
     fixture_environment,
@@ -105,23 +113,25 @@ HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 # the author under evaluation never changes who assesses its output.
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
-    CodexHarness.name: "gpt-6.1-sol",
-    "user": "gpt-6.1-sol",
+    CodexHarness.name: "gpt-6.2-sol",
+    "user": "gpt-6.2-sol",
     # It answers only setup and the developer's turns, so a fast one does.
-    "claude-code-session": "claude-sonnet-5-5",
+    "journey-session": "claude-sonnet-5-5",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
-    CodexHarness.name: "gpt-6-astra",
+    CodexHarness.name: "gpt-6.2-astra",
 }
 # Models an experiment compares beside the pinned authors and judges.
 COMPARED_MODELS = ("claude-fable-5-2",)
 
 
 def run_directory(parent: Path) -> Path:
-    """Allocate one invocation's evidence without replacing another run's files."""
+    """Allocate one invocation's evidence without replacing another run's files,
+    named `run-` and the time it started, so a listing sorts runs by age."""
     parent.mkdir(parents=True, exist_ok=True)
-    return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+    started = datetime.now().astimezone()
+    return Path(tempfile.mkdtemp(prefix=f"run-{started:%Y%m%d-%H%M%S}-", dir=parent))
 
 
 def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str, str]:
@@ -137,10 +147,14 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
     When supplied, `payload` puts that arm's bin directory first on the clean PATH.
+    Nor does a child inherit a variable or PATH entry naming this checkout, such as
+    `uv run`'s VIRTUAL_ENV or the shell's PWD: its path names the branch, and an
+    eval's agent reads its environment (`commands/eval/run.py`).
     An isolated HOME keeps agent settings and state private, while uv shares the
-    host's dependency cache and the interpreter running this harness. Otherwise
-    hiding the host's managed Python can select a different system interpreter
-    and compile dependencies again for every sample.
+    host's dependency cache and the interpreter running this harness, by the path
+    its environment's link resolves to. Otherwise hiding the host's managed Python
+    can select a different system interpreter and compile dependencies again for
+    every sample.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -161,18 +175,23 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
             "LEAF_HOST_LAUNCHER",
             "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
         )
-        and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
+        # The session's own, and its Codex companion plugin's.
+        and not (
+            key.startswith(("CLAUDE", "CODEX_COMPANION")) and key != "CLAUDE_CONFIG_DIR"
+        )
+        and (key == "PATH" or str(ROOT) not in value)
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
     env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
     env.setdefault("UV_CACHE_DIR", str(Path.home() / ".cache/uv"))
-    env.setdefault("UV_PYTHON", sys.executable)
+    env.setdefault("UV_PYTHON", os.path.realpath(sys.executable))
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
         for entry in env["PATH"].split(os.pathsep)
         if not (venv and entry == str(Path(venv) / "bin"))
+        and not Path(entry).is_relative_to(ROOT)
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
     if payload is not None:
@@ -181,28 +200,55 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
 
 
 def run_leaf(
-    arm: Path,
-    state: Path,
+    arm: Path | None,
+    state: Path | None,
     *args: str,
+    env: dict[str, str] | None = None,
     check: bool = False,
+    error: Callable[[str], BaseException] = click.ClickException,
     timeout: float | None = None,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run an arm's launcher under its state home, without personal configuration."""
+    """Run `arm`'s launcher, or where `arm` is None this environment's own Leaf
+    (`LEAF_COMMAND`), and capture what it says. It runs in `env`, by default this
+    process's environment less the agent session it may run in (`environment`),
+    under the state home `state` where one is given, and without personal
+    configuration (`fixture_environment`). With `check`, a nonzero exit raises
+    `error` with the command, its status and its output."""
+    command = [*LEAF_COMMAND] if arm is None else [str(arm / "bin/leaf")]
+    base = environment() if env is None else dict(env)
+    if state is not None:
+        base["XDG_STATE_HOME"] = str(state)
+    # From the repository root, against which a page's layer resolves a relative
+    # package path, as the site's `docs/layer.json` names `./docs/package`.
     proc = subprocess.run(
-        [str(arm / "bin/leaf"), *args],
+        [*command, *args],
         input=input_text,
         capture_output=True,
         text=True,
         check=False,
         timeout=timeout,
-        env=fixture_environment(environment(XDG_STATE_HOME=str(state))),
+        env=fixture_environment(base),
+        cwd=ROOT,
     )
     if check and proc.returncode:
-        raise click.ClickException(
+        raise error(
             f"leaf {' '.join(args)} exited {proc.returncode}:\n{proc.stdout}{proc.stderr}"
         )
     return proc
+
+
+def arm_python(arm: Path, *, dev: Path | None = None) -> list[str]:
+    """The command that runs Python in `arm`'s own environment, the one its `bin/leaf`
+    syncs, so the arm's Leaf is what it imports: its interpreter, isolated from this
+    process's paths, or with `dev`, that `leaf_dev` tree laid over the environment by
+    `uv run`, for code that imports `leaf_dev` too, which a harness never installs."""
+    if dev is None:
+        return [str(arm / ".venv/bin/python"), "-I"]
+    return [
+        "uv", "run", "-q", "--no-dev", "--project", str(arm),
+        "--with-editable", str(dev), "python",
+    ]  # fmt: skip
 
 
 def pages(*roots: Path) -> list[Path]:
@@ -262,10 +308,19 @@ class ServedPage(NamedTuple):
     state: Path
 
     def leaf(
-        self, *args: str, timeout: float | None = None
+        self, *args: str, timeout: float | None = None, **extra: str
     ) -> subprocess.CompletedProcess:
-        """Run the arm's launcher under the state home, refusing a failed command."""
-        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
+        """Run the arm's launcher under the state home with `extra` in its
+        environment, such as a session for a command only an agent's voice may run,
+        refusing a failed command."""
+        return run_leaf(
+            self.arm,
+            self.state,
+            *args,
+            env=environment(**extra),
+            check=True,
+            timeout=timeout,
+        )
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
@@ -319,11 +374,34 @@ def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
         yield copies
 
 
-def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from the local `main`: the base a command compares
+def preview_lease(page: Path) -> Path:
+    """The lock a running `leaf-dev preview` holds on its slot `page`: beside the
+    page, not in it, since a discard removes the page and a lock on a removed inode
+    excludes nobody."""
+    page.parent.mkdir(parents=True, exist_ok=True)
+    return page.with_name(f"{page.name}.lock")
+
+
+# The signals that stop a process serving Leaf in the foreground, such as a preview.
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
+
+def terminated(signum, _frame) -> None:
+    """Begin shutdown once and let its cleanup finish despite later stop signals.
+
+    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
+    interrupt the watcher or service cleanup.
+    """
+    for stop_signal in STOP_SIGNALS:
+        signal.signal(stop_signal, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
+
+
+def merge_base() -> str:
+    """The commit `HEAD` branched from the local `main`: the base a command compares
     this working tree with unless it is handed another."""
     return subprocess.run(
-        ["git", "-C", ROOT, "merge-base", ref, "main"],
+        ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
         capture_output=True,
         text=True,
         check=True,
@@ -404,9 +482,7 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
     # Serial: `-j` needs a forkserver socket, which a sandboxed CI runner refuses.
-    subprocess.run(
-        [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
-    )
+    subprocess.run([*arm_python(dest), "-m", "compileall", "-q", dest], check=True)
     return arm_commit(ref)
 
 
@@ -468,17 +544,20 @@ def choose_arms(
     With `payload`, as for a command that installs each arm for child agents, both
     arms are copies of the plugin payload alone in `scratch`'s `arms/`, the head's
     taken from the working tree now: a child can't read its way to the other arm,
-    and a later edit changes neither."""
-    paths = PAYLOAD if payload else (".",)
+    and a later edit changes neither. A built arm's directory is named at random, so
+    a child reading its plugin's path can't tell which arm it is."""
+
+    def built(ref: str | None, paths: Iterable[str]) -> Arm:
+        (scratch / "arms").mkdir(parents=True, exist_ok=True)
+        directory = Path(tempfile.mkdtemp(prefix="arm-", dir=scratch / "arms"))
+        return Arm(directory, build_arm(ref, directory, paths=paths))
+
     arms = {}
     if base is not None:
-        directory = scratch / "arms" / "base"
-        commit = build_arm(base or merge_base(), directory, paths=paths)
-        arms["base"] = Arm(directory, commit)
+        arms["base"] = built(base or merge_base(), PAYLOAD if payload else (".",))
     if not payload:
         return {**arms, "head": Arm(ROOT, arm_commit(None))}
-    directory = scratch / "arms" / "head"
-    return {**arms, "head": Arm(directory, build_arm(None, directory))}
+    return {**arms, "head": built(None, PAYLOAD)}
 
 
 def describe(arms: dict[str, Arm]) -> str:
@@ -556,7 +635,7 @@ def codex_home(path: Path, config: str = "") -> Path:
     `~/.agents/skills`, which `CODEX_HOME` does not move. Keep one credential file:
     a child refreshing a copied login would leave the host's refresh token stale."""
     path.mkdir(mode=0o700)
-    host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    host = host_codex_home()
     (path / "auth.json").symlink_to((host / "auth.json").resolve())
     (path / "config.toml").write_text(config)
     return path
@@ -570,7 +649,7 @@ def pi_home(path: Path) -> Path:
     The copy leaves out the refresh token: refreshing it rotates it, which would log
     the host's Codex out. A login that expires within the hour is refused, since the
     copy cannot outlive it."""
-    host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    host = host_codex_home()
     tokens = json.loads((host / "auth.json").read_text())["tokens"]
     claims = tokens["access_token"].split(".")[1]
     expires = json.loads(base64.urlsafe_b64decode(claims + "=" * (-len(claims) % 4)))[
@@ -611,10 +690,7 @@ def claude_home(path: Path) -> Path:
     if keychains.is_dir() and not (path / "Library/Keychains").is_symlink():
         (path / "Library").mkdir(parents=True, exist_ok=True)
         (path / "Library/Keychains").symlink_to(keychains)
-    credentials = (
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
-        / ".credentials.json"
-    )
+    credentials = claude_code_config() / ".credentials.json"
     if credentials.is_file():
         (path / ".claude").mkdir(parents=True, exist_ok=True)
         shutil.copy(credentials, path / ".claude/.credentials.json")
@@ -653,7 +729,7 @@ def retire_sessions(payload: Path, state: Path) -> None:
         return
     subprocess.run(
         [
-            str(payload / ".venv/bin/python"),
+            *arm_python(payload),
             "-c",
             """
 import json
@@ -695,6 +771,28 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
                 retire_sessions(payload, state if state is not None else work / "state")
 
 
+def stage_task_files(task: str, cwd: Path) -> Path | None:
+    """Copy an eval task's pinned files, where it has any, into an agent's `cwd`,
+    each at its path in the task's asset directory, and return that directory. A
+    task's prompt names them by those paths, which leave out `evals/<task>/`, since a
+    task's name describes the behavior it measures. Probes sharing a working
+    directory take several tasks' files there, so a path two tasks fill with
+    different bytes is refused."""
+    files = pinned_copy(ROOT / "evals" / task)
+    if files is None or not files.is_dir():
+        return None
+
+    def copy(source: str, target: str) -> None:
+        if Path(target).exists() and not filecmp.cmp(source, target, shallow=False):
+            raise click.ClickException(
+                f"two eval tasks have different files at {target}"
+            )
+        shutil.copy2(source, target)
+
+    shutil.copytree(files, cwd, dirs_exist_ok=True, copy_function=copy)
+    return files
+
+
 def authoring_sandbox(*owned: Path) -> str:
     """Isolate shared scratch files, installed instructions and processes on macOS.
 
@@ -719,8 +817,8 @@ def authoring_sandbox(*owned: Path) -> str:
         rf"|codex-daemon-{uid}(/|$)"
     )
     host_plugins = (
-        Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "plugins",
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "plugins",
+        host_codex_home() / "plugins",
+        claude_code_config() / "plugins",
     )
     return "\n".join(
         [
@@ -775,22 +873,24 @@ def claude_child(
     *args: str,
     dirs: Iterable[Path] = (),
     env: dict | None = None,
-    model: str = MODELS[ClaudeCodeHarness.name],
+    model: str | None = None,
     sandbox: bool = True,
 ) -> dict:
     """The `subprocess` arguments for one isolated `claude -p` child in `cwd`.
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
-    On macOS the child runs under `authoring_sandbox`, owning `cwd`, its home and
-    `dirs`, unless `sandbox` is False, as a child that drives the harness's own
-    browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
-    and restriction; an unsandboxed launch retires that generated file."""
+    `model` defaults to the Claude Code pin as `MODELS` holds it when called, which
+    a run's `--model` sets. On macOS the child runs under `authoring_sandbox`,
+    owning `cwd`, its home and `dirs`, unless `sandbox` is False, as a child that
+    drives the harness's own browser is. Its private-home CLAUDE.md names the
+    sandbox's scratch directory and restriction; an unsandboxed launch retires that
+    generated file."""
     dirs = list(dirs)
     (cwd / "tmp").mkdir(exist_ok=True)
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
-        "claude", "-p", *args, "--model", model,
+        "claude", "-p", *args, "--model", model or MODELS[ClaudeCodeHarness.name],
         "--strict-mcp-config", "--permission-mode", "bypassPermissions",
         "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
@@ -1176,7 +1276,7 @@ class LiveSession:
                 return True
         return self.answered > since
 
-    def during(self, action, before=None):
+    def during(self, action):
         """Run `action` while the driver records and observes the child's output,
         and return what it returns."""
         done: queue.Queue = queue.Queue()
@@ -1191,7 +1291,7 @@ class LiveSession:
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
         try:
-            for _ in self.records(idle=0.5, before=before):
+            for _ in self.records(idle=0.5):
                 if not worker.is_alive():
                     break
         finally:
@@ -1318,6 +1418,18 @@ def read_trace(stream: Path) -> list[dict]:
         if stream.exists()
         else []
     )
+
+
+def phase_traces(trace: list[dict]) -> list[list[dict]]:
+    """A session's records split at the `eval_phase` marks its driver noted, each
+    phase opening with its mark, and any records before the first mark a phase of
+    their own."""
+    phases: list[list[dict]] = []
+    for record in trace:
+        if record.get("type") == "eval_phase" or not phases:
+            phases.append([])
+        phases[-1].append(record)
+    return phases
 
 
 def trace_result(trace: list[dict]) -> dict:

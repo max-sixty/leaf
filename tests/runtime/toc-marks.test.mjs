@@ -1,17 +1,17 @@
-/* Which section of the contents each open thread, On me item and change counts in
+/* Which section of the contents each open thread, On Me item and change counts in
    (toc-marks.js), and the words a row's link previews them in. How the marks draw, and
    that the widget reads them again as the readings change, is the browser's to show
    (`tests/browser/widgets/test_contents_and_glosses.py`). */
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
 import { drawToc } from "../../packages/default/widgets/toc-view.js";
 import { marksWords, sectionMarks } from "../../packages/default/widgets/toc-marks.js";
 
 // The contents of `markup` as lf-toc lists them, and each section's marks, by the words
 // of the heading leading it ("" for an untitled start), from threads about the elements
-// `threads` names (`{id, resolved}`), On me items at the widgets `onMe` names, and
+// `threads` names (`{id, resolved}`), On Me items at the widgets `onMe` names, and
 // changes over the blocks each of `changes` names, or a removal whose gap stands
 // `before`, `after` or `in` the element `at` names.
 /** @param {string} markup
@@ -96,6 +96,16 @@ test("a removal counts in the section it was taken from, a section's end include
       Check: { threads: 0, onMe: 0, changes: 1 },
     },
   );
+  // A gap before a section stands where the reading was before it, not under the
+  // heading the section opens with.
+  assert.deepEqual(
+    marked(
+      `<h2>Prepare</h2><p id="prepare">Book it.</p>
+      <section id="switch"><h2>Switch</h2><p>Restart.</p></section>`,
+      { changes: [{ at: "switch", gap: "before" }] },
+    ),
+    { Prepare: { threads: 0, onMe: 0, changes: 1 } },
+  );
 });
 
 test("a heading the contents leave out counts in the section listed above it", () => {
@@ -128,9 +138,44 @@ test("a thread about a whole section counts in it, and one in a nested section i
       },
     ),
     {
-      Prepare: { threads: 2, onMe: 0, changes: 0 },
-      "Check access": { threads: 1, onMe: 0, changes: 0 },
+      // What follows a nested section before the next heading is in its stretch, as
+      // the map draws it.
+      Prepare: { threads: 1, onMe: 0, changes: 0 },
+      "Check access": { threads: 2, onMe: 0, changes: 0 },
       Switch: { threads: 1, onMe: 0, changes: 0 },
+    },
+  );
+});
+
+test("a thread about a whole question or card counts in the row of the heading titling it", () => {
+  assert.deepEqual(
+    marked(
+      `<h1>Plan</h1><p id="lede">Why.</p>
+      <section id="decision"><section id="ask">
+        <hgroup id="ask-title"><p>Decision 1</p><h2>Which store?</h2></hgroup>
+        <p id="ask-context">Two stores fit.</p>
+      </section></section>
+      <section id="bare-ask">
+        <hgroup><p>Decision 2</p><h2>Which region?</h2></hgroup>
+        <p>One region fits.</p>
+      </section>
+      <h2>Cards</h2>
+      <article id="card"><h3>First card</h3><p>Its words.</p></article>`,
+      {
+        threads: [
+          { id: "decision" },
+          { id: "ask" },
+          { id: "ask-title" },
+          { id: "ask-context" },
+          { id: "bare-ask" },
+          { id: "card" },
+        ],
+      },
+    ),
+    {
+      "Which store?": { threads: 4, onMe: 0, changes: 0 },
+      "Which region?": { threads: 1, onMe: 0, changes: 0 },
+      "First card": { threads: 1, onMe: 0, changes: 0 },
     },
   );
 });
@@ -142,4 +187,28 @@ test("a section's marks read as its counts, and none read as nothing", () => {
   );
   assert.equal(marksWords({ threads: 0, onMe: 2, changes: 0 }), "2 waiting on me");
   assert.equal(marksWords(undefined), "");
+});
+
+test("what follows a question before the next heading counts in the question's row", () => {
+  // As the map draws the question's stretch, a note after it, a removal after it and a
+  // heading after it inside the section around it agree.
+  assert.deepEqual(
+    marked(
+      `<h1>Plan</h1><h2>Context</h2><p>Why.</p>
+      <section id="ask"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
+        <p>Two fit.</p></section>
+      <p id="after">A note after the question.</p>
+      <section id="s"><section><h2>Which region?</h2></section>
+        <h3>Notes</h3><p id="notes">Its words.</p></section>`,
+      {
+        threads: [{ id: "after" }, { id: "s" }, { id: "notes" }],
+        changes: [{ at: "ask", gap: "after" }],
+      },
+    ),
+    {
+      "Which store?": { threads: 1, onMe: 0, changes: 1 },
+      "Which region?": { threads: 1, onMe: 0, changes: 0 },
+      Notes: { threads: 1, onMe: 0, changes: 0 },
+    },
+  );
 });

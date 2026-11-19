@@ -9,7 +9,7 @@ import {
   setChildren,
   setRenderedChildren,
 } from "/runtime/dom-children.js";
-import { under } from "/runtime/shadow.js";
+import { under } from "/runtime/shadow-tree.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported, placesFailure } from "/runtime/widget-upgrade.js";
 import { createRef, html, ref, render } from "/runtime/framework.js";
@@ -102,7 +102,6 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
     declared: (node) => node.localName === "test-owner",
     reaches: () => false,
     traversed: () => false,
-    body: () => null,
     same: (held, wanted) => held.isEqualNode(wanted),
     sameValue: (held, wanted) => held === wanted,
     diffWork: Infinity,
@@ -266,26 +265,6 @@ test("a widget a revision keeps stands for the same live nodes inside it", () =>
   const source = after.querySelector("test-owner p");
   assert.equal(rules.pairs.get(source), words);
   assert.equal(rules.pairs.get(source.firstChild), words.firstChild);
-});
-
-test("a revision reaching a widget writes inside the authored body its module built", () => {
-  const { live, rules, install } = patch(
-    '<test-owner id="o"><p>Before</p></test-owner>',
-    '<test-owner id="o"><p>After</p><p>Added</p></test-owner>',
-  );
-  const owner = live.firstElementChild;
-  const kept = owner.firstElementChild;
-  const body = document.createElement("div");
-  body.append(...owner.childNodes);
-  const summary = document.createElement("span");
-  owner.append(summary, body);
-  rules.reaches = () => true;
-  rules.body = (node) => (node === owner ? body : null);
-  rules.arrive = (node) => node.cloneNode(true);
-  install();
-  assert.deepEqual([...owner.children], [summary, body]);
-  assert.equal(body.innerHTML, "<p>After</p><p>Added</p>");
-  assert.equal(body.firstElementChild, kept);
 });
 
 test("child reordering works without moveBefore and accepts new nodes", () => {

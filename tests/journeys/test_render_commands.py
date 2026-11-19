@@ -90,7 +90,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}
-    assert {"1280px-1.png", "1920px-1.png", "390px-1.png"} <= names
+    assert {"desktop-1280px-1.png", "widest-1920px-1.png", "phone-390px-1.png"} <= names
     assert all((into / name).is_file() for name in names)
 
 
@@ -101,7 +101,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open obligation, a suggestion as much as an lf-ask, gets the window `m` brings it
+    Each open obligation, a suggestion as much as a question, gets the window `m` brings it
     into, as the user working the page meets it, including those `m` reaches past a
     page widget move handed back to the user, which is a stop of its own and no obligation."""
     tiles = "".join(
@@ -111,17 +111,17 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         leaf_page(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
-            "<div id='body'><lf-ask id='ship-ask'><h2>Ship now?</h2>"
-            "<lf-options id='ship' choose><lf-option id='ship-now'>Now</lf-option>"
-            "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask>"
+            "<div id='body'><lf-group id='ship-ask' label='Ship now?'><h2 id='ship-ask-h'>Ship now?</h2>"
+            "<lf-options id='ship'><lf-option id='ship-now'>Now</lf-option>"
+            "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-group>"
             f"<div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
             + "".join(
                 f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
             )
             + "".join(
-                f"<lf-ask id='ask-{i}'><h2>Ship part {i}?</h2>"
-                f"<lf-options id='o-{i}' choose><lf-option id='o-{i}-y'>Yes</lf-option>"
-                f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></lf-ask>"
+                f"<lf-group id='ask-{i}' label='Ship part {i}?'><h2 id='ask-{i}-h'>Ship part {i}?</h2>"
+                f"<lf-options id='o-{i}'><lf-option id='o-{i}-y'>Yes</lf-option>"
+                f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></lf-group>"
                 for i in range(2)
             )
             + "<p id='note'>Keep this line.<lf-suggestion id='sug'><lf-old>"
@@ -172,7 +172,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     shows = {screen["file"]: screen["shows"] for screen in screens["files"]}
     names = sorted(path.name for path in into.iterdir())
     assert set(shows) <= set(names)
-    assert {"1280px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
+    passes = {"desktop-1280px-1.png", "widest-1920px-1.png", "phone-390px-1.png"}
+    assert passes <= set(names)
     assert {
         "1280px-obligation-1.png",
         "1280px-obligation-2.png",
@@ -184,7 +185,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())
     assert any("<div id=2026-numbers> 4 → " in label for label in shows.values())
     # A page longer than its first screens says so rather than passing for read whole.
-    assert "390px-9.png" not in names
+    assert "phone-390px-9.png" not in names
     assert any("phone, the first 8 of the page's" in label for label in shows.values())
 
 
@@ -215,10 +216,38 @@ def test_a_render_check_reads_the_desktop_in_the_users_window(
     monkeypatch.delenv(PIN_VARIABLE)
     read, names = desktop()
     assert read == {"width": 1000, "height": 640, "from": "the user's window"}
-    assert "1000px-1.png" in names, names
+    assert "desktop-1000px-1.png" in names, names
     read, names = desktop(**{PIN_VARIABLE: "fixed"})
     assert (read["width"], read["height"]) == (1280, 720), read
-    assert "1280px-1.png" in names, names
+    assert "desktop-1280px-1.png" in names, names
+
+
+def test_a_desktop_at_the_widest_window_keeps_its_own_screens(
+    serve, headless_shell, monkeypatch
+):
+    """A reader whose window is already the widest the check resizes to gets one set of
+    screens at that width, labelled as their desktop, rather than a second pass that
+    repeats them."""
+    serve(LONG_PAGE)
+    d = serve.page_dir
+    window = user_view_report()
+    window["viewport"] = {"width": 1920, "height": 900}
+    user_views.observe_user_view(d, window)
+    monkeypatch.delenv(PIN_VARIABLE)
+    ran = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(d), "--render"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+    )
+    browser = json.loads(ran.stdout)["browser"]
+    assert browser["desktop"]["width"] == 1920, browser["desktop"]
+    files = [screen["file"] for screen in browser["screens"]["files"]]
+    assert len(files) == len(set(files)), files
+    shows = {screen["file"]: screen["shows"] for screen in browser["screens"]["files"]}
+    assert "desktop-1920px-1.png" in shows, shows
+    assert not [name for name in shows if name.startswith("widest-")], shows
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
@@ -429,9 +458,9 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
     d = serve.page_dir
 
-    def check(status, **env):
+    def check(status, *flags, **env):
         ran = subprocess.run(
-            [*LEAF_COMMAND, "page", "check", str(d)],
+            [*LEAF_COMMAND, "page", "check", str(d), *flags],
             capture_output=True,
             text=True,
             check=False,
@@ -453,6 +482,11 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert "/page/film.js:2:" in errors
     assert "Error: the trace never loaded" in errors
     assert "/page/widgets/lf-loader.js:3" in errors
+    # The render check reads page code on its first page, and reads no further.
+    rendered = check(1, "--render", LEAF_BROWSER_EXECUTABLE=headless_shell)
+    codes = [f["code"] for f in broken["findings"]]
+    assert [f["code"] for f in rendered["findings"]] == codes
+    assert rendered["browser"]["ran"] == ["page code"]
 
     unrun = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
     assert (unrun["browser"]["asked"], unrun["browser"]["ran"]) == (["page code"], [])
@@ -482,7 +516,7 @@ from render_cases_layout import (
     BADGE_CHROME,
 )
 from render_harness import (
-    CARRIED_PAGE,
+    CARRIED_DECISION,
     EXAMPLE_PACKAGES,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -506,7 +540,7 @@ def test_render_reads_widget_chrome_where_it_stands(
     comment on it, and got nothing back — twice, months apart, on the same page. The
     heading was the page's word in a row its author had marked as the runtime's, and
     `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
-    the declaration goes on the label (relabel), and an undeclared word under chrome is
+    the declaration goes on the label (control-labels.js), and an undeclared word under chrome is
     reported. It is about a word the user was shown, so the check asks that first: a
     word the browser reads out and the page never paints is hidden with [hidden], the
     silence available in every root, and the same word shown is still reported. A
@@ -553,9 +587,7 @@ def test_render_reads_widget_chrome_where_it_stands(
         f'<lf-shot id="shot-nav" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
         f' after="{SHOT_SRC["after"]}"></lf-shot>'
     )
-    start = CARRIED_PAGE.index('<lf-options id="carried">')
-    carried = CARRIED_PAGE[start : CARRIED_PAGE.index("</lf-options>") + 13]
-    source = REPLY_HOST_PAGE.replace("</main>", carried + pair + "</main>")
+    source = REPLY_HOST_PAGE.replace("</main>", CARRIED_DECISION + pair + "</main>")
     url = serve(
         source,
         packages=(*EXAMPLE_PACKAGES, "./.leaf"),
@@ -581,8 +613,10 @@ def test_render_reads_widget_chrome_where_it_stands(
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SAMPLE_TEXT,
-            "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
+            "text": SAMPLE_TEXT
+            + "\n\n"
+            + SAMPLE_MARKUP
+            + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
         },
     )
     page = open_page(primed(browser, stage_reach_cases), url)
@@ -642,22 +676,24 @@ def test_render_reads_widget_chrome_where_it_stands(
 def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
     browser, serve, tmp_path, headless_shell
 ):
-    """Nothing draws a message's widgets before the user opens its thread, and the
-    log freezes the message, so a thread command runs markup holding a widget only a
-    browser can judge once before it posts, and refuses it with the widget's own
-    error, as plain `page check` refuses a page. A host with no browser posts it
-    unrun; the body its module cannot draw then reports to the author when the user
-    opens its thread, naming the widget, and the author answers with a corrected
-    reply."""
+    """Nothing draws a message's widgets before the user opens its thread, so a
+    thread command runs markup holding a widget only a browser can judge once
+    before it posts, and refuses it with the widget's own error, as plain `page check`
+    refuses a page. A host with no browser posts it unrun; the body its module cannot
+    draw then reports to the author when the user opens its thread, naming the widget,
+    and the author answers with a corrected reply."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
 
     def post(executable):
         return subprocess.run(
-            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
-            + [
-                "--markup",
-                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+            [
+                *LEAF_COMMAND,
+                "thread",
+                "create",
+                str(d),
+                "--text",
+                'See this.\n\n<lf-chart id="t-bad">\n<pre>\n{ marks: [ }\n</pre></lf-chart>',
             ],
             capture_output=True,
             text=True,
@@ -667,8 +703,8 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
 
     refused = post(headless_shell)
     assert refused.returncode != 0, refused.stdout + refused.stderr
-    refusal = json.loads(refused.stderr)["error"]
-    assert refusal.startswith("comment markup doesn't draw:"), refusal
+    refusal = json.loads(refused.stdout)["error"]
+    assert refusal.startswith("the HTML in the comment doesn't draw:"), refusal
     assert '<lf-chart id="t-bad"> failed: ' in refusal
     assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
 
@@ -841,7 +877,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
 
 def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
-    browser, serve
+    browser, serve, monkeypatch
 ):
     url = serve(
         FILM_PAGE.replace("</main>", '<img src="/page/missing-image.png"></main>'),
@@ -864,8 +900,10 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     class RoutedBrowser:
         def __init__(self, *, fail_helper):
             self.fail_helper = fail_helper
+            self.opened = 0
 
         def new_page(self, **kwargs):
+            self.opened += 1
             page = browser.unwatched.new_page(**kwargs)
             page.route(
                 "**/page/helper.js",
@@ -892,17 +930,55 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     assert by_code["not-ready"][0]["stage"] == "refused", failed
     assert by_code["not-ready"][0]["error"].startswith("the runtime could not start:")
     assert any(
-        report["kind"] == "Script"
+        report["kind"] == "script"
         and report["error"] == "net::ERR_FAILED"
-        and report["frame"] == url
+        and report["frame"] == url.split("?")[0]
         and report["url"].endswith("/page/helper.js")
         for report in by_code["request-failed"]
     ), failed
     assert any(
         report["status"] == 404
-        and report["kind"] == "Image"
+        and report["kind"] == "image"
         and report["url"].endswith("/page/missing-image.png")
         for report in by_code["request-status"]
     ), failed
 
     assert run_page_code(RoutedBrowser(fail_helper=False), url) == []
+
+    # `page check --render` takes the same reading on the render check's first page,
+    # and a page that cannot start is read no further. A page that refuses never
+    # upgrades, so a reading that missed the refusal would wait out each page's
+    # deadline, shortened here.
+    monkeypatch.setattr(render_checks_model, "HANDOVER_DEADLINE_MS", 20_000)
+    routed = RoutedBrowser(fail_helper=True)
+    folded = []
+    reading = render_gate_model.render_version(routed, url, page_code=folded)
+    assert folded == failed
+    assert (reading.findings, routed.opened) == ([], 1)
+
+
+def test_a_check_drawn_in_firefox_hears_what_one_in_chrome_does(bidi_firefox, serve):
+    """`page check` draws a Firefox reader's page in Firefox, which hands the check no
+    post's body and keeps no DevTools Issues panel. The page-code reading still hears
+    the runtime's report of a script that throws, in the words the watcher gets, with
+    the request that failed beside it, and the render check reads a page whose code
+    passes to the end."""
+    thrown = serve(
+        leaf_page(
+            "Throws",
+            '<p id="words">Words.</p><script type="module">'
+            'await fetch("page/missing.json");'
+            'throw new Error("thrown by the page");</script>',
+        )
+    )
+    found = run_page_code(bidi_firefox.unwatched, thrown)
+    assert [f.code for f in found] == ["page-report", "request-status"], found
+    assert "thrown by the page" in found[0].values["text"], found
+    assert found[1].values["url"].endswith("/page/missing.json"), found
+
+    clean = serve(leaf_page("Passes", '<p id="words">Words.</p>'))
+    folded = []
+    reading = render_gate_model.render_version(
+        bidi_firefox.unwatched, clean, page_code=folded
+    )
+    assert (folded, reading.failures) == ([], []), reading.findings

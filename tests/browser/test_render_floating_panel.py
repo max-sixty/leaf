@@ -68,7 +68,7 @@ from render_harness import (
 )
 from render_harness import leaf_page as titled_page
 
-from browser.threads import paste_image
+from browser.threads import dispatch_paste, paste_image
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
@@ -5521,6 +5521,56 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     assert tile["y"] + tile["height"] <= before["y"], (tile, before)
     assert tile["x"] >= field(page).bounding_box()["x"] - 1, tile
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
+
+
+def test_a_pasted_image_s_thumbnail_arrives_at_its_picture_s_size(browser, serve):
+    """A pasted image's thumbnail is drawn first at its picture's own size, however
+    late the picture's bytes come back, so the shelf above the panel never steps as
+    the picture decodes."""
+    page = floating(browser, serve(LONG_PAGE))
+    held = []
+    page.route(re.compile(r"/media/[^/]+\.png$"), lambda route: held.append(route))
+    page.evaluate(
+        """() => {
+          // Each frame's size of the thumbnail, from the frame it is first drawn.
+          window.tileSizes = [];
+          const SELECTOR = '.lf-fp-box .lf-composer-media-item > .lf-composer-media-open';
+          const find = (root) => {
+            const found = root.querySelector(SELECTOR);
+            if (found) return found;
+            for (const host of root.querySelectorAll('*'))
+              if (host.shadowRoot) {
+                const inner = find(host.shadowRoot);
+                if (inner) return inner;
+              }
+            return null;
+          };
+          const read = () => {
+            const tile = find(document);
+            if (tile) {
+              const {width, height} = tile.getBoundingClientRect();
+              const last = tileSizes.at(-1);
+              if (!last || last[0] !== width || last[1] !== height)
+                tileSizes.push([width, height]);
+            }
+            requestAnimationFrame(read);
+          };
+          requestAnimationFrame(read);
+        }"""
+    )
+    field(page).click()
+    dispatch_paste(field(page), solid_png(40, 30, (255, 128, 64)))
+    holding(page, held, 1, "the picture's bytes")
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    for route in held:
+        route.continue_()
+    expect(field(page)).not_to_have_attribute("aria-busy", "true")
+    shelf = page.locator(".lf-fp-box .lf-composer-media-item")
+    expect(shelf).to_have_count(1)
+    settled(page)
+    assert page.evaluate("tileSizes") == [[40, 30]]
 
 
 def test_a_line_the_field_gives_up_rides_the_box_s_top_edge(browser, serve):

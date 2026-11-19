@@ -219,6 +219,56 @@ def test_a_bridged_command_runs_on_the_interpreter_of_the_copy_that_sent_it(
     assert capfd.readouterr().out == f"{interpreter} -I -m leaf --version\n"
 
 
+def test_a_bridged_command_waits_for_a_slow_bridge_while_it_holds_the_lease(
+    tmp_path, monkeypatch, capfd
+):
+    """The hook returns once it has started the bridge, which on a loaded machine
+    may take longer to publish its address than any count of polls allows. The
+    client waits while the bridge holds its lease, so the command runs."""
+    for name in ("HTTP_PROXY", "http_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    python = sys.executable
+    slow = tmp_path / "python"
+    slow.write_text(f'#!/bin/sh\nsleep 0.5\nexec "{python}" "$@"\n')
+    slow.chmod(0o755)
+    monkeypatch.setattr("sys.executable", str(slow))
+    bridge_model.ensure("slow", {"pid": os.getpid()})
+    monkeypatch.setattr("sys.executable", python)
+    monkeypatch.setattr(bridge_model, "POLL_SECONDS", 0.001)
+    polls = []
+    held = bridge_model.lock_is_held
+    monkeypatch.setattr(
+        bridge_model, "lock_is_held", lambda path: polls.append(path) or held(path)
+    )
+    assert bridge_model.run(["--version"]) == 0, capfd.readouterr().err
+    assert len(polls) > bridge_model.REFUSALS
+    assert capfd.readouterr().out
+
+
+@pytest.mark.parametrize("published", [False, True])
+def test_a_bridged_command_fails_at_once_where_no_bridge_runs(
+    monkeypatch, capfd, published
+):
+    """With no bridge holding the lease, an address absent or left by a bridge
+    since gone gets no answer however long the client waits, so it says at once
+    that no bridge runs rather than blaming the sandbox's network rule."""
+    for name in ("HTTP_PROXY", "http_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    bridge_model.bridge_path("json").parent.mkdir(parents=True, exist_ok=True)
+    if published:
+        with socket.socket() as closed:
+            closed.bind(("127.0.0.1", 0))
+            port = closed.getsockname()[1]
+        bridge_model.ADDRESS.write(
+            bridge_model.bridge_path("json"), {"port": port, "token": "t", "pid": 1}
+        )
+    monkeypatch.setattr(bridge_model, "POLL_SECONDS", STATED_TIMEOUT)
+    assert bridge_model.run(["--version"]) == 1
+    error = capfd.readouterr().err
+    assert "no Leaf bridge is running" in error
+    assert "127.0.0.1" not in error
+
+
 def test_each_process_of_a_session_keeps_the_bridge(dead_pid):
     """Two processes can carry one session's id, as a session resumed while it
     still runs elsewhere does, and each lives as its own pid. The one that ends

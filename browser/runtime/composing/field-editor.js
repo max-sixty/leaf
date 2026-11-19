@@ -1159,9 +1159,11 @@ function fieldEditor(
   });
   // The first line whose words all come after the last change: the line the change
   // ended in where it ended at that line's start, as Backspace at the start of a line
-  // leaves it, and otherwise the line below. A line a key takes away moves those words
-  // with the field's end edge, and the words before them with its start edge, so an
-  // owner carrying the words splits its carry there (text-field.js, `--lf-field-after`).
+  // leaves it, and otherwise the line below; none where the change ended at the field's
+  // end, as clearing or replacing all its words does, since no words follow. A line a
+  // key takes away moves those words with the field's end edge, and the words before
+  // them with its start edge, so an owner carrying the words splits its carry there
+  // (text-field.js, `--lf-field-after`).
   const afterMark = Decoration.line({ attributes: { "data-lf-after": "" } });
   const afterChange = StateField.define({
     create: () => Decoration.none,
@@ -1172,6 +1174,7 @@ function fieldEditor(
         end = Math.max(end, toB);
       });
       const { doc } = tr.state;
+      if (end === doc.length) return Decoration.none;
       const line = doc.lineAt(end);
       if (end === line.from) return Decoration.set([afterMark.range(line.from)]);
       if (line.number === doc.lines) return Decoration.none;

@@ -3435,13 +3435,11 @@ EOF</code></pre>
               <lf-text-document
                 id="prompt-title-system"
                 label="system prompt, src/leaf/thread_titles.py and src/leaf/inference.py"
-                preview="markdown"
                 data-prompt="title-system"
               ></lf-text-document>
               <lf-text-document
                 id="prompt-title-request"
                 label="request: title_text, src/leaf/thread_titles.py"
-                preview="markdown"
                 data-prompt="title-request"
               ></lf-text-document>
             </details>
@@ -3603,7 +3601,6 @@ flowchart TD
               <lf-text-document
                 id="prompt-summary-fork"
                 label="prompt, src/leaf/summary_fork.py"
-                preview="markdown"
                 data-prompt="summary"
               ></lf-text-document>
             </details>
@@ -3642,10 +3639,12 @@ flowchart TD
                 </tbody>
               </table>
               <p id="sorting-today">
-                A fork can finish work beside the main thread when the work needs
-                nothing the main thread is changing or about to change, settles no
-                question it is weighing, and waits on nothing the session is running.
-                The page's diagnostics record each judgment with the line fork's reason.
+                A fork can finish work beside the main thread when the work changes
+                nothing the main thread works on, settles no question it is weighing,
+                and waits on nothing the session has under way, such as a command it is
+                running or a change it has started and not finished. Reading the
+                session's files or the page's source is such work. The page's
+                diagnostics record each judgment.
               </p>
             </section>
 
@@ -3988,8 +3987,8 @@ flowchart TD
               thread itself (<a href="#takeover-answer">Who holds a message</a>). It
               takes its to-dos in the order it judges, and runs work bigger than a
               message in subagents. A fork is to change neither the session's files nor
-              its plan: the line fork gives a fork only work that needs nothing the main
-              thread is changing, and the fork's task tells it the same. Nothing else
+              its plan: the line fork gives a fork only work that changes nothing the
+              main thread works on, and the fork's task tells it the same. Nothing else
               enforces it.
             </p>
             <p id="obligations">
@@ -4173,7 +4172,6 @@ flowchart TD
                 <lf-text-document
                   id="prompt-line-fork"
                   label="line_prompt, src/leaf/forks.py"
-                  preview="markdown"
                   data-prompt="line"
                 ></lf-text-document>
               </details>
@@ -4238,7 +4236,6 @@ Your directive: </code></pre>
                 <lf-text-document
                   id="prompt-working-fork"
                   label="work_prompt, src/leaf/forks.py"
-                  preview="markdown"
                   data-prompt="work"
                 ></lf-text-document>
               </details>
@@ -4305,7 +4302,6 @@ Your directive: </code></pre>
                 <lf-text-document
                   id="prompt-resumed-fork"
                   label="resume_prompt, src/leaf/forks.py"
-                  preview="markdown"
                   data-prompt="resume"
                 ></lf-text-document>
               </details>

@@ -7,6 +7,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 
 import pytest
 from conftest import LEAF_COMMAND
@@ -224,24 +225,49 @@ def test_a_bridged_command_waits_for_a_slow_bridge_while_it_holds_the_lease(
 ):
     """The hook returns once it has started the bridge, which on a loaded machine
     may take longer to publish its address than any count of polls allows. The
-    client waits while the bridge holds its lease, so the command runs."""
+    client waits while the bridge holds its lease, so the command runs.
+
+    The bridge starts only once the client has polled past the old budget of
+    `REFUSALS` polls, so the order holds however the processes are scheduled."""
     for name in ("HTTP_PROXY", "http_proxy"):
         monkeypatch.delenv(name, raising=False)
     python = sys.executable
-    slow = tmp_path / "python"
-    slow.write_text(f'#!/bin/sh\nsleep 0.5\nexec "{python}" "$@"\n')
-    slow.chmod(0o755)
-    monkeypatch.setattr("sys.executable", str(slow))
+    release = tmp_path / "release"
+    # A bridge never released gives up after the suite's deadline, which drops
+    # its lease, so the client fails rather than waiting forever.
+    held_python = tmp_path / "python"
+    held_python.write_text(
+        "#!/bin/sh\n"
+        f"deadline=$(( $(date +%s) + {STATED_TIMEOUT} ))\n"
+        f'while [ ! -e "{release}" ]; do\n'
+        '  [ "$(date +%s)" -lt "$deadline" ] || { echo never released >&2; exit 1; }\n'
+        "  sleep 0.01\n"
+        "done\n"
+        f'exec "{python}" "$@"\n'
+    )
+    held_python.chmod(0o755)
+    monkeypatch.setattr("sys.executable", str(held_python))
     bridge_model.ensure("slow", {"pid": os.getpid()})
     monkeypatch.setattr("sys.executable", python)
     monkeypatch.setattr(bridge_model, "POLL_SECONDS", 0.001)
-    polls = []
+    polls = 0
+    released_at = None
     held = bridge_model.lock_is_held
-    monkeypatch.setattr(
-        bridge_model, "lock_is_held", lambda path: polls.append(path) or held(path)
-    )
+
+    def counting(path):
+        nonlocal polls, released_at
+        polls += 1
+        if released_at is None and polls > bridge_model.REFUSALS:
+            release.touch()
+            released_at = time.monotonic()
+        if released_at is not None and time.monotonic() - released_at > STATED_TIMEOUT:
+            message = "the released bridge never published its address"
+            raise AssertionError(message)
+        return held(path)
+
+    monkeypatch.setattr(bridge_model, "lock_is_held", counting)
     assert bridge_model.run(["--version"]) == 0, capfd.readouterr().err
-    assert len(polls) > bridge_model.REFUSALS
+    assert released_at is not None
     assert capfd.readouterr().out
 
 

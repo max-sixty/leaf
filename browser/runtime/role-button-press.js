@@ -15,7 +15,7 @@
  * listener on the document and the element, and presses only where none of them
  * prevented the key's default. So a command bound to the same key on the element
  * replaces the press, as it would a native button's. Leaf's dispatcher, which listens
- * on the document, prevents and stops a key it runs, except for a `native` row, which
+ * on the root element, prevents and stops a key it runs, except for a `native` row, which
  * runs and leaves the default; no `native` row binds Enter or Space. A listener on the
  * element would press first, and a page whose widget still binds the press itself
  * would press twice. One gap is accepted: a listener that stops the key's propagation

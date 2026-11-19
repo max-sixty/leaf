@@ -91,6 +91,11 @@
      repeated keydowns must also run — off by default, because a held `]` was a page
      navigation per repeat and a held pick a `choose` per repeat, and it applies to native
      rows too, independently of whether their platform default repeats.
+   - `waits` marks what Leaf does with a key only once nothing else has taken it, as
+     Escape lets go of a control in the page; a function where the row's step varies.
+     Every other row is read ahead of the page's listeners on the document and the
+     window. This one is read after them, and not at all where one of them prevented
+     the key (controller.js).
 
    `live` answers the declared liveness once for every projection. Do not repeat a guard
    inside `run` if the guard changes whether the key should be shown. When the command reference
@@ -152,6 +157,7 @@ import { runtime } from "../context.js";
  * @property {boolean} [recommended]
  * @property {boolean} [travels]
  * @property {boolean} [native]
+ * @property {Cell<boolean>} [waits]
  * @property {boolean} [repeat]
  * @property {boolean} [exit]
  * @property {boolean} [retainCurrentLocation]

@@ -36,6 +36,14 @@ variants:
     metadata:
       scenario: still-deciding
       purpose: A question whose answer would settle what the session is still deciding belongs with the session.
+  steer-plan:
+    metadata:
+      scenario: steer-plan
+      purpose: A message that changes how the session will do the work it said it does next belongs with the session.
+  steer-running:
+    metadata:
+      scenario: steer-running
+      purpose: A message that changes a command the session is running belongs with the session.
   # From the claude-code journey's `fork-lookup` step (`leaf-dev journey run
   # claude-code`), which asks just after the session has added a card to the page's
   # source and ended its turn. A lookup in the page's source once the session's edit

@@ -1282,6 +1282,63 @@ cases:
       work: hand_over
     assert:
       - *line
+  # A message that changes how the session does work it has said it will do next.
+  steer-plan:
+    fork: line
+    page: line-fork/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+      - user: Which fix do you recommend?
+      - assistant: >-
+          I'm leaning toward awaiting the warmup, since it's three lines, but the 200 ms
+          is an estimate. I'll measure startup on a production-size cache next, and
+          recommend one once I have the number.
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Don't build a production-size cache for that, a staging-size one is close enough.
+        anchor:
+          section: ft-fixes
+          quote: Two fixes
+    labels:
+      work: hand_over
+    assert:
+      - *line
+  # A message that changes a command the session is running.
+  steer-running:
+    fork: line
+    page: line-fork/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+      - user: Make the await fix and run the whole suite.
+      - tool: Edit
+        input:
+          file_path: src/search/cache.py
+          old_string: "        self._task = asyncio.create_task(self._warm())"
+          new_string: "        await self._warm()"
+        result: The file src/search/cache.py has been updated successfully.
+    running:
+      - tool: Bash
+        input:
+          command: pytest -n 8 -q
+          description: Run the full suite with the warmup awaited
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: The whole suite takes twenty minutes. Stop it and just run tests/test_cache.py.
+        anchor:
+          section: ft-fix-await
+          quote: Await the warmup in
+    labels:
+      work: hand_over
+    assert:
+      - *line
   # The journey's `fork-lookup` question, after the session added a card for a passed
   # release to the page's source and ended its turn.
   source-edited:

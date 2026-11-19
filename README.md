@@ -36,7 +36,7 @@ Install the Leaf plugin, which includes the application, harness integration and
 the Leaf skill. The skill supplies the agent's instructions; copying its directory
 alone does not install the application.
 
-Claude Code:
+Claude Code 2.1.275 or later:
 
 ```
 /plugin install leaf --marketplace max-sixty/leaf

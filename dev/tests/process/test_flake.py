@@ -99,5 +99,5 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
     # The busy loop ended with the command that started it.
     spinning = ["pgrep", "-P", str(os.getpid()), "-f", "os.getppid"]
     assert subprocess.run(spinning, capture_output=True).stdout == b""
-    if sys.platform == "darwin":
+    if flake.BACKGROUND:
         assert bands.read_text() == "1111"

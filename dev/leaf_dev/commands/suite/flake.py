@@ -11,17 +11,19 @@ later edits to the source checkout cannot change another copy's result. Installe
 Node dependencies are shared as inputs; generated test output belongs to its copy.
 Each copy is one process (`-n0`: the copies are the concurrency).
 
-The copies are load that exists only to compete for the machine, so on macOS each one
-runs in the background band (`taskpolicy -b`), which gives it only the CPU and disk the
-machine's other work leaves, on the efficiency cores. The copies still compete with
-each other, `--workers` at a time, and with the `--load` busy loops beside them, which
-run in the same band and end with this command, since each spins only while its parent
-is this command. A copy's demand for CPU comes and goes, so copies alone starve a test
-less steadily than loops do. Beside other runs or other
+The copies are load that exists only to compete for the machine, so on a shared Mac
+each one runs in the background band (`taskpolicy -b`), which gives it only the CPU and
+disk the machine's other work leaves, on the efficiency cores. The copies still compete
+with each other, `--workers` at a time, and with the `--load` busy loops beside them,
+which run in the same band and end with this command, since each spins only while its
+parent is this command. A copy's demand for CPU comes and goes, so copies alone starve a
+test less steadily than loops do. Beside other runs or other
 sessions' work, a run takes longer rather than slowing them, though the band shares out
-CPU and disk, not memory. A slower copy reports the same result, because the suite's
-results don't depend on execution speed (`tests/AGENTS.md`, "Results do not depend on
-execution speed").
+CPU and disk, not memory. A CI runner (`CI` set) has no other users to protect, so there
+the copies and loops run at normal priority, as the nightly suite does, so a dispatch's
+conditions match the nightly's. A slower copy reports the same result, because the
+suite's results don't depend on execution speed (`tests/AGENTS.md`, "Results do not
+depend on execution speed").
 
 A load flake that a slower CI runner shows and this machine doesn't can need a slower
 CPU rather than more copies: `--cpu-throttle RATE` passes the suite's own option, which
@@ -48,7 +50,9 @@ from leaf_dev import ROOT
 from leaf_dev.arms import run_directory
 from leaf_dev.commands.suite._runs import checkout, collect, run, snapshot
 
-BACKGROUND = ("taskpolicy", "-b") if sys.platform == "darwin" else ()
+BACKGROUND = (
+    ("taskpolicy", "-b") if sys.platform == "darwin" and "CI" not in os.environ else ()
+)
 # A busy loop that spins while this command, whose pid it is given, is its parent, so
 # one this command can't end, as after a SIGKILL, ends itself.
 SPIN = "import os, sys\nwhile os.getppid() == int(sys.argv[1]):\n    pass"

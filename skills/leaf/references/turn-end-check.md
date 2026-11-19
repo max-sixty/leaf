@@ -31,7 +31,8 @@ each, give:
   "Reloading the plugin").
 - `text`: the message that asks it, written as that guidance says the agent writes
   one, a choice included, which Leaf posts as the agent's `leaf thread` command
-  would. It marks an option recommended only where the agent advised it.
+  would. The question stands in a paragraph of its own, apart from the facts and
+  advice around it. It marks an option recommended only where the agent advised it.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
   stands on; otherwise empty, and it stands on the page as a whole.

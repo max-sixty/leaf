@@ -75,9 +75,9 @@ A failure receipt ends the journey on the first ask
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -368,15 +368,14 @@ RELEASE_WORDS = (
 )  # fmt: skip
 
 
-def release_name(version: str) -> str:
-    """The name the user gives release `version`: two words drawn from its hash, such
-    as `heron-quartz`, so each release has its own. The maintainer chose a word pair
-    over the hash itself, which a hosted model can miscopy by one character, even at
-    git's seven; any shorter or looser hash check would widen the same check again.
-    The agent's casing of the words is its own (`names_release`)."""
-    digest = hashlib.sha256(version.encode()).digest()
-    first, second = (RELEASE_WORDS[byte % len(RELEASE_WORDS)] for byte in digest[:2])
-    return f"{first}-{second}"
+def release_name() -> str:
+    """A name for the release one journey run asks about: two distinct words drawn
+    at random, such as `heron-quartz`, so each run, a rerun of the same release
+    included, asks for a name no earlier run's board holds. The maintainer chose a
+    word pair over the release's hash, which a hosted model can miscopy by one
+    character, even at git's seven; any shorter or looser hash check would widen the
+    same check again. The agent's casing of the words is its own (`names_release`)."""
+    return "-".join(random.sample(RELEASE_WORDS, 2))
 
 
 def names_release(text: str, marker: str) -> bool:
@@ -652,10 +651,11 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     reading of the ask; a harness's user breaks its reply down once the session
     ends (`User.sample`).
 
-    The page check finds the release's name (`release_name`) in the authored board
-    markup: where on the board the agent records it is the agent's call.
+    The ask names the release by a name chosen once for this run (`release_name`),
+    which the page check finds in the authored board markup and the reload in the
+    rendered page: where on the board the agent records it is the agent's call.
     """
-    marker = release_name(version)
+    marker = release_name()
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     published, answer = check_turn_answered(end.url, marker, turn, asks, revision)

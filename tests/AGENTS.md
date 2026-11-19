@@ -472,17 +472,17 @@ alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
 so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
 server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
-copy: it reproduced ten of the nightly macOS
+copy on a shared Mac: it reproduced ten of the nightly macOS
 job's failures that `--cpu-throttle 8` reproduced none of.
-`leaf-dev suite flake --load N` runs N busy loops in the same band beside the copies,
+`leaf-dev suite flake --load N` runs N busy loops beside the copies, in the same band,
 which starve a test more steadily than more copies do. Run the merge base under the
 same condition to learn whether the change caused it. A test whose subject is a slow
 CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 
 A failure only the nightly macOS job (`test-macos`) shows reproduces on that job's
 runner, from any machine. Dispatch `ci` on a branch with `flake` set to `leaf-dev suite
-flake`'s arguments, and `test-macos` runs them in place of the suite, ending its log
-with each test's counts:
+flake`'s arguments, and `test-macos` runs them in place of the suite, at normal
+priority as the nightly runs, ending its log with each test's counts:
 
 ```sh
 gh workflow run ci --ref BRANCH -f flake="--workers 1 --load 4 'NODE_ID'"

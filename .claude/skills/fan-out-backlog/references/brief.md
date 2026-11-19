@@ -65,7 +65,7 @@ The other agents and Max's own sessions share this Mac (18 cores).
 - Don't run `leaf-dev journey run`, `leaf-dev eval run` or CI dispatches unless your brief
   says to.
 - Format with the pre-commit hooks (`uv run pre-commit run --files <files>`), not a
-  bare `ruff` or `npx prettier`.
+  bare `ruff` or `npx oxfmt`.
 
 ## Land your work as a draft PR
 
@@ -75,7 +75,7 @@ The other agents and Max's own sessions share this Mac (18 cores).
 - Push with `git push -q origin HEAD:refs/heads/grind/<item-id>` (the brief gives the
   id; the `refs/heads/` prefix is needed from a detached HEAD).
 - Open a **draft** PR: `gh pr create --draft --base main --head grind/<item-id>
---title "<title>" --body-file <file>`. The body becomes `main`'s squash commit
+  --title "<title>" --body-file <file>`. The body becomes `main`'s squash commit
   message if it lands, so hold its claims to the diff's standard: what changed, why,
   the before/after evidence, what you ran, and what you didn't verify. Say
   `Closes #N` for the issue your item came from, or `Part of #N` if work on it

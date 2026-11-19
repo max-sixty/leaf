@@ -185,7 +185,7 @@ async function regions(source, projections) {
     return found;
   };
   const sources = [...new Set(projections.map((p) => p.source ?? source))];
-  let out = `/* @noformat Generated from ${sources.join(" and ")} by build/styles.mjs. */\n`;
+  let out = `/* Generated from ${sources.join(" and ")} by build/styles.mjs. */\n`;
   for (const { faces, source: from = source, drops, within = [] } of projections) {
     const text = await readFile(resolve(root, from), "utf8");
     let projected = "";
@@ -491,5 +491,5 @@ async function sheet(source) {
       },
     },
   }).code.toString();
-  return `/* @noformat Generated from ${source} by build/styles.mjs. */\n${tokens}`;
+  return `/* Generated from ${source} by build/styles.mjs. */\n${tokens}`;
 }

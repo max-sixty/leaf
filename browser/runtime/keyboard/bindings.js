@@ -745,10 +745,12 @@ export function checked(rows, where, ready) {
     )
       throw new Error(`leaf: ${where} declares ${command.id} twice`);
     ids.set(command.id, command);
-    if (!(
-      typeof command.title === "function" ||
-      (typeof command.title === "string" && command.title.trim())
-    ))
+    if (
+      !(
+        typeof command.title === "function" ||
+        (typeof command.title === "string" && command.title.trim())
+      )
+    )
       throw new Error(`leaf: ${command.id} has no command title`);
     if (
       command.description !== undefined &&

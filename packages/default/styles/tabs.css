@@ -992,8 +992,8 @@ lf-tabs[data-lf-views] > lf-tab {
         :scope:is(lf-tabs)
           > lf-tab:not([hidden]):has(
             > :nth-child(1 of :not(script, style, template)):nth-last-child(
-                1 of :not(script, style, template)
-              )
+              1 of :not(script, style, template)
+            )
           ) {
           flex: 1 1 0;
           display: flex;

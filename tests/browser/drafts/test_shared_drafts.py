@@ -577,10 +577,12 @@ def test_an_accepted_unsaved_branch_cannot_settle_a_newer_shared_generation(
     assert [event["text"] for event in roots] == [old]
 
 
-def test_an_unsaved_branch_yields_to_another_tab_s_later_words(
+def test_unsaved_words_join_another_tab_s_later_words_in_every_tab(
     browser, serve, one_user
 ):
-    """Words the server never took give way to a generation another tab wrote there."""
+    """Words the server never took, met by a generation another tab wrote there, are
+    words the user may still want: the draft becomes both in every tab, the later words
+    first."""
     url = seated_reply_page(serve)
     local = open_page(browser, url, context=one_user)
     refuse_draft_writes(local)
@@ -588,15 +590,16 @@ def test_an_unsaved_branch_yields_to_another_tab_s_later_words(
     local_say = seat_reply(local)
     shared_say = seat_reply(shared)
     old = "The local write failed before the server held anything."
-    newer = "The later saved generation owns the draft now."
+    newer = "The later saved generation."
     write(local_say.locator("leaf-text"), old)
     write(shared_say.locator("leaf-text"), newer)
     assert stored_draft_text(shared, SEAT_DRAFT) == newer
     local.unroute("**/api/draft")
 
-    expect(local_say.locator("leaf-text")).to_have_js_property("value", newer)
-    expect(shared_say.locator("leaf-text")).to_have_js_property("value", newer)
-    assert stored_draft_text(local, SEAT_DRAFT) == newer
+    both = f"{newer}\n\n{old}"
+    expect(local_say.locator("leaf-text")).to_have_js_property("value", both)
+    expect(shared_say.locator("leaf-text")).to_have_js_property("value", both)
+    assert stored_draft_text(local, SEAT_DRAFT) == both
 
 
 def test_a_stale_tab_sends_what_it_shows_and_the_newer_words_stay_a_draft(
@@ -1150,6 +1153,31 @@ def test_a_tab_gives_its_words_to_a_store_that_replaced_its_own(browser, serve):
         failure="the tab never gave its words to the new store",
     )
     expect(page_comment(page)).to_have_js_property("value", typed)
+
+
+def test_a_reload_into_a_replaced_store_keeps_its_words_beside_another_device_s(
+    browser, serve, one_user
+):
+    """A drafts store that replaced the page's, as a new leaf.page release starts one,
+    may already hold another device's words for a draft when a tab reloads into it.
+    The words the reload carries, which that store never took, join them."""
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url, context=one_user)
+    typed = "Words the first store held."
+    write(page_comment(page), typed)
+    assert stored_draft_text(page, "general") == typed
+    # No look tells the page of the new store before it reloads.
+    page.route("**/api/news", refuse)
+    (serve.page_dir / "drafts.json").unlink()
+    elsewhere = "Words another device wrote into the new store."
+    write_draft_elsewhere(page, "general", elsewhere)
+    with restarting(page):
+        page.reload()
+
+    both = f"{elsewhere}\n\n{typed}"
+    expect(page_comment(page)).to_have_js_property("value", both)
+    assert stored_draft_text(page, "general") == both
+    page.unroute("**/api/news")
 
 
 def test_a_reload_gives_a_replaced_store_its_words_with_a_write_or_two_each(

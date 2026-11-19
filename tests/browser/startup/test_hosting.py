@@ -2,7 +2,6 @@
 sample in a frame, and published on the Leaf website."""
 
 import re
-import time
 
 import pytest
 from playwright.sync_api import expect
@@ -650,65 +649,3 @@ def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
 
     page.locator("#last").evaluate("sample => sample.reset()")
     assert allocated == ["far-source", "folded-source", "last-source"]
-
-
-# A choice whose press shows at once on a page that has come up.
-CHOICE = """<lf-group id="decision" label="Proceed?"><h2 id="decision-h">Proceed?</h2><lf-options id="pick">
-<lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
-</lf-options></lf-group>"""
-
-
-def rolling_out(page):
-    """Answer each sample allocation as leaf.page's edge does for the minutes after a
-    deploy that a visitor's container still runs the previous release: 503 and the
-    seconds to wait (`worker/src/index.ts`, `rollingOut`). Returns the allocations
-    asked, each as its time and template, and `end()`, after which they go through."""
-    asked = []
-    rolling = [True]
-
-    def answer(route):
-        asked.append((time.monotonic(), route.request.post_data_json["template"]))
-        if not rolling[0]:
-            route.continue_()
-            return
-        route.fulfill(
-            status=503,
-            body="this release is still starting",
-            headers={"Retry-After": "1", "Cache-Control": "no-store"},
-        )
-
-    page.route("**/api/samples", answer)
-    return asked, lambda: rolling.__setitem__(0, False)
-
-
-def test_a_sample_brought_into_view_releases_the_page_while_its_server_waits(
-    browser, serve
-):
-    """A sample a jump brings into view holds the page's rendering until its frame fits
-    its page, as the landing of that jump, but not through a wait its server names, as
-    during a leaf.page deploy: once the allocation is refused with a wait, the page's
-    rendering settles while the sample reads as loading, and the sample arrives when
-    the rollout ends."""
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    asked, end = rolling_out(page)
-    page.goto(
-        serve(
-            leaf_page(
-                "Rollout jump",
-                '<p><a id="jump" href="#s">Jump to the sample</a></p>'
-                '<div style="height: 400vh"></div>' + live_sample("s"),
-            )
-        )
-    )
-    wait_until_ready(page)
-    assert asked == []
-    page.locator("#jump").click()
-    holding(page, asked, 1, "the sample's allocation")
-    expect(page.locator("#s .lf-sample-status")).to_have_text("Loading sample…")
-    rendered(page, facts=("preparationsSettled",))
-    end()
-    page.locator("#s").evaluate("sample => sample.ready")
-    wait_until_ready(page)
-    expect(page.locator("#s .lf-sample-status")).to_have_text("")
-    consume_browser_errors(page, http_error_console(503))

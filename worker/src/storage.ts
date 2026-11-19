@@ -26,10 +26,9 @@
  * Cloudflare activates a Worker before its container image has rolled out, so after a
  * deploy a session's container can still start on the previous image. The store
  * answers a release other than the Worker's with 409 before reading or writing
- * anything (`answerPageStore` in `index.ts`). That container then starts without the
- * session's record, rather than failing on a record the new release shaped, and the
- * edge replaces each of its answers, since they name the previous release
- * (`rollingOut`).
+ * anything (`answerPageStore` in `index.ts`), and that container fails to start. So
+ * every record a release's session holds was written by that release's image, and
+ * nothing a previous image wrote outlives the rollout.
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be

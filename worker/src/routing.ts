@@ -182,24 +182,13 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
   return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }
 
-function pageActiveCookie(secure: boolean, pageRoot: string, value: string): string {
-  const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
-  const name = pageCookieName(prefix, pageRoot);
-  const security = secure ? "; Secure" : "";
-  return `${name}=${value}; Path=/${security}; HttpOnly; SameSite=Lax`;
-}
-
 export function activeCookie(
   secure: boolean,
   pageRoot: string,
   release: string,
 ): string {
-  return pageActiveCookie(secure, pageRoot, release);
-}
-
-// The marker selects the page's private record, so it has to go when
-// the user is put back on the published projection; leaving it and ignoring it would
-// send the next read to that private record again.
-export function clearActiveCookie(secure: boolean, pageRoot: string): string {
-  return `${pageActiveCookie(secure, pageRoot, "")}; Max-Age=0`;
+  const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
+  const name = pageCookieName(prefix, pageRoot);
+  const security = secure ? "; Secure" : "";
+  return `${name}=${release}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }

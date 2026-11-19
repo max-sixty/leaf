@@ -5101,9 +5101,9 @@ export function createFloatingPanel({
   // so a notice's press stands there with its key, in the face Comment and c wear, over
   // the notice's own line with an inked Undo over the field's start, the one press in
   // the row in a face of its own.
-  // Its key stands beside it only while that key would make the same press now, as the
-  // dispatcher reads it (`activeCommandLabel`): with the caret in a box, `m` is a letter
-  // typed, and the press alone still acts.
+  // Its keys are those that would make the same press now, as the dispatcher reads it
+  // (`activeCommandLabel`): none with the caret in a box, where `m` is a letter typed
+  // (field-readings.js, `end`, says what the field's end shows then).
   /** @param {FieldPress} press
    * @returns {import("./composing/input.js").BoxPress} */
   function noticePress(press) {
@@ -5120,13 +5120,14 @@ export function createFloatingPanel({
   }
   // The way out of the stance the user is in, as the page field's end offers it while
   // the field says its words at rest: Close, a press that ends the stance at once, as
-  // its ✕ does (keyboard/touch-controls.js), with `esc` beside it only while Escape takes
+  // its ✕ does (keyboard/touch-controls.js), with `esc` beside it while Escape takes
   // the stance off now, as the dispatcher reads it (`escapeInvocation`): its step is the
   // stance's exit, or one titled as that exit, the ladder's step for the stance. Where
   // something stands over the stance, such as a widget's comment box in Design mode,
-  // Escape closes that first, and Close stands alone. The reading that offers it
-  // `exits`, which tells `fieldExit` the field says it, so the seat holds the On Me mark
-  // meanwhile. Both ask the dispatcher whether a stance stands now (`innermostStance`):
+  // Escape closes that first, and Close has no key (field-readings.js, `end`, says what
+  // the field's end shows then). The reading that offers it `exits`, which tells
+  // `fieldExit` the field offers it, so the seat holds the On Me mark meanwhile. Both
+  // ask the dispatcher whether a stance stands now (`innermostStance`):
   // the stance's words and its exit row are read in the repaint frame, so for the paint
   // a search's close makes, they still name the search, and the seat would take its ✕
   // for that paint and give it up in the next.
@@ -5155,8 +5156,9 @@ export function createFloatingPanel({
   // at the field's end wears, read as a status. Its keys are Versions' `g V` and then
   // Versions' own `l` (`latestRow`), which opens the live page as the press does, where
   // a version's digit there opens that version pinned; they stand only while `g` would
-  // open the Go-to sequence now, so not while the caret is in a box. The menu's row
-  // that opens the latest offers it too.
+  // open the Go-to sequence now, so not while the caret is in a box (field-readings.js,
+  // `end`, says what the field's end shows then). The menu's row that opens the latest
+  // offers it too.
   /** @returns {import("./composing/input.js").BoxPress | null} */
   function latestPress() {
     const { latest } = versionsReading();

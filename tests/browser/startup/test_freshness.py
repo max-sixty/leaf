@@ -552,10 +552,9 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
 
     The page refuses an answer from another layer because it cannot read that state.
     Reloading on the spot is right when re-vendoring has moved the page out from under
-    an open tab. It is wrong the other way around — a server behind the
-    document it served, which is what the website looks like while a release's containers
-    are still starting — because the reload lands on the same document and the next answer
-    says the same thing, so the user watches the page restart for as long as the
+    an open tab. It is wrong the other way around — a server behind the document it
+    served — because the reload lands on the same document and the next answer says
+    the same thing, so the user watches the page restart for as long as the
     disagreement lasts. The source of documents is the one party that can tell the two
     apart, so the page asks it and then holds still: the answers stay refused, the
     authored page stays readable, and the feed keeps asking until the server is back on

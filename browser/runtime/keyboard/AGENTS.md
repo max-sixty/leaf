@@ -123,8 +123,10 @@ comment on selected words. Page scope rows therefore have no touch labels: each 
 that runs a press declares `touch: false` or is the `exit` of a stance accessible by
 touch. Examples include page search, the target picker and Draw mode. The panel
 offers the innermost active stance's exit as Close at its field's end, or one ✕ while
-the field says something else. Either leaves the stance even where Escape would first
-close something inside it or take back a typed hint letter. The register
+the field says something else. A finger's Close leaves the stance even where Escape
+would first close something inside it or take back a typed hint letter. Where the
+page shows keys, Close stands only while Escape would take the stance off, as every
+press at the field's end stands only with its key (`field-readings.js`). The register
 refuses a page command without `touch` and a scope row whose `run` is neither `exit`
 nor `touch: false`.
 `false` means the result is directly accessible by scrolling and tapping or through

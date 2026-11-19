@@ -51,9 +51,9 @@ Practices pattern. Read, and probed in Chromium, on 2026-11-12.
   Its select, tabs, menu, dialog and tooltip work inside Leaf, since Leaf takes no step
   for a key a page element prevented, and lets go of a page control only after the
   page's listeners on the document have had Escape, where UI SDK hears it to dismiss a
-  layer (`browser/runtime/keyboard/controller.js`). Leaf reads printed letters
-  first, so typeahead reaches only the letters Leaf binds to nothing: in an open menu,
-  `a` moves to Archive, but `d` scrolls the page rather than moving to Duplicate. Their
+  layer (`browser/runtime/keyboard/controller.js`). A letter or digit typed in a menu,
+  tree, listbox or select-only combobox reaches the widget's typeahead, and Leaf's page
+  letters work again once focus leaves it (`browser/runtime/keyboard/text-entry.js`). Their
   values reach the event log only where page code passes them to a playground
   contributor or a widget controller.
   Each component's entry measures 13–53 KB gzipped on its own, by the repository's

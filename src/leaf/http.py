@@ -14,7 +14,8 @@ A document runs this process's browser runtime (`runtime_selection`), whose iden
 is part of the address of the resources a document loads (`assets_path`) and is named
 on every answer (`Leaf-Runtime`) and on every write a tab sends, so a tab running
 another runtime reads and writes nothing here. A website release already names its
-runtime, so a release answers by its release alone.
+runtime, so its answers name none, and the edge in front of it names the release
+(`worker/src/index.ts`).
 """
 
 import hashlib
@@ -230,10 +231,10 @@ def page_delivery(
     such address. `write_live_shell` delivers published documents the same way.
 
     `probe` is where a tab asks whether its source has moved on to another layer or
-    release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
-    recovery), so its answer must name the layer or release a fresh document would
-    start under. It defaults to the page's `/registry.json`, whose answer names its
-    release. `runtime_identity` is the runtime a host without a release serves the
+    release (`bootstrap.js`'s startup recovery, and for a layer `layer-client.js`'s
+    `sourceMovedOn`), so its answer must name the layer or release a fresh document
+    would start under. It defaults to the page's `/registry.json`, whose answer names
+    its release. `runtime_identity` is the runtime a host without a release serves the
     document with (`runtime_selection`), which the tab holds every answer to.
     """
     assets = asset_root if asset_root is not None else page_root
@@ -710,11 +711,6 @@ class PageEndpoint:
         route that remembers them.
         """
         headers = {}
-        # A server running a release names it on every answer, whatever the route,
-        # so whoever stands in front of it can tell its answers from another
-        # release's, as leaf.page's Worker does during a rollout.
-        if self.release is not None:
-            headers["Leaf-Release"] = self.release
         if self.path.startswith(
             ("/api/", "/versions/", "/revisions/")
         ) or self.path in {"/registry.json", "/"}:

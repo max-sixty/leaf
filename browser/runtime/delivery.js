@@ -97,10 +97,10 @@ export function createDelivery({
       }
       if (!sent.answered) return { accepted: null };
       const { response, decoded } = sent.answered;
-      // `503` is the server saying it cannot take this yet, which the website's edge
-      // sends for the minutes a container image takes to reach a user's allocation.
-      // The loop already retries; what it reported without this was the failed decode
-      // of a plain-text body rather than what the server said.
+      // `503` is the server saying it cannot take this yet, as leaf.page's container
+      // host does while no container is free for the page. The loop already retries;
+      // what it reported without this was the failed decode of a plain-text body
+      // rather than what the server said.
       if (response.status === 503 || "error" in decoded) {
         await retry("Not through yet — trying again…");
         continue;

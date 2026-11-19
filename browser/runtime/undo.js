@@ -46,20 +46,24 @@
    the press followed the Escape closing a panel. The notice and the travel tell the user
    what a press took instead.
 
-   What ⌘Z, or a notice's Undo, took back takes a ring once the page shows the
-   withdrawal, after the page has gone there if it was out of view: the focus band at
-   twice its width, held, then faded within about a second (`ring`). It is the box's own
-   outline, standing where the box says its marks stand (tokens.css, "Where it stands"),
-   so it rings the widget, message, thread or passage the undo changed, and a message
-   the undo took away rings the thread that held it. The undo's notice stands until the
-   user's next input rather than for its time (notifications.js, `holds`). Under reduced
-   motion there is no ring, and the held notice says it alone. An exact control's
-   withdrawal rings nothing, since the user pressed it where the gesture is drawn. The
-   ring and the hold are the user's decision, over keeping a notice that leaves after
-   4 s, holding it in ink, and darkening the panel's field. The ring stands where the
+   What ⌘Z, or a notice's Undo, took back takes a tint once the page shows the
+   withdrawal, after the page has gone there if it was out of view (`tint`). It is the
+   tint a message arriving and a revision's changed block take (motion.js,
+   `backgroundFlash`), so the page marks every change it shows the same way. It tints
+   the widget, message, thread or passage the undo changed, and a message the undo took
+   away tints the thread that held it. The undo's notice stands until the user's next
+   input rather than for its time (notifications.js, `holds`). Under reduced motion
+   there is no tint, and the held notice says it alone. An exact control's withdrawal
+   tints nothing, since the user pressed it where the gesture is drawn. The tint and the
+   hold are the user's decision, over keeping a notice that leaves after 4 s, holding it
+   in ink, darkening the panel's field, and an outline at twice the focus band's width.
+   The user found the tint better to look at, and the band belongs to the marks of
+   where the user is and what a gesture addresses (tokens.css). The tint stands where the
    user is already looking, or where the undo took them, and shows what changed rather
-   than only naming it; a dark field is as loud, but at the window's foot, away from the
-   change, and gives one notice a face no other control wears.
+   than only naming it. It fades within about a second, since a tint held would lie
+   over what the user reads, so the notice is what holds. A dark field is as loud, but
+   at the window's foot, away from the change, and gives one notice a face no other
+   control wears.
 
    A choice the user has just made may still be on its way to the log when they press,
    which is when a misclick is caught. The press takes it by its attempt, as the
@@ -80,7 +84,20 @@
    undo is said in them, the name its own announcement used: "Chose “Fast”",
    then "Undone: Chose “Fast” just now". Those words and a settlement's reader live
    with the page that made the gesture, so after a reload or from another tab a thread
-   opens where a route to it opens it. */
+   opens where a route to it opens it.
+
+   Taking back what the user wrote puts it to draft rather than discarding it, since no
+   redo brings it back (`writtenIn`; drafts.js, `giveBackWords`): a comment's words, and
+   its drawing, go back to its passage's draft or the page's, a reply's to its thread's
+   reply box, and a rewrite's to the message's rewrite, and Resume writing goes to them.
+   A comment whose thread goes with it brings the words of that thread's reply box
+   along, after its own, so nothing the user wrote is left in a box that no longer
+   stands. The log's answer decides the undo, so the words come back with it, in the box
+   the press leaves the user at. Rejected: leaving the words only in the log, which no
+   reading shows once nothing stands on the message (the user's decision); and holding
+   the reply unseen with the comment's draft until it is sent again, as a refused
+   comment does (`keepRefusedWords`), which carried it under whatever was sent from
+   that box next. */
 import { notice } from "./notifications.js";
 import {
   applicationState,
@@ -105,10 +122,13 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
 import { dragHeld } from "./widget-elements.js";
-import { flashDuration, motion } from "./motion.js";
+import { backgroundFlash, flashDuration } from "./motion.js";
+import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
+import { commentDraft } from "./composing/selection.js";
+import { threadKey } from "./thread/model.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
@@ -213,6 +233,41 @@ function placeOf(event) {
   if (held)
     return { thread: held.thread, message: held.message, nodes: [held.element] };
   return { fragment: id, nodes: [elementById(id)] };
+}
+
+// The draft a message the user wrote was written in, holding what taking it back gives
+// back: a comment's words, and its drawing, to its passage's draft or the page's, with
+// the reply box of the thread it opened (`under`); a reply's to its thread's reply box;
+// a rewrite's to the message's rewrite, written over the words taking it back restores.
+// Null for a reaction, a deletion, whose words come back on the message, and every
+// gesture that wrote none.
+/** @param {UndoEvent} event @returns {{ctx: string, text: string, payload?: object, under?: string | null} | null} */
+function writtenIn(event) {
+  if (event.token) return null;
+  const text = event.text ?? "";
+  switch (event.kind) {
+    case "comment": {
+      const { anchor } = event;
+      const thread = threadNamed(event.id);
+      const under = thread ? replyContext(threadKey(thread)) : null;
+      if (anchor) return { ...commentDraft({ ...event, anchor }), text, under };
+      return text ? { ctx: PAGE_DRAFT, text, under } : null;
+    }
+    case "reply": {
+      const thread = event.parent ? threadNamed(event.parent) : null;
+      return thread && text ? { ctx: replyContext(threadKey(thread)), text } : null;
+    }
+    case "edit":
+      return text
+        ? {
+            ctx: rewriteContext(event.message),
+            text,
+            ...(typeof event.base === "string" && { payload: { over: event.base } }),
+          }
+        : null;
+    default:
+      return null;
+  }
 }
 
 // Whether the user sees any of a destination (an element or a Range), past whatever
@@ -332,9 +387,19 @@ export function createUndo({
       return null;
     }
     const taken = takes(event);
+    const written = writtenIn(event);
     return post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
         notice(`Undone: ${taken}`, { holds: true });
+        // The answer brings the reading that holds the withdrawal, in which a
+        // comment's thread is gone unless something stands on the comment.
+        if (written)
+          giveBackWords(
+            written.ctx,
+            written.text,
+            written.payload,
+            written.under && !threadNamed(event.id) ? written.under : null,
+          );
         if (event.attempt) gestures.delete(event.attempt);
       }
       return accepted;
@@ -397,29 +462,18 @@ export function createUndo({
     window.location.assign(url);
   }
 
-  // Ring what taking `event` back changed, as the page draws it now (the header): the
+  // Tint what taking `event` back changed, as the page draws it now (the header): the
   // nodes at its place still drawn, else the thread a message it took away was in.
   /** @param {UndoEvent} event */
-  function ring(event) {
+  function tint(event) {
     const place = placeOf(event);
     if (!place) return;
     const drawn = place.nodes.filter((node) => node?.isConnected);
     const thread =
       place.thread ??
       (event.kind === "reply" && event.parent ? threadIdNamed(event.parent) : null);
-    const band = `calc(2 * var(--lf-focus-ring-w)) solid`;
-    const at = "var(--lf-ring-at, var(--lf-focus-region-gap))";
     for (const node of new Set(drawn.length ? drawn : thread ? drawingsOf(thread) : []))
-      if (node)
-        motion(
-          node,
-          [
-            { outline: `${band} var(--lf-accent)`, outlineOffset: at, offset: 0 },
-            { outline: `${band} var(--lf-accent)`, outlineOffset: at, offset: 0.45 },
-            { outline: `${band} transparent`, outlineOffset: at, offset: 1 },
-          ],
-          flashDuration(),
-        );
+      if (node) backgroundFlash(node, flashDuration());
   }
 
   // The walk needs the page settled, not only the gesture it takes back: an
@@ -434,7 +488,7 @@ export function createUndo({
   // Take back `event`, then leave the user at its place: for a settlement this page
   // made, its thread in the reader it was made in, else the place where it stood out of
   // view when they pressed. Both are read before the withdrawal, which takes the
-  // settlement's reader with it. What it changed is ringed once the user is there.
+  // settlement's reader with it. What it changed is tinted once the user is there.
   /** @param {UndoEvent} event */
   function walkTo(event) {
     const settled = settledHere(event);
@@ -445,7 +499,7 @@ export function createUndo({
     void whenDocumentPresented()
       .then(async () => {
         if (travels) await show(event, intent, settled?.reader);
-        ring(event);
+        tint(event);
       })
       .catch(() => {});
     return answer;

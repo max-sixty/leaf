@@ -1311,7 +1311,7 @@ class RevisionReading(SourceReading):
         return memo(self.marker.parent.parent, _CompactReadings).get(
             self.marker,
             self.stamp,
-            lambda: SourceReading.inventory.func(self),
+            lambda: SourceReading._inventory.func(self),
             _inventory_size,
         )
 

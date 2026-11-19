@@ -185,7 +185,11 @@ browser assets and the packages into a page's layer.
   (`dev/AGENTS.md`).
 - `worker/`: the Cloudflare Worker and containers behind <https://leaf.page/>
   (`worker/README.md`).
-- `docs/`: the site's own pages, each a Leaf source.
+- `docs/`: the site's own pages, each a Leaf source. A figure they give about Leaf,
+  such as a wait, a cost or a rate, is one a reader can reproduce from the tree,
+  with a `leaf-dev` command or from checked-in data. A measurement of
+  sessions on one machine stays in `notes/`, even where it motivates a design the
+  page describes.
 - `notes/`: what the code doesn't hold yet: research, and plans for large work in
   progress or a design not yet built. Work built on a branch keeps its contract in
   its code, and a page that shows it to the user is a preview of a file in `.tmp/`.

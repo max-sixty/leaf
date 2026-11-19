@@ -39,8 +39,7 @@ alone does not install the application.
 Claude Code:
 
 ```
-/plugin marketplace add max-sixty/leaf
-/plugin install leaf@leaf
+/plugin install leaf --marketplace max-sixty/leaf
 ```
 
 Codex:

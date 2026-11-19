@@ -54,7 +54,7 @@ vars:
 
     Leaf. Three subagents checked every judge claim about Leaf's pages against the
     screenshots and source, citing captures under
-    `evals/proposals-show-what-they-change/captures/`. Real defects, each with its cause
+    `captures/`. Real defects, each with its cause
     and proposed fix:
     1. Configuration: each alert's threshold and action controls sit in the playground's
        right rail, apart from that alert's evidence in the stage. HTML put threshold

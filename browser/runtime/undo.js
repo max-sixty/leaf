@@ -34,10 +34,11 @@
    a thread opening and an element travelled to as its fragment, so Back returns to
    where the user pressed. Its notice says what was taken and how long ago. Visibility
    decides only whether the press travels, never whether it takes, so a reading of it
-   that misses costs a scroll and never a press. It is read with each cover where it
-   comes to rest, so a press as a panel closes reads the page the closing leaves. An
-   exact control, such as a widget's Undo or a reaction chip, is pressed where its
-   gesture is drawn, so its withdrawal moves nobody.
+   that misses costs a scroll and never a press. It is read where each cover and each
+   scroll Leaf runs comes to rest, so a press as a panel closes reads the page the
+   closing leaves, and a press during the scroll a walk starts reads the page that
+   scroll leaves. An exact control, such as a widget's Undo or a reaction chip, is
+   pressed where its gesture is drawn, so its withdrawal moves nobody.
 
    Taking at once is the user's decision. Rejected: showing an out-of-view gesture with
    the first press and taking it with a second, so that a press never took what the user
@@ -84,7 +85,20 @@
    undo is said in them, the name its own announcement used: "Chose “Fast”",
    then "Undone: Chose “Fast” just now". Those words and a settlement's reader live
    with the page that made the gesture, so after a reload or from another tab a thread
-   opens where a route to it opens it. */
+   opens where a route to it opens it.
+
+   Taking back what the user wrote puts it to draft rather than discarding it, since no
+   redo brings it back (`writtenIn`; drafts.js, `giveBackWords`): a comment's words, and
+   its drawing, go back to its passage's draft or the page's, a reply's to its thread's
+   reply box, and a rewrite's to the message's rewrite, and Resume writing goes to them.
+   A comment whose thread goes with it brings the words of that thread's reply box
+   along, after its own, so nothing the user wrote is left in a box that no longer
+   stands. The log's answer decides the undo, so the words come back with it, in the box
+   the press leaves the user at. Rejected: leaving the words only in the log, which no
+   reading shows once nothing stands on the message (the user's decision); and holding
+   the reply unseen with the comment's draft until it is sent again, as a refused
+   comment does (`keepRefusedWords`), which carried it under whatever was sent from
+   that box next. */
 import { notice } from "./notifications.js";
 import {
   applicationState,
@@ -100,7 +114,8 @@ import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { elementById, inChrome } from "./passages.js";
 import { focusDestination } from "./focus.js";
-import { placeBox, placeHolder, seenRect } from "./geometry.js";
+import { placeBox, placeHolder } from "./geometry.js";
+import { seenLanded } from "./scroll-containers.js";
 import { messageHolding, threadName } from "./thread/messages.js";
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -110,9 +125,12 @@ import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
 import { dragHeld } from "./widget-elements.js";
 import { backgroundFlash, flashDuration } from "./motion.js";
+import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
+import { commentDraft } from "./composing/selection.js";
+import { threadKey } from "./thread/model.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
@@ -219,12 +237,47 @@ function placeOf(event) {
   return { fragment: id, nodes: [elementById(id)] };
 }
 
-// Whether the user sees any of a destination (an element or a Range), past whatever
-// covers it where it comes to rest.
+// The draft a message the user wrote was written in, holding what taking it back gives
+// back: a comment's words, and its drawing, to its passage's draft or the page's, with
+// the reply box of the thread it opened (`under`); a reply's to its thread's reply box;
+// a rewrite's to the message's rewrite, written over the words taking it back restores.
+// Null for a reaction, a deletion, whose words come back on the message, and every
+// gesture that wrote none.
+/** @param {UndoEvent} event @returns {{ctx: string, text: string, payload?: object, under?: string | null} | null} */
+function writtenIn(event) {
+  if (event.token) return null;
+  const text = event.text ?? "";
+  switch (event.kind) {
+    case "comment": {
+      const { anchor } = event;
+      const thread = threadNamed(event.id);
+      const under = thread ? replyContext(threadKey(thread)) : null;
+      if (anchor) return { ...commentDraft({ ...event, anchor }), text, under };
+      return text ? { ctx: PAGE_DRAFT, text, under } : null;
+    }
+    case "reply": {
+      const thread = event.parent ? threadNamed(event.parent) : null;
+      return thread && text ? { ctx: replyContext(threadKey(thread)), text } : null;
+    }
+    case "edit":
+      return text
+        ? {
+            ctx: rewriteContext(event.message),
+            text,
+            ...(typeof event.base === "string" && { payload: { over: event.base } }),
+          }
+        : null;
+    default:
+      return null;
+  }
+}
+
+// Whether the user sees any of a destination (an element or a Range) where the glides
+// under way leave it, past whatever covers it where it comes to rest.
 /** @param {Element | Range | null | undefined} where */
 const seen = (where) => {
   const holder = where && placeHolder(where);
-  return Boolean(where && holder && seenRect(holder, new Map(), placeBox(where), true));
+  return Boolean(where && holder && seenLanded(holder, placeBox(where), true));
 };
 
 const UNDO_KEYS = ["Mod+z"];
@@ -336,9 +389,19 @@ export function createUndo({
       return null;
     }
     const taken = takes(event);
+    const written = writtenIn(event);
     return post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted) {
         notice(`Undone: ${taken}`, { holds: true });
+        // The answer brings the reading that holds the withdrawal, in which a
+        // comment's thread is gone unless something stands on the comment.
+        if (written)
+          giveBackWords(
+            written.ctx,
+            written.text,
+            written.payload,
+            written.under && !threadNamed(event.id) ? written.under : null,
+          );
         if (event.attempt) gestures.delete(event.attempt);
       }
       return accepted;

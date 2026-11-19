@@ -27,6 +27,7 @@ their provider's restrictions; Codex's sandbox cannot nest inside a macOS sandbo
 """
 
 import base64
+import filecmp
 import http.cookiejar
 import json
 import os
@@ -67,6 +68,7 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
 from leaf_dev import LEAF_COMMAND, ROOT, plain_html
 from leaf_dev.browser import shell_executable
+from leaf_dev.leaf_assets import pinned_copy
 from leaf_dev.page_fixtures import (
     admit_events,
     fixture_environment,
@@ -145,10 +147,14 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
     When supplied, `payload` puts that arm's bin directory first on the clean PATH.
+    Nor does a child inherit a variable or PATH entry naming this checkout, such as
+    `uv run`'s VIRTUAL_ENV or the shell's PWD: its path names the branch, and an
+    eval's agent reads its environment (`commands/eval/run.py`).
     An isolated HOME keeps agent settings and state private, while uv shares the
-    host's dependency cache and the interpreter running this harness. Otherwise
-    hiding the host's managed Python can select a different system interpreter
-    and compile dependencies again for every sample.
+    host's dependency cache and the interpreter running this harness, by the path
+    its environment's link resolves to. Otherwise hiding the host's managed Python
+    can select a different system interpreter and compile dependencies again for
+    every sample.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -169,18 +175,23 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
             "LEAF_HOST_LAUNCHER",
             "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
         )
-        and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
+        # The session's own, and its Codex companion plugin's.
+        and not (
+            key.startswith(("CLAUDE", "CODEX_COMPANION")) and key != "CLAUDE_CONFIG_DIR"
+        )
+        and (key == "PATH" or str(ROOT) not in value)
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
     env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
     env.setdefault("UV_CACHE_DIR", str(Path.home() / ".cache/uv"))
-    env.setdefault("UV_PYTHON", sys.executable)
+    env.setdefault("UV_PYTHON", os.path.realpath(sys.executable))
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
         for entry in env["PATH"].split(os.pathsep)
         if not (venv and entry == str(Path(venv) / "bin"))
+        and not Path(entry).is_relative_to(ROOT)
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
     if payload is not None:
@@ -533,17 +544,20 @@ def choose_arms(
     With `payload`, as for a command that installs each arm for child agents, both
     arms are copies of the plugin payload alone in `scratch`'s `arms/`, the head's
     taken from the working tree now: a child can't read its way to the other arm,
-    and a later edit changes neither."""
-    paths = PAYLOAD if payload else (".",)
+    and a later edit changes neither. A built arm's directory is named at random, so
+    a child reading its plugin's path can't tell which arm it is."""
+
+    def built(ref: str | None, paths: Iterable[str]) -> Arm:
+        (scratch / "arms").mkdir(parents=True, exist_ok=True)
+        directory = Path(tempfile.mkdtemp(prefix="arm-", dir=scratch / "arms"))
+        return Arm(directory, build_arm(ref, directory, paths=paths))
+
     arms = {}
     if base is not None:
-        directory = scratch / "arms" / "base"
-        commit = build_arm(base or merge_base(), directory, paths=paths)
-        arms["base"] = Arm(directory, commit)
+        arms["base"] = built(base or merge_base(), PAYLOAD if payload else (".",))
     if not payload:
         return {**arms, "head": Arm(ROOT, arm_commit(None))}
-    directory = scratch / "arms" / "head"
-    return {**arms, "head": Arm(directory, build_arm(None, directory))}
+    return {**arms, "head": built(None, PAYLOAD)}
 
 
 def describe(arms: dict[str, Arm]) -> str:
@@ -755,6 +769,28 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
         finally:
             if payload is not None:
                 retire_sessions(payload, state if state is not None else work / "state")
+
+
+def stage_task_files(task: str, cwd: Path) -> Path | None:
+    """Copy an eval task's pinned files, where it has any, into an agent's `cwd`,
+    each at its path in the task's asset directory, and return that directory. A
+    task's prompt names them by those paths, which leave out `evals/<task>/`, since a
+    task's name describes the behavior it measures. Probes sharing a working
+    directory take several tasks' files there, so a path two tasks fill with
+    different bytes is refused."""
+    files = pinned_copy(ROOT / "evals" / task)
+    if files is None or not files.is_dir():
+        return None
+
+    def copy(source: str, target: str) -> None:
+        if Path(target).exists() and not filecmp.cmp(source, target, shallow=False):
+            raise click.ClickException(
+                f"two eval tasks have different files at {target}"
+            )
+        shutil.copy2(source, target)
+
+    shutil.copytree(files, cwd, dirs_exist_ok=True, copy_function=copy)
+    return files
 
 
 def authoring_sandbox(*owned: Path) -> str:

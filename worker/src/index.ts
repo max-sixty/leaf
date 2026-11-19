@@ -179,10 +179,8 @@ export class LeafWebsiteSession extends Container<Env> {
     return this.pages.prepare(publication, manifest);
   }
 
-  async savePublication(value: unknown): Promise<void> {
-    const commit = readPublicationCommit(value);
-    const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
-    this.pages.publish(commit, manifest);
+  savePublication(value: unknown): void {
+    this.pages.publish(readPublicationCommit(value));
   }
 
   async saveDrafts(value: unknown): Promise<ServedDraftsAnswer | null> {
@@ -297,8 +295,7 @@ LeafWebsiteSession.outboundByHost = {
     } catch (error) {
       // An outbound handler that throws reaches the container as a connection closed
       // without a response, so answer with the store's reason for the container to
-      // log. A container still on the previous image after a deploy meets the new
-      // release's refusal here (`PageStore.checkRelease`).
+      // log.
       return new Response(error instanceof Error ? error.message : String(error), {
         status: 500,
       });
@@ -314,6 +311,12 @@ async function answerPageStore(
 ): Promise<Response> {
   // The proxy supplies the owning DO identity. The container cannot select a
   // different user's session by changing a URL, cookie, or request header.
+  // A container still on the previous image after a deploy is refused before it
+  // reads or writes anything, as `storage.ts` says.
+  const { release } = await siteManifest(new Request("https://leaf.page/"), env);
+  if (request.headers.get("Leaf-Release") !== release) {
+    return new Response(`the page store serves release ${release}`, { status: 409 });
+  }
   const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
   const path = new URL(request.url).pathname;
   if (request.method === "GET" && path === "/records") {

@@ -37,8 +37,8 @@ variants:
       scenario: still-deciding
       purpose: A question whose answer would settle what the session is still deciding belongs with the session.
   # From the claude-code journey's `fork-lookup` step (`leaf-dev journey run
-  # claude-code --fork-work`), which asks just after the session has changed the
-  # page's source and ended its turn. The take criterion excludes what the session
+  # claude-code`), which asks just after the session has changed the page's source
+  # and ended its turn. The take criterion excludes what the session
   # "is changing or about to change", and these labels read that as a change under
   # way. A lookup in the page's source once the session's edit is done is work a
   # fork could take. The same lookup part way through an edit of that file belongs

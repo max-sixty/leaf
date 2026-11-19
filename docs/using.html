@@ -345,9 +345,13 @@
                   <td>An error about no particular box, until the user next types</td>
                   <td><em>Couldn't load v3</em></td>
                 </tr>
+                <tr id="panel-line-held">
+                  <td>Keys pressed while the page loads, until it is ready</td>
+                  <td><kbd>g</kbd> <kbd>t</kbd> <em>run when the page is ready</em></td>
+                </tr>
                 <tr id="panel-line-destination">
                   <td>Where words go, while the caret is in the field</td>
-                  <td><em>Comment on the page</em>, <em>Reply in this thread</em></td>
+                  <td><em>Comment…</em>, <em>Reply…</em></td>
                 </tr>
                 <tr id="panel-line-selection">
                   <td>
@@ -359,15 +363,20 @@
                 <tr id="panel-line-notice">
                   <td>
                     A <a href="#updates-notices">notice</a> for four seconds, or until
-                    the next input for one offering a press; a walk's position for four
-                    seconds after each step
+                    the next input for an undo's or one offering a press; Go-to finding
+                    nothing, while its filter waits for a key; a walk's position for
+                    four seconds after each step
                   </td>
-                  <td><em>Updated to v4</em>, <em>Thread 2 of 5</em></td>
+                  <td>
+                    <em>Updated to v4</em>, <em>No visible threads</em>,
+                    <em>Thread 2 of 5</em>
+                  </td>
                 </tr>
                 <tr id="panel-line-status">
                   <td>
                     The page's <a href="/how-it-works/#updates-silence">status</a>,
-                    after the mode the user is in, which the ✕ at the row's end leaves
+                    after where the user stands, such as the mode they are in or an
+                    older version
                   </td>
                   <td>
                     <em>running the browser suite</em>,
@@ -427,8 +436,9 @@
           <section id="updates-notices">
             <h2>Notices</h2>
             <p id="updates-notices-lede">
-              A notice stands in the panel's line for four seconds and is announced to
-              screen readers. Simultaneous news shares one notice, such as
+              A notice stands in the panel's line for four seconds, an undo's until the
+              next input, and is announced to screen readers. Simultaneous news shares
+              one notice, such as
               <em>Not answered · New On Me</em>. Some news is only announced, since
               something on the page already shows it: an agent message the user hasn't
               read, which the On Me mark's dot and its margin marker show, and the
@@ -641,10 +651,10 @@
               Words typed but not sent stay with what they are about after their box
               closes: a comment with its passage or element, a reply with its thread.
               Commenting somewhere else starts that place's own draft. Each draft stands
-              in the margin as a dashed entry beside its passage or its thread, and
+              in the margin as a grey entry beside its passage or its thread, and
               Threads lists them all under <strong>Drafts</strong>; a press on either
               opens the draft in its box. While any wait and no thread has news, the On
-              Me mark wears a grey dot, and a press on it opens Threads. If a new
+              Me mark wears a faint grey dot, and a press on it opens Threads. If a new
               version removes the content they were about, Resume writing (<kbd>g</kbd>
               <kbd>i</kbd>) opens them, unsent, in Comment on the page, after any words
               already there. The page's server keeps drafts, so they reach every tab and

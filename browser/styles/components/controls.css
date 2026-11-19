@@ -419,10 +419,11 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   border-radius: 50%;
   background: var(--lf-news);
 }
-/* Where nothing has news, the On Me mark and the folded leaf wear it grey for a draft
-   the user put away (floating-panel.js, `keptDrafts`). */
+/* Where nothing has news, the On Me mark and the folded leaf wear it in a faint grey for
+   a draft the user put away (floating-panel.js, `keptDrafts`; tokens.css,
+   `--lf-draft`). */
 .lf-unread-dot[data-lf-drafts] {
-  background: var(--lf-muted);
+  background: var(--lf-draft);
 }
 /* A control's badges: a count, and dots for news and for an error, on the top edge of
    the folded leaf and of a margin entry. They stand in one row, so no badge covers
@@ -1484,10 +1485,11 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-border);
 }
 /* A draft's entry, words the user wrote here and hasn't sent (the `draft` kind,
-   contribution-model.js), wears the muted grey the On Me mark's dot wears for a draft
-   (`.lf-unread-dot[data-lf-drafts]`), in the rail and as a pin, so it reads apart from
-   a thread's entry in the thread's colour. The user chose the grey over a dashed
-   contour. */
+   contribution-model.js), draws its symbol in the muted grey, in the rail and as a
+   pin, so it reads apart from a thread's entry in the thread's colour. The user chose
+   the grey over a dashed contour. It stands a step further from the ground than the On
+   Me mark's dot for a draft (`--lf-draft`), since a press's symbol needs the muted ink
+   to read as one. */
 .lf-margin-face[data-lf-kinds="draft"] {
   --lf-entry-ink: var(--lf-muted);
 }

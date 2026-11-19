@@ -149,8 +149,8 @@ then refuse (`authoring-on-me.md`, "What a question holds").
 
 Each item you start shows its line where the user looks for that work: in its
 thread, in On <your name>, and in the panel's status while it is the newest start. So start every item whose work is running, a worker's included, rather
-than the one that best describes your own step. A start lasts only for the turn that
-wrote it, and within a long turn it goes stale after about 15 minutes. While a worker
+than the one that best describes your own step. A start goes stale after about 15
+minutes without a new line, and once your session stops working. While a worker
 produces an update's answer, start that update before you end your turn; the Stop
 hook lets a turn end over an update it started. In the next turn, start the item
 again or answer it.

@@ -36,11 +36,11 @@
  *   has its ✕ on a line of its own, its head line or its tabs, and the field takes the
  *   seat's room while the view stands (**Opened**), but for a stance's ✕, which keeps
  *   the seat there too wherever the field doesn't say Close at its end: always beside a
- *   thread's reply box, which ends in Reply, and beside the page's field while the user
- *   writes in it. So a reply or a draft there rewraps as a stance comes and goes, as a
- *   draft does with no view open. Rejected: the ✕ waiting for the view to close, which
- *   left a stance entered from a thread, such as Go-to or Draw mode, unnamed and with
- *   no way out on screen.
+ *   thread's reply box, which ends in Reply, and beside the page's field while it holds
+ *   the caret or a draft. So a reply or a draft there rewraps as a stance comes and
+ *   goes, as a draft does with no view open. Rejected: the ✕ waiting for the view to
+ *   close, which left a stance entered from a thread, such as Go-to or Draw mode,
+ *   unnamed and with no way out on screen.
  *   The user chose the one seat over a Threads mark beside On Me and a seat kept
  *   empty for the ✕, which leaves a gap at the row's end; Threads is the On view's
  *   tab, since On Me already lists a thread message that waits on the user. Rejected:
@@ -85,7 +85,7 @@
  *   way back, which leaves a pointer two presses from Threads. The field below runs to
  *   the panel's edge while a view stands, at rest and widened alike, which the user
  *   chose over Close in the row's seat, which takes room from the field at rest; only a
- *   stance's ✕ takes the seat then (**The row**). The
+ *   search's or a stance's ✕ takes the seat then (**The row**). The
  *   panel stands on the window's foot, so a view grows and shrinks from its top edge,
  *   and its head line moves with it: news, such as an answer growing a thread, carries
  *   the thread's presses up with its name. A press on the head line holds the view's

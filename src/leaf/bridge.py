@@ -49,7 +49,8 @@ address a gone bridge left, so while the lease is held the address is absent or 
 holder's. A client counts a bridge up only once it accepts the request, so one that
 reaches a retiring bridge tries again, and it waits for the address for as long as
 a bridge holds the lease, since a slow start only makes that wait longer; with no
-holder it fails at once. A client that falls silent before its
+holder it fails at once, contacting no address, since a gone bridge's port may
+now be another listener's. A client that falls silent before its
 command's exit status, as when Claude Code times the command out, ends the
 command's process group.
 """
@@ -397,13 +398,9 @@ def run(argv: list[str]) -> int:
     # acceptance says it is up.
     refusals = 0
     while True:
-        running = lock_is_held(bridge_path("lock"))
-        if record := ADDRESS.read(bridge_path("json")):
-            stream, refusal = attempt(record, request)
-            if stream is not None:
-                break
-            refusals += 1
-        if not running:
+        # An address with no lease holder is a gone bridge's, and its port may
+        # now be another listener's, which could hold the request unanswered.
+        if not lock_is_held(bridge_path("lock")):
             print(
                 "leaf: no Leaf bridge is running to take this command out of Claude "
                 "Code's sandbox. Leaf's hook starts the bridge before a Bash command "
@@ -411,6 +408,11 @@ def run(argv: list[str]) -> int:
                 file=sys.stderr,
             )
             return 1
+        if record := ADDRESS.read(bridge_path("json")):
+            stream, refusal = attempt(record, request)
+            if stream is not None:
+                break
+            refusals += 1
         if refusals == REFUSALS:
             print(
                 "leaf: this command could not reach Leaf's bridge out of Claude "

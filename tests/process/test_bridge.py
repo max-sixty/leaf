@@ -1,5 +1,6 @@
 """Claude Code's sandboxed commands, run outside its sandbox by Leaf's bridge."""
 
+import contextlib
 import io
 import json
 import os
@@ -7,6 +8,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -271,25 +273,45 @@ def test_a_bridged_command_waits_for_a_slow_bridge_while_it_holds_the_lease(
     assert capfd.readouterr().out
 
 
-@pytest.mark.parametrize("published", [False, True])
+@pytest.mark.parametrize("published", ["absent", "closed", "occupied"])
 def test_a_bridged_command_fails_at_once_where_no_bridge_runs(
     monkeypatch, capfd, published
 ):
     """With no bridge holding the lease, an address absent or left by a bridge
     since gone gets no answer however long the client waits, so it says at once
-    that no bridge runs rather than blaming the sandbox's network rule."""
+    that no bridge runs rather than blaming the sandbox's network rule. It never
+    contacts a gone bridge's address, whose port another listener may now hold
+    without answering."""
     for name in ("HTTP_PROXY", "http_proxy"):
         monkeypatch.delenv(name, raising=False)
     bridge_model.bridge_path("json").parent.mkdir(parents=True, exist_ok=True)
-    if published:
-        with socket.socket() as closed:
-            closed.bind(("127.0.0.1", 0))
-            port = closed.getsockname()[1]
-        bridge_model.ADDRESS.write(
-            bridge_model.bridge_path("json"), {"port": port, "token": "t", "pid": 1}
-        )
-    monkeypatch.setattr(bridge_model, "POLL_SECONDS", STATED_TIMEOUT)
-    assert bridge_model.run(["--version"]) == 1
+    with contextlib.ExitStack() as stack:
+        listener = stack.enter_context(socket.socket())
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+        contacted = threading.Event()
+        if published == "occupied":
+            listener.listen()
+
+            def answer_nothing() -> None:
+                # A client that sent its request gets the connection closed
+                # unanswered, so a regression fails here rather than hanging.
+                with contextlib.suppress(OSError):
+                    connection, _ = listener.accept()
+                    contacted.set()
+                    connection.close()
+
+            threading.Thread(target=answer_nothing, daemon=True).start()
+        else:
+            listener.close()
+        if published != "absent":
+            bridge_model.ADDRESS.write(
+                bridge_model.bridge_path("json"),
+                {"port": port, "token": "t", "pid": 1},
+            )
+        monkeypatch.setattr(bridge_model, "POLL_SECONDS", STATED_TIMEOUT)
+        assert bridge_model.run(["--version"]) == 1
+        assert not contacted.is_set()
     error = capfd.readouterr().err
     assert "no Leaf bridge is running" in error
     assert "127.0.0.1" not in error

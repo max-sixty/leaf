@@ -258,3 +258,35 @@ ignore_names = [
   "main_loop",
   "validateLink",
 ]
+
+[tool.typos.files]
+# Generated output and captured evidence retain their original text. Explicit
+# filenames need --force-exclude, which the pre-commit hook already supplies.
+extend-exclude = [
+  "browser/vendor/**",
+  "packages/**/vendor/**",
+  "evals/ui-review-detection/fixtures/**",
+]
+
+[tool.typos.default]
+# Revision ids are hexadecimal evidence, even when a run happens to spell a word.
+extend-ignore-re = ["\\b[0-9a-f]{7,40}\\b"]
+
+[tool.typos.default.extend-words]
+# The captured Worktrunk patch names this Rust UI crate.
+ratatui = "ratatui"
+# A render check quotes the passage print drops at 40 characters, so it can cut a
+# word in half; tests/*/test_render_commands.py expects one of those cuts.
+recor = "recor"
+# tests/*/test_interact_anchors.py aims a section anchor at `backfil-first`, one letter off an
+# id the fixture holds, because a near-miss is the typo the gate exists to refuse —
+# "corrected", the id exists and the refusal under test never fires.
+backfil = "backfil"
+# The media element's `seeked` event, named by the platform.
+seeked = "seeked"
+# A simulator's device id, as `simctl` and safaridriver name it (leaf_dev/ios_safari.py).
+udid = "udid"
+
+[tool.typos.default.extend-identifiers]
+# typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.
+PNGs = "PNGs"

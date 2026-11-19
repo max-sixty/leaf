@@ -27,7 +27,8 @@ required = ["OPENAI_API_KEY"]
 # which drops every seated user session.
 name = "leaf-website-leafexamplesession"
 class_name = "LeafWebsiteSession"
-image = "../Dockerfile.website"
+image = "Dockerfile"
+image_build_context = ".."
 # Product routes give every browser a private Leaf session. A page's first write waits
 # while its container boots and composes the page's layer, CPU-bound work that takes
 # about 8.7 s on `basic`'s 1/4 vCPU and 1.9 s on one vCPU. Cloudflare bills CPU only as
@@ -99,7 +100,8 @@ routes = []
   [[env.dev.containers]]
   name = "leaf-website-dev-leafexamplesession"
   class_name = "LeafWebsiteSession"
-  image = "../Dockerfile.website"
+  image = "Dockerfile"
+  image_build_context = ".."
   max_instances = 20
   instance_type = { vcpu = 1, memory_mib = 3072, disk_mb = 4000 }
   rollout_active_grace_period = 0

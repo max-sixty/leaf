@@ -690,8 +690,8 @@ def local_worker() -> Generator[LocalWorker]:
             context = root / "context"
             copy_working(
                 [
-                    "Dockerfile.website",
-                    "Dockerfile.website.dockerignore",
+                    "worker/Dockerfile",
+                    "worker/Dockerfile.dockerignore",
                     "package.json",
                     "pnpm-lock.yaml",
                     "pnpm-workspace.yaml",
@@ -720,7 +720,8 @@ def local_worker() -> Generator[LocalWorker]:
             # Wrangler sends the Dockerfile on stdin, so use the same ignores
             # for that build and Docker's file-based warm build.
             shutil.copyfile(
-                context / "Dockerfile.website.dockerignore", context / ".dockerignore"
+                context / "worker" / "Dockerfile.dockerignore",
+                context / ".dockerignore",
             )
             subprocess.run(
                 [
@@ -729,7 +730,7 @@ def local_worker() -> Generator[LocalWorker]:
                     "--platform",
                     "linux/amd64",
                     "--file",
-                    str(context / "Dockerfile.website"),
+                    str(context / "worker" / "Dockerfile"),
                     "--tag",
                     image_tag,
                     str(context),
@@ -746,7 +747,7 @@ def local_worker() -> Generator[LocalWorker]:
             config["main"] = str(ROOT / "worker" / "src" / "index.ts")
             config["assets"]["directory"] = str(root / "assets")
             for container in config["containers"]:
-                container["image"] = str(context / "Dockerfile.website")
+                container["image"] = str(context / "worker" / "Dockerfile")
                 container["image_build_context"] = str(context)
             config_path = root / "wrangler.json"
             config_path.write_text(json.dumps(config))

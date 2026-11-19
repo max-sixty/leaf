@@ -937,6 +937,10 @@ def test_a_live_line_reply_wraps_without_resize_observer_feedback(
     code = diff.get_by_role("region", name="uploader.py", exact=True)
     before = outlet.bounding_box()
     code.focus()
+    # Chromium drops the smooth scroll a key starts when the frame it starts in runs
+    # longer than the scroll's animation, as the frames drawing a new focus can on a
+    # loaded machine, so the key waits for those frames.
+    rendered(page)
     page.keyboard.press("ArrowRight")
     page.wait_for_function("""() => document.getElementById('patch')
       .shadowRoot.querySelector('code[data-code]').scrollLeft > 0""")

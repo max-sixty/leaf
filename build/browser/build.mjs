@@ -90,7 +90,7 @@ export async function compilerPaths(directory = root) {
  * it bundles (`build/lit.mjs`), read from Lit's own declarations. */
 async function litTypes() {
   return Buffer.from(
-    `/* @noformat Generated from Lit's package exports by build/browser/build.mjs. */\n${await litNamespace()}\n`,
+    `/* Generated from Lit's package exports by build/browser/build.mjs. */\n${await litNamespace()}\n`,
   );
 }
 /**

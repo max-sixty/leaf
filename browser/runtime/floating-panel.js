@@ -1399,17 +1399,20 @@ export function createFloatingPanel({
     // Where the user stands, before the status, is drawn apart from it, so the ink a
     // status that asks wears stays the status's (floating-panel.css).
     if (says === "status" && lead.length)
-      return html`<span class="lf-fp-standing">${statusParts(lead)}</span>${statusParts(
-          parts.slice(lead.length),
-        )}`;
+      return standingParts(lead, parts.slice(lead.length));
     return wordsText(words) &&
       (!voiceOf(words) ||
         parts.some(
           (part) => typeof part !== "string" && "source" in part && part.source,
         ))
-      ? statusParts(words)
+      ? standingParts([], parts)
       : null;
   }
+  // One template with or without a stance's lead, so a stance coming or going
+  // updates the status's nodes in place rather than rebuilding equal ones.
+  /** @param {readonly (string | import("./voice.js").Said)[]} lead @param {import("./voice.js").Words} rest */
+  const standingParts = (lead, rest) =>
+    html`${lead.length ? html`<span class="lf-fp-standing">${statusParts(lead)}</span>` : nothing}${statusParts(rest)}`;
   // The page's own editor: the field where no thread is open.
   /** @type {{box: HTMLDivElement, input: ReturnType<typeof textField>, sync: () => void} | null} */
   let general = null;

@@ -133,7 +133,7 @@ const PAGE_COMMANDS = [
 
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").Scope} Scope
- * @typedef {{title: string, description?: string, out: () => unknown, root?: Element | Document | null}} Rung
+ * @typedef {{title: string, description?: string, out: () => unknown, root?: Element | Document | null, waits?: boolean}} Rung
  */
 /** @type {Map<string, Scope[]>} */
 const scopes = new Map();
@@ -240,6 +240,8 @@ const BACK_OUT = {
     return step ? descriptionOf(step) : undefined;
   },
   when: () => Boolean(rung()),
+  // A step may wait for the page's listeners, as letting go of a control does (page.js).
+  waits: () => Boolean(rung()?.waits),
   run: () => rung()?.out(),
 };
 

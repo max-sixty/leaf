@@ -5184,9 +5184,12 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher has a capture listener for
-    shortcut characters, before nested libraries' typeahead, and for a key that lets go
-    of focus the user can't see, and a bubble listener for other keys, after controls'
-    own handling; both use the same register.
+    shortcut characters, before nested libraries' typeahead, for a key that lets go
+    of focus the user can't see and for an armed Go-to's keys; a listener on the root
+    element for other keys, after controls' own handling and before the page's
+    listeners on the document and the window; and a listener on the window for a
+    row that waits, which a second, in capture, moves behind the window's other
+    listeners as each key arrives; all of them use the same register.
     The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
     press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The
@@ -5219,7 +5222,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         name = line.split(":")[0]
         by_file[name] = by_file.get(name, 0) + 1
     assert by_file == {
-        "controller.js": 2,
+        "controller.js": 4,
         "aim.js": 1,
         "bootstrap.js": 2,
         "document-inputs.js": 1,

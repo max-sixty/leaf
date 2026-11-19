@@ -6,7 +6,7 @@ directly:
 - an event, whether a browser posted it or a command wrote it, at the append door
   ([events.md, "Admission"](events.md#admission));
 - a page's authored source at `check_source` (`validation/source.py`), which `page
-check`, activation, `page stamp` and `page init` all run ("Static validation");
+  check`, activation, `page stamp` and `page init` all run ("Static validation");
 - the HTML in an agent's message at `admission.check_markup`, which applies the same
   structure and vocabulary checks to the markup the message draws
   (`passages.message_markup`);

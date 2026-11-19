@@ -1,4 +1,4 @@
-/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */
+/* Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */
 export type MessageKind = "comment" | "reply";
 export type UndoableKind = "comment" | "reply" | "edit" | "resolve" | "unresolve" | "action";
 export type WidgetKind = "action" | "report";

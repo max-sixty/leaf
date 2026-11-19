@@ -19,23 +19,23 @@
  * icon in a code view, is that widget's drawing. A widget holding the author's markup,
  * such as a tab, a question or an animation, stays whole at Skim when a picture or a
  * gist stands inside it.
+ *
  * Which depth stands is this tab's view of the page, as a tab set's open panel is
  * (`tabStore`): no event records it, and a reload comes back to it. Read is the
  * default, so a page shows as authored until the reader turns the dial.
  *
  * Skim folds the rest with `hidden="until-found"`, so find-in-page, a fragment, the On
  * walk and travel to a comment still reach folded text and open the run holding it
- * (`beforematch`). Folding walks the dial's document (the view or `main`
- * holding it, as `lf-toc`'s outline does) and descends only into plain structure that
- * holds the lede, a gist, a picture or a heading that stands. Everything else is folded
- * or kept whole: a line of text, one with words of its own or only inline children,
- * which keeps a picture in its line whole; a table, whose cells stand in its
- * grid; a disclosure, whose summary is its control; and a Leaf element, whose children
- * are its own. A heading stands at
- * Skim when a lede, gist or picture follows it in document order before the next
- * heading of its rank or above, so a section with nothing for a skimmer folds whole,
- * heading included. Keeping every heading was rejected: it made Skim a fixed cut of
- * every section, whether or not one had anything for a skimmer.
+ * (`beforematch`). Folding walks the dial's document (the view or `main` holding it, as
+ * `lf-toc`'s outline does) and descends only into plain structure that holds the lede,
+ * a gist, a picture or a heading that stands. Everything else is folded or kept whole:
+ * a line of text, one with words of its own or only inline children, which keeps a
+ * picture in its line whole; a table, whose cells stand in its grid; a disclosure,
+ * whose summary is its control; and a Leaf element, whose children are its own. A
+ * heading stands at Skim when a lede, gist or picture follows it in document order
+ * before the next heading of its rank or above, so a section with nothing for a
+ * skimmer folds whole, heading included. Keeping every heading was rejected: it made
+ * Skim a fixed cut of every section, whether or not one had anything for a skimmer.
  *
  * Skim draws one quiet ⋯ for each gap in what it shows, after the block the gap
  * follows, and pressing it unfolds that gap alone. A gap is every block between two

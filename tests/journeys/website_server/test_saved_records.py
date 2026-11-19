@@ -97,7 +97,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             receive_batch(page, {"events": [chosen, comment, reply]}, session_id=None),
         ):
             pass
-        # A draft the visitor is writing is saved with the next commit.
+        # A draft the visitor is writing is saved as it is written, apart from commits.
         draft = {"attempt": "saved-draft-0001", "text": "Keep these words"}
         write_draft(private, {"context": "general", "expect": [], "record": draft})
         # One private revision drops a page input and revises the document. Each
@@ -165,16 +165,19 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         assert state["active"]["revision"] == 2
         assert state["session_alive"] is None and state["listening"] is False
         assert state["activity"].get("next_transition_at") is None
-        # A tab opened while the container sleeps reads the drafts the replacement
-        # restores, without waking it.
+        # The commit captures the drafts answers the Durable Object serves while the
+        # container sleeps, with the store it holds in their place.
         drafts = json.loads(body("api/drafts"))
         assert drafts["drafts"] == {"general": {**draft, "version": 1}}
         assert json.loads(body("api/news")) == {
             "reading": state["reading"],
             "pages": None,
-            "drafts": drafts["version"],
+            "drafts": {"store": drafts["store"], "version": drafts["version"]},
         }
         assert b"Revised plan" in body("")
+        # A release's document carries no drafts (`http.py`), so the one saved here
+        # never shows words the drafts store has replaced since.
+        assert b'id="lf-drafts"' not in body("")
         private_entry = revision_root(private, 2).lstrip("/") + "/leaf.js"
         assert private_entry in publication["responses"]
         assert (

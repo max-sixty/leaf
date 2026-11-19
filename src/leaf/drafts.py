@@ -29,15 +29,30 @@ after their event, and settles the generation rather than standing it up again,
 whether or not the tab lives to settle it. Admission never touches the store, so no
 stop between taking a send and settling its draft can leave the words standing.
 
-Every record carries the store's `version` when it was written, so a tab ordering a
-reading against a write's answer keeps the later of the two.
+The store names itself (`store`), an identity minted when its file is created, and
+every reading and write answer carries it beside the store's `version`, which counts
+its writes. Within one store the version never goes back: every write replaces the
+file under its lock. A host that keeps the page outside this machine holds the store
+of record (`service.commit_provider`), and the file is this machine's copy of it: the
+host takes a write only over the store the file held, before Leaf replaces the file
+or answers, so a tab never hears a write the host could lose, and a save that reaches
+the host late finds a newer store there and changes nothing. Where the host holds
+another store than the file, as after a save it took whose answer never came back,
+the file takes the host's store and the write runs once more against it (`_change`).
+Every record carries the version of its own write, so a tab ordering a reading
+against a write's answer keeps the later of the two. A page directory replaced, or a leaf.page session started for a new release,
+starts another store with another identity, whose versions say nothing of the one a
+tab heard before.
 """
 
+import secrets
+from collections.abc import Callable
 from pathlib import Path
 
 from leaf.event_log import admitted_attempts
 from leaf.registry.schema import schema_error
 from leaf.schema import DRAFTS_FILE, DRAFTS_LOCK
+from leaf.service import commit_provider
 from leaf.state import Record, described, flocked, object_schema
 
 _ATTEMPT = described(
@@ -74,6 +89,10 @@ DRAFTS = Record(
         "`drafts.json`.",
         object_schema(
             {
+                "store": described(
+                    "The store's identity, minted when its file is created.",
+                    {"type": "string", "minLength": 1},
+                ),
                 "version": described(
                     "Counts the store's writes; each record holds the count at its "
                     "own.",
@@ -87,7 +106,7 @@ DRAFTS = Record(
             },
         ),
     ),
-    since=46,
+    since=51,
 )
 _WRITE = {
     "type": "object",
@@ -107,12 +126,45 @@ _WRITE = {
 
 
 def no_drafts() -> dict:
-    """The store before its first write: version 0 holds no drafts."""
-    return {"version": 0, "drafts": {}}
+    """A new store, under an identity of its own: version 0 holds no drafts."""
+    return {"store": secrets.token_hex(16), "version": 0, "drafts": {}}
 
 
-def _stored(page_dir: Path) -> dict:
-    return DRAFTS.read(page_dir / DRAFTS_FILE) or no_drafts()
+def _change[T](
+    page_dir: Path, change: Callable[[dict], tuple[bool, T]]
+) -> tuple[dict, T]:
+    """Run `change` on the store under its lock, and save the store where `change` says
+    it changed it or the page had none: the store and what `change` returned. A host
+    that keeps the page elsewhere takes the save only over the store the file held, and
+    answers with the store it holds; where that is another, the file takes it and
+    `change` runs once more against it. RuntimeError where the host turns that away
+    too."""
+    path = page_dir / DRAFTS_FILE
+    provider = commit_provider()
+    with flocked(page_dir / DRAFTS_LOCK):
+        for _ in range(2):
+            stored = DRAFTS.read(path)
+            replaces = stored and {
+                "store": stored["store"],
+                "version": stored["version"],
+            }
+            stored = stored or no_drafts()
+            changed, result = change(stored)
+            if not changed and replaces is not None:
+                return stored, result
+            held = (
+                provider.publish_drafts(page_dir, stored, replaces)
+                if provider
+                else stored
+            )
+            if held == stored:
+                DRAFTS.write(path, stored)
+                return stored, result
+            if held is None:
+                path.unlink(missing_ok=True)
+            else:
+                DRAFTS.write(path, held)
+    raise RuntimeError("the page's host holds another drafts store")
 
 
 def _settle_sent(page_dir: Path, stored: dict, *, check: bool = False) -> bool:
@@ -134,15 +186,19 @@ def _settle_sent(page_dir: Path, stored: dict, *, check: bool = False) -> bool:
 
 
 def read_drafts(page_dir: Path) -> dict:
-    """The drafts the user is writing, by context, with the store's version. A
-    generation sent since the last reading or write is settled first."""
-    stored = _stored(page_dir)
-    if _settle_sent(page_dir, stored, check=True):
-        with flocked(page_dir / DRAFTS_LOCK):
-            stored = _stored(page_dir)
-            if _settle_sent(page_dir, stored):
-                DRAFTS.write(page_dir / DRAFTS_FILE, stored)
-    return {"version": stored["version"], "drafts": stored["drafts"]}
+    """The drafts the user is writing, by context, with the store's identity and
+    version. A generation sent since the last reading or write is settled first, and
+    a page with no store yet starts one, so every reading names the store it read."""
+    stored = DRAFTS.read(page_dir / DRAFTS_FILE)
+    if stored is None or _settle_sent(page_dir, stored, check=True):
+        stored, _ = _change(
+            page_dir, lambda stored: (_settle_sent(page_dir, stored), None)
+        )
+    return {
+        "store": stored["store"],
+        "version": stored["version"],
+        "drafts": stored["drafts"],
+    }
 
 
 def write_draft(page_dir: Path, payload: dict) -> dict:
@@ -152,13 +208,11 @@ def write_draft(page_dir: Path, payload: dict) -> dict:
     if error := schema_error(_WRITE, payload):
         raise ValueError(f"invalid draft: {error}")
     context, expect, record = payload["context"], payload["expect"], payload["record"]
-    with flocked(page_dir / DRAFTS_LOCK):
-        stored = _stored(page_dir)
+    if not record.get("settled") and admitted_attempts(page_dir, [record["attempt"]]):
+        record = {"attempt": record["attempt"], "settled": True}
+
+    def change(stored: dict) -> tuple[bool, tuple[bool, dict | None]]:
         changed = _settle_sent(page_dir, stored)
-        if not record.get("settled") and admitted_attempts(
-            page_dir, [record["attempt"]]
-        ):
-            record = {"attempt": record["attempt"], "settled": True}
         current = stored["drafts"].get(context)
         written = current is None or current["attempt"] in expect
         if written:
@@ -171,6 +225,12 @@ def write_draft(page_dir: Path, payload: dict) -> dict:
                     **record,
                     "version": stored["version"],
                 }
-        if written or changed:
-            DRAFTS.write(page_dir / DRAFTS_FILE, stored)
-    return {"written": written, "version": stored["version"], "record": current}
+        return written or changed, (written, current)
+
+    stored, (written, current) = _change(page_dir, change)
+    return {
+        "written": written,
+        "store": stored["store"],
+        "version": stored["version"],
+        "record": current,
+    }

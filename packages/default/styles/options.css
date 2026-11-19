@@ -580,9 +580,11 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       background-color: var(--lf-ground);
     }
     /* The aim wash: the cell under the pointer or the keyboard deepens toward the ink,
-     * which reads in both palettes. The fill is not transitioned, since the tokens
+     * which reads in both palettes. A pick keeps its ground: it already stands deeper
+     * than the wash, and washing it deeper would take its muted words below 4.5:1
+     * (tokens.css, `--lf-muted`). The fill is not transitioned, since the tokens
      * change when the palette flips and every cell would animate between them. */
-    & > lf-option:is(:hover, [data-lf-control-focus]) {
+    & > lf-option:not([selected]):is(:hover, [data-lf-control-focus]) {
       --lf-ground: color-mix(in srgb, var(--lf-fill) 92%, var(--lf-ink));
     }
     /* The pick fills the cell with the picked ground and rings it inside its edge
@@ -937,14 +939,12 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another {
   }
 }
 /* An opened settled group's option answers the pointer with the aim's wash a live cell
- * takes (above), without moving its words. */
+ * takes (above), without moving its words, and its pick keeps its ground as a live
+ * cell's does. */
 @media screen {
-  lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
+  lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option:not([selected]):hover {
     --lf-ground: color-mix(in srgb, var(--lf-card) 92%, var(--lf-ink));
     background: var(--lf-ground);
-  }
-  lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option[selected]:hover {
-    --lf-ground: color-mix(in srgb, var(--lf-picked-ground) 92%, var(--lf-ink));
   }
 }
 /* The reference floats to the end of the words' last line where it fits there and

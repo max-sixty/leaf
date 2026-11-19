@@ -724,6 +724,63 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
     assert all(reading["contrast"] >= 3 for reading in readings), readings
 
 
+PICKED_REFERENCES_PAGE = leaf_page(
+    "Picked references",
+    """<h1>Follow-up</h1>
+<lf-group id="live-q" label="What next?"><lf-options id="live">
+  <lf-option id="live-ship" for="stall" selected>Ship with the resend.</lf-option>
+  <lf-option id="live-hold" for="plan">Hold for the vendor.</lf-option>
+</lf-options></lf-group>
+<lf-group id="done-q" label="Which build?"><lf-options id="done" settled>
+  <lf-option id="done-ship" for="stall" selected>The patched build.</lf-option>
+  <lf-option id="done-hold" for="plan">The current build.</lf-option>
+</lf-options></lf-group>
+<section id="plan"><h2>Release plan</h2><p>Monday.</p></section>
+<section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
+</section>""",
+)
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_a_picked_options_muted_words_stay_aa_under_the_pointer(
+    browser, serve, color_scheme
+):
+    """A picked option's § reference is muted ink, which `tokens.css` holds at 4.5:1
+    on every ground the layer paints; the pointer resting on the pick, in a live
+    joined cell or an opened settled group, leaves it there."""
+    page = open_page(browser, serve(PICKED_REFERENCES_PAGE), color_scheme=color_scheme)
+    page.locator("#done .lf-settled").click()
+    contrast = """option => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext('2d', {willReadFrequently: true});
+      const rgb = color => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+      };
+      const luminance = color => rgb(color)
+        .map(channel => channel / 255)
+        .map(channel => channel <= .04045
+          ? channel / 12.92
+          : ((channel + .055) / 1.055) ** 2.4)
+        .reduce((sum, channel, index) =>
+          sum + channel * [.2126, .7152, .0722][index], 0);
+      const words = getComputedStyle(option.querySelector('.lf-ref')).color;
+      const ground = getComputedStyle(option).backgroundColor;
+      const [light, dark] = [luminance(words), luminance(ground)].sort((a, b) => b - a);
+      return {words, ground, contrast: (light + .05) / (dark + .05)};
+    }"""
+    for option in ("#live-ship", "#done-ship"):
+        target = page.locator(option)
+        expect(target).to_have_attribute("selected", "")
+        target.hover()
+        reading = target.evaluate(contrast)
+        assert reading["contrast"] >= 4.5, (option, reading)
+    page.mouse.move(0, 0)
+
+
 def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
     browser, serve, subtests
 ):
@@ -1270,28 +1327,33 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # inert check below the prose. It needs the strip a live header state doesn't.
     assert page.locator("#q-lax").evaluate(pad) != page.locator("#l-shim").evaluate(pad)
 
-    # Standalone cards also answer with a wash, while quoted cards remain inert.
-    # Both chosen and unchosen states keep their geometry under the pointer.
+    # Standalone cards also answer with a wash, while quoted cards remain inert. A
+    # chosen card keeps its picked ground under the pointer, live or quoted, since a
+    # wash over it would take its muted words below AA. Both keep their geometry.
     page.locator("#live-settled .lf-settled").click()
-    for quiet, live, card in (
-        ("#q-bearer", "#l-bearer", "plain"),
-        ("#q-lax", "#l-lax", "chosen"),
-    ):
-        page.locator(live).scroll_into_view_if_needed()
-        # Scrolling can put this card beneath the previous hover's pointer.
+    page.locator("#l-bearer").scroll_into_view_if_needed()
+    # Scrolling can put this card beneath the previous hover's pointer.
+    page.mouse.move(0, 0)
+    live_box = page.locator("#l-bearer").bounding_box()
+    live_rest = page.locator("#l-bearer").evaluate(css)
+    page.locator("#l-bearer").hover()
+    expect(page.locator("#l-bearer")).not_to_have_css(prop, live_rest)
+    assert page.locator("#l-bearer").bounding_box() == live_box
+    quiet_rest = page.locator("#q-bearer").evaluate(css)
+    page.locator("#q-bearer").hover()
+    expect(page.locator("#l-bearer")).to_have_css(prop, live_rest)
+    assert page.locator("#q-bearer").evaluate(css) == quiet_rest, (
+        f"a quoted plain card answers the pointer: "
+        f"{page.locator('#q-bearer').evaluate(css)} against {quiet_rest} at rest"
+    )
+    for chosen in ("#l-lax", "#q-lax"):
+        page.locator(chosen).scroll_into_view_if_needed()
         page.mouse.move(0, 0)
-        live_box = page.locator(live).bounding_box()
-        live_rest = page.locator(live).evaluate(css)
-        page.locator(live).hover()
-        expect(page.locator(live)).not_to_have_css(prop, live_rest)
-        assert page.locator(live).bounding_box() == live_box
-        quiet_rest = page.locator(quiet).evaluate(css)
-        page.locator(quiet).hover()
-        expect(page.locator(live)).to_have_css(prop, live_rest)
-        assert page.locator(quiet).evaluate(css) == quiet_rest, (
-            f"a quoted {card} card answers the pointer: "
-            f"{page.locator(quiet).evaluate(css)} against {quiet_rest} at rest"
-        )
+        box = page.locator(chosen).bounding_box()
+        rest = page.locator(chosen).evaluate(css)
+        page.locator(chosen).hover()
+        assert page.locator(chosen).evaluate(css) == rest, chosen
+        assert page.locator(chosen).bounding_box() == box, chosen
 
 
 def test_one_band_says_where_the_user_is_located(browser, serve):

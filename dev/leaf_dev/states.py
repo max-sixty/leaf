@@ -1340,6 +1340,13 @@ def option_references(page: Page) -> None:
     page.locator("#off-workaround-review").scroll_into_view_if_needed()
 
 
+def option_reference_hovered(page: Page) -> None:
+    """The patch decision with the pointer resting on its pick, whose § reference is
+    muted ink on the picked ground."""
+    option_references(page)
+    page.locator("#off-workaround-approve").hover()
+
+
 def on_me(page: Page) -> None:
     """On Me, opened from the floating panel's On Me mark."""
     page.locator(".lf-fp-on-user").click()
@@ -2980,6 +2987,12 @@ STATES = (
         "ship-option-references",
         "ship-review",
         option_references,
+        region="#off-workaround-decision",
+    ),
+    State(
+        "ship-option-reference-hovered",
+        "ship-review",
+        option_reference_hovered,
         region="#off-workaround-decision",
     ),
     State(

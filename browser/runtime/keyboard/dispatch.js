@@ -22,7 +22,9 @@
    checkbox, Escape, or unrelated function keys merely because they are form-related.
    Radio and slider navigation has its own narrow claim at the focused control, so
    an arrow changes that control without also moving its containing widget. Open select
-   options retain typeahead when focus moves into their list. Native activation, such as
+   options retain typeahead when focus moves into their list, and a widget whose ARIA
+   pattern types ahead, such as a menu or a tree, claims the letters and digits a name
+   starts with (`text-entry.js`). Native activation, such as
    Enter on a link or Space on a button, is the narrowest claim: it withholds its press
    from every outer row that would run something else and leaves the rows that only name
    the press (`nativeActivationAt`). An exact element scope stands before these native

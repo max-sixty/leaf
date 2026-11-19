@@ -13,6 +13,7 @@ import {
   needsPageSlash,
   newSessionId,
   pageRoute,
+  releaseAssetRoute,
   sessionCookie,
   sessionFromCookie,
 } from "../src/routing";
@@ -185,6 +186,41 @@ describe("website page routing", () => {
     expect(activeCookie(false, "/", protocol)).toBe(
       `${HTTP_ACTIVE_COOKIE_PREFIX}-root=${protocol}; Path=/; HttpOnly; SameSite=Lax`,
     );
+  });
+
+  it("finds a page's file at its release address, this release's or an earlier one's", () => {
+    const current = "a".repeat(64);
+    const keyed = {
+      ...manifest,
+      pages: {
+        "/": { ...page("product"), assets: `/_leaf-release/${current}/root` },
+        "/examples/triage-board": {
+          ...page("example"),
+          assets: `/_leaf-release/${current}/examples--triage-board`,
+        },
+      },
+    };
+    for (const release of [current, "b".repeat(40)])
+      expect(
+        releaseAssetRoute(
+          `/_leaf-release/${release}/examples--triage-board/runtime/app.js`,
+          keyed,
+        ),
+      ).toMatchObject({
+        release,
+        pathname: "/examples/triage-board/runtime/app.js",
+        route: { root: "/examples/triage-board", inside: "runtime/app.js" },
+      });
+    expect(
+      releaseAssetRoute(`/_leaf-release/${current}/root/revisions/r1-00/leaf.js`, keyed)
+        ?.pathname,
+    ).toBe("/revisions/r1-00/leaf.js");
+    for (const path of [
+      `/_leaf-release/${current}/examples--triage-board/api/state`,
+      `/_leaf-release/${current}/examples/runtime/app.js`,
+      "/examples/triage-board/runtime/app.js",
+    ])
+      expect(releaseAssetRoute(path, keyed)).toBeNull();
   });
 
   it("reuses only a well-formed opaque session cookie", () => {

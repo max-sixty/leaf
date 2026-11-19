@@ -1406,6 +1406,9 @@ def released_path(pages: dict, path: str) -> str | None:
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
 
+    # Every website endpoint serves its site's release.
+    release: str
+
     def __init__(
         self,
         request,
@@ -1449,8 +1452,15 @@ class WebsitePageEndpoint(PageEndpoint):
     def _delivery_headers(self) -> dict[str, str]:
         # Every response this adapter sends is already inside this user's private
         # container. Say so at the canonical HTTP boundary as the outer Worker does;
-        # the local adapter has no Worker in front of it to add the same reading.
-        return {"Leaf-Session": "active", **super()._delivery_headers()}
+        # the local adapter has no Worker in front of it to add the same reading. Each
+        # also names the release this image runs, which a deploy can leave behind the
+        # edge's while the container keeps running (`LeafSession` in
+        # `worker/src/index.ts`), so its tab reloads only once a newer one answers.
+        return {
+            "Leaf-Session": "active",
+            "Leaf-Release": self.release,
+            **super()._delivery_headers(),
+        }
 
     def _delivery(self, artifact, revision: int) -> Delivery:
         return replace(

@@ -34,7 +34,7 @@ if [[ ! -x "$wrangler" ]]; then
   exit 2
 fi
 
-deploy_arguments=(deploy --env dev --containers-rollout=immediate)
+deploy_arguments=(deploy --env dev)
 if ! (
   cd "$worker_root"
   "$wrangler" secret list --env dev 2>/dev/null

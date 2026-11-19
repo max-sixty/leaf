@@ -18,36 +18,27 @@ run_worker_first = true
 required = ["OPENAI_API_KEY"]
 
 [[containers]]
-# Cloudflare keys a container application to its Durable Object namespace, and a
-# namespace can hold only one. Wrangler matches the deployed application by name and
-# otherwise derives it from `<worker>-<class_name>`, so the v2 class rename below asked
-# it to create a second application against the namespace the first one already holds —
-# DURABLE_OBJECT_ALREADY_HAS_APPLICATION. Naming the existing application keeps the
-# deploy on the modify path. Renaming it would mean deleting the application first,
-# which drops every seated user session.
-name = "leaf-website-leafexamplesession"
-class_name = "LeafWebsiteSession"
-image = "Dockerfile"
-image_build_context = ".."
-# Product routes give every browser a private Leaf session. A page's first write waits
-# while its container boots and composes the page's layer, CPU-bound work that takes
-# about 8.7 s on `basic`'s 1/4 vCPU and 1.9 s on one vCPU. Cloudflare bills CPU only as
-# it is used, so the smallest custom instance, one vCPU with the 3 GiB it requires,
-# costs less than `standard-1`'s 1/2 vCPU with 4 GiB. The account's default limit of
-# 1,500 concurrent vCPU sets the capacity: reserve twenty for the persistent dev
-# application and leave ten free for rollout bookkeeping.
-max_instances = 1470
-instance_type = { vcpu = 1, memory_mib = 3072, disk_mb = 4000 }
+# Each session object starts its own container from the image of the Worker version it
+# runs (`LeafSession` in `src/index.ts`), so a container started after a deploy runs
+# the deployed image, and a running one keeps its image until it stops. Cloudflare
+# fixes an application's policy when it creates it, and gives each object class one
+# application.
+name = "leaf-website-session"
+class_name = "LeafSession"
+scheduling_policy = "durable_object"
+
+  [containers.images.leaf]
+  dockerfile = "Dockerfile"
+  build_context = ".."
 
 [[durable_objects.bindings]]
 name = "PAGES"
-class_name = "LeafWebsiteSession"
+class_name = "LeafSession"
 
 # A visitor's session object outlives deploys, so it must run the deployed release's
 # code. By default Cloudflare lets an object that keeps receiving requests run the
-# previous version for up to five minutes after a deploy. That object answers from the
-# previous release's records while the edge names the new release, so an open tab
-# reloads onto the previous release's page at every answer until the object restarts.
+# previous version for up to five minutes after a deploy, so an object would start
+# containers on the previous image and serve answers the previous release saved.
 [durable_objects.code_update_strategy]
 mode = "immediate"
 
@@ -70,6 +61,10 @@ new_sqlite_classes = ["LeafExampleSession"]
 [[migrations]]
 tag = "v2"
 renamed_classes = [{ from = "LeafExampleSession", to = "LeafWebsiteSession" }]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["LeafSession"]
 
 [observability]
 enabled = true
@@ -100,16 +95,17 @@ routes = []
   required = ["OPENAI_API_KEY"]
 
   [[env.dev.containers]]
-  name = "leaf-website-dev-leafexamplesession"
-  class_name = "LeafWebsiteSession"
-  image = "Dockerfile"
-  image_build_context = ".."
-  max_instances = 20
-  instance_type = { vcpu = 1, memory_mib = 3072, disk_mb = 4000 }
+  name = "leaf-website-dev-session"
+  class_name = "LeafSession"
+  scheduling_policy = "durable_object"
+
+    [env.dev.containers.images.leaf]
+    dockerfile = "Dockerfile"
+    build_context = ".."
 
   [[env.dev.durable_objects.bindings]]
   name = "PAGES"
-  class_name = "LeafWebsiteSession"
+  class_name = "LeafSession"
 
   [env.dev.durable_objects.code_update_strategy]
   mode = "immediate"
@@ -133,6 +129,10 @@ routes = []
   [[env.dev.migrations]]
   tag = "v2"
   renamed_classes = [{ from = "LeafExampleSession", to = "LeafWebsiteSession" }]
+
+  [[env.dev.migrations]]
+  tag = "v3"
+  new_sqlite_classes = ["LeafSession"]
 
   [env.dev.observability]
   enabled = true

@@ -11,10 +11,11 @@ write after removing its mutable source and log to prove external-record recover
 `.github/workflows/publish-site.yaml` runs the local pass before deploying and the
 release pass again against the deployed release.
 
-A deployment activates the Worker at once and rolls its containers out one allocation
-at a time, so a deployed release verifies only once the rollout reaches every page the
-pass reads. `--wait` owns that wait for every deploy: it reruns the whole pass until
-one verifies or its seconds run out, and the last failure is the report.
+A deployment reaches Cloudflare's edge within moments, and each session object starts
+its next container on the deployed image, while one already running keeps its own. A
+pass starts sessions of its own, so it verifies once the edge serves the release.
+`--wait` owns that wait for every deploy: it reruns the whole pass until one verifies
+or its seconds run out, and the last failure is the report.
 """
 
 from __future__ import annotations

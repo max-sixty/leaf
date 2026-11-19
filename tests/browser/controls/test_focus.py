@@ -1034,10 +1034,13 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
 ):
     """An empty text field builds its editor only when the user arrives in it. The box
     drawn in its place, were it a textbox in Chromium's accessibility tree but not an
-    editable one, with its value empty where the editor's is a line break, would let a
-    screen reader describe the field differently before the user arrived. Every
-    named node the field gives the tree reads the same before Tab builds the editor and
-    after, and the key typed on arrival lands in the field."""
+    editable one, would let a screen reader describe the field differently before the
+    user arrived. Every named node the field gives the tree reads the same before Tab
+    builds the editor and after, and the key typed on arrival lands in the field.
+
+    The box is a textarea, so its empty value is a native empty field's, where the
+    editor's empty line is a line break, and it states it is not invalid, as every
+    textarea does; neither changes what a screen reader says of an empty field."""
     page = open_page(
         browser,
         serve(
@@ -1062,11 +1065,13 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
             (
                 node["role"]["value"],
                 node.get("description", {}).get("value") or "",
-                node.get("value", {}).get("value") or "",
+                (node.get("value", {}).get("value") or "").strip("\n"),
                 sorted(
                     (prop["name"], prop["value"].get("value"))
                     for prop in node.get("properties", [])
                     if prop["name"] != "focused"
+                    and (prop["name"], prop["value"].get("value"))
+                    != ("invalid", "false")
                 ),
             )
             for node in cdp.send("Accessibility.getFullAXTree")["nodes"]

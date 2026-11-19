@@ -68,29 +68,18 @@ function pageResource(routes: PageRoutes, inside: string): boolean {
   );
 }
 
-const RELEASE_ASSETS = "/_leaf-release/";
-
-/** A page resource at its release address, `/_leaf-release/{release}/{key}/{inside}`,
- * under this release or any other, with the release it names and the public path its
- * static file has. A page keeps its key across releases, since the build derives it
- * from the page's root. */
 export function releaseAssetRoute(
   pathname: string,
-  { release, pages, routes }: SiteManifest,
-): { route: PageRoute; pathname: string; release: string } | null {
-  if (!pathname.startsWith(RELEASE_ASSETS)) return null;
-  const named = pathname.slice(RELEASE_ASSETS.length).split("/", 1)[0];
-  const current = `${RELEASE_ASSETS}${release}`;
+  { pages, routes }: SiteManifest,
+): { route: PageRoute; pathname: string } | null {
   for (const [root, page] of Object.entries(pages)) {
-    const assets = `${RELEASE_ASSETS}${named}${page.assets.slice(current.length)}`;
-    if (!pathname.startsWith(`${assets}/`)) continue;
-    const inside = pathname.slice(assets.length + 1);
+    if (!pathname.startsWith(`${page.assets}/`)) continue;
+    const inside = pathname.slice(page.assets.length + 1);
     if (!pageResource(routes, inside) || within([API_DIR], inside)) return null;
     const publicRoot = root === "/" ? "" : root;
     return {
       route: { root, inside, ...page },
       pathname: `${publicRoot}/${inside}`,
-      release: named,
     };
   }
   return null;

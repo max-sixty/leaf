@@ -193,7 +193,10 @@ sequenceDiagram
           runs the new release, with no minutes in between when starts fail. The
           deploy's first request to the session stops a container still running the
           previous release, ending any agent turn in progress, and starts one on the new
-          release; the open page reloads onto it at that answer.
+          release; the open page reloads onto it at that answer. Until then the
+          session's Durable Object refuses the older container before it reads or writes
+          anything, so nothing the previous image runs changes a record after the
+          deploy.
         </p>
         <p id="releases-deploy">
           A push to <code>main</code> that changes the site runs the

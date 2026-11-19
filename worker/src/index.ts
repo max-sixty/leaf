@@ -165,11 +165,14 @@ const CONTAINER_IDLE_MS = 10 * 60 * 1000;
 // The session object's key for the release whose image its container runs.
 const CONTAINER_RELEASE = "container-release";
 // A started container answers on its port within about 7 s. One that has not answered
-// in many times that is stuck, and the request that waits on it fails. A start the
-// platform can't place yet, as just after another container stopped, is tried again
-// within the same time.
+// in many times that is stuck, and the request that waits on it fails.
 const CONTAINER_READY_MS = 120_000;
 const CONTAINER_POLL_MS = 100;
+// A start the platform can't place yet, as just after another container stopped or
+// with the account's vCPU all in use, is tried again, at growing intervals from the
+// first, for this long.
+const CONTAINER_PLACING_MS = 15_000;
+const CONTAINER_PLACING_PAUSE_MS = 250;
 interface AcceptedEvent {
   event: Event;
   needsReply: boolean;
@@ -236,16 +239,12 @@ export class LeafSession extends DurableObject<Env> {
     await this.pages.saveBlob(digest, bytes);
   }
 
-  /** Stage a publication under the release of the container that captured it, which
-   * until the deploy's first request stops it can be the one before the Worker's
-   * (`storage.ts`). */
   async preparePublication(
     value: unknown,
-    release: string,
   ): Promise<{ identity: string; missing: string[] }> {
     const publication = readPublication(value);
-    const { pages } = await siteManifest(new Request("https://leaf.page/"), this.env);
-    return this.pages.prepare(publication, { pages, release });
+    const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
+    return this.pages.prepare(publication, manifest);
   }
 
   savePublication(value: unknown): void {
@@ -275,8 +274,8 @@ export class LeafSession extends DurableObject<Env> {
     const { release } = await siteManifest(new Request("https://leaf.page/"), this.env);
     this.ctx.storage.kv.put(CONTAINER_RELEASE, release);
     await this.routeOutbound();
-    const deadline = Date.now() + CONTAINER_READY_MS;
-    for (;;) {
+    const placing = Date.now() + CONTAINER_PLACING_MS;
+    for (let pause = CONTAINER_PLACING_PAUSE_MS; ; pause *= 2) {
       container.start({
         image: container.images.leaf,
         instance: CONTAINER_INSTANCE,
@@ -286,27 +285,43 @@ export class LeafSession extends DurableObject<Env> {
       this.watch();
       try {
         await container.setInactivityTimeout(CONTAINER_IDLE_MS);
-        await this.ready(deadline);
+        await this.ready();
         return;
       } catch (error) {
-        // A process that ran and exited carries its exit code; a start the platform
-        // could not place carries none, and is tried again.
-        const placed = (error as { exitCode?: number })?.exitCode !== undefined;
-        if (container.running || placed || Date.now() >= deadline) {
-          if (container.running) await container.destroy().catch(() => undefined);
+        // A container still running never answered in time, and a process that ran
+        // and exited carries its exit code; a start the platform could not place
+        // carries neither, and is tried again.
+        if (container.running) {
+          await container.destroy().catch(() => undefined);
           throw error;
         }
+        if (exitCode(error) !== undefined || Date.now() + pause >= placing) throw error;
       }
-      await new Promise((resolve) => setTimeout(resolve, CONTAINER_POLL_MS));
+      await new Promise((resolve) => setTimeout(resolve, pause));
     }
+  }
+
+  // The start or recovery in progress, begun by the first request that needs it. A
+  // running container that lost a connection is given until its health route answers
+  // again, and is stopped if it never does, so the next request starts another.
+  private recovered(): Promise<void> {
+    const container = this.ctx.container!;
+    this.starting ??= this.ready()
+      .catch(async (error: unknown) => {
+        if (container.running) await container.destroy().catch(() => undefined);
+        throw error;
+      })
+      .finally(() => (this.starting = null));
+    return this.starting;
   }
 
   // Resolve once the container's server answers its health route
   // (`_select_page` in `worker/leaf_website`), which `start` returns before; reject
   // with the runtime's reason once the container has stopped.
-  private async ready(deadline = Date.now() + CONTAINER_READY_MS): Promise<void> {
+  private async ready(): Promise<void> {
     const container = this.ctx.container!;
     const health = container.getTcpPort(CONTAINER_PORT);
+    const deadline = Date.now() + CONTAINER_READY_MS;
     for (;;) {
       try {
         const answer = await health.fetch("http://container/health", {
@@ -318,7 +333,7 @@ export class LeafSession extends DurableObject<Env> {
       } catch (error) {
         if (!container.running)
           throw await container.monitor().then(
-            () => new Error("the container exited"),
+            () => Object.assign(new Error("the container exited"), { exitCode: 0 }),
             (reason: unknown) => reason,
           );
         if (Date.now() >= deadline) throw error;
@@ -338,7 +353,10 @@ export class LeafSession extends DurableObject<Env> {
     try {
       await this.running();
     } catch (error) {
-      return lostAttempt("start", "Failed to start container", error, 503);
+      // One the platform couldn't place is a wait the tab sits out; one that ran and
+      // exited is a fault the tab shows (`state-feed.js`).
+      const status = exitCode(error) === undefined ? 503 : 500;
+      return lostAttempt("start", "Failed to start container", error, status);
     }
     let response: Response;
     try {
@@ -380,7 +398,7 @@ export class LeafSession extends DurableObject<Env> {
     logHttpError(request, first.response, first.failure, retry);
     if (!retry) return first.response;
     await first.response.body?.cancel();
-    await this.ready().catch(() => undefined);
+    await this.recovered().catch(() => undefined);
     const second = await this.attempt(replay);
     if (second.failure !== null)
       logHttpError(request, second.response, second.failure, false);
@@ -450,8 +468,8 @@ interface Attempt {
   failure: HttpFailure | null;
 }
 
-// A container that failed to start, as the visitor's 503, which the tab waits out
-// (`state-feed.js`), or dropped the connection, as their 500.
+// A container that failed to start or dropped the connection, as the visitor's 503
+// or 500.
 // The platform's sentence about it is the log's `detail`; neither Python's body nor
 // the request URL is logged.
 function lostAttempt(
@@ -465,6 +483,12 @@ function lostAttempt(
     response: new Response(`${summary}: ${detail}`, { status }),
     failure: { source, detail },
   };
+}
+
+// The exit code the runtime gives a container's process that ran and exited.
+function exitCode(error: unknown): number | undefined {
+  const code = (error as { exitCode?: unknown } | null)?.exitCode;
+  return typeof code === "number" ? code : undefined;
 }
 
 // A container's exit, with the runtime's reason where it gives one, such as an idle
@@ -525,20 +549,19 @@ async function answerPageStore(
   env: Env,
   session: string,
 ): Promise<Response> {
+  // A container still on the previous image after a deploy is refused before it
+  // reads or writes anything, as `storage.ts` says.
+  const { release } = await siteManifest(new Request("https://leaf.page/"), env);
+  if (request.headers.get("Leaf-Release") !== release) {
+    return new Response(`the page store serves release ${release}`, { status: 409 });
+  }
   const store = env.PAGES.get(env.PAGES.idFromString(session));
   const path = new URL(request.url).pathname;
   if (request.method === "GET" && path === "/records") {
     return store.savedRecords();
   }
   if (request.method === "PUT" && path === "/prepare") {
-    // Each request names the release the container's image runs
-    // (`_request` in `worker/leaf_website/storage.py`).
-    const release = siteRelease.safeParse(request.headers.get("Leaf-Release"));
-    if (!release.success)
-      return new Response("a publication names its release", { status: 400 });
-    return Response.json(
-      await store.preparePublication(await request.json(), release.data),
-    );
+    return Response.json(await store.preparePublication(await request.json()));
   }
   const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
   if (blob !== null && request.method === "PUT") {

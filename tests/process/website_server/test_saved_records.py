@@ -50,11 +50,27 @@ def durable_page_store():
         "fail": False,
         # Whether the next drafts save loses its answer after the store has had it.
         "lose": False,
+        # The release the store serves, the one `write_manifest` names.
+        "release": "0" * 64,
     }
 
     class Store(BaseHTTPRequestHandler):
+        def refused(self):
+            # As the Worker does (`answerPageStore`), refuse a container on another
+            # release before reading or writing anything.
+            if self.headers["Leaf-Release"] == stored["release"]:
+                return False
+            self.send_response(409)
+            self.end_headers()
+            self.wfile.write(
+                f"the page store serves release {stored['release']}".encode()
+            )
+            return True
+
         def do_GET(self):
             assert self.path == "/records"
+            if self.refused():
+                return
             stored["restores"] += 1
             self.send_response(200)
             self.send_header("Content-Type", "application/x-tar")
@@ -85,6 +101,8 @@ def durable_page_store():
 
         def do_PUT(self):
             body = self.rfile.read(int(self.headers["Content-Length"]))
+            if self.refused():
+                return
             if self.path.startswith("/blobs/"):
                 assert len(body) <= 1024 * 1024
                 digest = self.path.removeprefix("/blobs/")
@@ -255,6 +273,27 @@ def test_a_release_that_drops_a_page_restores_the_sessions_others(
         assert restore(site)
     assert (site / "kept/page/app.js").read_bytes() == body
     assert sorted(path.name for path in site.iterdir()) == ["_leaf", "kept"]
+
+
+def test_a_container_on_another_release_does_not_start(tmp_path, monkeypatch):
+    """After a deploy a session's container can still run the previous image until
+    its session's next request stops it, and that code may misread a record the new
+    release shaped, and its saved responses would name the previous release's
+    document. The store refuses it before it reads anything, and a refusal at restore
+    ends a start, so nothing it would write reaches the session's record."""
+    from leaf_website.storage import PageStoreRefused, restore
+
+    site = tmp_path / "site"
+    site.mkdir()
+    write_manifest(site, {"/first": ("first", "example")})
+    with durable_page_store() as (store_url, stored):
+        stored["release"] = "1" * 64
+        stored["records"] = {"/first": {"page/kept.js": {"chunks": [], "modified": 0}}}
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        with pytest.raises(PageStoreRefused, match="409"):
+            restore(site)
+        assert stored["restores"] == 0
+    assert not (site / "first").exists()
 
 
 def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
@@ -436,6 +475,7 @@ def test_a_later_release_restores_a_visitors_page_as_they_left_it(
         with PageTransaction(earlier / "page"):
             pass
 
+        stored["release"] = "1" * 64
         monkeypatch.setenv("LEAF_SITE_ROOT", str(later))
         monkeypatch.delenv("LEAF_PAGE_COMMIT")
         assert restore(later)

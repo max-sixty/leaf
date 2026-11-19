@@ -163,6 +163,7 @@ runs (`LeafSession` in `worker/src/index.ts`), so every container started after 
 deploy runs the new image. The deploy's first request to a session stops a container
 still on the previous image, ending any agent turn it was running, and starts one on
 the new image; the visitor's open tab reloads onto the new release at that answer.
+Until then the page store refuses the older container (`worker/src/storage.ts`).
 
 ### One-time setup
 

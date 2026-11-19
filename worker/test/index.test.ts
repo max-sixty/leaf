@@ -2262,7 +2262,7 @@ describe("website page agent", () => {
       expect(ctx.container.start).toHaveBeenCalledTimes(2);
       expect(log).not.toHaveBeenCalled();
 
-      // A server that exits is the request's failure, which the tab waits out.
+      // A server that exits is a fault the tab shows, not a wait.
       const crashed = Object.assign(new Error("Container exited with code 1"), {
         exitCode: 1,
       });
@@ -2277,7 +2277,7 @@ describe("website page agent", () => {
       const response = await new LeafSession(failing as never, environment()).fetch(
         new Request("https://leaf.page/examples/triage-board/api/news"),
       );
-      expect(response.status).toBe(503);
+      expect(response.status).toBe(500);
       expect(await response.text()).toBe(
         "Failed to start container: Container exited with code 1",
       );
@@ -2286,7 +2286,7 @@ describe("website page agent", () => {
         component: "leaf-container",
         event: "http_error",
         method: "GET",
-        status: 503,
+        status: 500,
         source: "start",
         detail: "Container exited with code 1",
         retried: false,
@@ -2422,6 +2422,39 @@ describe("website page agent", () => {
     }
   });
 
+  it("waits out a lost connection once for every read that met it", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { ctx, session } = await startedSession(storage);
+      let checks = 0;
+      let lost = 3;
+      ctx.container.getTcpPort.mockImplementation(() => ({
+        fetch: async (url: string, init?: Request) => {
+          if (url === "http://container/health") {
+            checks += 1;
+            return new Response("ok");
+          }
+          if (lost-- > 0) throw new Error("Network connection lost.");
+          return forwardedContainerFetch(init!);
+        },
+      }));
+      const reads = await Promise.all(
+        [1, 2, 3].map(() =>
+          session.fetch(
+            new Request("https://leaf.page/examples/triage-board/api/news"),
+          ),
+        ),
+      );
+      for (const read of reads) expect(await read.text()).toBe("container");
+      expect(checks).toBe(1);
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
   it("stops a container from before a deploy at the deploy's first request", async () => {
     const { storage, close } = sqliteStorage();
     try {
@@ -2487,7 +2520,7 @@ describe("website page agent", () => {
         responses[path] = { headers: {}, chunks: [digest] };
       }
       const publication = { root: "/examples/triage-board", record: {}, responses };
-      const prepared = await session.preparePublication(publication, RELEASE);
+      const prepared = await session.preparePublication(publication);
       for (const digest of prepared.missing) {
         await session.saveBlob(digest, blobs.get(digest)!.slice().buffer);
       }
@@ -2611,7 +2644,7 @@ describe("website page agent", () => {
         record: { "events.jsonl": { chunks: [digest], modified: 1_700_000_000 } },
         responses: {},
       };
-      const prepared = await session.preparePublication(publication, RELEASE);
+      const prepared = await session.preparePublication(publication);
       const committed = await ask("/publication", {
         method: "PUT",
         body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
@@ -2649,58 +2682,30 @@ describe("website page agent", () => {
       });
       expect(oversized.status).toBe(500);
       expect(await oversized.text()).toBe("page storage chunk exceeds 1 MiB");
-      // A publication keeps the release of the container that captured it.
-      const unnamed = await ask("/prepare", { method: "PUT", body: "{}" }, null);
-      expect(unnamed.status).toBe(400);
-    } finally {
-      close();
-    }
-  });
-
-  it("saves what a container from before a deploy captures for its own release alone", async () => {
-    const { storage, close } = sqliteStorage();
-    try {
-      const env = environment();
-      const ctx = sessionContext(storage);
-      const session = new LeafSession(ctx as never, env);
-      env.PAGES = { get: () => session, idFromString: (id: string) => id } as never;
-      const earlier = "b".repeat(64);
-      const bytes = new TextEncoder().encode("<p>the earlier release's document</p>");
-      const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString(
-        "hex",
-      );
-      const store = (path: string, body: BodyInit) =>
-        outbound(
-          new Request(`https://leaf-state.internal${path}`, {
+      // A container still on the previous image after a deploy reads nothing this
+      // release shaped and writes nothing, and its refusal says so apart from a fault.
+      for (const release of ["previous-release", null]) {
+        const restore = await ask("/records", {}, release);
+        expect(restore.status).toBe(409);
+        expect(await restore.text()).toBe(`the page store serves release ${RELEASE}`);
+        const write = await ask(
+          "/drafts",
+          {
             method: "PUT",
-            body,
-            headers: { "Leaf-Release": earlier },
-          }),
-          env,
-          { containerId: SESSION_OBJECT },
+            body: JSON.stringify({
+              root: publication.root,
+              replaces: { store: drafts.store, version: drafts.version },
+              drafts: { ...drafts, version: 2 },
+            }),
+          },
+          release,
         );
-      const prepared = (await (
-        await store(
-          "/prepare",
-          JSON.stringify({
-            root: "/examples/triage-board",
-            record: {},
-            responses: { "": { headers: {}, chunks: [digest] } },
-          }),
-        )
-      ).json()) as { identity: string };
-      await store(`/blobs/${digest}`, bytes);
-      await store(
-        "/publication",
-        JSON.stringify({ root: "/examples/triage-board", identity: prepared.identity }),
-      );
-      // The deployed release's tab is answered by a container on its own image, not
-      // with a document that names the earlier release's files.
-      const document = await session.fetch(
-        new Request("https://leaf.page/examples/triage-board/"),
-      );
-      expect(await document.text()).toBe("container");
-      expect(ctx.container.start).toHaveBeenCalledOnce();
+        expect(write.status).toBe(409);
+      }
+      const held = await snapshot();
+      expect(JSON.parse(new TextDecoder().decode(held[0].data!)).drafts).toEqual({
+        "/examples/triage-board": drafts,
+      });
     } finally {
       close();
     }

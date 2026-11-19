@@ -2051,6 +2051,14 @@ def latest_press(page):
     return field_press(page).filter(has_text="Open latest")
 
 
+def open_latest(page):
+    """Run what Open latest at the panel field's end runs, which moves no focus, for a
+    test whose caret stands in a box. There the press's keys type letters, so the end
+    shows a keyboard nothing (field-readings.js, `end`), and a finger's press on the
+    word it shows alone is the route that keeps the caret where it is."""
+    page.evaluate("async () => (await window.__lfCheckApi()).versionPicker.latest()")
+
+
 def open_latest_by_keys(page):
     """Open the latest version from Versions by keyboard, the route that stands while
     the field offers something else at its end, such as commenting on words selected

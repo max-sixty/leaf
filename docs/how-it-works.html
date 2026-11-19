@@ -137,6 +137,16 @@
       code.nowrap {
         white-space: nowrap;
       }
+
+      /* In the fork map, forks are tinted, and the one with the session's tools
+         is outlined too. */
+      #forks-map-diagram .pele-node:is(.fork, .tools) :is(rect, polygon, path) {
+        fill: var(--lf-accent-tint);
+        stroke: var(--lf-accent);
+      }
+      #forks-map-diagram .pele-node.tools :is(rect, polygon, path) {
+        stroke-width: 2.5px;
+      }
     </style>
   </head>
   <body class="site-page">
@@ -3472,27 +3482,43 @@ EOF</code></pre>
             thread within seconds, and a fork with the session's tools can do a small
             task and answer it while the main thread carries on.
           </p>
-          <div class="layout-tiles" id="forks-waits">
-            <dl class="metric" id="forks-wait-session">
-              <dt>the session's own first words, median</dt>
-              <dd><strong>35 s</strong></dd>
-            </dl>
-            <dl class="metric" id="forks-wait-session-p90">
-              <dt>the session's own first words, 90th percentile</dt>
-              <dd><strong>140 s</strong></dd>
-            </dl>
-            <dl class="metric" id="forks-wait-fork">
-              <dt>a fork's working line, median</dt>
-              <dd><strong>2.4 s</strong></dd>
-            </dl>
-          </div>
-          <p id="forks-notes">
-            The waits above, from the user sending a thread message on real pages, and
-            the parts of the design still to build, are in
-            <a href="https://github.com/max-sixty/leaf/blob/main/notes/fork-replies.md"
-              ><code>notes/fork-replies.md</code></a
-            >.
+          <p id="forks-kinds">
+            Leaf makes four kinds of fork, set off by two moments: the user writing in a
+            thread, and the main thread ending a turn. Three can't call tools, so they
+            answer in text and Leaf acts on the answer; the working fork has the
+            session's tools and does the work itself. This tab follows a thread message,
+            and the <a href="#turn-end-fork">turn-end check</a> has its own section on
+            the Workflow tab.
           </p>
+          <figure id="forks-map" class="diagram-figure">
+            <lf-diagram id="forks-map-diagram" data-height="770" parts="all">
+              <pre>
+flowchart TD
+  accTitle: Leaf's forks in Claude Code and what each does
+  accDescr: When the user writes in a thread, a line fork without tools writes the agent's working line, which Leaf posts, and judges who should do the work. On take, Leaf spawns a working fork with the session's tools, or resumes the fork that answered the thread last; a further message while it runs reaches it too. The working fork answers in the thread, and when its run ends Leaf tells the main thread the outcome, with any message the fork gave back. On hand_over, the main thread takes the message. On a long thread, a summary fork without tools starts beside the line fork, and Leaf posts its summary of the earlier messages. When the main thread ends a turn, the turn-end check, without tools, reads the conversation and the page: Leaf posts On Me each question the agent left the user only in chat, swaps a few stale words itself, and passes anything else to the agent in a note that wakes an idle session.
+  msg["The user writes&lt;br/&gt;in a thread"] --&gt; line["Line fork&lt;br/&gt;no tools"]
+  msg -. long thread .-&gt; sum["Summary fork&lt;br/&gt;no tools"]
+  sum --&gt; fold["Leaf posts its summary&lt;br/&gt;of the earlier messages"]
+  line --&gt; wl["Leaf posts its&lt;br/&gt;working line"]
+  line -- "take: spawn, or resume&lt;br/&gt;the thread's last fork" --&gt; work["Working fork&lt;br/&gt;the session's tools"]
+  more["A further message&lt;br/&gt;while it runs"] --&gt; work
+  line -- hand_over --&gt; main["Main thread"]
+  work --&gt; ans["It answers&lt;br/&gt;in the thread"]
+  work -. "run ends: Leaf tells it the outcome,&lt;br/&gt;with any message given back" .-&gt; main
+  main -- ends a turn --&gt; check["Turn-end check&lt;br/&gt;no tools"]
+  check -- question left in chat --&gt; onme["Leaf posts it On Me"]
+  check -- a few stale words --&gt; edit["Leaf swaps them"]
+  check -- anything else --&gt; note["A note to the agent&lt;br/&gt;that wakes an idle session"]
+  class line,sum,check fork
+  class work tools
+</pre>
+            </lf-diagram>
+            <figcaption id="forks-map-caption">
+              <strong>Leaf's forks in Claude Code.</strong> Forks are tinted, and the
+              working fork, outlined, is the one with the session's tools. Each fork's
+              section, below or on the Workflow tab, gives the prompt Leaf sends it.
+            </figcaption>
+          </figure>
 
           <section id="path">
             <h2>Where a thread message goes</h2>
@@ -3671,9 +3697,7 @@ sequenceDiagram
                   main thread, which wait for its next tool boundary or prompt (<a
                     href="#telling"
                     >How a fork tells the main thread</a
-                  >). Asked “What did I ask you to do with this page?” with the session
-                  idle, a live run had the line in the thread 4.0 s after sending and
-                  the fork's answer at 9.9 s.
+                  >).
                 </figcaption>
               </figure>
               <details id="working-fork-prompt">

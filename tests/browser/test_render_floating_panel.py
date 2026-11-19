@@ -34,11 +34,13 @@ from render_harness import (
     clocked,
     close_panel_menu,
     consume_browser_errors,
+    dwelt,
     expect_panel_says,
     expect_preview_words,
     field_press,
     holding,
     http_error_console,
+    long_press,
     open_page,
     open_threads,
     over_plain_http,
@@ -545,8 +547,9 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's notice of a Resolve and its press name one gesture. A Resolve that
-    leaves no thread open says so and offers the Undo that takes it back. The log refusing that Resolve takes
-    the notice away with it, and its press takes back that Resolve even once another
+    leaves no thread open says so and, once the log has it, offers the Undo that takes
+    it back. The log refusing that Resolve takes the notice away with it, and its press
+    takes back that Resolve even once another
     gesture of the user's is the newest, the one ⌘Z would take: a press that ran ⌘Z
     would take back an earlier gesture once its own was refused. The agent having picked
     that Resolve up changes nothing: the press still takes that Resolve, not the
@@ -589,8 +592,10 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     thread.focus()
     page.keyboard.press("r")
     holding(page, held, 1, "the resolve")
-    expect(said).to_have_text("All threads resolved")
-    expect(undo).to_contain_text("Undo")
+    # ⌘Z takes back no gesture still on its way to the log, so the field's end offers
+    # Undo only once the log has the Resolve.
+    expect(field(page)).to_have_attribute("placeholder", "All threads resolved")
+    expect(undo).to_have_count(0)
     # The refusal arrives as news once the Resolve's motion has ended, which can be
     # well after its rendering settles. Its thread rejoins Open in the Threads view as
     # that view leaves for the thread, which carries the Resolved heading under it
@@ -1106,6 +1111,9 @@ def test_on_a_phone_held_news_gives_way_before_close(browser, serve):
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-msg")).to_have_count(1)
     expect(page.locator(".lf-fp-head .lf-fp-on-page")).to_be_visible()
+    # A tap enters the reply, as a user's finger does, and moves the reply's word from
+    # the line's end to its start.
+    field(page).tap()
     write(field(page), "I think the export")
     for text in ("The export first.", "Then the reconciler."):
         agent_said(serve.page_dir, root, text)
@@ -3040,6 +3048,85 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     page.keyboard.press("Shift+Tab")
     expect(leaf).to_be_focused()
     expect(peek).to_have_text("Page menu")
+
+
+# A status longer than the panel's field holds on its one line at any width.
+CUT_STATUS = (
+    "Editing the README for your 17 comments: cuts, headings, the checks and data"
+    " line; checking what Claude Code's idle compaction and cache lifetime do"
+)
+
+
+def test_the_field_reads_a_status_it_cuts_short_whole(browser, serve):
+    """A finger holding the panel's field reads the status whole where the field cuts it
+    short, as a phone's field cuts most statuses, and the hold presses nothing; a
+    pointer resting on the field reads it too. A status the field shows whole previews
+    nothing, whoever says it, so the row repeats no words over the page and a hold
+    there keeps the platform's own menu. A draft, which hides the status, previews
+    nothing either."""
+    url = serve(LONG_PAGE)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    context.clock.install()
+    phone = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(phone)
+
+    def hold():
+        box = field(phone).bounding_box()
+        point = {"x": box["x"] + 40, "y": box["y"] + box["height"] / 2}
+        cdp.send(
+            "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]}
+        )
+        dwelt(phone, "HOLD")
+        menu = long_press(phone, point)
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+        rendered(phone)
+        return menu
+
+    # Leaf's own words, the status of a page no agent has opened.
+    expect(field(phone)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
+    rendered(phone)
+    assert hold() is True, "a hold on whole words kept the platform's menu shut"
+    expect(phone.locator(PREVIEW)).to_be_hidden()
+    # Chromium's injected touch, ending where no hold read, presses the field.
+    field(phone).blur()
+
+    working(serve.page_dir, CUT_STATUS)
+    expect(field(phone)).to_have_attribute(
+        "placeholder", re.compile(re.escape(CUT_STATUS))
+    )
+    assert hold() is False, "the platform's menu opened"
+    expect(phone.locator(PREVIEW)).to_have_text(CUT_STATUS)
+    expect(field(phone)).not_to_be_focused()
+    context.close()
+
+    page = floating(clocked(browser), url)
+    preview = page.locator(PREVIEW)
+    field(page).hover()
+    dwelt(page)
+    expect(preview).to_have_text(CUT_STATUS)
+
+    page.mouse.move(5, 5)
+    working(serve.page_dir, "Drafting the rollout")
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Drafting the rollout ")
+    )
+    field(page).hover()
+    dwelt(page)
+    expect(preview).to_be_hidden()
+
+    page.mouse.move(5, 5)
+    working(serve.page_dir, CUT_STATUS)
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile(re.escape(CUT_STATUS))
+    )
+    write(field(page), "Keep my unfinished question")
+    # The caret elsewhere, the field's words are the status again, under the draft.
+    page.mouse.click(5, 5)
+    field(page).hover()
+    dwelt(page)
+    expect(preview).to_be_hidden()
 
 
 def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):

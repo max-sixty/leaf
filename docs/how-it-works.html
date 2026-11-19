@@ -24,6 +24,16 @@
       lf-text-document[data-prompt] {
         --lf-bound: 80vh;
       }
+      /* Leaf's two queued lines are short, and a listing keeps its whole bound
+         however short its text. */
+      #prompt-told {
+        --lf-bound: 14rem;
+      }
+      @media (width < 40rem) {
+        #prompt-told {
+          --lf-bound: 34rem;
+        }
+      }
 
       /* Keep delivery field names readable on a phone. */
       #delivery-fields :is(th, td):first-child {
@@ -4107,7 +4117,7 @@ flowchart TD
                 </lf-lane>
               </lf-timeline>
               <figcaption id="anatomy-caption">
-                <strong>The run, in milliseconds from the user's first message.</strong>
+                <strong>The run, in seconds from the user's first message.</strong>
                 The main thread stays idle throughout: Leaf's lines for it wait for its
                 next prompt, and Claude Code's notice that the resumed run ended is what
                 wakes it.

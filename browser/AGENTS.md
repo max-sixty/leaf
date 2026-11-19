@@ -206,9 +206,10 @@ reading.
   gesture by its attempt.
 - **A refused or undone gesture gives back what it took.** A refusal restores the
   server's state, and delivery says why in the notice seat. A refused send returns the
-  words to their box (`standGesture` in `drafts.js`), and a gesture that moved the user,
-  such as resolving a thread, leaves them at its place again (`undo.js` owns where undo
-  leaves the user).
+  words to their box (`standGesture` in `drafts.js`), an undone message or rewrite
+  returns them to the draft they were written in (`giveBackWords`), and a gesture that
+  moved the user, such as resolving a thread, leaves them at its place again (`undo.js`
+  owns where undo leaves the user).
 
 ### Controls are few and quiet
 
@@ -741,6 +742,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed; a style property needs no guard (`keeps.js` header)           | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
+| What the floating panel's empty field says, for how long, and what its end offers                     | `field-readings.js` `FIELD_READINGS`, `readField`                                  |
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `words.js` `labelWords`, `counted`, `capitalized`                                  |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                        |

@@ -1,6 +1,6 @@
 # leaf
 
-@SOUL.md
+@skills/leaf/SOUL.md
 
 ## Leaf's role
 
@@ -169,9 +169,9 @@ browser assets and the packages into a page's layer.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
   Code, `codex.json` for Codex), the scripts they run, Claude Code's hooks
-  module `claude-code.ts`, and the Pi extension `pi.ts`.
-- `types/`: the contracts the hooks module declares to Claude Code, such as the
-  values it keeps in `$.state`.
+  module `claude-code.ts` with the contracts it declares to Claude Code
+  (`leaf-state.d.ts`), such as the values it keeps in `$.state`, and the Pi
+  extension `pi.ts`.
 - `evals/`: cases a headless agent answers, scoring the shipped instructions, and
   experiments with their own Promptfoo configs (`dev/AGENTS.md`, "Experiments").
 - `examples/`: the pages the site publishes, also the render corpus
@@ -186,13 +186,17 @@ browser assets and the packages into a page's layer.
 - `worker/`: the Cloudflare Worker and containers behind <https://leaf.page/>
   (`worker/README.md`).
 - `docs/`: the site's own pages, each a Leaf source.
-- `TODO.md`: the biggest current challenges, and how to query the backlog, the
-  GitHub issues labelled `backlog`.
 - `notes/`: what the code doesn't hold yet: research, and plans for large work in
   progress or a design not yet built. Work built on a branch keeps its contract in
   its code, and a page that shows it to the user is a preview of a file in `.tmp/`.
   When a design lands, its contract moves beside the code or into a reference and
-  the note is deleted.
+  the note is deleted. `notes/TODO.md` holds the biggest current challenges, and
+  how to query the backlog, the GitHub issues labelled `backlog`.
+- `.config/`: tool configuration that needn't sit at the root, such as Worktrunk's
+  `wt.toml`, the knip and dependency-cruiser configs their pre-commit hooks name,
+  and the asset pin `leaf-assets.json`. GitHub lists every root entry above the
+  README, so a file stays at the root only where a harness, tool or editor looks for
+  it there.
 
 Load `/developing-leaf` for any work whose subject is Leaf itself, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -276,7 +280,7 @@ host supplies Chrome and `jq`; Leaf never downloads a browser.
 Every tracked byte ships in every install and stays in history, so the tree holds
 no binary or large files except the generated `vendor/` bundles. An image a tool here reads lives in
 `max-sixty/leaf-assets`, pinned by
-`leaf-assets.json`. Publish there as part of the change that needs it, with no
+`.config/leaf-assets.json`. Publish there as part of the change that needs it, with no
 separate approval, since publishing moves only this checkout's pin; the
 `dev/leaf_dev/leaf_assets.py` header says how to resolve a conflict over the
 pins. Evidence, such as screenshots, probe captures, recordings and raw run

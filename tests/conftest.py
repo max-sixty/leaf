@@ -469,7 +469,7 @@ def pytest_collection_modifyitems(config, items):
     - a module-level constant or `pytestmark` it reads, or a list its `parametrize`
       decorator names from elsewhere;
     - a page under `fixtures/`, a regtest recording, or a pinned image in
-      `leaf-assets.json`.
+      `.config/leaf-assets.json`.
     Accounting for these precisely would need dependency tracking (fixture graphs, call
     graphs, data references). A coarser rule, such as running every test in a changed
     module, would catch some of them at the price of selecting far more, and every miss

@@ -111,7 +111,7 @@ pnpm run test:evals
 
 - `leaf-dev site previews`, `site demo` and
   `site media` publish images to `max-sixty/leaf-assets`; in the tree they change
-  only the pin in `leaf-assets.json` and the README's image URLs.
+  only the pin in `.config/leaf-assets.json` and the README's image URLs.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout to the
   `leaf-website-dev` environment. Production deploys only through
   `.github/workflows/publish-site.yaml`; `worker/README.md` owns diagnostics.

@@ -18,7 +18,7 @@ tokens to spend, and not on a schedule or from Tend.
 
 ## Choose the items
 
-`TODO.md`, "Backlog", gives the query for the issues an agent can take unattended:
+`notes/TODO.md`, "Backlog", gives the query for the issues an agent can take unattended:
 labelled `backlog`, assigned to nobody, and claimed by no pull request. Small
 items batch well; a large item whose design is settled suits one agent for the
 whole run.

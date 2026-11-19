@@ -17,6 +17,7 @@
  */
 import { setScroll } from "./arrivals.js";
 import { canPlaceFocus } from "./focus.js";
+import { scrollContainer } from "./geometry.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { clamp, union } from "./rect.js";
 
@@ -91,6 +92,11 @@ function editorViewOver({
    * @param {import("@codemirror/state").SelectionRange} selection @param {ScrollOptions} options
    * @param {import("./rect.js").Box} head */
   function placeWithinEditor(view, selection, options, head) {
+    const port = view.scrollDOM;
+    // Only an editor box that scrolls takes a share. A text field's scrolls nothing,
+    // its host scrolling instead (composing/text-field.js), though the lines a motion
+    // draws off their place run past it (`--lf-field-after`).
+    if (!scrollContainer(port)) return;
     const rectangle = union(
       selection.empty ? [head] : [head, caretAt(view, selection.anchor).rectangle],
     );
@@ -102,7 +108,6 @@ function editorViewOver({
         for (const edge of EDGES)
           margins[edge] = Math.max(margins[edge], supplied[edge] ?? 0);
     }
-    const port = view.scrollDOM;
     const box = port.getBoundingClientRect();
     const { scaleX, scaleY } = view;
     const left = box.left + port.clientLeft * scaleX;

@@ -717,13 +717,7 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
-    page.locator("lf-diff summary").first.click()
-    page.keyboard.press("Tab")
-    # Tab's glide to the comment button would otherwise carry the refocused header out
-    # of sight, and a key on focus the user can't see lets go of it rather than opening.
-    scroll_settled(page)
     page.locator("lf-diff summary").first.focus()
-    page.keyboard.press("ArrowRight")
     # Each step walks from the row the last one landed on, so each waits for its landing.
     for line in (1, 40, 80):
         page.keyboard.press("]")

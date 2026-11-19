@@ -72,19 +72,13 @@ UPLOADS = 8
 
 
 class PageStoreRefused(OSError):
-    """A call the page store answered with an error, carrying the store's reason
-    (`worker/src/index.ts`, the `leaf-state.internal` handler), which a page fault
-    records as its detail, and its HTTP status. An `OSError`, as urllib's own errors
-    are, so callers handle it as they handle the store being unreachable."""
+    """A call the page store answered with an error, naming its HTTP status and the
+    store's reason (`worker/src/index.ts`, the `leaf-state.internal` handler), which a
+    page fault records as its detail. An `OSError`, as urllib's own errors are, so
+    callers handle it as they handle the store being unreachable."""
 
     def __init__(self, path: str, status: int, reason: str) -> None:
         super().__init__(f"{path} answered {status}: {reason}")
-        self.status = status
-
-
-# The store's answer to a container whose image runs a release other than the
-# Worker's (`worker/src/storage.ts`).
-FOREIGN_RELEASE = 409
 
 
 @contextmanager
@@ -157,8 +151,8 @@ def restore(site_root: Path) -> bool:
     """Restore before serving, from the snapshot contract in worker/src/storage.ts, and
     say whether a page store backs the site, as the container then declares its
     commits are published there (`PUBLISHER`). A store serving another release
-    refuses this container, which then serves without it, so it answers for its own
-    release rather than failing to start."""
+    refuses this container, as it does a previous image during a rollout, and the
+    refusal ends its start."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
         return False
     from leaf_website import SITE_MANIFEST, elapsed_ms, log_agent
@@ -170,27 +164,21 @@ def restore(site_root: Path) -> bool:
     # containing each canonical digest once, before replacing any local inputs.
     with TemporaryFile() as buffer:
         blobs = _BlobSet(buffer)
-        try:
-            with (
-                _request("/records", manifest["release"]) as response,
-                tarfile.open(fileobj=response, mode="r|") as archive,
-            ):
-                first = archive.next()
-                if first is None or first.name != "records.json":
-                    raise ValueError("page restore snapshot has no records")
-                record_file = archive.extractfile(first)
-                assert record_file is not None
-                snapshot = json.load(record_file)
-                records = snapshot["records"]
-                while member := archive.next():
-                    blob_file = archive.extractfile(member)
-                    assert blob_file is not None
-                    blobs.add(member.name, blob_file.read())
-        except PageStoreRefused as refused:
-            if refused.status != FOREIGN_RELEASE:
-                raise
-            log_agent("page_restore_refused", detail=str(refused))
-            return False
+        with (
+            _request("/records", manifest["release"]) as response,
+            tarfile.open(fileobj=response, mode="r|") as archive,
+        ):
+            first = archive.next()
+            if first is None or first.name != "records.json":
+                raise ValueError("page restore snapshot has no records")
+            record_file = archive.extractfile(first)
+            assert record_file is not None
+            snapshot = json.load(record_file)
+            records = snapshot["records"]
+            while member := archive.next():
+                blob_file = archive.extractfile(member)
+                assert blob_file is not None
+                blobs.add(member.name, blob_file.read())
         if any(
             digest not in blobs.offsets
             for record in records.values()

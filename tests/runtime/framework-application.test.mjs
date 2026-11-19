@@ -399,6 +399,26 @@ test("widget action history excludes an action the view classifies nowhere", () 
   ]);
 });
 
+test("a publication that adds no widget event keeps the coverage records", () => {
+  // The applied stamp (`projection/presentation.js`) skips its walk of the log while
+  // the records it last stamped stand, so they must be the same records until a
+  // widget event joins.
+  const app = setup();
+  const read = state(2);
+  read.events = [{ ...action("old"), id: "e-old", seq: 1 }];
+  app.adopt(read);
+  const before = app.read().effective.coverage;
+  app.enqueue(
+    { kind: "comment", attempt: "aside", text: "Elsewhere", revision: 1 },
+    "now",
+  );
+  assert.equal(app.read().effective.coverage, before);
+  const later = state(3);
+  later.events = [...read.events, { ...action("new"), id: "e-new", seq: 2 }];
+  app.adopt(later);
+  assert.equal(app.read().effective.coverage.length, 2);
+});
+
 test("the selected revision keeps carried action history from earlier revisions", () => {
   const app = setup();
   const current = {

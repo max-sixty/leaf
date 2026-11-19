@@ -2051,6 +2051,14 @@ def latest_press(page):
     return field_press(page).filter(has_text="Open latest")
 
 
+def open_latest(page):
+    """Run what Open latest at the panel field's end runs, which moves no focus, for a
+    test whose caret stands in a box. There the press's keys type letters, so the end
+    shows a keyboard nothing (field-readings.js, `end`), and a finger's press on the
+    word it shows alone is the route that keeps the caret where it is."""
+    page.evaluate("async () => (await window.__lfCheckApi()).versionPicker.latest()")
+
+
 def open_latest_by_keys(page):
     """Open the latest version from Versions by keyboard, the route that stands while
     the field offers something else at its end, such as commenting on words selected
@@ -3638,11 +3646,10 @@ def left_alone(page):
     page.evaluate(RELEASE_FOCUS)
     page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    # A passing notice stands in the panel's empty field, in the line over it once the
-    # field is written in, or in the leaf's peek (notifications.js).
+    # A passing notice stands in the panel's empty field or in the leaf's peek
+    # (notifications.js).
     notice = (
-        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-context[data-notice],"
-        " .lf-fp-peek[data-lf-shown])"
+        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-peek[data-lf-shown])"
     )
     while any(frame.locator(notice).count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"

@@ -282,7 +282,7 @@ export const standsAtItsBox = (error) => {
 };
 // A box's own press at rest (`enters`, `BoxPress`), at its placeholder's far end, the
 // field's `end` slot (text-field.js), as the entering word and its key are, so it
-// stands exactly while the box's words do and reads in their face. Its mousedown keeps
+// stands only while the box's words do, and reads in their face. Its mousedown keeps
 // the caret and focus where they are, and the press keeps the notice that offers it
 // (notifications.js, `keepsNotice`). The keyboard's route is the press's own command
 // and a finger's is this, so it takes no tab stop.
@@ -311,9 +311,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
   /** @type {import("@preact/signals-core").Signal<Element | null>} */
   const hintedBox = signal(null);
   const hintLabel = signal("");
-  // A box's press says its key only while that key would make it (floating-panel.js,
+  // A box's press stands only while a key of its would make it (floating-panel.js,
   // `noticePress`), which the dispatcher decides from focus and the keys' liveness
-  // rather than from anything a box reads, so this frame reads each standing press
+  // rather than from anything a box reads, so this frame reads each offered press
   // again, as it gives every box the comment key's destination, and repaints a box
   // whose press now reads otherwise than it drew.
   /** @type {Map<CompositionField, () => boolean>} */
@@ -350,7 +350,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // passing notice's Undo: its word and the keys of the command that makes it, read
       // as the entering word and its key are, and pressed where they read, by a pointer
       // or a finger, since it stands where the box's own words do and goes when they go
-      // (`pressAtRest`). A finger is shown its word alone, as no key is shown there.
+      // (`pressAtRest`). It stands only while one of its keys would make it now, and a
+      // finger, shown no keys, is shown its word alone.
       // Null where no key enters the box at rest, so not even its key stands there, as
       // while the page holds keys pressed before it loaded, which a key would only join.
       enters = () => "",
@@ -601,16 +602,22 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineKey = lineKeyOf(sendKeys);
       const lineHint = focusedHere.value && !status ? lineKey : "";
       const entering = suffix && typeof offered === "string" ? offered : "";
-      const pressText = press ? [press.word, ...pressKeys].join(" ") : "";
+      // What a press says at rest, or nothing where it stands nowhere (`enters`).
       /** @param {BoxPress} reading */
       const said = (reading) =>
-        [reading.word, ...(advertisesKeys() ? reading.keys : [])].join(" ");
+        !advertisesKeys()
+          ? reading.word
+          : reading.keys.length
+            ? [reading.word, ...reading.keys].join(" ")
+            : "";
+      const pressText = press ? said(press) : "";
       // The press as drawn, whose keys its owner reads at each ask, so the recheck
       // costs that reading alone rather than the box's words.
       if (press) pressing.set(field, () => said(press) !== pressText);
       else pressing.delete(field);
+      const shown = pressText ? press : null;
       const placeholder =
-        (suffix || press) && !status
+        (suffix || shown) && !status
           ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${pressText ? ` · ${pressText}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
@@ -618,7 +625,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
       const lead = status ? "" : hintLead();
-      const richHint = ((suffix || press) && !status) || parts != null || lead;
+      const richHint = ((suffix || shown) && !status) || parts != null || lead;
       render(
         html`${
           richHint
@@ -635,7 +642,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
                 }
               </span>`
             : nothing
-        }${press && !status ? pressAtRest(press, pressKeys) : nothing}`,
+        }${shown && !status ? pressAtRest(shown, pressKeys) : nothing}`,
         ta,
       );
       let error = inputError.value;
@@ -1082,13 +1089,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (sendBindings().includes("Enter")) event.preventDefault();
     });
     // A press on a submit control is the send key pressed from the box, so it leaves the
-    // user where Enter does: in the box, for a box that stays to take more, or wherever the
-    // send hands them on to, as a first message does to its thread (`landSent`), never on the
-    // control, where the next letters would fall on nothing. A pointer press never takes
-    // the focus (moving it is mousedown's default), so the box keeps it until the send
-    // moves it. A keyboard press on the control, or a pointer press while the user was
-    // elsewhere, puts the user in the box before the submission, so what the send does
-    // next starts from the state Enter starts it from.
+    // user where Enter does: wherever the send hands them on to, as every message does to
+    // its thread (`landSent`), or else in the box, as a widget's box that stays to take
+    // more, or a press that sent nothing, leaves them, never on the control, where the
+    // next letters would fall on nothing. A pointer press never takes the focus (moving
+    // it is mousedown's default), so the box keeps it until the send moves it. A keyboard
+    // press on the control, or a pointer press while the user was elsewhere, puts the
+    // user in the box only where the send left them where they were, so a send that
+    // lands takes them from the control to its thread without passing through the box.
     //
     // Except while an input method holds unfinished words: leaving the box is what
     // finishes them, so there the press takes the focus, and the words
@@ -1101,8 +1109,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // sends nothing (`uncover`).
     const pressed = (alternate = false) => {
       if (inputError.value) return uncover();
-      if (focused() !== ta) focusDestination(ta, "return");
-      submit(alternate);
+      const from = focused();
+      void submit(alternate);
+      if (from !== ta && focused() === from) focusDestination(ta, "return");
     };
     return sync;
 

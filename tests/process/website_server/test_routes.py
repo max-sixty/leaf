@@ -402,13 +402,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
         assert get(f"{root}/health")[0] == b"ok\n"
-        # During a rollout a container on the previous release can be asked for a
-        # page only the new release has. Its refusal names its release, so the Worker
-        # replaces it as it does any previous release's answer (`rollingOut`).
-        with pytest.raises(urllib.error.HTTPError) as refused:
-            get(f"{root}/added-later/api/news")
-        assert refused.value.code == 404
-        assert refused.value.headers["Leaf-Release"] == "0" * 64
 
         document, headers = get(f"{root}/examples/decision/")
         assert b"sitenote.js" not in document
@@ -686,7 +679,6 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
             assert headers["Access-Control-Allow-Origin"] == "*"
         registry, headers = get(f"{root}{release}/registry.json")
         assert json.loads(registry)["$layer"] == load_registry(published)["$layer"]
-        assert headers["Leaf-Release"] == manifest["release"]
         for missing in (
             f"{release}/api/state",
             f"{page['assets']}/revisions/r9-x/a.js",

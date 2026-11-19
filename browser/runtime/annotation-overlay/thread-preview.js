@@ -29,17 +29,17 @@
    so a shorter thread brings it back down. While the user writes words in its reply
    box (user-place.js, `focusPlace`), a card beside its subject holds its foot instead,
    as one above it does: the line being typed stays still as the conversation grows
-   above it. A send empties the box, so the card holds its top through the send and
-   grows down past the box, keeping still the transcript the user was reading; so does
-   the empty box a click's opening leaves the caret in (thread/focus.js,
-   `openingPart`). A refusal gives back what the send took: its turn goes, and its words
+   above it. A send leaves the box for the thread (thread/landing.js, `landSent`), so
+   the card holds its top through the send and grows down past the box, keeping still
+   the transcript the user was reading; so does the empty box a click's opening leaves
+   the caret in (thread/focus.js, `openingPart`). A refusal gives back what the send took: its turn goes, and its words
    return under the refusal's cover (errors.js), which shows no line being typed either,
    so the card holds its top through the refusal too, and its foot once the user comes
    back to the words. The user chose this over letting the card drop, which moves both
    its edges and slides it out from under the pointer. A user who
    empties the box themselves, as Select All and Backspace do, sees it rise to where
    the empty box stands, a rare path SOUL.md lets move, since to the card that looks
-   the same as a send. A message's rewrite, whose field stands in the transcript, holds
+   the same as the empty box an opening leaves. A message's rewrite, whose field stands in the transcript, holds
    the top as well, so the rewrite grows down. Below its subject the card keeps its top
    even while the user writes, so it never grows up over the words it is about.
    Nothing else chooses the edge, whatever the user pressed, and the card remembers no
@@ -154,7 +154,7 @@ import {
   tabStops,
   typesText,
 } from "../focus.js";
-import { focusPlace } from "../user-place.js";
+import { focusPlace, standingAt } from "../user-place.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offerAction } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
@@ -650,15 +650,17 @@ export function createThreadPreview({
   // hold, would move what the user is on (thread-card.js, `newsMoves`). Held by its top,
   // the card grows down past its reply row, which the user is on while they write a
   // reply there (replies.js, `replyIsEditing`), not while the caret only rests in the
-  // empty box a send or an opening left, so the answer they wait for shows. Held by its
+  // empty box an opening left, so the answer they wait for shows. Held by its
   // foot, it grows up under the head and transcript, which the user is on unless they
-  // are in the reply row.
+  // stand at the reply row: in it, or on the thread itself, as a send leaves them,
+  // which waits at its reply box unless a click left the caret in its words
+  // (user-place.js, `standingAt`).
   /** @param {Session} session */
   function endNewsMoves(session) {
     const { side } = session.side.capture();
     if (!side) return false;
     const { edge, at } = heldEdge(side);
-    const inReply = Boolean(at && closestAcross(at, ".lf-thread-reply"));
+    const inReply = Boolean(at && closestAcross(standingAt(at), ".lf-thread-reply"));
     return edge === "foot"
       ? !inReply
       : inReply && replyIsEditing(threadKey(session.item.thread));

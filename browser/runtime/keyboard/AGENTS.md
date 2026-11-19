@@ -77,9 +77,10 @@ same step, through its row's `keep` where `run` would throw away unsent words
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, a find box to its panel. A layer
   opened from the floating panel's menu returns to the panel.
-- After Send, a reply box keeps the caret for the next message, in a card, a widget's
-  outlet and the panel's field alike (`thread/replies.js`). A thread's first comment
-  leaves focus on the thread's card or title, never on the page.
+- Send leaves a reply box or a first comment's box for its thread, as Escape from the
+  box does, and so does a rewrite's Save: the thread's card, seat or panel view, never
+  the box and never the page (`thread/landing.js`, `landSent`). `c` or Enter on the
+  thread opens the box again.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing beside it while it is in view, else on the
   visible block, rather than on the control that opened it, so Tab carries on from it.
@@ -122,8 +123,10 @@ comment on selected words. Page scope rows therefore have no touch labels: each 
 that runs a press declares `touch: false` or is the `exit` of a stance accessible by
 touch. Examples include page search, the target picker and Draw mode. The panel
 offers the innermost active stance's exit as Close at its field's end, or one ✕ while
-the field says something else. Either leaves the stance even where Escape would first
-close something inside it or take back a typed hint letter. The register
+the field says something else. A finger's Close leaves the stance even where Escape
+would first close something inside it or take back a typed hint letter. Where the
+page shows keys, Close stands only while Escape would take the stance off, as every
+press at the field's end stands only with its key (`field-readings.js`). The register
 refuses a page command without `touch` and a scope row whose `run` is neither `exit`
 nor `touch: false`.
 `false` means the result is directly accessible by scrolling and tapping or through

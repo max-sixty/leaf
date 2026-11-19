@@ -70,8 +70,15 @@
    opens (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
    Discard close it, throwing away changed words; opening another rewrite in the thread
    puts this one aside, keeping them. The
-   editor is a rung below the thread's reply box, so Enter, Escape and Discard each hand
-   the user to that box, or, in a thread showing none, onto the thread (`land`). Save sends
+   editor is a rung below the thread's reply box, so Escape and Discard, which take back
+   the ↑ that opened it, hand the user to that box, or, in a thread showing none, onto
+   the thread (`land`). Enter leaves the box for the thread, as every send does (`saved`;
+   thread/landing.js, `landSent`), whether it saves words or finds none changed; `c`
+   then ↑ opens the next rewrite. The user chose the thread for a send; Save follows
+   because a key pressed just after it most often leaves the box for the thread, and in
+   the box a walk key types a letter.
+   Rejected: Save handing the user back to the reply box, ↑'s rung, where that letter
+   landed, or, in a resolved thread the save reopens, to the box it then draws. Save sends
    through the one ledger, which draws the new words on the message in the gesture
    (`foldThreads`), and a refusal gives its words back to the draft, the message saying
    it holds them beside the words it stands at. A rewrite names the revision it was
@@ -112,7 +119,6 @@ import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
-import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer, offerAction } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
@@ -124,7 +130,8 @@ import { signal } from "/runtime/framework.js";
 /** @typedef {{
  * wireInput: ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"],
  * said: () => string, base: () => string, send: SendRewrite,
- * land: () => unknown, paint: () => void, previous: () => MessageView | null,
+ * land: () => unknown, saved: () => unknown, paint: () => void,
+ * previous: () => MessageView | null,
  * reveal: (caretLine: Element) => void,
  * }} EditorCommands */
 
@@ -269,7 +276,7 @@ export function openMessageEditIn(thread, id) {
  *   home: (node?: Element) => Element,
  *   opening?: (id: string) => void,
  *   landInThread: typeof import("./landing.js").landInThread,
- *   landSent: typeof import("./landing.js").returnToThread,
+ *   landSent: typeof import("./landing.js").landSent,
  * }} reader */
 export function threadRewrites({
   views,
@@ -308,27 +315,18 @@ export function threadRewrites({
   return {
     edit: {
       paint,
-      // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
-      // is in view; a thread showing none, as a resolved one or a margin card not
-      // replying, or one whose box is off screen, hands the user on as a sent reply
-      // does, which moves nothing. A save in a resolved thread reopens it, so the box
-      // its presentation draws then takes the caret, as Reopen's landing gives it
-      // (the user's decision).
+      // The rung above a rewrite Escape or Discard takes back is the thread's reply box,
+      // where ↑ came from, while it is in view; a thread showing none, as a resolved
+      // one, or one whose box is off screen, hands the user on as a send does.
       /** @param {Element} message */
       land: (message) => {
-        const shown = () => {
-          const input = box();
-          return input && seenRect(input, new Map()) ? input : null;
-        };
-        const input = shown();
-        if (input) return landInThread(input);
-        landSent(home(message));
-        const mayLand = retainUserIntent();
-        void whenDocumentPresented().then(() => {
-          const drawn = shown();
-          if (drawn && mayLand()) landInThread(drawn);
-        });
+        const input = box();
+        if (input && seenRect(input, new Map())) landInThread(input);
+        else landSent(home(message));
       },
+      // A save lands on the thread, as every send does.
+      /** @param {Element} message */
+      saved: (message) => landSent(home(message)),
       /** @param {string} id */
       previous: (id) => lastEditable(id),
       // A rewrite of message `id` opens in `view`. It starts from the words as they
@@ -382,7 +380,7 @@ export class MessageEditor {
   constructor(
     id,
     view,
-    { wireInput, said, base: currentBase, send, land, paint, previous, reveal },
+    { wireInput, said, base: currentBase, send, land, saved, paint, previous, reveal },
   ) {
     const ctx = rewriteContext(id);
     // The revision these words are written over, which the log holds the rewrite to: the
@@ -448,9 +446,11 @@ export class MessageEditor {
     // sends, as a suggestion's newline is.
     const emptied = () => !whole().trim();
     const unchanged = () => emptied() || whole() === said();
-    /** @param {boolean} discard @param {{landing?: boolean, says?: string | null, painting?: boolean}} [options] */
-    const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
-      if (landing) land();
+    // Where the user goes as the box closes: back up its rung (`land`), onto the thread
+    // a save leaves them on (`saved`), or nowhere, for a close that lands them itself.
+    /** @param {boolean} discard @param {{landing?: (() => unknown) | null, says?: string | null, painting?: boolean}} [options] */
+    const leave = (discard, { landing = land, says = null, painting = true } = {}) => {
+      landing?.();
       // A closing box shows no more of its draft: settled by a save, it would refill
       // with the message's old words before the paint that takes it away.
       this.#stop();
@@ -473,7 +473,7 @@ export class MessageEditor {
     const keep = () => {
       if (unchanged()) return close();
       const message = this.node.closest(".lf-msg");
-      leave(false, { landing: false });
+      leave(false, { landing: null });
       /** @type {HTMLButtonElement | null | undefined} */
       const reopen = message?.querySelector(".lf-msg-edit");
       if (reopen) focusDestination(reopen, "return");
@@ -486,7 +486,7 @@ export class MessageEditor {
     // draws both in one paint, rather than the thread shrinking and growing back.
     const putAside = () => {
       if (!unchanged()) return;
-      leave(true, { landing: false, painting: false });
+      leave(true, { landing: null, painting: false });
       afterScript(paint);
     };
     this.#putAside = putAside;
@@ -505,7 +505,8 @@ export class MessageEditor {
         tellDraft(ctx, value, { over: base });
       },
       send: async (_text, raw, owns) => {
-        if (whole() === said()) return leave(true, { says: "No change to save" });
+        if (whole() === said())
+          return leave(true, { landing: saved, says: "No change to save" });
         const deleting = emptied();
         sending.add(id);
         // The send's own paint, which draws the new words on the message, closes the
@@ -514,7 +515,11 @@ export class MessageEditor {
         const flight = sendDraft(ctx, owns, (attempt) =>
           send(deleting ? "" : raw, { attempt, base }),
         );
-        leave(false, { painting: false, says: deleting ? "Message deleted" : null });
+        leave(false, {
+          landing: saved,
+          painting: false,
+          says: deleting ? "Message deleted" : null,
+        });
         let sent;
         try {
           sent = await flight;

@@ -5,7 +5,10 @@ this module. A page loads with its startup and the errors that stop it observed
 (`load_presented`), reads its state through connection resets (`read_state`), and
 leaves the edge for a private container when it activates (`activation_url`,
 `activation_read`); `agent_session` opens a user session whose container serves a
-release, waiting while a rollout reaches the allocations. On this machine,
+release, waiting while a rollout reaches the allocations. A container still on the
+previous image fails to start, since the page store refuses its release
+(`worker/src/storage.ts`), so until the rollout reaches an allocation its activation
+answers an error. On this machine,
 `local_adapter` builds the site and serves it with the website's Python server,
 sharing the host's login, and `local_worker` serves the site `leaf-dev site build`
 last wrote (`SITE`) through `wrangler dev`: the Worker and its page container. A build
@@ -291,19 +294,9 @@ def activation_url(page_url: str, state: dict) -> str:
     return urljoin(page_url, f"api/view?{query}")
 
 
-STILL_STARTING = "was answered before the image rollout reached its container"
-
-
-def activation_read(context, activation: str) -> APIResponse | None:
-    """The read that allocates this session's container, or `None` while it rolls out.
-
-    Until the image rollout reaches the allocated container, the Worker answers `503`
-    with `Retry-After` (`worker/README.md`); any other refusal is this release failing.
-    """
-    response = context.request.get(activation, timeout=120_000)
-    if response.status == 503 and response.headers.get("retry-after") is not None:
-        return None
-    return answered(response, activation)
+def activation_read(context, activation: str) -> APIResponse:
+    """The read that allocates this session's container, held to being an answer."""
+    return answered(context.request.get(activation, timeout=120_000), activation)
 
 
 def host_addresses() -> dict[str, frozenset]:
@@ -355,7 +348,7 @@ def user_session(
     failures, _ = load_presented(page, url, f"{url} did not load for its agent")
     passive = read_state(context.request, state_url, timeout=120_000)
     if direct_agent:
-        reached = passive.headers.get("leaf-release")
+        reached = passive.json().get("release")
         if release is not None and reached != release:
             context.close()
             return served_instead(reached, release)
@@ -368,9 +361,9 @@ def user_session(
             raise
         context.close()
         return "lost its activation connection"
-    if activated is None:
+    except RuntimeError as error:
         context.close()
-        return STILL_STARTING
+        return f"failed: {error}"
     check(
         activated.headers.get("leaf-session") == "active",
         f"{activation} did not activate a private container for its agent",
@@ -379,13 +372,13 @@ def user_session(
     state_response = read_state(
         context.request, state_url, headers=headers, timeout=120_000
     )
-    # The edge answers a passive read with the deployed release, so the release header
-    # is the container's own only once the session has left the edge.
     check(
         state_response.headers.get("leaf-session") == "active",
         f"{state_url} did not reach a private container for its agent",
     )
-    reached = state_response.headers.get("leaf-release")
+    # The edge names its own release on every answer, so the release the container
+    # runs is the one its state names.
+    reached = state_response.json().get("release")
     if release is not None and reached != release:
         context.close()
         return served_instead(reached, release)
@@ -397,7 +390,7 @@ def agent_session(
 ) -> AgentSession:
     """Open one user session whose private container is serving `release`, retrying
     with a fresh context for up to 180 s while the rollout reaches allocations (they
-    answer as another release or as the edge's `503`) or activation loses its
+    fail to activate, or answer as another release) or activation loses its
     connection. Nothing here writes."""
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")

@@ -174,8 +174,9 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
         page.emulate_media(reduced_motion="no-preference")
         resized(page, 1440, 900)
         field = open_composer(page, composer)
-        if draft:
-            write(field, draft)
+        # The page's server keeps the words an example typed as its draft, and the next
+        # example's field opens with them, so each writes its own, an empty one included.
+        write(field, draft)
         at_rest(page, composer)
         stand_foot(page, composer, gap)
         field.focus()

@@ -108,7 +108,7 @@ export function announce(msg) {
 // A widget's words for a listener (`announce`, widget-upgrade.js), said here.
 addEventListener(ANNOUNCE, (event) => announce(event.detail));
 
-// An undo ("Undid: Chose “Fast” · just now"), an arrival ("Updated to v3"): the
+// An undo ("Undone: Chose “Fast” just now"), an arrival ("Updated to v3"): the
 // quiet words in the panel's seat. A widget's gesture is no notice, since the widget
 // draws it where it was made; the live region alone hears it (application.js,
 // `named`). A notice offering a press (`press`) has the field's end say that press's

@@ -29,14 +29,15 @@
  *   thread and t (notifications.js, `press`); else on the page the stance's Close, in
  *   place of the seat's ✕; else the page's own press, Open latest on an older version
  *   or Next On Me while On Me lists anything (floating-panel.js, `pagePress`); else
- *   Comment… and its key. In a thread, the key that enters its reply;
+ *   Comment… and its key. In a thread, Reply… and its key, as the field says at rest,
+ *   so the key never stands alone after the notice's words;
  * - "none": nothing.
  * While the page holds keys pressed before it was ready, the end offers nothing, since a
  * key there would only join them. A press acts as a touch control does, wherever the
  * caret stands, and says its key only while that key would make it now: `m` typed in a
  * card's reply is a letter, and Escape closes a comment box standing in Design mode
  * before the mode. The user chose a notice's press, so a Resolve that moves the panel on
- * says which thread it resolved and offers its next step there, over Undo and z after a
+ * says which thread it resolved and offers its next step there, over Undo and ⌘Z after a
  * Resolve, and the ✕ with Escape unsaid in a stance. They chose Next On Me at rest while
  * On Me lists anything over Comment and c, since from reading or backing out `m` is the
  * press they most often make next; `c` still enters the field, and Comment and c stand
@@ -231,7 +232,7 @@ function endOf(kind, f, words) {
   if (kind === "key") return { end: "", exits: false };
   if (kind === "comment") return { end: COMMENT_HINT, exits: false };
   if (f.notice?.press) return { end: f.notice.press, exits: false };
-  if (f.thread) return { end: "", exits: false };
+  if (f.thread) return { end: wordsText(words) ? REPLY_HINT : "", exits: false };
   const close = f.close();
   if (close) return { end: close, exits: true };
   return { end: f.pagePress() ?? (wordsText(words) ? COMMENT_HINT : ""), exits: false };

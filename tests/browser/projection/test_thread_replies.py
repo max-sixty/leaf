@@ -210,7 +210,7 @@ customElements.define('lf-delayed-body', class extends LeafElement {
     assert response.ok, response.text()
     told(page)
     assert body.text_content() == "User's exact words.\n"
-    # The thread opened with the caret in its reply, where `z` is a letter.
+    # The thread opened with the caret in its reply, which keeps ⌘Z for its words.
     page.evaluate(RELEASE_FOCUS)
     undo(page)
     expect(body).to_have_text("First line. Second line.")
@@ -315,7 +315,7 @@ def test_crossed_responses_wait_for_the_same_thread_widget_module(browser, serve
     draft_control(page, "save", "crossed-draft").click()
     round_trip(page)
     assert body.text_content() == "A user's exact words.\n"
-    # The thread opened with the caret in its reply, where `z` is a letter.
+    # The thread opened with the caret in its reply, which keeps ⌘Z for its words.
     page.evaluate(RELEASE_FOCUS)
     undo(page)
     expect(body).to_have_text("First line. Second line.")
@@ -383,7 +383,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     open_panel_thread(page, "c-decision")
     expect(page.locator("#rp-shim")).to_have_attribute("selected", "")
 
-    # The thread opened with the caret in its reply, where `z` is a letter.
+    # The thread opened with the caret in its reply, which keeps ⌘Z for its words.
     page.evaluate(RELEASE_FOCUS)
     undo(page)
     assert [

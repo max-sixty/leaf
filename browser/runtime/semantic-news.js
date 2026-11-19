@@ -11,7 +11,9 @@
 
    New agent content is the server's `unread` reading, the same one the floating panel
    paints: a version is news the first time this tab sees it unread, and
-   never once the user has taken it in, here or in another tab. What the user has
+   never once the user has taken it in, here or in another tab, nor once this tab has
+   seen it read. An undo of the resolve or reply that marked a message read makes it
+   unread again (read_state.py), but nothing arrived. What the user has
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it.
@@ -149,6 +151,9 @@ export function observeSemanticNews(prior, reading) {
       });
     observed.content.add(version);
   }
+  for (const thread of reading.thread.threads)
+    for (const message of thread.msgs)
+      if (message.content_version) observed.content.add(message.content_version);
   for (const failure of failures.values()) {
     if (!first && !observed.failures.has(failure.key))
       news.push({

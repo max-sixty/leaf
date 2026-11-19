@@ -95,10 +95,8 @@ test("a walk's step takes the page field's words, and leaves a thread's Reply", 
     [thread.says, wordsText(thread.words), thread.end, thread.offers],
     ["turn", "Reply…", "", true],
   );
-  assert.equal(
-    readField(facts({ ...step, thread: true, goTo: "No visible threads." })).says,
-    "notice",
-  );
+  const goTo = readField(facts({ ...step, thread: true, goTo: "No visible threads." }));
+  assert.deepEqual([goTo.says, goTo.end], ["notice", "Reply…"]);
 });
 
 test("words that pass lead with the stance alone, whose Close the field's end offers", () => {

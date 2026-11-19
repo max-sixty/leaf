@@ -242,7 +242,7 @@ customElements.define("lf-tally", class extends LeafElement {
     assert kept == ["7", "9"]
 
     original = page.locator("#tally-seen").element_handle()
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     assert page.locator("#tally-seen").get_attribute("count") == "0"
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
@@ -870,7 +870,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
 
 def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
     """A decision the next revision keeps in force is still the user's newest gesture
-    there, so `z` takes it back as the widget's own Undo would."""
+    there, so ⌘Z takes it back as the widget's own Undo would."""
     first = leaf_page(
         "Carried decision",
         """<h1>Plan</h1>

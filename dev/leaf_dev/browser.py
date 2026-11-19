@@ -514,6 +514,21 @@ ON_ME_MARK = ".lf-fp-on-user"
 # `data-lf-rest="mark"` the panel folded to the leaf.
 PANEL = ".lf-floating-panel"
 
+# The words in the panel's one seat for what passes, such as a notice or a walk's
+# position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
+# open view, else the line over the field while it stands, else an error standing
+# over the field's words (composing/input.js), else the empty field's placeholder.
+PANEL_SAYS = """() => {
+  const peek = document.querySelector('.lf-fp-peek');
+  if (peek?.hasAttribute('data-lf-shown')) return peek.textContent.trim();
+  const line = document.querySelector('.lf-fp-context');
+  if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
+  const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
+  if (cover) return cover.textContent.trim();
+  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
+    ?? '';
+}"""
+
 
 def panel_view(name: str) -> str:
     """The selector of the panel's `name` view (`data-lf-open`'s values, above) that

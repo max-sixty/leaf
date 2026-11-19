@@ -95,6 +95,15 @@ test("words joined from both copies keep this document's payload, else the other
     value: "Theirs.\n\nMine.",
     payload: { drawing: "theirs" },
   });
+
+  writtenElsewhere("composer:drawn", "Theirs, and mine.", { drawing: "theirs" });
+  const drawn = told("composer:drawn");
+  saveDraft("composer:drawn", "mine.", { drawing: "mine" });
+  assert.deepEqual(await drawn, {
+    value: "Theirs, and mine.",
+    payload: { drawing: "mine" },
+  });
+  assert.deepEqual(server.get("composer:drawn")?.payload, { drawing: "mine" });
 });
 
 test("words this document is sending give way to another tab's", async () => {

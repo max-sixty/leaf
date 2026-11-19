@@ -63,11 +63,12 @@
    still unanswered, which its reload counts as its own. The server takes it only over
    one it names or over none, and answers with what it holds (`drafts.py`), so words
    another tab or device wrote in the meantime come back in its place. Nothing says
-   the user no longer wants this document's words since then (`../SOUL.md`, "Leaf drops
+   the user no longer wants this document's words since then (SOUL.md, "Leaf drops
    words the user typed only when it knows they no longer want them"), so the draft
-   becomes both, in one generation written over the other's (`adopt`). The user chose
-   that over a three-way merge, which would keep the text each copy started from,
-   since words written apart are rare. Words written over a generation another tab
+   becomes both, in one generation written over the other's (`adopt`). Words written
+   apart are rare, and the maintainer asked for the simplest rule that loses none: a
+   three-way merge would need every copy to keep the text it started from, and still
+   leave conflicting edits for the user to sort. Words written over a generation another tab
    sent start the draft again, since they are newer than anything sent. The
    log answers which generations were sent, so the server settles one at its first
    reading after the event, which every tab hears at its next look, and turns a write
@@ -253,10 +254,10 @@ const bothWords = (theirs = "", mine = "") =>
 // Take the server's generation of a draft: a record, or none where the reading holds
 // none, as it holds none of a generation sent or put away. Words this document holds
 // that the store never took may still be wanted, unless this document is sending them,
-// which the log may already hold; so where the server's words don't already hold
-// them the draft becomes both (`bothWords`), with this document's payload if it has
-// one: a new generation written over the server's, which every tab then hears, shown
-// here with the caret at its end.
+// which the log may already hold. So the draft becomes both (`bothWords`), with this
+// document's payload if it has one, else the server's: unless that is the server's
+// generation already, a new generation written over the server's, which every tab
+// then hears, shown here with the caret at its end.
 /** @param {string} ctx @param {DraftRecord | null} record @param {string} store @param {number} version */
 function adopt(ctx, record, store, version) {
   const copy = draftCache.get(ctx);
@@ -270,9 +271,14 @@ function adopt(ctx, record, store, version) {
   if (copy && mine && record && !record.settled) {
     const text = bothWords(record.text, mine.text);
     const held = bothWords(record.held, mine.held);
-    if (text !== record.text || held !== (record.held ?? "")) {
+    const payload = mine.payload ?? record.payload;
+    if (
+      text !== record.text ||
+      held !== (record.held ?? "") ||
+      JSON.stringify(payload) !== JSON.stringify(record.payload)
+    ) {
       draftCache.set(ctx, { ...copy, stored: record.attempt, store, version });
-      saveDraft(ctx, text, mine.payload ?? record.payload, held || null);
+      saveDraft(ctx, text, payload, held || null);
       projectDraftRecord(ctx, rawDraftRecord(ctx));
       if (writingPlace?.context === ctx)
         keepWritingPlace({ ...writingPlace, selection: atEnd(ctx) });

@@ -18,6 +18,7 @@ from interact_support import (
     continued,
     declare_data_input,
     delivered,
+    inlined,
     last_deliverable_seq,
     working,
 )
@@ -361,7 +362,7 @@ def test_advice_holds_no_turn_and_goes_in_with_what_a_hook_hands_over(
     )
     state_model.prompt_turn("s1")
     hooks_model.cmd_hook("claude-code", repeated)
-    envelope = json.loads(continued(json.loads(capsys.readouterr().out)).split("\n")[1])
+    envelope = inlined(continued(json.loads(capsys.readouterr().out)))
     [batch] = envelope["batches"]
     assert [e["id"] for e in batch["events"]] == [advice["id"], comment["id"]]
 

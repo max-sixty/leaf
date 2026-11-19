@@ -61,15 +61,13 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     watcher = take_wait_lease(lease_path)
     assert watcher is not None
     request.addfinalizer(watcher.close)
-    # The send opens the new thread's view in the panel, its reply standing in the
-    # field with the caret in it.
+    # The send opens the new thread's view in the panel and leaves the user on it.
     thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{comment["id"]}"]')
-    expect(thread).to_be_visible()
+    expect(thread).to_be_focused()
     # The user goes on writing in the reply, which the agent's resolve below must not
     # take from under them. The agent's reply joins the thread with its first words,
     # not when the turn opens its draft.
     reply = panel_field(page)
-    expect(reply).to_be_focused()
     write(reply, "While you look")
     turn.begin()
     turn.reply_stream.update({"opening": "Looking at the page."})
@@ -77,11 +75,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
     rendered(page)
-    # The turn's opening streams into the open thread at its end, where it moves none
-    # of the words above it.
-    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_contain_text(
-        "Looking at the page."
-    )
+    # The turn's opening stands in the open thread at its end as its working step,
+    # where it moves none of the words above it.
+    expect(thread.locator(".lf-thread-working")).to_contain_text("Looking at the page")
     metadata = thread.locator(".lf-msg").first.locator(":scope > .lf-msg-head")
     receipt = metadata.locator(".lf-msg-sending")
     expect(receipt).to_have_text("Replying")

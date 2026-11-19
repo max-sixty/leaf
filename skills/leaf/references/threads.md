@@ -86,7 +86,7 @@ A thread shows in a narrow card or panel, so a paragraph that reads fine in chat
 wall there. The user should take in at a glance what a message tells them and what it
 asks of them. A message is generally a sentence or two; where it has several points,
 such as the options a question weighs, give each a short paragraph or item, and a
-question a line of its own. The page carries the work. Record a decision, result,
+question a paragraph of its own. The page carries the work. Record a decision, result,
 or deferred work on the page and link it from the reply with a fragment link such as
 `[the decision](#decision)`, which previews its target while the user points at it and
 opens any tab or group hiding it. The thread already reaches the passage or section it

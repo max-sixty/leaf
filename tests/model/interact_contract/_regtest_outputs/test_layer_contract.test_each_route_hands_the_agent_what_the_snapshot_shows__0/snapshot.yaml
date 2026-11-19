@@ -61,8 +61,8 @@
 #   leaf wait:         its output, from a bare shell.
 #   Claude Code hook:  the native watch's notification, and the prompt hook's
 #                      `additionalContext`, split into its instruction line, the
-#                      delivery on the next line, and what Leaf asks of the turn
-#                      after it.
+#                      delivery's JSON block after it, and what Leaf asks of the
+#                      turn after that.
 #   Codex queue:       the `--message` given to `codex queue`, and the output of
 #                      the `leaf delivery read` it points at.
 #   Codex App Server:  the `turn/start` params. `toolOutput.output` is the

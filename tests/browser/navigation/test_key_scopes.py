@@ -1847,11 +1847,21 @@ def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
     expect(page.locator("#right-next")).to_be_focused()
 
 
-# The browser's own back: a close watcher standing before any of the page's, which
-# hears a close request only where the page holds none of its own.
+# The browser's own back: a close watcher standing before any of the page's, counting a
+# close request in which Leaf took no step. Chromium puts a watcher made with no user
+# interaction since the last close request into the group before it, as Leaf's can be
+# after a back gesture, and closes a whole group at once, so this one can close in the
+# same request as Leaf's, which goes nowhere in the browser.
 BROWSER_BACK = """() => {
   window.browserBack = 0;
-  new CloseWatcher().onclose = () => (window.browserBack += 1);
+  let stepped = false;
+  document.addEventListener('lf-command-invoked', () => {
+    stepped = true;
+    setTimeout(() => (stepped = false));
+  });
+  new CloseWatcher().onclose = () => {
+    if (!stepped) window.browserBack += 1;
+  };
 }"""
 
 

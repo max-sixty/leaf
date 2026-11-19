@@ -6,7 +6,7 @@ import json
 import os
 
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, check
+from interact_support import append_carried_log_record, check, inlined
 
 from leaf import cli as cli_model
 from leaf import hooks as hooks_model
@@ -47,7 +47,7 @@ def test_only_serving_or_claiming_a_page_puts_the_session_under_the_guard(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
 
 

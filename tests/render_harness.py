@@ -1552,6 +1552,10 @@ def clean_browser(test=None):
     assert not problems, "\n".join(problems)
 
 
+# How Firefox words, in its console, a module import that did not complete.
+_MODULE_LOAD_FAILED = re.compile(r"Loading failed for the module with source “([^”]+)”")
+
+
 def _named_problems(captured):
     return [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
@@ -1658,7 +1662,11 @@ def watched(page, *, java_script_enabled=True):
     (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
-    them: console warnings and errors, and uncaught exceptions.
+    them: console warnings and errors, and uncaught exceptions. A module import the
+    browser cut off is no failure of the page: a navigation stops what the document it
+    leaves was still loading, and Firefox still says each such import failed to load,
+    so that warning is dropped where the request's own failure names the cut
+    (`NS_BINDING_ABORTED`), whichever of the two arrives first.
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
@@ -1682,8 +1690,22 @@ def watched(page, *, java_script_enabled=True):
     page.lf_errors = errors
     page.lf_java_script_enabled = java_script_enabled
 
+    cut_off = set()
+
+    def cut(problem):
+        found = problem.code == "console-warning" and _MODULE_LOAD_FAILED.search(
+            problem.values["text"]
+        )
+        return bool(found) and found[1] in cut_off
+
+    def request_failed(request):
+        if request.failure == "NS_BINDING_ABORTED":
+            cut_off.add(request.url)
+            errors[:] = [problem for problem in errors if not cut(problem)]
+
     def console_message(message):
-        if (problem := render_gate_model.console_finding(message)) is not None:
+        problem = render_gate_model.console_finding(message)
+        if problem is not None and not cut(problem):
             errors.append(problem)
 
     def window_error(error):
@@ -1697,6 +1719,7 @@ def watched(page, *, java_script_enabled=True):
             errors.append(problem)
 
     page.on("console", console_message)
+    page.on("requestfailed", request_failed)
     render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
         return errors

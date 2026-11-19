@@ -1460,13 +1460,14 @@ class WebsitePageEndpoint(PageEndpoint):
 
     def _published_root(self, revision: int) -> str | None:
         """Where the release publishes a revision's resources beside the runtime it
-        runs (`live_shell`), for a revision the release published; None for one a
-        user's session created in this container, which serves its own."""
+        runs (`live_shell`), for a revision file the release published; None for any
+        other, such as one the user's session created or one an earlier release
+        published, which this container serves itself."""
         page = self.pages[self.page_root or "/"]
-        if str(revision) not in page["states"]:
-            return None
         name = self._revision_name(revision).removesuffix(".html")
-        return f"{page['assets']}/revisions/{name}"
+        return (
+            f"{page['assets']}/revisions/{name}" if name in page["revisions"] else None
+        )
 
     # A published revision's documents and samples load its graph from the release, so
     # a page the container saved while asleep needs no container to load it.

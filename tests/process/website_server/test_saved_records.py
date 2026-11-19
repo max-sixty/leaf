@@ -16,6 +16,7 @@ import pytest
 from interact_support import (
     PAGE,
     append_command,
+    page_packages,
     publish,
     running_http_server,
 )
@@ -248,6 +249,32 @@ def test_website_restore_streams_shared_chunks_once_across_files_and_pages(
         assert previous.read_bytes() == b"previous local input"
 
 
+def test_a_release_that_drops_a_page_restores_the_sessions_others(
+    tmp_path, monkeypatch
+):
+    """A session's record outlives a deploy, so it can hold a page the new release no
+    longer publishes. Its other pages restore, and the dropped page's record and drafts
+    stay unread."""
+    from leaf_website.storage import restore
+
+    site = tmp_path / "site"
+    site.mkdir()
+    write_manifest(site, {"/kept": ("kept", "example")})
+    body = b"kept"
+    digest = hashlib.sha256(body).hexdigest()
+    with durable_page_store() as (store_url, stored):
+        stored["blobs"][digest] = body
+        stored["records"] = {
+            root: {"page/app.js": {"chunks": [digest], "modified": 0}}
+            for root in ("/kept", "/dropped")
+        }
+        stored["drafts"] = {"/dropped": {"store": "s", "version": 1, "drafts": {}}}
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+    assert (site / "kept/page/app.js").read_bytes() == body
+    assert sorted(path.name for path in site.iterdir()) == ["_leaf", "kept"]
+
+
 def test_a_container_on_another_release_does_not_start(tmp_path, monkeypatch):
     """After a deploy a session's container can still start on the previous image,
     whose code may misread a record the new release shaped, and whose answers and
@@ -365,7 +392,7 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     page = manifest["pages"]["/example"]
-    page["states"] = {"1": "unused"}
+    page["revisions"] = [revision_path(private, 1).stem]
     manifest_path.write_text(json.dumps(manifest))
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):
@@ -392,6 +419,86 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     assert not any(path.startswith("revisions/") for path in publication["responses"])
 
 
+def test_a_later_release_restores_a_visitors_page_as_they_left_it(
+    page_dir, tmp_path, monkeypatch, initialized_page
+):
+    """A deploy at the same page protocol restores the visitor's page whole, though the
+    new release publishes its own first revision: their comment stands on the revision
+    they read, which the container then serves itself, since the new release's assets
+    hold only the revisions it published."""
+    from leaf_website.storage import PUBLISHER, restore
+
+    def release_site(name, page, release):
+        site = tmp_path / name
+        shutil.copytree(page, site / "page")
+        write_manifest(site, {"/example": ("page", "example")})
+        manifest_path = site / website_server.SITE_MANIFEST
+        manifest = json.loads(manifest_path.read_text())
+        manifest["release"] = release
+        entry = manifest["pages"]["/example"]
+        entry["assets"] = f"/_leaf-release/{release}/example"
+        entry["revisions"] = [revision_path(page, 1).stem]
+        manifest_path.write_text(json.dumps(manifest))
+        return site, entry
+
+    publish(page_dir)
+    earlier, _ = release_site("earlier", page_dir, "0" * 64)
+    visited = revision_path(earlier / "page", 1).stem
+    republished = initialized_page(
+        tmp_path / "republished",
+        page_packages(),
+        (
+            "PAGE-republished",
+            lambda template: (template / "index.html").write_text(
+                PAGE.replace("<h2>Plan</h2>", "<h2>Plan, republished</h2>")
+            ),
+        ),
+    )
+    publish(republished)
+    later, entry = release_site("later", republished, "1" * 64)
+    assert revision_path(later / "page", 1).stem != visited
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        monkeypatch.setenv("LEAF_SITE_ROOT", str(earlier))
+        assert restore(earlier)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        append_command(
+            earlier / "page",
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Kept across the deploy",
+                "attempt": "kept-comment-0001",
+            },
+        )
+        with PageTransaction(earlier / "page"):
+            pass
+
+        stored["release"] = "1" * 64
+        monkeypatch.setenv("LEAF_SITE_ROOT", str(later))
+        monkeypatch.delenv("LEAF_PAGE_COMMIT")
+        assert restore(later)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        restored = later / "page"
+        assert revision_path(restored, 1).stem == visited
+        assert b"Plan, republished" not in revision_path(restored, 1).read_bytes()
+        assert any(
+            event.get("text") == "Kept across the deploy"
+            for event in read_events(restored)
+        )
+        with PageTransaction(restored):
+            pass
+        publication = stored["publications"][-1]
+    document = b"".join(
+        stored["blobs"][digest] for digest in publication["responses"][""]["chunks"]
+    )
+    assert f"{entry['assets']}/revisions/".encode() not in document
+    assert any(
+        path.startswith(f"revisions/{visited}") for path in publication["responses"]
+    )
+
+
 def test_a_session_that_swaps_an_image_goes_on_saving(page_dir, tmp_path, monkeypatch):
     """Revisions that differ only in the images they show share the address their
     resources answer at, and an image answers at the page root, never there. A
@@ -406,7 +513,7 @@ def test_a_session_that_swaps_an_image_goes_on_saving(page_dir, tmp_path, monkey
     write_manifest(site, {"/example": ("page", "example")})
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
-    manifest["pages"]["/example"]["states"] = {"1": "unused"}
+    manifest["pages"]["/example"]["revisions"] = [revision_path(private, 1).stem]
     manifest_path.write_text(json.dumps(manifest))
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):

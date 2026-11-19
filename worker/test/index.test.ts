@@ -23,6 +23,10 @@ vi.mock("@cloudflare/containers", () => ({
     fetch(request: Request) {
       return forwardedContainerFetch(request);
     }
+
+    async destroy(this: { ctx: { container: { running: boolean } } }) {
+      this.ctx.container.running = false;
+    }
     static get outboundByHost(): Record<string, OutboundHandler<Env>> | undefined {
       return containerHandlers.get(this.name);
     }
@@ -38,15 +42,18 @@ vi.mock("@cloudflare/containers", () => ({
 import { getContainer } from "@cloudflare/containers";
 import worker, { LeafWebsiteSession, type Env } from "../src/index";
 import { activeCookie } from "../src/routing";
+import { STORE_FORMAT } from "../src/storage";
 
 function executionContext(waitUntil = vi.fn()): ExecutionContext {
   return { waitUntil } as unknown as ExecutionContext;
 }
 
 const RELEASE = "a".repeat(64);
+const PROTOCOL = 60;
 const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
+  protocol: PROTOCOL,
   frame_ancestors: "frame-ancestors 'self'",
   routes: {
     layer: ["runtime", "widgets", "vendor"],
@@ -151,9 +158,10 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
   presentedMs: 310,
   ...overrides,
 });
-const activeMarker = (root: string, release = RELEASE) =>
-  activeCookie(true, root, release).split(";", 1)[0];
-const containerId = (sessionId: string) => `${RELEASE}:${sessionId}`;
+const SCOPE = `${PROTOCOL}.${STORE_FORMAT}`;
+const activeMarker = (root: string, scope = SCOPE) =>
+  activeCookie(true, root, scope).split(";", 1)[0];
+const containerId = (sessionId: string) => `${SCOPE}:${sessionId}`;
 
 function environment(overrides: Partial<Env> = {}): Env {
   const allow = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
@@ -1213,7 +1221,7 @@ describe("product-site delivery", () => {
     }
   });
 
-  it("selects private state by the deployed release", async () => {
+  it("selects private state by the page protocol, across releases", async () => {
     const sessionId = "0b".repeat(16);
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
@@ -1477,9 +1485,13 @@ describe("product-site delivery", () => {
   });
 
   it.each([
-    "/examples/triage-board/revisions/r3-aabbccdd.html",
-    "/examples/triage-board/versions/v3.html",
-  ])("falls back to the active user's container for %s", async (pathname) => {
+    // A revision is named by its content, so a published copy is the same file; only a
+    // revision the release didn't publish reaches the container.
+    ["/examples/triage-board/revisions/r3-aabbccdd.html", 1],
+    // A version is named by its number, and a record an earlier release saved holds
+    // its own: the release's published version of that number may be another page.
+    ["/examples/triage-board/versions/v3.html", 0],
+  ])("serves an active page's %s from its own record", async (pathname, published) => {
     const sessionId = "18".repeat(16);
     const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
     const containerFetch = vi.fn(
@@ -1503,7 +1515,7 @@ describe("product-site delivery", () => {
       executionContext(),
     );
 
-    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(assetFetch).toHaveBeenCalledTimes(published);
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(await response.text()).toContain("Private revision");
@@ -1650,9 +1662,9 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("keeps an earlier release's active page passive after deployment", async () => {
+  it("keeps a page made active at an earlier page protocol or store format passive", async () => {
     const sessionId = "1c".repeat(16);
-    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`;
+    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`;
     const env = environment({
       ASSETS: {
         fetch: async () =>
@@ -1708,7 +1720,7 @@ describe("product-site delivery", () => {
     for (const cookie of [
       undefined,
       `__Host-leaf-page=${sessionId}`,
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`,
       `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
     ]) {
       const response = await report(cookie);
@@ -1761,7 +1773,7 @@ describe("product-site delivery", () => {
     for (const cookie of [
       undefined,
       `__Host-leaf-page=${sessionId}`,
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`,
       `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
     ]) {
       const response = await read(cookie);
@@ -1810,7 +1822,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
-      `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+      `__Host-leaf-active-page-examples%2Ftriage-board=${SCOPE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
   });
 
@@ -1884,7 +1896,7 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("active");
       expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
-        `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        `__Host-leaf-active-page-examples%2Ftriage-board=${SCOPE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
       );
     }
   });
@@ -2112,15 +2124,32 @@ describe("page faults", () => {
   });
 });
 
+// The parts of a session object's state the tests below drive: its storage, whether
+// its container runs, and the gate that holds other requests while one claims it.
+function sessionContext(storage: DurableObjectStorage) {
+  return {
+    storage,
+    container: { running: false },
+    blockConcurrencyWhile: <T>(operation: () => Promise<T>) => operation(),
+  };
+}
+
+// A session object whose container this release started, as its first request leaves it.
+async function startedSession(storage: DurableObjectStorage, env = environment()) {
+  const ctx = sessionContext(storage);
+  const session = new LeafWebsiteSession(ctx as never, env);
+  await session.fetch(new Request("https://leaf.page/"));
+  ctx.container.running = true;
+  forwardedContainerFetch.mockClear();
+  return { ctx, session };
+}
+
 describe("website page agent", () => {
   it("identifies silent container disconnect responses without logging private data", async () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const session = new LeafWebsiteSession(
-        { storage, container: { running: true } } as never,
-        environment(),
-      );
+      const { session } = await startedSession(storage);
       for (const [body, headers, expected] of [
         ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
         ["private-adapter-error", { "Leaf-Session": "active" }, "adapter"],
@@ -2161,10 +2190,7 @@ describe("website page agent", () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const session = new LeafWebsiteSession(
-        { storage, container: { running: true } } as never,
-        environment(),
-      );
+      const { session } = await startedSession(storage);
       const url = "https://leaf.page/examples/triage-board/api/news?private=secret";
       for (const body of [
         "Container suddenly disconnected, try again",
@@ -2253,10 +2279,47 @@ describe("website page agent", () => {
     }
   });
 
+  it("stops a container from before a deploy, and none this release starts", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const earlier = {
+        ...environment(),
+        ASSETS: {
+          fetch: async () => Response.json({ ...MANIFEST, release: "b".repeat(64) }),
+        } as unknown as Fetcher,
+      };
+      const { ctx } = await startedSession(storage, earlier);
+      // The deploy restarts the object on the new release's code; its container still
+      // runs the earlier image.
+      const session = new LeafWebsiteSession(ctx as never, environment());
+      const state = () =>
+        session.fetch(new Request("https://leaf.page/examples/triage-board/api/state"));
+      let answer!: (response: Response) => void;
+      forwardedContainerFetch.mockImplementationOnce(async () => {
+        expect(ctx.container.running).toBe(false);
+        // The container this request starts runs before its server answers.
+        ctx.container.running = true;
+        return new Promise<Response>((resolve) => (answer = resolve));
+      });
+      const first = state();
+      await vi.waitFor(() => expect(forwardedContainerFetch).toHaveBeenCalledOnce());
+      // A request while it starts reaches it rather than stopping it.
+      forwardedContainerFetch.mockImplementationOnce(async () => {
+        expect(ctx.container.running).toBe(true);
+        return new Response("still starting");
+      });
+      expect(await (await state()).text()).toBe("still starting");
+      answer(new Response("restored on this release"));
+      expect(await (await first).text()).toBe("restored on this release");
+    } finally {
+      close();
+    }
+  });
+
   it("recalls saved content and private resources without starting the container", async () => {
     const { storage, close } = sqliteStorage();
     try {
-      const ctx = { storage, container: { running: false } };
+      const ctx = sessionContext(storage);
       const session = new LeafWebsiteSession(ctx as never, environment());
       const responses: Record<
         string,

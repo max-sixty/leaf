@@ -3,11 +3,15 @@
 
    A document speaks the generation of the layer record it was served under, and runs
    the runtime of the Leaf that served it (`runtime_selection.py`), both of which its
-   server names in the document (`DELIVERY`). `admitResponse` observes every response's
-   session metadata and checks every successful payload against the document's layer,
-   runtime and website release, including a freshness token whose body has not
-   changed: a server restarted under another runtime serves state this code may not
-   read, and refuses what it sends. A foreign answer is always refused. Only leaf.page's
+   server names in the document (`DELIVERY`). `admitResponse` observes the session
+   metadata of every answer from the page's server and checks every successful payload
+   against the document's layer, runtime and website release, including a freshness
+   token whose body has not changed: a server restarted under another runtime serves
+   state this code may not read, and refuses what it sends. A foreign answer is always
+   refused. A file under a revision's assets path is no such answer: the path is named
+   by the file's bytes (`http.py`, `assets_path`), so the browser keeps the file for a
+   year, across leaf.page deploys that leave those bytes alone, with the headers of the
+   release it cached it from. Only leaf.page's
    edge names a release (`worker/src/index.ts`), so another release means the edge has
    moved on and has a newer document to give, and the page reloads at once. Whether a
    foreign layer or runtime reloads it is the document source's to answer, through the
@@ -369,8 +373,10 @@ function admitted(response, ofThisLayer) {
   return true;
 }
 
-// Activation belongs to one private page in one release. A pinned revision shares
-// its canonical root; another page or deployment has a separate saved record.
+// Activation belongs to one private page, whose saved record outlives a deploy. A
+// pinned revision shares its canonical root; another page has a separate record. Tabs
+// tell each other on a channel of their release, since a tab on another release
+// reloads at its next answer.
 let sessionMode = release ? "unknown" : "active";
 const sessionChannel =
   release && !document.documentElement.lfSample

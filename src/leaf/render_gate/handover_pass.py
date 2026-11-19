@@ -332,7 +332,7 @@ class HandoverPass:
         child ended by its alarm told nothing, so this tells the agent that the version
         couldn't be read."""
         ended = subprocess.run(
-            [sys.executable, "-m", "leaf", "page", "_read", str(self.page_dir)],
+            [sys.executable, "-I", "-m", "leaf", "page", "_read", str(self.page_dir)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             env=detached_environment(None),

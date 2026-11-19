@@ -155,5 +155,7 @@ def select_checkout(session_id: str) -> bool:
 
 
 def own_launcher() -> Path:
-    """The launcher beside the Python package currently running."""
+    """The launcher beside the Python package currently running. `bin/leaf` runs
+    only the package beside it (its `-I`), so in a process it started this is
+    that launcher."""
     return (PLUGIN_ROOT / "bin" / "leaf").resolve()

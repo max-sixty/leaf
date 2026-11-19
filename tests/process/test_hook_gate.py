@@ -31,17 +31,20 @@ def hook(event: str, session: str, cwd) -> None:
     assert ran.returncode == 0, ran.stderr
 
 
-def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir, tmp_path):
+def test_claude_code_runs_the_whole_hook_once_its_session_claims(
+    page_dir, tmp_path, monkeypatch
+):
     """Claude Code runs Leaf's turn and tool hooks in every session the plugin is
     installed in, and most never use Leaf, so the launcher skips them until the
     session claims. The hook before a `leaf` command opens the turn the skipped
     prompt hook would have, a claim joins it, and the session's Stop hook then
-    runs in full and closes it. A `leaf.py` in the session's working directory
-    never stands in for Leaf."""
+    runs in full and closes it. A `leaf.py` in the session's working directory or
+    on its PYTHONPATH never stands in for Leaf."""
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     task = tmp_path / "task"
     task.mkdir()
     (task / "leaf.py").write_text('raise SystemExit("the task\'s leaf.py ran")\n')
+    monkeypatch.setenv("PYTHONPATH", str(task))
     hook("UserPromptSubmit", session, task)
     hook("PostToolBatch", session, task)
     hook("Stop", session, task)

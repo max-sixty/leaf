@@ -397,6 +397,32 @@ def panel_status_hover(page: Page) -> None:
     page.locator(".lf-fp-leaf").hover()
 
 
+def panel_status_cut(page: Page) -> None:
+    """The panel's field cutting the agent's long status short under a resting pointer,
+    which reads the status whole (floating-panel.js, `pageEditor`). A runtime that
+    reads nothing there shows the row as it stands."""
+    client = PageClient(served_page.get().address)
+    asked = client.post(
+        {
+            "kind": "comment",
+            "attempt": "stills-status-cut",
+            "text": "Can you tidy the README before the release?",
+        }
+    )
+    as_agent(
+        "task",
+        "start",
+        asked["id"],
+        "--text",
+        "Editing the README for your 17 comments: cuts, headings, the checks and data"
+        " line; checking what Claude Code's idle compaction and cache lifetime do",
+    )
+    wait_until_ready(page, client.state(), through="state")
+    page.locator(".lf-fp-field leaf-text").hover()
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
 def panel_errors(page: Page) -> None:
     """The leaf's menu opened by its error dot, over an error the user edited past in
     the field, so it waits unseen in the Errors list."""
@@ -2965,6 +2991,7 @@ STATES = (
         region=".lf-fp-leaf",
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
+    State("panel-status-cut", "review-a-plan", panel_status_cut),
     State("panel-errors", "review-a-plan", panel_errors, region=".lf-floating-panel"),
     State(
         "panel-errors-list",

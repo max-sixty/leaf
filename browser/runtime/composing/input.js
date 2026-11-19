@@ -1030,6 +1030,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia(image)));
         if (!paths.every((path) => path !== null)) return false;
+        // A thumbnail arrives at its picture's size. A picture that decodes after its
+        // tile is drawn grows the tile from its empty size, moving the shelf without
+        // input, so each picture is decoded first and the tile's image draws from it.
+        await Promise.all(
+          paths.map((path) => {
+            const picture = new Image();
+            picture.src = scopedMediaUrl(path);
+            return picture.decode().catch(() => {});
+          }),
+        );
         if (arrivals !== attachedAt) {
           raiseError(
             "Image not added — the comment moved before it finished uploading",

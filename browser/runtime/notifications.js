@@ -53,6 +53,8 @@ export const NOTICE_MS = 4000;
 let noticeTimer = 0;
 // Ends the watch on the standing notice's press (`showNotice`).
 let stopWatchingPress = () => {};
+// Whether the standing notice stands until the user's next input (`holds`, below).
+let holding = false;
 /** @type {Background | null} */
 let showingBackground = null;
 /** @type {Background[]} */
@@ -113,16 +115,17 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 // draws it where it was made; the live region alone hears it (application.js,
 // `named`). A notice offering a press (`press`) has the field's end say that press's
 // word and key, where the page's own press stands at rest.
-/** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press] */
-function showNotice(msg, background = null, press = null) {
+/** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press] @param {boolean} [holds] */
+function showNotice(msg, background = null, press = null, holds = false) {
   presentNotice(msg, true, press);
   if (!background) gesture("notice");
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatchingPress();
-  if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+  holding = holds || Boolean(press);
+  if (!holding) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
   // A notice another has replaced is no longer this watch's to retire.
-  else
+  if (press)
     stopWatchingPress = effect(() => {
       if (!press.stands() && noticePresentation.peek().press === press)
         untracked(retireNotice);
@@ -135,9 +138,10 @@ function retireNotice() {
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
-// A press stands until the user's next input rather than for its time, and no longer
-// than it can act: a gesture the log refused, or one taken back by any route, takes its
-// notice away. The panel says the
+// A notice offering a press, or one its caller holds (`holds`), as an undo's is
+// (undo.js), stands until the user's next input rather than for its time. A press
+// stands no longer than it can act: a gesture the log refused, or one taken back by any
+// route, takes its notice away. The panel says the
 // press at the field's end (floating-panel.js, `fieldReading`), so one leaving on a
 // timer would take it from under a hand on its way there. An input on the press itself,
 // which `keepsNotice` marks, keeps it.
@@ -146,7 +150,7 @@ export const keepsNotice = elementDirective("keepsNotice", (element) =>
   keeps(element, NOTICE_PRESS, ""),
 );
 onUserInput((event) => {
-  if (!noticePresentation.peek().press) return;
+  if (!holding || !noticeVisible()) return;
   const path = event.composedPath?.() ?? [];
   if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
     return;
@@ -199,10 +203,16 @@ function queueBackground(entry, front = false) {
 // while a command can interrupt an arrival and let it return after the acknowledgement.
 // A held status line coalesces each producer's news; the live region announces it now.
 /** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null,
- * press?: NoticePress | null}} options */
+ * press?: NoticePress | null, holds?: boolean}} options */
 export function notice(
   msg,
-  { background = false, announce: speak = true, group = null, press = null } = {},
+  {
+    background = false,
+    announce: speak = true,
+    group = null,
+    press = null,
+    holds = false,
+  } = {},
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
@@ -214,7 +224,7 @@ export function notice(
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg, null, press);
+  showNotice(msg, null, press, holds);
 }
 
 // Take the notice down for something the user asked for, putting a background notice

@@ -34,6 +34,7 @@ interface SitePage {
 // `SESSION_ROUTE_DIRS`, `LAYER_TOP_FILES`). The API directory is the page server's
 // protocol prefix, fixed with the endpoints under it that this Worker handles by name.
 const API_DIR = "api";
+const VERSIONS_DIR = "versions";
 interface PageRoutes {
   layer: string[];
   session: string[];
@@ -121,6 +122,12 @@ export function isPageSessionFileRequest(
 /** The page's live document: the stable address a revision activates by reloading. */
 export function isLivePageDocumentRequest(route: PageRoute | null): boolean {
   return route?.inside === "";
+}
+
+/** One of the page's stamped versions, `versions/vN.html` (`schema.VERSION_NAME`), the
+ * session directory whose files are named by number rather than by content. */
+export function isPageVersionRequest(route: PageRoute | null): boolean {
+  return route?.inside.startsWith(`${VERSIONS_DIR}/`) ?? false;
 }
 
 export function needsPageSlash(pathname: string, route: PageRoute): boolean {

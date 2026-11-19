@@ -27,8 +27,8 @@
  * it as a local Leaf serves a page an earlier Leaf wrote. A captured response names the
  * assets of the release whose container captured it, so the store keeps that release
  * beside each committed page and serves the page's responses only to it; under another
- * release the request wakes the container, which serves the page on its own runtime and
- * captures it again at its next commit.
+ * release the request wakes the container, which serves the page on its own runtime;
+ * its first read of the page, a transaction like any write, saves the responses again.
  * Each request a container makes names the release its image runs (`Leaf-Release`).
  * Cloudflare activates a Worker before its container image has rolled out, so after a
  * deploy a session's container can still start on the previous image. The store

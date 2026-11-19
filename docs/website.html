@@ -110,13 +110,13 @@ sequenceDiagram
           responses.
         </p>
         <p id="sessions-documents">
-          An active page loads its private document on ordinary visits and reloads.
-          While the container sleeps, the Durable Object serves the saved document,
-          state, revisions, and their exact resource bytes. Private revision resources
-          have immutable addresses under <code>revisions/rN-&lt;hash&gt;/</code>; public
-          runtime bundles cannot substitute for them. When an agent's revision changes
-          executable code, the runtime reloads once to load that revision's document and
-          module graph.
+          An active page loads its private document and versions on ordinary visits and
+          reloads. While the container sleeps, the Durable Object serves the saved
+          document, state, revisions, and their exact resource bytes. Private revision
+          resources have immutable addresses under
+          <code>revisions/rN-&lt;hash&gt;/</code>; public runtime bundles cannot
+          substitute for them. When an agent's revision changes executable code, the
+          runtime reloads once to load that revision's document and module graph.
         </p>
         <p id="sessions-startup">
           Reading saved pages and polling their state leave the container asleep. A

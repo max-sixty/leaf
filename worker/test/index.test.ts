@@ -1483,9 +1483,13 @@ describe("product-site delivery", () => {
   });
 
   it.each([
-    "/examples/triage-board/revisions/r3-aabbccdd.html",
-    "/examples/triage-board/versions/v3.html",
-  ])("falls back to the active user's container for %s", async (pathname) => {
+    // A revision is named by its content, so a published copy is the same file; only a
+    // revision the release didn't publish reaches the container.
+    ["/examples/triage-board/revisions/r3-aabbccdd.html", 1],
+    // A version is named by its number, and a record an earlier release saved holds
+    // its own: the release's published version of that number may be another page.
+    ["/examples/triage-board/versions/v3.html", 0],
+  ])("serves an active page's %s from its own record", async (pathname, published) => {
     const sessionId = "18".repeat(16);
     const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
     const containerFetch = vi.fn(
@@ -1509,7 +1513,7 @@ describe("product-site delivery", () => {
       executionContext(),
     );
 
-    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(assetFetch).toHaveBeenCalledTimes(published);
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(await response.text()).toContain("Private revision");
@@ -2118,16 +2122,32 @@ describe("page faults", () => {
   });
 });
 
+// The parts of a session object's state the tests below drive: its storage, whether
+// its container runs, and the gate that holds other requests while one claims it.
+function sessionContext(storage: DurableObjectStorage) {
+  return {
+    storage,
+    container: { running: false },
+    blockConcurrencyWhile: <T>(operation: () => Promise<T>) => operation(),
+  };
+}
+
+// A session object whose container this release started, as its first request leaves it.
+async function startedSession(storage: DurableObjectStorage, env = environment()) {
+  const ctx = sessionContext(storage);
+  const session = new LeafWebsiteSession(ctx as never, env);
+  await session.fetch(new Request("https://leaf.page/"));
+  ctx.container.running = true;
+  forwardedContainerFetch.mockClear();
+  return { ctx, session };
+}
+
 describe("website page agent", () => {
   it("identifies silent container disconnect responses without logging private data", async () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const session = new LeafWebsiteSession(
-        { storage, container: { running: true } } as never,
-        environment(),
-      );
-      await session.onStart();
+      const { session } = await startedSession(storage);
       for (const [body, headers, expected] of [
         ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
         ["private-adapter-error", { "Leaf-Session": "active" }, "adapter"],
@@ -2168,11 +2188,7 @@ describe("website page agent", () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const session = new LeafWebsiteSession(
-        { storage, container: { running: true } } as never,
-        environment(),
-      );
-      await session.onStart();
+      const { session } = await startedSession(storage);
       const url = "https://leaf.page/examples/triage-board/api/news?private=secret";
       for (const body of [
         "Container suddenly disconnected, try again",
@@ -2261,43 +2277,38 @@ describe("website page agent", () => {
     }
   });
 
-  it("stops a container an earlier release started before forwarding to it", async () => {
+  it("stops a container from before a deploy, and none this release starts", async () => {
     const { storage, close } = sqliteStorage();
     try {
-      const ctx = { storage, container: { running: true } };
       const earlier = {
         ...environment(),
         ASSETS: {
           fetch: async () => Response.json({ ...MANIFEST, release: "b".repeat(64) }),
         } as unknown as Fetcher,
       };
-      await new LeafWebsiteSession(ctx as never, earlier).onStart();
+      const { ctx } = await startedSession(storage, earlier);
       // The deploy restarts the object on the new release's code; its container still
       // runs the earlier image.
       const session = new LeafWebsiteSession(ctx as never, environment());
-      forwardedContainerFetch.mockClear();
+      const state = () =>
+        session.fetch(new Request("https://leaf.page/examples/triage-board/api/state"));
+      let answer!: (response: Response) => void;
       forwardedContainerFetch.mockImplementationOnce(async () => {
         expect(ctx.container.running).toBe(false);
-        return new Response("restored on this release");
+        // The container this request starts runs before its server answers.
+        ctx.container.running = true;
+        return new Promise<Response>((resolve) => (answer = resolve));
       });
-      const response = await session.fetch(
-        new Request("https://leaf.page/examples/triage-board/api/state"),
-      );
-      expect(await response.text()).toBe("restored on this release");
-      // This release's own container goes on answering.
-      ctx.container.running = true;
-      await session.onStart();
+      const first = state();
+      await vi.waitFor(() => expect(forwardedContainerFetch).toHaveBeenCalledOnce());
+      // A request while it starts reaches it rather than stopping it.
       forwardedContainerFetch.mockImplementationOnce(async () => {
         expect(ctx.container.running).toBe(true);
-        return new Response("still running");
+        return new Response("still starting");
       });
-      expect(
-        await (
-          await session.fetch(
-            new Request("https://leaf.page/examples/triage-board/api/state"),
-          )
-        ).text(),
-      ).toBe("still running");
+      expect(await (await state()).text()).toBe("still starting");
+      answer(new Response("restored on this release"));
+      expect(await (await first).text()).toBe("restored on this release");
     } finally {
       close();
     }
@@ -2306,7 +2317,7 @@ describe("website page agent", () => {
   it("recalls saved content and private resources without starting the container", async () => {
     const { storage, close } = sqliteStorage();
     try {
-      const ctx = { storage, container: { running: false } };
+      const ctx = sessionContext(storage);
       const session = new LeafWebsiteSession(ctx as never, environment());
       const responses: Record<
         string,
@@ -2383,7 +2394,6 @@ describe("website page agent", () => {
       ).toBe(204);
       expect(forwardedContainerFetch).not.toHaveBeenCalled();
       ctx.container.running = true;
-      await session.onStart();
       expect(
         await (
           await session.fetch(

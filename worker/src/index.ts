@@ -16,7 +16,7 @@
  * visitor: the page store refuses a container whose image runs another release, so a
  * previous image still starting during a rollout fails before it reads or writes the
  * records; the store serves a saved response only to the release that captured it; and
- * this object stops a container a previous release started before forwarding to it.
+ * this object stops a container from before a deploy at the deploy's first request.
  * Disposable sample URLs carry the opaque container object ID alongside their own
  * random capability, so an opaque-origin child uses native requests without a browser
  * session cookie. This routing reference selects a container only beneath that sample
@@ -69,6 +69,7 @@ import {
   activeCookie,
   activeFromCookie,
   isLivePageDocumentRequest,
+  isPageVersionRequest,
   isPageApiRequest,
   isPageSessionFileRequest,
   isPrivatePageRequest,
@@ -225,24 +226,20 @@ export class LeafWebsiteSession extends Container<Env> {
     return second;
   }
 
-  // The release whose Worker started the running container. Its image is that release's,
-  // since the page store refuses any other (`answerPageStore`), and a container that
-  // never started names none.
-  override async onStart(): Promise<void> {
-    const { release } = await siteManifest(new Request("https://leaf.page/"), this.env);
-    this.ctx.storage.kv.put(CONTAINER_RELEASE, release);
-  }
-
   override async fetch(request: Request): Promise<Response> {
     const manifest = await siteManifest(request, this.env);
-    // A container from before a deploy runs the previous image, whose documents name
-    // assets this release no longer serves. Its records are saved, so stop it and let
-    // this release's container restore them.
-    if (
-      this.ctx.container?.running &&
-      this.ctx.storage.kv.get(CONTAINER_RELEASE) !== manifest.release
-    )
-      await this.destroy();
+    // The object's container belongs to the release whose Worker last claimed the
+    // object. A container from before a deploy runs the previous image, whose documents
+    // name assets this release no longer serves, so the first request after the deploy
+    // stops it; its records are saved, and any container started afterwards runs this
+    // release's image or fails to start (`answerPageStore`). Requests that arrive
+    // meanwhile wait for the claim, so none stops a container this release is starting.
+    if (this.ctx.storage.kv.get(CONTAINER_RELEASE) !== manifest.release)
+      await this.ctx.blockConcurrencyWhile(async () => {
+        if (this.ctx.storage.kv.get(CONTAINER_RELEASE) === manifest.release) return;
+        if (this.ctx.container?.running) await this.destroy();
+        this.ctx.storage.kv.put(CONTAINER_RELEASE, manifest.release);
+      });
     if (!this.ctx.container?.running) {
       const url = new URL(request.url);
       const route = pageRoute(url.pathname, manifest);
@@ -805,9 +802,14 @@ export default {
     if (!active && request.method === "GET" && route.inside === "api/state") {
       return staticState(request, env, manifest, route, reference);
     }
-    // An active page's current document belongs to its private record, including
-    // on ordinary reload. Its DO can serve that document while the container sleeps.
-    const privateDocument = active && isLivePageDocumentRequest(route);
+    // An active page's current document and its versions belong to its private
+    // record, including on ordinary reload, since their addresses don't name their
+    // content: a record an earlier release saved holds its own versions, which the
+    // release's published ones of the same number are not. Revisions and media are
+    // named by their content, so a published copy is the same file. The DO can serve
+    // these documents while the container sleeps.
+    const privateDocument =
+      active && (isLivePageDocumentRequest(route) || isPageVersionRequest(route));
     if (
       (request.method === "GET" || request.method === "HEAD") &&
       !isPageApiRequest(route) &&

@@ -30,7 +30,7 @@ and `lf-approval`; `lf-ask` has no module, so its card holds a reply box. A widg
 opts in with `static seats = ["card"]` and styles `[data-lf-seat="card"]`.
 
 - **Gestures work.** A press in the card admits the same action as on the page;
-  Undo and `z` work from either place; a widget in an unopened thread message
+  Undo and ⌘Z work from either place; a widget in an unopened thread message
   becomes answerable.
 - **Shared id broke two shared mechanisms.** Presentation regions are keyed by
   widget id, so the copy took over the page widget's region and deleted it when

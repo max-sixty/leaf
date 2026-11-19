@@ -45,6 +45,7 @@ import {
 } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
 import { kept } from "./kept.js";
+import { readPart } from "./semantic-state.js";
 import { tokenEntry } from "./registry.js";
 import { isElement, shadowHost, upFrom } from "./shadow-tree.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -54,6 +55,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 import { raiseError } from "./errors.js";
 
+const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 // Why a message's link to a section the shown version lacks goes nowhere.
 /** @param {string | null} id */
@@ -71,6 +73,7 @@ const missingReference = (id) => `§ ${id} isn't in the version shown`;
  * withdrawReaction: ReturnType<typeof import("./undo.js").createUndo>["withdraw"],
  * labelAnchor: typeof import("./thread/messages.js").anchorLabel,
  * invalidateThread: () => unknown, invalidatePageGeometry: () => unknown,
+ * hearPlaced: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["hearPlaced"],
  * messageReferenceRoot: Element, draftQuote: Element, focused: typeof import("./focus.js").focused,
  * paintKeys: typeof import("./keyboard/scopes.js").paintKeys}} dependencies */
 
@@ -81,6 +84,7 @@ export function createAnchorControls({
   labelAnchor,
   invalidateThread,
   invalidatePageGeometry,
+  hearPlaced,
   messageReferenceRoot,
   draftQuote,
   focused,
@@ -93,6 +97,8 @@ export function createAnchorControls({
   const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
   /** @type {ReturnType<typeof onPressAway> | null} */
   let mounted = null;
+  /** @type {(() => void) | null} */
+  let stopHearing = null;
   let invalidationQueued = false;
   /** @type {Map<Element, VisualAction[]>} */
   let pendingVisualActions = new Map();
@@ -419,6 +425,12 @@ export function createAnchorControls({
 
   /** @param {AnchorReading} reading */
   function render({ readings, draft }) {
+    // These controls stand on elements of the shown document: a note's block, a
+    // reaction's seat, the section a message's link names. Reading the document here
+    // draws them again when a revision replaces it, as one that writes its own
+    // `aria-details` on a commented block it keeps, which the note's relation must then
+    // follow (details-shelf.js).
+    shownDocument();
     /** @type {Map<Element, [string, ...string[]]>} */
     const notes = new Map();
     /** @type {Map<Element, ReactionGroup>} */
@@ -463,6 +475,13 @@ export function createAnchorControls({
     paintDraft(draft);
     paintMessageReferences();
   }
+
+  const standsOnRemoved = () =>
+    [
+      ...anchorNotes.holders(),
+      ...reactionSeats.keys(),
+      ...visualActionHolders.keys(),
+    ].some((element) => !element.isConnected);
 
   function queueInvalidation() {
     if (invalidationQueued) return;
@@ -511,6 +530,14 @@ export function createAnchorControls({
   function mount() {
     if (mounted) return;
     document.addEventListener("lf-layout", onLayoutInvalidated);
+    // A script that draws a commented block anew moves its thread with no widget to
+    // announce it: placement hears it (anchor-placement.js, `hearPlaced`), and where a
+    // note, a reaction or a picture's responses stood on an element it took out, a pass
+    // seats them on the new one, as a widget's `lf-layout` asks. Words rewritten inside
+    // a block that stays, as a counter redrawn each frame, ask for none.
+    stopHearing = hearPlaced(() => {
+      if (standsOnRemoved()) queueInvalidation();
+    });
     mounted = onPressAway(
       (path) => offeredAway(path).length > 0,
       (path) => {
@@ -523,6 +550,8 @@ export function createAnchorControls({
   function destroy() {
     if (mounted) {
       document.removeEventListener("lf-layout", onLayoutInvalidated);
+      stopHearing?.();
+      stopHearing = null;
       mounted();
       messageReferenceRoot.removeEventListener("click", onMessageReference);
     }

@@ -3190,8 +3190,8 @@ STATES = (
         activated=False,
         region="#rn-console-section",
     ),
-    State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
-    State("dial-press", "detail", dial_press, region="lf-dial"),
+    State("dial-keyboard", "incident-report", dial_keyboard, region="lf-dial"),
+    State("dial-press", "incident-report", dial_press, region="lf-dial"),
     State(
         "image-in-page",
         "feature-gallery",

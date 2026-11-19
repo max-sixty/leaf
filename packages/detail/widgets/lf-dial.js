@@ -2,8 +2,19 @@
  *
  * Three depths, each showing all the one before it shows and more, so turning the
  * dial only ever adds or removes text and never swaps one wording for another:
- * Skim shows the lede, each block the author marked `.gist` and the headings above
- * them; Read shows the page as written; Everything also opens every closed `details`.
+ * Skim shows the lede, each block the author marked `.gist`, every picture and the
+ * headings above them; Read shows the page as written; Everything also opens every
+ * closed `details`. Skim shows nothing Read doesn't, so it keeps nothing inside a
+ * closed `details`.
+ *
+ * A picture is one HTML draws (a figure, an image, a drawing, a video, a canvas) or a
+ * widget whose entry says it draws one (`visual`, painted `data-lf-visual`), such as a
+ * chart, a diagram or a screenshot pair, with its caption where a `figure` gives it
+ * one. A reader on a quick pass reads a page by its pictures as much as by its words,
+ * so Skim keeps every picture the page shows rather than only the ones an author marks
+ * (the maintainer's choice). Rejected: folding every picture the author left unmarked,
+ * which made Skim words alone. A picture a widget draws inside itself, such as an icon
+ * in a code block's chrome, is the widget's, and Leaf's own chrome is no picture.
  * Which depth stands is this tab's view of the page, as a tab set's open panel is
  * (`tabStore`): no event records it, and a reload comes back to it. Read is the
  * default, so a page shows as authored until the reader turns the dial.
@@ -12,12 +23,14 @@
  * walk and travel to a comment still reach folded text and open the run holding it
  * (`beforematch`). Folding walks the dial's document (the view or `main`
  * holding it, as `lf-toc`'s outline does) and descends only into plain structure that
- * holds the lede, a gist or a heading that stands. A heading stands at Skim when a lede
- * or gist follows it in document order before the next heading of its rank or above,
- * so a section the author gave no gist folds whole, heading included. Keeping every
- * heading was rejected: it made Skim a fixed cut of every section, whether or not one
- * had anything for a skimmer. A Leaf element is folded or kept whole, never entered,
- * since its children are its own.
+ * holds the lede, a gist, a picture or a heading that stands. A heading stands at Skim
+ * when a lede, gist or picture follows it in document order before the next heading of
+ * its rank or above, so a section with nothing for a skimmer folds whole, heading
+ * included. Keeping every heading was rejected: it made Skim a fixed cut of every
+ * section, whether or not one had anything for a skimmer. A Leaf element is folded or
+ * kept whole, never entered, since its children are its own; so is a line of text, an
+ * element with words of its own, which keeps a picture standing in it whole, and a
+ * table, whose cells stand in its grid.
  *
  * Skim draws one quiet ⋯ for each gap in what it shows, after the block the gap
  * follows, and pressing it unfolds that gap alone. A gap is every block between two
@@ -75,8 +88,10 @@ const DEPTHS = [
 ];
 const RANKED = "h1, h2, h3, h4, h5, h6";
 const HEADING = `${RANKED}, hgroup`;
-// What Skim keeps for its own sake; a heading stands for the ones it heads.
+// What Skim keeps for its own sake, with every picture; a heading stands for the ones
+// it heads.
 const SUMMARY = ".lede, .gist";
+const PICTURE = "figure, img, picture, svg, video, canvas, [data-lf-visual]";
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
@@ -85,15 +100,49 @@ const MOVING = 120;
 
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
+// The disclosures Everything opened, which Read and Skim reckon closed.
+/** @type {WeakSet<Element>} */
+const openedByDial = new WeakSet();
+// Whether `node` is a disclosure whose body Read shows none of, so Skim keeps nothing
+// inside it.
+/** @param {Element} node */
+const closed = (node) =>
+  node instanceof HTMLDetailsElement && (!node.open || openedByDial.has(node));
+/** @param {Element} node @param {Element} scope */
+const closedAround = (node, scope) => {
+  for (let at = node.parentElement; at && at !== scope; at = at.parentElement)
+    if (closed(at)) return true;
+  return false;
+};
 /** @param {Element} heading */
 const rank = (heading) =>
   Number(
     (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
       7,
   );
-// Whether a lede or gist follows a heading in `scope`, in document order, before the
-// next heading of its rank or above. Reading past the heading's parent lets a heading
-// inside a `header` or other wrapper head the section it opens.
+// Whether `node` is a picture Skim keeps: one standing in the page's own flow in
+// `scope`, not inside another picture, a Leaf element, Leaf's chrome or a closed
+// disclosure.
+/** @param {Element} node @param {Element} scope */
+const isPicture = (node, scope) => {
+  if (!node.matches(PICTURE)) return false;
+  for (let at = node.parentElement; at && at !== scope; at = at.parentElement)
+    if (at.matches(`${PICTURE}, ${STANDS}`) || isLeafElement(at) || closed(at))
+      return false;
+  return true;
+};
+/** @param {Element} container @param {Element} scope */
+const holdsPicture = (container, scope) =>
+  [...container.querySelectorAll(PICTURE)].some((node) => isPicture(node, scope));
+// Whether an element is a line of text: one with words of its own beside its children.
+/** @param {Element} element */
+const ownsWords = (element) =>
+  [...element.childNodes].some(
+    (node) => node.nodeType === Node.TEXT_NODE && /\S/.test(node.textContent ?? ""),
+  );
+// Whether a lede, gist or picture follows a heading in `scope`, in document order,
+// before the next heading of its rank or above. Reading past the heading's parent lets
+// a heading inside a `header` or other wrapper head the section it opens.
 /** @param {Element} heading @param {Element} scope */
 const heads = (heading, scope) => {
   const own = rank(heading);
@@ -101,7 +150,8 @@ const heads = (heading, scope) => {
     scope,
     NodeFilter.SHOW_ELEMENT,
     (node) =>
-      /** @type {Element} */ (node).matches(STANDS)
+      /** @type {Element} */ (node).matches(STANDS) ||
+      closed(/** @type {Element} */ (node))
         ? NodeFilter.FILTER_REJECT
         : NodeFilter.FILTER_ACCEPT,
   );
@@ -112,7 +162,7 @@ const heads = (heading, scope) => {
   let node = walker.currentNode;
   for (; node; node = walker.nextNode()) {
     const element = /** @type {Element} */ (node);
-    if (element.matches(SUMMARY)) return true;
+    if (element.matches(SUMMARY) || isPicture(element, scope)) return true;
     if (element.matches(RANKED) && rank(element) <= own) return false;
   }
   return false;
@@ -239,6 +289,7 @@ customElements.define(
             if (details.open || details.closest(STANDS)) continue;
             details.open = true;
             this.#opened.add(details);
+            openedByDial.add(details);
           }
         }
       };
@@ -257,7 +308,10 @@ customElements.define(
         marker.remove();
       }
       this.#runs.clear();
-      for (const details of this.#opened) details.open = false;
+      for (const details of this.#opened) {
+        details.open = false;
+        openedByDial.delete(details);
+      }
       this.#opened.clear();
     }
 
@@ -275,28 +329,40 @@ customElements.define(
       for (const run of this.#runsIn(scope)) this.#foldRun(run, listening.signal);
     }
 
-    // Whether a child is kept whole at Skim, and whether the dial descends into it.
+    // Whether a child is kept whole at Skim: what Skim shows, or a block holding some of
+    // it that the dial doesn't enter.
     /** @param {Element} child */
     #kept(child) {
+      const scope = this.#scope;
+      if (!scope) return false;
       return (
         child === this ||
         child.matches(SUMMARY) ||
-        (child.matches(HEADING) && this.#heads(child))
+        isPicture(child, scope) ||
+        (child.matches(HEADING) && heads(child, scope)) ||
+        (!this.#enters(child) && this.#holds(child, scope))
       );
     }
+    // Whether the dial may lay out a child's children in its place: plain structure,
+    // not a Leaf element, a line of text or a table.
     /** @param {Element} child */
-    #holds(child) {
+    #enters(child) {
+      return !isLeafElement(child) && !child.matches("table") && !ownsWords(child);
+    }
+    // Whether a child holds anything Skim shows. A Leaf element is kept for a gist
+    // alone, since the pictures it holds are its own drawing.
+    /** @param {Element} child @param {Element} scope */
+    #holds(child, scope) {
+      if (closed(child)) return false;
       if (isLeafElement(child)) return Boolean(child.querySelector(".gist"));
       return (
         child.contains(this) ||
-        Boolean(child.querySelector(SUMMARY)) ||
-        [...child.querySelectorAll(HEADING)].some((heading) => this.#heads(heading))
+        [...child.querySelectorAll(SUMMARY)].some(
+          (node) => !closedAround(node, child),
+        ) ||
+        holdsPicture(child, scope) ||
+        [...child.querySelectorAll(HEADING)].some((heading) => heads(heading, scope))
       );
-    }
-    /** @param {Element} heading */
-    #heads(heading) {
-      const scope = this.#scope;
-      return scope ? heads(heading, scope) : false;
     }
 
     // The blocks the dial lays out, in document order: each child of the document, and
@@ -305,6 +371,8 @@ customElements.define(
     // since folding puts its markers among them as the walk goes.
     /** @param {Element} container @returns {Generator<Element>} */
     *#blocks(container) {
+      const scope = this.#scope;
+      if (!scope) return;
       for (const child of [...container.children]) {
         if (child.matches(STANDS)) continue;
         if (
@@ -313,21 +381,20 @@ customElements.define(
           !child.hasAttribute(FOLDED)
         )
           continue;
-        if (!this.#kept(child) && !isLeafElement(child) && this.#holds(child))
+        if (!this.#kept(child) && this.#enters(child) && this.#holds(child, scope))
           yield* this.#blocks(child);
         else yield child;
       }
     }
 
     // The runs Skim folds in `scope`: each the blocks between two it keeps, and the kept
-    // block they follow, or null where nothing kept precedes them. A Leaf element
-    // holding a gist stays whole.
+    // block they follow, or null where nothing kept precedes them.
     /** @param {Element} scope @returns {Generator<FoldRun>} */
     *#runsIn(scope) {
       /** @type {FoldRun} */
       let run = { after: null, blocks: [] };
       for (const block of this.#blocks(scope)) {
-        if (this.#kept(block) || (isLeafElement(block) && this.#holds(block))) {
+        if (this.#kept(block)) {
           if (run.blocks.length) yield run;
           run = { after: block, blocks: [] };
         } else run.blocks.push(block);

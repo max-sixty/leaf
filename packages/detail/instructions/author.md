@@ -1,8 +1,11 @@
 Use `lf-dial` on a page long enough that a reader might want only a quick pass, such as
 a report, an investigation or a plan. At Skim the reader sees the title, the lede, the
-blocks marked `.gist` and the headings above them, and nothing else. Choose those
-blocks so that a reader who reads only them gets what they come to the page for: its
-argument, and anything they must decide or act on.
+blocks marked `.gist`, every picture and the headings above them, and nothing else. A
+picture is a `figure` with its caption, an image, an inline drawing or video, or a
+widget that draws one, such as a chart, a diagram or a screenshot pair; one inside a
+closed `details` stays closed. Choose the gists so that a reader who reads only them
+and looks at the pictures gets what they come to the page for: its argument, and
+anything they must decide or act on.
 
 Which passages carry that is your judgment, made for this page and its reader. Weigh:
 
@@ -20,8 +23,9 @@ Which passages carry that is your judgment, made for this page and its reader. W
   must not be missed: mark it `.gist`.
 - A section can contribute nothing to a quick pass, such as the method or a timeline
   the argument has already summarized. Give it no gist: a heading stays at Skim only
-  when a lede or gist follows it before the next heading of its rank or above, so Skim
-  folds such a section whole, heading included, behind a ⋯ the reader can press.
+  when a lede, gist or picture follows it before the next heading of its rank or above,
+  so Skim folds such a section whole, heading included, behind a ⋯ the reader can
+  press.
 
 The rest of each section supports its gists without restating them, since at Read the
 reader sees both.

@@ -399,7 +399,24 @@ export function boxMotion({
   // An `input` reports an edit already made, so it is too late.
   onUserInput((event) => {
     if (event.type !== "input") noteFieldScrolls();
+    if (
+      event.type === "keydown" &&
+      /** @type {KeyboardEvent} */ (event).key === "Tab" &&
+      streams.size > 0
+    )
+      finishRide();
   });
+  // A control in riding content is drawn away from where its layout stands it, and Tab
+  // scrolls the control it focuses into view by where it is drawn, before `focusin`
+  // fires: the scroll would take the content past the control's place, and read as
+  // the user's own scroll, which takes New reply away (thread-card.js, `#sawAnswer`).
+  // So a Tab during a ride finishes the motion first, as a user asking for stillness
+  // mid-tween does, and the browser scrolls by layout. A pointer press keeps the ride:
+  // it aims where things are drawn, and finishing would move its target from under it.
+  const finishRide = () => {
+    if ((running[0]?.effect?.getComputedTiming().progress ?? 1) >= 1) return;
+    for (const animation of running) animation.finish();
+  };
   root.addEventListener("lf-before-edit", noteFieldScrolls, { passive: true });
   // Nothing stands the box where the next reading could move it from, such as a box
   // no placement stands yet: that reading takes it as it stands.

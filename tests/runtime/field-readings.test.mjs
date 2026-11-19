@@ -99,24 +99,6 @@ test("a walk's step takes the page field's words, and leaves a thread's Reply", 
   assert.deepEqual([goTo.says, goTo.end], ["notice", "Reply…"]);
 });
 
-test("a thread's Reply leaves the stance's Close to the row's seat, and what passes follows the stance", () => {
-  const drawing = facts({
-    thread: true,
-    stance: "In Draw mode",
-    standing: () => [leafSays("In Draw mode · ")],
-    close: () => CLOSE,
-  });
-  const reply = readField(drawing);
-  assert.deepEqual(
-    [reply.says, wordsText(reply.words), reply.end, reply.exits],
-    ["turn", "Reply…", "", false],
-  );
-  assert.equal(
-    said({ ...drawing, goTo: "No visible threads" }),
-    "In Draw mode · No visible threads",
-  );
-});
-
 test("a notice leads with the stance alone, a walk's step with where the user stands", () => {
   const drawing = facts({ ...everything, error: null, held: null, writing: false });
   assert.equal(said({ ...drawing, selected: null }), "In Draw mode · Updated to v4");

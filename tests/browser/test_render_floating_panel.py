@@ -105,8 +105,8 @@ def field(page):
 
 
 def lead(page):
-    """What stands before an open thread's reply in the field: the stance the user is
-    in, whose turn it is, then a walk's position."""
+    """What stands before an open thread's reply in the field: whose turn it is, then a
+    walk's position."""
     return page.locator(".lf-fp-field .lf-compose-placeholder-lead")
 
 
@@ -771,14 +771,11 @@ def test_a_notice_over_a_thread_s_field_ends_in_reply_and_its_key(browser, serve
     expect(placeholder.locator(".lf-key-badge")).to_have_text("c")
 
 
-def test_a_stance_entered_from_a_thread_leads_its_reply_with_its_way_out_beside(
-    browser, serve
-):
-    """A stance entered while a thread stands open in the panel is named beside the
-    leaf, before whose turn it is, as it stands before the page's status, and since
-    Reply ends the field, the stance's ✕ takes the row's seat, which ends the stance and
-    leaves the thread open. Go-to, entered there too, names itself before what it
-    finds."""
+def test_a_stance_entered_from_a_thread_is_named_beside_its_way_out(browser, serve):
+    """A stance entered while a thread stands open in the panel takes the row's seat
+    with its ✕, since Reply ends the field, and the field's mode chip names it right
+    beside that ✕, as a search's chip names its scope; whose turn it is stays beside the
+    leaf. The ✕ ends the stance and leaves the thread open, its name going with it."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -789,19 +786,22 @@ def test_a_stance_entered_from_a_thread_leads_its_reply_with_its_way_out_beside(
     thread.focus()
     page.keyboard.press("w")
     expect(field(page)).to_have_attribute("data-lf-says", "turn")
-    expect(lead(page)).to_have_text(re.compile(r"^In Draw mode\b"))
-    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
-    expect(words).to_have_text("Reply…")
+    name = page.locator(".lf-fp-mode")
+    expect(name).to_have_text("In Draw mode")
+    expect(lead(page)).not_to_have_text(re.compile("Draw mode"))
     leave = page.locator('.lf-fp-quick .lf-fp-exit[aria-label="Exit Draw mode"]')
+    named, seat = name.bounding_box(), leave.bounding_box()
+    assert named and seat
+    assert 0 <= seat["x"] - (named["x"] + named["width"]) < 12, (named, seat)
     leave.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(thread).to_be_visible()
-    expect(lead(page)).not_to_have_text(re.compile("Draw mode"))
+    expect(name).to_be_hidden()
     expect(leave).to_have_count(0)
 
     thread.focus()
     page.keyboard.press("g")
-    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^In Go-to · "))
+    expect(name).to_have_text("In Go-to")
     page.locator('.lf-fp-quick .lf-fp-exit[aria-label="Close Go to"]').click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     expect(thread).to_be_visible()

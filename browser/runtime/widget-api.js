@@ -24,8 +24,8 @@ export { aborted } from "./abort.js";
 export { rankAt } from "./projection/model.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
-// arrivals and links read it.
-export { fragmentTarget } from "./anchor-resolution.js";
+// arrivals and links read it; `visualTags()` the tags Leaf reads as a picture.
+export { fragmentTarget, visualTags } from "./anchor-resolution.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
 // `authoredTitle()`: the page's own `<title>`, without the count the tab's title
 // shows in front of it.

@@ -28,8 +28,8 @@
  * (`beforematch`). Folding walks the dial's document (the view or `main`
  * holding it, as `lf-toc`'s outline does) and descends only into plain structure that
  * holds the lede, a gist, a picture or a heading that stands. Everything else is folded
- * or kept whole: a line of text, one with words or an inline element beside its
- * blocks, which keeps a picture in its line whole; a table, whose cells stand in its
+ * or kept whole: a line of text, one with words of its own or only inline children,
+ * which keeps a picture in its line whole; a table, whose cells stand in its
  * grid; a disclosure, whose summary is its control; and a Leaf element, whose children
  * are its own. A heading stands at
  * Skim when a lede, gist or picture follows it in document order before the next
@@ -121,16 +121,21 @@ const rank = (heading) =>
     (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
       7,
   );
-// Whether an element is a line of text: one with words of its own, or a child that
-// stands in a line of words (`phrasing`) other than a picture, as a link or an `em`
-// beside an image does.
+// Whether an element is a line of text: one with words of its own, or one whose
+// children all stand in a line of words (`phrasing`), as an image beside a link and an
+// `em` does. A block among its children makes it structure, whose stray inline
+// children, such as a button, fold as blocks.
 /** @param {Element} element */
-const isLine = (element) =>
-  [...element.childNodes].some((node) =>
-    node instanceof Element
-      ? phrasing(node) && !node.matches(PICTURE)
-      : node.nodeType === Node.TEXT_NODE && /\S/.test(node.textContent ?? ""),
-  );
+const isLine = (element) => {
+  if (
+    [...element.childNodes].some(
+      (node) => node.nodeType === Node.TEXT_NODE && /\S/.test(node.textContent ?? ""),
+    )
+  )
+    return true;
+  const children = [...element.children].filter((child) => !child.matches(STANDS));
+  return children.length > 0 && children.every(phrasing);
+};
 // The headings in `blocks` that no earlier one among them outranks: the sections a run
 // folds, rather than each of their subsections.
 /** @param {Element[]} blocks */

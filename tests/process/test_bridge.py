@@ -317,6 +317,54 @@ def test_a_bridged_command_fails_at_once_where_no_bridge_runs(
     assert "127.0.0.1" not in error
 
 
+def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
+    monkeypatch,
+):
+    """A hook that finds the bridge's lease held returns, and its session's client
+    then asks whether a bridge runs. Where the hook registered just after the
+    bridge's sweep found no session left, the bridge goes on serving with its lease
+    held, so that client is never told no bridge runs while this one serves it.
+    Once the session ends, the bridge releases its lease."""
+    from leaf.leases import take_lease
+
+    bridge_model.bridge_path("sessions").mkdir(parents=True)
+    lock = bridge_model.bridge_path("lock")
+    lease = take_lease(lock)
+    assert lease is not None
+    monkeypatch.setattr(bridge_model, "SWEEP_SECONDS", 0)
+    sweep = bridge_model.live_sessions
+    release = bridge_model.release_lease
+    sweeps = 0
+    released = False
+
+    def sweep_then_register() -> bool:
+        nonlocal sweeps
+        sweeps += 1
+        if sweeps == 1:
+            # The sweep finds no session; a hook registers before the bridge acts.
+            assert not sweep()
+            bridge_model.ensure("late", {"pid": os.getpid()})
+            assert bridge_model.lock_is_held(lock)
+            return False
+        if sweeps == 3:
+            # The late session ends, so the bridge may retire.
+            for entry in bridge_model.bridge_path("sessions").glob("*.json"):
+                entry.unlink()
+        return sweep()
+
+    def release_unserved(held) -> None:
+        nonlocal released
+        assert not sweep(), "the lease was released while a session it serves lives"
+        released = True
+        release(held)
+
+    monkeypatch.setattr(bridge_model, "live_sessions", sweep_then_register)
+    monkeypatch.setattr(bridge_model, "release_lease", release_unserved)
+    bridge_model.retire(lease, set())
+    assert released
+    assert not bridge_model.lock_is_held(lock)
+
+
 def test_each_process_of_a_session_keeps_the_bridge(dead_pid):
     """Two processes can carry one session's id, as a session resumed while it
     still runs elsewhere does, and each lives as its own pid. The one that ends

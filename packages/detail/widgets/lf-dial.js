@@ -26,13 +26,12 @@
  * Skim folds the rest with `hidden="until-found"`, so find-in-page, a fragment, the On
  * walk and travel to a comment still reach folded text and open the run holding it
  * (`beforematch`). Folding walks the dial's document (the view or `main`
- * holding it, as `lf-toc`'s outline does) and descends only into HTML's sections and
- * groups of blocks (`section`, `div`, a list item, a quote and the like) that hold the
- * lede, a gist, a picture or a heading that stands, and have no words of their own.
- * Everything else
- * is folded or kept whole: a paragraph or other line of text, which keeps a picture in
- * its line whole; a table, whose cells stand in its grid; a disclosure, whose summary
- * is its control; and a Leaf element, whose children are its own. A heading stands at
+ * holding it, as `lf-toc`'s outline does) and descends only into plain structure that
+ * holds the lede, a gist, a picture or a heading that stands. Everything else is folded
+ * or kept whole: a line of text, one with words or an inline element beside its
+ * blocks, which keeps a picture in its line whole; a table, whose cells stand in its
+ * grid; a disclosure, whose summary is its control; and a Leaf element, whose children
+ * are its own. A heading stands at
  * Skim when a lede, gist or picture follows it in document order before the next
  * heading of its rank or above, so a section with nothing for a skimmer folds whole,
  * heading included. Keeping every heading was rejected: it made Skim a fixed cut of
@@ -78,6 +77,7 @@ import {
   offer,
   offerAction,
   PAGE_INTERFACE,
+  phrasing,
   readingAt,
   registerRootHeader,
   shownWindow,
@@ -103,10 +103,9 @@ const DECORATIVE =
   '[aria-hidden="true"], img[alt=""], [role="presentation"], [role="none"]';
 // A Leaf element that draws its own content, whose pictures are its drawing.
 const DRAWS = '[data-lf-content="data"], [data-lf-content="empty"]';
-// HTML's sections and the elements that group blocks, a list's items and a quote's
-// included, the only structure the dial lays out in place of itself.
-const SECTIONING =
-  "main, section, article, div, header, footer, nav, search, ul, ol, menu, li, dl, dd, blockquote";
+// Blocks the dial keeps whole whatever they hold: a table, whose cells stand in its
+// grid, and a disclosure, whose summary is its control.
+const WHOLE = "table, details";
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
@@ -121,11 +120,15 @@ const rank = (heading) =>
     (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
       7,
   );
-// Whether an element is a line of text: one with words of its own beside its children.
+// Whether an element is a line of text: one with words of its own, or a child that
+// stands in a line of words (`phrasing`) other than a picture, as a link or an `em`
+// beside an image does.
 /** @param {Element} element */
-const ownsWords = (element) =>
-  [...element.childNodes].some(
-    (node) => node.nodeType === Node.TEXT_NODE && /\S/.test(node.textContent ?? ""),
+const isLine = (element) =>
+  [...element.childNodes].some((node) =>
+    node instanceof Element
+      ? phrasing(node) && !node.matches(PICTURE)
+      : node.nodeType === Node.TEXT_NODE && /\S/.test(node.textContent ?? ""),
   );
 // The headings in `blocks` that no earlier one among them outranks: the sections a run
 // folds, rather than each of their subsections.
@@ -320,11 +323,11 @@ customElements.define(
         (!this.#enters(child) && this.#holds(child, scope))
       );
     }
-    // Whether the dial may lay out a child's children in its place: a section or a
-    // group of blocks with no words of its own.
+    // Whether the dial may lay out a child's children in its place: plain structure
+    // that is no line of text and no block it keeps whole.
     /** @param {Element} child */
     #enters(child) {
-      return child.matches(SECTIONING) && !ownsWords(child);
+      return !isLeafElement(child) && !child.matches(WHOLE) && !isLine(child);
     }
     // Whether a child holds anything Skim shows.
     /** @param {Element} child @param {Element} scope */

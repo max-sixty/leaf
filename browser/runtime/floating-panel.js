@@ -51,10 +51,12 @@
  *   its end the one press that matters most then (field-readings.js says which, for
  *   how long, and why). Before the panel stands, the row the document served from its
  *   first paint says the keys pressed while the page loads (`heldWords`;
- *   bootstrap.js). No transient message adds a row. The row shows no status tooltip:
- *   the user rejected the repeated words over the page. The leaf's menu holds the full
- *   status, and the Errors list, where an error the field has passed or no box stands
- *   for waits, with a dot on the leaf and on Errors until the user opens the list
+ *   bootstrap.js). No transient message adds a row. A pointer resting on the field, or
+ *   a finger holding it, reads its words whole where the field cuts them short, as it
+ *   cuts a long status, which the user asked for (`pageEditor`). Words the field shows
+ *   whole preview nothing, since the user rejected a tooltip repeating them over the
+ *   page. The leaf's menu holds the full status, and the Errors list, where an error
+ *   the field has passed or no box stands for waits, with a dot on the leaf and on Errors until the user opens the list
  *   (`errorsList`), each copying with its context. The user asked for Errors to show
  *   in red that it is what the leaf's dot marks, which a count in the accent's ink
  *   leaves unclear.
@@ -1357,7 +1359,7 @@ export function createFloatingPanel({
   // which marks the editor with whose reading they are, so the face the theme gives that
   // reading changes in the same paint as the words (floating-panel.css). Words all one
   // speaker says, such as an error or Leaf's own state, mark the editor with that voice,
-  // which its native placeholder wears whole (`voiceOf`).
+  // which its placeholder's part wears whole (`voiceOf`).
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function saying(key, input, drawn = null) {
@@ -1369,9 +1371,11 @@ export function createFloatingPanel({
     }
     return wordsText(words);
   }
-  // The empty words drawn as parts, where the native placeholder's one face can't say
-  // them: words whose speakers differ, and the agent's sentence, whose node the
-  // status's exposure registers (`statusParts`). Null leaves the native placeholder.
+  // The empty words drawn as parts in the editor's light tree, in their speakers'
+  // faces, where the status's exposure registers the agent's sentence (`statusParts`)
+  // and the field's preview reads which words the field cuts (`pageEditor`), neither of
+  // which reaches the native placeholder inside the editor's closed tree. Null, for no
+  // words, leaves the native placeholder.
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldHint(key, input, drawn = null) {
@@ -1383,13 +1387,7 @@ export function createFloatingPanel({
     // status that asks wears stays the status's (floating-panel.css).
     if (says === "status" && lead.length)
       return standingParts(lead, parts.slice(lead.length));
-    return wordsText(words) &&
-      (!voiceOf(words) ||
-        parts.some(
-          (part) => typeof part !== "string" && "source" in part && part.source,
-        ))
-      ? standingParts([], parts)
-      : null;
+    return wordsText(words) ? standingParts([], parts) : null;
   }
   // One template with or without a stance's lead, so a stance coming or going
   // updates the status's nodes in place rather than rebuilding equal ones.
@@ -1403,6 +1401,11 @@ export function createFloatingPanel({
     if (general) return general;
     const input = textField();
     input.name = "comment";
+    // Pointing at the field reads its words whole where it cuts them short (the
+    // header, "The row"); preview.js drops words the field shows whole (`beyondFace`).
+    // A draft hides the words, so the field previews nothing while it holds one.
+    input.lfPreview = () =>
+      input.value ? null : { name: wordsText(fieldReading(null, input).words) };
     const box = el("div", "lf-fp-box");
     box.append(input);
     input.value = loadDraft(PAGE_DRAFT)?.text ?? "";

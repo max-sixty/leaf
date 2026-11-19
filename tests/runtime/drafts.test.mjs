@@ -37,7 +37,21 @@ globalThis.fetch = async (url, init) => {
   if (held) await new Promise((resolve) => held?.push(() => resolve(undefined)));
   return Response.json(answer);
 };
-const { loadDraft, saveDraft, sendDraft, watchDraft } =
+// The tab's memory, which a page going away leaves its drafts in.
+/** @type {Map<string, string>} */
+const tabMemory = new Map();
+window.lfStorage.tabStore = {
+  read: (key) => ({ available: true, value: tabMemory.get(key) ?? null }),
+  get: (key) => tabMemory.get(key) ?? null,
+  set: (key, value) => {
+    if (value === null) tabMemory.delete(key);
+    else tabMemory.set(key, value);
+    return true;
+  },
+  where: (key) => ({ store: "session", key }),
+  keys: () => [...tabMemory.keys()],
+};
+const { draftsWaiting, loadDraft, saveDraft, sendDraft, watchDraft } =
   await import("/runtime/drafts.js");
 
 /** Another tab's or device's generation of the draft at `ctx`, written to the server
@@ -95,15 +109,17 @@ test("words joined from both copies keep this document's payload, else the other
     value: "Theirs.\n\nMine.",
     payload: { drawing: "theirs" },
   });
+});
 
-  writtenElsewhere("composer:drawn", "Theirs, and mine.", { drawing: "theirs" });
-  const drawn = told("composer:drawn");
-  saveDraft("composer:drawn", "mine.", { drawing: "mine" });
-  assert.deepEqual(await drawn, {
-    value: "Theirs, and mine.",
-    payload: { drawing: "mine" },
+test("words already standing write nothing more, whatever their payload", async () => {
+  writtenElsewhere("composer:touched", "Same words.", { touched: 1 });
+  const same = told("composer:touched");
+  saveDraft("composer:touched", "Same words.", { touched: 2 });
+  assert.deepEqual(await same, {
+    value: "Same words.",
+    payload: { touched: 1 },
   });
-  assert.deepEqual(server.get("composer:drawn")?.payload, { drawing: "mine" });
+  assert.equal(server.get("composer:touched")?.attempt, "elsewhere-composer:touched");
 });
 
 test("words this document is sending give way to another tab's", async () => {
@@ -126,4 +142,21 @@ test("words this document is sending give way to another tab's", async () => {
   await sending;
   assert.equal(loadDraft("reply:sending")?.text, "Words another tab wrote.");
   assert.equal(server.get("reply:sending")?.text, "Words another tab wrote.");
+});
+
+// Only the send's answer says whether the log took the words, so the reload mustn't
+// start from them: a store that replaced this one would take them in as unsent.
+test("a page going away leaves its tab no copy of saved words it is sending", async () => {
+  saveDraft("reply:leaving", "Words sent as the page went away.");
+  for (let turn = 0; draftsWaiting() && turn < 100; turn += 1)
+    await new Promise((resolve) => setTimeout(resolve));
+  assert.equal(draftsWaiting(), 0);
+  void sendDraft(
+    "reply:leaving",
+    () => true,
+    () => new Promise(() => {}),
+  );
+  window.dispatchEvent(new Event("pagehide"));
+  const left = new Map(JSON.parse(tabMemory.get("lf-drafts-waiting") ?? "[]"));
+  assert.equal(left.get("reply:leaving")?.copy, null);
 });

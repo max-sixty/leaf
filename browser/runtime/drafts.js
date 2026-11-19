@@ -68,7 +68,11 @@
    becomes both, in one generation written over the other's (`adopt`). Words written
    apart are rare, and the maintainer asked for the simplest rule that loses none: a
    three-way merge would need every copy to keep the text it started from, and still
-   leave conflicting edits for the user to sort. Words written over a generation another tab
+   leave conflicting edits for the user to sort. The joined draft is a new generation,
+   which the log knows nothing of: where another tab sends or cancels its words while
+   the answer carrying them is on its way here, they come back in the joined draft
+   beside this document's, for the user to delete. Recognizing them would need each
+   joined generation to record which generations it drew from. Words written over a generation another tab
    sent start the draft again, since they are newer than anything sent. The
    log answers which generations were sent, so the server settles one at its first
    reading after the event, which every tab hears at its next look, and turns a write
@@ -254,10 +258,13 @@ const bothWords = (theirs = "", mine = "") =>
 // Take the server's generation of a draft: a record, or none where the reading holds
 // none, as it holds none of a generation sent or put away. Words this document holds
 // that the store never took may still be wanted, unless this document is sending them,
-// which the log may already hold. So the draft becomes both (`bothWords`), with this
-// document's payload if it has one, else the server's: unless that is the server's
-// generation already, a new generation written over the server's, which every tab
-// then hears, shown here with the caret at its end.
+// which the log may already hold. So where the server's words don't already hold
+// them, the draft becomes both (`bothWords`), with this document's payload if it has
+// one, else the server's: a new generation written over the server's, which every tab
+// then hears, shown here with the caret at its end. Words alone decide whether to
+// write one. A payload such as the selection composer's, which records when it was
+// last touched, differs between tabs whatever they hold, so letting it decide would
+// have two tabs write over each other without end.
 /** @param {string} ctx @param {DraftRecord | null} record @param {string} store @param {number} version */
 function adopt(ctx, record, store, version) {
   const copy = draftCache.get(ctx);
@@ -271,14 +278,9 @@ function adopt(ctx, record, store, version) {
   if (copy && mine && record && !record.settled) {
     const text = bothWords(record.text, mine.text);
     const held = bothWords(record.held, mine.held);
-    const payload = mine.payload ?? record.payload;
-    if (
-      text !== record.text ||
-      held !== (record.held ?? "") ||
-      JSON.stringify(payload) !== JSON.stringify(record.payload)
-    ) {
+    if (text !== record.text || held !== (record.held ?? "")) {
       draftCache.set(ctx, { ...copy, stored: record.attempt, store, version });
-      saveDraft(ctx, text, payload, held || null);
+      saveDraft(ctx, text, mine.payload ?? record.payload, held || null);
       projectDraftRecord(ctx, rawDraftRecord(ctx));
       if (writingPlace?.context === ctx)
         keepWritingPlace({ ...writingPlace, selection: atEnd(ctx) });
@@ -455,22 +457,22 @@ addEventListener("pagehide", () => {
       continue;
     }
     const { record, stored, store, version, durable } = copy;
+    const left =
+      sentAttempts.get(ctx) === record.attempt
+        ? null
+        : { record, stored, store, version, durable };
     if (durable) {
-      waiting.push([
-        ctx,
-        { attempts: earlier, copy: { record, stored, store, version, durable } },
-      ]);
+      waiting.push([ctx, { attempts: earlier, copy: left }]);
       continue;
     }
     draftCache.set(ctx, { ...copy, ours: new Set([...copy.ours, record.attempt]) });
     const unanswered = [...copy.ours, ...earlier];
     void postDraft(ctx, [stored, ...unanswered], record, true).catch(() => {});
-    const sending = sentAttempts.get(ctx) === record.attempt;
     waiting.push([
       ctx,
       {
         attempts: [...unanswered, record.attempt, ...(stored ? [stored] : [])],
-        copy: sending ? null : { record, stored, store, version, durable },
+        copy: left,
       },
     ]);
   }

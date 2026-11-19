@@ -1235,6 +1235,10 @@ export function createFloatingPanel({
   // words (field-readings.js, `still`), as the stance's words in the repaint frame say
   // it (status-context.js), so the field and the row's ✕ change in the same paint.
   const stanceStands = () => statusContextReading().stance !== null;
+  // Whether the field takes no words now (`closed`), read from the dispatcher as the
+  // repaint frame reads it, so a command in the task that ends a stance, as a Go-to
+  // destination's after `g i`, finds the field open before that frame paints it.
+  const stanceHolds = () => stanceWords(innermostStance()?.scope) !== null;
   /** @type {ReturnType<typeof readField>} */
   const ABSENT = Object.freeze({
     says: "absent",
@@ -1426,7 +1430,7 @@ export function createFloatingPanel({
       // The one press the moment offers at the field's end (field-readings.js, `end`).
       enters: () => fieldReading(null, input).end,
       // While a stance stands the field takes no words (field-readings.js, `still`).
-      closed: stanceStands,
+      closed: stanceHolds,
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>
@@ -1514,7 +1518,7 @@ export function createFloatingPanel({
           // A notice passing over the thread's field offers its press at the field's
           // end, as over the page's (field-readings.js, `end`).
           enters: () => fieldReading(key, replyInput()).end,
-          closed: stanceStands,
+          closed: stanceHolds,
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it

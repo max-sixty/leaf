@@ -144,7 +144,6 @@ class ThreadSeat {
           if (!view || this.#model.surface === "margin") return view ?? null;
           return {
             node: view.node,
-            progressOpen: view.progressOpen,
             /** @param {import("./held-news.js").ThreadChange} change */
             newsMoves: (change) =>
               (!currentLocationIn(view.node) || Boolean(change.news.settled)) &&

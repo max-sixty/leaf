@@ -1420,8 +1420,8 @@
             },
             "content_version": { "type": "string" },
             "completed_by": {
-              "description": "The ordinary or provisional reply that supersedes this progress message. Hide it only while that reply is presented.",
-              "type": "string"
+              "description": "What ended this progress message (`served_state.thread.progress_ends`): the agent message that superseded it, provisional or durable, which hides it only while that message is presented, or null where the turn that wrote it ended.",
+              "type": ["string", "null"]
             },
             "edited": { "$ref": "#/$defs/MessageEdited" },
             "withdrawn": { "$ref": "#/$defs/MessageWithdrawn" }

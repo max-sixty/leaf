@@ -46,15 +46,11 @@
    (thread-card.js, `newsMoves`). A reply the agent is still streaming at the thread's
    end is such an appended message, its words joining it as they come and its answer
    completing it in place, so it streams into an idle open card and a held one counts
-   it once as a new reply. So is an answer hiding the progress before it
-   where that progress is the run at the thread's end, as the agent's acknowledgement
-   is, unless the user is on a message the fold puts away, by focus or by a
-   selection reaching into it (`currentLocationTouches`, focus.js). Hiding progress above a user's
-   later message changes earlier content and uses the ordinary reading hold.
-   The progress itself is no reply: until that answer it joins its run's face, the
-   thread's working message while the work runs, not its replies (transcript.js), and
-   its messages stand behind that face. A run the work leaves keeps its face where it
-   stands, so only the newest run's face changes. The
+   it once as a new reply. So is an answer ending the step before it where that
+   step's face stands at the thread's end, as the agent's acknowledgement does. Ending
+   a step above a user's later message changes earlier content and uses the ordinary
+   reading hold. A step itself is no reply: it is the thread's working message while
+   the work runs, not one of its replies (transcript.js). The
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
    when that growth would move the reader. Its notice doesn't say that change (the
@@ -64,7 +60,7 @@
    shows by any route below but the notice. Rejected: counting each held step as
    "1 new message", and "Work in progress" or "Work
    changed" where the working message changes alone, which repeat that receipt.
-   Completed progress disappears when the answer shows. Changes to other existing
+   A step goes when the message that ended it shows. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
    and a notice calls a changed message an edit.
    A closed card holds nothing, since its title row draws at one size whatever it says.
@@ -104,10 +100,10 @@
    Decisions. An idle open panel card shows appended messages (the user's decision,
    over a blanket hold), and a streaming reply's words as they
    come (holding them as an edit leaves the agent's opening an empty bubble
-   behind "1 new reply" until the user presses it), and an answer folding the progress
-   run at the thread's end (the agent's first move is a progress
-   acknowledgement, so holding the fold holds nearly every answer). Everything above that
-   run, the message the user is on and an active editor remain protected. Rejected: filling the list, which makes the
+   behind "1 new reply" until the user presses it), and an answer ending the step at
+   the thread's end (the agent's first move is a progress acknowledgement, so holding
+   that end holds nearly every answer). Everything above that step, the message the user
+   is on and an active editor remain protected. Rejected: filling the list, which makes the
    open card as tall as the panel and leaves later cards below the fold; and letting a
    list that cannot scroll push its contents down, which needs the shift watch to stop
    checking such lists. Arrival is read from where the user is (the user's decision).
@@ -224,18 +220,19 @@ function messageChange(prior, message) {
 // settlement changes, which moves the thread's controls into or out of its head row and
 // draws or folds its reaction strips; `folds` the keys of the messages a summary that
 // comes or goes covers, and the ids of those that go, whose checkpoints a summary's
-// change redraws from their tops. A summary a new reply completes, as progress is
-// folded when the agent's answer arrives, moves what it covers but is that reply's news,
-// so the notice does not count it, and where it folds the run standing at the thread's
-// foot (`footFold`) it changes only that foot, as the answer's arrival does. `answers`
+// change redraws from their tops. A step a new message ends, as the agent's answer
+// ends the step before it, is that message's news, so the notice does not count it;
+// one its turn ended is a change the notice says nothing of, as the working message's
+// is. Where the step stood at the thread's foot (`footFold`) its end changes only that
+// foot, as the answer's arrival does. `answers`
 // names the user's turn and the first reply answering it (null while only work
 // has arrived), when the user had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
 // which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
 // took back is no news: it goes. Null where nothing differs.
 /** @typedef {Pick<ThreadReading, "messages" | "resolved" | "working" | "summaries" | "source">} ChangeReading */
-/** @param {ChangeReading} was @param {ChangeReading} now @param {{progressOpen?: boolean}} [options] */
-export function threadChange(was, now, { progressOpen = false } = {}) {
+/** @param {ChangeReading} was @param {ChangeReading} now */
+export function threadChange(was, now) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
     Boolean(was.resolved) === Boolean(now.resolved)
@@ -261,13 +258,9 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     const prior = drawn.get(message.key);
     const change = messageChange(prior, message);
     if (!prior || prior.provisional) arrived.add(message.id);
-    // A progress message joins the thread's working message, not its replies, so it is
-    // the working message's news (`news.working`), which the notice doesn't say. Where
-    // the step shows, because the reader opened the progress (`progressOpen`,
-    // thread-card.js) or the thread is resolved and keeps its progress as messages, it
-    // is a reply's news.
-    if (change === "joined" && message.progress && !progressOpen && !now.resolved)
-      continue;
+    // A step joins the thread as its working message, not as a reply, so it is the
+    // working message's news (`news.working`), which the notice doesn't say.
+    if (change === "joined" && message.progress) continue;
     if (change === "joined") {
       if (message.author === "agent") news.replies += 1;
       else news.messages += 1;
@@ -292,14 +285,16 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
   const added = [...after].filter(([at]) => !before.has(at)).map(([, each]) => each);
   const gone = [...before].filter(([at]) => !after.has(at)).map(([, each]) => each);
   news.summaries = added.length || gone.length;
-  // Completed progress leaves the presentation, but stays in the source reading.
-  // Its answer is the news; taking back a message by Undo remains no news.
+  // An ended step leaves the presentation, but stays in the source reading. The
+  // message that ended it is the news, and a step its turn ended (`null`) goes as one
+  // a message ended does; taking back a message by Undo remains no news.
   const visible = new Set(now.messages.map(({ id }) => id));
   const retired = new Set(
     now.source.msgs
       .filter(
-        (message) =>
-          message.completed_by !== undefined && visible.has(message.completed_by),
+        ({ completed_by }) =>
+          completed_by === null ||
+          (typeof completed_by === "string" && visible.has(completed_by)),
       )
       .map(({ key }) => key),
   );
@@ -307,9 +302,9 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
   const keys = new Map(
     [...was.messages, ...now.messages].map(({ id, key }) => [id, key]),
   );
-  // Replacing only the final progress run changes the same foot as an arriving
-  // answer. Earlier progress, including a run before a user interjection, also
-  // disappears, so its old position participates in the ordinary reading hold.
+  // Ending only the step at the foot changes the same foot as an arriving answer. A
+  // step before a user's interjection also goes, so its old position participates in
+  // the ordinary reading hold.
   const arrivals = new Set(
     now.messages.filter(({ id }) => arrived.has(id)).map(({ key }) => key),
   );
@@ -330,7 +325,7 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
   };
   /** @type {(keyof typeof news)[]} */
   const counts = ["working", "replies", "messages", "edits", "reactions", "summaries"];
-  if (!settled && counts.every((count) => !news[count])) return null;
+  if (!settled && !removed.length && counts.every((count) => !news[count])) return null;
   const appendedAtEnd =
     news.appended &&
     was.messages
@@ -384,6 +379,9 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
 /** @param {ThreadRecord} was @param {ThreadRecord} now */
 function withheld(was, now) {
   const current = new Map(now.msgs.map((message) => [messageKey(message), message]));
+  // How the drawn reading ended each message held from it, by the held message.
+  /** @type {Map<object, string | null | undefined>} */
+  const drawnEnd = new Map();
   const msgs = was.msgs.flatMap((prior) => {
     const message = current.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
@@ -393,27 +391,39 @@ function withheld(was, now) {
     // Its content version is the one its drawn words are, so the words a rewrite holds
     // back are neither marked read nor taken for the rewrite.
     const { text, body, edited, content_version, provisional, reactions } = prior;
-    return [
-      Object.freeze({
-        ...message,
-        text,
-        body,
-        edited,
-        content_version,
-        provisional,
-        reactions,
-        // A failed stream can remain in this held reading after leaving the server's
-        // current reading. Its progress stays hidden until that stream leaves too.
-        completed_by: message.completed_by ?? prior.completed_by,
-      }),
-    ];
+    const held = {
+      ...message,
+      text,
+      body,
+      edited,
+      content_version,
+      provisional,
+      reactions,
+    };
+    drawnEnd.set(held, prior.completed_by);
+    return [held];
+  });
+  // A step stands as drawn: one the drawn reading ended, by its turn or by a message
+  // this one shows, stays ended, as a stream held after its failure receipt replaced
+  // it still ends the step before it, and one its turn ended since stands until the
+  // news shows. A step a message held here ends stands too, as that message waits.
+  const shown = new Set(msgs.map(({ id }) => id));
+  const held = msgs.map((message) => {
+    const ended = drawnEnd.get(message);
+    return Object.freeze(
+      ended === null ||
+        (ended !== undefined && shown.has(ended)) ||
+        (drawnEnd.has(message) && message.completed_by === null)
+        ? { ...message, completed_by: ended }
+        : message,
+    );
   });
   return Object.freeze({
     ...now,
     root:
-      msgs.find((message) => messageKey(message) === messageKey(now.root)) ?? now.root,
+      held.find((message) => messageKey(message) === messageKey(now.root)) ?? now.root,
     resolved: was.resolved,
-    msgs: Object.freeze(msgs),
+    msgs: Object.freeze(held),
     summaries: was.summaries,
   });
 }
@@ -559,8 +569,7 @@ onCurrentLocation(
 /** @typedef {Omit<DrawableThread, "settlement"> & {
  * settlement: ThreadReading["settlement"] | null, news: NewsNotice | null}} HeldThread */
 /** @typedef {{threads: readonly HeldThread[]}} HeldCollection */
-/** @typedef {{node: Element, progressOpen?: boolean,
- * newsMoves: (change: ThreadChange) => boolean}} NewsView */
+/** @typedef {{node: Element, newsMoves: (change: ThreadChange) => boolean}} NewsView */
 
 export class HeldNews {
   #seat;
@@ -650,9 +659,7 @@ export class HeldNews {
         if (!was || !shown || this.#released.has(thread.key))
           return { ...thread, news: null };
         const view = this.#view(thread.key);
-        const held = threadChange(was, thread, {
-          progressOpen: view?.progressOpen ?? false,
-        });
+        const held = threadChange(was, thread);
         if (!held || gestured(thread.key) || !view?.newsMoves(held))
           return { ...thread, news: null };
         this.#holds.add(thread.key);

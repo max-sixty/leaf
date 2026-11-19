@@ -373,7 +373,7 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   one thread; a reaction may lie inside it but not at an endpoint. It replaces the
   summaries it overlaps whole, and every spoken turn older than the last drawn
   summary then in force must lie in a summary, apart from the thread's opening
-  message and progress a later reply completed (`events.summary_range`). This holds
+  message and progress, which no summary counts (`events.summary_range`). This holds
   for a fold without prose too. The refusal names the range admission would take:
   the requested one widened over every message it would leave. A delivery's
   `summary_hint` spans the run of messages it suggests and every summary in force
@@ -388,9 +388,12 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   `todo`, markup, failure or anchor transition and takes part in no turn, settlement or
   reopening. Posted to an update the agent owes, it carries `start: {item}`, in the
   reply's `turn`, so progress history and work in hand are one fact
-  (`todos.start_reading`). The next
-  ordinary agent reply in its thread completes it (`events.progress_completions`), and
-  the browser and transcript then hide it.
+  (`todos.start_reading`). The agent's next message in its thread supersedes it,
+  or, where the user wrote in between, its next message that is more than progress
+  (`events.progress_completions`). The end of the turn that wrote it ends it
+  where no message of the user's said before it still waits on an answer
+  (`served_state.thread.progress_ends`). The browser shows only a step nothing has
+  ended, as a dim working line where it was said.
 - An agent `reply` may move its thread with an `anchor` captured against its revision,
   or detach it with a null anchor, in the same append as the message explaining it. A
   thread whose opening comment `holds` a widget cannot move or detach. Such a comment

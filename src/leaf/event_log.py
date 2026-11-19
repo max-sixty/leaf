@@ -11,7 +11,8 @@ import secrets
 import signal
 import sys
 import threading
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
@@ -239,38 +240,52 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
 
 
 class _Read:
-    """The events one page's log holds, as this process has read them so far, beside
-    the place in the log they were read to."""
+    """The events one page's log holds and the attempts they were sent with, as this
+    process has read them so far, beside the place in the log they were read to."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.tail: _Tail | None = None
         self.events: list[dict] = []
+        self.attempts: set[str] = set()
+
+    def read_on(self, log: Path) -> None:
+        """Read on to the end of `log`, under `lock`."""
+        self.tail = self.tail or _Tail(log)
+        try:
+            events = self.tail.read_on()
+        except FileNotFoundError:
+            # Another log from here on, read whole, or none.
+            self.tail, self.events, self.attempts = _Tail(log), [], set()
+            try:
+                events = self.tail.read_on()
+            except FileNotFoundError:
+                return
+        self.events += events
+        self.attempts.update(
+            event["attempt"] for event in events if event.get("attempt")
+        )
+
+
+@contextmanager
+def _read(page_dir: Path) -> Generator[_Read]:
+    """The page's kept reading of its log (`page_memory`), read on to the log's end
+    and held for the block."""
+    held = memo(page_dir, _Read)
+    with held.lock:
+        held.read_on(page_dir.resolve() / EVENTS_FILE)
+        yield held
 
 
 def read_events(page_dir: Path) -> list[dict]:
     """Every event in the page's log, as application readings take them
     (`_parse_events`), or none where the page has no log.
 
-    The page's memory keeps the events read so far (`page_memory`), and each read
-    parses only the lines appended since (`_Tail`), so parsing costs what the log
-    gained since the last read, not its length. The list is the caller's, but every
-    reader of the page in this process shares its events, so none may change one in
-    place."""
-    log = page_dir.resolve() / EVENTS_FILE
-    held = memo(page_dir, _Read)
-    with held.lock:
-        held.tail = held.tail or _Tail(log)
-        try:
-            events = held.tail.read_on()
-        except FileNotFoundError:
-            # Another log from here on, read whole, or none.
-            held.tail, held.events = _Tail(log), []
-            try:
-                events = held.tail.read_on()
-            except FileNotFoundError:
-                return []
-        held.events += events
+    The page's memory keeps the events read so far, and each read parses only the
+    lines appended since (`_Tail`), so parsing costs what the log gained since the
+    last read, not its length. The list is the caller's, but every reader of the
+    page in this process shares its events, so none may change one in place."""
+    with _read(page_dir) as held:
         return list(held.events)
 
 
@@ -333,13 +348,11 @@ class _Tail:
 
 def admitted_attempts(page_dir: Path, attempts: Iterable[str]) -> set[str]:
     """Which of `attempts` the page's log holds an event sent with. The log keeps every
-    attempt it admitted, so an answer never lapses."""
-    asked = set(attempts)
-    return {
-        event["attempt"]
-        for event in read_events(page_dir)
-        if event.get("attempt") in asked
-    }
+    attempt it admitted, so an answer never lapses. The page's memory keeps the
+    attempts beside the events read so far (`_read`), so asking, as each draft write
+    does, costs what the log gained since the last read, not its length."""
+    with _read(page_dir) as held:
+        return held.attempts.intersection(attempts)
 
 
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:

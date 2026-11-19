@@ -1967,7 +1967,8 @@ def test_a_control_takes_only_the_keys_it_uses_and_leaves_the_page_the_rest(
 
     The claim has to hold in both directions or it has bought nothing, so the control's
     own key is asserted beside the page's: a page whose keyboard stands over a radio must
-    not be taking Space off it, and a select keeps its native typeahead letters.
+    not be taking Space off it, and a select or a page's own menu keeps the letters it
+    types ahead with.
 
     Escape backs out from a control nothing is typed into. A slider and a select answer
     for the two sides: the slider types nothing, so the typing scope never stands over it;
@@ -1994,6 +1995,34 @@ def test_a_control_takes_only_the_keys_it_uses_and_leaves_the_page_the_rest(
         expect(page.locator(".lf-composer")).to_be_hidden()
     # A letter that fell through to the page opened a box the next case must not meet.
     page.keyboard.press("Escape")
+
+    with subtests.test(case="a page menu's letters"):
+        # A menu types ahead as a select does, so d moves to Duplicate rather than
+        # paging the document, while ? is no name's first character and stays Leaf's.
+        page.evaluate("""() => {
+          const menu = document.createElement('div');
+          menu.setAttribute('role', 'menu');
+          menu.setAttribute('aria-label', 'Actions');
+          menu.innerHTML = ['Rename', 'Duplicate']
+            .map((name) => `<div role="menuitem" tabindex="-1" id="${name}">${name}</div>`)
+            .join('');
+          menu.addEventListener('keydown', (event) => {
+            const items = [...menu.querySelectorAll('[role="menuitem"]')];
+            items.find((item) => item.id.toLowerCase().startsWith(event.key))?.focus();
+          });
+          document.querySelector('main').append(menu);
+          window.ran = [];
+          document.addEventListener('lf-command-invoked', (e) => window.ran.push(e.detail.id));
+        }""")
+        page.locator("#Rename").focus()
+        routes = offered_routes(page)
+        assert "page.down" not in routes, routes
+        page.keyboard.press("d")
+        expect(page.locator("#Duplicate")).to_be_focused()
+        assert page.evaluate("window.ran") == []
+        page.keyboard.press("?")
+        expect(page.locator(".lf-command-reference")).to_be_visible()
+        page.keyboard.press("Escape")
 
     # The mouse opens between rounds because c is the select's own letter, and the
     # press has to be made the same way on both to be comparing anything.

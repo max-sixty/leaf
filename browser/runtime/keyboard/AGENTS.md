@@ -37,9 +37,11 @@ typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the fie
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens
 in capture. Leaf reads printed letters before the page's listeners, and other keys when
-they reach its listener on `document`. A key aimed inside `body` whose default is
-already prevented by then is the page's, and Leaf takes no step for it
-(`controller.js`).
+they reach its listener on `document`. A widget whose ARIA pattern types ahead, such as
+a menu, a tree or a select-only combobox, keeps the letters and digits typed while
+focus is in it, as a text field and a select keep theirs (`text-entry.js`). A key aimed
+inside `body` whose default is already prevented by then is the page's, and Leaf takes
+no step for it (`controller.js`).
 
 ## Escape
 

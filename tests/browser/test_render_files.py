@@ -327,6 +327,12 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     expect(name).to_have_text("deploy/values.yaml")
     expect(editor).to_be_focused()
     expect(editor.locator(".cm-activeLine")).to_have_text("autoscaling:")
+
+    # A letter on a row searches the tree, its typeahead, though d pages the document
+    # anywhere else.
+    tree.get_by_role("treeitem", name="runbook.md").focus()
+    page.keyboard.press("d")
+    expect(tree.locator("input")).to_have_value("d")
     consume_browser_errors(page, http_error_console(409))
 
 

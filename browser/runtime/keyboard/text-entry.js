@@ -1,5 +1,5 @@
 /* The platform's own keys at the focused control, shared by core and element scopes:
-   text entry, a choice's arrow navigation, and native activation. */
+   text entry, a widget's typeahead, a choice's arrow navigation, and native activation. */
 import { controlNavigationKeys, takesLetters } from "../focus.js";
 import { parsed, PRESS } from "./bindings.js";
 import { CARET_KEYS } from "../control-selectors.js";
@@ -26,14 +26,38 @@ export function TEXT_ENTRY(binding) {
   return CHARACTER(binding) || EDITING.has(parsed(binding).key);
 }
 
+// A widget whose ARIA pattern types ahead moves to the item whose name starts with the
+// letter or digit typed: a menu, a tree, a listbox or a select-only combobox, whether
+// focus is on the widget or its item, and anything inside an application, which takes
+// the keyboard whole. Focus there claims those characters, alone or shifted, so Leaf's
+// page letters wait until focus leaves, as they do in a select (`takesLetters`, which
+// also covers an editable combobox's text box). Only these keys need a claim: Leaf reads
+// printed characters before the page's listeners (controller.js) and every other key
+// after. Leaf's own file tree types into its search this way.
+const TYPES_AHEAD = [
+  ...["listbox", "menu", "menubar", "menuitem", "menuitemcheckbox", "menuitemradio"],
+  ...["tree", "treeitem", "combobox", "application"],
+]
+  .map((role) => `[role="${role}"]`)
+  .concat('[role="application"] *')
+  .join(", ");
+
+/** @param {string} binding */
+function NAME_CHARACTER(binding) {
+  const { key, mods } = parsed(binding);
+  return /^[\p{L}\p{N}]$/u.test(key) && mods.every((mod) => mod === "Shift");
+}
+
 // The platform's claim at one exact control. Dispatch and accessible shortcut
 // projection use this same reading; context aliases always stand behind it.
 /** @param {Element | null} control */
 export function nativeClaimAt(control) {
   if (takesLetters(control)) return TEXT_ENTRY;
   const navigation = controlNavigationKeys(control);
-  return navigation.length
+  const typesAhead = Boolean(control?.matches?.(TYPES_AHEAD));
+  return navigation.length || typesAhead
     ? /** @param {string} binding */ (binding) =>
+        (typesAhead && NAME_CHARACTER(binding)) ||
         navigation.includes(parsed(binding).key)
     : null;
 }

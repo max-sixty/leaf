@@ -35,8 +35,11 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   reaches the log.
 - Leaf takes printed letter keys before the page's listeners, for its own walks and
   commands, and handles other keys, such as Escape, on `document` once they bubble
-  there. A key typed into a Leaf comment box, draft editor or search box stops at that
-  box, so the page's listeners never hear it bubble. Give the interface keys of its
+  there. It leaves letters and digits to a focused field or `select`, and to a
+  focused widget that types ahead: an element whose `role` is a menu, menu item, tree,
+  tree item, listbox, option or combobox, or anything inside `role="application"`. A
+  key typed into a Leaf comment box, draft editor or search box stops at that box, so
+  the page's listeners never hear it bubble. Give the interface keys of its
   own by declaring them as an element's `lfCommands` (`module-input.md`, "Commands
   and keyboard routes"), or handle arrows, Enter and Escape on the page's own
   elements, which hear them first. Preventing a key's default there keeps Leaf from

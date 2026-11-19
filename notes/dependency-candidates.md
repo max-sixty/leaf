@@ -48,9 +48,10 @@ Practices pattern. Read, and probed in Chromium, on 2026-11-12.
   for keys, Escape, positioning and component state.
 - **Page code.** A page can load its web components today with
   `<script type="module" src="https://ui-sdk.dev/web@0.1.0-beta.1.js">`, online only.
-  Its select, tabs, menu, dialog and tooltip work inside Leaf, since Leaf reads keys
-  other than printed letters after the page's own listeners and takes no step for one
-  they prevented (`browser/runtime/keyboard/controller.js`). Leaf reads printed letters
+  Its select, tabs, menu, dialog and tooltip work inside Leaf, since Leaf takes no step
+  for a key a page element prevented, and lets go of a page control only after the
+  page's listeners on the document have had Escape, where UI SDK hears it to dismiss a
+  layer (`browser/runtime/keyboard/controller.js`). Leaf reads printed letters
   first, so typeahead reaches only the letters Leaf binds to nothing: in an open menu,
   `a` moves to Archive, but `d` scrolls the page rather than moving to Duplicate. Their
   values reach the event log only where page code passes them to a playground

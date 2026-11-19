@@ -539,8 +539,9 @@ def post_reply(
 
     A ``responds`` that no longer names the update owed refuses an answer, which
     would mark an unread newer message answered (`superseded-reply`), with two
-    exceptions that post in the thread and answer nothing. Progress takes nothing
-    in hand, and the command notes what the log holds the event as. An answer that
+    exceptions that post in the thread and answer nothing. Progress takes in hand
+    the newest still-open to-do that an earlier answer to it opened, and otherwise
+    nothing, with a note of what the log holds the event as. An answer that
     declares nothing further, to an update whose earlier answer promised a to-do
     still open, is noted with the `leaf task end` that ends that to-do, so `--todo`
     and then `--done` on one reference both go in.
@@ -565,11 +566,14 @@ def post_reply(
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry an obligation, a to-do, widgets, failure or
-    relocation. Progress on an update the agent owes says what it has in hand, so it also takes that
-    update in hand with its text as the line (`todos.start_reading`), which is why that
-    text is one line: the update reads Working beside its thread and in the page's status, and
-    the user's message gets the agent's first words and its Working line from one
-    write. A `Receipt`'s progress takes nothing in hand.
+    relocation. Progress on work the agent owes says what it has in hand, so it also
+    takes that work in hand with its text as the line (`todos.start_reading`), which is
+    why that text is one line: the update it addresses while that is owed, or else the
+    to-do an answer opened, addressed by the update the answer answered or by the
+    to-do's own message. The work reads Working beside its thread and in the page's
+    status, so the user's message gets the agent's first words and its Working line
+    from one write, and a promise's thread and On <agent> row show the line its work
+    runs under. A `Receipt`'s progress takes nothing in hand.
     """
     title = agent_title(title)
     text = checked_text(page_dir, text, html=True)
@@ -772,7 +776,15 @@ def _resolve_obligation(
         parent = expected["parent"]
     assert parent is not None
     thread_id, parent = thread_addressed(page_dir, events, parent)
-    in_hand = None
+    # Progress on the message that opened a to-do still open takes that to-do in hand.
+    in_hand = (
+        address["parent"]
+        if responds is None
+        and ephemeral
+        and not isinstance(settlement, Receipt)
+        and any(todo["id"] == address["parent"] for todo in TodoReading(events).owed)
+        else None
+    )
     answers = None if ephemeral else responds
     advice: list[Finding] = []
     if responds is not None:
@@ -787,10 +799,13 @@ def _resolve_obligation(
                 held = logged_id(page_dir, events, responds, responses)
                 # The to-dos earlier answers to it opened that are still open.
                 opened = {reply["id"] for reply in successful_replies(events, responds)}
+                owed_todos = [
+                    todo for todo in TodoReading(events).owed if todo["id"] in opened
+                ]
                 promised = [
                     {"todo": todo["id"], "title": todo["title"]}
-                    for todo in TodoReading(events).owed
-                    if done and todo["id"] in opened
+                    for todo in owed_todos
+                    if done
                 ]
                 if not (ephemeral or promised):
                     found = {"event": responds, "parent": parent, "held": held}
@@ -804,7 +819,9 @@ def _resolve_obligation(
                     )
                     for todo in promised
                 ]
-                if ephemeral:
+                if ephemeral and owed_todos:
+                    in_hand = owed_todos[-1]["id"]
+                elif ephemeral:
                     advice.append(
                         Finding(
                             "superseded-progress",

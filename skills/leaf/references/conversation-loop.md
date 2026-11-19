@@ -147,18 +147,21 @@ Remove), and each result shown as the user would meet it, such as a capture of t
 interface with the change applied beside today's, or a request the service would
 then refuse (`authoring-on-me.md`, "What a question holds").
 
-A start lasts only for the turn that wrote it.
-Within a long turn a start goes stale after about 15 minutes. The status shows the item you started last, so
-start the one that best describes what is running. While a worker produces an
-update's answer, start that update before you end your turn; the Stop hook lets a
-turn end over an update it started. In the next turn, start the item again or answer
-it.
+Each item you start shows its line where the user looks for that work: in its
+thread, in On <your name>, and in the panel's status while it is the newest start. So start every item whose work is running, a worker's included, rather
+than the one that best describes your own step. A start lasts only for the turn that
+wrote it, and within a long turn it goes stale after about 15 minutes. While a worker
+produces an update's answer, start that update before you end your turn; the Stop
+hook lets a turn end over an update it started. In the next turn, start the item
+again or answer it.
 
 For work that outlasts the turn, such as a worker's build, a wait on CI, or a change
-you promise for the next version, answer the thread with a to-do:
+you promise for the next version, answer the thread with a to-do, and while its work
+runs, say on the same reference what is running:
 
 ```bash
-leaf thread reply <answer.ref> --todo "<what you owe>" --text "<what is under way>"
+leaf thread reply <answer.ref> --todo "<what you owe>" --text "<your answer>"
+leaf thread reply <answer.ref> --ephemeral --text "<what is running>"
 ```
 
 The reply answers the message and opens a to-do on the thread, under the reply's id.
@@ -169,9 +172,11 @@ such a promise too; a `--done` reply would tell the user nothing more is coming.
 holding a decision the user put off until other work lands: while the to-do stays open,
 the decision their thread is about stays off On Me, and ending the to-do puts it back.
 
-The panel's status says what you are doing only for an item you have started, so while
-the to-do's work runs in your turn, such as a worker you wait on, start the to-do under
-the reply's id.
+The progress line starts the to-do, so the user sees it under your reply and in On
+<your name> while the work runs, rather than a promise that reads the same whether or
+not anything is moving. Post it again as the work moves to its next step. When a worker
+does the work, put the page and the reference in its brief, and have it post its line
+there as it starts each step.
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done --text "<where>"`,
 or `failed`/`dropped` with the reason. If another session will finish it, put the page

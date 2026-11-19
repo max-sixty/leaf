@@ -14,6 +14,7 @@ metadata:
 vars:
   prompt: |
     You are a Claude Code session using Leaf. You just received this complete inline envelope from Leaf's prompt hook:
+
     ```json
     {
      "format": "leaf-delivery/51",

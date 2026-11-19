@@ -1272,7 +1272,8 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     presentation does not imply the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
-    recorded = f"Deployment {release[:7]} verified"
+    monkeypatch.setattr(journey, "release_name", lambda: "summit-maple")
+    recorded = "Deployment summit-maple verified"
     page = _DeployedPage(
         recorded,
         revision=1,
@@ -1402,7 +1403,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             ],
         },
         "change": {
-            "marker": release[:7],
+            "marker": "summit-maple",
             "revision": 2,
             "reply": "deployment verified",
         },

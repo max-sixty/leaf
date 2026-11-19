@@ -23,6 +23,7 @@ vars:
     Each prototype decision now carries its demo live in a frame you can operate in place or open in its own tab ([timeline preview](#proto-timeline-ask)). Try them before you decide.
 
     Leaf's prompt hook has now handed you this complete inline delivery:
+
     ```json
     {
      "format": "leaf-delivery/51",
@@ -147,6 +148,7 @@ variants:
         Each prototype decision now carries its demo live in a frame you can operate in place or open in its own tab ([timeline preview](#proto-timeline-ask)). Try them before you decide. Separately: should the frames stay at 640px or take the column's full width? That decides how I lay out the other three.
 
         Leaf's prompt hook has now handed you this complete inline delivery:
+
         ```json
         {
          "format": "leaf-delivery/51",

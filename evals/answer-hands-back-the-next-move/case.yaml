@@ -21,6 +21,7 @@ vars:
     You are a Claude Code session using Leaf, five hours into an issue-triage page with the user at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of their comments since, so act on this without reloading them. The page puts four prototype decisions to the user, each an `lf-options` choice between landing the prototype and keeping it on its branch, inside a section such as `#proto-timeline-ask`. All four are still unanswered on the user's On Me list.
 
     Leaf's prompt hook handed you this complete inline delivery:
+
     ```json
     {
      "format": "leaf-delivery/51",
@@ -114,6 +115,7 @@ variants:
         You are a Claude Code session using Leaf, five hours into an issue-triage page with the user at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of their comments since, so act on this without reloading them. The page puts four prototype decisions to the user, each an `lf-options` choice between landing the prototype and keeping it on its branch, inside a section such as `#proto-timeline-ask`. All four are still unanswered on the user's On Me list.
 
         Leaf's prompt hook handed you this complete inline delivery:
+
         ```json
         {
          "format": "leaf-delivery/51",
@@ -316,6 +318,7 @@ variants:
         You are a Claude Code session using Leaf, five hours into an issue-triage page with the user at /Users/max/.local/state/leaf/pages/issue-triage. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of their comments since, so act on this without reloading them. The page puts four prototype decisions to the user, each an `lf-options` choice between landing the prototype and keeping it on its branch, inside a section such as `#proto-timeline-ask`. All four are still unanswered on the user's On Me list.
 
         Leaf's prompt hook handed you this complete inline delivery:
+
         ```json
         {
          "format": "leaf-delivery/51",

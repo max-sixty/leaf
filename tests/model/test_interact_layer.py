@@ -2185,9 +2185,10 @@ def test_every_ring_stands_at_a_kind_of_box():
     change to a kind reaches every box of it, and so does every `outline-offset`, which
     otherwise reads that declaration: every box's (surfaces.css), the floor's, and the
     marks a box draws round itself, which stand at their band's gap (`--lf-band-gap`),
-    itself read from `--lf-ring-at`."""
+    itself read from `--lf-ring-at`. Leaf's sheets spell the box's edge `0px`, one
+    spelling per kind."""
     kinds = {
-        "0",
+        "0px",
         "var(--lf-focus-region-gap)",
         "var(--lf-focus-ring-gap)",
         "var(--lf-focus-ring-inset)",

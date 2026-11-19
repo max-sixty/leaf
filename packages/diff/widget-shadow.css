@@ -335,7 +335,7 @@ span.lf-diff-line-number {
 }
 /* For the same reason its ring stands on its edge (base.css, "Where it stands"). */
 .lf-diff-comment {
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
 }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — base.css's rule for a control packed into something rather than standing

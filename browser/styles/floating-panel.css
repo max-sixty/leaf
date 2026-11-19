@@ -285,7 +285,7 @@
   }
   .lf-fp-field:has(> .lf-fp-search-surface:not([hidden])):focus-within {
     outline: var(--lf-focus-ring);
-    --lf-ring-at: 0;
+    --lf-ring-at: 0px;
     --lf-wears-ring: 1;
   }
   .lf-fp-search-surface > :is(wa-input, input) {

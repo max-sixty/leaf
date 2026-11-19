@@ -2754,9 +2754,9 @@ def continued(output: str | dict) -> str:
 def inlined(context: str) -> dict:
     """The delivery a hook's `context` handed over inline, as Leaf reads it back
     (`hook_transport.inline_delivery`)."""
-    delivery = hook_transport_model.inline_delivery(context)
-    assert delivery is not None, context
-    return delivery
+    inline = hook_transport_model.inline_delivery(context)
+    assert inline is not None, context
+    return inline[0]
 
 
 def printed(output: str) -> tuple[dict, dict, list[dict]]:

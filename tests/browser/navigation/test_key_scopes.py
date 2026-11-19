@@ -768,12 +768,23 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
 
 
 def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
-    """A page's own menu that answers Escape or Enter on its item, preventing the key's
-    default and handing focus back to its trigger, keeps the user there: Leaf takes no
-    step of its own for that key. Were Leaf's dispatcher to read the key again at the
-    document, at the trigger the menu had just focused, Escape would step the user off
-    it to the document and Enter would press the trigger again, reopening the menu.
-    UI SDK's menu and select behave this way, as most popup libraries do."""
+    """A key a page's own code answers, preventing its default, keeps the user where
+    that code left them, and Leaf takes no step of its own for it. Were Leaf to read the
+    key again at the trigger a menu hands focus back to after answering Escape or Enter
+    on its item, Escape would step the user off it to the document and Enter would
+    press it again, reopening the menu. A tooltip that hears Escape on the window from
+    the moment it shows, as Headless UI's dialog does, or on the document, as UI SDK's
+    and Web Awesome's popups do, puts itself away, and focus stays on its trigger:
+    letting go of a control is what Leaf does with an Escape nothing else took, read
+    after every listener the page has.
+
+    Every other key Leaf reads on the root element, after a listener on any element and
+    before the page's on the document and the window. So a command declared on a
+    focused element runs before a page-wide shortcut for the same key, which hears only
+    what Leaf leaves; Escape leaves Design mode before a page listener that prevents
+    every Escape hears it, from a focused page control too, and that listener hears the
+    next Escape. Go-to owns the keyboard while it is armed, so its Escape comes before
+    the menu's own and leaves the menu open for the next."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
       const trigger = document.createElement('button');
@@ -804,10 +815,34 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
         event.preventDefault();
         close();
       });
-      document.querySelector('main').append(trigger, menu);
+      const info = document.createElement('button');
+      info.id = 'info';
+      info.textContent = 'Why';
+      info.setAttribute('aria-describedby', 'tip');
+      const tip = document.createElement('div');
+      tip.id = 'tip';
+      tip.popover = 'manual';
+      tip.setAttribute('role', 'tooltip');
+      tip.textContent = 'Because the gutters drain first.';
+      const dismiss = (event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        event.preventDefault();
+        hide();
+      };
+      const hide = () => {
+        window.removeEventListener('keydown', dismiss);
+        tip.hidePopover();
+      };
+      info.addEventListener('focus', () => {
+        tip.showPopover();
+        window.addEventListener('keydown', dismiss);
+      });
+      info.addEventListener('blur', () => { if (tip.matches(':popover-open')) hide(); });
+      document.querySelector('main').append(trigger, menu, info, tip);
     }""")
     trigger = page.locator("#menu-trigger")
     menu = page.locator("#menu")
+    body = page.locator("body")
 
     for key in ("Escape", "Enter"):
         trigger.click()
@@ -817,6 +852,72 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
         expect(trigger).to_be_focused()
         expect(trigger).to_have_attribute("aria-expanded", "false")
     assert page.evaluate("() => window.chosen") == ["rename"]
+
+    page.locator("#info").click()
+    expect(page.locator("#tip")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#tip")).to_be_hidden()
+    expect(page.locator("#info")).to_be_focused()
+
+    trigger.click()
+    page.keyboard.press("g")
+    expect(body).to_have_attribute("data-lf-go-to-active", "")
+    page.keyboard.press("Escape")
+    expect(body).not_to_have_attribute("data-lf-go-to-active", "")
+    expect(menu).to_be_visible()
+    expect(page.locator("#rename")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    expect(trigger).to_be_focused()
+
+    page.evaluate("""() => {
+      window.escapes = 0;
+      window.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        window.escapes += 1;
+      });
+      document.activeElement.blur();
+    }""")
+    for focus in (None, trigger):
+        page.keyboard.press("l")
+        expect_design_mode(page)
+        if focus:
+            focus.focus()
+        page.evaluate("() => { window.escapes = 0; }")
+        page.keyboard.press("Escape")
+        expect_design_mode(page, on=False)
+        assert page.evaluate("() => window.escapes") == 0
+        page.keyboard.press("Escape")
+        assert page.evaluate("() => window.escapes") == 1
+
+    # A command declared on an element, as a Leaf widget's are, and a page-wide
+    # listener for the same key that prevents it.
+    page.evaluate("""async () => {
+      const { commandsChanged } = await window.__lfWidgetApi();
+      const stepper = document.createElement('section');
+      stepper.id = 'stepper';
+      stepper.tabIndex = 0;
+      stepper.textContent = 'A stepper';
+      stepper.lfCommands = { title: 'A stepper', rows: [
+        {id: 'test.step', keys: ['ArrowRight'], title: 'Step',
+         run: () => stepper.dataset.steps = String(Number(stepper.dataset.steps ?? 0) + 1)},
+      ] };
+      document.querySelector('main').append(stepper);
+      commandsChanged(stepper);
+      window.arrows = 0;
+      document.addEventListener('keydown', (event) => {
+        if (!event.key.startsWith('Arrow')) return;
+        event.preventDefault();
+        window.arrows += 1;
+      });
+      stepper.focus();
+    }""")
+    page.keyboard.press("ArrowRight")
+    expect(page.locator("#stepper")).to_have_attribute("data-steps", "1")
+    assert page.evaluate("() => window.arrows") == 0
+    page.keyboard.press("ArrowLeft")
+    assert page.evaluate("() => window.arrows") == 1
 
 
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(

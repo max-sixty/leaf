@@ -958,7 +958,9 @@ def test_each_fork_leaves_a_note_in_the_pages_diagnostics(claimed, capsys):
     hook(capsys, "UserPromptSubmit")
     question = asked()
     run = {
-        "basis": question["basis"],
+        "done": "check",
+        "do": "fork",
+        "basis": {"kind": "check", **question["basis"]},
         "usage": {"output_tokens": 9},
         "elapsed_ms": 1200,
     }
@@ -966,16 +968,16 @@ def test_each_fork_leaves_a_note_in_the_pages_diagnostics(claimed, capsys):
     def notes() -> list[dict]:
         return read_interactions(claimed, types=("turn_end_check",))
 
-    clerk_model.cmd_fork("s1", {**run, "answer": '{"asks": [], "findings": []}'})
+    clerk_model.checked("s1", {**run, "answer": '{"asks": [], "findings": []}'})
     answer = json.loads(reply(page, "Pick one?"))
     answer["findings"] = json.loads(_stale(page, "Ship dark.", "Ship behind a flag."))[
         "findings"
     ]
-    done = clerk_model.cmd_fork("s1", {**run, "answer": json.dumps(answer)})
-    assert done is not None
-    clerk_model.cmd_fork("s1", {**run, "failed": "the fork was aborted"})
-    with pytest.raises(Refused):
-        clerk_model.cmd_fork("s1", {**run, "answer": "Nothing to report."})
+    done = clerk_model.checked("s1", {**run, "answer": json.dumps(answer)})
+    assert done["log"].startswith(f"the clerk wrote {len(done['wrote'])} record")
+    clerk_model.checked("s1", {**run, "failed": "the fork was aborted"})
+    refusal = clerk_model.checked("s1", {**run, "answer": "Nothing to report."})
+    assert refusal["refused"] and "the clerk wrote nothing" in refusal["log"]
 
     empty, found, failed, refused = notes()
     assert {

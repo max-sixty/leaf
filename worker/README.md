@@ -14,7 +14,7 @@ The pieces this runbook names:
 | `worker/src/agent.ts`, `worker/src/model-proxy.ts` | The hosted agent's dispatch and its outbound OpenAI handler                      |
 | `worker/leaf_website/`                             | The Python adapter each container runs in front of Leaf's server                 |
 | `worker/wrangler.toml`                             | Production (`leaf-website`) and the `dev` environment (`leaf-website-dev`)       |
-| `Dockerfile.website`                               | The container image                                                              |
+| `worker/Dockerfile`                                | The container image                                                              |
 | `.github/workflows/publish-site.yaml`              | The only production deploy                                                       |
 
 `uv run leaf-dev site build` builds the site into `.tmp/site`, with its edge assets in

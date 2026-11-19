@@ -2,7 +2,7 @@
 
 Some readings of a page are dear to repeat: a revision's parse, a candidate's capture
 and check, the page's vocabulary, the activation answer, the presence token, the
-attempts its log admitted. Others are what a later answer is built from, such as the
+events its log holds. Others are what a later answer is built from, such as the
 readings the page's server last sent. Each is kept in the page's `PageMemory` under
 one of these rules, so a kept reading is never stale, only dropped:
 
@@ -11,7 +11,7 @@ one of these rules, so a kept reading is never stale, only dropped:
   over the page's layer is kept beside the layer's vocabulary and made again once
   another replaces it (`registry.storage._Revisions`). A reading of the log, which
   only grows, is kept beside the place in the log it read to, and reads on from there
-  (`event_log.admitted_attempts`).
+  (`event_log.read_events`).
 - A reading keyed by a name that never changes meaning is kept as it was made: a
   revision's marker names one bundle for good (`revision_artifact.read_artifact`).
 - A fact no file carries, such as whether another page's server is still running, is

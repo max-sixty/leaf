@@ -4721,6 +4721,55 @@ replay.onclick = () => { motion.play(); hold(); };
     ), motions
 
 
+def test_an_owned_animation_that_ended_unsampled_reports_no_ending(browser):
+    """A press can retain a CSS animation before any frame samples it. If the
+    animation is gone by the next sample, the finding still lists it, with neither
+    a beginning nor an ending recorded."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+@keyframes slide { from { translate: -200px 0px } to { translate: 0px 0px } }
+.sliding { animation: slide 1s }
+</style><body style="margin:0"><button id="start">Start</button>
+<div id="panel" style="margin-left:350px">
+<button id="control">Retained control</button></div>
+<p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
+<script>
+start.onpointerdown = () => panel.classList.add('sliding');
+start.onpointerup = () => panel.classList.remove('sliding');
+</script></body>""")
+    )
+    paint(page)
+    page.locator("#start").click()
+    # Move before a checkpoint retires the press's rendering, which keeps the
+    # animation it retained.
+    page.wait_for_function("!window.lfInputRenderingOpen()")
+    page.evaluate(
+        """() => {
+          control.style.marginLeft = '55px';
+          trigger.style.left = '40px';
+        }"""
+    )
+    paint(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    finding = next(
+        error for error in errors if is_problem(error, moved_within("button#control"))
+    )
+    motions = [
+        animation
+        for comparison in shift_evidence(finding)["comparisons"]
+        for animation in comparison["animations"]
+        if within(animation["target"], "div#panel")
+    ]
+    assert motions, finding
+    assert all(
+        motion["owned"] and motion["began"] is None and motion["ended"] is None
+        for motion in motions
+    ), motions
+
+
 @pytest.mark.parametrize(
     "fault,finish",
     [

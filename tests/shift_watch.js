@@ -1259,11 +1259,12 @@
   const endings = new WeakMap();
   // How and when each effect a reading saw ended, with the beginning it ended, which
   // the shift evidence reports. A replayed effect keeps its Animation but begins anew,
-  // so an ending counts only while its beginning is still the effect's latest.
+  // so an ending counts only while its beginning is still the effect's latest. An
+  // effect a rendering retained before any reading saw it has neither.
   const endedBy = new WeakMap();
   const endingOf = (animation) => {
     const ending = endedBy.get(animation);
-    return ending?.beginning === beganAt.get(animation)
+    return ending && ending.beginning === beganAt.get(animation)
       ? { how: ending.how, at: ending.at }
       : null;
   };

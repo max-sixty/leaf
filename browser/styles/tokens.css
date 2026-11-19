@@ -589,8 +589,6 @@
        contour of each shape it draws (surfaces.css).
      - A quiet ground (--lf-focus-surface): a large composite holding focus, such as a
        thread, where a band would be a second box round the box.
-     - The undo's ring, the band at twice its width fading within about a second: what
-       ⌘Z just took back (undo.js, `ring`).
 
      Where it stands, which the box decides and the mark never does. The box states it
      once, as `--lf-ring-at`, in the rule that draws its face rather than one that waits

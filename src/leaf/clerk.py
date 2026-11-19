@@ -239,7 +239,11 @@ REFERENCE = REFERENCES / "turn-end-check.md"
 # which action asks for permission and which is a step, what a question holds, how
 # HTML in a message draws, when it asks with a choice, how a message reads in a
 # thread's narrow card, what it links, where a correction to an unanswered reply
-# goes, and the reply a thread is owed once the work it discusses is done.
+# goes, and the reply a thread is owed once the work it discusses is done. The fork
+# opens no file, so it can't follow a pointer in one of these paragraphs to another
+# reference: what it needs to write the message is in the paragraph, or in the example
+# right after it, which it gets with the paragraph and which shows the markup, such
+# as `recommended` on the option the agent advises.
 GUIDANCE = (
     ("conversation-loop.md", "The user's **On Me** list holds"),
     ("conversation-loop.md", "For an action you take once the user agrees"),
@@ -513,18 +517,22 @@ def _block(facts: dict) -> str:
 
 def guidance() -> list[str]:
     """The agent's guidance the fork follows (`GUIDANCE`), each paragraph as the
-    agent reads it."""
+    agent reads it, with its example."""
     return [reference_paragraph(*passage) for passage in GUIDANCE]
 
 
 def reference_paragraph(name: str, opening: str) -> str:
-    """The paragraph of the skill's reference `name` that opens with `opening`, as
-    the agent reads it, for a fork that follows the agent's guidance."""
+    """The paragraph of the skill's reference `name` that opens with `opening`, with
+    any fenced example right after it, as the agent reads it, for a fork that follows
+    the agent's guidance."""
     text = (REFERENCES / name).read_text()
     start = text.find(f"\n\n{opening}") + 2
     if start < 2:
         raise ValueError(f"{name} has no paragraph opening {opening!r}")
     end = text.find("\n\n", start)
+    while end >= 0 and text.startswith("```", end + 2):
+        closed = text.find("\n```", text.find("\n", end + 2))
+        end = text.find("\n\n", closed + 4)
     return text[start:] if end < 0 else text[start:end]
 
 

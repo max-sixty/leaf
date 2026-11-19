@@ -39,7 +39,10 @@
    visible page target. Generated targets show only their suffix; the reference retains
    that shared prefix. A moving page target cannot carry a readable opaque route, so the generated
    part of the map is withheld until the scene settles. Escape removes one typed letter,
-   then a filter, then closes the sequence. A letter from the hint alphabet is consumed
+   then a filter, then closes the sequence. Armed, the sequence is a stance
+   (touch-controls.js): the panel's field says "In Go-to" before the status, chips or
+   none, so the next key's owner is named where the user reads, and ends in Close, which
+   takes the sequence off from any step and says esc while Escape would. A letter from the hint alphabet is consumed
    even when a scene refresh made it invalid, with explicit feedback instead of an
    unrelated page action; another unrelated key closes the sequence and is redispatched with
    its ordinary meaning.
@@ -477,6 +480,8 @@ export function createGoToSequence({
 
   const targetCapability = () => TARGET_KINDS.some((entry) => entry.list().length > 0);
   const atGoToTargets = () => !targetFilter && !hints.prefix();
+  // Whether Escape has a letter or a filter to take back before it closes the sequence.
+  const stepsBack = () => !atGoToTargets();
 
   /** @param {string} binding */
   function filterTargets(binding) {
@@ -518,6 +523,7 @@ export function createGoToSequence({
   /** @type {import("./bindings.js").Scope} */
   const GO_TO_SCOPE = {
     title: "Go to",
+    says: "In Go-to",
     escape: "inner",
     root: () => document,
     reach: "with g armed",
@@ -683,16 +689,24 @@ export function createGoToSequence({
         touch: false,
         keys: ["Escape"],
         sequenceControl: true,
-        title: () =>
-          hints.prefix() ? "back one letter" : targetFilter ? "all targets" : "cancel",
+        title: () => (hints.prefix() ? "back one letter" : "all targets"),
+        when: stepsBack,
         run: () => {
           if (hints.backOneLetter()) return;
-          if (targetFilter) {
-            targetFilter = null;
-            hints.narrow();
-            announce("All go-to targets.");
-            return;
-          }
+          targetFilter = null;
+          hints.narrow();
+          announce("All go-to targets.");
+        },
+      },
+      // The stance's way out, live at every step so the panel's Close takes the
+      // sequence off from any of them; Escape reaches it once nothing is left to back.
+      {
+        id: "navigation.go-to.close",
+        keys: () => (stepsBack() ? [] : ["Escape"]),
+        sequenceControl: true,
+        title: "close Go to",
+        exit: true,
+        run: () => {
           setGoToSequence(false);
           announce("Go to cancelled");
         },

@@ -3653,11 +3653,10 @@ def left_alone(page):
     page.evaluate(RELEASE_FOCUS)
     page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    # A passing notice stands in the panel's empty field, in the line over it once the
-    # field is written in, or in the leaf's peek (notifications.js).
+    # A passing notice stands in the panel's empty field or in the leaf's peek
+    # (notifications.js).
     notice = (
-        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-context[data-notice],"
-        " .lf-fp-peek[data-lf-shown])"
+        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-peek[data-lf-shown])"
     )
     while any(frame.locator(notice).count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"

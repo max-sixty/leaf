@@ -422,9 +422,14 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
         page.keyboard.up("Alt")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
+    expect_design_mode(page)
     for name, point in places.items():
         found[name].append(seen(point))
-    page.keyboard.press("Escape")
+    # The mode's own key leaves it. Escape would first put away a preview the readings
+    # left standing, as a slow machine's rest on the link does
+    # (browser/runtime/keyboard/AGENTS.md, "Escape").
+    page.keyboard.press("l")
+    expect_design_mode(page, on=False)
     assert {name: tuple(each) for name, each in found.items()} == ARMED_CURSORS
 
     # A draft's item: the draft's own cursor at rest, and the aim's hand armed.

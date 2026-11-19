@@ -509,6 +509,9 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
     )
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
+        # WebKit can screenshot the words before it paints a newly registered syntax
+        # colour or the scheme's colours, so read them after a rendering update.
+        rendered(page)
         owed = {"string": _drawn(page, UNMARKED_STRING)[1]}
         shown = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
         for name, (_, words, own) in shown.items():

@@ -215,13 +215,15 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     page.keyboard.press("h")
     expect_panel_says(page, "No changes marked")
     # Since v2, not v1: only Delta changed. The field's standing words say the
-    # comparison at once, and a listener hears it; no notice repeats them.
+    # comparison at once, and a listener hears it; no notice repeats them, read once
+    # the press has drawn, while its notice's moment still stands.
     page.keyboard.press("v")
     expect(page.locator('.lf-change-bar[data-lf-for="d"]')).to_have_count(1)
     assert marked_ids(page) == ["d"]
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile(r"^1 change since v2 · "), timeout=1000
-    )
+    rendered(page)
+    assert re.match(
+        r"1 change since v2 · ", panel_field(page).get_attribute("placeholder") or ""
+    ), panel_field(page).get_attribute("placeholder")
     expect(panel_field(page)).to_have_attribute("data-lf-says", "status")
     expect(page.locator(".lf-live")).to_have_text("1 change since v2")
     page.keyboard.press("v")
@@ -256,11 +258,10 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     page.keyboard.press("v")
     expect(marked).to_have_count(2)
     assert marked_ids(page) == ["b", "d"]
-    # Once the comparison stands, the news that v would show it goes with it, well
-    # before its moment would end.
-    expect(panel_field(page)).not_to_have_attribute(
-        "placeholder", re.compile("v shows them"), timeout=1000
-    )
+    # Once the comparison stands, the news that v would show it goes with it, read
+    # once the press has drawn, well before its moment would end.
+    rendered(page)
+    assert "v shows them" not in (panel_field(page).get_attribute("placeholder") or "")
 
 
 def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(

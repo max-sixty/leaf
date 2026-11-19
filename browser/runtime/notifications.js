@@ -20,7 +20,9 @@
    to where the user stands names that fact (`about`), as "Annotations hidden" names
    the annotations, so a surface whose words already say where the user stands, as the
    page field's do (floating-panel.js, `standing`), leaves it to them, while the folded
-   leaf's peek and a thread's field, which say none, show it. The user chose a
+   leaf's peek and a thread's field, which say none, show it. Only the panel knows which
+   surface draws the seat, so such a notice holds it as any other does, unseen on the
+   page field for its moment, with news waiting behind it there too. The user chose a
    notice's press, so a Resolve that moves the
    panel on leaves something there offering to take it back, over a notice of text
    alone, whose subject only the panel's own controls reach. There is no second surface
@@ -86,10 +88,6 @@ export function gesture(moment) {
   gestures.value = Object.freeze({ moment, beat: gestures.peek().beat + 1 });
 }
 const noticeVisible = () => noticePresentation.peek().visible;
-// Whether a notice holds the seat against news. A notice `about` a fact where the user
-// stands holds none: where the panel's words say that fact, as the page field's do, it
-// shows nowhere, and news arriving takes the seat it would otherwise hold invisibly.
-const seatHeld = () => noticeVisible() && !noticePresentation.peek().about;
 
 // A notice is Leaf's news, so a notice given as a string is Leaf's words; one that
 // relays the agent's words too is given as parts, each said by whoever says it
@@ -239,13 +237,11 @@ export function notice(
   if (speak) announce(msg);
   if (background) {
     const entry = group ?? textBackground(msg, stands);
-    if (userContext || stepping.peek() || seatHeld()) return queueBackground(entry);
+    if (userContext || stepping.peek() || noticeVisible())
+      return queueBackground(entry);
     return showBackground(entry);
   }
   if (stands && !stands()) return;
-  // News standing in the seat keeps it from a notice the page field leaves to its own
-  // words, which a listener hears all the same.
-  if (about && showingBackground) return;
   if (showingBackground) queueBackground(showingBackground, true);
   showNotice(msg, null, press, stands, about);
 }
@@ -277,7 +273,7 @@ export function answerStep() {
   stepping.value = true;
   stepTimer = setTimeout(() => {
     stepping.value = false;
-    if (userContext || seatHeld() || !waitingBackground.length) return;
+    if (userContext || noticeVisible() || !waitingBackground.length) return;
     showBackground(waitingBackground.shift());
   }, NOTICE_MS);
 }
@@ -288,7 +284,12 @@ export function answerStep() {
 export function setNoticeContext(active) {
   userContext = active;
   if (active && showingBackground) yieldNotice();
-  else if (!active && !stepping.peek() && waitingBackground.length && !seatHeld()) {
+  else if (
+    !active &&
+    !stepping.peek() &&
+    waitingBackground.length &&
+    !noticeVisible()
+  ) {
     showBackground(waitingBackground.shift());
   }
 }

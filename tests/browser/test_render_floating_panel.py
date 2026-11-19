@@ -3512,8 +3512,10 @@ def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, se
     expect_panel_says(page, "Annotations hidden — o shows them")
     expect(page.locator(".lf-live")).to_have_text("Annotations hidden — o shows them")
     page.keyboard.press("o")
-    expect(field(page)).to_have_attribute("data-lf-says", "status", timeout=1000)
-    expect(field(page)).not_to_have_attribute("placeholder", re.compile("Annotations"))
+    # Read once the press has drawn, while its notice's moment still stands.
+    rendered(page)
+    assert field(page).get_attribute("data-lf-says") == "status"
+    assert "Annotations" not in (field(page).get_attribute("placeholder") or "")
     expect(page.locator(".lf-live")).to_have_text("Annotations shown")
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")

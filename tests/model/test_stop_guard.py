@@ -34,6 +34,7 @@ from interact_support import (
     delivery_through,
     end_work,
     freeze_events,
+    inlined,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
     obligations_on_user,
@@ -67,6 +68,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf.json_block import read_json_block
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 
@@ -278,7 +280,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert batch["page"] == str(claimed)
     assert [event["text"] for event in batch["events"]] == ["is this right?"]
     assert "no watcher" not in context
@@ -461,7 +463,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert delivered_ref(claimed, follow["id"]) in continued(capsys.readouterr().out)
@@ -1058,7 +1060,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             assert not codex_records("codex-thread")
         else:
             # The new owner is offered the update as Codex offers new input.
-            envelope = json.loads(reason)
+            envelope, _ = read_json_block(reason)
             assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
             assert envelope["id"] != original["id"]
             [(offered, _)] = codex_records("codex-thread")

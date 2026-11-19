@@ -1245,11 +1245,13 @@ def test_the_reference_names_each_field_a_delivered_event_adds():
 
 
 def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
-    """An eval case that pastes a delivery scores the shipped instructions against
-    that envelope, so a change to `DELIVERY` fails here until the case is frozen
-    again with `freeze_delivery`."""
+    """An eval case that pastes a delivery, on one line or as the block a hook
+    writes (`json_block`), scores the shipped instructions against that envelope, so
+    a change to `DELIVERY` fails here until the case is frozen again with
+    `freeze_delivery`."""
     import yaml
 
+    from leaf.json_block import read_json_block
     from leaf.registry.schema import schema_error, with_leaf_resources
 
     def strings(value):
@@ -1259,15 +1261,26 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
             for item in value.values() if isinstance(value, dict) else value:
                 yield from strings(item)
 
+    def envelopes(text):
+        lines = text.splitlines(keepends=True)
+        for at, line in enumerate(lines):
+            if line.lstrip().startswith('{"format"') and "leaf-delivery/" in line:
+                yield "line", json.loads(line)
+            elif line == "```json\n":
+                value, _ = read_json_block("".join(lines[at:]))
+                if isinstance(value, dict) and str(value.get("format")).startswith(
+                    "leaf-delivery/"
+                ):
+                    yield "block", value
+
     pasted = [
-        (case.parent.name, json.loads(line))
+        (case.parent.name, form, envelope)
         for case in sorted((ROOT / "evals").glob("*/case.yaml"))
         for text in strings(yaml.safe_load(case.read_text()))
-        for line in text.splitlines()
-        if line.lstrip().startswith('{"format"') and "leaf-delivery/" in line
+        for form, envelope in envelopes(text)
     ]
-    assert pasted
-    for case, envelope in pasted:
+    assert {form for _, form, _ in pasted} == {"line", "block"}
+    for case, _, envelope in pasted:
         assert envelope.pop("format") == delivery_model.DELIVERY.format, case
         error = schema_error(
             with_leaf_resources(delivery_model.DELIVERY.schema), envelope

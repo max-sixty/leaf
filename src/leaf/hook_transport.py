@@ -153,6 +153,7 @@ from .delivery import (
 )
 from .findings import Finding
 from .harness import HOOK_TIMEOUT_S, Harness, claim_harness
+from .json_block import json_block, read_json_block
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
@@ -512,19 +513,20 @@ INLINE_OPENING = (
 
 def inline_context(delivery: dict) -> str:
     """The context that hands `delivery` over inline: its opening line
-    (`INLINE_OPENING`) and the delivery's JSON, which `inline_delivery` reads back."""
-    return "\n".join([INLINE_OPENING, json.dumps(delivery, ensure_ascii=False)])
+    (`INLINE_OPENING`) and the delivery's block (`json_block`), which
+    `inline_delivery` reads back."""
+    return "\n".join([INLINE_OPENING, json_block(delivery)])
 
 
 def inline_delivery(context: str) -> dict | None:
     """The delivery a hook's `context` handed over inline, its opening line
-    (`INLINE_OPENING`) followed by the delivery's JSON, or None where it handed none
-    over: a pointer, a reminder, or a context cut short."""
+    (`INLINE_OPENING`) followed by the delivery's block (`json_block`), or None where
+    it handed none over: a pointer, a reminder, or a context cut short."""
     opening, _, rest = context.partition("\n")
     if opening != INLINE_OPENING:
         return None
     try:
-        return json.loads(rest.partition("\n")[0])
+        return read_json_block(rest)[0]
     except ValueError:
         return None
 

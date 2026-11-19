@@ -18,6 +18,7 @@ from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     append_command,
+    inlined,
     page_packages,
     serving,
     stamp,
@@ -1145,8 +1146,7 @@ def test_a_running_forks_tool_boundary_carries_a_rewrite_as_logged(
             "text": "And the autocomplete service?",
         },
     )
-    _opening, envelope = agent_context(capsys, "agent-1").split("\n", 1)
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(agent_context(capsys, "agent-1"))["batches"]
     assert [
         (event["kind"], event["text"], event.get("was"), "edited" in event)
         for event in batch["events"]
@@ -1671,9 +1671,7 @@ def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(
     assert deliverable(claimed) == []
     assert context(capsys, "PostToolBatch") == ""
 
-    opening, envelope = agent_context(capsys, "agent-1").split("\n", 1)
-    assert opening == hook_transport_model.INLINE_OPENING
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(agent_context(capsys, "agent-1"))["batches"]
     assert [event["id"] for event in batch["events"]] == [more["id"]]
     pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
     assert (pickup["events"], pickup["turn"]) == ([more["id"]], taken["turn"])
@@ -1896,8 +1894,7 @@ def test_one_fork_works_a_thread_while_its_turn_runs(claimed, lane, capsys):
     assert (note["kept_back"], note["held_by"]) == (False, running["turn"])
     assert kept_back(claimed) == []
     assert deliverable(claimed) == []
-    _opening, envelope = agent_context(capsys, "agent-5").split("\n", 1)
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(agent_context(capsys, "agent-5"))["batches"]
     assert [event["id"] for event in batch["events"]] == [soon["id"]]
     pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
     assert (pickup["events"], pickup["turn"]) == ([soon["id"]], running["turn"])
@@ -2183,8 +2180,7 @@ def test_a_fork_ending_on_a_thread_the_user_resolved_hands_nothing_back(
         if row.get("step") == "end"
     ] == [(asked["id"], [asked["id"]])]
     assert clerk_model.queued("s1") == []
-    _opening, envelope = context(capsys, "UserPromptSubmit").split("\n", 1)
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(context(capsys, "UserPromptSubmit"))["batches"]
     assert [event["id"] for event in batch["events"]] == [resolved["id"]]
 
 

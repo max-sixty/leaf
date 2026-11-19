@@ -64,6 +64,7 @@ from leaf.harness import claude_code_config
 from leaf.holding import reading, rounds
 from leaf.hook_transport import inline_delivery
 from leaf.interaction_log import interaction_time, read_interactions
+from leaf.json_block import read_json_block
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import (
     agent_turn_open,
@@ -488,8 +489,8 @@ def told(text: str) -> list[str]:
     ]
     return [
         f"carried delivery {delivery.get('id')}: {', '.join(ids) or 'no events'}",
-        # The lines after the delivery's own, which the clerk queued.
-        *told("".join(text.split("\n", 2)[2:])),
+        # The lines after the delivery's block, which the clerk queued.
+        *told(read_json_block(text.partition("\n")[2])[1]),
     ]
 
 

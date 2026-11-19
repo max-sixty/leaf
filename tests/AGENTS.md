@@ -473,9 +473,9 @@ reproduced at rates from 6 to 20, and one rate can miss a finding another reprod
 so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
 server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
 copy: it reproduced ten of the nightly macOS
-job's failures that `--cpu-throttle 8` reproduced none of. Its `--load N` runs N busy
-loops in the same band beside the copies, which starve a test more steadily than more
-copies do. Run the merge base under the same condition to learn whether the change
+job's failures that `--cpu-throttle 8` reproduced none of.
+`leaf-dev suite flake --load N` runs N busy loops in the same band beside the copies,
+which starve a test more steadily than more copies do. Run the merge base under the same condition to learn whether the change
 caused it. A test whose subject is a slow CPU slows its own page with
 `leaf_dev.browser.slow_cpu`.
 

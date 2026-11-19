@@ -45,6 +45,7 @@ import {
 } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
 import { kept } from "./kept.js";
+import { readPart } from "./semantic-state.js";
 import { tokenEntry } from "./registry.js";
 import { isElement, shadowHost, upFrom } from "./shadow-tree.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -54,6 +55,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 import { raiseError } from "./errors.js";
 
+const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 // Why a message's link to a section the shown version lacks goes nowhere.
 /** @param {string | null} id */
@@ -65,12 +67,15 @@ const missingReference = (id) => `§ ${id} isn't in the version shown`;
 /** @typedef {{anchor: Anchor, label: string, key: string}} VisualAction */
 /** @typedef {HTMLButtonElement & {lfAnchor: Anchor}} VisualActionControl */
 /** @typedef {NonNullable<ReturnType<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["read"]>>} AnchorReading */
+/** @typedef {AnchorReading["readings"][number]} ThreadReading */
+/** @typedef {{reaction: {at: Element, before: boolean} | null, notes: Element[]}} Seats */
 /** @param {{
  * commentOnTarget: ReturnType<typeof import("./composing/surface.js").createResponseSurface>["commentOnTarget"],
  * openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"],
  * withdrawReaction: ReturnType<typeof import("./undo.js").createUndo>["withdraw"],
  * labelAnchor: typeof import("./thread/messages.js").anchorLabel,
  * invalidateThread: () => unknown, invalidatePageGeometry: () => unknown,
+ * placement: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "hearPlaced" | "placedAt">,
  * messageReferenceRoot: Element, draftQuote: Element, focused: typeof import("./focus.js").focused,
  * paintKeys: typeof import("./keyboard/scopes.js").paintKeys}} dependencies */
 
@@ -81,6 +86,7 @@ export function createAnchorControls({
   labelAnchor,
   invalidateThread,
   invalidatePageGeometry,
+  placement,
   messageReferenceRoot,
   draftQuote,
   focused,
@@ -93,6 +99,11 @@ export function createAnchorControls({
   const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
   /** @type {ReturnType<typeof onPressAway> | null} */
   let mounted = null;
+  /** @type {(() => void) | null} */
+  let stopHearing = null;
+  // Each thread the last render read, and where it seated the thread's controls.
+  /** @type {Map<string, {thread: ThreadReading["thread"], seats: Seats}>} */
+  let seated = new Map();
   let invalidationQueued = false;
   /** @type {Map<Element, VisualAction[]>} */
   let pendingVisualActions = new Map();
@@ -417,45 +428,74 @@ export function createAnchorControls({
     draftQuote.classList.toggle("lf-quiet", !label || (located && !about));
   }
 
+  // Where a thread's controls stand, by its placement: a bare reaction's receipt at one
+  // element, or a note at each block its passage spans. A resolved thread, and one the
+  // shown version doesn't hold, stand nowhere.
+  /** @param {ThreadReading["thread"]} thread @param {ThreadReading["placement"] | undefined} found
+   * @returns {Seats} */
+  function seatsOf(thread, found) {
+    if (!found || found.status === "outdated" || thread.resolved)
+      return { reaction: null, notes: [] };
+    if (bareReaction(thread)) {
+      // An element target's receipt goes before it, as does a passage seated at a
+      // shadow host; a light-DOM passage's receipt goes inside its seat.
+      const element = Boolean(targetElement(found));
+      const at = element ? found.place : lightSeat(found.place);
+      const before = element || at !== found.place;
+      return { reaction: at && !inChrome(at) ? { at, before } : null, notes: [] };
+    }
+    // A passage seats a note at each block it spans, by the rule its `place` follows:
+    // inside a datum, the datum stands for text no block holds.
+    const fallback = found.datumElement ? () => found.datumElement : undefined;
+    const blocks = targetElement(found)
+      ? [found.place]
+      : [
+          ...new Set(
+            targetSegments(found).map((segment) =>
+              annotationAt(segment.node, fallback),
+            ),
+          ),
+        ].filter(Boolean);
+    /** @type {Element[]} */
+    const holders = [];
+    for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
+      if (holder && !inChrome(holder)) holders.push(holder);
+    return { reaction: null, notes: holders };
+  }
+  /** @param {Seats} a @param {Seats} b */
+  const sameSeats = (a, b) =>
+    a.reaction?.at === b.reaction?.at &&
+    a.reaction?.before === b.reaction?.before &&
+    a.notes.length === b.notes.length &&
+    a.notes.every((holder, index) => holder === b.notes[index]);
+
   /** @param {AnchorReading} reading */
   function render({ readings, draft }) {
+    // These controls stand on elements of the shown document: a note's block, a
+    // reaction's seat, the section a message's link names. Reading the document here
+    // draws them again when a revision replaces it, as one that writes its own
+    // `aria-details` on a commented block it keeps, which the note's relation must then
+    // follow (details-shelf.js).
+    shownDocument();
     /** @type {Map<Element, [string, ...string[]]>} */
     const notes = new Map();
     /** @type {Map<Element, ReactionGroup>} */
     const reactions = new Map();
+    seated = new Map();
     for (const { thread, placement: found } of readings) {
-      if (found.status === "outdated" || thread.resolved) continue;
-      if (bareReaction(thread)) {
-        // An element target's receipt goes before it, as does a passage seated at a
-        // shadow host; a light-DOM passage's receipt goes inside its seat.
-        const element = Boolean(targetElement(found));
-        const at = element ? found.place : lightSeat(found.place);
-        const before = element || at !== found.place;
-        if (at && !inChrome(at)) {
-          const held = reactions.get(at) ?? { before: [], inside: [] };
-          held[before ? "before" : "inside"].push(thread.root);
-          reactions.set(at, held);
-        }
-        continue;
+      const seats = seatsOf(thread, found);
+      seated.set(thread.id, { thread, seats });
+      if (seats.reaction && bareReaction(thread)) {
+        const { at, before } = seats.reaction;
+        const held = reactions.get(at) ?? { before: [], inside: [] };
+        held[before ? "before" : "inside"].push(thread.root);
+        reactions.set(at, held);
       }
-      // A passage seats a note at each block it spans, by the rule its `place` follows:
-      // inside a datum, the datum stands for text no block holds.
-      const fallback = found.datumElement ? () => found.datumElement : undefined;
-      const blocks = targetElement(found)
-        ? [found.place]
-        : [
-            ...new Set(
-              targetSegments(found).map((segment) =>
-                annotationAt(segment.node, fallback),
-              ),
-            ),
-          ].filter(Boolean);
-      for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
-        if (holder && !inChrome(holder)) {
-          const threads = notes.get(holder);
-          if (threads) threads.push(thread.id);
-          else notes.set(holder, [thread.id]);
-        }
+      for (const holder of seats.notes) {
+        const threads = notes.get(holder);
+        if (threads) threads.push(thread.id);
+        else notes.set(holder, [thread.id]);
+      }
     }
     prepareVisualActions();
     anchorNotes.present(notes);
@@ -511,6 +551,23 @@ export function createAnchorControls({
   function mount() {
     if (mounted) return;
     document.addEventListener("lf-layout", onLayoutInvalidated);
+    // A script can move a thread with no widget to announce it, as one that draws its
+    // block anew or moves its words into another block does. Placement hears it and
+    // names the threads it placed again (anchor-placement.js, `hearPlaced`), and where
+    // one of them now seats its note or reaction elsewhere than the last render did, a
+    // pass seats it there, as a widget's `lf-layout` asks. Words rewritten inside a
+    // block, as a counter redrawn each frame, move no seat and ask for none. A thread
+    // the last render didn't read is the anchor paint's to present (anchor-paint.js,
+    // `replace`).
+    stopHearing = placement.hearPlaced(({ threads }) => {
+      const moved = threads.some((id) => {
+        const was = seated.get(id);
+        return (
+          was && !sameSeats(was.seats, seatsOf(was.thread, placement.placedAt(id)))
+        );
+      });
+      if (moved) queueInvalidation();
+    });
     mounted = onPressAway(
       (path) => offeredAway(path).length > 0,
       (path) => {
@@ -523,6 +580,8 @@ export function createAnchorControls({
   function destroy() {
     if (mounted) {
       document.removeEventListener("lf-layout", onLayoutInvalidated);
+      stopHearing?.();
+      stopHearing = null;
       mounted();
       messageReferenceRoot.removeEventListener("click", onMessageReference);
     }

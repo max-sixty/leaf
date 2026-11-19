@@ -362,6 +362,7 @@ async function boot() {
     labelAnchor: anchorLabel,
     invalidateThread: () => app.refreshThread(),
     invalidatePageGeometry: pageGeometry.invalidate,
+    placement: anchorPlacement,
     messageReferenceRoot: chromeRoot,
     draftQuote: composerQuote,
     focused,

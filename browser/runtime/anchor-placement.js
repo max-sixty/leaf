@@ -41,13 +41,15 @@
    - for a quote in a datum, the datum's source, identity and revision attributes and
      whether its widget reported a draw: those reach placement only through the
      presentation that follows a widget's draw.
-   A change that wrote or took out the text a placed passage stands in is settled after
-   its script as well, since no reader draws the page's marks: the browser paints their
-   live ranges, which the DOM moved. Those who draw from placement hear which threads it
-   placed again (`hearPlaced`), as the anchor paint paints them and finds the pointer in
-   them, so they read no change to the page themselves. A change elsewhere, as a counter
-   a widget redraws each frame, places no thread again, and reads the page again only
-   once something asks. */
+   A change that wrote or took out the text a placed passage stands in, or put in or
+   took out an element whose id an anchor's section names, is settled after its script
+   as well, since no reader draws the page's marks: the browser paints their live
+   ranges, which the DOM moved, and a block the page drew anew wears none of what its
+   old copy wore. Those who draw from placement hear which threads it placed again
+   (`hearPlaced`), after the script that moved them, and read where each now stands
+   (`placedAt`), so they read no change to the page themselves. A change elsewhere, as a
+   counter a widget redraws each frame, places no thread again, and reads the page again
+   only once something asks. */
 import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
 import { resolvedInMessage, targetElement } from "./resolved-target.js";
 import {
@@ -215,15 +217,17 @@ export function createAnchorPlacement() {
   // have moved a section, so placement is stale until it settles, which every read of
   // it does first (`placedAt`, `pendingAt`, the hit test, a presentation). Changes then
   // cost one comparison of the readings however many come first, as a counter redrawn
-  // each frame does. A change that wrote or took out the text a placed passage stands in
-  // is settled after its script too, since no reader draws the page's marks: the
-  // browser paints their live ranges, which the DOM has moved, so the marks no longer
-  // show where the passage is until it is placed again.
+  // each frame does. A change to what a placed thread's marks stand on is settled after
+  // its script too (above).
   hearPageWords(({ written, ids, renamed }) => {
     for (const id of ids) renamedIds.add(id);
     for (const element of renamed) renamedElements.add(element);
     stale ||= byQuote.size > 0 || bySection.size > 0;
-    if ([...written].some((node) => inNode.has(node))) afterScript(settle);
+    if (
+      [...written].some((node) => inNode.has(node)) ||
+      [...ids].some((id) => bySection.has(id))
+    )
+      afterScript(settle);
   });
 
   // A thread's or a saved draft's placement, as its anchor resolves now: in the message

@@ -33,6 +33,7 @@ from .codex import (
     private_app_server,
 )
 from .harness import IDENTITY_VARIABLES
+from .json_block import json_block
 from .registry.schema import json_validator
 
 TIMEOUT = 60
@@ -94,7 +95,7 @@ JSON_ANSWER = (
 def answering(instructions: str, schema: dict) -> str:
     """The system prompt of a model that takes no answer schema: the caller's
     instructions, then the schema its answer must match."""
-    return "\n\n".join(filter(None, [instructions, JSON_ANSWER + json.dumps(schema)]))
+    return "\n\n".join(filter(None, [instructions, JSON_ANSWER + json_block(schema)]))
 
 
 def answered(text: str, schema: dict, host: str) -> object:

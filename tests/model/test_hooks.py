@@ -30,6 +30,7 @@ from interact_support import (
     delivered,
     delivered_ref,
     freeze_events,
+    inlined,
     last_deliverable_seq,
     owed_answers,
     page_state,
@@ -65,6 +66,7 @@ from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.json_block import json_block, read_json_block
 from leaf.registry.storage import LAYER, layer_record
 from leaf.served_state import context as context_model
 
@@ -322,7 +324,7 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     # The Stop hook delivers this one into the running turn itself.
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    [batch] = inlined(reason)["batches"]
     assert [event["id"] for event in batch["events"]] == ["c2"]
     claim_record_9 = service_model.page_claim(others)
     assert claim_record_9 is not None
@@ -438,7 +440,7 @@ def test_a_named_wait_does_not_invent_turn_entry(claimed, printing, capsys):
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    [batch] = inlined(reason)["batches"]
     assert [event["id"] for event in batch["events"]] == ["c1"]
     claim_record_18 = service_model.page_claim(claimed)
     assert claim_record_18 is not None
@@ -494,7 +496,7 @@ def test_a_stop_leaves_input_arriving_at_the_end_to_a_turn_of_its_own(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     claim = service_model.page_claim(claimed)
     assert claim is not None
@@ -524,7 +526,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
-    envelope = json.loads(continued(answer).split("\n")[1])
+    envelope = inlined(continued(answer))
     [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     claim = service_model.page_claim(claimed)
@@ -571,7 +573,7 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
     hooks_model.cmd_hook("claude-code", repeated)
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
-    envelope = json.loads(continued(answer).split("\n")[1])
+    envelope = inlined(continued(answer))
     [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [error["id"], comment["id"]]
     assert handed(claimed, error["id"]) and handed(claimed, comment["id"])
@@ -610,9 +612,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
 
     monkeypatch.setattr(hook_transport_model, "freeze_delivery", freeze_then_transfer)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    opening, envelope, *_ = continued(capsys.readouterr().out).split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(continued(capsys.readouterr().out))["batches"]
     assert (batch["page"], [event["id"] for event in batch["events"]]) == (
         str(claimed),
         [comments[claimed]["id"]],
@@ -635,10 +635,8 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
-    again = json.loads(
-        json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-            "additionalContext"
-        ].split("\n")[1]
+    again = inlined(
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
     )
     [batch] = again["batches"]
     assert (batch["page"], [event["id"] for event in batch["events"]]) == (
@@ -730,7 +728,7 @@ def test_a_pointer_is_handed_once_per_turn_until_its_reader_confirms(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
+    [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [later["id"]]
 
     # A new turn's prompt hands over again whatever a pointer left unconfirmed.
@@ -816,9 +814,7 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     )
 
     hooks_model.cmd_hook("pi", {"hook_event_name": "Stop", "session_id": "s1"})
-    opening, envelope, *_ = continued(capsys.readouterr().out).split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(continued(capsys.readouterr().out))["batches"]
     assert [(event["id"], event["text"]) for event in batch["events"]] == [
         (comment["id"], text)
     ]
@@ -882,8 +878,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
         "additionalContext"
     ]
     leases_model.release_lease(lease)
-    envelope = context.split("\n")[1]
-    payload = json.loads(envelope)
+    payload = inlined(context)
     assert payload["acknowledge"] is None
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
@@ -911,7 +906,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     )
     boundary = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert boundary["hookEventName"] == "PostToolBatch"
-    later_delivery = json.loads(boundary["additionalContext"].split("\n")[1])
+    later_delivery = inlined(boundary["additionalContext"])
     assert later_delivery["acknowledge"] is None
     [batch] = later_delivery["batches"]
     assert [event["id"] for event in batch["events"]] == [later["id"]]
@@ -1004,7 +999,7 @@ def test_a_prompt_escape_dropped_is_handed_its_input_again_after_one_wake(
         context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
             "additionalContext"
         ]
-        [batch] = json.loads(context.split("\n")[1])["batches"]
+        [batch] = inlined(context)["batches"]
         return [event["id"] for event in batch["events"]]
 
     def retitled(title: str) -> None:
@@ -1117,7 +1112,7 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
     and a missing transcript show nothing."""
     delivery = {"batches": [{"events": [{"id": "e1"}, {"id": "e2"}]}]}
     inline = "\n".join(
-        [hook_transport_model.INLINE_OPENING, json.dumps(delivery), "Leaf needs"]
+        [hook_transport_model.INLINE_OPENING, json_block(delivery), "Leaf needs"]
     )
     records = [
         {"type": "user", "promptId": "p1", "message": {"content": "hi"}},
@@ -1472,7 +1467,7 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     assert acknowledged_through(claimed) == asked["seq"]
     assert asked["id"] in reminder
     # The widget error that moved the log goes inline; the comment only as owed.
-    [batch] = json.loads(reminder.split("\n")[1])["batches"]
+    [batch] = inlined(reminder)["batches"]
     assert asked["id"] not in [event["id"] for event in batch["events"]]
 
 
@@ -1626,16 +1621,16 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     observations["the watch wakes the session"] = hooks_model.cmd_watch(
         "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
     )
-    # The context is an instruction line, the delivery on the next, then what the
-    # turn owes; shown apart so the delivery reads as data.
+    # The context is an instruction line, the delivery's block after it, then what
+    # the turn owes; shown apart so the delivery reads as data.
     context = hook("UserPromptSubmit")["hookSpecificOutput"]["additionalContext"]
-    instruction, delivery, *attention = context.split("\n")
+    instruction, _, rest = context.partition("\n")
+    envelope, attention = read_json_block(rest)
     observations["delivered at prompt"] = {
         "instruction": instruction,
-        "delivery": json.loads(delivery),
-        "attention": "\n".join(attention),
+        "delivery": envelope,
+        "attention": attention,
     }
-    envelope = json.loads(delivery)
     assert envelope["batches"][0]["events"][0]["id"] == sent["id"]
     session = service_model.page_claim(page)
     assert session is not None
@@ -1714,13 +1709,6 @@ def test_prompt_and_stop_reuse_the_original_unanswered_delivery(
         assert delivered_ref(claimed, asked["id"]) == ref
 
 
-def inline_delivery(context: str) -> dict:
-    """The delivery a hook handed over inline, from the context it added."""
-    opening, envelope, *_ = context.split("\n")
-    assert opening == hook_transport_model.INLINE_OPENING
-    return json.loads(envelope)
-
-
 def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered(
     claimed, capsys, monkeypatch
 ):
@@ -1757,7 +1745,7 @@ def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered
     output = json.loads(capsys.readouterr().out)
     context = output["hookSpecificOutput"]["additionalContext"]
     assert re.findall(r'<leaf-delivery id="(\w+)"', context) == [captured["id"]]
-    handed = inline_delivery(context)
+    handed = inlined(context)
     assert handed["id"] != original.partition(":")[0]
     [batch] = delivery_model.read_delivery(handed["id"])["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
@@ -1917,10 +1905,8 @@ def test_a_hook_stopped_before_receipt_has_confirmed_nothing(
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
-    retry = json.loads(
-        json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-            "additionalContext"
-        ].split("\n")[1]
+    retry = inlined(
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
     )
     assert [len(batch["events"]) for batch in retry["batches"]] == [1, 1]
     assert all(
@@ -2141,7 +2127,7 @@ def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
         "additionalContext"
     ]
     assert old not in context
-    handed = inline_delivery(context)["id"]
+    handed = inlined(context)["id"]
     [batch] = delivery_model.read_delivery(handed)["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
     # Its receipt records the new ref, so no later hook hands it over again.
@@ -2281,8 +2267,8 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
         )
         assert elapsed == pytest.approx(hook_transport_model.CONFIRM_WITHIN)
-        _, envelope, *_ = continued(capsys.readouterr().out).split("\n")
-        assert [batch["page"] for batch in json.loads(envelope)["batches"]] == [
+        envelope = inlined(continued(capsys.readouterr().out))
+        assert [batch["page"] for batch in envelope["batches"]] == [
             str(claimed.resolve())
         ]
     finally:

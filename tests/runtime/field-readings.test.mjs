@@ -9,7 +9,6 @@ import { leafSays, wordsText } from "/runtime/voice.js";
 
 /** @param {string} word */
 const press = (word) => ({ word, keys: [], run: () => {} });
-const CLOSE = press("Close");
 const NEXT_ON_ME = press("Next On Me");
 const NEXT_THREAD = press("Next thread");
 
@@ -23,26 +22,23 @@ const facts = (over = {}) => ({
   notice: null,
   goTo: null,
   step: null,
-  stance: null,
+  still: false,
   standing: () => [],
   destination: () => leafSays("Comment…"),
   status: () => [leafSays("Running the browser suite")],
-  close: () => null,
   pagePress: () => null,
   ...over,
 });
 const said = (moment) => wordsText(readField(moment).words);
 
-// Every reading's facts at once, in Draw mode on an older version.
+// Every reading's facts at once, on an older version.
 const everything = {
   error: { message: "Couldn't load v3" },
   held: "g t run when the page is ready",
   writing: true,
   selected: "the queue fills",
   notice: { message: "Updated to v4", press: null },
-  stance: "In Draw mode",
-  standing: () => [leafSays("In Draw mode · "), leafSays("v1 of 2 · ")],
-  close: () => CLOSE,
+  standing: () => [leafSays("v1 of 2 · ")],
 };
 
 test("the status is the page field's own words, after where the user stands", () => {
@@ -99,24 +95,46 @@ test("a walk's step takes the page field's words, and leaves a thread's Reply", 
   assert.deepEqual([goTo.says, goTo.end], ["notice", "Reply…"]);
 });
 
-test("a notice leads with the stance alone, a walk's step with where the user stands", () => {
-  const drawing = facts({ ...everything, error: null, held: null, writing: false });
-  assert.equal(said({ ...drawing, selected: null }), "In Draw mode · Updated to v4");
+test("a notice leads with nothing, a walk's step with where the user stands", () => {
+  const behind = facts({ ...everything, error: null, held: null, writing: false });
+  assert.equal(said({ ...behind, selected: null }), "Updated to v4");
   const step = readField({
-    ...drawing,
+    ...behind,
     selected: null,
     notice: null,
     step: "1 of 3 waiting on me",
   });
-  assert.equal(wordsText(step.words), "In Draw mode · v1 of 2 · 1 of 3 waiting on me");
-  assert.deepEqual([step.end, step.exits], [CLOSE, true]);
-  const resting = readField({ ...drawing, selected: null, notice: null });
-  assert.equal(
-    wordsText(resting.words),
-    "In Draw mode · v1 of 2 · Running the browser suite",
+  assert.equal(wordsText(step.words), "v1 of 2 · 1 of 3 waiting on me");
+  assert.equal(said(behind), "v1 of 2 · “the queue fills”");
+});
+
+test("while a stance stands the field offers nothing that enters it", () => {
+  const still = { still: true, pagePress: () => NEXT_ON_ME };
+  const page = readField(facts(still));
+  assert.deepEqual(
+    [wordsText(page.words), page.end],
+    ["Running the browser suite", NEXT_ON_ME],
   );
-  assert.deepEqual([resting.end, resting.exits], [CLOSE, true]);
-  assert.equal(said(drawing), "In Draw mode · v1 of 2 · “the queue fills”");
+  assert.equal(readField(facts({ still: true })).end, null);
+  const thread = readField(facts({ ...still, thread: true }));
+  assert.deepEqual(
+    [thread.says, wordsText(thread.words), thread.end],
+    ["turn", "", null],
+  );
+  assert.equal(
+    readField(facts({ ...still, error: { message: "Couldn't load v3" } })).end,
+    null,
+  );
+  // Words selected on the page are commented on in a box of their own.
+  assert.equal(
+    readField(facts({ ...still, selected: "the queue fills" })).end,
+    "Comment…",
+  );
+  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD };
+  assert.equal(
+    readField(facts({ ...still, thread: true, notice: resolved })).end,
+    NEXT_THREAD,
+  );
 });
 
 test("a notice offering a press says it over an error, and offers its press", () => {

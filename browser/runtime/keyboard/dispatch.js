@@ -145,8 +145,11 @@ export const userIn = (scope) => {
 // the first comment.
 /** @param {Scope} scope */
 const currentLocation = (scope) => userIn(scope) && pageHas(scope);
-/** The stance the user is in, innermost, with its way out (register.js, `stances`),
- * or null. */
+/** The stances the user is in, innermost first, each with its way out (register.js,
+ * `stances`). */
+export const standingStances = () =>
+  stances().filter(({ scope }) => currentLocation(scope));
+/** The stance the user is in, innermost, with its way out, or null. */
 export const innermostStance = () =>
   stances().find(({ scope }) => currentLocation(scope)) ?? null;
 /** @param {(binding: string) => boolean} claims @returns {Scope} */
@@ -516,10 +519,8 @@ export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 // (close-requests.js): whether a press would take a step now, and taking it, through
 // the row's `keep` where it declares one (bindings.js).
 const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
-/** The step Escape would take now, or null: what a surface that names Escape's step
- * reads, as the floating panel's Close says `esc` only while Escape takes the stance
- * off. */
-export const escapeInvocation = () => {
+/** The step Escape would take now, or null. */
+const escapeInvocation = () => {
   const matched = resolveKey(escapePress());
   return matched && matched !== INPUT_PENDING ? matched : null;
 };

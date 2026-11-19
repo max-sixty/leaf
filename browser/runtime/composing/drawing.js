@@ -708,6 +708,7 @@ export function createDrawingController({
   // remains the drawing surface rather than receiving the drag.
   pageScope("draw mode", {
     title: "In Draw mode",
+    says: "Draw",
     at: drawModeActive,
     // Undo here is the stroke's, so with no stroke to take back the press does nothing
     // rather than falling through to undo a gesture the user made outside the mode.

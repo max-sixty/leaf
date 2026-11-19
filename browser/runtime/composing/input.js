@@ -97,6 +97,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {() => unknown} [hintLead]
  * @property {() => string | BoxPress | null} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
+ * @property {() => boolean} [closed]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
  * @property {string} [sendClass]
@@ -355,6 +356,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // while the page holds keys pressed before it loaded, which a key would only join.
       enters = () => "",
       accessibleName = null,
+      // Whether the box takes no words now, as the panel's field while a stance
+      // stands (field-readings.js, `still`): its draft stays, unwritable, and it
+      // offers neither Send nor the microphone until this says otherwise.
+      closed = () => false,
       save,
       send,
       sendClass = "",
@@ -614,6 +619,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${pressText ? ` · ${pressText}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+      const shut = closed();
+      if (ta.readOnly !== shut) ta.readOnly = shut;
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
@@ -652,7 +659,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const phase = dictationPhase();
       const live = phase === "starting" || phase === "listening";
       const failed = loadingFailure || dictation?.failure;
-      const micShown = offersDictation && (phase !== "idle" || !hasWords);
+      const micShown = offersDictation && !shut && (phase !== "idle" || !hasWords);
       const micAction = live
         ? "Stop dictation"
         : phase === "stopping"
@@ -669,7 +676,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
-        ?hidden=${micShown}
+        ?hidden=${micShown || shut}
         aria-keyshortcuts=${sendBindings().flatMap(ariaBindings).join(" ")}
         @mousedown=${keepEditing}
         @click=${() => pressed()}
@@ -892,6 +899,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (focused() === ta) followBoxGrowth(ta);
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
+    // A press on a box that takes no words leaves the caret where it was (`closed`),
+    // and goes on to whatever the box's owner does with it, such as commenting on words
+    // selected on the page.
+    ta.addEventListener("pointerdown", (event) => {
+      if (closed()) event.preventDefault();
+    });
     ta.addEventListener(
       "lf-before-edit",
       () => {

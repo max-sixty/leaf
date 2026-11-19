@@ -1396,6 +1396,8 @@ export function createResponseSurface({
         (inlineBox ? { held: inline, box: inlineBox } : null),
     };
   }
+  /** @param {Element | null} box */
+  const readOnlyBox = (box) => Boolean(box && "readOnly" in box && box.readOnly);
   /** @returns {{title: string, box: Element | null, go: () => unknown, rest?: NonNullable<ReturnType<ResponseOptions["currentTarget"]>>}} */
   function commentDestination() {
     // The panel's field quotes the selected words, and a press there does what c does,
@@ -1577,7 +1579,12 @@ export function createResponseSurface({
     // row's own liveness is where that is said rather than a refusal inside run that no
     // surface can see.
     //
-    when: () => anchoringIsReady() || !pageSelection(),
+    // A box that takes no words now, as the panel's field while a stance stands
+    // (field-readings.js, `still`), is no place for c to write; words selected on the
+    // page still are, since a comment on them opens a box of its own.
+    when: () =>
+      (anchoringIsReady() || !pageSelection()) &&
+      (Boolean(offeredSelection) || !readOnlyBox(commentDestination().box)),
     run: () => {
       // Activation reads the current native selection directly. Painting its offer
       // first would displace the reading controls only to restore them in this press.

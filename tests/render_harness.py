@@ -2039,10 +2039,17 @@ def panel_field(page):
 def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
     (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
-    Resolve's Next thread, a stance's Close, or the page's own, Open latest or Next On
-    Me (field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the
-    key that makes it the `kbd` after it."""
+    Resolve's Next thread, or the page's own, Open latest or Next On Me
+    (field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the key that
+    makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
+
+
+def stance_exit(page):
+    """The ✕ at the panel row's end that ends the stance standing, such as Draw mode or
+    the target picker, named by its `aria-label`, beside the mode chip that names the
+    stance (floating-panel.js, `fieldExit`)."""
+    return page.locator(".lf-fp-quick .lf-fp-exit")
 
 
 def latest_press(page):

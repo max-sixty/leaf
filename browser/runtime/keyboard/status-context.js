@@ -1,11 +1,11 @@
 /* What the page says between notices about where the keyboard has the user: the Go-to
  * filter's word while a `g` sequence holds one, a walk's position ("1 of 3 threads")
  * after a list walk, and what the stance the user is in says, its `says` or else its
- * title ("In Draw mode"; dispatch.js, `innermostStance`).
- * The floating panel reads this signal for its empty field, where a stance leads the
- * page status, and the Go-to words, or a walk's position for its step's moment, take
- * the status's place (field-readings.js); its row names the stance beside the stance's
- * ✕ by `stanceWords`, read when it paints. Painted in the repaint
+ * title ("Draw"; dispatch.js, `innermostStance`).
+ * The floating panel reads this signal for its empty field, where the Go-to words, or
+ * a walk's position for its step's moment, take the status's place, and which takes
+ * no words while a stance stands (field-readings.js, `still`); its row names the
+ * stance beside the stance's ✕ by `stanceWords`, read when it paints. Painted in the repaint
  * frame (repaint.js), since these readings follow focus, the sequence's state and the
  * register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows

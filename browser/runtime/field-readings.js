@@ -8,40 +8,44 @@
  * The agent's status is the page field's own words. Something of the user's takes their
  * place only while it answers or directs what the user is doing now, for as long as its
  * owner says it stands, which each reading's comment names. Where the user stands by a
- * choice that lasts until they undo it, a stance such as Draw mode, an older version, a
- * comparison or hidden annotations, leads the status instead (`lead`). The user asked
- * for this for a walk's position, so the agent's updates show while they read at its
- * stop, and chose that a stance follow the same rule. Rejected: a walk's position leading the
- * status as a version does, which grows stale as the user reads on from its stop and
- * costs the status the end of its words.
+ * choice that lasts until they undo it, an older version, a comparison or hidden
+ * annotations, leads the status instead (`lead`). The user asked for this for a walk's
+ * position, so the agent's updates show while they read at its stop. Rejected: a walk's
+ * position leading the status as a version does, which grows stale as the user reads on
+ * from its stop and costs the status the end of its words. A stance such as Draw mode
+ * is named in the row's mode chip beside its ✕ (floating-panel.js, `stanceName`), not
+ * in these words.
  *
  * What stands before a reading's words (`lead`) is where the user stands ("standing";
- * floating-panel.js, `standing`), or the stance alone ("stance"), or nothing. A notice
- * takes the stance alone, since news often announces a change to where the user stands
- * ("Annotations hidden — o shows them"), which would otherwise be said twice, and the
- * field's end may offer the stance's Close, which the words should name; the rest of
- * where the user stands comes back with the status a moment later. The Go-to word and
- * a walk's position take all of where the user stands, which a walk over a list one of
- * those facts is about counts on: it says its place alone after them, "5 changes since
- * v2 · 1 of 5" (walk-position.js, `walkWords`).
+ * floating-panel.js, `standing`), or nothing. A notice takes nothing, since news often
+ * announces a change to where the user stands ("Annotations hidden — o shows them"),
+ * which would otherwise be said twice; where the user stands comes back with the status
+ * a moment later. The Go-to word and a walk's position take all of where the user
+ * stands, which a walk over a list one of those facts is about counts on: it says its
+ * place alone after them, "5 changes since v2 · 1 of 5" (walk-position.js, `walkWords`).
+ *
+ * While a stance stands the field takes no words (`still`): the user asked that a mode
+ * stop writing in the field, and that its Reply… and microphone go, so the row reads the
+ * field's words, the mode's name and its ✕. Its end then offers no press that enters
+ * the field; a press that acts elsewhere, such as commenting on selected words in a
+ * box of their own, stays. A draft the field holds stays in it, unwritable, until the
+ * stance ends.
  *
  * The field's end offers one press, the one that matters most at that moment (`end`):
  * - "key": the key that enters the field, after the words, as Reply's c;
  * - "comment": Comment… and that key, as the field says at rest;
  * - "moment": a notice's own press after the user's gesture, such as a Resolve's Next
- *   thread and t (notifications.js, `press`); else on the page the stance's Close, in
- *   place of the seat's ✕; else the page's own press, Open latest on an older version
- *   or Next On Me while On Me lists anything (floating-panel.js, `pagePress`); else
- *   Comment… and its key. In a thread, Reply… and its key, as the field says at rest,
- *   so the key never stands alone after the notice's words;
+ *   thread and t (notifications.js, `press`); else the page's own press, Open latest on
+ *   an older version or Next On Me while On Me lists anything (floating-panel.js,
+ *   `pagePress`); else Comment… and its key. In a thread, Reply… and its key, as the
+ *   field says at rest, so the key never stands alone after the notice's words;
  * - "none": nothing.
  * While the page holds keys pressed before it was ready, the end offers nothing, since a
  * key there would only join them. A press acts as a touch control does, wherever the
  * caret stands, and says its key only while that key would make it now: `m` typed in a
- * card's reply is a letter, and Escape closes a comment box standing in Design mode
- * before the mode. The user chose a notice's press, so a Resolve that moves the panel on
- * says which thread it resolved and offers its next step there, over Undo and ⌘Z after a
- * Resolve, and the ✕ with Escape unsaid in a stance. They chose Next On Me at rest while
+ * card's reply is a letter. The user chose a notice's press, so a Resolve that moves the
+ * panel on says which thread it resolved and offers its next step there, over Undo and
+ * ⌘Z after a Resolve. They chose Next On Me at rest while
  * On Me lists anything over Comment and c, since from reading or backing out `m` is the
  * press they most often make next; `c` still enters the field, and Comment and c stand
  * again once nothing waits. Rejected: Next On Me only after an answer, until the user's
@@ -78,16 +82,15 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @property {string | null} goTo the Go-to filter's word while its sequence waits
  * @property {string | null} step a walk's position for its step's moment, in the words
  * the field's own leave unsaid
- * @property {string | null} stance the stance the user is in, by name, on the page
+ * @property {boolean} still whether a stance stands, so the field takes no words
  * @property {() => readonly (string | Said)[]} standing where the user stands on the
  * page, each part ending in its separator; nothing in a thread
  * @property {() => Words} destination where words typed in the field go
  * @property {() => Words} status the status's words
- * @property {() => BoxPress | null} close the stance's Close
  * @property {() => BoxPress | null} pagePress the page's own press
  */
 
-/** @typedef {"standing" | "stance"} Lead
+/** @typedef {"standing" | null} Lead
  * @typedef {{says: string, field?: "page" | "thread", claims: (f: FieldFacts) => Words | null,
  * lead?: Lead | ((f: FieldFacts) => Lead), end: End, offers?: boolean}} FieldReading */
 
@@ -119,7 +122,7 @@ export const FIELD_READINGS = Object.freeze([
   // says what still stands once the caret leaves.
   {
     says: "destination",
-    claims: (f) => (f.writing ? f.destination() : null),
+    claims: (f) => (f.writing && !f.still ? f.destination() : null),
     end: "key",
   },
   // Words selected on the page, while they stand, inside a stance too, after the Go-to
@@ -141,15 +144,15 @@ export const FIELD_READINGS = Object.freeze([
     offers: true,
   },
   // What passes in the panel's one seat for passing words (`passingWords`), a notice
-  // after the stance alone and the Go-to word or a walk's position after where the user
-  // stands (`lead`, above).
+  // alone and the Go-to word or a walk's position after where the user stands (`lead`,
+  // above).
   {
     says: "notice",
     claims: (f) => {
       const passing = passingWords(f);
       return passing ? noticeWords(passing) : null;
     },
-    lead: (f) => (f.notice ? "stance" : "standing"),
+    lead: (f) => (f.notice ? null : "standing"),
     end: "moment",
   },
   // An open thread's reply box says Reply with the key that enters it, while the
@@ -159,11 +162,12 @@ export const FIELD_READINGS = Object.freeze([
   // over the key beside Reply with the turn at the field's end in one face, Reply alone
   // with the turn left to the thread's messages, and the agent's words in a lane of
   // their own before the seat. Reply takes the one dim face the user chose for every
-  // comment box's word.
+  // comment box's word. While a stance stands the box takes no reply, so it says
+  // nothing after the turn (`still`).
   {
     says: "turn",
     field: "thread",
-    claims: () => leafSays(REPLY_HINT),
+    claims: (f) => (f.still ? [] : leafSays(REPLY_HINT)),
     end: "key",
     offers: true,
   },
@@ -198,9 +202,9 @@ export const passingWords = (f) => f.notice?.message ?? navigation(f);
 const navigation = (f) => f.goTo ?? (f.thread ? null : f.step);
 
 /** What the field says: which reading (`says`), its words with what leads them
- * (`lead`), and what its end offers (`end`: a press, the word its key enters with, the
- * key alone as "", or null), whether that is the stance's Close (`exits`), and whether
- * the words name what a press on the field does (`offers`).
+ * (`lead`), what its end offers (`end`: a press, the word its key enters with, the key
+ * alone as "", or null), and whether the words name what a press on the field does
+ * (`offers`).
  * @param {FieldFacts} f */
 export function readField(f) {
   const field = f.thread ? "thread" : "page";
@@ -209,39 +213,29 @@ export function readField(f) {
     const said = reading.claims(f);
     if (said === null) continue;
     const leads = typeof reading.lead === "function" ? reading.lead(f) : reading.lead;
-    const lead =
-      leads === "standing"
-        ? f.standing()
-        : leads === "stance" && f.stance
-          ? [leafSays(`${f.stance} · `)]
-          : [];
+    const lead = leads === "standing" ? f.standing() : [];
     const words = [...lead, ...[said].flat()];
-    const { end, exits } = endOf(reading.end, f, words);
     return {
       says: reading.says,
       words,
       lead,
-      end,
-      exits,
+      end: endOf(reading.end, f, words),
       offers: Boolean(reading.offers),
     };
   }
   throw new Error("No reading claimed the field");
 }
 
-/** @type {{end: null, exits: false}} */
-const NOTHING = { end: null, exits: false };
-
-/** While the page holds keys, every reading's end offers nothing (`held`).
+/** While the page holds keys, every reading's end offers nothing (`held`), and while a
+ * stance stands, nothing that enters the field (`still`).
  * @param {End} kind @param {FieldFacts} f @param {readonly (string | Said)[]} words
- * @returns {{end: BoxPress | string | null, exits: boolean}} */
+ * @returns {BoxPress | string | null} */
 function endOf(kind, f, words) {
-  if (kind === "none" || f.held) return NOTHING;
-  if (kind === "key") return { end: "", exits: false };
-  if (kind === "comment") return { end: COMMENT_HINT, exits: false };
-  if (f.notice?.press) return { end: f.notice.press, exits: false };
-  if (f.thread) return { end: wordsText(words) ? REPLY_HINT : "", exits: false };
-  const close = f.close();
-  if (close) return { end: close, exits: true };
-  return { end: f.pagePress() ?? (wordsText(words) ? COMMENT_HINT : ""), exits: false };
+  if (kind === "none" || f.held) return null;
+  if (kind === "comment") return COMMENT_HINT;
+  if (kind === "key") return f.still ? null : "";
+  if (f.notice?.press) return f.notice.press;
+  if (f.still) return f.thread ? null : f.pagePress();
+  if (f.thread) return wordsText(words) ? REPLY_HINT : "";
+  return f.pagePress() ?? (wordsText(words) ? COMMENT_HINT : "");
 }

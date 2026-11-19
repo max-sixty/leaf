@@ -60,9 +60,11 @@ running that code. Nothing enforces that instruction. In yolo mode, code Tend me
 `main` can run in a later job that holds the token.
 
 On the maintainer's machine, the agent token is the 1Password secret
-`op://Max/Cloudflare Leaf agent administration/credential`. Load it straight into the
-process that uses it, as `CLOUDFLARE_API_TOKEN`, and never print it or write it to a
-file.
+`op://Max/Cloudflare Leaf agent administration/credential`. Read it with the 1Password
+service account, which needs no approval, straight into the process that uses it as
+`CLOUDFLARE_API_TOKEN`, and never print it or write it to a file. A bare `op` command
+signs in as the person and waits for an approval that an unattended session cannot
+give.
 
 ## Local development
 

@@ -2142,15 +2142,18 @@ SCROLL_ALL_BACK = """() => {
 
 
 def into_the_page(page):
-    """Tab to a page control where `c` names its item rather than edits its text."""
+    """Tab to a page control where `c` reaches Leaf's comment, by the dispatcher's own
+    reading, rather than the control's text or typeahead."""
     for _ in range(12):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
             const {focused} = await window.__lfWidgetApi();
-            const {takesLetters} = await window.__lfCheckApi();
-            const {closestAcross} = await window.__lfCheckApi();
+            const {availableCommandRoutes, closestAcross} = await window.__lfCheckApi();
             const at = focused();
-            return Boolean(at && closestAcross(at, 'main') && !takesLetters(at));
+            if (!at || !closestAcross(at, 'main')) return false;
+            for (const [row, keys] of availableCommandRoutes())
+              if (row.id === 'comment.create' && keys.has('c')) return true;
+            return false;
         }"""):
             return True
     return False

@@ -400,7 +400,7 @@ def board_names_release(html: str, marker: str) -> bool:
     return body is not None and (
         names_release(body.to_text(), marker)
         or any(
-            names_release(element.attrs.get("label") or "", marker)
+            names_release(str(element.attrs.get("label") or ""), marker)
             for element in body.find_all(True)
         )
     )

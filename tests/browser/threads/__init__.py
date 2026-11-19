@@ -525,8 +525,8 @@ def clear_of_the_panel(page, locator):
 
 def pressed_send_surface(browser, serve, surface):
     """A page with words typed into `surface`'s box, and that box, the control that
-    submits it, the current location once it has sent, and the reply box a follow-up
-    is written in: the same box for one that stays to take more, else None."""
+    submits it, the thread the send leaves the user on, and the reply box a follow-up
+    is written in."""
     if surface in {"pause", "handoff"}:
         url, host = seated_page(serve, "task" if surface == "pause" else "verdict")
         page = open_page(browser, url)
@@ -547,7 +547,7 @@ def pressed_send_surface(browser, serve, surface):
         box = thread.locator(".lf-thread-reply leaf-text")
         box.click()
         send = thread.locator(".lf-thread-reply .lf-compose-submit")
-        after = reply = box
+        after, reply = thread, box
     elif surface == "composer-widget":
         url = serve(
             leaf_page(
@@ -598,16 +598,17 @@ def pressed_send_surface(browser, serve, surface):
             box = field.locator('leaf-text[name="reply"]')
             box.click()
         send = holder.locator(".lf-compose-submit")
-        # Conversation sends land where the conversation goes on: a reply in its box, a
-        # card's as the panel's, a page comment opening its thread there, which the
-        # field then replies in.
+        # A send lands on the thread the conversation goes on in: a card's reply on its
+        # card, the panel's, and a page comment opening its thread there, on the panel's
+        # view of the thread, whose reply the field then holds.
         reply_box = field.locator('leaf-text[name="reply"]')
+        card = page.locator(".lf-margin-preview .lf-page-thread")
         after = {
-            "card": box,
-            "composer": page.locator(".lf-margin-preview .lf-page-thread"),
-            "composer-panel": page.locator(".lf-margin-preview .lf-page-thread"),
-            "panel": reply_box,
-            "general": reply_box,
+            "card": card,
+            "composer": card,
+            "composer-panel": card,
+            "panel": page.locator(PANEL_THREAD),
+            "general": page.locator(PANEL_THREAD),
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")

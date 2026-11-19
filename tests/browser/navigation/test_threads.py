@@ -1018,7 +1018,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
 
 def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     """A send lands the new message in the open thread's view, whole where it fits and
-    its end where it does not, and leaves the user in the reply."""
+    its end where it does not, and leaves the user on the view."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Where should this explanation go?")
     page = open_page(browser, url)
@@ -1038,7 +1038,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
         }""",
         arg=[view.element_handle(), message.element_handle()],
     )
-    expect(panel_field(page)).to_be_focused()
+    expect(view).to_be_focused()
 
     write(box, "Long reply. " * 90)
     box.press("Enter")
@@ -1054,7 +1054,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
         }""",
         arg=[view.element_handle(), long_message.element_handle()],
     )
-    expect(panel_field(page)).to_be_focused()
+    expect(view).to_be_focused()
 
 
 def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):

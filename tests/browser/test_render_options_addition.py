@@ -375,6 +375,22 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     expect(added).to_have_attribute("selected", "")
 
 
+def test_a_keyboard_press_on_add_leaves_the_user_in_the_field(browser, serve):
+    """A box that stays to take more, as the add field does, keeps the user in it when
+    they press its send control from the keyboard, as Enter does, rather than on the
+    control, where the next letters would fall on nothing."""
+    page = open_page(browser, live_url(serve(OBLIGATION_PAGE)))
+    form = page.locator("#jobs > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    write(field, "Ask the neighbours first")
+    send = form.locator(".lf-compose-submit")
+    send.focus()
+    with sending(page, "the keyboard-pressed add"):
+        page.keyboard.press("Space")
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
+    expect(field).to_be_focused()
+
+
 PASTE_IMAGE = """(textarea, encoded) => {
   const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
   const transfer = new DataTransfer();

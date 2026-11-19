@@ -1257,6 +1257,8 @@
   // Read its actual final properties in the finished-promise checkpoint, while
   // that effect still applies, using the same eligibility proof as frame samples.
   const endings = new WeakMap();
+  // How and when each effect a reading saw ended, which the shift evidence reports.
+  const endedBy = new WeakMap();
   // A no-fill native effect retires before its finished promise runs. Capture its
   // underlying translation at the producer, before animate() applies the effect;
   // a later authored change cannot be mistaken for that native return endpoint.
@@ -1363,8 +1365,13 @@
       if (endings.get(animation) !== finished) {
         endings.set(animation, finished);
         finished.then(
-          () => readMotion(nativePerformance.now(), animation),
-          () => {},
+          () => {
+            const at = nativePerformance.now();
+            endedBy.set(animation, { how: "finished", at });
+            readMotion(at, animation);
+          },
+          () =>
+            endedBy.set(animation, { how: "cancelled", at: nativePerformance.now() }),
         );
       }
       const effect = animation.effect,
@@ -3941,6 +3948,12 @@
           target: animation.effect.target,
           selected: selected.includes(animation),
           properties: effectProperties(animation),
+          // Who the motion is credited to and how it ended, so a comparison with no
+          // accepted term tells an unowned effect from one whose end went unsampled.
+          began: beganAt.get(animation)?.at ?? null,
+          owned: renderings.some((rendering) => rendering.own.has(animation)),
+          carry: carrySteps.has(animation),
+          ended: endedBy.get(animation) ?? null,
           before: endpoint(samples.findLast((sample) => sample.at <= from)),
           after: endpoint(samples.findLast((sample) => sample.at <= to)),
         };

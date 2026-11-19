@@ -40,9 +40,9 @@
    that shared prefix. A moving page target cannot carry a readable opaque route, so the generated
    part of the map is withheld until the scene settles. Escape removes one typed letter,
    then a filter, then closes the sequence. Armed, the sequence is a stance
-   (touch-controls.js): the panel's field says "In Go-to" before the status, chips or
-   none, so the next key's owner is named where the user reads, and ends in Close, which
-   takes the sequence off from any step and says esc while Escape would. A letter from the hint alphabet is consumed
+   (touch-controls.js): the panel's row names it Go to beside the ✕ that takes the
+   sequence off from any step, so the next key's owner is named where the user reads.
+   A letter from the hint alphabet is consumed
    even when a scene refresh made it invalid, with explicit feedback instead of an
    unrelated page action; another unrelated key closes the sequence and is redispatched with
    its ordinary meaning.
@@ -523,7 +523,7 @@ export function createGoToSequence({
   /** @type {import("./bindings.js").Scope} */
   const GO_TO_SCOPE = {
     title: "Go to",
-    says: "In Go-to",
+    says: "Go to",
     escape: "inner",
     root: () => document,
     reach: "with g armed",

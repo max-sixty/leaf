@@ -393,6 +393,7 @@ export function createDesignMode({
   // line, the way the ⌥ aim's row does.
   pageScope("design mode", {
     title: "In Design mode",
+    says: "Design",
     at: () => designModeOn,
     rows: [
       {

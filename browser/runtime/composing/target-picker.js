@@ -918,6 +918,7 @@ export function createTargetPicker({
   /** @type {import("../keyboard/bindings.js").Scope} */
   const TARGET_PICKER_SCOPE = {
     title: "In the target picker",
+    says: "Select",
     escape: "inner",
     at: () => pickerMode.value === "hints",
     // The page owns search, even when target hints are standing over it. Exempt the

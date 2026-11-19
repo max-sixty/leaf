@@ -152,6 +152,7 @@ export function createRegionCapture({
         refreshCrosshair();
         removeScope = pageScope("region capture", {
           title: "Drag an area to capture",
+          says: "Capture",
           escape: "inner",
           at: () => Boolean(selector),
           claims: allButCommandReference,

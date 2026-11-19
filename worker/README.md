@@ -236,7 +236,7 @@ against the rate limits below.
 Revert the change on `main` and land the revert. The revert touches the same files, so
 its push runs `publish-site`, which deploys it as a new release through the same checks.
 As on any deploy, visitors keep their private pages unless the revert moves the page
-protocol.
+protocol or the session store's format (`STORE_FORMAT`).
 
 Do not use `wrangler rollback`. It reactivates an earlier Worker version, whose assets
 name the earlier release. Cloudflare's rollback documentation says resources connected
@@ -620,7 +620,8 @@ so the browser caches it as it would the live answer, and Back restores a page t
 visitor has acted on from the back/forward cache, as it does a locally served page
 ([browser support](../notes/browser-support.md), "Page cache"). File modification
 dates survive restore, including the publication date of an unstamped revision. A deploy keeps every session's records until the page
-protocol moves, and so does container replacement. `docs/website.html`, **Private sessions**, owns the
+protocol or the store's format moves (`worker/src/storage.ts`), and so does
+container replacement. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
 
 The append lease admits one staged successor per page. Preparation stores its descriptor

@@ -120,9 +120,9 @@ describe("website page routing", () => {
     expect(isPrivatePageRequest("/examples/triage-board/api/state")).toBe(false);
   });
 
-  it("marks private state for only its page and page protocol", () => {
+  it("marks private state for only its page and record scope", () => {
     const root = "/examples/triage-board";
-    const protocol = manifest.protocol;
+    const protocol = `${manifest.protocol}.1`;
     expect(
       activeFromCookie(
         `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${protocol}`,
@@ -149,7 +149,7 @@ describe("website page routing", () => {
     ).toBe(false);
     expect(
       activeFromCookie(
-        `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${protocol + 1}`,
+        `${ACTIVE_COOKIE_PREFIX}-page-examples%2Ftriage-board=${manifest.protocol + 1}.1`,
         true,
         root,
         protocol,

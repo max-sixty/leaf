@@ -2,21 +2,23 @@
  * Public Leaf site with edge reads and isolated canonical mutation sessions.
  *
  * Cloudflare serves untouched pages at the edge. A browser cookie selects a private
- * Durable Object, one per page protocol, holding canonical page records and
- * Python-produced dormant responses. Saved content loads without starting Linux.
- * Mutations wake the Python Leaf server, which restores the record before admission and
- * publishes the record and matching delivery atomically before acknowledgement. Python
- * owns all event and activity rules; this Worker stores and routes their output.
- * A visitor's records outlive a deploy at the same page protocol, as a local page
- * outlives a Leaf update: the next release's container restores them and serves them on
- * its own runtime, and a new protocol selects new records. The maintainer chose this
- * over a record per release, which reset every visitor's comments, choices and agent
- * thread at each deploy. Only the edge names a release to the browser: it stamps its own
- * on every answer, a container's included. Nothing a previous release runs reaches a
- * visitor: the page store refuses a container whose image runs another release, so a
- * previous image still starting during a rollout fails before it reads or writes the
- * records; the store serves a saved response only to the release that captured it; and
- * this object stops a container from before a deploy at the deploy's first request.
+ * Durable Object, one per page protocol and store format, holding canonical page
+ * records and Python-produced dormant responses. Saved content loads without starting
+ * Linux. Mutations wake the Python Leaf server, which restores the record before
+ * admission and publishes the record and matching delivery atomically before
+ * acknowledgement. Python owns all event and activity rules; this Worker stores and
+ * routes their output.
+ * A visitor's records outlive a deploy at the same page protocol and store format
+ * (`storage.ts`), as a local page outlives a Leaf update: the next release's container
+ * restores them and serves them on its own runtime, and a new protocol or format selects
+ * new records. The maintainer chose this over a record per release, which reset every
+ * visitor's comments, choices and agent thread at each deploy. Only the edge names a
+ * release to the browser: it stamps its own on every answer, a container's included.
+ * Nothing a previous release runs reaches a visitor: the page store refuses a container
+ * whose image runs another release, so a previous image still starting during a
+ * rollout fails before it reads or writes the records; the store serves a saved
+ * response only to the release that captured it; and this object stops a container
+ * from before a deploy at the deploy's first request.
  * Disposable sample URLs carry the opaque container object ID alongside their own
  * random capability, so an opaque-origin child uses native requests without a browser
  * session cookie. This routing reference selects a container only beneath that sample
@@ -55,6 +57,7 @@ import {
   readPageDrafts,
   readPublication,
   readPublicationCommit,
+  STORE_FORMAT,
 } from "./storage";
 
 import { agentLog, dispatchAgentTask, prewarmContainer } from "./agent";
@@ -382,11 +385,17 @@ function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-// A page protocol selects its own durable record and container, so a deploy at the same
-// protocol keeps a visitor's page and a protocol bump starts them on the published one.
-// Container replacement keeps the same record.
-function containerId(sessionId: string, protocol: number): string {
-  return `${protocol}:${sessionId}`;
+// What a visitor's record is readable by: Leaf's page protocol for the page files, and
+// the store's own format for the tables holding them (`STORE_FORMAT`). Each scope has
+// its own durable record and container, so a deploy that keeps both keeps a visitor's
+// page, and one that moves either starts them on the published page. Container
+// replacement keeps the same record.
+function recordScope(manifest: SiteManifest): string {
+  return `${manifest.protocol}.${STORE_FORMAT}`;
+}
+
+function containerId(sessionId: string, scope: string): string {
+  return `${scope}:${sessionId}`;
 }
 
 // The body as text, or null once it passes maxBytes, whether the client declared that
@@ -755,9 +764,10 @@ export default {
     const secure = url.protocol === "https:";
     const cookie = request.headers.get("Cookie");
     const existing = sessionFromCookie(cookie, secure);
-    const active = activeFromCookie(cookie, secure, route.root, manifest.protocol);
+    const scope = recordScope(manifest);
+    const active = activeFromCookie(cookie, secure, route.root, scope);
     const sessionId = existing ?? randomSessionId();
-    const privateContainer = containerId(sessionId, manifest.protocol);
+    const privateContainer = containerId(sessionId, scope);
     const reference = sessionReference(sessionId);
     if (request.method === "POST" && route.inside === "api/performance") {
       if (existing === null) {
@@ -891,10 +901,7 @@ export default {
     // never started names none, so neither the visitor's cookie nor their browser pins
     // later reads to that container.
     if (!active && response.headers.has("Leaf-Session"))
-      answer.headers.append(
-        "Set-Cookie",
-        activeCookie(secure, route.root, manifest.protocol),
-      );
+      answer.headers.append("Set-Cookie", activeCookie(secure, route.root, scope));
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
       answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }

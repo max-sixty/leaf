@@ -84,16 +84,17 @@ sequenceDiagram
         <p id="sessions-activation">
           The first request that needs private, mutable state, such as posting a comment
           or picking an option, goes to the visitor's container. Its response sets a
-          cookie marking that one page active at the current page protocol, the version
-          of the files Leaf keeps for a page. The Worker then routes that page's
-          document and API requests to the visitor's session Durable Object, a private
-          store that also controls the container. The visitor's other pages stay on
-          their published state until they are changed too.
+          cookie marking that one page active at the current page protocol and session
+          store format, the versions of the files Leaf keeps for a page and of the
+          tables that hold them. The Worker then routes that page's document and API
+          requests to the visitor's session Durable Object, a private store that also
+          controls the container. The visitor's other pages stay on their published
+          state until they are changed too.
         </p>
         <p id="sessions-container">
-          Each session belongs to one browser identity and one page protocol, so it
-          lasts across deploys that keep the protocol. Its container image holds the
-          whole site build and runs <code>leaf_website</code>, an adapter that maps each
+          Each session belongs to one browser identity, page protocol and store format,
+          so it lasts across deploys that keep both. Its container image holds the whole
+          site build and runs <code>leaf_website</code>, an adapter that maps each
           public route to its page directory and hands the request to the HTTP routes
           and event admission a locally served Leaf uses. Before accepting a mutation,
           Python restores each page the session saved, in place of the image's copy. A
@@ -229,8 +230,8 @@ sequenceDiagram
             A deploy keeps the session's record. The new release's container restores
             each page as the visitor left it, with the revisions they read, and serves
             it on the new runtime, even where the published page has changed since. A
-            new page protocol, which is rare, selects a new record and container, which
-            start from the published page.
+            new page protocol or store format, both rare, selects a new record and
+            container, which start from the published page.
           </li>
         </ul>
         <p id="state-restart">
@@ -238,11 +239,11 @@ sequenceDiagram
           mutation. Container replacement does not force an open page to reload. Each
           unsent draft is saved in the session's record before the container confirms
           it, so a replacement container restores every confirmed draft, even when the
-          container before it was lost without stopping. A new page protocol starts its
-          session record with no drafts, and a tab still holding drafts from before
-          saves them into it once the visitor next acts on the page. Running agent turns
-          belong to the container process, so saving page content does not preserve a
-          running turn.
+          container before it was lost without stopping. A new page protocol or store
+          format starts its session record with no drafts, and a tab still holding
+          drafts from before saves them into it once the visitor next acts on the page.
+          Running agent turns belong to the container process, so saving page content
+          does not preserve a running turn.
         </p>
         <p id="state-records">
           The site counts accepted events in Analytics Engine without their content,

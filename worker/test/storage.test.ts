@@ -5,7 +5,14 @@ import type {
 } from "../../browser/types/contract.js";
 import { describe, expect, it } from "vitest";
 import { unpackTar } from "modern-tar";
-import { CHUNK_BYTES, PageStore, type PagePublication } from "../src/storage";
+import { createHash } from "node:crypto";
+import {
+  CHUNK_BYTES,
+  PageStore,
+  STORE_FORMAT,
+  STORE_TABLES,
+  type PagePublication,
+} from "../src/storage";
 import { sqliteStorage } from "./sqlite";
 
 async function capture(
@@ -69,7 +76,22 @@ const manifest = {
   ),
 };
 
+// The table shape each store format holds, as a digest of `STORE_TABLES`. A visitor's
+// store outlives deploys, so a change to the tables moves `STORE_FORMAT` and adds its
+// shape here; the earlier formats' entries stay, so none is rewritten in place.
+const FORMATS: Record<number, string> = {
+  1: "5bf1a647f4748ee6",
+};
+
 describe("durable website page records", () => {
+  it("moves its store format with the shape of its tables", () => {
+    const shape = createHash("sha256").update(STORE_TABLES).digest("hex").slice(0, 16);
+    expect(
+      FORMATS[STORE_FORMAT],
+      "the store's tables changed: move STORE_FORMAT and record this shape for it",
+    ).toBe(shape);
+  });
+
   it("keeps revision descriptors below the SQL row limit as history exceeds 2 MB", async () => {
     const { storage, close } = sqliteStorage();
     try {

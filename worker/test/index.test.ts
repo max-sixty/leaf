@@ -42,6 +42,7 @@ vi.mock("@cloudflare/containers", () => ({
 import { getContainer } from "@cloudflare/containers";
 import worker, { LeafWebsiteSession, type Env } from "../src/index";
 import { activeCookie } from "../src/routing";
+import { STORE_FORMAT } from "../src/storage";
 
 function executionContext(waitUntil = vi.fn()): ExecutionContext {
   return { waitUntil } as unknown as ExecutionContext;
@@ -157,9 +158,10 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
   presentedMs: 310,
   ...overrides,
 });
-const activeMarker = (root: string, protocol = PROTOCOL) =>
-  activeCookie(true, root, protocol).split(";", 1)[0];
-const containerId = (sessionId: string) => `${PROTOCOL}:${sessionId}`;
+const SCOPE = `${PROTOCOL}.${STORE_FORMAT}`;
+const activeMarker = (root: string, scope = SCOPE) =>
+  activeCookie(true, root, scope).split(";", 1)[0];
+const containerId = (sessionId: string) => `${SCOPE}:${sessionId}`;
 
 function environment(overrides: Partial<Env> = {}): Env {
   const allow = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
@@ -1660,9 +1662,9 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("keeps a page made active at an earlier page protocol passive", async () => {
+  it("keeps a page made active at an earlier page protocol or store format passive", async () => {
     const sessionId = "1c".repeat(16);
-    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", PROTOCOL - 1)}`;
+    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`;
     const env = environment({
       ASSETS: {
         fetch: async () =>
@@ -1718,7 +1720,7 @@ describe("product-site delivery", () => {
     for (const cookie of [
       undefined,
       `__Host-leaf-page=${sessionId}`,
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", PROTOCOL - 1)}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`,
       `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
     ]) {
       const response = await report(cookie);
@@ -1771,7 +1773,7 @@ describe("product-site delivery", () => {
     for (const cookie of [
       undefined,
       `__Host-leaf-page=${sessionId}`,
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", PROTOCOL - 1)}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`,
       `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
     ]) {
       const response = await read(cookie);
@@ -1820,7 +1822,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
-      `__Host-leaf-active-page-examples%2Ftriage-board=${PROTOCOL}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+      `__Host-leaf-active-page-examples%2Ftriage-board=${SCOPE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
   });
 
@@ -1894,7 +1896,7 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("active");
       expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
-        `__Host-leaf-active-page-examples%2Ftriage-board=${PROTOCOL}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        `__Host-leaf-active-page-examples%2Ftriage-board=${SCOPE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
       );
     }
   });

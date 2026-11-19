@@ -35,6 +35,13 @@
  * answers a release other than the Worker's with 409 before reading or writing
  * anything (`answerPageStore` in `index.ts`), and that container fails to start. So
  * every commit since a deploy was written by the deployed release's image.
+ * The store itself also outlives deploys, so every later release reads the tables and
+ * stored values an earlier one wrote. `STORE_FORMAT` names their shape: the tables
+ * (`STORE_TABLES`, which a test pins to the format), the encodings stored in their
+ * columns, and the session object's own keys (`index.ts`). A change to any of them moves
+ * it, which, as a page protocol bump does, starts every visitor on the published page,
+ * since the session's key names it (`recordScope`), rather than leaving a later
+ * release to misread an earlier one's rows. Nothing migrates a store.
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be
@@ -117,23 +124,26 @@ export function prepareStateDelivery(
     state.data = { version: state.data.version };
 }
 
+export const STORE_FORMAT = 1;
+export const STORE_TABLES = `CREATE TABLE IF NOT EXISTS leaf_pages (
+  root TEXT, staged INTEGER, identity TEXT, release TEXT, PRIMARY KEY(root, staged)
+); CREATE TABLE IF NOT EXISTS leaf_files (
+  root TEXT, staged INTEGER, path TEXT, chunks TEXT, modified REAL,
+  PRIMARY KEY(root, staged, path)
+); CREATE TABLE IF NOT EXISTS leaf_responses (
+  root TEXT, staged INTEGER, path TEXT, headers TEXT, chunks TEXT,
+  PRIMARY KEY(root, staged, path)
+); CREATE TABLE IF NOT EXISTS leaf_blobs (
+  digest TEXT PRIMARY KEY, bytes BLOB
+); CREATE TABLE IF NOT EXISTS leaf_drafts (
+  root TEXT PRIMARY KEY, drafts TEXT
+)`;
+
 export class PageStore {
   private deliveries = new Set<string[]>();
 
   constructor(private storage: DurableObjectStorage) {
-    storage.sql.exec(`CREATE TABLE IF NOT EXISTS leaf_pages (
-      root TEXT, staged INTEGER, identity TEXT, release TEXT, PRIMARY KEY(root, staged)
-    ); CREATE TABLE IF NOT EXISTS leaf_files (
-      root TEXT, staged INTEGER, path TEXT, chunks TEXT, modified REAL,
-      PRIMARY KEY(root, staged, path)
-    ); CREATE TABLE IF NOT EXISTS leaf_responses (
-      root TEXT, staged INTEGER, path TEXT, headers TEXT, chunks TEXT,
-      PRIMARY KEY(root, staged, path)
-    ); CREATE TABLE IF NOT EXISTS leaf_blobs (
-      digest TEXT PRIMARY KEY, bytes BLOB
-    ); CREATE TABLE IF NOT EXISTS leaf_drafts (
-      root TEXT PRIMARY KEY, drafts TEXT
-    )`);
+    storage.sql.exec(STORE_TABLES);
   }
 
   private references(staged?: boolean, root?: string): string[] {

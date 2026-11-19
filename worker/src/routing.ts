@@ -152,18 +152,18 @@ export function sessionFromCookie(
   return null;
 }
 
-/** Activation selects a private record at one page protocol, like its Durable Object
- * key. */
+/** Activation selects a private record in one record scope (`recordScope` in
+ * `index.ts`), like its Durable Object key. */
 export function activeFromCookie(
   cookie: string | null,
   secure: boolean,
   pageRoot: string,
-  protocol: number,
+  scope: string,
 ): boolean {
   if (cookie === null) return false;
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const expected = pageCookieName(prefix, pageRoot);
-  return cookie.split(";").some((item) => item.trim() === `${expected}=${protocol}`);
+  return cookie.split(";").some((item) => item.trim() === `${expected}=${scope}`);
 }
 
 function pageCookieName(prefix: string, pageRoot: string): string {
@@ -192,13 +192,9 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
   return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }
 
-export function activeCookie(
-  secure: boolean,
-  pageRoot: string,
-  protocol: number,
-): string {
+export function activeCookie(secure: boolean, pageRoot: string, scope: string): string {
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const name = pageCookieName(prefix, pageRoot);
   const security = secure ? "; Secure" : "";
-  return `${name}=${protocol}; Path=/${security}; HttpOnly; SameSite=Lax`;
+  return `${name}=${scope}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }

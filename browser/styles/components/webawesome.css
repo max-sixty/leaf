@@ -107,7 +107,7 @@ wa-option {
 wa-slider:not([range])[data-lf-focus-visible-within]::part(thumb),
 wa-slider[range]::part(lf-focus-visible) {
   outline: var(--lf-focus-ring);
-  outline-offset: 0;
+  outline-offset: 0px;
 }
 wa-slider[range]::part(lf-focus-visible) {
   z-index: 4;

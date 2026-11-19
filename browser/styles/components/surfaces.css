@@ -522,7 +522,7 @@ a[data-lf-external]::after,
   ):not(path, rect, circle, ellipse, line, polyline, polygon):not(
     :has(:is(path, rect, circle, ellipse, line, polyline, polygon):not(defs *))
   ) {
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   outline-style: solid !important;
 }
 :where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {

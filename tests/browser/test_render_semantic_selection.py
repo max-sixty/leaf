@@ -465,10 +465,10 @@ DENSE_TARGETS_PAGE = leaf_page(
 )
 
 
-def test_the_picker_s_close_ends_it_whatever_escape_would_take_back(browser, serve):
+def test_the_picker_s_close_stands_only_while_escape_would_end_it(browser, serve):
     """Escape takes back a typed hint letter before it closes the picker, so the panel
-    field's Close, which ends the picker at once, says `esc` only while no letter
-    stands typed."""
+    field's Close, which ends the picker at once, stands with `esc` only while no
+    letter stands typed, and the field's end shows nothing while one does."""
     page = open_page(browser, serve(DENSE_TARGETS_PAGE))
     page.keyboard.press("s")
     hints = page.locator(".lf-target-picker-hint")
@@ -478,13 +478,10 @@ def test_the_picker_s_close_ends_it_whatever_escape_would_take_back(browser, ser
     codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     first = next(code for code in codes if len(code) == 2)[0]
     page.keyboard.press(first)
-    expect(close).to_be_visible()
-    expect(close.locator("kbd")).to_have_count(0)
+    expect(field_press(page)).to_have_count(0)
     page.keyboard.press("Escape")
     expect(hints).to_have_count(61)
     expect(close.locator("kbd")).to_have_text("esc")
-    page.keyboard.press(first)
-    expect(close.locator("kbd")).to_have_count(0)
     close.click()
     expect(hints).to_have_count(0)
 

@@ -681,7 +681,7 @@ The whole thread, as Leaf delivers it; "events" are the user's messages, oldest 
 
 Leaf posts your line in the thread at once as the agent's working line, until the main session's own words replace it. Write that one line: what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer to the main session, even where the conversation above holds it.
 
-Then judge who should do what the message asks. "take": a fork of the session with the session's tools could do it start to finish beside the main session, because it needs nothing the main session is changing or about to change (its files and branch, the page's source, its pull requests), settles no question the main session is weighing, and waits on nothing the session is running; answering from reading, a lookup, or research that writes only its own scratch files are such work. "hand_over": it belongs with the main session.
+Then judge who should do what the message asks. "take": a fork of the session with the session's tools could do it start to finish beside the main session: it changes nothing the main session works on (its files and branch, the page's source, its pull requests), settles no question the main session is weighing, and waits on nothing the session has under way, such as a command it is running or a change it has started and not finished. Reading, a lookup, or research that writes only its own scratch files is such work, in the session's files and the page's source too. "hand_over": it belongs with the main session.
 
 Reply with this JSON alone: {{"line": "<the line>", "work": "take" or "hand_over"}}
 </leaf-line-fork>"""

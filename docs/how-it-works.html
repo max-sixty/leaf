@@ -3620,10 +3620,12 @@ flowchart TD
                 </tbody>
               </table>
               <p id="sorting-today">
-                A fork can finish work beside the main thread when the work needs
-                nothing the main thread is changing or about to change, settles no
-                question it is weighing, and waits on nothing the session is running.
-                The page's diagnostics record each judgment with the line fork's reason.
+                A fork can finish work beside the main thread when the work changes
+                nothing the main thread works on, settles no question it is weighing,
+                and waits on nothing the session has under way, such as a command it is
+                running or a change it has started and not finished. Reading the
+                session's files or the page's source is such work. The page's
+                diagnostics record each judgment.
               </p>
             </section>
 
@@ -3998,8 +4000,8 @@ flowchart TD
               thread itself (<a href="#takeover-answer">Who holds a message</a>). It
               takes its to-dos in the order it judges, and runs work bigger than a
               message in subagents. A fork is to change neither the session's files nor
-              its plan: the line fork gives a fork only work that needs nothing the main
-              thread is changing, and the fork's task tells it the same. Nothing else
+              its plan: the line fork gives a fork only work that changes nothing the
+              main thread works on, and the fork's task tells it the same. Nothing else
               enforces it.
             </p>
             <p id="obligations">

@@ -2096,7 +2096,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     """The DOM need not re-fold the log to know a prior action will reappear, and
-    the head `z` takes says what it did in its document's words, which no other
+    the head ⌘Z takes says what it did in its document's words, which no other
     entry pays for."""
     version = page_dir / "index.html"
     version.write_text(
@@ -2187,7 +2187,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     )
 
     # An answered reaction is the user's to take back as an unanswered one is, so the
-    # newest, rx2, heads the list for `z`. The comment is no longer the newest gesture,
+    # newest, rx2, heads the list for ⌘Z. The comment is no longer the newest gesture,
     # and no exact control names a message with words, so it isn't listed.
     assert [candidate["event"]["id"] for candidate in candidates] == [
         "rx2",
@@ -2202,7 +2202,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
 
 
 def test_undo_walk_ends_at_the_users_newest_gesture():
-    """`z` takes the head only while it is the user's newest gesture. Bookkeeping
+    """⌘Z takes the head only while it is the user's newest gesture. Bookkeeping
     and gestures already withdrawn do not end the walk, and a comment the user sent
     is taken as any gesture is, while it is the newest; an action this document does
     not paint ends the walk."""
@@ -2241,7 +2241,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
 
 
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):
-    """The view's undo list is final: `z` takes its head and a widget filters it.
+    """The view's undo list is final: ⌘Z takes its head and a widget filters it.
 
     A decision carried into a later revision stays undoable there. One that revision
     restated and one whose widget it dropped are

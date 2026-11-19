@@ -513,6 +513,9 @@ customElements.define(
               noun: "Option",
               plural: "options",
               rows: () => this.#marks().map(({ mark }) => mark),
+              // The options stand whole around the ring, so a step says no position,
+              // and an On Me walk that brought the user here goes on saying theirs.
+              position: null,
             }),
             {
               id: "option.toggle",

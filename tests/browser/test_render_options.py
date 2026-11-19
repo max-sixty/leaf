@@ -45,7 +45,6 @@ from render_harness import (
     compare_with,
     expect_obligations_answered,
     expect_panel_offers,
-    expect_panel_says,
     hold_selection,
     holding,
     leaf_page,
@@ -302,10 +301,13 @@ def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
     page.locator("#opt-bearer .lf-pick").focus()
     page.keyboard.press("ArrowUp")
     expect(page.locator("#opt-strict .lf-pick")).to_be_focused()
-    expect_panel_says(page, "Option 2 of 3")
+    # The options stand whole around the ring, so a step says no position.
+    assert (
+        page.evaluate("async () => (await window.__lfCheckApi()).walkPosition()")
+        is None
+    )
     page.keyboard.press("ArrowDown")
     expect(page.locator("#opt-bearer .lf-pick")).to_be_focused()
-    expect_panel_says(page, "Option 3 of 3")
     page.keyboard.press(" ")
     expect(page.locator("#opt-bearer")).to_have_attribute("selected", "")
     round_trip(page)
@@ -403,14 +405,14 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     }""")
     added.locator(".lf-pick").focus()
     # Add-and-select records add then choose: undo the pick before its addition.
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(added).not_to_have_attribute("selected", "")
     expect(added.locator(".lf-pick")).to_be_focused()
     assert added.evaluate("""option => option === window.addedOption &&
         [...option.querySelector('.lf-option-words').childNodes].every(
             (node, index) => node === window.addedWords[index])""")
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(added).to_have_count(0)
 
@@ -873,18 +875,22 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
         # Keep hover labels clear of the pixels whose ring thickness is measured.
         page.locator("h1").click()
         rendered(page)
-        # Painted on a canvas, since the settled colours compute in the oklab their
-        # steps are written in, not as rgb().
-        ok, tint = page.evaluate(
+        # The ring's colour and the picked cell's ground, painted on a canvas, since they
+        # compute in the oklab their steps are written in, not as rgb().
+        ok, ground = page.evaluate(
             """() => {
                  const context = document.createElement('canvas')
                    .getContext('2d', {willReadFrequently: true});
-                 return ['--lf-settled', '--lf-settled-tint'].map(name => {
-                   const probe = document.body.appendChild(document.createElement('i'));
-                   probe.style.color = `var(${name})`;
-                   context.fillStyle = getComputedStyle(probe).color;
+                 const probe = document.body.appendChild(document.createElement('i'));
+                 probe.style.color = 'var(--lf-settled)';
+                 const paints = [
+                   getComputedStyle(probe).color,
+                   getComputedStyle(document.querySelector('#c-redis')).backgroundColor,
+                 ];
+                 probe.remove();
+                 return paints.map(paint => {
+                   context.fillStyle = paint;
                    context.fillRect(0, 0, 1, 1);
-                   probe.remove();
                    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
                  });
                }"""
@@ -898,7 +904,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             # A pixel is the ring's where it stands nearer the ring than half the way to
             # the cell's ground, so the edge pixel the ring mostly covers counts.
             inked = [
-                distance(px, ok) < distance(tint, ok) / 2 for px in rgb_pixels(shot)
+                distance(px, ok) < distance(ground, ok) / 2 for px in rgb_pixels(shot)
             ]
 
             # The ring's two edges along this line: from each of the cell's edges, which

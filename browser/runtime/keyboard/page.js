@@ -14,7 +14,7 @@ import { sampleNotice } from "../sample-child.js";
    once those owners stand. */
 import { letGo, release, focused } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
-import { inUi } from "../shadow.js";
+import { inUi } from "../shadow-tree.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldObligation } from "../current-target.js";

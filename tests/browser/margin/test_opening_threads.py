@@ -714,18 +714,14 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     # Editing the reply between them can move the document to reveal its caret.
     before_walk = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Home")
-    # The panel's empty field says where the walk stands.
-    position = panel_field(page)
-    expect(position).to_have_attribute("placeholder", re.compile(r"^Marker 1 of \d+"))
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_walk
-    said = re.search(r"Marker 1 of (\d+)", position.get_attribute("placeholder"))
-    assert said is not None
-    total = int(said.group(1))
-    assert total > 1, said.group(0)
     first = page.locator(":focus").get_attribute("aria-label")
     page.keyboard.press("ArrowDown")
-    expect(position).to_have_attribute(
-        "placeholder", re.compile(rf"^Marker 2 of {total}\b")
+    expect(page.locator(":focus")).not_to_have_attribute("aria-label", first)
+    # The walk is over the markers in view, so it declares no walk for the panel to say.
+    assert (
+        page.evaluate("async () => (await window.__lfCheckApi()).walkPosition()")
+        is None
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_walk
     assert page.evaluate("() => document.activeElement.matches('.lf-margin-marker')")

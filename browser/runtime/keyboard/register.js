@@ -30,7 +30,7 @@ watchCommandScopes(() => [
   ...[...scopes.values()].flat(),
   { rows: [...commands.values()] },
 ]);
-import { renderedUnder } from "../shadow.js";
+import { renderedUnder } from "../shadow-tree.js";
 import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");

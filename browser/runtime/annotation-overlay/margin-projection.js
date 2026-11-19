@@ -126,13 +126,19 @@ import { el, generatedElement, offerActionElement } from "../widget-elements.js"
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
-import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
+import { rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
 
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
-import { nativeLayerHolding, skipped } from "../shadow-tree.js";
+import {
+  nativeLayerHolding,
+  skipped,
+  renderedOrder,
+  renderedUnder,
+  under,
+} from "../shadow-tree.js";
 
 import { annotationsHidden, watchAnnotations } from "../annotation-layer.js";
 import { repaint } from "../repaint.js";
@@ -157,7 +163,6 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { alreadyShown } from "../landing-scroll.js";
 
-import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 
@@ -604,18 +609,8 @@ export function createMarginProjection({
     const [first, ...rest] = buttons;
     if (!current || !first || !rest.length) return;
     const direction = binding === rowArrows(current)[1] ? 1 : -1;
+    // The cluster's entries stand side by side, so the step says no position.
     focusDestination(cycledRow([first, ...rest], current, direction), "move");
-    beginWalk("margin-entry", "Action", () => {
-      const currentLocation = focused();
-      const currentLocationHost = closestAcross(
-        currentLocation,
-        "[data-lf-margin-for]",
-      );
-      return listWalkPosition(
-        clusterMarginEntries(currentLocationHost),
-        currentLocation,
-      );
-    });
   }
 
   // Folding a cluster the user was in hands them back to its toggle.
@@ -1004,12 +999,13 @@ export function createMarginProjection({
       runKey: stepClusterMarginEntries,
     },
     // The walk answers from a marker, not from the entries beside it, which Left and
-    // Right move between.
+    // Right move between. It walks the markers in view, so it says no position.
     ...rowWalk({
       id: "margin",
       noun: "Marker",
       plural: "visible markers",
       rows: visibleRows,
+      position: null,
       landed: holdTabStop,
       scroll: false,
     }).map((row) => ({

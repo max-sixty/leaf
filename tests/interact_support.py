@@ -1758,11 +1758,10 @@ def _hook_bounds_take_the_suites_deadline(monkeypatch):
 def _each_test_composes_its_own_layers(monkeypatch):
     """Each test composes the layers its pages select afresh, as a new process does.
 
-    A process holds each selection's composition and vocabulary for its life
-    (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
-    a package at a path an earlier test's package held, so each test holds its own."""
-    monkeypatch.setattr(layer_model, "_compositions", {})
-    monkeypatch.setattr(layer_model, "_vocabularies", {})
+    A process holds the layer of each selection of shared package roots for its life
+    (`layer._held`), and a test may rewrite a package at a path an earlier test's
+    package held, so each test holds its own."""
+    monkeypatch.setattr(layer_model, "_shared", layer_model._Layers())
 
 
 def retire_bridge(lock):
@@ -2113,52 +2112,6 @@ def claimed(page_dir, monkeypatch, context_record):
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
     return page_dir
-
-
-@contextmanager
-def claude_code_module(session: str, reply: str | dict):
-    """Stand in for Leaf's Claude Code hooks module (`hooks/claude-code.ts`), which
-    `test_interact_claude_code_module.py` holds to the same: answer each completion
-    `session` is asked (`completions`) with the text `reply`, or the failure it
-    names (`{"failed": …}`), as the model's usage of 300 tokens in and 12 out, and
-    yield the requests it took, each with its `id` and `request`."""
-    from leaf import completions
-
-    asked = []
-    done = threading.Event()
-    answered = reply if isinstance(reply, dict) else {"text": reply}
-    queued = completions.watch(session)
-
-    def answer() -> None:
-        while not done.is_set():
-            mark = queued.mark()
-            for request in completions.pending(session):
-                asked.append(request)
-                completions.cmd_reply(
-                    session,
-                    {
-                        "completion": request["id"],
-                        **answered,
-                        "usage": {
-                            "input_tokens": 300,
-                            "output_tokens": 12,
-                            "cache_read_input_tokens": 0,
-                            "cache_creation_input_tokens": 0,
-                        },
-                        "elapsed_ms": 900,
-                    },
-                )
-            # A tenth of a second at most, so the context's exit ends the thread.
-            queued.wait(mark, 0.1)
-
-    worker = threading.Thread(target=answer, daemon=True)
-    worker.start()
-    try:
-        yield asked
-    finally:
-        done.set()
-        worker.join()
-        queued.close()
 
 
 def _launched_as(monkeypatch, argv: list[str]) -> None:

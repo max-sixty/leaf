@@ -283,7 +283,7 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     write(field, "Here.")
 
     # With the box put away, ⌘Z or `z` takes back the strokes of the parked drawing,
-    # and the last one takes the drawing; the pick `z` undoes outside the mode stands.
+    # and the last one takes the drawing; the pick ⌘Z undoes outside the mode stands.
     page.keyboard.press("Escape")
     page.keyboard.press("ControlOrMeta+z")
     expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))

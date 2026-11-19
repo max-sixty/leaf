@@ -13,7 +13,7 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
   and commands leave: `fork_admission`, whether admission kept a message back for a line
   fork or a running fork turn held it, and where neither, whether the session's fork
   lane was up, with why not by the session's last `follower` note (whether its hooks
-  module asked for forks and was this Leaf's, `leaf.hooks.cmd_pages`); `fork_asked`,
+  module asked for forks, `leaf.hooks.cmd_pages`); `fork_asked`,
   as Leaf gave a line fork its question; `fork_outcome`, what came of it
   (`leaf.forks`), a working fork's turn and agent among it; `turn_end_check`, the
   clerk's fork (`leaf.clerk`); `leaf_command`, with the agent turn it named
@@ -96,6 +96,8 @@ DIAGNOSTICS = (
 )
 # Events no step of a message's story turns on.
 QUIET = {"seen", "read", "reanchor", "receipt"}
+# Why a follower whose hooks module asked for no forks keeps no thread back.
+FORKS_OFF = "the hooks module has forks off (LEAF_FORK_REPLIES=off)"
 # How long after a message `--message` reads where nothing answered it.
 UNANSWERED_WINDOW = timedelta(minutes=10)
 # A shell command that runs `leaf`, anywhere in it, as `hooks/claude-code.ts` finds one.
@@ -211,16 +213,15 @@ def page_entries(
                 )
             )
         elif kind == "follower":
-            verdict = follower_verdict(row)
             out.append(
                 entry(
                     at,
                     "leaf",
                     "pages follower "
                     + (
-                        f"keeps nothing back: {verdict}"
-                        if verdict
-                        else "keeps threads back for line forks"
+                        "keeps threads back for line forks"
+                        if row["forks"]
+                        else f"keeps nothing back: {FORKS_OFF}"
                     ),
                     session=row["session"],
                 )
@@ -342,23 +343,10 @@ def in_turn(turn: str | None, agents: dict[str, str]) -> str:
     return f" in turn {turn[:8]}"
 
 
-def follower_verdict(row: dict) -> str | None:
-    """Why the pages follower a `follower` note records keeps no thread back for a
-    line fork (`leaf.hooks.cmd_pages`), or None where it keeps them back."""
-    if not row["forks"]:
-        return "the hooks module has forks off (LEAF_FORK_REPLIES=off)"
-    if not row["current"]:
-        return (
-            f"the session's hooks module ({str(row['module'] or '')[:8] or 'unread'}) "
-            "isn't one its Leaf ships; /reload-plugins loads it"
-        )
-    return None
-
-
 def without_lane(admission: dict, followers: list[dict]) -> str:
     """Why admission found the session with no fork lane (`fork_admission`), by the
-    last `follower` note of its session before it: forks off or a stale hooks module
-    as that follower noted, or else that follower no longer holding the lane."""
+    last `follower` note of its session before it: forks off as that follower noted,
+    or else that follower no longer holding the lane."""
     noted = [
         row
         for row in followers
@@ -369,8 +357,9 @@ def without_lane(admission: dict, followers: list[dict]) -> str:
         return "no fork lane: no pages follower noted"
     last = noted[-1]
     return "no fork lane: " + (
-        follower_verdict(last)
-        or f"the follower from {local(last['ts']):%H:%M:%S} no longer holds it"
+        f"the follower from {local(last['ts']):%H:%M:%S} no longer holds it"
+        if last["forks"]
+        else FORKS_OFF
     )
 
 

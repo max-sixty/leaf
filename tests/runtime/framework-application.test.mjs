@@ -467,7 +467,7 @@ test("message capture preserves a deferred document's identity and immutable fie
     app.identify(1, stamp, true);
     const shown = app.read().document;
     const body = { text: "A newly read message" };
-    const messageBodies = new Map([["message", body]]);
+    const messageBodies = new Map([["thread", new Map([["message", body]])]]);
     const read = state(2, [], { active: { revision: 2, version: 2 } });
 
     assert.equal(app.adopt(read, { ...shown, messageBodies }), true);
@@ -481,7 +481,10 @@ test("message capture preserves a deferred document's identity and immutable fie
       body.text = "Changed after transfer";
     }, TypeError);
     assert.throws(() => messageBodies.clear(), /read-only/);
-    assert.equal(admitted.messageBodies.get("message").text, "A newly read message");
+    assert.equal(
+      admitted.messageBodies.get("thread").get("message").text,
+      "A newly read message",
+    );
     assert.throws(() => admitted.authored.clear(), /read-only/);
   }
 });
@@ -1049,6 +1052,16 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   assert.equal(decision(app), null);
   assert.equal(app.nameEvents("undo"), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
+});
+
+test("an undo of an action the log has answered but no reading holds withdraws it at once", () => {
+  const app = setup();
+  const first = app.enqueue(action("first"), "now");
+  app.accept("first", { ...action("first"), id: "e1", seq: 1 });
+  assert.equal(app.entry("first").state, "accepted");
+  assert.equal(decision(app), "accept");
+  app.enqueue({ kind: "undo", undoes: first.localId, attempt: "undo" }, "now");
+  assert.equal(decision(app), null);
 });
 
 // Each step is a signal and the entry's state after it: `null` once it has left. What

@@ -67,7 +67,8 @@
 
 import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
-import { composedParentNode, queryAllUnder } from "../shadow.js";
+import { queryAllUnder } from "../shadow.js";
+import { composedParentNode } from "../shadow-tree.js";
 import { keeps } from "../keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 

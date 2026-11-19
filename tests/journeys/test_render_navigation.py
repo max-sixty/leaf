@@ -1499,8 +1499,8 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("g")
     page.keyboard.press("h")
     expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
-    expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks.")
-    expect_panel_says(page, "No visible hyperlinks.")
+    expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks")
+    expect_panel_says(page, "No visible hyperlinks")
     page.evaluate(
         """async () => {
           window.__liveChanges = [];
@@ -1517,7 +1517,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
     expect(page.locator(".lf-live")).to_have_text("Agent replied — open Threads")
     # The empty filter's word stands in the panel while Go-to does; the news waits.
-    assert "No visible hyperlinks." in panel_says(page)
+    assert "No visible hyperlinks" in panel_says(page)
     assert "Agent replied" not in panel_says(page)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
@@ -1527,7 +1527,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     resized(page, 1200, 800)
-    expect_panel_says(page, "No visible hyperlinks.")
+    expect_panel_says(page, "No visible hyperlinks")
     expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()

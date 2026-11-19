@@ -1278,7 +1278,7 @@ class RevisionReading(SourceReading):
     @cached_property
     def registry(self) -> dict:
         """The vocabulary this Leaf reads the revision in, shared read-only with
-        every revision that selects the same layer and declares the same
+        every revision of the page that selects the same layer and declares the same
         (`registry.storage.revision_vocabulary`)."""
         return _bundle_vocabulary(self.bundle)
 

@@ -789,14 +789,14 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     assert (page / "index.html").read_text() == written
 
 
-def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
+def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch, browser):
     from contextlib import ExitStack, contextmanager
 
     from playwright.sync_api import expect
 
     from leaf_dev import ROOT
     from leaf_dev import arrangement_eval as workflow
-    from leaf_dev.browser import headless_shell, load, settle, tab
+    from leaf_dev.browser import load, settle, tab
 
     work = tmp_path / "originals"
     directory = tmp_path / "sample"
@@ -836,7 +836,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
             '<lf-options id="answer"><lf-option id="keep">Keep</lf-option>'
             "</lf-options></lf-group></main></body></html>"
         )
-        with headless_shell() as browser, tab(browser) as view:
+        with tab(browser) as view:
             load(view, urls[main])
             view.locator("#keep .lf-pick").click()
             expect(view.locator("#keep .lf-pick")).to_have_attribute(
@@ -851,31 +851,30 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
             workflow.snapshot_phase(run, phase)
     shutil.rmtree(work)
     originals = {p: p.read_bytes() for p in directory.rglob("*") if p.is_file()}
-    with headless_shell() as browser:
-        for phase in (1, 2):
-            saved = {"page": run.page(phase), "payload": ROOT, "condition": "leaf"}
-            with workflow.restored_page(saved) as (url, restored), tab(browser) as view:
-                assert set(restored) == set(urls.values())
-                load(view, url)
-                expect(view.locator("#keep .lf-pick")).to_have_attribute(
-                    "aria-checked", "true"
-                )
-                expect(view.locator("#quoted")).to_contain_text(urls[handoff])
-                expect(view.locator("#external")).to_have_attribute(
-                    "href", "https://example.com/"
-                )
-                with view.expect_popup() as opened:
-                    view.get_by_role("link", name="Open handoff").click()
-                linked = opened.value
-                settle(linked)
-                expect(
-                    linked.get_by_role("heading", name=f"Handoff phase {phase}")
-                ).to_be_visible()
-                with linked.expect_popup() as returned:
-                    linked.get_by_role("link", name="Back to queue").click()
-                expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
-                    "aria-checked", "true"
-                )
+    for phase in (1, 2):
+        saved = {"page": run.page(phase), "payload": ROOT, "condition": "leaf"}
+        with workflow.restored_page(saved) as (url, restored), tab(browser) as view:
+            assert set(restored) == set(urls.values())
+            load(view, url)
+            expect(view.locator("#keep .lf-pick")).to_have_attribute(
+                "aria-checked", "true"
+            )
+            expect(view.locator("#quoted")).to_contain_text(urls[handoff])
+            expect(view.locator("#external")).to_have_attribute(
+                "href", "https://example.com/"
+            )
+            with view.expect_popup() as opened:
+                view.get_by_role("link", name="Open handoff").click()
+            linked = opened.value
+            settle(linked)
+            expect(
+                linked.get_by_role("heading", name=f"Handoff phase {phase}")
+            ).to_be_visible()
+            with linked.expect_popup() as returned:
+                linked.get_by_role("link", name="Back to queue").click()
+            expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
+                "aria-checked", "true"
+            )
     assert {p: p.read_bytes() for p in originals} == originals
 
     # The judge receives delivered addresses as well as navigable page links.

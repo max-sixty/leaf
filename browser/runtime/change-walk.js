@@ -42,7 +42,7 @@ import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
 import { renderedUnder } from "./shadow-tree.js";
 import { announce, notice } from "./notifications.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
 /** @typedef {import("./version.js").Change} Change */
 // Where a change stands in the page's order.
@@ -62,13 +62,12 @@ const currentChange = (list, origin = currentLocationOrigin()) =>
       ) ?? null)
     : null;
 
+// The panel's field says "5 changes since v2" while the comparison stands
+// (floating-panel.js, `standing`), so the walk's position there is its place alone,
+// "1 of 5".
 const position = () => {
   const list = comparisonChanges();
-  const base = comparisonBase();
-  return listWalkPosition(list, currentChange(list), {
-    identity: landing,
-    qualifier: base ? `since ${base.name}` : "",
-  });
+  return listWalkPosition(list, currentChange(list), { identity: landing });
 };
 
 /** @param {import("./keyboard/bindings.js").Step} dir */
@@ -84,9 +83,20 @@ function step(dir) {
   if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
-  const said = beginWalk("change", "Change", position);
-  // A listener hears what the version was saved after, as the ⇄ entry's label says it
-  // under what the change did (change-provenance.js).
+  if (!beginWalk("change", null, position)) return;
+  // A listener hears what the place counts, "Change 1 of 5 since v2", and what the
+  // version was saved after, as the ⇄ entry's label says it under what the change did
+  // (change-provenance.js).
+  const at = position();
+  const base = comparisonBase();
+  const said =
+    at &&
+    walkPositionLabel(
+      "Change",
+      at.position,
+      at.total,
+      base ? `since ${base.name}` : "",
+    );
   const savedAfter = (versionProvenance()?.lines ?? []).map(wordsText).join(" ");
   if (said) announce(savedAfter ? `${said}. ${savedAfter}` : said);
 }

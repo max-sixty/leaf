@@ -118,20 +118,16 @@ keeping the widget and its independent children.
 
 The page's undo key takes back the user's newest gesture or nothing: a newer gesture it
 cannot take back, such as a move a later revision's markup now places, ends the walk,
-while bookkeeping and gestures already withdrawn do not. It says what it would take back and how long ago, in every tab
-and after a reload, so a gesture made weeks ago is not taken back unseen. Where the
-gesture's thread, message or element is out of view, the first press opens that place
-and only the next press, with nothing pressed between, withdraws it; showing writes
-nothing. What the agent has received or done decides nothing here, so `z` works the same
-before and after the agent reads a gesture. Either way the press leaves the user at that place:
-a gesture whose own landing has just carried the user off it, such as resolving a
-thread, is taken in one press that returns them to its thread, while they have not
-acted elsewhere since (`runtime/undo.js`).
-`runtime/undo.js` names each gesture, and the served list words an action at its head
-(`GestureWords.gesture`). An exact control, such as a widget's Undo, may withdraw an
-older gesture it names, and may withdraw an action whose POST has not returned: the
-browser keeps both gestures in its ordered ledger and sends the undo once the action's
-id is accepted. Refusing the action drops its undo, and refusing the undo restores the
+while bookkeeping and gestures already withdrawn do not. It says what it would take back
+and how long ago, in every tab and after a reload. A press withdraws the gesture at
+once, unless a message or settlement of the user's is still being sent, which it waits
+for, and leaves the user at the gesture's thread, message, passage or element,
+travelling there where it was out of view, so the user sees what the press took back
+however old it was (`runtime/undo.js`). `runtime/undo.js` names each gesture, and the served list words an
+action at its head (`GestureWords.gesture`). An exact control, such as a widget's Undo,
+may withdraw an older gesture it names. It and the undo key may withdraw an action whose
+POST has not returned: the browser keeps both gestures in its ordered ledger and sends
+the undo once the action's id is accepted. Refusing the action drops its undo, and refusing the undo restores the
 action.
 
 ## Authorship and voice

@@ -33,12 +33,12 @@
    announces its change, the document presented or a widget's layout changing
    (anchor-resolution.js, `currentDatums`, `claimsVisualGesture`).
 
-   `keptReadings` keeps each record of a fold beside the inputs its fold is given and
-   makes it again only where one of them has changed, compared by identity. The inputs
-   have to name everything the record reads: a fold that reads more than it names keeps
-   a stale record. They are compared by identity, so they keep it while unchanged, as
-   the served reading does for every record the server didn't change (`completeState`
-   in `layer-client.js`).
+   The publication's fold keeps each record it makes this way, keyed by the served
+   record it is made from, so a publication about one thing makes only that thing's
+   records again: the served reading keeps every record the server didn't change
+   (`completeState` in `layer-client.js`), and publication gives each unchanged part
+   its old identity (framework/snapshot.js, `share`). A make at module scope reads only
+   its arguments, so a fold can't read more than it is kept by.
 
    This module imports nothing but signals, so the pure folds can use it. */
 import { computed } from "/vendor/signals-core.js";
@@ -51,7 +51,7 @@ import { computed } from "/vendor/signals-core.js";
  *   versions: Map<Version, number> | null,
  *   within: Set<Entry> | null,
  *   catchUps: Set<CatchUp> | null,
- *   threw: boolean,
+ *   fresh: boolean,
  *   checked: number,
  * }} Entry */
 
@@ -63,9 +63,10 @@ const AT = Symbol("at");
 /** @type {Entry | null} */
 let making = null;
 // The catch-ups run since a reading was read from outside every other, so a reading
-// read inside it runs only those it adds.
-/** @type {CatchUp[] | null} */
-let caughtUp = null;
+// read inside it runs only those it adds, and how many readings are being read.
+/** @type {CatchUp[]} */
+const caughtUp = [];
+let depth = 0;
 
 /** A count of a fact no signal carries, which its owner moves when the fact changes:
  * `read()` answers it, and says the reading being made, if one is, read it. An owner
@@ -113,7 +114,7 @@ const sameArguments = (held, args) =>
 /** Whether every version an entry read, and every reading it read, stands.
  * @param {Entry} entry @returns {boolean} */
 function stands(entry) {
-  if (entry.threw) return false;
+  if (entry.fresh) return false;
   if (entry.checked === moves) return true;
   if (entry.versions)
     for (const [counted, at] of entry.versions) if (counted[AT]() !== at) return false;
@@ -131,7 +132,7 @@ function entryOf(make, key, args) {
     value: computed(() => {
       // A signal it read moved: what it reads now is all it reads.
       entry.versions = entry.within = entry.catchUps = null;
-      entry.threw = false;
+      entry.fresh = false;
       const outer = making;
       making = entry;
       try {
@@ -143,7 +144,7 @@ function entryOf(make, key, args) {
     versions: null,
     within: null,
     catchUps: null,
-    threw: false,
+    fresh: false,
     checked: moves,
   };
   return entry;
@@ -151,7 +152,7 @@ function entryOf(make, key, args) {
 
 /** @param {Entry} entry */
 function catchUp(entry) {
-  if (!entry.catchUps || !caughtUp) return;
+  if (!entry.catchUps) return;
   for (const each of entry.catchUps)
     if (!caughtUp.includes(each)) {
       caughtUp.push(each);
@@ -169,8 +170,7 @@ export function keptEach(make) {
   /** @type {WeakMap<K, Entry>} */
   const entries = new WeakMap();
   return (key, ...args) => {
-    const outermost = !caughtUp;
-    if (outermost) caughtUp = [];
+    if (depth++ === 0) caughtUp.length = 0;
     try {
       let entry = entries.get(key);
       if (entry) catchUp(entry);
@@ -184,19 +184,32 @@ export function keptEach(make) {
         // Made again when next asked for, as is a reading around it that caught the
         // throw.
         if (entries.get(key) === entry) entries.delete(key);
-        if (making) making.threw = true;
+        if (making) making.fresh = true;
         throw error;
       }
+      // One that read a fact nothing versions is kept for no later read.
+      if (entry.fresh && entries.get(key) === entry) entries.delete(key);
       if (making && making !== entry) {
-        (making.within ??= new Set()).add(entry);
+        if (entry.fresh) making.fresh = true;
+        // Only a reading a version can move stands no longer than its own inputs; any
+        // other changes only with its arguments or a signal, which the reading around it
+        // hears for itself.
+        if (entry.versions || entry.within) (making.within ??= new Set()).add(entry);
         if (entry.catchUps)
           for (const each of entry.catchUps) (making.catchUps ??= new Set()).add(each);
       }
       return value;
     } finally {
-      if (outermost) caughtUp = null;
+      depth -= 1;
     }
   };
+}
+
+/** Says that the reading being made, if one is, reads a fact no version tracks, such as
+ * the words of an element no document reads, so it is made afresh each time it is read,
+ * as is every reading around it. */
+export function unkept() {
+  if (making) making.fresh = true;
 }
 
 /** A reader of what `make` makes of the arguments it is read with, kept as `keptEach`
@@ -209,47 +222,4 @@ export function kept(make) {
     make(...args),
   );
   return (...args) => each(one, ...args);
-}
-
-// Between the lists one record's inputs hold, so an item that moves from one list to
-// the next reads as a change.
-export const BETWEEN = Symbol("between");
-
-/** @param {readonly unknown[]} held @param {readonly unknown[]} inputs */
-const same = (held, inputs) =>
-  held.length === inputs.length &&
-  inputs.every((input, at) => Object.is(input, held[at]));
-
-/**
- * A reader of records by key. `read(key, inputs, make)` returns the value it kept for
- * `key` where `inputs` are the ones it was made from, else `make(earlier)`'s, where
- * `earlier` is the value kept for `key`, if any, for a value that keeps finer readings
- * of its own. `done()` ends a reading: what it read is kept, and every key it didn't
- * read is forgotten.
- *
- * @template V
- */
-export function keptReadings() {
-  /** @type {Map<unknown, {inputs: readonly unknown[], value: V}>} */
-  let held = new Map();
-  /** @type {Map<unknown, {inputs: readonly unknown[], value: V}>} */
-  let reading = new Map();
-  return {
-    /**
-     * @param {unknown} key
-     * @param {readonly unknown[]} inputs
-     * @param {(earlier: V | undefined) => V} make
-     * @returns {V}
-     */
-    read(key, inputs, make) {
-      const was = held.get(key);
-      const value = was && same(was.inputs, inputs) ? was.value : make(was?.value);
-      reading.set(key, { inputs, value });
-      return value;
-    },
-    done() {
-      held = reading;
-      reading = new Map();
-    },
-  };
 }

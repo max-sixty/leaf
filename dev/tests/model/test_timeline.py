@@ -70,19 +70,16 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
         },
         said("c2", 2),
         said("c3", 3),
-        said("c4", 4),
     ]:
         append_event(tmp_path, event)
 
-    def follower(minute: int, *, forks: bool, current: bool) -> dict:
+    def follower(minute: int, *, forks: bool) -> dict:
         return {
             "ts": at(minute, 30),
             "source": "cli",
             "type": "follower",
             "session": "s1",
-            "module": "abcdef0123456789",
             "forks": forks,
-            "current": current,
         }
 
     def admitted(identity: str, minute: int, *, lane: bool) -> dict:
@@ -102,7 +99,7 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
         tmp_path,
         [
             admitted("c0", 0, lane=False),
-            follower(0, forks=True, current=True),
+            follower(0, forks=True),
             admitted("c1", 1, lane=True),
             {
                 **fork,
@@ -131,12 +128,10 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
                 "turn": running,
                 "refused": "this agent's turn no longer holds c1",
             },
-            follower(1, forks=False, current=True),
+            follower(1, forks=False),
             admitted("c2", 2, lane=False),
-            follower(2, forks=True, current=False),
+            follower(2, forks=True),
             admitted("c3", 3, lane=False),
-            follower(3, forks=True, current=True),
-            admitted("c4", 4, lane=False),
         ],
     )
 
@@ -154,11 +149,9 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     # Why admission found no fork lane, each cause told apart.
     assert "c0 not kept back: no fork lane: no pages follower noted" in out
     assert "c2 not kept back: no fork lane: the hooks module has forks off" in out
-    assert (
-        "c3 not kept back: no fork lane: the session's hooks module (abcdef01)" in out
-    )
-    assert "c4 not kept back: no fork lane: the follower from " in out
+    assert "c3 not kept back: no fork lane: the follower from " in out
     assert "pages follower keeps threads back for line forks" in out
+    assert "pages follower keeps nothing back: the hooks module has forks off" in out
     # Each agent turn of the session as it stands now: a fork's by its agent, and a
     # line turn as one.
     shown = [

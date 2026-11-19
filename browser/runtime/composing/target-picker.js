@@ -738,7 +738,6 @@ export function createTargetPicker({
   /** @type {import("../keyboard/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
   const hintOptions = {
     layer: hintRoot,
-    walk: "target-picker",
     read: visibleTargets,
     identity: hintElement,
     layout: (candidates, { current }) =>

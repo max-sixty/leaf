@@ -7,9 +7,11 @@ readings the page's server last sent. Each is kept in the page's `PageMemory` un
 one of these rules, so a kept reading is never stale, only dropped:
 
 - A reading of files is kept beside their stamps and made again once one moves
-  (`revision_artifact.read_revision`, `revisioning.held_activation`). A reading of the
-  log, which only grows, is kept beside the place in the log it read to, and reads on
-  from there (`event_log.admitted_attempts`).
+  (`revision_artifact.read_revision`, `revisioning.held_activation`). A reading made
+  over the page's layer is kept beside the layer's vocabulary and made again once
+  another replaces it (`registry.storage._Revisions`). A reading of the log, which
+  only grows, is kept beside the place in the log it read to, and reads on from there
+  (`event_log.admitted_attempts`).
 - A reading keyed by a name that never changes meaning is kept as it was made: a
   revision's marker names one bundle for good (`revision_artifact.read_artifact`).
 - A fact no file carries, such as whether another page's server is still running, is
@@ -42,9 +44,14 @@ A pure function of its arguments, which no file can make stale, is memoized at m
 level instead, bounded by entry count (`revision_artifact._read_css`,
 `thread_context._fragment`). So is a reading of the machine rather than of a page, in
 one slot replaced whole (`presence.neighbor_candidates`, `harness._registry_listing`).
-A reading that takes seconds and that requests arriving together all need, such as
-the layer a page selects (`layer.selected_layer`), is kept with `once`, so the first of
-those requests makes it and the rest wait for it rather than each making it again.
+So is the layer a selection of shared package roots alone composes, one per
+selection, since many pages read it alike; a layer that reads a page's own copy of a
+package is kept in that page's memory instead, beside the copy's stamp
+(`layer._held`). What a page reads in either layer, such as its revisions'
+vocabularies, is kept in the page's memory, so a layer many pages read holds nothing
+of any one of them. A reading that takes seconds and that requests arriving together
+all need, such as either layer, is kept with `once`, so the first of those requests
+makes it and the rest wait for it rather than each making it again.
 """
 
 import threading
@@ -84,6 +91,25 @@ class Slot:
         value = read()
         self._held = (key, value)
         return value
+
+
+class Stamped:
+    """Readings by key, each kept beside the stamps of what else it depends on and
+    replaced whole once those move. A memory keeps one instance per class, so each
+    use subclasses it once."""
+
+    def __init__(self) -> None:
+        self._held: dict = {}
+        self._lock = threading.Lock()
+
+    def of(self, key, stamps: tuple) -> dict:
+        """What is kept for `key` while what it depends on stamps as `stamps`, for
+        `once` to fill."""
+        with self._lock:
+            held = self._held.get(key)
+            if held is None or held[0] != stamps:
+                held = self._held[key] = (stamps, {})
+            return held[1]
 
 
 def once[T](held: dict, key, read: Callable[[], T]) -> T:

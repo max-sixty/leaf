@@ -34,7 +34,6 @@ import {
   findEach,
   findQuote,
   inChrome,
-  keptWithReading,
   neighbourhood,
   pageReadingVersion,
   pageText,
@@ -43,12 +42,14 @@ import {
   pointAt,
   quoteFrom,
   quotesChanged,
+  readsDocument,
   refuseBareText,
   says,
   segmentsIn,
   trackQuotes,
 } from "/runtime/passages.js";
-import { declaredRoot, upFrom } from "/runtime/shadow.js";
+import { declaredRoot } from "/runtime/shadow.js";
+import { upFrom } from "/runtime/shadow-tree.js";
 import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
 
 // The elements the page reading treats as blocks, each once, in reading order.
@@ -389,8 +390,10 @@ test("a forgotten reading is held by no key or kept answer that outlives it", as
 test("a reading kept from the page is made again when an id or a part's name changes", () => {
   document.body.innerHTML =
     '<main><section id="part"><p id="words">Alpha</p></section></main>';
-  const owner = {};
-  const withWords = () => keptWithReading(document.body, owner, () => ({}));
+  const withWords = kept(() => {
+    readsDocument(document.body);
+    return {};
+  });
   let made = 0;
   const reading = kept(() => {
     made += 1;

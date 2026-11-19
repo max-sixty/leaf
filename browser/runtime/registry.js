@@ -8,6 +8,7 @@
 import { installLanguagePaths } from "./language-paths.js";
 import { runtime } from "./context.js";
 import { isElementName } from "./registry-contract.js";
+import { kept, version } from "./kept.js";
 
 // The vocabulary, composed per page: which tags a module upgrades, and which of their
 // attributes are words the page says. Empty only during the real fetch interval, when
@@ -19,21 +20,27 @@ export const registry = runtime.registry;
 /** @param {string} name */
 export const tokenEntry = (name) => registry.$reactions?.tokens[name];
 
-// A reading of the vocabulary, kept until its generation says the vocabulary changed,
-// since a reader that asks for each command a page declares redoes it many times for
-// one input.
+// Which vocabulary stands: moved when a reader finds the layer's generation changed,
+// as the vocabulary is adopted (`adoptRegistry`), and on every reading before one is,
+// so nothing read of a vocabulary still being written is kept.
+/** @type {string | undefined} */
+let readGeneration;
+const vocabulary = version(() => {
+  const generation = registry.$layer?.generation;
+  if (generation && generation === readGeneration) return;
+  readGeneration = generation;
+  vocabulary.move();
+});
+
+// A reading of the vocabulary, kept until its generation says the vocabulary changed
+// (kept.js), since a reader that asks for each command a page declares redoes it many
+// times for one input.
 /** @template T @param {() => T} read @returns {() => T} */
-export function perVocabulary(read) {
-  /** @type {{generation: string, value: T} | undefined} */
-  let kept;
-  return () => {
-    const generation = registry.$layer?.generation;
-    if (kept && kept.generation === generation) return kept.value;
-    const value = read();
-    if (generation) kept = { generation, value };
-    return value;
-  };
-}
+export const perVocabulary = (read) =>
+  kept(() => {
+    vocabulary.read();
+    return read();
+  });
 
 // Ordinary keys are the authoring vocabulary: exact custom-element names and CSS
 // selectors. Only exact names are widget declarations; `lf-options.selected` is
@@ -64,19 +71,17 @@ function freeze(value) {
   Object.freeze(value);
 }
 
-/** @typedef {{generation: string, recordSelectors: Map<string, string>, specs: {tag: string, verb: string, spec: import("../types/domain.js").ActionSpec}[]}} StateIndex */
-/** @type {StateIndex | undefined} */
-let stateIndex;
 /** @param {import("../types/domain.js").StateRecord} record */
 const recordSlot = (record) =>
   JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
-function indexedState() {
+// Every tag's verbs, and the tags each recorded slot selects, read once for each
+// vocabulary.
+const indexedState = perVocabulary(() => {
   const generation = registry.$layer?.generation;
   if (typeof generation !== "string" || !generation)
     throw new Error("leaf: state vocabulary requested before registry loaded");
-  if (stateIndex?.generation === generation) return stateIndex;
 
-  /** @type {StateIndex["specs"]} */
+  /** @type {{tag: string, verb: string, spec: import("../types/domain.js").ActionSpec}[]} */
   const specs = [];
   for (const [tag, entry] of elementDeclarations())
     for (const [verb, spec] of Object.entries(entry.verbs ?? {}))
@@ -93,9 +98,8 @@ function indexedState() {
   const recordSelectors = new Map(
     [...recordTags].map(([slot, tags]) => [slot, [...tags].join(",")]),
   );
-  stateIndex = { generation, recordSelectors, specs };
-  return stateIndex;
-}
+  return { recordSelectors, specs };
+});
 
 export const stateSpecs = () => indexedState().specs;
 /** @param {import("../types/domain.js").StateRecord} record */

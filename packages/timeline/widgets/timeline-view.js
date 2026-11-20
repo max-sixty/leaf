@@ -194,7 +194,8 @@ export function render(host, current, model, layout) {
   // each number up in the chart. A timeline of bare lanes has one column. The head is
   // hidden from listeners, who hear each cell's run as its quiet word. The list names a
   // run or lane by its short form (`abbr`) where the author gives one, since the chart
-  // above names it in full; listeners hear the full name.
+  // above names it in full; listeners hear the full name. The author declares the short
+  // form because letters taken from labels collide, as Job A's and Job B's would.
   /** @type {(TimelineRun | null)[]} */
   const columns = model.runs.length ? model.runs : [null];
   const position = model.steps.length

@@ -6,6 +6,7 @@ import secrets
 import shutil
 import sys
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 
 from .event_log import initialized
@@ -31,6 +32,7 @@ from .locations import (
 from .machine import package_store
 from .refusals import Refused
 from .schema import (
+    ASSETS,
     HTML_NAME,
     PACKAGE_DIRS,
     PACKAGE_FILES,
@@ -41,6 +43,7 @@ from .schema import (
     WIDGET_NAME_RULE,
 )
 from .state import fsync_parents, json_bytes
+from .styles import set_properties, unguarded_reads
 from .themes import DEFAULT_THEME
 
 
@@ -272,6 +275,57 @@ def check_package(
     return package, protected, composition
 
 
+@lru_cache(maxsize=1)
+def _runtime_properties() -> tuple[frozenset[str], tuple[str, ...]]:
+    """The custom properties this install's browser runtime and server set by name,
+    which no layer composes: the runtime's modules and sheets, and what a delivery
+    writes (`styles.set_properties`)."""
+    sources = (ASSETS, Path(__file__).parent)
+    return set_properties(
+        path.read_text(encoding="utf-8", errors="replace")
+        for root in sources
+        for path in sorted(root.rglob("*"))
+        if path.suffix in {".css", ".js", ".py"} and path.is_file()
+    )
+
+
+def unset_properties(package: Path, composition: LayerComposition) -> list:
+    """An `unset-property` advice for each custom property the package's own sheets
+    read with no fallback that nothing sets: no sheet or module of Leaf's runtime, of
+    the layer a page selecting the package composes, or of the package itself. Such a
+    read is usually a token Leaf renamed, and the declaration computes to nothing with
+    no error anywhere. It is advice, since a page may set the property itself, as a
+    package's instructions can ask it to."""
+    from .findings import Finding
+
+    names, prefixes = _runtime_properties()
+    composed, built = set_properties(
+        data.decode("utf-8", errors="replace")
+        for path, data in composition.files.items()
+        if path.endswith((".css", ".js"))
+    )
+    names, prefixes = names | composed, (*prefixes, *built)
+    found = []
+    for path, data in package_files(package).items():
+        if not path.endswith(".css") or "vendor" in Path(path).parts:
+            continue
+        rows = {}
+        for name, row in unguarded_reads(
+            data.decode("utf-8", errors="replace"),
+            lambda name: name in names or name.startswith(prefixes),
+        ):
+            rows.setdefault(name, []).append(row)
+        found += [
+            Finding(
+                "unset-property",
+                values={"sheet": str(package / path), "property": name, "rows": lines},
+                severity="advice",
+            )
+            for name, lines in sorted(rows.items())
+        ]
+    return found
+
+
 def copy_package_contract(package: Path, staged: Path) -> None:
     """Copy exactly what a layer input reads (`layer.package_files`), and the
     package's scripts, into an empty directory.
@@ -393,8 +447,8 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
     """Check the package, and with `render` its widgets' worked examples in the
     host's browser, and report one object in `page check`'s shape: `status`, the exit
     status; `findings`, each finding as a record: the findings a refusal carries, such
-    as a registry's, any other refusal as one `package` record, or the widget quality
-    findings; and `browser`, what the browser gate ran in or why none could, null
+    as a registry's, any other refusal as one `package` record, or else the advice
+    `unset_properties` gives and the widget quality findings; and `browser`, what the browser gate ran in or why none could, null
     where none was asked for or the package check refused."""
     from .findings import Finding, Rejected
 
@@ -406,7 +460,7 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
         }
 
     try:
-        package, _, _ = check_package(package, require_exists=True)
+        package, _, composition = check_package(package, require_exists=True)
     except Refused as error:
         found = (
             error.findings
@@ -414,12 +468,13 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
             else [Finding("package", values={"text": str(error)})]
         )
         return reported(1, found)
+    advice = unset_properties(package, composition)
     if not render:
-        return reported(0)
+        return reported(0, advice)
     from .render_gate.command import widget_quality
 
     check = widget_quality(package)
-    return reported(check.status, check.findings, check.json())
+    return reported(check.status, [*advice, *check.findings], check.json())
 
 
 def cmd_package_install(source: Path) -> dict:

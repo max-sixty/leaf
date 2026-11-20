@@ -173,6 +173,13 @@ export function render(host, current, model, layout) {
   current = Math.max(0, Math.min(model.steps.length - 1, current));
   const now = model.steps[current]?.time ?? 0;
   const along = (/** @type {number} */ ms) => fraction(ms / model.duration);
+  // Compared runs each take a column of the step list, named once in the list's head,
+  // so a row shows every run at its moment without repeating a run's name. A run
+  // number on each row would keep one column at any width, but the reader would look
+  // each number up in the chart. A timeline of bare lanes has one column. The head is
+  // hidden from listeners, who hear each cell's run as its quiet word.
+  /** @type {(TimelineRun | null)[]} */
+  const columns = model.runs.length ? model.runs : [null];
   const position = model.steps.length
     ? `Step ${current + 1} of ${model.steps.length} · ${seconds(now)}`
     : "No events";
@@ -193,9 +200,8 @@ export function render(host, current, model, layout) {
       style="--lf-timeline-bands: ${model.bands}; --lf-axis-edge: ${EDGE}px"
     >
       ${model.runs.map(
-        (run, column) =>
+        (run) =>
           html`<span class="lf-timeline-run lf-label" style="grid-row: ${run.row}"
-            ><span class="lf-timeline-step-number">${column + 1}</span
             >${run.label}</span
           >`,
       )}
@@ -284,7 +290,7 @@ export function render(host, current, model, layout) {
     <ol
       class="lf-timeline-steps lf-rows"
       ${generated({ says: true })}
-      style=${model.runs.length ? `--lf-timeline-runs: ${model.runs.length}` : nothing}
+      style="--lf-timeline-columns: ${columns.length}"
     >
       ${
         model.runs.length
@@ -316,41 +322,24 @@ export function render(host, current, model, layout) {
               <span class="lf-timeline-step-time lf-row-lead"
                 >${seconds(step.time)}</span
               >
-              ${
-                model.runs.length
-                  ? model.runs.map((run, column) => {
-                      const events = step.events.filter((event) => event.lane.run === run);
-                      if (!events.length) return nothing;
-                      return html`<span
-                        class="lf-timeline-step-cell"
-                        style="grid-column: ${column + 2}"
-                        >${events.map(
-                          (event, order) =>
-                            html`<span class="lf-timeline-step-event lf-row-main"
-                              ><span class="lf-timeline-step-number"
-                                >${column + 1}</span
-                              >${
-                                order === 0
-                                  ? html`<span class="lf-timeline-step-run"
-                                      >${run.label} · </span
-                                    >`
-                                  : nothing
-                              }<span class="lf-timeline-step-lane"
-                                >${event.lane.label}: </span
-                              >${event.label}</span
-                            >`,
-                        )}</span
-                      >`;
-                    })
-                  : step.events.map(
-                      (event) =>
-                        html`<span class="lf-timeline-step-event lf-row-main"
-                          ><span class="lf-timeline-step-lane"
-                            >${event.lane.label}: </span
-                          >${event.label}</span
-                        >`,
-                    )
-              }
+              ${columns.map((run, column) => {
+                const events = step.events.filter((event) => event.lane.run === run);
+                return events.length
+                  ? html`<span
+                      class="lf-timeline-step-cell lf-row-main"
+                      style=${run ? `grid-column: ${column + 2}` : nothing}
+                      data-lf-quiet=${run?.label ?? nothing}
+                      >${events.map(
+                        (event) =>
+                          html`<span class="lf-timeline-step-event"
+                            ><span class="lf-timeline-step-lane"
+                              >${event.lane.label}: </span
+                            >${event.label}</span
+                          >`,
+                      )}</span
+                    >`
+                  : nothing;
+              })}
             </span>
           </li>`,
       )}

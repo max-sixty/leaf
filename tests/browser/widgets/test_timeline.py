@@ -334,6 +334,32 @@ def test_compared_runs_line_up_on_one_axis_under_one_playhead(browser, serve):
     assert after_run["bottom"] <= lanes[2]["top"] + 0.5, reading
     assert_labels_clear(page)
 
+    # The step list names each run once, over a column that holds the run's events,
+    # and a step's events in both runs share its row.
+    columns = page.evaluate(
+        """() => {
+          const steps = document.querySelector('#race .lf-timeline-steps');
+          const x = (el) => Math.round(el.getBoundingClientRect().left);
+          return {
+            heads: Object.fromEntries([...steps.querySelectorAll('.lf-timeline-steps-run')]
+              .map((head) => [head.textContent, x(head)])),
+            cells: [...steps.querySelectorAll('.lf-timeline-step-cell')].map((cell) =>
+              [cell.dataset.lfQuiet, x(cell), Math.round(cell.getBoundingClientRect().top)]),
+          };
+        }"""
+    )
+    heads = columns["heads"]
+    assert list(heads) == ["Before the fix", "After the fix"], columns
+    assert heads["Before the fix"] < heads["After the fix"], columns
+    for run, left, _ in columns["cells"]:
+        assert left == heads[run], columns
+    first, second = columns["cells"][:2]
+    assert (first[0], second[0], first[2]) == (
+        "Before the fix",
+        "After the fix",
+        second[2],
+    )
+
     page.locator("#race").get_by_role("button", name="Next").click()
     page.keyboard.press("ArrowRight")
     expect(page.locator(".lf-live")).to_have_text(

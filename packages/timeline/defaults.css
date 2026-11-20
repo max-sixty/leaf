@@ -211,10 +211,33 @@ lf-event::before {
 }
 
 .lf-timeline-steps {
+  /* The list's columns (controls.css, `.lf-rows`) are the time and then one column
+     per compared run (`--lf-timeline-columns`, set by the view), which share the
+     rest of the width equally. */
+  grid-template-columns: [lead] auto repeat(
+      var(--lf-timeline-columns, 1),
+      [main] minmax(0, 1fr)
+    );
   list-style: none;
   margin: var(--lf-sp-3) 0 0;
   padding: 0;
   font: var(--lf-font-compact);
+}
+/* The list's head names each compared run once, over its column, in the face of the
+   run's heading in the chart. */
+.lf-timeline-steps-head {
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: end;
+  padding-block-end: var(--lf-sp-1);
+  border-block-end: 1px solid var(--lf-rule);
+}
+.lf-timeline-steps-run,
+.lf-timeline-step-cell {
+  padding-inline-end: var(--lf-sp-3);
+}
+.lf-timeline-step-event {
+  display: block;
 }
 /* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
  * current row; a step still ahead of it stands in the muted ink (`data-lf-ahead`). */
@@ -225,8 +248,9 @@ lf-event::before {
 .lf-timeline-steps > li {
   break-inside: avoid;
 }
+/* A step's lane names are muted, so the row reads as its events' own words. */
 .lf-timeline-step-lane {
-  font-weight: 600;
+  color: var(--lf-muted);
 }
 
 lf-timeline > :is(lf-lane, lf-run)[hidden] {

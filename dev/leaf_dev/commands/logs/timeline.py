@@ -1,7 +1,7 @@
 """What happened on a Leaf page and in the Claude Code sessions that held it, in time
-order: the user's messages, what Leaf kept back and its forks, what Leaf handed each session and
-when, the session's turns and commands, and the agent's words on the page, with a line
-per message saying how long each step took after the user sent it.
+order: the user's messages, the line forks Leaf ran on them, what Leaf handed each session
+and when, the session's turns and commands, and the agent's words on the page, with a
+line per message saying how long each step took after the user sent it.
 
     leaf-dev logs timeline PAGE... [--message ID] [--since ISO] [--until ISO] [--calls] [--json]
 
@@ -10,16 +10,12 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
 
 - the page's log and diagnostics (`leaf.interaction_log.read_interactions`): each
   message and the agent's words, pickups and receipts, and the records Leaf's hooks
-  and commands leave: `fork_admission`, whether admission kept a message back for a line
-  fork or a running line turn held it, and where neither, whether the session's fork
-  lane was up, with why not by the session's last `follower` note
-  (`leaf.hooks.cmd_pages`); `fork_asked`,
-  as Leaf gave a line fork its question; `fork_outcome`, what came of it
-  (`leaf.forks`); `turn_end_check`, the
-  clerk's fork (`leaf.clerk`); `leaf_command`, with the error where Leaf refused it;
-  and `watch`
-  (`leaf.interaction_log`); and the browser's own `event_submit` and
-  `reply_visible`;
+  and commands leave: `follower`, as the session's pages follower first reads the page
+  (`leaf.hooks.cmd_pages`), so a message that got no line fork shows whether one ran;
+  `fork_asked`, as Leaf gave a line fork its question; `fork_outcome`, what came of it
+  (`leaf.forks`); `turn_end_check`, the clerk's fork (`leaf.clerk`); `leaf_command`,
+  with the error where Leaf refused it; and `watch` (`leaf.interaction_log`); and the
+  browser's own `event_submit` and `reply_visible`;
 - each Claude Code session the page names: its transcript, from `claude/` in the PAGE
   directory, where a journey keeps it, or Claude Code's configuration directory
   (`CLAUDE_CONFIG_DIR`, else `~/.claude`), with its turns, the Leaf input its hooks
@@ -27,11 +23,7 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
   spawned for a thread among them, with the `leaf` commands each ran; and its debug
   log, `debug.log` in the PAGE directory or
   `debug/<session>.txt` in Claude Code's, which only a session started with `--debug`
-  or `--debug-file` writes, with the hooks module's own lines (`Leaf: …`);
-- each such session's line turns as this machine's state home holds them now
-  (`leaf.state.AGENT_TURNS`): the threads each held on the page, when it opened, and
-  whether it runs, closed or lapsed, so the
-  header says whether a line fork is running or stuck.
+  or `--debug-file` writes, with the hooks module's own lines (`Leaf: …`).
 
 `--message ID` keeps one message's story: from its admission to its answer, or ten
 minutes on where it has none, its thread's events and everything the sessions did
@@ -52,14 +44,13 @@ from pathlib import Path
 
 import click
 
-from leaf.activity import running_agent_turns
 from leaf.event_log import read_stored_events
 from leaf.events import is_answer
 from leaf.harness import claude_code_config
 from leaf.hook_transport import inline_delivery
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
-from leaf.state import agent_turn_open, agent_turns, now_iso, session_record
+from leaf.state import now_iso
 from leaf.thread_context import thread_names
 from leaf_dev.page_timings import page_timings
 from leaf_dev.reply_phases import (
@@ -72,7 +63,6 @@ from leaf_dev.reply_phases import (
 # The page's records the timeline reads, besides its log's events.
 DIAGNOSTICS = (
     "event",
-    "fork_admission",
     "fork_asked",
     "fork_outcome",
     "turn_end_check",
@@ -99,12 +89,9 @@ def entry(at: str, source: str, what: str, **context) -> dict:
     return {"at": at, "source": source, "what": what, **context}
 
 
-def page_entries(
-    page: Path, since, until, followers: list[dict]
-) -> tuple[list[dict], set[str], dict]:
+def page_entries(page: Path, since, until) -> tuple[list[dict], set[str], dict]:
     """The page's events and diagnostics as timeline entries, the Claude Code sessions
-    they name, and each message's thread; `followers` are the page's `follower`
-    notes before `until`, which say why admission found no fork lane."""
+    they name, and each message's thread."""
     events = read_stored_events(page)
     threads = thread_names(events)
     messages = kinds_declaring("message")
@@ -124,24 +111,6 @@ def page_entries(
                 sessions.add(session)
             if (shown := event_entry(event, threads, messages, lines)) is not None:
                 out.append(shown)
-        elif kind == "fork_admission":
-            out.append(
-                entry(
-                    at,
-                    "fork",
-                    f"{row['event']} kept back for a line fork"
-                    if row["kept_back"]
-                    else f"{row['event']} held by turn {row['held_by'][:8]}"
-                    if row["held_by"]
-                    else f"{row['event']} not kept back: "
-                    + (
-                        without_lane(row, followers)
-                        if not row["lane"]
-                        else "with the session"
-                    ),
-                    thread=threads.get(row["event"]),
-                )
-            )
         elif kind == "fork_asked":
             running = ", ".join(row.get("running") or []) or "nothing"
             out.append(
@@ -192,7 +161,7 @@ def page_entries(
                 entry(
                     at,
                     "leaf",
-                    "pages follower keeps threads back for line forks",
+                    "pages follower lists line forks",
                     session=row["session"],
                 )
             )
@@ -302,68 +271,8 @@ def event_entry(
 
 
 def in_turn(turn: str | None) -> str:
-    """Which turn a pickup, start, reply or command names, a line turn's or the
-    session's main thread's."""
+    """Which turn of its session a pickup, start, reply or command names."""
     return f" in turn {turn[:8]}" if turn else ""
-
-
-def without_lane(admission: dict, followers: list[dict]) -> str:
-    """Why admission found the session with no fork lane (`fork_admission`), by the
-    last `follower` note of its session before it: no follower noted, or that
-    follower no longer holding the lane."""
-    noted = [
-        row
-        for row in followers
-        if row["session"] == admission["session"]
-        and interaction_time(row["ts"]) <= interaction_time(admission["ts"])
-    ]
-    if not noted:
-        return "no fork lane: no pages follower noted"
-    return (
-        f"no fork lane: the follower from {local(noted[-1]['ts']):%H:%M:%S} "
-        "no longer holds it"
-    )
-
-
-def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> list[str]:
-    """Each line turn of `session` as this machine's state home holds it now
-    (`leaf.state.AGENT_TURNS`): the threads its held pickups took on the page, when it
-    opened, and whether it runs, closed or lapsed: open but believed running no
-    longer (`leaf.activity.running_agent_turns`). Only the turns that took `thread`,
-    where one is given."""
-    record = session_record(session)
-    turns = agent_turns(session)
-    running = running_agent_turns(
-        {turn: e for turn, e in turns.items() if agent_turn_open(e, record)},
-        True,
-        datetime.now().astimezone(),
-    )
-    names = thread_names(events)
-    lines = []
-    for turn, held in sorted(turns.items(), key=lambda item: item[1]["opened"]):
-        took = sorted(
-            {
-                names[input_id]
-                for event in events
-                if event["kind"] == "pickup" and event.get("turn") == turn
-                for input_id in event["events"]
-                if input_id in names
-            }
-        )
-        if thread is not None and thread not in took:
-            continue
-        shown = (
-            f"closed {local(held['closed']):%H:%M:%S}"
-            if held["closed"] is not None
-            else "running"
-            if turn in running
-            else "lapsed"
-        )
-        lines.append(
-            f"line turn {turn[:8]} on {', '.join(took) or 'no thread here'}: opened "
-            f"{local(held['opened']):%H:%M:%S}, {shown}"
-        )
-    return lines
 
 
 def fork_entries(row: dict) -> list[dict]:
@@ -375,10 +284,12 @@ def fork_entries(row: dict) -> list[dict]:
     if elapsed is not None:
         began = (interaction_time(at) - timedelta(milliseconds=elapsed)).isoformat()
         out.append(entry(began, "fork", "forked the conversation", thread=thread))
-    said = (
-        f"line “{clip(row['text'], 60)}”"
-        if "line" in row
-        else row.get("why") or row.get("refused") or ""
+    # Why no line went in, where none did, and the line the fork wrote, where it did.
+    said = "; ".join(
+        [
+            *([row["why"]] if "why" in row else []),
+            *([f"line “{clip(row['text'], 60)}”"] if "text" in row else []),
+        ]
     )
     took = f" in {elapsed / 1000:.1f} s" if elapsed is not None else ""
     out.append(entry(at, "fork", f"{row['outcome']}{took}: {said}", thread=thread))
@@ -609,38 +520,23 @@ def debug_entries(log: str, session: str, *, calls: bool) -> list[dict]:
     return out
 
 
-def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
-    """One message's steps, in seconds after its admission: whether admission kept
-    it back or a line turn held it (`kept`, its `fork_admission` notes), and why it
-    found no fork lane (`followers`, `without_lane`), what its fork did, and the
-    page's and the session's steps on it (`row`, `page_timings`' reading of it)."""
+def message_line(row: dict) -> str:
+    """One message's steps, in seconds after its admission: what its line fork did,
+    and the page's and the session's steps on it (`page_timings`' reading of it)."""
     marks = row["milestones"]
 
     def at(name: str) -> str:
         mark = marks.get(name)
         return "—" if mark is None else f"{mark['elapsed_s']:.1f}s"
 
-    note = kept.get(row["message_id"])
+    fork = row["fork"]
     told = (
-        ""
-        if note is None
-        else "kept back · "
-        if note["kept_back"]
-        else f"held by turn {note['held_by'][:8]} · "
-        if note["held_by"]
-        else f"not kept back ({without_lane(note, followers)}) · "
-        if not note["lane"]
-        else "not kept back (with the session) · "
+        "no fork"
+        if fork is None
+        else f"fork {fork['outcome']}"
+        + (f" {fork['elapsed_s']:.1f}s" if fork["elapsed_s"] is not None else "")
+        + (f" ({clip(fork['why'], 50)})" if fork["why"] else "")
     )
-    if (fork := row["fork"]) is not None:
-        took = f" {fork['elapsed_s']:.1f}s" if fork["elapsed_s"] is not None else ""
-        told += (
-            f"fork {fork['outcome']}"
-            + took
-            + (f" ({clip(fork['why'], 50)})" if fork["why"] else "")
-        )
-    elif note is None or note["kept_back"]:
-        told += "no fork"
     pickup = row.get("pickup") or {}
     cause = (
         f" ({pickup['cause']}"
@@ -650,7 +546,7 @@ def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
         else ""
     )
     return (
-        f"{row['input_id']} {row['input_kind']:8} {told.removesuffix(' · ')} · first "
+        f"{row['input_id']} {row['input_kind']:8} {told} · first "
         f"words {at('first_reply')} ({row.get('first_reply_kind') or '—'}) · picked "
         f"up {at('opened')}{cause} · started {at('started')} · answered {at('answered')}"
     )
@@ -732,10 +628,7 @@ def show(
 ) -> None:
     """Print `page`'s timeline between `beginning` and `cutoff`, kept to the thread of
     the message `focus` names where it names one."""
-    notes = read_interactions(page, until=cutoff, types=("fork_admission", "follower"))
-    kept = {row["event"]: row for row in notes if row["type"] == "fork_admission"}
-    followers = [row for row in notes if row["type"] == "follower"]
-    found, sessions, threads = page_entries(page, beginning, cutoff, followers)
+    found, sessions, threads = page_entries(page, beginning, cutoff)
     paths = {session: transcript_path(page, session) for session in sorted(sessions)}
 
     def records(milestone: dict) -> list[dict] | None:
@@ -768,14 +661,11 @@ def show(
             click.echo(json.dumps(item))
         return
     click.echo(f"{page}")
-    events = read_stored_events(page)
     for session, path in paths.items():
         log = "debug log" if debug_log(page, session) else "no debug log"
         click.echo(f"  session {session}: {path or 'no transcript here'}; {log}")
-        for line in agent_turn_lines(session, events, thread):
-            click.echo(f"    {line}")
     for row in rows:
-        click.echo("  " + message_line(row, kept, followers))
+        click.echo("  " + message_line(row))
     click.echo()
     sent = focus[1] if focus else None
     for item in shown:

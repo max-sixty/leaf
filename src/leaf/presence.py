@@ -1,6 +1,6 @@
 """Page and neighboring-leaf presence readings, and the one write that follows
 from them: the message to a claimant whose input nothing will carry
-(`nudge_unwatched`, `nudge_left`)."""
+(`nudge_unwatched`, `nudge_interrupted`)."""
 
 import hashlib
 import json
@@ -32,7 +32,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import agent_turn_stamps, now_iso, state_home, turn_closed
+from .state import now_iso, state_home, turn_closed
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -380,9 +380,6 @@ def presence_with_activity(
         # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim["turn_opened"] if claim else None,
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
-        # The line turns the claiming session runs beside its main thread, which a
-        # pickup or line names as it names the main thread's (`agent_turn_stamps`).
-        "agent_turns": agent_turn_stamps(claim) if claim else {},
         # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
@@ -472,7 +469,7 @@ def nudge_unwatched(page: PageTransaction) -> None:
     process of its own has nowhere to put this and answers no.
 
     Admission calls it, and so does a watch giving up its lease, and the page's
-    server for what a turn left with no hook (`nudge_left`). It runs under the
+    server once it reads a turn interrupted (`nudge_interrupted`). It runs under the
     page's lock, so the mark it leaves is exact: a local socket accepts or refuses at
     once, and input after a refusal tries again."""
     claim, page_dir = page.active_claim, page.page_dir
@@ -495,39 +492,25 @@ def turn_ending(claim: dict) -> str:
     return f"{claim['turn']}@{claim['turn_closed'] or claim['turn_opened']}"
 
 
-def nudge_left(page_dir: Path, *, at_transition: bool) -> None:
-    """Message the claimant for the input a turn left on the page with no hook or
-    write to say so (`nudge_unwatched`): its main thread's turn, interrupted, as
-    Escape ends one, or, `at_transition`, a line turn that lapsed. The page's server
-    calls this (`server_rows`), since no hook runs at either moment.
+def nudge_interrupted(page_dir: Path) -> None:
+    """Message the claimant whose turn was interrupted, as Escape ends one, for the
+    input that turn left on the page (`nudge_unwatched`): what arrived while it ran
+    and its tool boundaries had not yet taken, and what its hooks handed over that
+    its harness's record does not show reached the model (`delivery.deliverable`),
+    as when Escape landed while another prompt hook still ran and Claude Code
+    dropped the prompt with Leaf's context.
 
-    An interrupted turn leaves what arrived while it ran and its tool boundaries had
-    not yet taken, and what its hooks handed over that its harness's record does not
-    show reached the model (`delivery.deliverable`), as when Escape landed while
-    another prompt hook still ran and Claude Code dropped the prompt with Leaf's
-    context. The server reads the interrupt from that record, among the live facts it
-    looks at every presence interval. Claude Code's prompt hook starts a watch that
-    holds the lease through its turn and wakes for what an interrupt leaves, so this
-    sends only where no watch runs: after a turn whose prompt came before the session
-    held any page, whose watch ended at once, or once a watch has failed. A watch that
-    wakes the session marks the ending it woke it for (`session.woke_after`), so the
-    moment between its lease going and the woken turn starting sends nothing more. A
-    turn a Stop hook closed is left alone at a presence look: that hook starts the
-    watch that wakes for what the turn left, and a message sent before that watch
-    holds the lease would wake the session twice.
-
-    A line turn that lapses gives the thread it kept back to the main thread
-    (`forks.py`), whether its line fork answers late or never, and writes nothing. The
-    lapse is a transition of the page's activity fold (`next_transition_at`), when the
-    server wakes, so this sends at each transition, however the main thread's turn
-    ended. A watch holding the lease is sent nothing and wakes the session itself. An
-    unheld lease can't tell a watch that has gone from one a Stop hook started that
-    hasn't taken the lease yet, so a transition in that moment wakes the session twice,
-    as input admitted in it does: the watch's wake doesn't read the nudge's mark, since
-    a session may hold a nudge unread (`harness.message_claude_code_session`), and a
-    second turn costs less than a message nothing delivers. At other transitions, which
-    hand nothing over, this sends what admission would for the input waiting then, once
-    per ending."""
+    No hook runs on an interrupt, so nothing on the page moves when one happens;
+    the page's server reads it from the harness's own record, among the live facts
+    it looks at every presence interval (`server_rows`), and calls this when they
+    change. Claude Code's prompt hook starts a watch that holds the lease through
+    its turn and wakes for what an interrupt leaves, so this sends only where no
+    watch runs: after a turn whose prompt came before the session held any page,
+    whose watch ended at once, or once a watch has failed. A watch that wakes the
+    session marks the ending it woke it for (`session.woke_after`), so the moment
+    between its lease going and the woken turn starting sends nothing more. A turn
+    a Stop hook closed is left alone: that hook starts the watch that wakes for
+    what the turn left."""
     from .delivery import deliverable
     from .session import wake_inputs
 
@@ -535,7 +518,7 @@ def nudge_left(page_dir: Path, *, at_transition: bool) -> None:
         claim = page.active_claim
         if (
             claim is not None
-            and (at_transition or not turn_closed(claim))
+            and not turn_closed(claim)
             and wake_inputs(page, deliverable(page))
         ):
             nudge_unwatched(page)

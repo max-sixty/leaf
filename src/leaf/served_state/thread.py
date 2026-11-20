@@ -87,8 +87,8 @@ def progress_ends(
 
     A step toward an answer still owed stands until the agent next speaks in its
     thread (`events.progress_completions`), whichever turn or session writes that, as
-    the line a line fork writes for the session does (`forks.py`): its line turn ends
-    as it hands the thread on, long before the session answers. The user chose that a
+    the line a line fork writes for the session does (`forks.py`), which names no
+    turn of its own. The user chose that a
     step otherwise goes with its turn, rather than standing as the thread's last word
     until the agent next speaks there, and that owed work keeps the rule before, under
     which every step stood until then, even past its session's end, when its On it

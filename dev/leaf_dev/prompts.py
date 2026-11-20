@@ -4,7 +4,7 @@ prose that describes each (`docs.compose`, `lf-text-document[data-prompt]`).
 Each entry of `PROMPTS` calls the function that writes its prompt, so the page shows
 Leaf's text, and the references it quotes, as the code has them now. This module
 supplies only the values a prompt is written around. The messages of a fork journey
-(`line`, `hand-over`), which How it works' "Anatomy of a fork journey" shows
+(`line`, `delivery`), which How it works' "Anatomy of a fork journey" shows
 beside the timings and Claude Code's text of one recorded run, are written around that
 run's own values (`JOURNEY`). The rest come from one
 illustrative scenario: a page, a thread on it, the user's newest message there and a
@@ -25,12 +25,12 @@ from leaf.delivery import DELIVERY, envelope, handled
 from leaf.hook_transport import inline_context
 from leaf.state import kernel_registry
 
-# The values Leaf wrote each of its messages around in the 22:07 PT run of the
-# claude-code agent journey on 19 November 2026 (`leaf-dev journey run claude-code`),
+# The values Leaf wrote each of its messages around in the 10:55 PT run of the
+# claude-code agent journey on 20 November 2026 (`leaf-dev journey run claude-code`),
 # under Claude Code 2.1.329: the batch the line fork read and what the session was
-# running (`line`), and the id, time and batch of the delivery that handed the
-# message, with the line among its thread's messages, to the session (`hand-over`).
-# Each batch is the page's events as `delivery.batch_data` captured them, with no
+# running (`line`), and the id, time and batch of the delivery that gave the session
+# the message, with the line already among its thread's messages (`delivery`). Each
+# batch is the page's events as `delivery.batch_data` captured them, with no
 # handling, which `delivery` derives.
 JOURNEY = json.loads(Path(__file__).with_name("fork-journey.json").read_text())
 
@@ -147,11 +147,11 @@ def delivery(identity: str, captured: dict, created: float = 1795050000.0) -> di
     return DELIVERY.stored(envelope(identity, created, [handling]))
 
 
-def journey_delivery(name: str) -> dict:
-    """The delivery the recorded journey's `name` step handed the session
+def journey_delivery() -> dict:
+    """The delivery that gave the recorded journey's session its message
     (`JOURNEY`)."""
-    step = JOURNEY[name]
-    return delivery(step["delivery"], step["batch"], step["created_at"])
+    step = JOURNEY["delivery"]
+    return delivery(step["id"], step["batch"], step["created_at"])
 
 
 # The batch the summary fork reads.
@@ -162,8 +162,8 @@ def line() -> str:
     return forks.line_prompt(JOURNEY["line"]["batch"], JOURNEY["line"]["running"])
 
 
-def hand_over() -> str:
-    return inline_context(journey_delivery("hand-over"))
+def delivery_context() -> str:
+    return inline_context(journey_delivery())
 
 
 def summary() -> str:
@@ -223,7 +223,7 @@ def references() -> list[Path]:
 # Each prompt by the name its slot on How it works gives (`data-prompt`).
 PROMPTS = {
     "line": line,
-    "hand-over": hand_over,
+    "delivery": delivery_context,
     "summary": summary,
     "turn-end": turn_end,
     "title-system": title_system,

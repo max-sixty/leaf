@@ -21,23 +21,23 @@ the prompt in the step (`ClaudeCode.approve`). Bypassing permissions instead wou
 change what is under test: Claude Code then holds admission's nudge, which reaches
 the session as a message from another session (`crossSessionInbound`), unread.
 
-As in every Claude Code session, Leaf keeps each comment back from the session
-while a line fork posts the agent's working line on it, then hands it to the session
-(`leaf.forks`), which decides who does its work: itself, or a subagent that would
-answer in its place. So each delivery step's comment asks for a change to the page,
-which the session makes itself, and the step tests the session's own delivery from
-then on; `withdrawn`'s comment needs none, since the user resolves it at once. The
-fork steps run right after `release`. Whether a message is worth a fork is the
-session's call, and it does a one-step lookup itself, so both fork steps send their
-message while the session runs the user's own turn, and the first asks for the work
-beside it; `evals/beside-work-goes-to-a-fork` scores the instruction itself.
+As in every Claude Code session, Leaf hands each comment to the session as it does
+any input, while a line fork posts the agent's working line on it (`leaf.forks`),
+and the session decides who does its work: itself, or a subagent that would answer
+in its place. So each delivery step's comment asks for a change to the page, which
+the session makes itself, and the step tests the session's own delivery from then
+on; `withdrawn`'s comment needs none, since the user resolves it at once. The fork
+steps run right after `release`. Whether a message is worth a fork is the session's
+call, and it does a one-step lookup itself, so both fork steps send their message
+while the session runs the user's own turn, and the first asks for the work beside
+it; `evals/beside-work-goes-to-a-fork` scores the instruction itself.
 
 The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
 more than one harness takes, as `_journey.Terminal` has them:
 
 - `setup`;
-- `release`, which asks for work, so its line fork hands it over and the session
-  answers it.
+- `release`, which asks for work, and the session answers it; the step prints what
+  came of its line fork.
 
 Then the fork steps, each timed from the comment's admission to the reply, with the
 line fork's own time and tokens from its record in the page's diagnostics
@@ -45,12 +45,12 @@ line fork's own time and tokens from its record in the page's diagnostics
 
 - `fork-busy`: during the user's own turn's shell command, a question answered by
   reading the page's source: the line fork posts the agent's working line as its
-  first reply, Leaf hands the message to the session at its next tool boundary, and
-  the session starts it, so no prompt reminds it of the message as owed, and gives
-  it to a subagent of its own, which answers it in the thread itself with `leaf thread
-  reply` while Leaf's hooks hand the subagent no delivery; Claude Code then tells
-  the session the subagent finished, in a turn of its own or the one running, and
-  the session doesn't answer the message again;
+  first reply, the session takes the message at its next tool boundary and starts
+  it, so no prompt reminds it of the message as owed, and gives it to a subagent of
+  its own, which answers it in the thread itself with `leaf thread reply` while
+  Leaf's hooks hand the subagent no delivery; Claude Code then tells the session the
+  subagent finished, in a turn of its own or the one running, and the session
+  doesn't answer the message again;
 - `fork-follow-up`: once that subagent has answered, the user's further message in
   its thread, sent during another turn of the user's, which the session gives to a
   subagent again, the same one with SendMessage or a new one, which answers it.
@@ -58,9 +58,8 @@ line fork's own time and tokens from its record in the page's diagnostics
 Then the delivery steps:
 
 - `mid-turn`: a comment sent during the user's own turn's shell command gets the
-  line fork's working line as its first reply and is handed over, and the turn's
-  PostToolBatch context then carries the exact input before another model call,
-  rather than waiting for Stop;
+  line fork's working line as its first reply, and the turn's PostToolBatch context
+  carries the exact input before another model call, rather than waiting for Stop;
 - `ending`: two comments sent during a shell command, the second after the turn
   picked up the first, both enter that turn at its tool boundaries;
 - `escape`, whose line says the claim's turn stayed open, since Escape runs no
@@ -78,11 +77,13 @@ Then the delivery steps:
 - `boundary`: a comment that arrives while a wake's turn answers another, handed over
   at the tool boundary after that answer, whose other hook sleeps, and Escape then
   ends that turn with neither comment half done. Another hook before each shell
-  command, the session's own setting, holds the answer until the line fork has handed
-  the comment over, so where the handover lands depends neither on how the agent
-  batches its calls nor on how long the fork takes. The watch the wake's prompt
-  started wakes the session, whose prompt names the comment as owed rather than
-  handing it over again, so it is handed over once, and a turn of its own answers it;
+  command, the session's own setting, holds the answer until the comment is admitted,
+  so where it is handed over doesn't depend on how the agent batches its calls. That
+  boundary comes about a second after the comment's admission, sooner than a line
+  fork usually answers, so its handing the comment over shows the session getting a
+  comment without waiting for its line. The watch the wake's prompt started wakes
+  the session, whose prompt names the comment as owed rather than handing it over
+  again, so it is handed over once, and a turn of its own answers it;
 - `deferred`: the user's own turn, told to leave Leaf's comments for later, is
   handed a comment at a tool boundary and ends on its answer with the comment
   unanswered, and no Stop hook continues it over the comment. The watch wakes a
@@ -495,12 +496,11 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     def lined(name: str) -> float:
         """Require the line fork on step `name`'s comment to have posted the agent's
-        working line, as the comment's first reply, and handed the comment over; the
-        seconds to that reply."""
-        fork = require(user.fork(name), f"{name}: no fork decided on the comment")
+        working line as the comment's first reply; the seconds to that reply."""
+        fork = require(user.fork(name), f"{name}: no line fork ran on the comment")
         require(
-            fork["outcome"] == "hand_over" and "line" in fork,
-            f"{name}: the fork posted no working line: {fork_summary(fork)}",
+            fork["outcome"] == "posted",
+            f"{name}: the line fork posted no working line: {fork_summary(fork)}",
         )
         timings = user.end.timings()[user.ids[name]]["milestones"]
         require(
@@ -642,11 +642,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
         started = time.monotonic()
         # The wake's answer to `first-wake` waits before its command runs, so
-        # `boundary`, sent then and handed to the session by its line fork, reaches
-        # the turn at the tool boundary after that answer. Handed over between the
-        # wake's edit and its answer, it would leave `first-wake` half done as Escape
-        # lands, which the woken turn may reasonably ask the user about rather than
-        # finish.
+        # `boundary`, sent then, reaches the turn at the tool boundary after that
+        # answer. Handed over between the wake's edit and its answer, it would leave
+        # `first-wake` half done as Escape lands, which the woken turn may reasonably
+        # ask the user about rather than finish.
         hold, holding = answer_hold(place)
         hold.touch()
         try:
@@ -655,14 +654,6 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
                 holding.exists, "boundary: the wake's turn did not answer its comment"
             )
             boundary = user.comment("boundary")
-            cc.until(
-                lambda: user.fork("boundary"), "boundary: no fork decided on it", 60
-            )
-            fork = require(user.fork("boundary"), "boundary: no fork decided on it")
-            require(
-                fork["outcome"] == "hand_over",
-                f"boundary: the fork kept it from the session: {fork_summary(fork)}",
-            )
             escaped = drop(boundary, release=hold.unlink)
         finally:
             hold.unlink(missing_ok=True)
@@ -785,17 +776,17 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         ]
 
     def delegated(name: str, update: str, started: float) -> tuple[str, dict]:
-        """Require that the line fork posted its line on `update`, that Leaf handed
-        the message to the session, and that the session gave it to a fork of its
-        conversation, which answered it there itself while Leaf's hooks handed it no
-        delivery.
+        """Require that the line fork posted its line on `update`, that a delivery
+        handed the message to the session, and that the session gave it to a fork of
+        its conversation, which answered it there itself while Leaf's hooks handed it
+        no delivery.
         Returns that subagent's id and its record (`subagents`)."""
         cc.until(
             lambda: bool(answers(page, update)) and cc.idle(),
             f"{name}: nobody answered the message",
             240,
         )
-        decided = require(
+        line_fork = require(
             next(
                 (
                     record
@@ -804,11 +795,11 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
                 ),
                 None,
             ),
-            f"{name}: no line fork decided on the message",
+            f"{name}: no line fork ran on the message",
         )
         require(
-            "line" in decided,
-            f"{name}: the line fork posted no working line: {fork_summary(decided)}",
+            line_fork["outcome"] == "posted",
+            f"{name}: the line fork posted no working line: {fork_summary(line_fork)}",
         )
         refs = require(references(update), f"{name}: no delivery handed it over")
         workers = {
@@ -900,7 +891,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         )
         woke = any(t.get("origin") == "task_notification" for t in woken(sent))
         events = {event["id"]: event for event in read_events(page)}
-        decided = next(
+        line_fork = next(
             record
             for record in reversed(user.forks() if user.forks else [])
             if asked in record["inputs"]
@@ -917,9 +908,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             "fork-busy",
             detail=(
                 f"`fork-busy`: the line fork's working line came "
-                f"{after(decided['line']):.1f} s after the message, and the session's "
-                f"{worker['meta'].get('agentType')} subagent {agent} answered it at "
-                f"{after(reply['id']):.1f} s; Claude Code's notice of its end "
+                f"{after(line_fork['line']):.1f} s after the message, and the "
+                f"session's {worker['meta'].get('agentType')} subagent {agent} "
+                f"answered it at {after(reply['id']):.1f} s; Claude Code's notice of "
+                "its end "
                 + ("started a turn" if woke else "joined a running turn")
                 + f": {reply['text'][:200]!r}"
             ),
@@ -972,7 +964,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     started = time.monotonic()
     cc.release(user)
-    fork = require(user.fork("release"), "release: no fork decided on the ask")
+    fork = require(user.fork("release"), "release: no line fork ran on the ask")
     step("release", started, "release", detail=f"`release`: {fork_summary(fork)}")
     forked()
     delivered()

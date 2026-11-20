@@ -63,8 +63,8 @@
  * --if-claimed --pages`) prints that list, with the instructions Leaf has for the
  * module, whenever either changes, and exits once the session holds no page; the
  * launcher answers it without starting uv in a session holding none. It is also the
- * session's forks lane (`src/leaf/forks.py`), listing a thread Leaf keeps back for a
- * line fork as it is admitted. The session takes a page only through a `leaf`
+ * session's forks lane (`src/leaf/forks.py`), listing a line fork for each thread
+ * message as it is admitted. The session takes a page only through a `leaf`
  * command, so the
  * module starts the follower as the session starts, after each Bash call that
  * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is

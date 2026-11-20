@@ -1,7 +1,7 @@
 """Replay Leaf's conversation forks on short constructed conversations, and score
-each answer: the turn-end check (`leaf.clerk`), the fork that writes the agent's
-working line on a thread message before Leaf hands it to the session (`leaf.forks`),
-and the fork beside it that summarizes a long thread (`leaf.summary_fork`). Claude
+each answer: the turn-end check (`leaf.clerk`), the line fork that writes the agent's
+working line on a thread message (`leaf.forks`), and the fork beside it that
+summarizes a long thread (`leaf.summary_fork`). Claude
 Code makes every fork, so every case runs on that harness alone.
 
 A case in `workflows/fork_eval.yaml` is a conversation written for one decision a
@@ -16,12 +16,12 @@ command (`Leaf`). The executor builds the page in a throwaway state home, opens 
 turn for a fresh session id and claims the page as that session
 (`CLAUDE_CODE_SESSION_ID`, with this process as `CLAUDE_PID`). It reports to `leaf
 hook --fork` as the hooks module does (`leaf.carrier`): a turn's end, or the report
-the pages follower lists for a kept-back thread, whose answer is the fork to make, and
-then that fork's answer. For a line or summary fork, a process of the arm's holds the session's
-forks lane (`forks.take_lane`) from before the user's waiting messages are admitted,
-as the event endpoint admits them (`KEEP`), until the answer is taken, as the pages
-follower holds it, and asks about the thread the follower would list
-(`forks.look`). A turn-end case's Leaf line
+the pages follower lists for a round that awaits a line, whose answer is the fork to
+make, and then that fork's answer. For a line or summary fork, a process of the arm's
+holds the session's forks lane (`forks.take_lane`) while the user's waiting messages
+are admitted, as the event endpoint admits them, and until the answer is taken, as the
+pages follower holds it, and reports the round the follower would list (`forks.look`,
+`LOOK`). A turn-end case's Leaf line
 (`found`) is rendered by the arm's `clerk._found`, so a change to its wording
 reaches the conversation; an arm without it passes no findings on and gets no line.
 
@@ -79,7 +79,7 @@ What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 findings are those its `turn_end_check` note lists for the page, which leaves out
 anything named for a page the session doesn't hold. A line fork's line is what
 its `fork_outcome` note says Leaf posted. An answer or line Leaf refused fails
-`answered` where the note says so (`refused`).
+`answered` where the note's outcome says so (`refused`).
 
 An item is matched to a label by the words it rests on: one of the label's `words`
 stands in its quote, passage, title, text or edit words. An `expect` label needs an
@@ -186,22 +186,22 @@ print("held", flush=True)
 sys.stdin.read()
 """
 
-# Admits the user's waiting messages as the event endpoint does, which opens the line
-# turn (`forks.kept_from_main_at_admission`), and prints the thread the pages follower
-# would list (`forks.look`).
-KEEP = """
+# Admits the user's waiting messages as the event endpoint does, and prints the
+# reports the pages follower would list for them (`forks.look`), which lists only
+# rounds newer than its first look at the page.
+LOOK = """
 import json, sys
 from pathlib import Path
 from leaf.event_contracts import append_admitted
-from leaf.forks import kept_from_main_at_admission, look
+from leaf.forks import look
 from leaf.service import PageTransaction
 
 page, session = Path(sys.argv[1]), sys.argv[2]
+_, after = look(session, page, None)
 with PageTransaction(page) as transaction:
     for event in json.load(sys.stdin):
-        admitted, _ = append_admitted(transaction, event)
-        kept_from_main_at_admission(transaction, admitted)
-print(json.dumps([kept.basis(page) for kept in look(session, page)]))
+        append_admitted(transaction, event)
+print(json.dumps(look(session, page, after)[0]))
 """
 
 # The page's newest diagnostics note of one type, or null.
@@ -294,15 +294,14 @@ def execute_scenario(
     metadata: dict = {"fork": scenario["fork"], "session": session, "harness": harness}
     if scenario["fork"] in ("line", "summary"):
         with leaf.lane():
-            [thread] = leaf.python(
-                KEEP, str(page), session, stdin=json.dumps(scenario["waiting"])
+            [listed] = leaf.python(
+                LOOK, str(page), session, stdin=json.dumps(scenario["waiting"])
             )
-            listed = {"kind": "line", "thread": thread}
             reported = leaf.fork(
                 {
-                    "done": "line",
-                    "do": "report",
-                    "basis": listed,
+                    "done": listed["id"],
+                    "do": listed["do"],
+                    "basis": listed["basis"],
                     "running": scenario.get("running", []),
                 }
             )
@@ -983,8 +982,8 @@ def score_line(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
     """Score the working line the arm's Leaf posted from a line fork's answer, as its
     `fork_outcome` note records it."""
     note = leaf.python(NOTE, str(page), "fork_outcome") or {}
-    if note.get("refused") or not note:
-        return {"checks": {"answered": False}, "refused": note.get("refused")}
+    if not note or note["outcome"] == "refused":
+        return {"checks": {"answered": False}, "refused": note.get("why")}
     thread = json.dumps(scenario["waiting"], indent=1, ensure_ascii=False)
     conversation = f"<conversation>\n{conversation_text(turns)}\n</conversation>\n\n"
     running = json.dumps(scenario.get("running", []), indent=1, ensure_ascii=False)

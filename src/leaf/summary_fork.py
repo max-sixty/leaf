@@ -13,18 +13,22 @@ answer, and drop once they reply. They also chose that summarizing comes second 
 answering. So the summary is a fork of its own, started
 beside the line fork (`forks.ask`'s `beside`), rather than a part of the line fork's
 answer: a fork's answer arrives whole, and a summary's few hundred words would hold
-back the working line and the thread's handover to the session by seconds.
+back the working line by seconds.
 
-The hint is the fork's for a thread whose newest delivered message Leaf kept back for
-a line fork, since `forks.ask` asked this fork then: the session's delivery leaves it
-out (`thread_context.batch_threads`), so the session spends no step on it. A delivery
-whose newest message in the thread wasn't kept back, as one arriving while the
-session still owed the thread its answer, carries the hint to the session when a
-range is suggested.
+The hint is the fork's for a thread whose newest delivered message came to a round
+that awaited a line (`forks.unlined`) while a follower listed the session's line forks
+(`forks.lane_up`), since `forks.ask` asks this fork beside that round's line fork:
+the session's delivery leaves it out (`thread_context.batch_threads`), so the session
+spends no step on it. A delivery whose newest message in the thread joined a round
+the agent had spoken in, as one arriving while the session still owed the thread its
+answer, carries the hint to the session when a range is suggested.
 Where the fork fails, Leaf tells the session the range it suggested (`_handed`), so
-the summary has an owner either way. One path leaves it without one until the
-thread's next message Leaf keeps back: a line turn that lapses, or whose step fails,
-before the module asks its forks, since nothing runs then to hand the range over.
+the summary has an owner either way. `forks.ask` asks this fork whether or not the
+round still awaits its line, so the agent's own progress in the thread leaves the
+summary the fork's. Some paths leave it without one until the thread's next round: a
+line fork's report that fails, or finds the round already answered, before the module
+asks its forks, and a round older than the follower's first look at the page, since
+nothing then asks the fork or hands the range over.
 
 The fork chooses the range, as the agent would from a delivery's hint: the hint is
 Leaf's suggestion, and the fork follows the agent's guidance for what to fold
@@ -96,13 +100,12 @@ ANSWER = {
 
 # The id the summary takes while `_fence` asks whether it would still be in force.
 # The page readings this module takes are imported where they're read: `forks`,
-# which a tool hook with nothing to deliver imports, imports this module, and such a
-# hook runs at every turn, so it loads no runtime dependency but `click`.
+# which every delivery imports (`delivery.batch_data`), imports this module.
 _WEIGHED = "summary-fork"
 
 
 def ask(page: PageTransaction, data: dict, basis: dict) -> dict | None:
-    """The fork to make beside the line fork for the kept-back thread `basis` names,
+    """The fork to make beside the line fork for the round `basis` names,
     as `{"prompt", "basis"}`, where Leaf suggests a range of it to summarize; else
     None. `data` is the thread whole, as `forks._thread_data` reads it from `page`."""
     from .events import active_summaries, build_threads

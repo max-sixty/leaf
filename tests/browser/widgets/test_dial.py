@@ -1,7 +1,6 @@
-"""A detail dial: Skim folds all but the lede, the gists and the headings above them and
-keeps the reader's place,
-⋯ unfolds one section, Everything opens every closed detail, and Read takes back
-exactly what the dial changed."""
+"""A detail dial: Skim folds all but the lede, the gists, the pictures and the headings
+above them and keeps the reader's place, ⋯ unfolds one section, Everything opens every
+closed detail, and Read takes back exactly what the dial changed."""
 
 import pytest
 from playwright.sync_api import expect
@@ -107,21 +106,23 @@ def test_a_turn_that_glides_keeps_the_place_in_every_engine(request, serve, engi
     another 347.9px, while Chromium held it: Firefox's scroll anchoring follows a block
     to where its glide draws it, and scrolled the page by the glide. The gliding blocks
     are no anchors while they glide."""
-    page = open_page(request.getfixturevalue(engine), serve(named_source("detail")))
+    page = open_page(
+        request.getfixturevalue(engine), serve(named_source("incident-report"))
+    )
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1440, 900)
-    page.locator("#detail-cause-1").evaluate(
+    page.locator("#incident-cause-1").evaluate(
         "p => document.scrollingElement.scrollTop += "
         "p.getBoundingClientRect().top - innerHeight * 0.25 + 10"
     )
-    reading = top(page, "#detail-cause-1")
+    reading = top(page, "#incident-cause-1")
     depth(page, "Skim")
-    expect(page.locator("#detail-cause-1")).to_be_hidden()
-    gist = top(page, "#detail-cause-gist")
+    expect(page.locator("#incident-cause-1")).to_be_hidden()
+    gist = top(page, "#incident-cause-gist")
     assert gist == pytest.approx(reading, abs=1)
     depth(page, "Read")
-    expect(page.locator("#detail-cause-1")).to_be_visible()
-    assert top(page, "#detail-cause-gist") == pytest.approx(gist, abs=1)
+    expect(page.locator("#incident-cause-1")).to_be_visible()
+    assert top(page, "#incident-cause-gist") == pytest.approx(gist, abs=1)
 
 
 def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
@@ -136,7 +137,7 @@ def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
                 '<h1>Report</h1><lf-dial id="dial"></lf-dial>'
                 '<section id="flow"><h2>Flow</h2>'
                 '<p class="gist" id="flow-gist">Every order ends in one queue.</p>'
-                '<figure id="drawn">A drawing.</figure></section>'
+                '<div id="drawn">A sized block.</div></section>'
                 '<section id="next"><h2 id="next-heading">Next</h2>'
                 '<p class="gist">The warehouse picks in order.</p></section>',
                 head="<style>#drawn { block-size: 240px; min-block-size: 170px; }</style>",
@@ -146,6 +147,101 @@ def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
     depth(page, "Skim")
     expect(page.locator("#drawn")).to_have_attribute("data-lf-dial-folded", "")
     expect(page.locator("#drawn")).to_be_hidden()
+
+
+SQUARE = '<svg viewBox="0 0 10 10" width="40" height="40"><rect width="10" height="10"/></svg>'
+ICON = '<svg aria-hidden="true" viewBox="0 0 10 10" width="12" height="12"></svg>'
+
+
+def test_skim_keeps_every_picture(browser, serve):
+    """Skim folded every picture the author hadn't marked `.gist`, so a skimmer saw
+    the page's words alone. Skim keeps each picture the page shows, with a figure's
+    caption, and the heading above it: a figure, a chart, a picture in a tab, and a
+    paragraph, list item or open disclosure holding one, whole, words and links
+    beside it included. A section or list item of blocks is laid out in place, a
+    button among its blocks included, so a gist in one keeps its support folded. A picture inside a closed
+    disclosure stays closed, since Skim shows nothing Read doesn't, and an icon HTML
+    marks as decoration is no picture, so a section holding only those folds whole."""
+    chart = (
+        '<lf-chart id="latency-chart"><pre>{ ariaLabel: "p99 by hour", '
+        "marks: [Plot.lineY([1, 3, 2])] }"
+        "</pre></lf-chart>"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dial",
+                '<h1>Report</h1><p class="lede">What happened.</p>'
+                '<lf-dial id="dial"></lf-dial>'
+                '<section id="cause"><h2 id="cause-heading">Cause</h2>'
+                '<p class="gist" id="cause-gist">The key changed.</p>'
+                '<p id="cause-0">How the key changed.</p>'
+                f'<figure id="key-figure">{SQUARE}'
+                '<figcaption id="key-caption">The key, before and after.</figcaption>'
+                "</figure>"
+                '<p id="cause-1">More detail.</p>'
+                '<button id="cause-copy" type="button">Copy the key</button>'
+                '<p id="shot-line">The dashboard then: '
+                '<img id="shot" alt="The dashboard" width="40" height="30"> at 3%.</p>'
+                '<p id="captioned"><img alt="The cache" width="40" height="30"><br>'
+                '<em id="captioned-words">The cache at 16:30.</em></p>'
+                '<ul><li><p class="gist" id="finding-gist">4.2 changed the key.</p>'
+                '<p id="finding-support">Found by diffing the releases.</p></li>'
+                '<li><img alt="Run 3" width="40" height="30"> '
+                '<a id="run-link" href="#key-figure">Run 3</a> '
+                '<em id="run-rate">hit rate 3%</em></li></ul>'
+                '<details id="cause-raw" open><summary id="cause-raw-summary">Raw'
+                f'</summary><figure id="cause-raw-figure">{SQUARE}</figure></details>'
+                "</section>"
+                '<section id="latency"><h2 id="latency-heading">Latency</h2>'
+                f'{chart}<p id="latency-0">p99 doubled.</p></section>'
+                '<section id="views"><h2 id="views-heading">Views</h2>'
+                '<lf-tabs id="views-tabs"><lf-tab id="views-a" label="Before">'
+                f'<figure id="views-figure">{SQUARE}</figure></lf-tab></lf-tabs>'
+                '<p id="views-0">Both views.</p></section>'
+                f'<section id="method"><h2 id="method-heading">{ICON} Method</h2>'
+                f'<ul id="method-checks"><li id="method-lint">{ICON}Lint passed</li></ul>'
+                '<details id="method-raw"><summary>Raw</summary>'
+                f'<figure id="raw-figure">{SQUARE}</figure></details></section>',
+            )
+        ),
+    )
+    depth(page, "Skim")
+    for kept in (
+        "#cause-heading",
+        "#cause-gist",
+        "#key-figure",
+        "#key-caption",
+        "#shot-line",
+        "#captioned-words",
+        "#finding-gist",
+        "#run-link",
+        "#run-rate",
+        "#cause-raw-summary",
+        "#cause-raw-figure",
+        "#latency-heading",
+        "#latency-chart",
+        "#views-heading",
+        "#views-figure",
+    ):
+        expect(page.locator(kept)).to_be_visible()
+    for folded in (
+        "#cause-0",
+        "#cause-1",
+        "#cause-copy",
+        "#finding-support",
+        "#latency-0",
+        "#views-0",
+        "#method-heading",
+        "#method-lint",
+        "#method-raw",
+    ):
+        expect(page.locator(folded)).to_be_hidden()
+    depth(page, "Everything")
+    expect(page.locator("#raw-figure")).to_be_visible()
+    depth(page, "Read")
+    expect(page.locator("main [hidden]")).to_have_count(0)
 
 
 def test_a_section_without_a_gist_folds_whole(browser, serve):

@@ -1,0 +1,6 @@
+lf-trend {
+  display: block;
+  /* The chart, its caption and the closed list of values, so the box the authored
+     table opens in keeps its size once the chart draws. */
+  min-height: 284px;
+}

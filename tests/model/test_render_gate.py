@@ -267,7 +267,7 @@ def test_a_handover_whose_arrivals_only_swing_ends_at_its_bound():
     class SwingingPage:
         readings = itertools.cycle((["arrived", 2], ["arrived", 3]))
 
-        def wait_for_function(self, expression, *, arg, timeout):
+        def wait_for_function(self, expression, *, arg, timeout, polling="raf"):
             reading = (
                 "arrived"
                 if expression == render_checks.OUTSTANDING

@@ -1056,10 +1056,11 @@ export class MessageView {
   // What an answer leaves standing, beside its time. A to-do's word opens On <agent> at
   // the to-do's row, its card open (floating-panel.js, `showTodo`), since the row says
   // what the agent is doing about it and where it stands among the rest; its Discuss
-  // leads back here. The word is underlined, as a link is, and is a Tab stop, since
-  // only a promise still open draws one. The user chose the press over keeping the word
-  // plain, and the underline over a chevron after the word and over a symbol in its
-  // place, which hides the word until hovered and means nothing readers already know.
+  // leads back here. The word is underlined, as a link is (`data-lf-link`), in the
+  // head's ink (`data-lf-hint`), and is a Tab stop, since only a promise still open
+  // draws one. The user chose the press over keeping the word plain, and the underline
+  // over a chevron after the word and over a symbol in its place, which hides the word
+  // until hovered and means nothing readers already know.
   /** @param {ReturnType<typeof messageReading>["leaves"]} leaves */
   #leavesWord(leaves) {
     if (!leaves) return nothing;
@@ -1070,6 +1071,7 @@ export class MessageView {
       type="button"
       ${offeredAction("inline", "lf-msg-leaves")}
       data-lf-hint=""
+      data-lf-link=""
       aria-label=${`${word.text}, ${opens}`}
       .lfPreview=${() => ({ name: opens })}
       @click=${() => this.#commands.showTodo(todo)}

@@ -135,10 +135,19 @@ assert:
     value: |
       Pass unless the reply holds a choice that `leaf thread reply` refuses or that
       the user can't press: an `lf-options` or an `lf-option` without an `id`,
-      either carrying an attribute Leaf doesn't declare, such as `name`, `value`,
-      `prompt` or `recommended`, a choice inside backticks or a code fence, which
+      either carrying an attribute Leaf doesn't declare, such as `name` or `prompt`,
+      a choice inside backticks or a code fence, which
       shows it as text, or one passed as `--markup`, an option the command doesn't
       take. A reply without a choice passes this metric.
+  - &said-once
+    type: llm-rubric
+    metric: said-once
+    value: |
+      Pass unless the reply carries a widget the user answers by picking, such as
+      `lf-options`, and its text says again what the options say. The text holds the
+      question, the facts it rests on and any advice, and leaves what each option
+      does or costs to that option's card: text that also goes through the options,
+      as a list of them or a sentence for each, fails.
 variants:
   permission:
     metadata:
@@ -249,6 +258,7 @@ variants:
           Pass unless a reply that carries a widget asking for permission also passes
           `--obligation`. A reply without such a widget passes this metric.
       - *markup-accepted
+      - *said-once
   open-question:
     metadata:
       purpose: A question whose answer the agent can't list stays in words, with --obligation.

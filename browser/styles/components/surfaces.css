@@ -1369,9 +1369,15 @@ button.lf-thread-news {
 .lf-msg-head .lf-msg-failure {
   color: var(--lf-warn-ink);
 }
-/* What an answer leaves standing reads beside its time like a receipt. */
-.lf-msg-head .lf-msg-leaves {
+/* What an answer leaves standing reads beside its time like a receipt. A to-do's word
+   is a press in the head's ink instead (thread/messages.js, `#leavesWord`). The press
+   clips its words rather than hiding their overflow, since a box that hides it
+   scrolls, and focus scrolled its words up out of the head's line. */
+.lf-msg-head span.lf-msg-leaves {
   color: var(--lf-ink-2);
+}
+.lf-msg-head button.lf-msg-leaves {
+  overflow: clip;
 }
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the

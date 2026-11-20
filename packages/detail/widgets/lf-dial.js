@@ -193,13 +193,15 @@ const PICTURE = 'img, svg, video, canvas, [data-lf-content="data"]';
 const DECORATIVE =
   '[aria-hidden="true"], img[alt=""], [role="presentation"], [role="none"]';
 const GHOST = "data-lf-dial-ghost";
-// The height of Everything's sheet, the tallest, since each depth shows all the one
-// before it does.
+// How tall Everything's sheet stands, the tallest, since each depth shows all the one
+// before it does. A sheet is drawn in rows of one line of text and its gap.
 const TALL = 112;
+const ROW = 3;
 
-/** @typedef {{kind: "heading" | "picture" | "text", skim: boolean, read: number, all: number}} Sized */
-/** @typedef {{skim: number, read: number, all: number, blocks: Sized[]}} Sizes */
 /** @typedef {"skim" | "read" | "all"} Depth */
+/** @typedef {{kind: "heading" | "picture" | "text", skim: boolean, read: number, all: number}} Sized */
+/** @typedef {{kind: Sized["kind"], rows: number}} Bar */
+/** @typedef {{skim: number, read: number, all: number, bars: Record<Depth, Bar[]>, folds: Element[], closed: HTMLDetailsElement[]}} Sizes */
 
 /** @param {number} seconds */
 const minutes = (seconds) => `${Math.max(1, Math.round(seconds / 60))} min`;
@@ -213,6 +215,54 @@ const secondsAt = (block, depth) =>
       ? block.read
       : block.all;
 
+// A depth's blocks as the bars its sheet draws, `scale` rows' worth of pixels to the
+// second: each block as many rows as its place on the sheet rounds to, and a heading or
+// a picture a row at least, where that leaves the sheet no more than a row past its
+// length. A block with no row of its own is drawn with the bar after it, so a sheet
+// draws at most a bar a row however long the page.
+/** @param {Sized[]} blocks @param {Depth} depth @param {number} scale */
+const barsAt = (blocks, depth, scale) => {
+  /** @type {Bar[]} */
+  const bars = [];
+  let length = 0;
+  let rows = 0;
+  for (const block of blocks) {
+    const seconds = secondsAt(block, depth);
+    if (!seconds) continue;
+    length += seconds * scale;
+    const due = Math.round(length / ROW);
+    const to = block.kind === "text" ? due : Math.max(due, Math.min(rows + 1, due + 1));
+    if (to > rows) bars.push({ kind: block.kind, rows: to - rows });
+    rows = Math.max(rows, to);
+  }
+  return bars;
+};
+/** @param {Bar[]} bars */
+const rowsOf = (bars) => bars.reduce((sum, bar) => sum + bar.rows, 0);
+
+// The nodes among `nodes`, in document order down the page, that stand within a
+// window's height of what the window shows, found by halving, so pointing marks the
+// same few blocks on a page of any length.
+/** @template {Element} T @param {T[]} nodes @returns {T[]} */
+const nearWindow = (nodes) => {
+  const window = shownWindow();
+  const reach = window.bottom - window.top;
+  let low = 0;
+  let high = nodes.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    const box = /** @type {T} */ (nodes[middle]).getBoundingClientRect();
+    if (box.bottom < window.top - reach) low = middle + 1;
+    else high = middle;
+  }
+  const near = [];
+  for (const node of nodes.slice(low)) {
+    if (node.getBoundingClientRect().top > window.bottom + reach) break;
+    near.push(node);
+  }
+  return near;
+};
+
 // Each depth's page hanging under its own button as a sheet of its own, to one scale,
 // each block a bar as long as it takes to read, so the sheets read as how far down
 // each depth's page runs, with the page showing between them. The pointed sheet stands
@@ -221,12 +271,14 @@ const secondsAt = (block, depth) =>
 // sheet points at its depth (`point`).
 /** @param {Sizes} sizes @param {string} pointed @param {string} chosen @param {{left: number, width: number}[]} columns @param {(name: string) => void} point */
 const sizeHang = (sizes, pointed, chosen, columns, point) => {
-  const scale = TALL / Math.max(sizes.all, 1);
   const at = DEPTHS.findIndex(({ name }) => name === chosen);
   const frame = columns[at] ?? { left: 0, width: 0 };
-  // A sheet's height: its bars, its padding and its border.
-  const sheet = sizes[/** @type {Depth} */ (chosen)] * scale + 10;
-  return html`<span class="lf-dial-hang" style=${`--tall: ${TALL}px`}>
+  // A sheet's height: its rows, its padding and its border.
+  const sheet = rowsOf(sizes.bars[/** @type {Depth} */ (chosen)]) * ROW + 10;
+  return html`<span
+    class="lf-dial-hang"
+    style=${`--tall: ${rowsOf(sizes.bars.all) * ROW}px`}
+  >
     ${DEPTHS.map(({ name }, i) => {
       const { left, width } = columns[i] ?? { left: 0, width: 0 };
       return html`<span
@@ -236,18 +288,14 @@ const sizeHang = (sizes, pointed, chosen, columns, point) => {
         @pointerenter=${() => point(name)}
       >
         <span class="lf-dial-hang-page"
-          ><span
-            class="lf-dial-hang-bars"
-            style=${`block-size: ${sizes[/** @type {Depth} */ (name)] * scale}px`}
-            >${sizes.blocks.map((block) => {
-              const seconds = secondsAt(block, name);
-              return seconds
-                ? html`<span
-                    class=${`lf-dial-hang-${block.kind}`}
-                    style=${`block-size: ${seconds * scale}px`}
-                  ></span>`
-                : null;
-            })}</span
+          ><span class="lf-dial-hang-bars"
+            >${sizes.bars[/** @type {Depth} */ (name)].map(
+              ({ kind, rows }) =>
+                html`<span
+                  class=${`lf-dial-hang-${kind}`}
+                  style=${`block-size: ${rows * ROW}px`}
+                ></span>`,
+            )}</span
           ></span
         >
       </span>`;
@@ -536,31 +584,30 @@ customElements.define(
       return { name: title, unseen: true, at: this };
     }
 
-    // Mark on the page what turning to `name` would change: fade what it would hide and
-    // ring where it would open more. Returns what takes the marks back.
+    // Mark on the page what turning to `name` would change, near the window: fade what
+    // it would hide and ring where it would open more. Returns what takes the marks back.
     /** @param {string} name */
     #ghost(name) {
-      const scope = this.#scope;
-      if (!scope || name === this.#depth) return null;
+      const sizes = this.#measure();
+      if (!sizes || name === this.#depth) return null;
       /** @type {Element[]} */
       const goes = [];
       /** @type {Element[]} */
       const comes = [];
       if (name === "skim")
-        for (const run of this.#runsIn(scope))
-          for (const block of run.blocks) if (shown(block)) goes.push(block);
+        for (const block of nearWindow(sizes.folds)) if (shown(block)) goes.push(block);
       // Everything's disclosures close at Skim and Read.
       if (this.#depth === "all")
-        for (const details of this.#opened)
+        for (const details of nearWindow([...this.#opened]))
           if (shown(details))
             goes.push(
               ...[...details.children].filter((child) => child.localName !== "summary"),
             );
       // Leaving Skim opens every fold.
-      if (this.#depth === "skim") comes.push(...this.#runs.keys());
+      if (this.#depth === "skim") comes.push(...nearWindow([...this.#runs.keys()]));
       if (name === "all")
-        for (const details of scope.querySelectorAll("details:not([open])"))
-          if (shown(details) && !details.closest(STANDS)) comes.push(details);
+        for (const details of nearWindow(sizes.closed))
+          if (!details.open && shown(details)) comes.push(details);
       for (const node of goes) node.setAttribute(GHOST, "goes");
       for (const node of comes) node.setAttribute(GHOST, "comes");
       return () => {
@@ -595,33 +642,50 @@ customElements.define(
       );
     }
 
-    // The page's reading time at each depth, and each block's part in it.
+    // The page's reading time at each depth and the bars each sheet draws, with the
+    // blocks Skim folds and the closed disclosures Everything opens, read once for each
+    // presentation of the page.
     #measure() {
       if (this.#sizes) return this.#sizes;
       const scope = this.#scope;
       if (!scope) return null;
       /** @type {Sized[]} */
       const blocks = [];
+      /** @type {Element[]} */
+      const folds = [];
       for (const block of this.#blocks(scope, scope)) {
         if (block === this) continue;
+        const skim = this.#kept(block, scope);
+        if (!skim) folds.push(block);
         blocks.push({
           kind: block.matches(HEADING)
             ? "heading"
             : this.#picturesIn(block, scope, false)
               ? "picture"
               : "text",
-          skim: this.#kept(block, scope),
+          skim,
           read: this.#secondsIn(block, scope, false),
           all: this.#secondsIn(block, scope, true),
         });
       }
-      const total = (/** @type {string} */ depth) =>
+      const total = (/** @type {Depth} */ depth) =>
         blocks.reduce((sum, block) => sum + secondsAt(block, depth), 0);
+      const all = total("all");
+      const scale = TALL / Math.max(all, 1);
       return (this.#sizes = {
         skim: total("skim"),
         read: total("read"),
-        all: total("all"),
-        blocks,
+        all,
+        bars: {
+          skim: barsAt(blocks, "skim", scale),
+          read: barsAt(blocks, "read", scale),
+          all: barsAt(blocks, "all", scale),
+        },
+        folds,
+        closed: [...scope.querySelectorAll("details")].filter(
+          (details) =>
+            (!details.open || this.#opened.has(details)) && !details.closest(STANDS),
+        ),
       });
     }
 

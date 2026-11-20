@@ -87,7 +87,7 @@ window.Selection.prototype.getComposedRanges ??= function ({ shadowRoots = [] } 
   return [{ startContainer, startOffset, endContainer, endOffset }];
 };
 // happy-dom has no StaticRange either, which the runtime builds for a span of the page
-// it reads rather than selects (anchor-resolution.js, `runPassage`).
+// it reads rather than selects (passages.js, `runReading`).
 globalThis.StaticRange ??= class StaticRange {
   /** @param {{startContainer: Node, startOffset: number, endContainer: Node, endOffset: number}} init */
   constructor({ startContainer, startOffset, endContainer, endOffset }) {

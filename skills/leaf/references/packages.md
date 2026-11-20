@@ -24,6 +24,7 @@ leaf package init packages/callout --widget lf-callout
 leaf package check packages/callout
 leaf page init --package packages/callout PAGE
 leaf package install packages/callout
+leaf package list
 leaf package run NAME SCRIPT [ARGS]...
 ```
 
@@ -42,23 +43,9 @@ the bare name, and every Leaf that reads the page composes the package it finds 
 that name, so serving the page on another machine needs the package installed there
 too.
 
-The optional bundled packages are:
-
-| Package         | Adds                                                                                                                                                        |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.                                                                     |
-| `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                                                                           |
-| `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines, and `lf-worktree-diffs` for a set of worktree snapshots. |
-| `file-editor`   | `lf-file-editor`, a CodeMirror editor for bound local text files, one open at a time, listing them for a navigator.                                         |
-| `file-tree`     | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys.                           |
-| `playground`    | Controls with shared state and a live preview, for comparing candidates or tuning a configuration, and typed submission of the result.                      |
-| `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                                             |
-| `motion`        | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                                                   |
-| `deck`          | `lf-deck`, a pile of decisions the user works through one card at a time.                                                                                   |
-| `detail`        | `lf-dial`, which turns a page from the author's `.gist` passages and its pictures to every closed detail, keeping the reader's place.                       |
-| `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                                                                                |
-| `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                                                                          |
-| `timeline`      | `lf-timeline`, an authored sequence of events in lanes that the reader steps through, with a playhead and a step list.                                      |
+`leaf package list` prints each package a page can select by name, bundled or
+installed: its `description`, the first paragraph of its author instructions, and the
+description of each entry it declares. Choose a package by what those say it is for.
 
 Packages declare no dependencies on each other; a page lists every package it needs.
 
@@ -212,11 +199,13 @@ registry still validates. `page init` records the selected packages in
 ([package-themes.md, "Personal themes"](package-themes.md#personal-themes)).
 
 Name each file directly under `instructions/` `<audience>.md`, matching
-`[a-z][a-z0-9-]*\.md`, and start it with its first rule: Leaf adds a heading naming the
-package. Packages define their own audiences, such as `author` or `worker`, and files
-for the same audience join in package order. A data contract's `instructions` map holds
-text per audience beside its schema, and a registry entry's `instructions` is one
-string for the page author.
+`[a-z][a-z0-9-]*\.md`, and start it with its text rather than a title: Leaf adds a
+heading naming the package. `author.md` opens with a paragraph saying when to select
+the package; `leaf package list` prints it as the package's `description`. Packages
+define their own audiences, such as `author` or `worker`, and files for the same
+audience join in package order. A data contract's `instructions` map holds text per
+audience beside its schema, and a registry entry's `instructions` is one string for
+the page author.
 
 ```bash
 leaf page instructions PAGE --contract unified-diff | jq -er '.producer'

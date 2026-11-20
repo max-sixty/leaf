@@ -65,13 +65,15 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
    As its block's last box, the end of a section, it stands into the wider gap after
    the block, so the ⋯ hangs under what it follows and the next section comes up
    closer than Read sets it, while the block's own box, and every mark drawn on it,
-   still hold the ⋯ whole (lf-dial.js). */
+   still hold the ⋯ whole (lf-dial.js). Its dots stand at the text's start edge, the
+   press hanging out past it as a heading's link does. */
 .lf-dial-more {
   display: flex;
   align-items: center;
   inline-size: fit-content;
   block-size: var(--lf-sp-3);
   margin-block: calc(-1 * var(--lf-sp-1)) calc(-1 * var(--lf-sp-2));
+  margin-inline-start: calc(-1 * var(--lf-sp-2));
 }
 .lf-dial-more:last-child {
   margin-block-end: calc(-1 * var(--lf-sp-3));
@@ -97,11 +99,11 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   font-variant-numeric: tabular-nums;
 }
 
-/* Once the reader unfolds a gap, the page shows more than Skim, so Skim's selection
-   steps back while it still names the depth that stands; pressing it folds again. */
+/* Once the reader unfolds a gap, the page shows more than Skim, so Skim's border steps
+   back while its words still name the depth that stands; pressing it folds again.
+   Fading the words too read as a disabled control. */
 lf-dial[data-lf-dial-unfolded] .lf-dial-depth[aria-checked="true"] {
   border-color: rgb(from var(--lf-accent) r g b / 40%);
-  color: rgb(from var(--lf-accent) r g b / 75%);
 }
 
 /* Pointing at a depth, on the page: what turning to it would hide fades, and where it

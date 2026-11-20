@@ -51,6 +51,7 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -173,7 +174,7 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
             "Remove the old heading",
         )
     page = open_page(browser, url)
-    mark = page.locator(".lf-fp-on-user")
+    mark = page.locator(".lf-fp-leaf")
     expect_on_me(page, 1)
     mark.click()
     row = page.locator('.lf-fp-on-item[data-lf-list="you"]')
@@ -583,7 +584,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     page = open_page(browser, url)
     # The comment's line on the agent's list says the agent's last step on it, as the
     # page's status does, rather than only that it is working.
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-lf-list="agent"]')

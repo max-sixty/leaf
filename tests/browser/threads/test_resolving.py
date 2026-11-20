@@ -1035,7 +1035,7 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
         ).to_be_visible()
 
     arrive()
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.keyboard.press("r")
     rendered(page)
     expect(card).to_be_visible()

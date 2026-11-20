@@ -453,14 +453,14 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
 ):
     """While the page shows a version older than the latest, the field's words say which
     before the status, and its end offers Open latest in Comment's place, so nothing in
-    the row moves and the On Me mark keeps its seat; the press opens the latest, and the
+    the row moves and the leaf keeps its place; the press opens the latest, and the
     words and the press go with it: in place on a tab the agent has since revised, and
     from a version the user travelled back to, where the press wears its keys, Versions'
     `g V` and then its `l`, which make it too, leaving Versions."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
     latest = latest_press(page)
-    marks = page.locator(".lf-fp-quick")
+    marks = page.locator(".lf-fp-leaf")
     settled(page)
     seats = marks.bounding_box()
     expect(latest).to_have_count(0)
@@ -512,7 +512,7 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
-    leaf and the counts at rest, Dictate as the user opens the field, and Send while
+    leaf at rest, Dictate as the user opens the field, and Send while
     they type, each centred on the field's last line of words, however many lines it
     holds. Send floats in the field's end corner, as an anchored comment box's does,
     and under a mouse the words take its column (drafts/test_send_corner.py follows
@@ -520,8 +520,7 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
-    for mark in ("leaf", "count"):
-        assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
+    assert abs(seats["leaf"] - seats["line"]) < 0.5, seats
     field(page).click()
     settled(page)
     seats = page.evaluate(ROW_CENTRES)

@@ -926,7 +926,7 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
         "data-lf-startup-error", re.compile("planted fault")
     )
     expect(notice).to_have_count(0)
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
     # The supervisor sets the timer for its next round only once the last round's
@@ -1636,7 +1636,7 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
     ).to_have_text("running")
     # The inventory includes request Decisions beside state obligations.
     expect_obligations_answered(page, "0/5")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
@@ -1690,7 +1690,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-fp-on-user")
+    decisions = page.locator(".lf-fp-leaf")
     expect_obligations_answered(page, "0/1")
     expect(decisions).to_be_visible()
     chosen = (

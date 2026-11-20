@@ -2407,7 +2407,7 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     holding(page, held, 1, "the accepted suggestion")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
-    elsewhere = page.locator(".lf-fp-on-user")
+    elsewhere = page.locator(".lf-fp-leaf")
     elsewhere.focus()
     held.pop(0).continue_()
     round_trip(page)

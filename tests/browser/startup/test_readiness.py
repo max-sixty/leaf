@@ -41,6 +41,7 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import asked_again, wait_until_ready
 from leaf.render_gate.page_code import run_page_code
+from leaf_dev.browser import open_on_me
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -311,7 +312,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     """Chrome may not publish stale obligations before the log has answered.
 
     The log has accepted the page's one suggestion. Holding the first replay makes the
-    dangerous interval deterministic: discussion stays available, but the On Me mark
+    dangerous interval deterministic: discussion stays available, but the leaf
     claims no count, and the stale bulk action stays withheld. Replay then paints the
     accepted state, counts nothing on the user and offers no Accept all."""
     url = serve(SHORT_SUGGESTION)
@@ -333,16 +334,14 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     page.goto(url, wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state response"
-    # The mark stands on every page, and claims no count before the log has answered:
+    # The leaf stands on every page, and claims no count before the log has answered:
     # not the authored suggestion's 1, which the log has already decided.
-    on_me = page.locator(".lf-fp-on-user")
-    expect(on_me).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf > .lf-fp-num")).to_have_text("")
     # The blanket answer claims no action before the first state answer.
     expect_panel_offers(page, "blanket:accept", offered=False)
 
-    on_me = page.locator(".lf-fp-on-user")
-    expect(on_me).to_be_enabled()
-    on_me.click()
+    expect(page.locator(".lf-fp-leaf")).to_be_enabled()
+    open_on_me(page)
     panel_settled(page, view="queue")
     # The page's field takes words while the first state answer is still held.
     expect(page_comment(page)).to_be_editable()
@@ -351,8 +350,8 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     held.pop(0).continue_()
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-    # Nothing waits on the user, which the mark says by counting nothing.
-    expect(on_me).to_have_attribute("aria-label", "On Me")
+    # Nothing waits on the user, which the leaf says by counting nothing.
+    expect(page.locator(".lf-fp-leaf > .lf-fp-num")).to_have_text("")
     expect_obligations_answered(page, "1/1")
     expect_panel_offers(page, "blanket:accept", offered=False)
 

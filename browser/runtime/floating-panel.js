@@ -8,7 +8,8 @@
  * The box has three sizes, and which it stands at follows what the user does, so no
  * setting chooses it:
  * - **Folded**, the leaf alone in the window's corner, coloured by the agent's state,
- *   with a badge counting what waits on the user and a dot for threads with news. The
+ *   with its count of what waits on the user as a badge over its corner and a dot for
+ *   threads with news, the row gathered into it where it stands at the row's end. The
  *   user folds it from the leaf's menu or with `.`, or by a pointer with the small round
  *   button that rides the box's top-right corner while the pointer is near it and no
  *   view's Close holds that corner; a
@@ -18,33 +19,37 @@
  *   read. The next exposure, including a return from a hidden tab, reads the current
  *   status. The leaf's tone, counts and accessible name stay live, and notices
  *   answering a gesture show immediately.
- * - **The row**: the leaf, the comment field, and at its end one seat: the On Me mark,
- *   counting what waits on the user, with a dot while a thread holds a reply they have
- *   not read; or, while a search or a stance stands, the ✕ that ends it, so the seat
- *   never stands empty and the stance always has a way out on screen. A stance owns the
+ * - **The row**: the comment field, and at its end the leaf, coloured by the agent's
+ *   state, counting what waits on the user beside its mark, with a dot while a thread
+ *   holds a reply they have not read. A press on it opens the On view on the tab those
+ *   marks point at (`leafOpens`), so the leaf is both the way to the menu and to what
+ *   waits on the user. The user chose this over the leaf at the row's start and an On Me
+ *   mark at its end, two marks opening one view's tabs; the leaf at the end stands on
+ *   the side it folds to. While a search or a stance stands, the ✕ that ends it stands
+ *   between the field and the leaf, so the stance always has a way out on screen, and
+ *   the leaf keeps its place, since it says the agent's state and leads to the rest. A
+ *   stance owns the
  *   row while it stands, on the page and in a thread alike: the field's mode chip names it
  *   beside its ✕ in a word ("Draw", "Go to"; its scope's `says`), as a search's chip
  *   names its scope beside its own ✕ (`stanceName`), and the field takes no words
  *   (field-readings.js, `still`), offering neither Reply nor the microphone, so the row
  *   reads whose turn it is or the status, Close and esc at the field's end while Escape
  *   would end the stance (`stanceClose`), the name and the ✕. The user chose this: the
- *   name beside its way out over the name first beside the leaf, which stood it at the
- *   row's far end from the ✕ it names; one word over "In Draw mode"; and a mode that
+ *   name beside its way out over the name first, at the row's far end from the ✕ it
+ *   names; one word over "In Draw mode"; and a mode that
  *   stops the field's writing over a reply, its Send and the microphone standing
- *   beside the mode's ✕. On the page too the ✕ is the stance's way out for a pointer,
- *   so On Me's count gives the seat up while a stance stands. A draft the field holds
- *   stays, unwritable, through the stance. The ✕ takes the leaf's width, beside the
- *   field; filling the room On Me keeps for its count would stand it apart from the
- *   field, which the user questioned. An open view has its ✕ on a line of its own, its
- *   head line or its tabs, and the field takes the seat's room while the view stands
- *   (**Opened**), but for a stance's ✕, which keeps the seat there too. Rejected: the ✕
+ *   beside the mode's ✕. On the page too the ✕ is the stance's way out for a pointer.
+ *   A draft the field holds
+ *   stays, unwritable, through the stance. The ✕ takes a symbol's width, the folded
+ *   leaf's, beside the field; more room would stand it apart from the field, which the
+ *   user questioned. An open view has its ✕ on a line of its own, its
+ *   head line or its tabs (**Opened**), but for a stance's ✕, which keeps its place in
+ *   the row there too. Rejected: the ✕
  *   waiting for the view to close, which left a stance entered from a thread, such as
  *   Go-to or Draw mode, unnamed and with no way out on screen.
- *   The user chose the one seat over a Threads mark beside On Me and a seat kept
- *   empty for the ✕, which leaves a gap at the row's end; Threads is the On view's
- *   tab, since On Me already lists a thread message that waits on the user. Rejected:
- *   the ✕ standing before both marks, which kept them still but stood it between the
- *   field and the marks; and, which the user rejected, the mark pressing Next On Me
+ *   Threads is the On view's tab rather than a mark of its own, since On Me already
+ *   lists a thread message that waits on the user, which the user chose over a Threads
+ *   mark in the row. Rejected, by the user: a press on the row's end pressing Next On Me
  *   with `m` beside its count: a second place for a press and its key, where the
  *   field's end already offers the moment's. Nothing else stands in the row, so the
  *   field's width follows only the user's own moves, and what its end says never
@@ -83,10 +88,10 @@
  *   Close stand with the way back as ‹ Threads
  *   among them. Rejected: Threads › before the name, which takes room from the name; a
  *   ‹ hanging off the box beside the leaf, far from the name it leads away from; and no
- *   way back, which leaves a pointer two presses from Threads. The field below runs to
- *   the panel's edge while a view stands, at rest and widened alike, which the user
- *   chose over Close in the row's seat, which takes room from the field at rest; only a
- *   search's or a stance's ✕ takes the seat then (**The row**). The
+ *   way back, which leaves a pointer two presses from Threads. The field below keeps
+ *   its width while a view stands, at rest and widened alike, which the user chose over
+ *   Close in the row, which takes room from the field at rest; only a search's or a
+ *   stance's ✕ stands there then (**The row**). The
  *   panel stands on the window's foot, so a view grows and shrinks from its top edge,
  *   and its head line moves with it: news, such as an answer growing a thread, carries
  *   the thread's presses up with its name. A press on the head line holds the view's
@@ -120,7 +125,8 @@
  *   `declareCover`).
  *
  * The leaf's menu is the On view's first tab, beside On Me, On <agent> and Threads,
- * and the leaf opens the view on it: the full status over the rest of the page's
+ * and the leaf opens the view on it where its marks point at no list (`leafOpens`): the
+ * full status over the rest of the page's
  * controls, each one line, with its key where it has one, and a chevron on a row that
  * opens a list of its own (Versions, and the groups Navigate and Annotations). Such a
  * list opens over the menu, its way back returning there. While the menu stands, the
@@ -384,6 +390,28 @@ const CONNECTING = {
   asks: false,
   publication: null,
 };
+// What a press on the leaf opens (`leafOpens`), by the name its label and preview give it.
+const LEAF_PRESSES = Object.freeze({
+  menu: "Page menu",
+  you: "On Me",
+  threads: "Threads",
+});
+// The On view's tabs, each a view of its own, which the leaf opens and puts away.
+const ON_VIEW = new Set(["menu", "queue", "threads"]);
+// What the leaf's marks count, as its label and preview say them: what waits on the user,
+// and the threads with news or, where none has news, the drafts put away.
+/** @param {number} onUser @param {number} news @param {number} kept */
+const leafMarks = (onUser, news, kept) =>
+  [
+    onUser ? `${onUser} waiting on me` : "",
+    news
+      ? `${counted(news, "thread")} with news`
+      : kept
+        ? `${counted(kept, "draft")} unsent`
+        : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
 // The page's field's name where no selection is offered, which the field the document
 // serves wears too (`panelTemplate`, `initial`).
 const PAGE_FIELD_NAME = "Comment on the page";
@@ -671,17 +699,16 @@ export function createFloatingPanel({
   // also the row a served document stands from its first paint, before this module has
   // loaded (build/panel-row.mjs writes it to runtime/panel-row.html, and bootstrap.js
   // stands it): what the row shows before the panel has a reading or an editor. So it
-  // draws the On Me mark without a count and, in the editor's seat, the field's words
+  // draws the leaf without a count and, in the editor's seat, the field's words
   // in a box of their own (`.lf-fp-words`), which the bootstrap rewrites with the keys it
   // holds, under a textarea the user writes in until the editor stands
   // (`.lf-fp-served-field`); the panel's first paint puts the editor there, saying the
   // same words where they stood (floating-panel.css), and takes the textarea's words
   // (`write`, at `mount`). The peek must follow the leaf in the tree so it
   // can anchor to it.
-  // The quick seat is one button, changing between the mark and a search's or a
-  // stance's way out. Its count keeps its room even when empty; a count arriving moves
-  // nothing beside it. The corner mark presses the fold command's row, as the menu
-  // does, so its press is announced and logged like the key's.
+  // The leaf's count keeps its room even when empty; a count arriving moves nothing
+  // beside it. The corner mark presses the fold command's row, as the menu does, so
+  // its press is announced and logged like the key's.
   function panelTemplate(initial = false) {
     // The row's posture, which a row's press holds (`rowPress`).
     /** @param {unknown} drawn */
@@ -705,8 +732,9 @@ export function createFloatingPanel({
         : null;
     const folded = !initial && prefs().rest === "mark" && !top && !search;
     const statusModel = initial ? CONNECTING : status();
-    const onUser = initial ? 0 : onUserCount();
-    const news = initial ? 0 : newCount();
+    const { onUser, news, kept } = initial
+      ? { onUser: 0, news: 0, kept: 0 }
+      : leafCounts(folded);
     const unseen = !initial && errorsWaiting(reading);
     const exit = initial ? null : fieldExit(search, top);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
@@ -715,17 +743,8 @@ export function createFloatingPanel({
     // list's Close waits, unseen, for the search to end, and one ✕ shows at the foot;
     // it keeps its room, so the search press beside it stays under the pointer.
     const closeAtFoot = Boolean(top && viewOf(top).controls);
-    // Page search's way out is its stance's, which the repaint frame reads after the
-    // paint that opens it (touch-controls.js). Until then the seat keeps what it shows,
-    // rather than stepping aside for that paint and coming back with the way out.
-    const quickHidden =
-      !initial && ((Boolean(top) && !exit) || (!exit && (writing || drafted)));
-    // Drafts are marked only where nothing has news, so the dot stays news's mark, and
-    // only while the mark or the folded leaf shows, so writing never reads them.
-    const kept =
-      initial || news || !(folded || (!quickHidden && !exit)) ? 0 : keptDrafts();
     const peek = initial ? null : peekPresentation();
-    // A stance's ✕ in the seat has the stance's name beside it, as a search's has its
+    // A stance's ✕ in the row has the stance's name beside it, as a search's has its
     // scope, read from the dispatcher as the ✕ is (`fieldExit`).
     const stanceName = exit && !search ? stanceWords(innermostStance()?.scope) : null;
     const mode = search
@@ -736,40 +755,13 @@ export function createFloatingPanel({
       : held
         ? heldParts(held)
         : (stanceName ?? (selection ? "Selection" : nothing));
-    const newsName = news
-      ? `${counted(news, "thread")} with news`
-      : kept
-        ? `${counted(kept, "draft")} unsent`
-        : "";
-    const onUserName = [onUser ? `On Me: ${onUser}` : "On Me", newsName]
+    const leafName = [
+      folded ? "Unfold Leaf" : LEAF_PRESSES[initial ? "menu" : leafOpens(reading)],
+      leafMarks(onUser, news, kept),
+      statusModel.summary,
+    ]
       .filter(Boolean)
-      .join(", ");
-    const quick = html`<button
-      type="button"
-      ${offeredAction(
-        "symbol",
-        exit ? "lf-fp-exit" : "lf-fp-on-user",
-        exit ? exit.label : onUserName,
-        { action: exit ? "close" : "on-me" },
-      )}
-      ?data-lf-due=${!exit && onUser > 0}
-      ?disabled=${Boolean(exit?.disabled)}
-      @mousedown=${
-        exit ? (/** @type {MouseEvent} */ event) => event.preventDefault() : nothing
-      }
-      @click=${exit ? () => exit.press() : pressMark}
-    >
-      ${
-        exit
-          ? nothing
-          : html`<span class="lf-fp-num">${onUser || ""}</span
-              ><span
-                class="lf-fp-news lf-unread-dot"
-                ?hidden=${!news && !kept}
-                ?data-lf-drafts=${!news}
-              ></span>`
-      }
-    </button>`;
+      .join(" · ");
     const viewClose = html`<button
       type="button"
       ${offeredAction("symbol", "lf-fp-exit lf-fp-close", "Close", { action: "close" })}
@@ -836,33 +828,6 @@ export function createFloatingPanel({
                 paint();
               }}
             ></button>
-            <button
-              type="button"
-              ${offeredAction(
-                "symbol",
-                "lf-fp-leaf",
-                `${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`,
-                { action: "menu" },
-              )}
-              data-lf-tone=${statusModel.tone || nothing}
-              aria-expanded=${folded ? nothing : String(!initial && menuStands())}
-              .lfPreview=${leafPreview}
-              @click=${pressLeaf}
-            >
-              ${marks(
-                html`<span class="lf-badges" aria-hidden="true"
-                  ><span class="lf-fp-error-dot" ?data-lf-shown=${unseen}></span
-                  ><span
-                    class="lf-fp-news-dot lf-unread-dot"
-                    ?data-lf-shown=${news > 0 || kept > 0}
-                    ?data-lf-drafts=${!news}
-                  ></span
-                  ><span class="lf-fp-badge lf-badge-count" ?data-lf-shown=${onUser > 0}
-                    >${onUser || ""}</span
-                  ></span
-                >`,
-              )}
-            </button>
             <div class="lf-fp-field">
               <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
                 ${
@@ -931,7 +896,45 @@ export function createFloatingPanel({
               </div>
             </div>
             <div class="lf-fp-response"></div>
-            ${marks(html`<div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>`)}
+            ${marks(
+              exit
+                ? html`<button
+                    type="button"
+                    ${offeredAction("symbol", "lf-fp-exit", exit.label, {
+                      action: "close",
+                    })}
+                    ?disabled=${Boolean(exit.disabled)}
+                    @mousedown=${(/** @type {MouseEvent} */ event) =>
+                      event.preventDefault()}
+                    @click=${() => exit.press()}
+                  ></button>`
+                : nothing,
+            )}
+            <button
+              type="button"
+              ${offeredAction("symbol", "lf-fp-leaf", leafName, { action: "menu" })}
+              data-lf-tone=${statusModel.tone || nothing}
+              aria-expanded=${folded ? nothing : String(!initial && onViewStands())}
+              .lfPreview=${leafPreview}
+              @click=${pressLeaf}
+            >
+              ${marks(
+                html`<span class="lf-fp-num" aria-hidden="true">${onUser || ""}</span
+                  ><span class="lf-badges" aria-hidden="true"
+                    ><span class="lf-fp-error-dot" ?data-lf-shown=${unseen}></span
+                    ><span
+                      class="lf-fp-news-dot lf-unread-dot"
+                      ?data-lf-shown=${news > 0 || kept > 0}
+                      ?data-lf-drafts=${!news}
+                    ></span
+                    ><span
+                      class="lf-fp-badge lf-badge-count"
+                      ?data-lf-shown=${onUser > 0}
+                      >${onUser || ""}</span
+                    ></span
+                  >`,
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -1029,10 +1032,6 @@ export function createFloatingPanel({
     keeps(host, "data-lf-long", (long || expanded) && !activeSearch() ? "" : null);
   lengthWatch.observe(field);
   const searchSurface = shell("search-surface");
-  // The row's end: the On Me mark, or the way out of the search the user is in, or of
-  // their stance where the field doesn't offer it, there while the user types too
-  // (touch-controls.js, `stance`), each at its own width (floating-panel.css,
-  // `.lf-fp-quick`).
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
   // (composing/surface.js, `responseHome`). While its composer is open it stands in the
@@ -1129,14 +1128,13 @@ export function createFloatingPanel({
     if (!view) throw new Error("Closing thread search requires its mounted view");
     focusDestination(view, "return");
   }
-  // While the user writes, the field runs to the row's end, the mark and the row's
-  // notice stepped aside, from the moment they open it: Dictate, then Send, stand in
-  // the one corner, and the first key moves nothing. The user chose this
-  // over the field widening at the first key, which moves its end and the
-  // action under it by the mark's width as typing begins.
+  // While the user writes, from the moment they open the field, Dictate, then Send,
+  // stand in its one corner, and the first key moves nothing. The user chose this
+  // over the field changing at the first key, which moves its end and the action under
+  // it as typing begins.
   let writing = false;
   // Whether the field holds a draft, as the row last showed it: Send in the field's
-  // corner, the mark stepped aside. The row takes that posture, or gives it up, only
+  // corner. The row takes that posture, or gives it up, only
   // at the user's own move: typing, or a view changing, which stands another editor in
   // the field. The caret coming into or leaving the field moves nothing, so a draft the
   // user steps away from keeps every line where it was. The user chose this
@@ -1545,13 +1543,13 @@ export function createFloatingPanel({
     const top = trail.value.at(-1);
     return top?.thread ? (threadOf(top) ? replyInput() : null) : pageEditor().input;
   };
-  // The way out at the row's end: a search's, or a stance's while one stands, on the
-  // page and in a thread alike. An open view's Close stands on the view's own line
+  // The way out between the field and the leaf: a search's, or a stance's while one
+  // stands, on the page and in a thread alike. An open view's Close stands on the view's own line
   // (`closeAtFoot`); the menu's search, which holds the field while the menu stands, has
   // no ✕ of its own. It asks the dispatcher whether a stance stands now
   // (`innermostStance`), since the stance's words and its exit row are read in the
   // repaint frame: for the paint a search's close makes, they still name the search,
-  // and the seat would take its ✕ for that paint and give it up in the next.
+  // and the row would draw its ✕ for that paint and take it away in the next.
   /** @param {PanelSearch | typeof threadSearch | null} search @param {PanelRoute | null | undefined} top */
   const fieldExit = (search, top) => {
     if (search === threadSearch && !menuSearching())
@@ -1623,7 +1621,7 @@ export function createFloatingPanel({
   // ---------- readings ----------
   // The threads the page draws, this tab's sends among them while the saved ones are
   // still on their way, so a thread the user just started opens and lists at once. A
-  // count is a reading of the saved inventory, so the mark and tabs say one only once
+  // count is a reading of the saved inventory, so the leaf and tabs say one only once
   // it has arrived (`inventoried`).
   const threads = () => readThreads().threads;
   const inventoried = () => readThreads().phase === "ready";
@@ -1641,14 +1639,14 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
-  // Where nothing has news, the On Me mark and the folded leaf wear the unread dot
-  // grey for these, and the mark opens Threads on them. The user asked for it,
-  // so a draft put away stays in sight without opening Threads.
+  // Where nothing has news, the leaf wears the unread dot grey for these, and opens
+  // Threads on them (`leafOpens`). The user asked for it, so a draft put away stays in
+  // sight without opening Threads.
   const keptDrafts = () => draftsReading().length;
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   // Ordinary open state is implicit, and news is the row's mark (`data-lf-unread`),
   // which says New to assistive tech alone. Only an open thread is news (`isNews`), as
-  // the On Me mark's dot counts it: the user chose that a resolved
+  // the leaf's dot counts it: the user chose that a resolved
   // thread's unread reply says nothing new. Rows name attention, and a resolved thread
   // says so with how long ago, as a Done line says its outcome and age. A reply the user
   // is writing stands under Drafts (`draftsListing`).
@@ -1843,9 +1841,10 @@ export function createFloatingPanel({
     const at = trail.value.at(-1);
     return Boolean(at && routeKey(at) === routeKey(route));
   };
-  // Whether the menu stands, itself or under a list it leads to, so the leaf that opened
+  // Whether the On view stands on any of its tabs, itself or under a view it leads to,
+  // such as a thread opened from Threads or a list from the menu, so the leaf that opened
   // it closes it.
-  const menuStands = () => trail.value.some((level) => level.view === "menu");
+  const onViewStands = () => trail.value.some((level) => ON_VIEW.has(level.view));
   // What one opening of the view over the row keeps, from the change that opens it to
   // the one that puts it away, by its route's key (`transition`): a change of key,
   // closing included, starts a fresh opening, so nothing one view held reaches the
@@ -3705,16 +3704,6 @@ export function createFloatingPanel({
     if (turned && showing({ view: "queue" })) paint();
     else open({ view: "queue" });
   }
-  // The mark opens On Me, or Threads where nothing waits on the user but a reply they
-  // have not read or a draft they put away. It stands only while no view does, so it
-  // never closes one; the seat's ✕ does that.
-  function pressMark() {
-    if (!onUserCount() && (newCount() || keptDrafts())) {
-      query = "";
-      refit();
-      open({ view: "threads" });
-    } else openOnMe();
-  }
   // An On list's empty text (queues.js, `emptyOnList`), a sentence but for the
   // ellipsis of one still loading.
   /** @param {string} name */
@@ -4781,7 +4770,7 @@ export function createFloatingPanel({
   // Threads are views of their own, so turning to or from either stands the other view
   // in its place (`onTab`). The user chose the menu as the first tab,
   // over a menu of its own standing over the leaf, which reaches neither list nor
-  // Threads; the leaf opens the view on it.
+  // Threads; the leaf opens the view on it, or on the list its marks point at.
   const TAB_LABELS = Object.freeze({ menu: "Menu", threads: "Threads" });
   /** @param {"menu" | "you" | "agent" | "threads"} current */
   function onTabs(current) {
@@ -5079,8 +5068,7 @@ export function createFloatingPanel({
     const caretLands = caretToField && !replying && !search;
     if (caretLands) writing = true;
     posture("data-lf-writing", writing && !stanceStands() ? "" : null);
-    // A draft's Send takes the corner and the quick mark steps aside, unless a way
-    // out holds that seat (`quickHidden`).
+    // A draft's Send takes the field's corner.
     const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;
     postureMoved = false;
@@ -5223,21 +5211,54 @@ export function createFloatingPanel({
   }
 
   // ---------- gestures ----------
-  // The leaf unfolds a folded panel, and otherwise opens the menu, the On view's first
-  // tab, or puts it away where it stands, a list it leads to included.
+  // The leaf unfolds a folded panel, and otherwise opens the On view on the tab its
+  // marks point at (`leafOpens`), or puts the view away where it stands, a view it leads
+  // to included.
   function pressLeaf() {
     if (host.dataset.lfRest === "mark") {
       prefs().setRest("row");
       paint();
       return;
     }
-    if (menuStands()) {
+    if (onViewStands()) {
       close();
       return;
     }
+    const opens = leafOpens(
+      fieldReading(trail.value.at(-1)?.thread ?? null, fieldInput()),
+    );
     query = "";
-    open({ view: "menu" });
-    if (!coarsePointer.matches) focusDestination(threadSearchInput, "move");
+    if (opens === "you") openOnMe();
+    else if (opens === "threads") {
+      refit();
+      open({ view: "threads" });
+    } else {
+      open({ view: "menu" });
+      if (!coarsePointer.matches) focusDestination(threadSearchInput, "move");
+    }
+  }
+  // What the leaf's marks count: what waits on the user, the threads with news, and the
+  // drafts put away. Drafts are marked only where nothing has news, so the dot stays
+  // news's mark, and only while the user isn't writing in the field, or the panel is
+  // folded, so writing never reads them.
+  /** @param {boolean} folded */
+  function leafCounts(folded) {
+    const news = newCount();
+    return {
+      onUser: onUserCount(),
+      news,
+      kept: news || (!folded && (writing || drafted)) ? 0 : keptDrafts(),
+    };
+  }
+  // The tab a press on the leaf opens the On view on, read from what its marks say: the
+  // menu while an error waits unseen in its Errors list, so the dotted leaf opens to the
+  // dotted row; else On Me while anything waits on the user; else Threads while a thread
+  // holds a reply they have not read or a draft they put away; else the menu.
+  /** @param {ReturnType<typeof fieldReading> | null} reading @returns {keyof typeof LEAF_PRESSES} */
+  function leafOpens(reading) {
+    if (errorsWaiting(reading)) return "menu";
+    if (onUserCount()) return "you";
+    return newCount() || keptDrafts() ? "threads" : "menu";
   }
   // Folded, the leaf's peek carries passing notices, since there is no field to show
   // them. The leaf's preview names what pressing it does (preview.js), and folded, says
@@ -5260,13 +5281,20 @@ export function createFloatingPanel({
   // preview says in full, so the preview names the leaf in fewer words. A passing
   // notice standing in the folded leaf's peek is all it says.
   function leafPreview() {
-    if (host.dataset.lfRest !== "mark") return { name: "Page menu" };
+    const top = trail.value.at(-1) ?? null;
+    const { onUser, news, kept } = leafCounts(host.dataset.lfRest === "mark");
+    const counts = leafMarks(onUser, news, kept);
+    if (host.dataset.lfRest !== "mark")
+      return {
+        name: LEAF_PRESSES[leafOpens(fieldReading(top?.thread ?? null, fieldInput()))],
+        detail: counts ? [counts] : [],
+      };
     if (passing()) return false;
     const fold = commandSteps(FOLD);
     return {
       name: "Unfold Leaf",
       keys: fold.length ? [fold] : [],
-      detail: [pagePresented() && statusParts(status().explanationParts)],
+      detail: [counts, pagePresented() && statusParts(status().explanationParts)],
     };
   }
   // What stands open above the row, the menu as any view, is a step of the page's Escape,

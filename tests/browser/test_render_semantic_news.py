@@ -29,7 +29,7 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     expect(toggle).to_be_focused()
     said(page).not_to_have_attribute("data-lf-says", "notice")
@@ -53,7 +53,7 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
 def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
     """An agent's new comment is heard, and the panel's seat keeps the agent's status."""
     page = open_page(browser, serve(PANEL_PAGE))
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     expect(toggle).to_be_focused()
     said(page).not_to_have_attribute("data-lf-says", "notice")

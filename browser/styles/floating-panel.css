@@ -31,8 +31,7 @@
     --lf-ground: var(--lf-fp-surface);
     --lf-ring: var(--lf-fp-ring);
     --lf-fp-folded: 42px;
-    /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
-       count keeps its count's room besides, which is wider (`.lf-fp-on-user`). */
+    /* The narrowest the leaf or the row's ✕ stands, larger under a finger. */
     --lf-fp-aim: 32px;
     /* A press's face: as tall as a line of answers holding only words, so a press
        arriving in one moves nothing. Under a finger it is the row's line. */
@@ -204,16 +203,39 @@
     --lf-icon-action-face: var(--lf-line);
     position: absolute;
     inset-block-start: var(--lf-fp-row-pad);
-    inset-inline-start: var(--lf-fp-row-pad);
+    inset-inline-end: var(--lf-fp-row-pad);
   }
   .lf-floating-panel[data-lf-expanded] .lf-fp-row:has(> .lf-fp-expand) {
     min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   /* The leaf is a symbol (controls.css), a line tall, its mark a size up from an
-     action's symbol. */
+     action's symbol. At the row's end it stands wider, its mark and the room for its
+     count of what waits on the user centred in it, so a count arriving moves neither the
+     mark nor the field beside it. The count starts its room, by the mark: set at the
+     room's end, one digit stands a digit's width off it, which the user judged worse.
+     Folded, the count stands in the badge over its corner instead (below). */
   .lf-fp-leaf {
     --lf-icon-action-face: var(--lf-line);
     flex: none;
+    width: max(var(--lf-fp-aim), calc(19px + 4px + 2ch + 14px));
+    grid-auto-flow: column;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* The count wears the user's turn, and stands on the baseline of the field's words
+     beside it, as a message head's name stands on its time's (surfaces.css): its box is
+     a line of the field's face, from a strut, so both engines place the two baselines
+     alike. Centred on a line of its own, the smaller count stood higher. */
+  .lf-fp-leaf > .lf-fp-num {
+    min-width: 2ch;
+    text-align: start;
+    color: var(--lf-turn-ink);
+    font-weight: 600;
+    line-height: 0;
+    &::before {
+      content: "\200b" / "";
+      font: var(--lf-font-message);
+    }
   }
   .lf-fp-leaf > svg[data-lf-icon="leaf"] {
     inline-size: 19px;
@@ -244,12 +266,13 @@
   .lf-fp-error-dot[data-lf-shown] {
     display: inline-block;
   }
-  /* The leaf's badges (`.lf-badges`, controls.css): the error dot alone inside its
-     corner while the panel stands as a row, and folded, the count, news and error over
-     its top edge. */
+  /* The leaf's badges (`.lf-badges`, controls.css): while the panel stands as a row,
+     its dots for news and an error end at its mark's top-right corner, so a second dot
+     stands over the mark rather than over the count beside it; folded, the count, news
+     and error stand over its top edge. The mark starts the leaf's 7px padding in. */
   .lf-fp-leaf > .lf-badges {
     position: absolute;
-    inset: 3px 3px auto;
+    inset: 4px calc(100% - 7px - 21px) auto auto;
     pointer-events: none;
   }
   .lf-badges > .lf-fp-error-dot {
@@ -424,11 +447,11 @@
     margin: 0;
     box-shadow: none;
   }
-  /* The caret in the field makes the panel's right part the box the words go in, with
+  /* The caret in the field makes the panel's left part the box the words go in, with
      an anchored comment box's face (annotation-chrome.css): the field's box runs out to
      the panel's edges wherever it borders them, the ring one band inside them, the
      card's ground inside it, lighter than the panel's, and every corner at the panel's
-     own rounding. Its left side stands between the leaf and the words, so the leaf
+     own rounding. Its right side stands between the words and the leaf, so the leaf
      stays outside the box. A key that moves the caret there, `c` among them, shows where
      the words will go. The box's padding takes back the room its margins give, and its
      words stand as far in as that box's at rest too, so the caret arriving moves none
@@ -451,8 +474,7 @@
 
      The field names the row as the box that shows its focus, so the row can give up
      its line while the ring stands. The ring is the field's slot's (`.lf-fp-field`)
-     rather than the editor's, so Send, standing in the editor's corner, stays put;
-     a stance's ✕ at the row's end keeps the box's right side off the panel's edge. */
+     rather than the editor's, so Send, standing in the editor's corner, stays put. */
   .lf-fp-field .lf-compose-field > leaf-text {
     --lf-focus-box: .lf-fp-row;
   }
@@ -465,10 +487,9 @@
     background: var(--lf-card);
     --lf-wears-ring: 1;
   }
-  .lf-fp-row[data-lf-control-focus-visible]:not(:has(> .lf-fp-quick:not([hidden])))
-    > .lf-fp-field {
-    margin-inline-end: calc(-1 * var(--lf-fp-row-pad));
-    padding-inline-end: var(--lf-fp-row-pad);
+  .lf-fp-row[data-lf-control-focus-visible] > .lf-fp-field {
+    margin-inline-start: calc(-1 * var(--lf-fp-row-pad));
+    padding-inline-start: var(--lf-fp-row-pad);
   }
   .lf-fp-row[data-lf-control-focus-visible] > .lf-fp-field .lf-compose-field {
     --lf-field-ground: var(--lf-card);
@@ -592,8 +613,8 @@
      ends in the press the moment offers, else in Comment and its key while c enters
      the field (composing/surface.js, `commentHint`; composing/input.js, `enters`), so
      the row says that c goes here and, by losing them, that it goes elsewhere. The user chose the word, so every key in a box
-     stands with its word, over the key alone, which a reader took for the inbox's
-     shortcut beside it. */
+     stands with its word, over the key alone, which a reader took for the shortcut of
+     the mark beside it. */
   /* The served row's words, which stand in the editor's place until the panel mounts
      (floating-panel.js, `panelTemplate`), wear the ink every empty box's words do
      (theme, `--quiet`), where the editor says them. */
@@ -798,55 +819,17 @@
     display: none;
   }
 
-  /* The row's end: one seat, which the On Me mark and a stance's way out take in turn
-     (floating-panel.js, `quick`). The mark keeps its count's room whether or not it has
-     a number, so a count arriving moves nothing beside it. The way out takes the leaf's
-     width, so its ✕ stands as close to the field as the leaf does at the row's start. */
-  .lf-fp-quick {
+  /* The way out of a search or a stance, between the field and the leaf
+     (floating-panel.js, `fieldExit`), a symbol (controls.css) a line tall and the
+     leaf's width, so its ✕ stands as close to the field's end as the leaf does. */
+  .lf-fp-row > .lf-fp-exit {
     --lf-icon-action-face: var(--lf-line);
     flex: none;
-    display: flex;
-  }
-  /* Both are symbols (controls.css), a line tall, so the way out stands a symbol's
-     width, the leaf's. The On Me mark stands wider, its symbol and its count's room
-     centred in it, so a count arriving moves no symbol. The count starts its room, by
-     the symbol: set at the room's end, one digit stands a digit's width off it, which
-     the user judged worse. */
-  .lf-fp-quick > .lf-fp-on-user {
-    width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + 14px));
-    grid-auto-flow: column;
-    gap: 4px;
-    font-variant-numeric: tabular-nums;
-  }
-  .lf-fp-on-user > .lf-fp-num {
-    min-width: 2ch;
-    text-align: start;
   }
   /* A view's Close at the end of its head line or its tabs (floating-panel.js,
      `viewClose`) is a symbol a press tall, as the presses before it are. */
   :is(.lf-fp-head, .lf-fp-controls) > .lf-fp-aux > .lf-fp-close {
     flex: none;
-  }
-  .lf-fp-on-user[data-lf-due] .lf-fp-num {
-    color: var(--lf-turn-ink);
-    font-weight: 600;
-  }
-  /* The count stands on the baseline of the field's words beside it, as a message
-     head's name stands on its time's (surfaces.css): its box is a line of the field's
-     face, from a strut, so both engines place the two baselines alike. Centred on a
-     line of its own, the smaller count stood higher. */
-  .lf-fp-on-user .lf-fp-num {
-    line-height: 0;
-    &::before {
-      content: "\200b" / "";
-      font: var(--lf-font-message);
-    }
-  }
-  .lf-fp-news {
-    position: absolute;
-    top: 6px;
-    left: 19px;
-    box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */
@@ -859,7 +842,7 @@
     margin: 0;
     .lf-fp-field,
     .lf-fp-expand,
-    .lf-fp-quick,
+    .lf-fp-exit,
     .lf-fp-opened {
       display: none;
     }
@@ -882,8 +865,9 @@
   /* The pointer's fold: a corner mark (controls.css) riding the box's top-right corner,
      shown while the pointer is near that corner (floating-panel.js, `data-lf-corner`).
      It fades rather than moves, so nothing shifts under the pointer. An open view's
-     Close holds that corner, so the mark waits for the view to go rather than stand
-     beside ✕ and Resolve. */
+     Close holds that corner, and a long draft's more-room mark over the leaf, so the
+     mark waits for either to go rather than stand beside ✕ and Resolve, or over the
+     more-room mark's edge. */
   .lf-fp-minimize {
     top: -9px;
     right: -9px;
@@ -894,18 +878,28 @@
       visibility 0s var(--lf-motion-disclosure);
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-lf-rest="row"][data-lf-corner]:not([data-lf-open])
+    .lf-floating-panel[data-lf-rest="row"][data-lf-corner]:not(
+        [data-lf-open],
+        [data-lf-long]
+      )
       .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
       transition: opacity var(--lf-motion-disclosure);
     }
   }
-  /* What waits on the user, on the folded leaf: a count, and a dot for news, faint
-     grey for a put-away draft where nothing has news (controls.css). */
-  .lf-floating-panel[data-lf-rest="mark"] .lf-fp-leaf > .lf-badges {
-    inset: -3px -3px auto;
-    --lf-badge-reach: 3px;
+  /* What waits on the user, on the leaf: a count, and a dot for news, faint grey for a
+     put-away draft where nothing has news (controls.css). Folded, the count leaves the
+     row's room by the mark for the badge over the corner. */
+  .lf-floating-panel[data-lf-rest="mark"] .lf-fp-leaf {
+    width: var(--lf-fp-aim);
+    & > .lf-fp-num {
+      display: none;
+    }
+    & > .lf-badges {
+      inset: -3px -3px auto;
+      --lf-badge-reach: 3px;
+    }
   }
   .lf-fp-leaf > .lf-badges > .lf-fp-badge,
   .lf-fp-leaf > .lf-badges > .lf-fp-news-dot {
@@ -917,8 +911,11 @@
     background: var(--lf-badge-fill);
     color: var(--lf-badge-ink);
   }
+  .lf-fp-leaf > .lf-badges > .lf-fp-news-dot[data-lf-shown],
   .lf-floating-panel[data-lf-rest="mark"]
-    :is(.lf-fp-badge, .lf-fp-news-dot)[data-lf-shown] {
+    .lf-fp-leaf
+    > .lf-badges
+    > .lf-fp-badge[data-lf-shown] {
     display: grid;
   }
 
@@ -1344,7 +1341,7 @@
     min-height: 1lh;
   }
   /* The value is words, so it keeps the name's first line's baseline: its box is a
-     line of the name's face, from a strut, as the On Me count's is (above). Centred
+     line of the name's face, from a strut, as the leaf's count's is (above). Centred
      with the keys on that line, the smaller value stood higher. */
   .lf-fp-end > .lf-fp-value {
     grid-area: 1 / 1;

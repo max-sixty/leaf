@@ -405,14 +405,14 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   color: var(--lf-muted);
 }
 /* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
-   the On Me mark, the folded leaf and a margin entry. */
+   the leaf and a margin entry. */
 .lf-unread-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--lf-news);
 }
-/* Where nothing has news, the On Me mark and the folded leaf wear it in a faint grey for
+/* Where nothing has news, the leaf wears it in a faint grey for
    a draft the user put away (floating-panel.js, `keptDrafts`; tokens.css,
    `--lf-draft`). */
 .lf-unread-dot[data-lf-drafts] {

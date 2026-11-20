@@ -425,7 +425,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(harness, event, tmp_
         "--project",
         str(project),
         "python",
-        "-I",
+        "-P",
         "-m",
         "leaf",
         *_registered_hook_arguments(harness, event),

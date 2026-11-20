@@ -54,10 +54,9 @@ def starting_detached(
     module: str = "leaf",
     launcher: Path | None = None,
 ):
-    """Spawn `python -I -m MODULE ARGUMENTS --handshake FD` in a session of its own,
-    and yield its announcement, then accept and confirm on context exit. `-I` keeps
-    the caller's directory and PYTHONPATH off the child's module path, as `bin/leaf`
-    does, so the child runs this environment's Leaf.
+    """Spawn `python -P -m MODULE ARGUMENTS --handshake FD` in a session of its own,
+    and yield its announcement, then accept and confirm on context exit. `-P` keeps
+    the caller's working directory off the child's module path, as `bin/leaf` does.
 
     Raises `StartRefused` with the child's reason when it refuses, exits, or has not
     answered by `deadline`, a `time.monotonic()` reading, which also bounds the wait
@@ -78,7 +77,7 @@ def starting_detached(
                     *(
                         [str(launcher)]
                         if launcher
-                        else [sys.executable, "-I", "-m", module]
+                        else [sys.executable, "-P", "-m", module]
                     ),
                     *arguments,
                     "--handshake",

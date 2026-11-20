@@ -164,9 +164,14 @@
 
    - A pointer resting on a target for `DWELL` shows its preview; moving onto another
      target within `WARM` of the last one shows the next at once, so reading along a row
-     of controls waits once. Leaving the target hides it, and so do a press and any key
-     but Escape, as the platform's tooltip goes, while the key does its own work; the
-     target then stays quiet until the pointer comes back to it. A modifier alone is
+     of controls waits once. Moving onto another part of the element whose preview
+     stands, where that element still speaks for the part, as from one of a widget's
+     controls to the next when the widget declares one preview for all of them, is a new
+     aim inside it, as a chart's next point is: the preview redraws where it stands,
+     with no fade, so the reading changes under a face that holds still. Leaving the
+     target hides it, and so do a press and any key but Escape, as the platform's
+     tooltip goes, while the key does its own work; the target then stays quiet until
+     the pointer comes back to it. A modifier alone is
      half a press rather than a key (control-selectors.js, `MODIFIER_KEYS`), so ⌥ held
      to aim a comment leaves standing the preview of the point it aims at. A target that
      arrives under a pointer the user hasn't moved shows nothing, so news landing under
@@ -1052,9 +1057,13 @@ function readFrom(from, route, read) {
 function show(from, route, read = null, at, again = false, aim = false) {
   if (!again && shown?.from === from && shown.route === route) return !shown.away;
   const found = readFrom(from, route, read);
-  const standing = again && shown?.from === from ? shown : null;
+  // The pointer reaching another part of the element whose preview stands, which that
+  // element's preview speaks for too, is a new aim inside it (`aimsInside`).
+  const within = !again && aimsInside(from);
+  const inside = within && Boolean(found) && found?.target === shown?.target;
+  const standing = (again && shown?.from === from) || inside ? shown : null;
   if (!found) {
-    if (standing) hide();
+    if (standing || within) hide();
     return false;
   }
   // Ending the standing record's watch can run its disconnect, which hides whatever
@@ -1103,10 +1112,20 @@ function show(from, route, read = null, at, again = false, aim = false) {
     }
   }
   // Described first, so a reading that stands nowhere and ends puts that back too.
-  const stands = stand(record, reading, Boolean(standing), aim);
+  const stands = stand(record, reading, Boolean(standing), aim || inside);
   if (stands && route === "hold" && hold) hold.read = true;
   return stands;
 }
+// Whether the pointer at `target` is on a part of the element whose pointer preview
+// stands, as on the next of the controls that element declares one preview for, where
+// the preview, if that element still speaks for the part, redraws in place.
+/** @param {Target | null} target */
+const aimsInside = (target) =>
+  shown?.route === "pointer" &&
+  !shown.away &&
+  isElement(target) &&
+  isElement(shown.target) &&
+  renderedUnder(target, shown.target);
 
 // Where a preview stands (`stand`), decided here, from the box the browser will draw,
 // and drawn by the browser from that decision alone, with no fallback of its own. Its
@@ -1778,12 +1797,18 @@ function point(target, read = null, at) {
     leaving = setTimeout(() => {
       if (shown === record && !pointing) hide();
     }, DWELL);
-  } else if (shown && shown.route !== "focus" && !sameTarget(shown.from, target))
+  } else if (
+    shown &&
+    shown.route !== "focus" &&
+    !sameTarget(shown.from, target) &&
+    !aimsInside(target)
+  )
     hide();
   if (!target) return;
   // Back on the target whose preview stands, as from a link onto the words around it.
   if (shown?.route === "pointer" && sameTarget(shown.from, target)) return;
-  if (performance.now() - cooled < WARM) show(target, "pointer", read, at);
+  if (aimsInside(target) || performance.now() - cooled < WARM)
+    show(target, "pointer", read, at);
   else
     dwell = setTimeout(() => {
       if (pointing === target) show(target, "pointer", pointingRead, pointingAt);

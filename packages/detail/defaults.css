@@ -13,12 +13,12 @@ lf-dial {
 html[data-lf-interactive] lf-dial {
   min-block-size: calc(var(--lf-line) + var(--lf-sp-2));
 }
-/* Measure the three labels in their radios' face before the radios arrive. Zero
-   width separators prevent kerning across radio boundaries. The inset is the three
-   radios' padding and borders (the word face, controls.css), the row's frame, and its
-   two gaps (webawesome.css). */
+/* Measure the three labels in their radios' face before the radios arrive, each as
+   wide as the widest, Everything. Zero width separators prevent kerning across radio
+   boundaries. The inset is the three radios' padding and borders (the word face,
+   controls.css), the row's frame, and its two gaps (webawesome.css). */
 html[data-lf-interactive] lf-dial:not(:defined)::before {
-  content: "Skim\200b Read\200b Everything";
+  content: "Everything\200b Everything\200b Everything";
   display: block;
   visibility: hidden;
   white-space: nowrap;
@@ -30,6 +30,17 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 .lf-dial-depths {
   display: block;
   font: var(--lf-font-compact);
+}
+/* The three depths are one width, the widest one's, so the row reads as one control
+   and what stands under each depth lines up with it. */
+.lf-dial-depths::part(form-control-input) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+.lf-dial-depth {
+  justify-content: center;
+  text-align: center;
 }
 
 /* A block Skim folds takes no room. Until-found keeps it findable but keeps its
@@ -261,4 +272,109 @@ details[data-lf-dial-ghost="comes"] > summary,
   display: inline;
   font: var(--lf-font-fine);
   color: var(--lf-quiet);
+}
+
+/* Pointing, the pages hanging under their buttons: a panel the dial draws under
+   itself, spanning it edge to edge, each depth's page under its own button to one scale,
+   so how far down each runs is how long it takes, and under them what the pointed depth
+   shows. It wears the face of a popover a control opens over the page (`.lf-popover`,
+   controls.css), which needs a native popover the layer stack would count as an open
+   layer, so it names that face's tokens. Leaf's own preview, which opens and closes it,
+   stays unseen. The pointed page stands in full ink and the others step
+   back; a pointer crossing the buttons moves that emphasis while the panel holds still.
+   Each page drops from its button as the panel opens. */
+.lf-preview:has(.lf-dial-hang-unseen) {
+  visibility: hidden;
+}
+.lf-dial-hang-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 6px);
+  inset-inline: 0;
+  box-sizing: border-box;
+  padding-block: 6px 5px;
+  --lf-ground: var(--lf-card);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-ground);
+  color: var(--lf-ink);
+  box-shadow: var(--lf-raise-2);
+  font: var(--lf-font-compact);
+  opacity: 1;
+  transition: opacity 90ms ease;
+  @starting-style {
+    opacity: 0;
+  }
+}
+.lf-dial-hang-panel:not([data-open]) {
+  display: none;
+}
+.lf-dial-hang {
+  position: relative;
+  display: block;
+  block-size: calc(var(--tall) + 6px);
+  font: var(--lf-font-fine);
+  font-variant-numeric: tabular-nums;
+}
+.lf-dial-hang[data-timed] {
+  block-size: calc(var(--tall) + 6px + 1.4em);
+}
+.lf-dial-hang-column {
+  position: absolute;
+  inset-block-start: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding-inline: 5px;
+  opacity: 0.42;
+  transition: opacity 140ms ease;
+}
+.lf-dial-hang-column[data-pointed] {
+  opacity: 1;
+}
+.lf-dial-hang-page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 3px 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  overflow: clip;
+  transform-origin: top;
+  transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  @starting-style {
+    transform: scaleY(0);
+  }
+}
+.lf-dial-hang-page > span {
+  flex: none;
+  box-sizing: border-box;
+  border-block-end: 1px solid var(--lf-ground);
+}
+.lf-dial-hang-text {
+  background: color-mix(in srgb, currentColor 34%, transparent);
+}
+.lf-dial-hang-heading {
+  inline-size: 55%;
+  min-block-size: 3px;
+  background: currentColor;
+}
+.lf-dial-hang-picture {
+  background: var(--lf-series-1);
+}
+.lf-dial-hang-time {
+  margin-block-start: 2px;
+  text-align: center;
+}
+.lf-dial-hang-title {
+  display: block;
+  margin-block-start: 4px;
+  padding-inline: var(--lf-sp-2);
+  text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lf-dial-hang-panel,
+  .lf-dial-hang-column,
+  .lf-dial-hang-page {
+    transition: none;
+  }
 }

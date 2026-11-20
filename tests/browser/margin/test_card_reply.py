@@ -1554,11 +1554,11 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
 # macOS draws the transcript's scrollbar as an overlay, which takes no room; a styled
 # one takes room on every host, as Linux and Windows, or macOS with a mouse, draw it.
 # Chromium styles a bar with `::-webkit-scrollbar` only once the standard properties
-# are unset.
+# are unset, so the sheet unsets them where the transcript shows its bar.
 TRANSCRIPT_BAR_TAKES_ROOM = """(() => {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(`
-    .lf-margin-thread .lf-thread-transcript {
+    .lf-margin-thread .lf-thread-transcript[data-lf-overflows] {
       scrollbar-width: auto !important;
       scrollbar-color: auto !important;
     }

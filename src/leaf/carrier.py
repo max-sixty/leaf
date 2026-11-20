@@ -5,9 +5,9 @@ and reports what it came to. The module adds only what it alone sees: the tool c
 the main thread is running, the main thread's last request, which a fork resends, the
 end of a main-loop turn the model answered, and the end of each spawned agent's run.
 
-Claude Code keeps the module it loaded until `/reload-plugins`, while each hook runs
-the newest Leaf, so the module a session runs is often older than the Python it
-reports to. The user chose that the module only carry instructions, over running each
+Claude Code keeps the module it loaded until `/reload-plugins`, and a session's
+hooks run the copy it loaded or a checkout it selected (`session_runtime.py`), so the
+module a session runs can be older than the Python it reports to. The user chose that the module only carry instructions, over running each
 kind of fork's steps itself, so a change to what Leaf forks for, to what it asks of a
 call, or to what it does with an answer changes only the Python, and an older module
 runs it as it runs any instruction. The module changes only for a call or an event

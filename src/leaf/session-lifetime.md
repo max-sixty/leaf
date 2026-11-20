@@ -175,9 +175,8 @@ with a persistent service spends most of its life unheld, and picks up again whe
 session takes it.
 
 A session's hooks, watch and bare `leaf` commands run its delivering Leaf: a checkout
-a user preview selected or one that claimed or re-vendored a page the session holds
-(`session_runtime.py`), else the copy Claude Code has installed now, which a copy it
-replaced runs in its own place (`bin/leaf`). A page server keeps the Leaf that started it, and
+a user preview selected or one that claimed or re-vendored a page the session holds,
+else the copy the session loaded (`session_runtime.py`). A page server keeps the Leaf that started it, and
 `server start` from another Leaf restarts it under that one at the same address
 (`hosting.start_page`).
 

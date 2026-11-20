@@ -158,9 +158,10 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
 
 def test_a_hook_starts_the_bridge_before_handing_itself_on(tmp_path):
     """A session's hooks hand themselves to a checkout it selected
-    (`session_runtime.py`), while its sandboxed bare `leaf` runs the bridge client
-    of the installed copy. So the copy the hook ran in registers the session before
-    handing the hook on, whatever the Leaf it hands to does."""
+    (`session_runtime.py`), while its sandboxed bare `leaf` runs the bridge client of
+    the copy Claude Code loaded. So the copy the
+    hook ran in registers the session before handing the hook on, whatever the
+    Leaf it hands to does."""
     from leaf.session_runtime import select_launcher
 
     session = os.environ["CLAUDE_CODE_SESSION_ID"]

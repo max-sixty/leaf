@@ -3980,11 +3980,15 @@ export function createFloatingPanel({
   // it: opened, by what the card lacks below the view's foot, and folded, by the room
   // the list then leaves empty. So the pressed line holds still unless the view must
   // grow to show its card, and then rises only by the room the card needs.
+  // A card opened as the list refits, as one a promise opens from its thread does
+  // (`showTodo`), is fitted once the list holds its room again.
   function fitOpened() {
     if (!fitting) return;
-    fitting = false;
     const view = shownView();
-    if (!view || opening.room === null || trail.value.at(-1)?.view !== "queue") return;
+    const listed = trail.value.at(-1)?.view === "queue";
+    if (view && listed && opening.room === null) return;
+    fitting = false;
+    if (!view || !listed || opening.room === null) return;
     const foot =
       view.getBoundingClientRect().bottom -
       Number.parseFloat(getComputedStyle(view).paddingBottom);
@@ -5623,6 +5627,32 @@ export function createFloatingPanel({
     open({ view: "thread", thread: thread.key }, { reopen: true });
   }
 
+  // A promise's word in a message's head hands its to-do here (thread/messages.js):
+  // On <agent> opens at the to-do's row with its card open, which says what the agent
+  // is doing about it and where it stands among the rest. The keys land on the row's
+  // line, as `g M` lands on a list's first row; a pointer leaves focus on the view
+  // (`focusView`), and the card stands in view either way (`fitOpened`). Only the List
+  // layout draws rows, so the press turns a Summary to it, as its chooser would, and
+  // the chooser turns it back.
+  /** @param {string} todo */
+  function showTodo(todo) {
+    const key = queueItemKey({ kind: "todo", id: todo });
+    chooseQueueTab("agent");
+    if (layoutOf() !== "list") {
+      agentLayout.write("list");
+      refit();
+    }
+    if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
+    opening.openItem = key;
+    fitting = true;
+    paint();
+    const view = shownView();
+    const line = view?.querySelector(
+      `.lf-fp-on-item[data-lf-key="${CSS.escape(key)}"] .lf-fp-on-line`,
+    );
+    if (view) focusDestination(pressLed() || !line ? view : line, "move");
+  }
+
   // A live revision carries the thread open here, and where its view was read to,
   // across it (version.js, `captureRetainedCurrentLocation`): the reader is still at it, so
   // the view comes back as they left it, without taking focus, which the reply's own
@@ -5789,6 +5819,7 @@ export function createFloatingPanel({
     doors,
     showForSample,
     openThread,
+    showTodo,
     captureCurrentLocation,
     restoreCurrentLocation,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for

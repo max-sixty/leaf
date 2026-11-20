@@ -474,7 +474,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate(
         """async holding => {
           const api = await window.__lfWidgetApi();
-          const {clockValue, projectionRegionsPresented, readApplicationPresentation} =
+          const {projectionRegionsPresented, readApplicationPresentation} =
             await window.__lfCheckApi();
           const {noChange} = await window.__lfVendorImport('lit.js');
           const owner = document.getElementById('ag-wren');
@@ -483,7 +483,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           customElements.define('lf-report-proof', class extends api.LeafElement {
             render() {
               if (!this.whenReady(() => projectionRegionsPresented([owner.id]))) return noChange;
-              clockValue(() => window.__proofClock);
+              api.clockValue(() => window.__proofClock);
               window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
               return noChange;
             }

@@ -28,7 +28,7 @@ basis's shape is one to this contract.
 | `do` | the module runs `request` through | its report adds |
 | --- | --- | --- |
 | `report` | nothing | nothing more |
-| `fork` | `$.model.fork`, a fork of the conversation that can call no tool (`fork`) | `answer`, or why there is none (`failed`); `usage`, `elapsed_ms` and the main thread's last request it resent (`resent`) |
+| `fork` | `$.model.fork`, a fork of the conversation that can call no tool (`fork`) | `answer`, or why there is none (`failed`); `usage`, `elapsed_ms` and what it resent of the main thread's conversation (`resent`) |
 | `complete` | `$.model.complete`, on the session's model client | `text`, or `failed` with an API error's `status` and `error`; `usage`, `elapsed_ms` |
 | `spawn` | `$.agent.spawn` | the `agent` it started, or `failed`, or both where the module couldn't register the agent; `ended` where its run ended before the module registered it |
 | `send` | `$.session.send`, to the agent `request.to.agentId` names | that `agent`, with `failed` where the send failed |

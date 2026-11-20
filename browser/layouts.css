@@ -952,27 +952,18 @@
   }
   /* The root workspace reaches the window's foot. Its last reading region keeps
    * the panel's clearance inside its content; containers that pass the edge to a
-   * child pass --lf-end-room as well, rather than shortening that child's frame. What
-   * the page writes after `main`, such as a site footer, ends the page instead, so the
-   * body keeps the foot's room for it (base.css). What takes no room in the flow doesn't
-   * count: Leaf's hidden apparatus, and a dialog or popover, which stands in the top
-   * layer when open. */
+   * child pass --lf-end-room as well, rather than shortening that child's frame. So the
+   * body keeps none of the foot's room (base.css), as a page of parts' body keeps none,
+   * and where the window holds the workspace the page doesn't scroll. Content the page
+   * writes after `main` keeps room of its own, and the render gate reports its words
+   * that the panel covers (`under-panel`). A workspace inside a `main` that carries no
+   * Layout stops short of the foot's room, so there the body keeps it.
+   * Rejected: the body keeping the room wherever `main` has a later sibling that takes
+   * room in the flow, asked of the sibling's tag and attributes. A browser extension
+   * adds elements of its own to the body, which no such list can name, and each would
+   * let the page scroll by the room. */
   @media screen {
-    html[data-lf-live][data-lf-layout~="workspace"]
-      body:not(
-        :has(
-          > main
-            ~ :not(
-              [hidden],
-              [data-lf-runtime],
-              script,
-              style,
-              template,
-              dialog,
-              [popover]
-            )
-        )
-      ),
+    html[data-lf-live][data-lf-layout~="workspace"] body:has(> main.layout-workspace),
     html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
       padding-block-end: 0;
     }
@@ -1024,7 +1015,7 @@
   }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
-      block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
+      block-size: calc(100dvh - var(--lf-head-room));
     }
     /* Held, each pane's own body scrolls up to the window's foot, so each pane keeps
      * the room. */

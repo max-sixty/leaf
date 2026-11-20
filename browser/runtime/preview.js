@@ -9,20 +9,20 @@
      markup names, and each press that reaches it from where the user is
      (control-keys.js, `controlKeys`) as key chips beside its name, which a coarse
      pointer leaves out with every other advertised key. Its face is its own words, a
-     select's chosen option rather than every option, and the words of the labels
-     beside it. It says a name the control's markup gives where either holds the
-     other's words, as a key chip or a count beside a name leaves it said, and a name
-     its content gives unless it cuts a word of it short. A face that cuts none leaves
-     unsaid only the control's quiet words (`.lf-quiet`, declared-words.js), words the
-     screen doesn't show, as a check's verdict beside a case's title, so the preview
-     reads those words alone, unless key chips stand beside them, which the control's
-     whole name heads. A control whose face says its name and that no key reaches
-     previews nothing. A field the user types in previews nothing: its words are what
-     they read. A control is any native or ARIA press, a range and a select among them
-     (control-selectors.js, `PRESSES`), or a custom control whose `data-lf-offer` names
-     its press (widget-elements.js, `PRESSABLE`). The rest of Leaf's chrome, such as a
-     thread card a walk lands on or a pointer rests in, previews no name of its own,
-     since its words are what the user reads.
+     select's chosen option rather than every option, and the words of the labels beside
+     it. It says a name the control's markup gives where either holds the other's words,
+     as a key chip or a count beside a name leaves it said, and a name its content gives
+     unless it cuts a word of it short. A face that cuts none leaves unsaid only the
+     control's quiet words (`.lf-quiet`, declared-words.js), which the screen doesn't
+     show, as a check's verdict beside a case's title. The preview reads those words
+     alone; where key chips stand in it, the control's whole name heads them. A control
+     whose face says its name and that no key reaches previews nothing. A field the user
+     types in previews nothing: its words are what they read. A control is any native or
+     ARIA press, a range and a select among them (control-selectors.js, `PRESSES`), or a
+     custom control whose `data-lf-offer` names its press (widget-elements.js,
+     `PRESSABLE`). The rest of Leaf's chrome, such as a thread card a walk lands on or a
+     pointer rests in, previews no name of its own, since its words are what the user
+     reads.
    - An element declares what pointing at it adds as its `lfPreview(route)`, called once
      as its preview shows on that route (`"pointer"`, `"focus"` or `"hold"`), and again
      for each new presentation of the document while the preview stands, so the words
@@ -889,9 +889,8 @@ function readingOf(node, route) {
   const markup = markupName(node);
   const keys = controlKeys(node);
   // The module header's rule: a face that cuts none of a content name leaves unsaid only
-  // its quiet words, which are the reading unless key chips need the whole name.
-  const chips = keys.length > 0 && advertisesKeys();
-  const quiet = !markup && !chips && face && !face.cut ? face.quiet : "";
+  // its quiet words, which are the reading's name.
+  const quiet = !markup && face && !face.cut ? face.quiet : "";
   const name = markup || quiet || (face ? contentName(node) : "");
   const unsaid = markup
     ? !(face && faceSays(face, markup))
@@ -905,7 +904,11 @@ function readingOf(node, route) {
   // Made of the control's own name and keys alone, it says what a screen reader already
   // hears from them.
   if (reading) reading.restates = !declared && !titled;
-  return beyondFace(reading, () => face);
+  const read = beyondFace(reading, () => face);
+  // Key chips the face doesn't draw press the control, so its whole name heads them.
+  return quiet && read?.keys.length && read.name === quiet
+    ? { ...read, name: contentName(node) }
+    : read;
 }
 // What `reading` says beyond what its target shows (`faceOf`): a line the face shows
 // goes, as a menu row's own words or a search count's, and so does a press whose chips it

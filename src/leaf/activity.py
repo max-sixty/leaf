@@ -292,28 +292,54 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
     ]
 
 
-def started_in_turn(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn took this update in hand (`todos.take_in_hand`)
-    after it was delivered: a start covering the update
-    (`workflows.handed_over`, `started_by`) that turn wrote since the update's
-    pickup.
+def start_holds(start: dict, present: dict, *, ended: datetime | None) -> bool:
+    """Whether `start`, one the claimant's session wrote, still holds what it took in
+    hand. It holds while it is from the claimant's current turn, or names no turn
+    because the session wrote it before it held the page, unless an end of that turn
+    was seen before it was written (`ended`). After that it holds while the harness
+    has said the session works (`Harness.live_turn`) without a break since the start
+    was written.
+
+    Claude Code says `busy` while a turn runs and while any agent the session started
+    works in the background, whatever its kind: a fork, another subagent, a teammate
+    or a workflow. A background command alone leaves it `shell`, which Leaf reads as
+    `idle`. The page reads an update in hand, and no reminder names it, for exactly as
+    long as this holds (`_start_age`, `in_hand`).
+
+    The user decided that a session which starts a message and gives its work to a
+    background agent is not reminded of it while that agent works, from whichever
+    turn, and is reminded once the session's background work has ended with the
+    message still owed. Leaf can't tell which agent works on which item, so any
+    background agent keeps every start its unbroken run covers. Two readings a later
+    change might reach for fail. A start's own turn alone reminds the session, in its
+    next turn, of a message its fork is still answering, and the session then starts
+    it again or does the work itself. `busy` alone, undated, holds through every
+    turn the session runs, so a start from an earlier turn would never lapse while
+    any turn runs, not even in the turn a reminder opens for it."""
+    if start.get("turn") in (None, present["turn"]) and not _dropped(
+        start["ts"], ended
+    ):
+        return True
+    live = present.get("live_turn") or {}
+    since = _moment(live.get("since"))
+    written = datetime.fromisoformat(start["ts"])
+    return bool(live.get("state") == "busy" and since and since <= written)
+
+
+def in_hand(obligation: dict, state: dict) -> bool:
+    """Whether a start of the claimant's session holds this update now
+    (`start_holds`, `todos.take_in_hand`): one covering it (`workflows.handed_over`,
+    `started_by`), written since its pickup.
 
     Read from the covering starts rather than the update's Working stage, which follows
     the one input a start names: a thread's one reply answers every input it holds,
     so a start on an earlier input there covers the newest that carries the answer."""
-    if not turn_open(state):
-        return False
-    return _started_by_turn(obligation, state)
-
-
-def _started_by_turn(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's current turn, open or closed, wrote a start covering
-    the update since its pickup (`started_in_turn`)."""
     delivered = obligation["delivery_seq"] or obligation["seq"]
+    ended = _moment(state["turn_closed"])
     return any(
         start["session"] == state["claim_session"]
-        and start["turn"] == state["turn"]
         and start["seq"] >= delivered
+        and start_holds(start, state, ended=ended)
         for start in obligation["started_by"]
     )
 
@@ -322,9 +348,8 @@ def left_owed(state: dict, reminded: Callable[[str], bool]) -> list[dict]:
     """The owed answers the claimant's turn left as it closed, which a turn of
     their own reminds the agent of where a watch follows the turn
     (`hook_transport.stop_continues`, `session.watch_between_turns`): the blocking
-    ones the closed turn did not start since their pickup, with a ref the owner
-    can use, that no prompt has named since their delivery (`reminded`, with an
-    update's id).
+    ones no start holds (`in_hand`), with a ref the owner can use, that no prompt
+    has named since their delivery (`reminded`, with an update's id).
 
     A prompt names them once, so an agent that leaves one unanswered is reminded
     once for each delivery of it rather than after every turn. An update with no
@@ -336,28 +361,28 @@ def left_owed(state: dict, reminded: Callable[[str], bool]) -> list[dict]:
         obligation
         for obligation in blocking_obligations(state, watched=True)
         if "ref" in obligation["answer"]
-        and not _started_by_turn(obligation, state)
+        and not in_hand(obligation, state)
         and not reminded(obligation["input"])
         and not agent_holds(obligation)
     ]
 
 
 def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
-    """The owed answers that hold the claimant's turn open: the blocking ones its
-    open turn has not started, less those an agent's running turn holds
-    (`agent_holds`).
+    """The owed answers that hold the claimant's turn open, which its prompt names:
+    the blocking ones no start holds (`in_hand`), less those an agent's running turn
+    holds (`agent_holds`).
 
     A start is the agent's answer for now, shown beside the update, and work that
     outlasts the turn runs in background workers whose results wake a later turn
     (`references/conversation-loop.md`, "Long-running work"). So the turn that
-    started the update may end over it. The start does not carry into the next turn:
-    that turn answers the update or starts it again, and the page reports the start's
-    turn ended once nothing renews it. Idling still refuses over a started update,
-    since closing the page answers nothing."""
+    started the update may end over it, and later turns are not reminded of it while
+    the session's background work goes on (`start_holds`). Once that ends, the next
+    turn answers the update or starts it again. Idling still refuses over a started
+    update, since closing the page answers nothing."""
     return [
         obligation
         for obligation in blocking_obligations(state, watched=watched)
-        if not started_in_turn(obligation, state) and not agent_holds(obligation)
+        if not in_hand(obligation, state) and not agent_holds(obligation)
     ]
 
 
@@ -441,8 +466,9 @@ def claimant_turn(
     the harness keeps it across turn endings while background work runs, so it
     keeps no delivery in a turn past the grace. It says the session works
     (`Turn.busy`): in the open turn, past the grace too, and after a turn the
-    stamps closed, in the background for as long as the record keeps it, which
-    keeps the session's last start standing (`_start_age`). `awaiting` says the claimant's observer
+    stamps closed, in the background for as long as the record keeps it. Whether a
+    start stands past its turn reads the record by its date (`start_holds`).
+    `awaiting` says the claimant's observer
     reports a wait on the user right now, which holds the turn open for as long as
     that observer lives."""
     opened = _moment(present.get("turn_opened"))
@@ -563,20 +589,20 @@ def turn_runs(written: dict, present: dict, turn: Turn, agents: set[str]) -> boo
 def _start_age(
     start: dict, present: dict, now: datetime, turn: Turn
 ) -> tuple[bool, bool]:
-    """How quiet a start is, and whether dropped: a start the claimant's ended turn
-    wrote, from the moment that ending is seen, or any start unheard for the working
-    grace.
+    """How quiet a start is, and whether dropped: a start of the claimant's session
+    that no longer holds what it took in hand (`start_holds`), or any start unheard
+    for the working grace.
 
     Whether the agent works is the harness's to say, and what it works on the
     agent's: so a start stands while its turn runs, and past the turn's end only
-    while the harness says the session still works in the background
-    (`Turn.busy`), as a coordinator's workers do. Without that word the page
-    stops reading as working once the turn is seen to end, rather than holding the
-    agent's last line under a grace in case a later turn takes it up."""
+    while the harness says the session has worked on since, in the background, as a
+    coordinator's workers do. Without that word the page stops reading as working
+    once the turn is seen to end, rather than holding the agent's last line under a
+    grace in case a later turn takes it up."""
     same_session = bool(
         start.get("session") and start["session"] == present.get("claim_session")
     )
-    dropped = same_session and not turn.busy and _dropped(start["ts"], turn.ended)
+    dropped = same_session and not start_holds(start, present, ended=turn.ended)
     return _quiet(start["ts"], now, WORKING_GRACE) or dropped, dropped
 
 
@@ -897,11 +923,12 @@ def canonical_activity(
     elif taking_input:
         kind, dropped = "listening", False
     if dropped and kind != "working":
-        # A belief the turn's ending retired is dated by that ending, not by the
-        # start's own last word: "last checked in just now" beside an amber dot
-        # would argue with the dot.
-        assert turn.ended is not None
-        ts = turn.ended.isoformat()
+        # A belief that lapsed is dated by when it lapsed, not by the start's own
+        # last word: "last checked in just now" beside an amber dot would argue with
+        # the dot. That is the turn's seen ending, or, for a start an earlier turn
+        # wrote that no background work carried into this one, this turn's opening,
+        # by which it had lapsed.
+        ts = turn.ended.isoformat() if turn.ended else present["turn_opened"]
 
     return {
         "kind": kind,

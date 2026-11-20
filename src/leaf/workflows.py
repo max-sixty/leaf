@@ -373,10 +373,9 @@ def handed_over(
         obligation: str | None,
         covering: list[dict],
     ) -> dict:
-        """One update's workflow. `covering` are the starts that take it in hand for the
-        turn that wrote them, which is how the Stop hook tells an update the open turn
-        has started (`activity.started_in_turn`): the one holding it, and in a thread
-        every start on an input the thread's one reply answers."""
+        """One update's workflow. `covering` are the starts that take it in hand, from
+        which `activity.in_hand` tells whether a start holds it now: the one holding
+        it, and in a thread every start on an input the thread's one reply answers."""
         delivery = deliveries.get(source["id"], {})
         opened = delivery.get("opened")
         queued = delivery.get("queued")
@@ -435,6 +434,7 @@ def handed_over(
                     "session": held.get("session"),
                     "turn": held.get("turn"),
                     "seq": held["seq"],
+                    "ts": held["ts"],
                 }
                 for held in covering
             ],

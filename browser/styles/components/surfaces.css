@@ -140,16 +140,35 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :host {
   --lf-external-icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22none%22 stroke=%22black%22 stroke-width=%221.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5%22/%3E%3C/svg%3E");
 }
-a[data-lf-external]::after,
-.lf-external-mark {
-  content: "";
-  display: inline-block;
-  width: 0.75em;
-  height: 0.75em;
-  margin-inline-start: 0.24em;
-  vertical-align: 0.03em;
+/* The mark after a link that leaves the page stays on the line of the link's last
+   word. An inline-block mark would allow a line break on each side of it (CSS Text 3,
+   "Line Breaking Details"), so the mark is an inline box holding a word joiner, which
+   allows no break before it. Its empty alternative text keeps the joiner out of the
+   link's accessible name.
+   The box's font size and line height are 0, so its content area sits on the
+   baseline in every font and adds no height to the line. Its padding holds the icon
+   and is sized in the link's em, which the registered `--lf-external-em` carries to
+   it. The field draws the same mark after a link it shows (composing/text-field.js). */
+@property --lf-external-em {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+a[data-lf-external] {
+  --lf-external-em: 1em;
+}
+a[data-lf-external]::after {
+  content: "\2060" / "";
+  font-size: 0;
+  line-height: 0;
+  margin-inline-start: calc(0.24 * var(--lf-external-em));
+  padding-block-start: calc(0.75 * var(--lf-external-em));
+  padding-inline-start: calc(0.75 * var(--lf-external-em));
+  vertical-align: calc(0.03 * var(--lf-external-em));
   background: currentColor;
-  mask: var(--lf-external-icon) center / contain no-repeat;
+  /* The icon fills the box exactly, since WebKit paints an inline box's background
+     wherever a smaller mask image leaves it uncovered. */
+  mask: var(--lf-external-icon) center / 100% 100% no-repeat;
   user-select: none;
   -webkit-user-select: none;
 }

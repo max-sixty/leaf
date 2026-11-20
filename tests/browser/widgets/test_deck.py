@@ -343,6 +343,25 @@ def test_by_keyboard_the_forward_control_hands_over_to_the_step_back_in(browser,
     expect(end.get_by_role("button", name="Go through the 1 left")).to_be_focused()
 
 
+def test_a_card_still_flying_off_takes_no_focus(browser, serve):
+    """The card an answer sends off stands before the one that came up until its motion
+    ends, so Shift+Tab from the new card goes to the bar's Later rather than into the
+    card leaving, even where the motion outlasts the new card's wait to settle."""
+    page = open_page(browser, serve(DECK_PAGE))
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Animation.enable")
+    page.keyboard.press("m")
+    expect(page.locator("#store-ask")).to_be_focused()
+    cdp.send("Animation.setPlaybackRate", {"playbackRate": 0.1})
+    page.keyboard.press("1")
+    expect(page.locator("#beta-ask")).to_be_focused()
+    expect(page.locator("#store-ask")).to_have_attribute(
+        "data-lf-deck-leaving", "right"
+    )
+    page.keyboard.press("Shift+Tab")
+    expect(page.locator("lf-deck .lf-deck-forward")).to_be_focused()
+
+
 # The height each motion of the deck's own box ends at, recorded as it starts.
 RECORD_RESIZES = """() => {
   window.lfDeckResizes = [];

@@ -440,7 +440,7 @@ def built_release() -> str:
     type=int,
     default=0,
     metavar="SECONDS",
-    help="Rerun a failed pass until one verifies or SECONDS pass, as a rollout takes.",
+    help="Rerun a failed pass until one verifies or SECONDS pass.",
 )
 def verify_site(target: str, release: str | None, wait: int) -> None:
     """Verify a release at TARGET: an origin, or `website-worker` for the built site

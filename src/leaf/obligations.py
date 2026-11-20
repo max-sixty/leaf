@@ -457,7 +457,8 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
     that stands outside its group, as a workspace header's heading can, is about none
     of the group's obligations. `within` is the document's containment
     (`Passages.enclosing`). A datum identity narrows an owning widget's record
-    obligations to the exact case being discussed.
+    obligations to the exact case being discussed, and a passage across data to the
+    cases it starts and ends in (`from` and `datum`).
 
     The records are indexed once by source, prompt target and each id enclosing
     their source, so a caller asking for every thread on the page reads each
@@ -483,13 +484,14 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
             or next((grouped[i] for i in reversed(chain) if i in grouped), [])
         )
         datum = anchor.get("identity", anchor.get("datum"))
+        units = {datum, anchor.get("from", datum)}
         return [
             record
             for record in held
             if datum is None
             or record["source"]["id"] != section
             or "unit" not in record["source"]
-            or record["source"]["unit"] == datum
+            or record["source"]["unit"] in units
         ]
 
     return about

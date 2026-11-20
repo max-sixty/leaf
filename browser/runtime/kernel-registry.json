@@ -144,10 +144,10 @@
     "why-closing-and-opening": "Outside a text block, where two elements' words meet with nothing between them, the words a reading shows put a space (`shownApart` in passages.js, `_write` in passages.py), since a page most often draws such words apart, as a chip beside its title or a title above its description. No space goes before a mark that closes what precedes it or after one that opens what follows, so `<strong>Leave it</strong>; the send` reads \"Leave it; the send\" and `(<code>beta</code>)` reads \"(beta)\". A straight `'` only closes, as a possessive after code does (`<code>Foo</code>'s`), and a straight `\"` only opens, so a chip before a quoted title (`<small class=\"tag\">recommended</small><strong>\"Update\" …`) still reads apart. A capture logs the words beside an anchor's quote with these spaces."
   },
   "$events": {
-    "protocol": 51,
+    "protocol": 52,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
-      "since": 17,
+      "since": 52,
       "schema": {
         "type": "object",
         "properties": {
@@ -593,6 +593,7 @@
                 "section": { "type": ["string", "null"] },
                 "quote": { "type": "string" },
                 "datum": { "type": "string", "minLength": 1 },
+                "from": { "type": "string", "minLength": 1 },
                 "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
                 "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
                 "identity": { "type": "string", "minLength": 1 },
@@ -621,6 +622,7 @@
                 "source": ["datum", "source_revision"],
                 "source_revision": ["datum", "source"],
                 "identity": ["datum"],
+                "from": ["datum", "quote"],
                 "part": ["section"],
                 "detached": ["quote"],
                 "visual": ["section"]
@@ -811,6 +813,7 @@
                 "section": { "type": ["string", "null"] },
                 "quote": { "type": "string" },
                 "datum": { "type": "string", "minLength": 1 },
+                "from": { "type": "string", "minLength": 1 },
                 "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
                 "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
                 "identity": { "type": "string", "minLength": 1 },
@@ -839,6 +842,7 @@
                 "source": ["datum", "source_revision"],
                 "source_revision": ["datum", "source"],
                 "identity": ["datum"],
+                "from": ["datum", "quote"],
                 "part": ["section"],
                 "detached": ["quote"],
                 "visual": ["section"]

@@ -786,7 +786,7 @@ AGENT_TURNS = Record(
             }
         ),
     ),
-    since=51,
+    since=52,
 )
 # The line turn the line fork's line goes in under (`acting_in`), so the writes that
 # make it act in that turn (`acting_turn`). It lives in the process rather than its

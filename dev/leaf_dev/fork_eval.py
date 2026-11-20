@@ -33,12 +33,13 @@ as a live fork runs, so `--base` scores a change of effort as it scores one of
 wording. The records keep the shapes Claude Code writes, without thinking blocks. A
 background command's result records no task id: Claude Code tells a resumed session
 that a task it recorded has stopped, which a live fork never hears, so the replay
-needs no sentence of its own in the prompt. The request keeps Claude Code's tool definitions, as a live fork
-resends the session's, with its per-machine sections moved out of the system prompt
-so the prefix is cached across cases. One `PreToolUse` hook (`BLOCKED`), the fresh
-home's only one, refuses every call, and `--max-turns 1` then ends the fork without
-an answer, which fails every check of the case rather than raising a provider
-error. Plugins, skills and MCP servers are off.
+needs no sentence of its own in the prompt. The request carries the system prompt
+and tool definitions `claude -p` sends, Claude Code's headless ones, where a live fork
+resends an interactive session's, with its per-machine sections moved out of the
+system prompt so the prefix is cached across cases. One `PreToolUse` hook
+(`BLOCKED`), the fresh home's only one, refuses every call, and `--max-turns 1` then
+ends the fork without an answer, which fails every check of the case rather than
+raising a provider error. Plugins, skills and MCP servers are off.
 
 A live fork's request ends with its prompt, since `$.model.fork` appends the prompt
 to the session's last request. A resume instead reads its environment afresh (its
@@ -53,6 +54,19 @@ day the conversation took place. The second resume then adds only the line givin
 today's date after the prompt. Skills are off because the listing a resume reads
 offline differs from the one it reads online, which would put a listing after the
 prompt.
+
+The replay resumes a transcript because a resume is the only way Claude Code, run as
+`claude -p` or by the Agent SDK, takes prewritten turns of both sides; otherwise it
+takes a system prompt and the user's messages and writes the assistant's turns
+itself. A fork asked in one user message, with the conversation quoted above its
+prompt and no tools, passes the same deterministic checks for less, but misses a
+judgment live forks make: under a line fork prompt that live forks and the replay
+both sometimes answered by handing a read of the page's source to the session, it
+took the read every time. Sending a live fork's request exactly, turns included,
+takes a Messages API client, such as Promptfoo's `anthropic:messages`. It runs on an
+API key, which the runner keeps out of evals so that they bill the login
+(`commands/eval/run.py`), or on the login token the client takes from Claude Code's
+keychain entry (`apiKeyRequired: false`).
 
 What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 `answered`. Its asks are the records it wrote (`wrote`), as the user reads them; its

@@ -442,7 +442,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
 // asked for colour-contrast alone on an example with a beige comment, it passed the
 // page without checking one of its spans.
 //
-// Which shadow roots it crosses into is OPEN_ROOTS' answer (that module says why it
+// Which shadow roots it crosses into is openRoots' answer (that module says why it
 // crosses at all), which is the choice everything else here makes — colour is
 // asked of what the browser painted, so where it painted is too, and a root a widget
 // attached without declaring one still holds code the user has to read.

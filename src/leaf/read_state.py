@@ -5,7 +5,7 @@ each later edit id name distinct content versions. Content needs evidence the us
 took it in unless it is progress. Two kinds of read evidence count:
 
 - a `read` event naming that exact version, which the browser posts when its visible
-  body has been shown to the user;
+  body, or the words of a summary folding it, have been shown to the user;
 - an update made in the version's thread and logged after the version, which is
   the thread the update names (`thread_context.event_threads`): a reply or reaction,
   a resolve or reopen, an action on a widget a message of that thread
@@ -27,8 +27,8 @@ or the end of its turn ends it, as `served_state.thread.progress_ends` says. The
 answer itself needs read evidence.
 Neither is something the user reads in order to keep up, so neither pulls them back
 to the thread. An edit to other content
-is a new version needing fresh evidence. An explicit summary
-does not mark read what it covers. Unread is independent of turn-taking and of the
+is a new version needing fresh evidence. Writing a summary marks nothing read; the
+user reading it does, through that `read` event. Unread is independent of turn-taking and of the
 user's outstanding work: reading never answers an obligation, and answering one does
 mark it read.
 

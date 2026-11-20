@@ -294,9 +294,9 @@ leaf thread resolve <page> <message>
 
 Each thread in `leaf page state <page>` and `leaf page state <page> <message>`
 lists under `unread` your messages the user has not read in their current wording. A
-message counts as read once its whole body has been on screen, once the user marks
-the thread read, or once they act in the thread after it: reply, react, answer a
-widget, resolve or reopen. `leaf thread edit` makes a message unread again. Unread
+message counts as read once its whole body, or the whole of a summary folding it, has
+been on screen, once the user marks the thread read, or once they act in the thread
+after it: reply, react, answer a widget, resolve or reopen. `leaf thread edit` makes a message unread again. Unread
 does not change whose turn it is: an unread message needs no follow-up, and a read
 one is not an answer.
 

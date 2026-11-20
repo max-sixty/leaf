@@ -22,10 +22,10 @@ Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage** and **Fix the underl
 issue** to the verdict; most of Tend's own pull requests land on this review alone.
 Once a change moves Leaf toward a coherent architecture, its claimed path works and
 what it adds is worth keeping, the review is done. Reserve findings for architectural
-seams, cross-runtime invariants, public surface traps (root `AGENTS.md`, "Where
-instructions live", names those in prose), regressions anywhere the change reaches,
-additions that cost more than they buy, or a central claim or test that is false or
-that nothing has shown.
+seams, cross-runtime invariants, a public interface that misleads its user, the text
+defects root `AGENTS.md`, "Where instructions live", lists, regressions anywhere the
+change reaches, additions that cost more than they buy, or a central claim or test
+that is false or that nothing has shown.
 Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
 prose or test polish unless they expose one of those problems. Those findings ask a
 change to cover more or read better; a finding that it adds more than it buys is

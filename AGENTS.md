@@ -242,10 +242,9 @@ Don't copy into prose a list the code already keeps, such as the bundles in
 list them, a test holds the list to the code's copy (`tests/AGENTS.md`, "Put
 each assertion at the boundary that owns it").
 
-Shipped text (the references, `--help`, UI strings, `SKILL.md`) and agent
-instructions (the `AGENTS.md` files and project skills) reach a reader who has only
-that text and the files it points to, never the session or the diff that wrote it. In
-such text, a review reports these defects, which Leaf calls public surface traps:
+In shipped text (the references, `--help`, UI strings, `SKILL.md`) and agent
+instructions (the `AGENTS.md` files and project skills), a review reports these
+defects:
 
 - text written for a reader other than the one the text addresses, such as an
   explanation of a mechanism that reader doesn't need. In maintainer guidance, that

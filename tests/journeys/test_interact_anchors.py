@@ -410,6 +410,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             "anchor": None,
             "title": None,
             "detached_from": root["anchor"],
+            "rewritten_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
             "attention": None,

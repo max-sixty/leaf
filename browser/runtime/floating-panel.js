@@ -3876,7 +3876,9 @@ export function createFloatingPanel({
             : nothing
       }${
         step.running
-          ? html`<span class="lf-fp-plan-line">${step.running.text}</span>`
+          ? html`<span class="lf-fp-running"
+              >${voiced(agentSays(step.running.text))}</span
+            >`
           : nothing
       }${
         step.steps.length
@@ -3930,8 +3932,8 @@ export function createFloatingPanel({
   const agentNoun = (item) =>
     item.kind === "todo" ? "To-do" : capitalized(itemNoun(item));
   // What the agent is doing about an item on its list: the word for the stage it
-  // stands at, the line its last step wrote, each said by whoever says it, and since
-  // when.
+  // stands at, the line its running step wrote while one runs, each said by whoever
+  // says it, and since when.
   /** @param {PanelQueueItem} item */
   const workOn = (item) =>
     item.kind === "todo"
@@ -3942,7 +3944,7 @@ export function createFloatingPanel({
         }
       : {
           word: workflowWord(item.workflow, agentName()),
-          line: workflowStep(item.workflow, agentName()),
+          line: workflowStep(item.workflow),
           since: item.workflow?.ts ?? null,
         };
   // A press on a line opens its card, or folds it; the view keeps its height where the
@@ -4152,12 +4154,9 @@ export function createFloatingPanel({
             }</span
           >`
         : nothing;
-    // What the agent is doing about it: the line its last step wrote, as the status
-    // says it of the whole page, else the stage it stands at.
-    else if (list !== "you" && !answered)
-      answers = html`<span class="lf-fp-said"
-        >${voiced(workOn(item).line ?? "")}</span
-      >`;
+    // What the agent is doing about it stands on its line, so its card answers nothing
+    // more.
+    else if (list !== "you" && !answered) answers = nothing;
     else if (answered) {
       discussHere = false;
       answers = html`<span class="lf-fp-said">${voiced(obligationEnding(record))}</span
@@ -4308,11 +4307,16 @@ export function createFloatingPanel({
       </section>`;
     // A line ends with the one thing the list most needs of it: the agent's stage and
     // how long it has stood there, how a finished item ended and when, an answer while
-    // its card is folded, else the part of the page it stands in.
+    // its card is folded, else the part of the page it stands in. Under its name, a line
+    // of the agent's says what its running step wrote, as the item's thread says it
+    // under the message that owes it and the page's status says the newest: one line
+    // folded, whole in its card. The user chose this over the name and stage alone,
+    // which showed the work only once its card was opened, and with two items running
+    // only the newest in the status.
     /** @type {unknown} */
     let end = nothing;
-    if (list === "agent") {
-      const work = workOn(item);
+    const work = list === "agent" ? workOn(item) : null;
+    if (work) {
       end = html`<span class="lf-fp-value"
         >${voiced(work.word ?? "")}${work.since ? html` ${panelAge(work.since)}` : nothing}</span
       >`;
@@ -4324,6 +4328,19 @@ export function createFloatingPanel({
       end = html`<span class="lf-fp-value">${voiced(obligationEnding(record))}</span>`;
     else if (where) end = html`<span class="lf-fp-value">${where}</span>`;
     const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
+    // An opened line draws a card under it only where the card holds something, such
+    // as Discuss. A to-do on the whole page has nothing there, so opening it only shows
+    // its running line whole.
+    const held = discussHere ? discuss : nothing;
+    const carded =
+      opened &&
+      Boolean(
+        message ||
+        prompt ||
+        answers !== nothing ||
+        held !== nothing ||
+        show !== nothing,
+      );
     return html`<section
       class="lf-fp-on-item"
       data-lf-list=${list}
@@ -4347,10 +4364,14 @@ export function createFloatingPanel({
         <span class="lf-fp-value lf-fp-on-noun lf-row-lead">${kind}</span
         ><span class="lf-fp-on-says lf-row-main"
           ><span class="lf-fp-label">${name}</span>${end}</span
-        >
+        >${
+          work?.line
+            ? html`<span class="lf-fp-running">${voiced(work.line)}</span>`
+            : nothing
+        }
       </button>
       ${
-        opened
+        carded
           ? html`<div class="lf-fp-on-body">
               ${
                 message
@@ -4363,9 +4384,7 @@ export function createFloatingPanel({
                     ? html`<p class="lf-fp-prompt">${prompt}</p>`
                     : nothing
               }
-              <div class="lf-fp-answers">
-                ${answers}${discussHere ? discuss : nothing}${show}
-              </div>
+              <div class="lf-fp-answers">${answers}${held}${show}</div>
             </div>`
           : nothing
       }

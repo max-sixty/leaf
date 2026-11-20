@@ -2141,9 +2141,7 @@ function sessionContext(storage: DurableObjectStorage) {
     container,
     id: { toString: () => SESSION_OBJECT },
     exports: {
-      SessionOutbound: vi.fn(
-        (options: { props: { session: string; release: string } }) => options,
-      ),
+      SessionOutbound: vi.fn((options: { props: { session: string } }) => options),
     },
     blockConcurrencyWhile: <T>(operation: () => Promise<T>) => operation(),
   };
@@ -2159,17 +2157,24 @@ async function startedSession(storage: DurableObjectStorage, env = environment()
   return { ctx, session };
 }
 
-// The container's outbound requests as the session object `containerId`, running
-// `release`'s code, routes them.
+// A request a container on this release sends its session's page store.
+function storeRequest(path: string, init: RequestInit = {}) {
+  return new Request(`https://leaf-state.internal${path}`, {
+    ...init,
+    headers: { ...(init.headers as Record<string, string>), "Leaf-Release": RELEASE },
+  });
+}
+
+// The container's outbound requests as the session object `containerId` names routes
+// them.
 function outbound(
   request: Request,
   env: Env,
-  { containerId, release = RELEASE }: { containerId: string; release?: string },
+  { containerId }: { containerId: string },
 ) {
-  return new SessionOutbound(
-    { props: { session: containerId, release } } as never,
-    env,
-  ).fetch(request);
+  return new SessionOutbound({ props: { session: containerId } } as never, env).fetch(
+    request,
+  );
 }
 
 describe("website page agent", () => {
@@ -2189,7 +2194,7 @@ describe("website page agent", () => {
         },
       });
       expect(ctx.container.setInactivityTimeout).toHaveBeenCalledWith(600_000);
-      const routes = { props: { session: SESSION_OBJECT, release: RELEASE } };
+      const routes = { props: { session: SESSION_OBJECT } };
       expect(ctx.container.interceptOutboundHttps).toHaveBeenCalledWith("*", routes);
       expect(ctx.container.interceptAllOutboundHttp).toHaveBeenCalledWith(routes);
       for (const host of ["example.com", "169.254.169.254"]) {
@@ -2523,14 +2528,25 @@ describe("website page agent", () => {
         responses[path] = { headers: {}, chunks: [digest] };
       }
       const publication = { root: "/examples/triage-board", record: {}, responses };
-      const prepared = await session.preparePublication(publication);
+      const prepared = (await (
+        await session.pageStore(
+          storeRequest("/prepare", {
+            method: "PUT",
+            body: JSON.stringify(publication),
+          }),
+        )
+      ).json()) as { identity: string; missing: string[] };
       for (const digest of prepared.missing) {
-        await session.saveBlob(digest, blobs.get(digest)!.slice().buffer);
+        await session.pageStore(
+          storeRequest(`/blobs/${digest}`, { method: "PUT", body: blobs.get(digest)! }),
+        );
       }
-      await session.savePublication({
-        root: publication.root,
-        identity: prepared.identity,
-      });
+      await session.pageStore(
+        storeRequest("/publication", {
+          method: "PUT",
+          body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
+        }),
+      );
       forwardedContainerFetch.mockClear();
       const state = await session.fetch(
         new Request("https://leaf.page/examples/triage-board/api/state", {
@@ -2647,7 +2663,9 @@ describe("website page agent", () => {
         record: { "events.jsonl": { chunks: [digest], modified: 1_700_000_000 } },
         responses: {},
       };
-      const prepared = await session.preparePublication(publication);
+      const prepared = (await (
+        await ask("/prepare", { method: "PUT", body: JSON.stringify(publication) })
+      ).json()) as { identity: string };
       const committed = await ask("/publication", {
         method: "PUT",
         body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
@@ -2719,8 +2737,13 @@ describe("website page agent", () => {
     try {
       // For some seconds after a deploy the object can still run the previous code, and
       // so start the previous image, while the handler already runs the deployed code.
+      const previous = { ...MANIFEST, release: "previous-release" };
+      const objectEnv = {
+        ...environment(),
+        ASSETS: { fetch: async () => Response.json(previous) } as unknown as Fetcher,
+      };
+      const session = new LeafSession(sessionContext(storage) as never, objectEnv);
       const env = environment();
-      const session = new LeafSession(sessionContext(storage) as never, env);
       env.PAGES = { get: () => session, idFromString: (id: string) => id } as never;
       const restore = (release: string) =>
         outbound(
@@ -2728,10 +2751,14 @@ describe("website page agent", () => {
             headers: { "Leaf-Release": release },
           }),
           env,
-          { containerId: "trusted-owner", release: "previous-release" },
+          { containerId: "trusted-owner" },
         );
       expect((await restore("previous-release")).status).toBe(200);
-      expect((await restore(RELEASE)).status).toBe(409);
+      const refused = await restore(RELEASE);
+      expect(refused.status).toBe(409);
+      expect(await refused.text()).toBe(
+        "the page store serves release previous-release",
+      );
     } finally {
       close();
     }

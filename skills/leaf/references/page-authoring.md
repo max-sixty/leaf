@@ -101,11 +101,12 @@ your findings contradict the user's supplied facts, show the discrepancy explici
 Use `lf-gloss` for unfamiliar terms the reader can open locally.
 
 Link each pull request, issue, commit, URL, and file or source line with a known
-destination in every section, decision and reply that names it. The user reaches each
-of those on its own, from the contents or On Me, and opens what it names from there to
-check it. A fragment link to an id on the page, such as `<a href="#decision">`, shows
-the reader where it points while they point at or focus it: the place's name and first
-lines, a question's answer, and the threads about it.
+destination in every section, decision and reply that names it, on or beside the words
+that say what it is. The user reaches each of those on its own, from the contents or
+On Me, and opens what it names from there to check it. A fragment link to an id on the
+page, such as `<a href="#decision">`, shows the reader where it points while they
+point at or focus it: the place's name and first lines, a question's answer, and the
+threads about it.
 
 ## Composing a page
 

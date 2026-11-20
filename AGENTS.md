@@ -226,7 +226,8 @@ as previewing a page, proving a visible change or landing, go in a project skill
 such as `/developing-leaf`, since a session that misses them does the task slower or
 worse but breaks nothing. They don't go in the shipped `/leaf` skill. A procedure
 for a rarer task goes in the project skill's `references/`, and the skill points to
-it by naming the task. `running-tend` holds only what Tend's runs alone do.
+it by naming the task. `running-tend` holds only the instructions for what Tend's
+runs do and other sessions don't.
 
 A contract one module owns goes in that module's header, and a helper's contract in
 its docstring. A contract several modules share goes in the protocol reference for
@@ -336,9 +337,9 @@ holds no renderer nodes, promises or DOM attributes. Components read that value
 through selectors and never write it. Widgets draw the complete state, unset and
 undecided values included. Undo never rebuilds a widget or replays authored actions
 into the DOM. A page widget's state draws only on actions logged up to the version
-the page shows, and a `restated` mark cuts off the ones before it. A widget in a
-thread message has neither bound: its state draws on actions from its whole thread,
-since its markup lives in the log rather than in a version.
+the page shows, and a `restated` mark withdraws the widget's earlier actions. A
+widget in a thread message has neither bound: its state draws on actions from its
+whole thread, since its markup lives in the log rather than in a version.
 
 A renderer repaints only when a value it read through a selector has changed, or
 when code calls the renderer's `present()` after changing an input the renderer
@@ -347,8 +348,9 @@ publishes the new state, then awaits `whenDocumentPresented()`; it doesn't call
 renderers or decide their order. A renderer that depends on DOM another renderer
 writes declares that dependency through `PRESENTATION_DOM`.
 `whenDocumentPresented()` resolves once every renderer has written its DOM. It
-doesn't wait for a widget's asynchronous preparation or for a gesture's hold on the
-page to end; `whenApplicationPresented()` waits for those too.
+doesn't wait for a widget's asynchronous preparation or for a gesture that holds
+part of the page, such as a drag, to end; `whenApplicationPresented()` waits for
+those too.
 
 A gesture's own result shows in the task that sends it, before the server answers
 ("Responsiveness"); a disabled control, a spinner or a delivery status is not that
@@ -546,10 +548,10 @@ Before finishing a feature:
 
 - Every result a user can reach with a pointer must also be reachable by keyboard
   and by touch (`browser/runtime/keyboard/AGENTS.md`, "Touch routes"), without a
-  page-level binding for each result. Each result needs those routes, not each
-  pointer gesture: ask what a user could no longer see, reach or decide without the
-  gesture. Dragging a thread card aside needs no other route, since Escape also
-  uncovers the passage beneath the card.
+  page-level binding for each result. The routes are owed to each result, not to
+  each pointer gesture: a gesture needs another route only where, without it, a user
+  could no longer see, reach or decide something. Dragging a thread card aside needs
+  no other route, since Escape also uncovers the passage beneath the card.
 - Follow `examples/AGENTS.md`. Each tool that reads the combined corpus page builds
   it on demand, so a feature needs no step to regenerate it.
 - If the feature changes what an agent can do or how, update `skills/leaf/SKILL.md`
@@ -560,9 +562,9 @@ Before finishing a feature:
 
 Score both versions of a change to agent instructions that an agent could read more
 than one way, such as a new or reworded rule, a goal that competes with another, or
-a cut of text that may have produced a behavior (`/developing-leaf`, "Score an
-instruction change"). Deleting a description of an input that can no longer arrive,
-or correcting a fact, needs no score.
+the removal of text that may have been producing a behavior (`/developing-leaf`,
+"Score an instruction change"). Deleting a description of an input that can no
+longer arrive, or correcting a fact, needs no score.
 
 Several sessions share one machine, so local compute is often the bottleneck.
 Before handing over, run the tests that cover what the change touches, and

@@ -673,6 +673,43 @@ def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve)
     )
 
 
+def test_a_whole_item_s_comment_stays_on_the_item_a_revision_rewords(browser, serve):
+    """A triple-click on a list item, in Chromium, ends the selection at the next
+    item's start, so the range's common ancestor is the list. The comment names the item
+    its words stand in, so a revision that rewords the item leaves the thread on that
+    item rather than on the whole list."""
+    item = (
+        '<li id="item-54"><strong>#54 A faster line.</strong> Nine idle messages.</li>'
+    )
+    source = leaf_page(
+        "open items",
+        '<ul id="open-items">'
+        '<li id="item-53"><strong>#53 An earlier item.</strong> It stays.</li>'
+        + item
+        + '<li id="item-59"><strong>#59 A fork in Codex.</strong> Later.</li></ul>',
+    )
+    url = serve(source)
+    page = open_page(browser, live_url(url))
+    select_words(page, "#item-54")
+    write(page.locator(".lf-composer leaf-text"), "sure, check this out")
+    with sending(page, "the comment on a whole item"):
+        page.locator(".lf-composer button.lf-compose-submit").click()
+    told(page)
+    d = serve.page_dir
+    root = next(e for e in events_model.read_events(d) if e["kind"] == "comment")
+    assert root["anchor"]["section"] == "item-54"
+    stamp_page(
+        d,
+        source.replace(
+            item, '<li id="item-54"><strong>#54 Why six forks.</strong></li>'
+        ),
+        "Reworded #54",
+    )
+    wait_for_revision(page, 2)
+    moved = next(e for e in events_model.read_events(d) if e["kind"] == "reanchor")
+    assert moved["anchor"] == {"section": "item-54"}
+
+
 @pytest.mark.parametrize(
     ("removed", "touch"),
     [(True, False), (False, False), (True, True)],

@@ -440,7 +440,6 @@ export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
 /** @param {import("./passages.js").Segment[]} selected @param {Node} node @returns {CapturedAnchor | null} */
 export function anchorForPassage(selected, node) {
-  const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
   // The passage is the selection's words: a drag from a paragraph's end into a
   // document's first line holds the newline between them, which is neither's word.
   /** @param {import("./passages.js").Segment} segment */
@@ -448,6 +447,18 @@ export function anchorForPassage(selected, node) {
   const from = selected.findIndex(says);
   const to = selected.findLastIndex(says);
   const segments = from < 0 ? [] : selected.slice(from, to + 1);
+  // The words, not the range, say which element holds the passage: a triple-click in
+  // Chromium, or a drag past an item's last word, ends the range at the next item's
+  // start, whose common ancestor is the list. Named by the list, a passage a revision
+  // rewrites falls back to the whole list rather than the item that still stands.
+  const first = segments[0]?.node;
+  const last = segments.at(-1)?.node;
+  let holder = first
+    ? upFrom(first)
+    : node.nodeType === Node.ELEMENT_NODE
+      ? node
+      : upFrom(node);
+  while (holder && last && !under(last, holder)) holder = upFrom(holder);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm

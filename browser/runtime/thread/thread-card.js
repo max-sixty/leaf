@@ -165,19 +165,21 @@ import { addressableLabel } from "../addressable-names.js";
 // reads as the quote does: a revision took the words out of the latest version, which
 // may not be the version shown, where they can still stand; they can't be found on the
 // page; they come from earlier data; or they have changed. A thread draws it where its
-// container asks (`ThreadOutlets`, `quote`), as the floating panel's view does. The
-// status is a word over the quote because a finger never reads a title. Where the words
-// still stand, `trail` names the headings over them (`partTrail`), else the page's
-// title, where no heading stands over them: a label of quoted words with no place of
-// their own, and the head's title for any other.
+// container asks (`ThreadOutlets`, `quote`), as the floating panel's view does, and
+// wherever the page leaves it unmarked (`unmarked`), since then no container's place
+// beside the words shows them. The status is a word over the quote because a finger
+// never reads a title.
+// Where the words still stand, `trail` names the headings over them (`partTrail`), else
+// the page's title, where no heading stands over them: a label of quoted words with no
+// place of their own, and the head's title for any other.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
 function quoteReading(thread, anchors) {
-  const placement = anchors.placedAt(thread.id);
   const quoted = threadPassage(thread);
   const place = anchorPlace(quoted, thread.root.about);
   const words = quoted?.quote ?? "";
   if (!place && !words) return null;
+  const placement = anchors.placedAt(thread.id);
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const detached = anchored && (Boolean(thread.detached_from) || placement == null);
   // A version that rewrote the quoted words left the thread on their section
@@ -185,17 +187,23 @@ function quoteReading(thread, anchors) {
   const changed =
     Boolean(thread.rewritten_from) ||
     Boolean(words && placement?.datumElement && !placement.exact);
+  const status = detached
+    ? leafSays(thread.detached_from ? "Not in the latest version" : "Not found")
+    : anchored && placement?.status === "outdated"
+      ? leafSays("Earlier data")
+      : changed
+        ? leafSays("Changed")
+        : null;
   return Object.freeze({
     place,
     words,
     detached,
-    status: detached
-      ? leafSays(thread.detached_from ? "Not in the latest version" : "Not found")
-      : anchored && placement?.status === "outdated"
-        ? leafSays("Earlier data")
-        : changed
-          ? leafSays("Changed")
-          : null,
+    status,
+    // Whether the page leaves what the thread is about unmarked where the thread
+    // stands, so a container beside that place doesn't show it: a status says why, or
+    // the words only fell back to a place around them, as a diff line not yet loaded
+    // falls back to its file.
+    unmarked: Boolean(status) || Boolean(words && !placement?.exact),
     // A surviving element can still be a destination after its quoted words
     // have gone (rewritten text, replaced data or a virtual datum). Only a
     // resolved passage can supply the original quote's complete reading.
@@ -447,7 +455,11 @@ const lastTurn = (model) =>
    - `reply`, the place for the reply box (`outlet`), which otherwise closes the thread,
      and what its empty box reads and how a send lands (`options`, replies.js,
      `createReplyView`).
-   - `quote`, whether the thread draws the words it is about over its messages.
+   - `quote`, whether the thread draws the words it is about over its messages while
+     the page still reads as the quote does; a container standing beside the words, as
+     a margin card does by its bracket, shows them by where it stands. Where the page
+     leaves them unmarked, as once a revision rewrote the quoted words and left the
+     thread on their section, every thread draws them (`quoteReading`, `unmarked`).
    - `scroller`, given the thread's transcript, the box that scrolls its messages, at
      whose foot it says New reply (the header); without one it says none.
    - `landing(resolved)`, given whether the thread stood resolved as the press came, the
@@ -547,7 +559,7 @@ export class ThreadView {
   get apart() {
     return this.#apart;
   }
-  // The words the thread is about, where its container asks for them (`#drawQuote`).
+  // The words the thread is about, ahead of its messages (`#drawQuote`).
   #quoteHead = Object.assign(document.createElement("header"), {
     className: "lf-thread-quote-head",
   });
@@ -775,7 +787,7 @@ export class ThreadView {
     this.#received = model;
     this.#drawnWith = this.#outside(model);
     // Where the container stands the thread's parts (`ViewOutlets`).
-    const { head, line, reply, quote, scroller } = this.#outlets;
+    const { head, line, reply, scroller } = this.#outlets;
     // A margin card's head line, arranged around the boxes the notice and the
     // settlement stand in before they are drawn (`CardOutlets`, `line`).
     const inLine = line?.(this.#apart) ?? null;
@@ -848,7 +860,7 @@ export class ThreadView {
     // `.lf-thread-content > .lf-thread-news`); its words change in place.
     keeps(notice.node, "data-lf-reflow", lined ? null : "text");
     const body = html`
-      ${quote ? this.#drawQuote() : nothing}${this.#transcript.node}
+      ${this.#drawQuote()}${this.#transcript.node}
       ${
         lined
           ? (inLine ?? nothing)
@@ -876,7 +888,7 @@ export class ThreadView {
     render(replyApart ? this.#reply.node : nothing, this.#apart.reply);
     // Full quote stands from the quote's first paint, so its arrival moves nothing below
     // it; later changes of the quote's size follow by its observer (`#quoteSize`).
-    if (quote) measure(this.#quoteHead, () => this.#fitQuote());
+    if (!this.#quoteHead.hidden) measure(this.#quoteHead, () => this.#fitQuote());
     if (!lined && model.news) measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     if (inLine && model.news) measure(this.node, () => this.#watchLineNews());
@@ -1303,8 +1315,9 @@ export class ThreadView {
     } else keeps(notice, "data-lf-room", null);
   }
 
-  // The words the thread is about, over its to-dos and messages (`quoteReading`), in
-  // three lines: where they still stand on the page, the container's way there goes to
+  // The words the thread is about, over its to-dos and messages, where its container
+  // asks for them or the page leaves them unmarked (`ThreadOutlets`, `quote`), in three
+  // lines: where they still stand on the page, the container's way there goes to
   // them; where they no longer do, as for a thread a revision detached from its
   // passage, the quotation the thread kept is all that is left of them, so Full quote
   // shows the whole of it, its press standing above the words it grows so the press
@@ -1321,7 +1334,10 @@ export class ThreadView {
       const quote = quoteReading(thread, this.#commands);
       const expanded = this.#quoteExpanded.value;
       untracked(() => {
-        keepsHidden(this.#quoteHead, !quote);
+        keepsHidden(
+          this.#quoteHead,
+          !quote || !(this.#outlets.quote || quote.unmarked),
+        );
         keeps(this.#quoteHead, "data-lf-detached", quote?.detached ? "" : null);
         keeps(this.#quoteHead, "title", (quote?.place && quote.trail) || null);
         render(this.#quoteTemplate(quote, expanded), this.#quoteHead);
@@ -1339,8 +1355,9 @@ export class ThreadView {
     // Quoted words with no place of their own stand under the headings over them, so a
     // status arriving, as a revision that rewrites them while the thread is open sends,
     // takes a line the label already holds rather than growing the head under the
-    // user's controls.
-    const where = quote.place || quote.trail;
+    // user's controls. A container standing beside the words, as a margin card's
+    // bracket does, already shows where they stand, so there they go unnamed.
+    const where = quote.place || (this.#outlets.quote ? quote.trail : "");
     const label =
       where || quote.status
         ? html`<p class="lf-quote-label">

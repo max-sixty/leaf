@@ -274,7 +274,8 @@ to the current answer rather than to messages that correct one another. Keep new
 replies for news the user is waiting on, such as a result you promised, and for
 answering a delivered update, which an edit does not answer. Where you already
 posted such a correction as a new reply, fold it and the reply it corrects under one
-summary that gives the current answer in a few sentences, with `leaf thread summarize
+summary: a few sentences, usually under sixty words, giving the answer as it now
+stands, with the detail left to the two replies, which the user can still unfold. Write it with `leaf thread summarize
 <page> --from <earlier-reply> --through <correction> --text "<the current answer>"`,
 widening the range where Leaf names a wider one ("Summarize a long discussion").
 
@@ -323,7 +324,7 @@ a wider range it accepts; write that summary to cover the added messages too.
 
 A summary is what the user reads in place of the messages it folds, and they open
 those only for detail, so a summary helps only when it is much shorter than they are:
-a few sentences, or a short list, of where the range landed. Give each decision with
+a few sentences, usually under sixty words, of where the range landed. Give each decision with
 its reason in a clause, the answer that now stands where a later message corrected an
 earlier one, and what is still open. Write it from the original messages rather than
 only from the summaries it replaces, and leave the steps that led there, and the

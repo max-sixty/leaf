@@ -207,37 +207,39 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
         assert not preview.is_visible(), preview.inner_text()
 
 
-# Two runs whose step list names each run in a column's head, and a lane by its short
-# form: listeners hear each cell's run and the lane's full name instead.
-COMPARED_RUNS = """<h1>Race</h1>
-<lf-timeline id="race" aria-label="The race">
-  <lf-run label="Before the fix" abbr="Before">
-    <lf-lane label="Job A" abbr="A"><lf-event id="before-read" at="0" label="Reads 100"></lf-event></lf-lane>
-  </lf-run>
-  <lf-run label="After the fix" abbr="After">
-    <lf-lane label="Job A" abbr="A"><lf-event id="after-read" at="0" label="Reads 100"></lf-event></lf-lane>
-  </lf-run>
-</lf-timeline>"""
+# Controls whose faces show marks: a case's check beside its title, a bare symbol, and a
+# short form inside a word its markup splits. A module names each mark in a quiet word
+# (`QUIET_WORDS`), which a page's own markup can't declare.
+QUIET_MARKS = """<h1>Cases</h1>
+<p><button id="case" type="button"><span>Optional packages get focused destinations</span>
+<span id="check">✓</span></button></p>
+<p><button id="symbol" type="button">✓</button></p>
+<p><button id="short" type="button"><b>Re</b>ads <span id="short-form"
+><span aria-hidden="true">M</span></span> 100</button></p>"""
+QUIET_WORDS = {
+    "#check": "Looks right",
+    "#symbol": "Approve",
+    "#short-form": "Main thread",
+}
 
 
-def test_a_control_whose_spoken_words_its_face_shows_another_way_previews_nothing(
-    browser, serve
-):
-    """A timeline's step row is named by its words, as a listener hears them: each
-    cell's run, which the column's head shows, and a lane's full name, which its short
-    form shows. Neither a resting pointer nor Tab previews the row, since it would
-    repeat the row the user reads whole."""
-    page = open_page(
-        browser, serve(leaf_page("Race", COMPARED_RUNS), packages=("timeline",))
+def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serve):
+    """A control's quiet words name a mark its face shows, which the screen doesn't
+    show in words: a check's verdict, a symbol's action, a short form's full name. A
+    resting pointer and Tab read those words alone, not the words the face shows
+    whole."""
+    page = open_page(browser, serve(leaf_page("Cases", QUIET_MARKS)))
+    page.evaluate(
+        """(words) => { for (const [selector, word] of Object.entries(words))
+          document.querySelector(selector).dataset.lfQuiet = word; }""",
+        QUIET_WORDS,
     )
-    preview = page.locator(PREVIEW)
-    row = page.locator("#race .lf-timeline-step").first
-    row.hover()
-    dwelt(page)
-    assert not preview.is_visible(), preview.inner_text()
-    tab_onto(row)
-    rendered(page)
-    assert not preview.is_visible(), preview.inner_text()
+    named = {"#case": "Looks right", "#symbol": "Approve", "#short": "Main thread"}
+    quiet = page.locator(", ".join(f"{control} .lf-quiet" for control in named))
+    expect(quiet).to_have_count(len(named))
+    for route in ("pointer", "focus"):
+        for control, words in named.items():
+            assert preview_parts(page.locator(control), route) == [words], control
 
 
 # Option cards whose picks Done completes.

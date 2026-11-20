@@ -316,10 +316,11 @@ it and presses nothing, so a widget's click answers a tap alone.
 
 A control needs no declaration. It previews its accessible name where its face shows a
 symbol or doesn't say that name, and as chips each key that presses it from where the
-user is, as the attribute `aria-keyshortcuts` says it. A control whose face says its name
-and that no key reaches previews nothing. Its
-`aria-description` stays a screen reader's; a line the eye should read too goes in
-`detail`.
+user is, as the attribute `aria-keyshortcuts` says it. Where the only words its face
+leaves unsaid are quiet words (`data-lf-quiet`, `module-scroll-and-motion.md`, "Notices
+and spoken words"), it previews those words alone, as a check's verdict. A control whose
+face says its name and that no key reaches previews nothing. Its `aria-description`
+stays a screen reader's; a line the eye should read too goes in `detail`.
 
 A widget adds to that, or previews an element that isn't a control, by declaring the
 element's `lfPreview(route)`, with no import, as it declares `lfCommands`. Leaf calls it

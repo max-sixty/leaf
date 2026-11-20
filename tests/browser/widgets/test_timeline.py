@@ -5,9 +5,17 @@ prints whole. The step is tab-local view state."""
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, select, told
+from render_harness import (
+    clocked,
+    dwelt,
+    leaf_page,
+    open_page,
+    select,
+    tab_onto,
+    told,
+)
 
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 
 RACE = """<h1>Race</h1>
 <lf-timeline id="race" aria-label="The race">
@@ -365,6 +373,22 @@ def test_compared_runs_line_up_on_one_axis_under_one_playhead(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Step 3 of 4. Before the fix · Job B: Writes 70"
     )
+
+
+def test_a_compared_step_row_previews_nothing(browser, serve):
+    """A step row's quiet words name each cell's run, which the head above its column
+    shows, so neither a resting pointer nor Tab previews the row."""
+    page = open_page(
+        clocked(browser), serve(leaf_page("Race", RUNS), packages=("timeline",))
+    )
+    preview = page.locator("#lf-preview")
+    row = page.locator("#race .lf-timeline-step").first
+    row.hover()
+    dwelt(page)
+    assert not preview.is_visible(), preview.inner_text()
+    tab_onto(row)
+    rendered(page)
+    assert not preview.is_visible(), preview.inner_text()
 
 
 def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(

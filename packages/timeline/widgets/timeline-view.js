@@ -181,6 +181,11 @@ const laneName = (lane) =>
     >${lane.abbr ? html`<span aria-hidden="true">${lane.abbr}</span>` : lane.label}${": "}</span
   >`;
 
+/** A step row previews nothing (`lfPreview`). Its quiet words, which a preview would
+ * otherwise read, name what the timeline shows elsewhere: each cell's run in the head
+ * above its column, and a lane's full name in the chart. */
+const stepPreview = () => false;
+
 /** One retained template for connection, revision, resizing and stepping. */
 /** @param {HTMLElement} host @param {number} current
  * @param {ReturnType<typeof timelineModel>} model @param {ReturnType<typeof timelineLayout> | null | undefined} layout */
@@ -336,6 +341,7 @@ export function render(host, current, model, layout) {
               data-lf-step=${index}
               aria-current=${index === current ? "step" : nothing}
               ?data-lf-ahead=${index > current}
+              .lfPreview=${stepPreview}
             >
               <span class="lf-timeline-step-time lf-row-lead"
                 >${seconds(step.time)}</span

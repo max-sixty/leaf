@@ -434,13 +434,16 @@ def wait_until_ready(
     standing = None
     stalls = time.monotonic() + timeout_ms / 1000
     left = timeout_ms
-    # Playwright reads a zero timeout as none, so the wait ends before one.
+    # Playwright reads a zero timeout as none, so the wait ends before one. The reading
+    # is polled on a timer, as the probes are (`_load_probes`): a framed page out of
+    # sight runs no animation frames.
     while left > 0:
         try:
             standing = page.wait_for_function(
                 _STANDING_MOVED,
                 arg={"asked": asked, "refusable": fixed_server, "last": standing},
                 timeout=left,
+                polling=PROBE_POLL_MS,
             ).json_value()
         except PlaywrightTimeout:
             break
@@ -474,8 +477,9 @@ def _refuse_unstarted(page) -> None:
         raise PageNotReady("refused", f"the runtime could not start: {reason}")
 
 
-# Every box holding `frame` in its document, across shadow roots, with its scroll
-# offsets; `_PUT_BACK` scrolls each back to them.
+# Every box holding `frame` in its document, across shadow roots as `renderedParent`
+# walks them (shadow-tree.js), with its scroll offsets; `_PUT_BACK` scrolls each back.
+# Written out here since it runs in each sample's own document, which no probe reaches.
 _HOLDERS = """frame => {
   const held = [];
   for (let node = frame; node;
@@ -487,6 +491,9 @@ _PUT_BACK = """held => {
   for (const [node, left, top] of held) node.scrollTo({left, top, behavior: 'instant'});
 }"""
 _SHOWS = "frame => frame.checkVisibility({visibilityProperty: true})"
+_UNSEEN = "frame => frame.hasAttribute('data-lf-unseen')"
+_SEEN = "frame => !frame.hasAttribute('data-lf-unseen')"
+_LEAF = "() => Boolean(document.querySelector('script[data-lf-entry]')?.lfReadiness)"
 
 
 def start_near_work(page, state: dict | None = None, **ready) -> None:
@@ -495,55 +502,73 @@ def start_near_work(page, state: dict | None = None, **ready) -> None:
     `wait_until_ready` waits with `state` and `ready`. A check reads every document the
     page can show, not only those near the window it opened at.
 
-    A sample's page gets no rendering while its frame is off screen, and the page
-    counts what it draws only while its frame shows (sample.js). So each sample's
-    frame, at any depth, whose page is still waiting is scrolled into view and waited
-    for, and every box the scroll moved goes back; one in a closed disclosure or a
-    shut tab stays as the page has it."""
+    A sample's page gets no rendering while its frame is off screen, so its host counts
+    what that page draws only while the frame shows, and marks the frame
+    `data-lf-unseen` meanwhile (sample.js). The page holding a hidden frame counts none
+    of the work that frame's page starts after loading, its own samples included, so
+    each frame, at any depth, waits for the page holding it, and each `data-lf-unseen`
+    frame is then scrolled into view and its holder waited for, and every box the
+    scroll moved goes back. One in a closed disclosure or a shut tab stays as the page
+    has it."""
+    from playwright.sync_api import Error as PlaywrightError
+
     evaluate_probe(page, "startNearWork")
     wait_until_ready(page, state, **ready)
-    shown = set()
-    while waiting := [
-        frame for frame in _sample_frames(page) if frame not in shown and _waits(frame)
-    ]:
-        for frame in waiting:
-            shown.add(frame)
-            chain = list(_frame_chain(frame))
-            if not _waits(frame) or not all(
-                each.frame_element().evaluate(_SHOWS) for each in chain
-            ):
-                continue
-            held = [each.frame_element().evaluate_handle(_HOLDERS) for each in chain]
-            # Outermost first: a frame's document renders, as Playwright's wait for a
-            # stable box needs, only once its own frame shows.
-            for each in reversed(chain):
-                each.frame_element().scroll_into_view_if_needed()
-            wait_until_ready(frame, timeout_ms=ready.get("timeout_ms"))
-            for boxes in held:
-                boxes.evaluate(_PUT_BACK)
-    if shown:
+    frames = getattr(page, "page", page).frames
+    tried = {frames[0]}
+    while untried := [frame for frame in frames if frame not in tried]:
+        for frame in untried:
+            tried.add(frame)
+            try:
+                # The page holding the frame counts its loading and the near work it
+                # starts; one still unseen, in a closed disclosure or a shut tab,
+                # would never settle.
+                holder = frame.parent_frame
+                if (
+                    holder.parent_frame is not None
+                    and holder.frame_element().evaluate(_SEEN)
+                    and holder.evaluate(_LEAF)
+                ):
+                    wait_until_ready(holder, timeout_ms=ready.get("timeout_ms"))
+                if frame.frame_element().evaluate(_UNSEEN):
+                    _show(frame, page, state, ready)
+            except PlaywrightError:
+                # A sample retired or reloaded meanwhile has no frame to show.
+                if not frame.is_detached():
+                    raise
+        frames = getattr(page, "page", page).frames
+    if len(tried) > 1:
         rendered(page)
         wait_until_ready(page, state, **ready)
 
 
-def _sample_frames(page):
-    """Every live sample's frame in `page`, at any depth, each after the one it is in."""
-    for frame in getattr(page, "page", page).frames:
-        if frame.parent_frame is None or frame.is_detached():
-            continue
-        if frame.frame_element().get_attribute("data-lf-contained") is not None:
-            yield frame
-
-
-def _frame_chain(frame):
-    """`frame` and each frame holding it, up to the page's own."""
+def _show(frame, page, state, ready) -> None:
+    """Scroll `frame` into view, outermost frame first, wait until its holder has
+    taken in what it draws, and scroll every box it moved back."""
+    elements = []
     while frame.parent_frame is not None:
-        yield frame
+        elements.append(frame.frame_element())
         frame = frame.parent_frame
-
-
-def _waits(frame) -> bool:
-    return frame.evaluate(OUTSTANDING, {"held": None, "through": None}) != "ready"
+    if not all(element.evaluate(_SHOWS) for element in elements):
+        return
+    held = [element.evaluate_handle(_HOLDERS) for element in elements]
+    # A frame's document renders, as Playwright's wait for a stable box needs, only
+    # once its own frame shows.
+    for element in reversed(elements):
+        element.scroll_into_view_if_needed()
+    holder = elements[0].owner_frame()
+    holder.wait_for_function(
+        _SEEN,
+        arg=elements[0],
+        timeout=ready.get("timeout_ms") or HANDOVER_DEADLINE_MS,
+        polling=PROBE_POLL_MS,
+    )
+    if holder.parent_frame is None:
+        wait_until_ready(page, state, **ready)
+    else:
+        wait_until_ready(holder, timeout_ms=ready.get("timeout_ms"))
+    for boxes in held:
+        boxes.evaluate(_PUT_BACK)
 
 
 def install_window_errors(page, heard) -> None:

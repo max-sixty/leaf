@@ -91,13 +91,14 @@ def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
     shutil.copy(PLUGIN_ROOT / "bin/leaf", orphan)
     installed = cache / "1b1b1b1b1b1b" / "bin" / "leaf"
     installed.parent.mkdir(parents=True)
-    installed.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\n")
+    installed.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\ncat\n")
     installed.chmod(0o755)
     record = tmp_path / "plugins" / "installed_plugins.json"
 
     def run():
         return subprocess.run(
             [str(orphan), "page", "state", "a page"],
+            input="the hook's payload\n",
             capture_output=True,
             text=True,
             timeout=STATED_TIMEOUT,
@@ -110,7 +111,10 @@ def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
         )
     )
     handed = run()
-    assert (handed.returncode, handed.stdout) == (0, "page\nstate\na page\n")
+    assert (handed.returncode, handed.stdout) == (
+        0,
+        "page\nstate\na page\nthe hook's payload\n",
+    )
     record.write_text(json.dumps({"plugins": {}}))
     refused = run()
     assert (refused.returncode, refused.stdout) == (1, "")

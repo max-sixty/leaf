@@ -88,10 +88,10 @@ if [ ! -f "$root/pyproject.toml" ]; then
     */plugins/cache/*/leaf/*)
         plugins=$(dirname -- "$(dirname -- "$(dirname -- "$(dirname -- "$root")")")")
         name="leaf@$(basename -- "$(dirname -- "$(dirname -- "$root")")")"
-        while IFS= read -r install; do
+        while IFS= read -r install <&3; do
             [ -x "$install/bin/leaf" ] && [ ! "$install/bin/leaf" -ef "$0" ] &&
-                exec "$install/bin/leaf" "$@"
-        done <<EOF
+                exec "$install/bin/leaf" "$@" 3<&-
+        done 3<<EOF
 $(jq -r --arg name "$name" '.plugins[$name][]?.installPath // empty' \
     "$plugins/installed_plugins.json" 2>/dev/null)
 EOF

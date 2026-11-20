@@ -18,7 +18,9 @@ Which blocks carry that is your judgment, made for this page and its reader. Wei
   looks at the cache" is not.
 - A picture that shows the argument, such as the chart of what broke or a recording
   of what the user will see, is a gist. One that only illustrates or repeats a gist
-  beside it, or decorates, is not.
+  beside it, or decorates, is not. A gist picture's caption shows with it at Skim, so
+  the caption says what the picture shows and leaves background to the text Skim
+  folds.
 - Early material often carries more weight, so the gists may lean toward the first
   sections, and toward the start of each, without being every section's first
   paragraph.

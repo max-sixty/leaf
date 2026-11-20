@@ -130,6 +130,11 @@ _THREAD_DIGEST = object_schema(
         "detached_from": described(
             "The anchor a detached thread last had, or null.", _ANCHOR
         ),
+        "rewritten_from": described(
+            "The anchor a revision's rewrite moved the thread off, whose `quote` "
+            "holds the words the thread was about, or null.",
+            _ANCHOR,
+        ),
         "resolved": described(
             "Who closed the thread, or null while it is open.",
             {"type": ["string", "null"]},
@@ -450,7 +455,7 @@ DELIVERY = Record(
             },
         ),
     ),
-    since=51,
+    since=52,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 

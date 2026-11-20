@@ -73,11 +73,26 @@ def test_depths_fold_keep_the_place_and_restore(browser, serve):
         expect(page.locator(f"#{name}-0")).to_be_hidden()
     expect(markers).to_have_count(len(SECTIONS))
     assert abs(top(page, "#cause-gist") - reading) < 2
+    # A section's ⋯ is the last box its section holds, so the marks drawn on the
+    # section, such as a comment's aim, hold the ⋯ whole.
+    assert page.locator("#cause .lf-dial-more").evaluate(
+        "m => m.getBoundingClientRect().bottom"
+        " <= m.closest('section').getBoundingClientRect().bottom + 0.5"
+    )
 
-    page.locator("#cause-gist + .lf-dial-more button").click()
+    skim_face = page.locator("lf-dial .lf-dial-depth", has_text="Skim")
+    skim_ink = skim_face.evaluate("r => getComputedStyle(r).borderColor")
+    page.locator("#cause .lf-dial-more button").click()
     expect(page.locator("#cause-0")).to_be_visible()
     expect(page.locator("#impact-0")).to_be_hidden()
     expect(page.locator("#cause-0")).to_be_focused()
+    # The page now shows more than Skim, so Skim's selection steps back, and pressing
+    # it folds the page to Skim again.
+    assert skim_face.evaluate("r => getComputedStyle(r).borderColor") != skim_ink
+    depth(page, "Skim")
+    expect(page.locator("#cause-0")).to_be_hidden()
+    expect(folded).to_have_count(4 * len(SECTIONS))
+    expect(skim_face).to_have_css("border-color", skim_ink)
 
     depth(page, "Everything")
     expect(folded).to_have_count(0)
@@ -153,6 +168,7 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     expect(panel).to_have_attribute("data-lf-open", "")
     expect(page.locator(PREVIEW)).to_have_attribute("data-lf-face", "unseen")
     expect(page.locator(PREVIEW)).to_be_hidden()
+    page.wait_for_function("() => document.getAnimations().length === 0")
     for i in range(3):
         assert centre_x(sheets.nth(i)) == pytest.approx(centre_x(buttons.nth(i)), abs=1)
     heights = [sheets.nth(i).bounding_box()["height"] for i in range(3)]

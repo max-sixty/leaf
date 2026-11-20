@@ -37,17 +37,22 @@
  * skimmer folds whole, heading included. Keeping every heading was rejected: it made
  * Skim a fixed cut of every section, whether or not one had anything for a skimmer.
  *
- * Skim draws one quiet ⋯ for each gap in what it shows, after the block the gap
- * follows, and pressing it unfolds that gap alone. A gap is every block between two
- * kept ones in document order, whatever structure holds them, so a section folded whole
- * joins the folded rest of the section before it, and nested sections fold as flat
- * ones do. A ⋯ at a section's end and another for the gist-less section after it was
- * rejected: two marks stood for one gap. A ⋯ whose gap holds a heading previews the
- * outermost headings in it (`lfPreview`), so a skimmer can tell which sections lie
- * behind it before pressing. Writing those names on the page was rejected, since Skim
- * shows only the passages the author chose. The dial writes only what it folded: an
- * element already hidden, such as an inactive tab, is never touched, the margin is
- * never folded, and leaving Skim takes back exactly the folds and markers it made.
+ * Skim draws one quiet ⋯ for each gap in what it shows, and pressing it unfolds that
+ * gap alone. A gap is every block between two kept ones in document order, whatever
+ * structure holds them, so a section folded whole joins the folded rest of the section
+ * before it, and nested sections fold as flat ones do. A ⋯ at a section's end and
+ * another for the gist-less section after it was rejected: two marks stood for one
+ * gap. The ⋯ stands after the gap's blocks in the box the gap starts in, so a gap that
+ * runs to that box's end, as the rest of a section does, leaves its ⋯ as the box's
+ * last child, and the section's box and every mark drawn on it hold the ⋯. After a
+ * press the page shows more than Skim, so Skim's button wears its selection faded, and
+ * pressing it folds the page to Skim again (the maintainer's request). A ⋯ whose gap
+ * holds a heading previews the outermost headings in it (`lfPreview`), so a skimmer
+ * can tell which sections lie behind it before pressing. Writing those names on the
+ * page was rejected, since Skim shows only the passages the author chose. The dial
+ * writes only what it folded: an element already hidden, such as an inactive tab, is
+ * never touched, the margin is never folded, and leaving Skim takes back exactly the
+ * folds and markers it made.
  *
  * Turning the dial keeps the reader's place. The block at the reading line, a quarter
  * of the way down the window, stays where it stood; when Skim folds that block, the
@@ -140,6 +145,9 @@ const WHOLE = "table, figure, details";
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
+// On the standing depth's button while the page shows a gap it folded: the word
+// face's variant for a selection the page shows only in part (control-faces.js).
+const PARTIAL = "data-lf-partial";
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
 
@@ -460,6 +468,9 @@ customElements.define(
             if (!plainPress(event)) return;
             const depth =
               event.target instanceof Element && event.target.closest(".lf-dial-depth");
+            // The standing depth's button, which turns no radio, folds an unfolded gap.
+            if (depth && depth === this.#radios.get(this.#depth))
+              this.turn(this.#depth);
             this.#aim(depth || this);
           },
           { signal },
@@ -479,9 +490,21 @@ customElements.define(
     // Turn the dial to `name`, keeping the reader's place and moving the page there.
     /** @param {string} name */
     turn(name) {
-      if (name === this.#depth) return;
+      if (name === this.#depth) {
+        if (this.#radios.get(name)?.hasAttribute(PARTIAL)) this.#refold();
+        return;
+      }
       tabStore.set(this.#key, name === "read" ? null : name);
       this.#apply(name, { moving: true });
+    }
+
+    // Fold again the gaps the reader unfolded at Skim, keeping their place.
+    #refold() {
+      const scope = this.#scope;
+      if (!scope) return;
+      const before = this.#positions(scope);
+      this.#keepingPlace(scope, () => this.#fold(scope));
+      this.#move(before, scope);
     }
 
     #draw() {
@@ -559,7 +582,11 @@ customElements.define(
     /** @param {string} name */
     #ghost(name) {
       const sizes = this.#measure();
-      if (!sizes || name === this.#depth) return null;
+      if (
+        !sizes ||
+        (name === this.#depth && !this.#radios.get(name)?.hasAttribute(PARTIAL))
+      )
+        return null;
       /** @type {Element[]} */
       const goes = [];
       /** @type {Element[]} */
@@ -574,7 +601,8 @@ customElements.define(
               ...[...details.children].filter((child) => child.localName !== "summary"),
             );
       // Leaving Skim opens every fold.
-      if (this.#depth === "skim") comes.push(...nearWindow([...this.#runs.keys()]));
+      if (this.#depth === "skim" && name !== "skim")
+        comes.push(...nearWindow([...this.#runs.keys()]));
       if (name === "all")
         for (const details of nearWindow(sizes.closed))
           if (!details.open && shown(details)) comes.push(details);
@@ -691,6 +719,7 @@ customElements.define(
         marker.remove();
       }
       this.#runs.clear();
+      this.#radios.get(this.#depth)?.removeAttribute(PARTIAL);
       for (const details of this.#opened) details.open = false;
       this.#opened.clear();
     }
@@ -703,10 +732,13 @@ customElements.define(
         block.removeAttribute("hidden");
     }
 
+    // Fold each gap not folded already.
     /** @param {Element} scope */
     #fold(scope) {
-      const listening = (this.#listening = new AbortController());
-      for (const run of this.#runsIn(scope)) this.#foldRun(run, listening.signal);
+      const listening = (this.#listening ??= new AbortController());
+      for (const run of this.#runsIn(scope))
+        if (!run.blocks[0]?.hasAttribute(FOLDED)) this.#foldRun(run, listening.signal);
+      this.#radios.get(this.#depth)?.removeAttribute(PARTIAL);
     }
 
     // Whether `node` is a disclosure whose body Read shows none of, so Skim keeps
@@ -866,8 +898,11 @@ customElements.define(
           : null;
       };
       marker.append(button);
-      const [first] = blocks;
-      if (first?.parentElement) move(first.parentElement, marker, first);
+      // After the run's blocks in the box it starts in, so a run that runs to that
+      // box's end, as a section's rest does, leaves the ⋯ the box's last child.
+      const parent = blocks[0]?.parentElement;
+      const last = blocks.findLast((block) => block.parentElement === parent);
+      if (parent && last) move(parent, marker, last.nextSibling);
       for (const block of blocks) {
         block.setAttribute(FOLDED, "");
         block.setAttribute("hidden", "until-found");
@@ -890,6 +925,7 @@ customElements.define(
       for (const block of run.blocks) this.#unfoldBlock(block);
       this.#runs.delete(marker);
       marker.remove();
+      this.#radios.get(this.#depth)?.setAttribute(PARTIAL, "");
       if (before) {
         // The press's own control is gone, so the reader lands on what it showed.
         const [first] = run.blocks;

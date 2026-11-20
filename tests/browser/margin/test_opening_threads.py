@@ -531,6 +531,51 @@ def test_a_card_open_across_a_revision_opens_where_its_passage_stands(
         expect(card).to_be_hidden()
 
 
+REWORDED_PAGE = leaf_page(
+    "words a revision rewords",
+    """
+  <section id="plan">
+    <h2>Plan</h2>
+    <p>Manual review first. Then a staged rollout.</p>
+  </section>
+""",
+)
+
+
+def test_a_card_quotes_the_words_a_revision_rewrote_at_its_top(browser, serve):
+    """A card's bracket marks the words its thread is about, so the card quotes none,
+    until a revision rewrites them and leaves the thread on their section. The bracket
+    then marks the whole section, so the card quotes the words at its top, marked as
+    changed, over its actions and the opening message's head beside them."""
+    comment = _comment_on("plan", quote="Manual review first.")
+    page = open_page(browser, live_url(serve(REWORDED_PAGE, events=[comment])))
+    resized(page, 1440, 900)
+    assert open_where_the_user_stands(page, "plan") is True
+    card = page.locator(".lf-margin-preview")
+    head = card.locator(".lf-thread-quote-head")
+    expect(card.locator(".lf-msg").first).to_be_visible()
+    expect(head).to_be_hidden()
+
+    stamp_page(
+        serve.page_dir,
+        REWORDED_PAGE.replace("Manual review first.", "Automatic review first."),
+        "Reword the plan",
+    )
+    wait_for_revision(page, 2)
+    expect(card).to_be_hidden()
+    assert open_where_the_user_stands(page, "plan") is True
+    # The bracket says where the words stood, so the label names no place.
+    expect(head.locator(".lf-quote-label")).to_have_text("Changed")
+    expect(head.locator(".lf-thread-quote")).to_have_text("Manual review first.")
+    rendered(page)
+    actions = card.locator(".lf-margin-thread-controls").bounding_box()
+    quote = head.bounding_box()
+    opening = card.locator(".lf-msg").first.locator(".lf-msg-head").bounding_box()
+    assert actions and quote and opening
+    assert quote["y"] + quote["height"] <= actions["y"]
+    assert opening["y"] == pytest.approx(actions["y"], abs=1)
+
+
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(

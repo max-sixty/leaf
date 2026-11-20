@@ -78,7 +78,7 @@
 
 leaf wait:
   output:
-    format: leaf-delivery/51
+    format: leaf-delivery/52
     id: '11111111'
     created_at: 1790046750.29
     acknowledge: >-
@@ -98,6 +98,7 @@ leaf wait:
               section: plan
               quote: moves to Tuesdays
             detached_from: null
+            rewritten_from: null
             resolved: null
             elided:
               messages: 0
@@ -173,7 +174,7 @@ Claude Code hook:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.
     delivery:
-      format: leaf-delivery/51
+      format: leaf-delivery/52
       id: '44444444'
       created_at: 1790046750.29
       acknowledge: null
@@ -188,6 +189,7 @@ Claude Code hook:
                 section: plan
                 quote: moves to Tuesdays
               detached_from: null
+              rewritten_from: null
               resolved: null
               elided:
                 messages: 0
@@ -263,7 +265,7 @@ Codex queue:
     <leaf-delivery id="22222222" operation="delivery read" />
     ```
   leaf delivery read 22222222:
-    format: leaf-delivery/51
+    format: leaf-delivery/52
     id: '22222222'
     created_at: 1790046750.29
     acknowledge: >-
@@ -281,6 +283,7 @@ Codex queue:
               section: plan
               quote: moves to Tuesdays
             detached_from: null
+            rewritten_from: null
             resolved: null
             elided:
               messages: 0
@@ -357,7 +360,7 @@ Codex App Server:
     toolOutput:
       name: leaf_delivery
       output:
-        format: leaf-delivery/51
+        format: leaf-delivery/52
         id: '33333333'
         created_at: 1790046750.29
         acknowledge: null
@@ -372,6 +375,7 @@ Codex App Server:
                   section: plan
                   quote: moves to Tuesdays
                 detached_from: null
+                rewritten_from: null
                 resolved: null
                 elided:
                   messages: 0

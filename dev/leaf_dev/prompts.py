@@ -109,6 +109,7 @@ def batch(earlier: list[dict], newest: dict) -> dict:
                 "title": "Poll interval",
                 "anchor": None,
                 "detached_from": None,
+                "rewritten_from": None,
                 "resolved": None,
                 "elided": {"messages": 0, "actions": 0},
                 "messages": earlier,

@@ -132,7 +132,7 @@ import {
   workflowWord,
   hasWorkflowLine,
 } from "./workflow.js";
-import { leafSays, voiced } from "../voice.js";
+import { leafSays, voiced, wordsText } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -165,19 +165,21 @@ import { addressableLabel } from "../addressable-names.js";
 // reads as the quote does: a revision took the words out of the latest version, which
 // may not be the version shown, where they can still stand; they can't be found on the
 // page; they come from earlier data; or they have changed. A thread draws it where its
-// container asks (`ThreadOutlets`, `quote`), as the floating panel's view does. The
-// status is a word over the quote because a finger never reads a title. Where the words
-// still stand, `trail` names the headings over them (`partTrail`), else the page's
-// title, where no heading stands over them: a label of quoted words with no place of
-// their own, and the head's title for any other.
+// container asks (`ThreadOutlets`, `quote`), as the floating panel's view does, and
+// wherever the page leaves it unmarked (`unmarked`), since then no container's place
+// beside the words shows them. The status is a word over the quote because a finger
+// never reads a title.
+// Where the words still stand, `trail` names the headings over them (`partTrail`), else
+// the page's title, where no heading stands over them: a label of quoted words with no
+// place of their own, and the head's title for any other.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
 function quoteReading(thread, anchors) {
-  const placement = anchors.placedAt(thread.id);
   const quoted = threadPassage(thread);
   const place = anchorPlace(quoted, thread.root.about);
   const words = quoted?.quote ?? "";
   if (!place && !words) return null;
+  const placement = anchors.placedAt(thread.id);
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const detached = anchored && (Boolean(thread.detached_from) || placement == null);
   // A version that rewrote the quoted words left the thread on their section
@@ -185,17 +187,23 @@ function quoteReading(thread, anchors) {
   const changed =
     Boolean(thread.rewritten_from) ||
     Boolean(words && placement?.datumElement && !placement.exact);
+  const status = detached
+    ? leafSays(thread.detached_from ? "Not in the latest version" : "Not found")
+    : anchored && placement?.status === "outdated"
+      ? leafSays("Earlier data")
+      : changed
+        ? leafSays("Changed")
+        : null;
   return Object.freeze({
     place,
     words,
     detached,
-    status: detached
-      ? leafSays(thread.detached_from ? "Not in the latest version" : "Not found")
-      : anchored && placement?.status === "outdated"
-        ? leafSays("Earlier data")
-        : changed
-          ? leafSays("Changed")
-          : null,
+    status,
+    // Whether the page leaves what the thread is about unmarked where the thread
+    // stands, so a container beside that place doesn't show it: a status says why, or
+    // the words only fell back to a place around them, as a diff line not yet loaded
+    // falls back to its file.
+    unmarked: Boolean(status) || Boolean(words && !placement?.exact),
     // A surviving element can still be a destination after its quoted words
     // have gone (rewritten text, replaced data or a virtual datum). Only a
     // resolved passage can supply the original quote's complete reading.
@@ -447,7 +455,11 @@ const lastTurn = (model) =>
    - `reply`, the place for the reply box (`outlet`), which otherwise closes the thread,
      and what its empty box reads and how a send lands (`options`, replies.js,
      `createReplyView`).
-   - `quote`, whether the thread draws the words it is about over its messages.
+   - `quote`, whether the thread draws the words it is about over its messages while
+     the page still reads as the quote does; a container standing beside the words, as
+     a margin card does by its bracket, shows them by where it stands. Where the page
+     leaves them unmarked, as once a revision rewrote the quoted words and left the
+     thread on their section, every thread draws them (`quoteReading`, `unmarked`).
    - `scroller`, given the thread's transcript, the box that scrolls its messages, at
      whose foot it says New reply (the header); without one it says none.
    - `landing(resolved)`, given whether the thread stood resolved as the press came, the
@@ -547,12 +559,14 @@ export class ThreadView {
   get apart() {
     return this.#apart;
   }
-  // The words the thread is about, where its container asks for them (`#drawQuote`).
+  // The words the thread is about, ahead of its messages (`#drawQuote`).
   #quoteHead = Object.assign(document.createElement("header"), {
     className: "lf-thread-quote-head",
   });
   #quoteId = `lf-thread-quote-${randomId()}`;
   #quoteExpanded = signal(false);
+  // Whether three lines cut the quote, which its label then opens (`#fitQuote`).
+  #quoteCut = signal(false);
   /** @type {(() => void) | null} */
   #quoteEffect = null;
   // The answer to the user's last turn drawn since the container last stood the thread
@@ -570,9 +584,9 @@ export class ThreadView {
   // Whether this opening offers Next unread, and whether that has been asked (header).
   #unreadSeat = false;
   #unreadAsked = false;
-  // Full quote shows only where three lines cut the words. Once the quote stands, a
-  // change of its size resizes the view its container's observers watch, so the press
-  // follows in the next frame rather than inside this observer's delivery.
+  // The label opens the quote only where three lines cut the words. Once the quote
+  // stands, a change of its size resizes the view its container's observers watch, so
+  // the press follows in the next frame rather than inside this observer's delivery.
   #quoteSize = sizeObserver(() => nextRender(() => this.#fitQuote()));
 
   /** @param {ThreadCommands} commands @param {ThreadViewModel} model */
@@ -775,7 +789,7 @@ export class ThreadView {
     this.#received = model;
     this.#drawnWith = this.#outside(model);
     // Where the container stands the thread's parts (`ViewOutlets`).
-    const { head, line, reply, quote, scroller } = this.#outlets;
+    const { head, line, reply, scroller } = this.#outlets;
     // A margin card's head line, arranged around the boxes the notice and the
     // settlement stand in before they are drawn (`CardOutlets`, `line`).
     const inLine = line?.(this.#apart) ?? null;
@@ -848,7 +862,7 @@ export class ThreadView {
     // `.lf-thread-content > .lf-thread-news`); its words change in place.
     keeps(notice.node, "data-lf-reflow", lined ? null : "text");
     const body = html`
-      ${quote ? this.#drawQuote() : nothing}${this.#transcript.node}
+      ${this.#drawQuote()}${this.#transcript.node}
       ${
         lined
           ? (inLine ?? nothing)
@@ -874,9 +888,10 @@ export class ThreadView {
     render(lined ? settlement : nothing, this.#apart.controls);
     render(lined ? this.#nextUnread() : nothing, this.#apart.unread);
     render(replyApart ? this.#reply.node : nothing, this.#apart.reply);
-    // Full quote stands from the quote's first paint, so its arrival moves nothing below
-    // it; later changes of the quote's size follow by its observer (`#quoteSize`).
-    if (quote) measure(this.#quoteHead, () => this.#fitQuote());
+    // The label's press stands from the quote's first paint, in the label's own line,
+    // so its arrival moves nothing; later changes of the quote's size follow by its
+    // observer (`#quoteSize`).
+    if (!this.#quoteHead.hidden) measure(this.#quoteHead, () => this.#fitQuote());
     if (!lined && model.news) measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     if (inLine && model.news) measure(this.node, () => this.#watchLineNews());
@@ -1303,75 +1318,94 @@ export class ThreadView {
     } else keeps(notice, "data-lf-room", null);
   }
 
-  // The words the thread is about, over its to-dos and messages (`quoteReading`), in
-  // three lines: where they still stand on the page, the container's way there goes to
+  // The words the thread is about, over its to-dos and messages, where its container
+  // asks for them or the page leaves them unmarked (`ThreadOutlets`, `quote`), in three
+  // lines: where they still stand on the page, the container's way there goes to
   // them; where they no longer do, as for a thread a revision detached from its
-  // passage, the quotation the thread kept is all that is left of them, so Full quote
-  // shows the whole of it, its press standing above the words it grows so the press
+  // passage, the quotation the thread kept is all that is left of them, so the label
+  // over them opens the whole of it, standing above the words it grows so the press
   // never moves itself. The quote's status word leads its words, so the three lines
-  // never cut it. Full quote shows only where three lines cut them, and the quote stays
-  // whole while the view stands. Where the words stand is read from the page, which the
-  // thread's pass reads again after drawing (presentation.js, `readTargets`) and a data
-  // refresh changes without changing the thread, so the quote draws by an effect of its
-  // own that follows that reading as well as the thread.
+  // never cut it. The label takes a press only where three lines cut the words
+  // (`#quoteCut`), and the quote stays whole while the view stands. Where the words
+  // stand is read from the page, which the thread's pass reads again after drawing
+  // (presentation.js, `readTargets`) and a data refresh changes without changing the
+  // thread, so the quote draws by an effect of its own that follows that reading as
+  // well as the thread.
   #drawQuote() {
     this.#quoteEffect ??= effect(() => {
       const thread = this.#shown.value.source;
       documentChanged();
       const quote = quoteReading(thread, this.#commands);
-      const expanded = this.#quoteExpanded.value;
+      const opens = this.#quoteExpanded.value || this.#quoteCut.value;
       untracked(() => {
-        keepsHidden(this.#quoteHead, !quote);
+        keepsHidden(
+          this.#quoteHead,
+          !quote || !(this.#outlets.quote || quote.unmarked),
+        );
         keeps(this.#quoteHead, "data-lf-detached", quote?.detached ? "" : null);
         keeps(this.#quoteHead, "title", (quote?.place && quote.trail) || null);
-        render(this.#quoteTemplate(quote, expanded), this.#quoteHead);
+        render(this.#quoteTemplate(quote, opens), this.#quoteHead);
       });
     });
     return this.#quoteHead;
   }
 
-  /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} expanded */
-  #quoteTemplate(quote, expanded) {
+  // The label says the quote's status and where its words stand, and where three lines
+  // cut words the page no longer shows, it is the press that opens them whole: one line
+  // over the quote, its disclosure arrow hanging on the quote's rule so its words keep
+  // the quote's edge. Its words say the quote's state rather than the press's act, so
+  // the press names that act after them to a listener, and its preview names what a
+  // press does now, as a promise's word naming where it opens does (thread/messages.js).
+  // Rejected: a Full quote press on a line of its own under the label, which the user
+  // read as a second label, set in from the quote's edge.
+  /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} opens */
+  #quoteTemplate(quote, opens) {
     if (!quote) return nothing;
+    const expanded = quote.localReading && this.#quoteExpanded.peek();
     const status = quote.status
       ? html`<span class="lf-anchor-status">${voiced(quote.status)}</span>`
       : nothing;
     // Quoted words with no place of their own stand under the headings over them, so a
     // status arriving, as a revision that rewrites them while the thread is open sends,
     // takes a line the label already holds rather than growing the head under the
-    // user's controls.
-    const where = quote.place || quote.trail;
-    const label =
+    // user's controls. A container standing beside the words, as a margin card's
+    // bracket does, already shows where they stand, so there they go unnamed.
+    const where = quote.place || (this.#outlets.quote ? quote.trail : "");
+    const said =
       where || quote.status
-        ? html`<p class="lf-quote-label">
-            ${status}${where && quote.status ? " · " : ""}${where}
-          </p>`
-        : nothing;
-    if (!quote.words) return label;
-    const press = quote.localReading
-      ? html`<button
-          type="button"
-          ${offeredAction(
-            "inline",
-            "lf-thread-disclosure lf-quote-expand lf-disclosure-marker",
-          )}
-          aria-label="Full quote"
-          hidden
-          aria-expanded=${String(expanded)}
-          aria-controls=${this.#quoteId}
-          @click=${() => {
-            this.#quoteExpanded.value = !this.#quoteExpanded.peek();
-          }}
-        >
-          Full quote
-        </button>`
+        ? html`${status}${where && quote.status ? " · " : ""}${where}`
+        : null;
+    const saidText = [quote.status && wordsText(quote.status), where]
+      .filter(Boolean)
+      .join(" · ");
+    const act = expanded ? "Fold the quote" : "Full quote";
+    const line =
+      quote.words && quote.localReading && opens
+        ? html`<button
+            type="button"
+            ${offeredAction("inline", "lf-quote-expand lf-disclosure-marker")}
+            data-lf-hint
+            aria-label=${saidText ? `${saidText}, Full quote` : "Full quote"}
+            aria-expanded=${String(expanded)}
+            aria-controls=${this.#quoteId}
+            .lfPreview=${() => ({ name: act })}
+            @click=${() => {
+              this.#quoteExpanded.value = !this.#quoteExpanded.peek();
+            }}
+          >
+            ${said ?? "Full quote"}
+          </button>`
+        : said;
+    const label = line
+      ? html`<p class="lf-quote-label" ?data-lf-opens=${quote.localReading}>${line}</p>`
       : nothing;
-    return html`${label}${press}
+    if (!quote.words) return label;
+    return html`${label}
       <blockquote
         ${ref(this.#watchQuote)}
         id=${this.#quoteId}
         class="lf-thread-quote"
-        data-lf-expanded=${String(quote.localReading && expanded)}
+        data-lf-expanded=${String(expanded)}
       >
         ${quote.words}
       </blockquote>`;
@@ -1383,17 +1417,11 @@ export class ThreadView {
     if (node) this.#quoteSize.observe(node);
   };
 
+  // An opened quote is whole, so whether three lines cut it is read while it is shut.
   #fitQuote() {
     const quote = this.#quoteHead.querySelector(":scope > .lf-thread-quote");
-    const press = this.#quoteHead.querySelector(":scope > .lf-quote-expand");
-    if (quote && press)
-      keeps(
-        press,
-        "hidden",
-        !this.#quoteExpanded.peek() && quote.scrollHeight <= quote.clientHeight
-          ? ""
-          : null,
-      );
+    if (quote && !this.#quoteExpanded.peek())
+      this.#quoteCut.value = quote.scrollHeight > quote.clientHeight;
   }
 
   // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn

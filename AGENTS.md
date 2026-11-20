@@ -5,49 +5,50 @@
 ## Leaf's role
 
 Core owns shared state, event, and lifecycle guarantees; packages own domain
-behavior and widget presentation. Judge simplifications by the mechanisms they
-remove and the package compositions they preserve or rule out, rather than by
-use in bundled widgets alone.
+behavior and widget presentation. Judge a simplification by the mechanisms it
+removes and by the combinations of packages it keeps possible or rules out, not only
+by whether the bundled widgets use what it removes.
 
 An agent that writes a page, sets its data or changes Leaf works in a fast loop: it
 reads what failed and tries again. So Leaf lets a failure surface through the parser
 or check already in the agent's path. Leaf adds code to prevent a failure only where
 nothing in the agent's path would report it and it would pass silently into
 something the user relies on, such as an admitted event or a stored decision. Every
-check, option and special case costs every later maintainer, so remove one that buys
-nothing the agent's next attempt would not.
+check, option and special case costs every later maintainer, so remove one that
+gives nothing beyond what the agent's next attempt would give.
 
-A reasonable choice is the agent's to make. Leaf helps it choose well and
-reflects back what a choice does, and refuses only input that would break a
-guarantee whatever the agent meant. Where a choice harms the user only in some
-cases, as an edit that relabels an option the user already picked does, Leaf
-accepts it and tells the agent what it did, rather than refusing every choice
-of that kind to stop the worst one. Leaf's code doesn't make such a choice in the
-agent's place either, even where a fork of the agent acts for it, as in writing a
-thread's summary. It offers evidence, such as the range it suggests folding, the
-instructions state the goal, and the agent or fork judges the case, since a
-cutoff on a measure misjudges the cases near it.
+A reasonable choice is the agent's to make. Leaf helps it choose well and reflects
+back what a choice does, and refuses only input that would break a guarantee
+whatever the agent meant. Some choices harm the user only in some cases, as an edit
+that relabels an option the user already picked can. Leaf accepts such a choice and
+tells the agent what the choice did, rather than refusing every choice of that kind
+to stop the worst one. Nor does Leaf's code make such a choice in the agent's place,
+even where a fork of the agent acts for it, as in writing a thread's summary. The
+code offers evidence, such as the range of messages it suggests folding into the
+summary; the instructions state the goal; and the agent or the fork judges the case.
+Code that decided by a cutoff on a measure would misjudge the cases near the cutoff.
 
 ## Stage
 
-Leaf has no users, deployment, database or persisted state that constrains new
-code. Prefer the simpler interface even when it is incompatible, and spend no
-code or test complexity on compatibility with earlier runtimes. Claims, logs and
-pages from earlier runtimes, and old records in the state home every worktree
-and session on the machine shares, are disposable: regenerate or delete them.
-Add no migration, compatibility shim, old-record validator, fallback read or
-removal promise, and leave old state and recovery instructions out of the
-handoff.
+Leaf has no users, deployment, database or persisted state that constrains new code.
+Prefer the simpler interface even when it is incompatible, and spend no code or test
+complexity on compatibility with earlier runtimes. Claims, logs and pages that
+earlier runtimes wrote are disposable, and so are old records in the state home,
+which every worktree and session on the machine shares: regenerate or delete them.
+Add no migration, compatibility shim, validator for old records, fallback read or
+promise to remove any of these later, and leave old state and recovery instructions
+out of the handoff.
 
-Tests should protect behavior a user depends on. Rewriting or deleting one is
-ordinary: check which behavior its assertion protects, change it where that
-makes a better app, and say in the commit which behavior changed.
+Tests should protect behavior a user depends on. Rewriting or deleting a test is
+ordinary: check which behavior its assertion protects, change the test where doing
+so makes a better app, and say in the commit which behavior changed.
 
 Written contracts describe the current code and promise no compatibility. Every
-consumer of them is in this tree, so when a different contract makes the code
-simpler, change it and every consumer together, prose included. A change that
-keeps every guarantee needs no edit to contract prose, which states the guarantees
-rather than how the code meets them; an edit for clarity is still welcome.
+consumer of them is in this tree, so when a different contract would make the code
+simpler, change the contract and every consumer together, prose included. A change
+that keeps every guarantee needs no edit to contract prose, which states the
+guarantees rather than how the code meets them; an edit for clarity is still
+welcome.
 
 A restriction Leaf imposes, such as a content security policy, a validator's
 refusal, an import allowlist or a markup limit, doesn't decide whether a feature
@@ -56,22 +57,24 @@ around it: tell the user what the restriction blocks, what it protects and what
 lifting it would cost. It may guard something the user values, or be a side
 effect nobody chose, so only the user can weigh the feature against it.
 
-Coherent new features can be tried before every product detail is settled, as
-long as any architectural problem they leave stays easy to fix. Make
-improvements that follow from the repository, and ask the user only when the
-choice depends on purpose or intent the code can't supply.
+Coherent new features can be tried before every product detail is settled, as long
+as any architectural problem they leave stays easy to fix. Make the improvements the
+repository's goals and code already justify, and ask the user only when a choice
+depends on a purpose or intent the code can't tell you.
 
 ## Responsiveness
 
-When the user acts, the page draws what that act decides by itself before the
-browser's next frame, in the task that handles it: the user's message in its
-thread, a widget's new state, a thread they resolved. Facts that depend on the
-rest of the log, such as whose turn a thread is and which obligations the user owes,
-arrive with the server's reading of the gesture, which should be on screen within
-100 ms since the server usually runs on the user's machine. The browser doesn't
-predict that reading: a prediction is a second copy of the server's rules, and
-each case it misses shows the wrong state until the reading arrives. Where the
-reading takes longer than 100 ms, make that path faster.
+When the user acts, the page draws each result that follows from the act alone, such
+as the user's message in its thread, a widget's new state or a thread they resolved.
+It draws them in the task that handles the act, before the browser's next frame.
+Facts that depend on the rest of the log, such as whose turn a thread is and which
+obligations the user owes, arrive with the server's reading of the gesture: the
+page's state as the server computes it from the whole log after admitting the
+gesture. That reading should be on screen within 100 ms, since the server usually
+runs on the user's machine. The browser doesn't predict that reading: a prediction
+is a second copy of the server's rules, and each case it misses shows the wrong
+state until the reading arrives. Where the reading takes longer than 100 ms, make
+that path faster.
 
 These times hold on a large page too. A page's size is how much it holds: elements,
 widgets, headings, obligations, threads, events and revisions. An input's work
@@ -81,61 +84,63 @@ as of five hundred. So work that a pass would redo for the whole page, such as a
 layout, a scan of the page's controls or a derivation of every record, runs only for
 what changed: the code that makes each change records it as it happens, and the pass
 never searches the page for changes. Neither an input's work in the browser nor the
-bytes it moves grows with how long the session has run. Loading a page, and
-computing or applying a reading of it, grow no faster than the page times the
-logarithm of its size. The server admits each event against such a reading, so its
-work per event may grow with the events the log holds. On the largest page `leaf-dev
-bench` generates, a keystroke and a wheel step each fit in 8 ms of main-thread time,
-and a click shows the server's reading within 100 ms. A step that walks one of those
-collections for each member of another, as finding each obligation's heading by
-reading every heading did, grows with the square of the page. So does a style or
-layout pass forced once per element, since each pass can cover the whole page
-(`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev bench` measures how each cost
-grows with the page.
+bytes it moves grows with how long the session has run. The time to load a page, and
+to compute or apply a reading of it, grows no faster than n log n in the page's size
+n. The server checks each event against such a reading before admitting it to the
+log, so its work per event may grow with the events the log holds. On the largest
+page `leaf-dev bench` generates, a keystroke and a wheel step each fit in 8 ms of
+main-thread time, and a click shows the server's reading within 100 ms. A step that
+walks one of the page's collections once for each member of another grows with the
+square of the page, as finding each obligation's heading by reading every heading
+did. So does a style or layout pass forced once per element, since each pass can
+cover the whole page (`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev bench`
+measures how each cost grows with the page.
 
 ## Pages across Leaf updates
 
 A page records its authored content, its log and the packages it selects. The Leaf
 that serves, checks or exports it supplies everything else: the runtime and the
-state the server sends it, the layer (registry, theme, widgets and package
-modules) it composes from the page's selection, and how it parses and draws what
-the page keeps. So only the event log and the records Leaf keeps outside a page
-cross between Leaf versions.
+state its server sends the page, the layer (registry, theme, widgets and package
+modules) it composes from the packages the page selects, and the code that parses
+and draws the page's content and log. So the event log and the records Leaf keeps
+outside a page are the only data one Leaf version writes and another must read.
 
 - **The page protocol**, the kernel registry's `$events.protocol`, is Leaf's only
   version: a Leaf serves and writes only pages at its own number. The build refuses
   any change to a logged event's schema until the number moves. Bump it also where a
   Leaf at the current number would misread an event or record that another Leaf at
-  that number wrote, such as a logged value given a new meaning. A change to what the
-  serving Leaf supplies keeps the number, even where a logged message or a comment's
-  quote then draws or resolves differently. Bumps are rare, perhaps one in five
-  hundred commits, and once Leaf is released only a bump may break an existing page.
-  `layer-registry.md`, "Page protocol", says how the number is enforced and how
-  records carry it.
-- **A page's own code**, its widgets and scripts, and an installed package's
-  modules call the public package API across Leaf versions. While Leaf is in alpha
-  an update may change that API without a bump, since a bump would not repair code
-  Leaf doesn't compose; `page check --render` and `package check --render` report a
-  module it breaks, and the agent fixes it as any other check failure.
+  that number wrote, such as a logged value given a new meaning. A change to what
+  the serving Leaf supplies keeps the number, even where the change alters how a
+  logged message draws or how a comment's quote resolves. Bumps are rare, perhaps
+  one in five hundred commits, and once Leaf is released only a bump may break an
+  existing page. `layer-registry.md`, "Page protocol", says how the number is
+  enforced and how records carry it.
+- **A page's own code**, its widgets and scripts, and an installed package's modules
+  call the public package API across Leaf versions. While Leaf is in alpha an update
+  may change that API without a bump, since a bump would not repair code Leaf
+  doesn't compose. `page check --render` and `package check --render` report a
+  module an update breaks, and the agent fixes the module as it fixes any other
+  check failure.
 
 ## Fix the underlying issue
 
 When packages or runtimes share a concept, one owner defines its meaning in a
-contract that covers each use. Keep one canonical API per capability. Consumers
-select and transform the data it returns themselves; a shared implementation is
-no reason to expose those as new APIs. Add a separate API only for a capability
-or guarantee that composing the existing one can't provide, and extend the
-canonical API when its own responsibility is incomplete.
+contract that covers each use. Keep one canonical API per capability. Each consumer
+selects and transforms the canonical API's data in its own code, and that several
+consumers would share such code is no reason to expose it as a new API. Add a
+separate API only for a capability or guarantee that composing the existing one
+can't provide, and extend the canonical API when its own responsibility is
+incomplete.
 
-Every change and review asks whether the immediate problem is a symptom of a
-deeper one, such as a missing primitive, a misplaced boundary or an unstated rule
-several packages share. Trace the cause up through the layers that produced it
-and fix the highest one that is wrong, just below the first one that is correct
-as designed. If the change can't make that fix, its author or reviewer names and
-proposes it. A passing test for the reported case proves only that case. A
-second special case, a caller repeating its callee's rule, a guard enforcing a
-rule the code never states, or a flag passed down a stack to reach one use
-suggests the shared boundary is still unsettled.
+Every change and review asks whether the immediate problem is a symptom of a deeper
+one, such as a missing primitive, a misplaced boundary or an unstated rule several
+packages share. Trace the cause upward from the symptom, layer by layer, until you
+reach a layer that is correct as designed, and fix the layer just below it. If the
+change can't make that fix, its author or reviewer names and proposes it. A passing
+test for the reported case proves only that case. A second special case, a caller
+repeating its callee's rule, a guard enforcing a rule the code never states, or a
+flag passed down a stack to reach one use suggests that the boundary those pieces of
+code share is still unsettled.
 
 Don't add another patch on top of existing ones. A change that fixes the symptom
 and leaves the code harder to maintain doesn't go in, even with the real fix
@@ -170,9 +175,7 @@ and the page's packages into the page's layer.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
   Code, `codex.json` for Codex), the scripts they run, Claude Code's hooks
-  module `claude-code.ts` with the contracts it declares to Claude Code
-  (`leaf-state.d.ts`), such as the values it keeps in `$.state`, and the Pi
-  extension `pi.ts`.
+  module `claude-code.ts`, and the Pi extension `pi.ts`.
 - `evals/`: cases that score the shipped instructions by what a headless agent does
   with them, and experiments with their own Promptfoo configs (`dev/AGENTS.md`,
   "Experiments").

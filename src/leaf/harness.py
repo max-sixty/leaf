@@ -84,7 +84,7 @@ class Harness:
       held no page when that turn's prompt came. Then nothing watches, as when a
       watch fails, reaches its hook's timeout or loses a background job's retired
       worker, while the session lives on, which is why this is the harness with a
-      `nudge` (`presence.nudge_interrupted`).
+      `nudge` (`presence.nudge_left`).
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -391,9 +391,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
     A subagent the session spawns runs its shell commands in the session's own
     environment, with nothing that names the subagent (measured at 2.1.317), so a
     command it runs acts for the session; only a hook's payload names it
-    (`agent_id`, `state.worker_tool_batch`). A fork Leaf gave a thread's work names
-    its own turn in its `leaf` commands, as Leaf's prompt tells it, so they act in
-    that turn (`state.acting_agent_turn`)."""
+    (`agent_id`, `state.worker_tool_batch`), a fork of the conversation's too
+    (measured at 2.1.329)."""
 
     job: str | None = None
 

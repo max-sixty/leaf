@@ -217,8 +217,6 @@ class LeafGroup(click.Group):
         from leaf.refusals import Refused
 
         try:
-            if (ctx.obj or {}).get("turn"):
-                _refuse_a_turn_not_open()
             return super().invoke(ctx)
         except Refused as error:
             reason = sandbox_refusal(error) or str(error)
@@ -249,7 +247,6 @@ class LeafGroup(click.Group):
 
             record_command(
                 invocation.get("leaf_command", ""),
-                turn=invocation.get("turn"),
                 refused=invocation.get("refused"),
             )
 
@@ -299,49 +296,7 @@ class LeafGroup(click.Group):
         sys.exit(status)
 
 
-def _refuse_a_turn_not_open() -> None:
-    """Refuse a command naming a turn that isn't one of its session's open agent
-    turns, or run where no session is, whatever the command
-    (`state.acting_agent_turn`), so a fork resumed or running late acts neither in
-    its closed turn nor as the main thread. The command names no page yet, so its
-    refused record goes to each page the session holds."""
-    from leaf.harness import session_harness
-    from leaf.interaction_log import acting_on
-    from leaf.refusals import Refused
-    from leaf.service import owned_pages
-    from leaf.state import acting_agent_turn
-
-    session = harness.session if (harness := session_harness()) else None
-    try:
-        acting_agent_turn(session)
-    except Refused:
-        for page_dir in owned_pages(session) if session else []:
-            acting_on(page_dir)
-        raise
-
-
-def _acting_turn(ctx: click.Context, _param: click.Parameter, value) -> None:
-    """Run the command in the agent turn `value` of its session, for this command
-    alone (`state.acting_in`). Its diagnostics name the turn (`record_command`), and
-    a turn that isn't open has the command refused (`_refuse_a_turn_not_open`)."""
-    if not value:
-        return
-    from leaf.state import acting_in
-
-    ctx.with_resource(acting_in(value))
-    ctx.ensure_object(dict)["turn"] = value
-
-
 @click.group(cls=LeafGroup)
-@click.option(
-    "--turn",
-    metavar="TURN",
-    expose_value=False,
-    is_eager=True,
-    hidden=True,
-    callback=_acting_turn,
-    help="Act in this agent turn of the session, which Leaf gives a fork it starts.",
-)
 @click.option(
     "--version",
     is_flag=True,
@@ -1669,13 +1624,15 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     "--text", "line", required=True, help="what you are doing, in one sentence"
 )
 def task_start(page_dir: Path, item: str, line: str) -> dict:
-    """Mark ID Working for this turn, with --text saying what you are doing.
+    """Mark ID Working, with --text saying what you are doing.
 
     ID is the event id of a user update you owe, as its delivery names it, or an
     open to-do's id. --text names the work and its subject in one sentence; it shows
     beside the update or to-do and in Leaf's panel. Your answer to the update, or the
-    to-do's end, ends the start. If your turn ends first, the update or to-do reads stalled
-    until you answer it or start it again."""
+    to-do's end, ends the start. The start lasts through your turn, and after it while
+    your harness reports agents you started working in the background, as Claude Code
+    does. Once nothing holds it, the update or to-do reads stalled until you answer it
+    or start it again."""
     from leaf.todos import cmd_start
 
     return cmd_start(page_dir, item, line)

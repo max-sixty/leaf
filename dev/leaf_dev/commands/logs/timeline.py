@@ -11,32 +11,27 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
 - the page's log and diagnostics (`leaf.interaction_log.read_interactions`): each
   message and the agent's words, pickups and receipts, and the records Leaf's hooks
   and commands leave: `fork_admission`, whether admission kept a message back for a line
-  fork or a running fork turn held it, and where neither, whether the session's fork
+  fork or a running line turn held it, and where neither, whether the session's fork
   lane was up, with why not by the session's last `follower` note
   (`leaf.hooks.cmd_pages`); `fork_asked`,
   as Leaf gave a line fork its question; `fork_outcome`, what came of it
-  (`leaf.forks`), a working fork's turn and agent among it; `turn_end_check`, the
-  clerk's fork (`leaf.clerk`); `leaf_command`, with the agent turn it named
-  (`leaf --turn`) and the error where Leaf refused it; and `watch`
+  (`leaf.forks`); `turn_end_check`, the
+  clerk's fork (`leaf.clerk`); `leaf_command`, with the error where Leaf refused it;
+  and `watch`
   (`leaf.interaction_log`); and the browser's own `event_submit` and
   `reply_visible`;
 - each Claude Code session the page names: its transcript, from `claude/` in the PAGE
   directory, where a journey keeps it, or Claude Code's configuration directory
   (`CLAUDE_CONFIG_DIR`, else `~/.claude`), with its turns, the Leaf input its hooks
-  carried, its `leaf` commands, and the subagents beside its transcript, a fork Leaf
-  spawned among them with the `leaf` commands it ran and the input its tool boundaries
-  carried; and its debug log, `debug.log` in the PAGE directory or
+  carried, its `leaf` commands, and the subagents beside its transcript, a fork it
+  spawned for a thread among them, with the `leaf` commands each ran; and its debug
+  log, `debug.log` in the PAGE directory or
   `debug/<session>.txt` in Claude Code's, which only a session started with `--debug`
   or `--debug-file` writes, with the hooks module's own lines (`Leaf: …`);
-- each such session's agent turns as this machine's state home holds them now
-  (`leaf.state.AGENT_TURNS`): each turn's agent, the threads it took on the page,
-  when it opened and was last renewed, and whether it runs, closed or lapsed
-  (`leaf.activity.agent_turn_state`), so the header says whether a fork is
-  running or stuck.
-
-A pickup, start or reply in the turn of a fork that took a thread's work, and a
-command that fork ran, name the fork by its agent id, so a message's story shows
-which agent of the session had it.
+- each such session's line turns as this machine's state home holds them now
+  (`leaf.state.AGENT_TURNS`): the threads each held on the page, when it opened, and
+  whether it runs, closed or lapsed, so the
+  header says whether a line fork is running or stuck.
 
 `--message ID` keeps one message's story: from its admission to its answer, or ten
 minutes on where it has none, its thread's events and everything the sessions did
@@ -57,21 +52,14 @@ from pathlib import Path
 
 import click
 
-from leaf.activity import agent_turn_state, running_agent_turns
+from leaf.activity import running_agent_turns
 from leaf.event_log import read_stored_events
-from leaf.events import build_threads, is_answer
+from leaf.events import is_answer
 from leaf.harness import claude_code_config
-from leaf.holding import reading, rounds
 from leaf.hook_transport import inline_delivery
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
-from leaf.state import (
-    agent_turn_open,
-    agent_turns,
-    now_iso,
-    session_live,
-    session_record,
-)
+from leaf.state import agent_turn_open, agent_turns, now_iso, session_record
 from leaf.thread_context import thread_names
 from leaf_dev.page_timings import page_timings
 from leaf_dev.reply_phases import (
@@ -124,15 +112,6 @@ def page_entries(
     lines = {
         row["line"] for row in rows if row["type"] == "fork_outcome" and "line" in row
     }
-    forks = [row for row in rows if row["type"] == "fork_outcome"]
-    # The agent id that runs each turn Leaf opened for a fork that took a thread's
-    # work: a spawned fork's from its start (`leaf.forks.started`), a resumed one's
-    # from the take that resumed it.
-    agents = {
-        row["turn"]: row["agent"] if row.get("step") == "start" else row["resume"]
-        for row in forks
-        if row.get("step") == "start" or "resume" in row
-    }
     sessions: set[str] = set()
     out = []
     for row in rows:
@@ -143,9 +122,7 @@ def page_entries(
             event = row["event"]
             if session := event.get("session"):
                 sessions.add(session)
-            if (
-                shown := event_entry(event, threads, messages, lines, agents)
-            ) is not None:
+            if (shown := event_entry(event, threads, messages, lines)) is not None:
                 out.append(shown)
         elif kind == "fork_admission":
             out.append(
@@ -201,7 +178,7 @@ def page_entries(
                     row["started"],
                     "leaf",
                     f"leaf {row['command']} ({row['durationMs']:.0f} ms)"
-                    + in_turn(row.get("turn"), agents)
+                    + in_turn(row.get("turn"))
                     + (
                         f" refused: {clip(row['refused'], 80)}"
                         if "refused" in row
@@ -249,7 +226,6 @@ def event_entry(
     threads: dict,
     messages: AbstractSet[str],
     lines: set,
-    agents: dict[str, str],
 ) -> dict | None:
     kind, author, at = event["kind"], event.get("author"), event["ts"]
     identity = event["id"]
@@ -275,14 +251,14 @@ def event_entry(
             at,
             "leaf",
             f"pickup {event['phase']} of {', '.join(event['events'])}"
-            + in_turn(event.get("turn"), agents),
+            + in_turn(event.get("turn")),
             session=event.get("session"),
         )
     if kind == "start":
         return entry(
             at,
             "agent",
-            f"started {event['item']}{in_turn(event.get('turn'), agents)}: "
+            f"started {event['item']}{in_turn(event.get('turn'))}: "
             f"“{clip(event.get('text'), 70)}”",
             thread=threads.get(event["item"]),
         )
@@ -300,8 +276,7 @@ def event_entry(
         return entry(
             at,
             "agent",
-            f"{said}{in_turn(event.get('turn'), agents)}: "
-            f"“{clip(event.get('text'), 70)}”",
+            f"{said}{in_turn(event.get('turn'))}: “{clip(event.get('text'), 70)}”",
             thread=thread,
         )
     if kind == "thread_title":
@@ -326,14 +301,10 @@ def event_entry(
     return entry(at, author or "page", kind, thread=thread)
 
 
-def in_turn(turn: str | None, agents: dict[str, str]) -> str:
-    """Which turn a pickup, start, reply or command names: a fork's, by the fork's
-    agent id, or the session's main thread's."""
-    if not turn:
-        return ""
-    if turn in agents:
-        return f" in agent {agents[turn]}'s turn {turn[:8]}"
-    return f" in turn {turn[:8]}"
+def in_turn(turn: str | None) -> str:
+    """Which turn a pickup, start, reply or command names, a line turn's or the
+    session's main thread's."""
+    return f" in turn {turn[:8]}" if turn else ""
 
 
 def without_lane(admission: dict, followers: list[dict]) -> str:
@@ -355,12 +326,11 @@ def without_lane(admission: dict, followers: list[dict]) -> str:
 
 
 def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> list[str]:
-    """Each agent turn of `session` as this machine's state home holds it now
-    (`leaf.state.AGENT_TURNS`): a line turn, or a fork's by its agent, the threads it
-    took on the page, when it opened and was last renewed, and whether it runs,
-    closed or lapsed: open but believed running no longer
-    (`leaf.activity.agent_turn_state`). Only the turns that took `thread`, where one
-    is given."""
+    """Each line turn of `session` as this machine's state home holds it now
+    (`leaf.state.AGENT_TURNS`): the threads its held pickups took on the page, when it
+    opened, and whether it runs, closed or lapsed: open but believed running no
+    longer (`leaf.activity.running_agent_turns`). Only the turns that took `thread`,
+    where one is given."""
     record = session_record(session)
     turns = agent_turns(session)
     running = running_agent_turns(
@@ -368,66 +338,39 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         True,
         datetime.now().astimezone(),
     )
-    holding = reading(
-        events,
-        session,
-        turns,
-        running,
-        live=session_live(record),
-        found=rounds(events, build_threads(events, {})),
-    )
+    names = thread_names(events)
     lines = []
     for turn, held in sorted(turns.items(), key=lambda item: item[1]["opened"]):
-        took = sorted(holding.took.get(turn, ()))
+        took = sorted(
+            {
+                names[input_id]
+                for event in events
+                if event["kind"] == "pickup" and event.get("turn") == turn
+                for input_id in event["events"]
+                if input_id in names
+            }
+        )
         if thread is not None and thread not in took:
             continue
-        state = agent_turn_state(turn, turns, running)
         shown = (
-            f"closed {local(held['closed']):%H:%M:%S}" if state == "closed" else state
-        )
-        named = (
-            f"line turn {turn[:8]}"
-            if held["role"] == "line"
-            else f"agent turn {turn[:8]} of {held['agent'] or 'an agent not yet named'}"
+            f"closed {local(held['closed']):%H:%M:%S}"
+            if held["closed"] is not None
+            else "running"
+            if turn in running
+            else "lapsed"
         )
         lines.append(
-            f"{named} on {', '.join(took) or 'no thread here'}: opened "
-            f"{local(held['opened']):%H:%M:%S}, renewed "
-            f"{local(held['renewed']):%H:%M:%S}, {shown}"
+            f"line turn {turn[:8]} on {', '.join(took) or 'no thread here'}: opened "
+            f"{local(held['opened']):%H:%M:%S}, {shown}"
         )
     return lines
 
 
 def fork_entries(row: dict) -> list[dict]:
-    """A `fork_outcome` record as its fork's start, where its time says when, and its
-    end; for a fork that took a thread's work, the agent that runs its turn and the
-    turn's end."""
+    """A `fork_outcome` record as its line fork's start, where its time says when,
+    and its end."""
     at, thread = row["ts"], row["thread"]
     elapsed = row.get("elapsedMs")
-    step = row.get("step")
-    if step == "end":
-        took = f" after {elapsed / 1000:.1f} s" if elapsed is not None else ""
-        who = f"agent {row['agent']}" if row.get("agent") else "a working fork"
-        return [
-            entry(
-                at,
-                "fork",
-                f"{who}'s turn ended{took}: {row['outcome']}"
-                + (f" ({row['why']})" if row.get("why") else "")
-                + (f", opening {', '.join(row['todos'])}" if row.get("todos") else ""),
-                thread=thread,
-            )
-        ]
-    if step == "start":
-        return [
-            entry(
-                at,
-                "fork",
-                f"agent {row['agent']} runs turn {row['turn'][:8]}"
-                + ("" if row["outcome"] == "start" else " (closed)"),
-                thread=thread,
-            )
-        ]
     out = []
     if elapsed is not None:
         began = (interaction_time(at) - timedelta(milliseconds=elapsed)).isoformat()
@@ -437,14 +380,8 @@ def fork_entries(row: dict) -> list[dict]:
         if "line" in row
         else row.get("why") or row.get("refused") or ""
     )
-    work = f", work {row['work']}" if "work" in row else ""
     took = f" in {elapsed / 1000:.1f} s" if elapsed is not None else ""
-    agent = f", resuming agent {row['resume']}" if "resume" in row else ""
-    if "turn" in row:
-        agent += f" in turn {row['turn'][:8]}"
-    out.append(
-        entry(at, "fork", f"{row['outcome']}{agent}{took}{work}: {said}", thread=thread)
-    )
+    out.append(entry(at, "fork", f"{row['outcome']}{took}: {said}", thread=thread))
     return out
 
 
@@ -609,8 +546,8 @@ def subagent_entries(meta: Path, session: str) -> list[dict]:
         ),
         "",
     )
-    # What the agent did on the page: the `leaf` commands it ran, and the input its
-    # tool boundaries carried (`leaf.hook_transport.carry_agent_turn`).
+    # What the agent did on the page: the `leaf` commands it ran, and any input a
+    # hook handed it, which Leaf's hooks never do (`leaf.state.worker_tool_batch`).
     done = []
     for record in dated:
         if record.get("type") == "assistant":
@@ -674,7 +611,7 @@ def debug_entries(log: str, session: str, *, calls: bool) -> list[dict]:
 
 def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
     """One message's steps, in seconds after its admission: whether admission kept
-    it back or a fork turn held it (`kept`, its `fork_admission` notes), and why it
+    it back or a line turn held it (`kept`, its `fork_admission` notes), and why it
     found no fork lane (`followers`, `without_lane`), what its fork did, and the
     page's and the session's steps on it (`row`, `page_timings`' reading of it)."""
     marks = row["milestones"]
@@ -697,18 +634,13 @@ def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
     )
     if (fork := row["fork"]) is not None:
         took = f" {fork['elapsed_s']:.1f}s" if fork["elapsed_s"] is not None else ""
-        told += f"fork {fork['outcome']}{took}" + (
-            f" ({clip(fork['why'], 50)})" if fork["why"] else ""
+        told += (
+            f"fork {fork['outcome']}"
+            + took
+            + (f" ({clip(fork['why'], 50)})" if fork["why"] else "")
         )
     elif note is None or note["kept_back"]:
         told += "no fork"
-    if (work := row["work"]) is not None:
-        took = (
-            f" after {work['elapsed_s']:.1f}s" if work["elapsed_s"] is not None else ""
-        )
-        told += f" · its fork's turn ended{took}: {work['outcome']}" + (
-            f", {work['todos']} to-do" if work["todos"] else ""
-        )
     pickup = row.get("pickup") or {}
     cause = (
         f" ({pickup['cause']}"

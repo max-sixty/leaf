@@ -209,18 +209,15 @@
           "type": "boolean"
         },
         "agent_turns": {
-          "description": "The turns of the agents the claimant's session runs beside its main thread, line turns and working forks', that are open and not yet lapsed or that the page's log names, by turn id: its role, the agent's id in its harness, or null until the harness starts it, when each opened and was last renewed, and when it closed or null while it is open (`state.agent_turn_stamps`).",
+          "description": "The line turns the claimant's session runs beside its main thread that are open and not yet lapsed, by turn id: when each opened, and when it closed, null while it is open (`state.agent_turn_stamps`).",
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "role": { "enum": ["line", "fork"] },
-              "agent": { "type": ["string", "null"] },
               "opened": { "type": "string" },
-              "renewed": { "type": "string" },
               "closed": { "type": ["string", "null"] }
             },
-            "required": ["role", "agent", "opened", "renewed", "closed"],
+            "required": ["opened", "closed"],
             "additionalProperties": false
           }
         },
@@ -600,7 +597,7 @@
           ]
         },
         "started_by": {
-          "description": "The starts that take the update in hand, which the Stop hook reads.",
+          "description": "The starts that take the update in hand, from which the hooks read whether one holds it now (`activity.in_hand`).",
           "type": "array",
           "items": {
             "type": "object",
@@ -608,9 +605,10 @@
               "item": { "type": "string" },
               "session": { "type": ["string", "null"] },
               "turn": { "type": ["string", "null"] },
-              "seq": { "type": "integer" }
+              "seq": { "type": "integer" },
+              "ts": { "type": "string" }
             },
-            "required": ["item", "session", "turn", "seq"],
+            "required": ["item", "session", "turn", "seq", "ts"],
             "additionalProperties": false
           }
         },

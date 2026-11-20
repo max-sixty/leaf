@@ -20,12 +20,13 @@
  *   status. The leaf's tone, counts and accessible name stay live, and notices
  *   answering a gesture show immediately.
  * - **The row**: the comment field, and at its end the leaf, coloured by the agent's
- *   state, counting what waits on the user beside its mark, with a dot while a thread
- *   holds a reply they have not read. A press on it opens the On view on the tab those
- *   marks point at (`leafOpens`), so the leaf is both the way to the menu and to what
- *   waits on the user. The user chose this over the leaf at the row's start and an On Me
- *   mark at its end, two marks opening one view's tabs; the leaf at the end stands on
- *   the side it folds to. While a search or a stance stands, the ✕ that ends it stands
+ *   state, counting what waits on the user on a badge over its corner, with a dot
+ *   while a thread holds a reply they have not read, as it does folded. A press on it
+ *   opens the On view on the tab those marks point at (`leafOpens`), so the leaf is
+ *   both the way to the menu and to what waits on the user. The user chose this over
+ *   the leaf at the row's start and an On Me mark at its end, two marks opening one
+ *   view's tabs, and over a leaf that always opens the menu, which put On Me two
+ *   presses away; the leaf at the end stands on the side it folds to. While a search or a stance stands, the ✕ that ends it stands
  *   between the field and the leaf, so the stance always has a way out on screen, and
  *   the leaf keeps its place, since it says the agent's state and leads to the rest. A
  *   stance owns the
@@ -919,20 +920,17 @@ export function createFloatingPanel({
               @click=${pressLeaf}
             >
               ${marks(
-                html`<span class="lf-fp-num" aria-hidden="true">${onUser || ""}</span
-                  ><span class="lf-badges" aria-hidden="true"
-                    ><span class="lf-fp-error-dot" ?data-lf-shown=${unseen}></span
-                    ><span
-                      class="lf-fp-news-dot lf-unread-dot"
-                      ?data-lf-shown=${news > 0 || kept > 0}
-                      ?data-lf-drafts=${!news}
-                    ></span
-                    ><span
-                      class="lf-fp-badge lf-badge-count"
-                      ?data-lf-shown=${onUser > 0}
-                      >${onUser || ""}</span
-                    ></span
-                  >`,
+                html`<span class="lf-badges" aria-hidden="true"
+                  ><span class="lf-fp-error-dot" ?data-lf-shown=${unseen}></span
+                  ><span
+                    class="lf-fp-news-dot lf-unread-dot"
+                    ?data-lf-shown=${news > 0 || kept > 0}
+                    ?data-lf-drafts=${!news}
+                  ></span
+                  ><span class="lf-fp-badge lf-badge-count" ?data-lf-shown=${onUser > 0}
+                    >${onUser || ""}</span
+                  ></span
+                >`,
               )}
             </button>
           </div>

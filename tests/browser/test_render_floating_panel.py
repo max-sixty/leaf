@@ -4129,7 +4129,7 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     Undo takes the answer back."""
     page = floating(browser, serve(OBLIGATION_PAGE))
     leaf = page.locator(".lf-fp-leaf")
-    expect(leaf.locator(".lf-fp-num")).to_have_text("2")
+    expect(leaf.locator(".lf-fp-badge")).to_have_text("2")
     leaf.click()
     view = page.locator(panel_view("queue"))
     # While the view stands, its On Me tab carries the count the leaf does.
@@ -4537,8 +4537,8 @@ def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode takes the
     row: the field says the status and takes no words, its end offers Close and esc,
     the mode's way out, rather than Next On Me, and its mode chip names the mode in a
-    word beside the ✕, which stands a symbol wide between the field and the leaf, the
-    leaf keeping its place; the ✕ leaves the mode.
+    word beside the ✕, which stands a symbol wide at the field's end, as far off the
+    leaf as the field stood, the leaf keeping its place; the ✕ leaves the mode.
     A press on the field leaves the caret where it was and moves neither the field nor
     its ✕, and `c`, which would write there, leaves it too. A thread opened in the mode,
     as Threads is, closes before the mode on Escape, since it came last. Annotations
@@ -4549,6 +4549,8 @@ def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
     page = floating(browser, serve(LONG_PAGE, comments=1))
     settled(page)
     leaf = page.locator(".lf-fp-leaf").bounding_box()
+    at_rest = page.locator(".lf-fp-field").bounding_box()
+    gutter = leaf["x"] - (at_rest["x"] + at_rest["width"])
     annotations = panel_menu(page, "annotate")
     expect(annotations.locator(".lf-fp-item", has_text="Capture area")).to_be_visible()
     pick = annotations.locator('.lf-fp-item[data-lf-row="command:target.picker.open"]')
@@ -4573,10 +4575,10 @@ def test_a_mode_entered_from_the_panel_owns_the_row(browser, serve):
     way_out = exit_step.bounding_box()
     assert (way_out["y"], way_out["height"]) == (leaf["y"], leaf["height"])
     box = page.locator(".lf-fp-field").bounding_box()
-    beside = way_out["x"] - (box["x"] + box["width"])
-    assert beside == pytest.approx(
-        leaf["x"] - (way_out["x"] + way_out["width"]), abs=0.5
+    assert leaf["x"] - (way_out["x"] + way_out["width"]) == pytest.approx(
+        gutter, abs=0.5
     )
+    assert way_out["x"] > box["x"] + box["width"]
     assert way_out["width"] == pytest.approx(way_out["height"], abs=0.5)
     stood = [box, way_out]
     field(page).click()
@@ -5142,10 +5144,9 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
 
 
 def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
-    """The leaf keeps its count's room whether or not it has a number, under a finger
-    as under a mouse, so a question arriving in a reply puts On Me's count in that room
-    and moves nothing beside it. Were the finger's larger aim floor to stand in place of
-    that room, the leaf would widen by the digit as the count came."""
+    """The leaf's count stands on a badge over its corner, under a finger as under a
+    mouse, so a question arriving in a reply shows On Me's count there and moves
+    nothing beside it."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Should the rollout wait?")
     context = browser.new_context(
@@ -5155,7 +5156,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
     field_box = page.locator(".lf-fp-field")
     on_me = page.locator(".lf-fp-leaf")
-    expect(on_me.locator(".lf-fp-num")).to_have_text("")
+    expect(on_me.locator(".lf-fp-badge")).to_have_text("")
     before = [box.bounding_box() for box in (field_box, on_me)]
     thread_model.post_reply(
         serve.page_dir,
@@ -5166,7 +5167,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         '<lf-option id="next">Next week</lf-option></lf-options></lf-group>',
     )
     told(page)
-    expect(on_me.locator(".lf-fp-num")).to_have_text("1")
+    expect(on_me.locator(".lf-fp-badge")).to_have_text("1")
     assert [box.bounding_box() for box in (field_box, on_me)] == before
 
 
@@ -5969,7 +5970,8 @@ def test_send_stands_in_the_field_s_corner_while_the_field_holds_a_draft(
     """Opening the field moves nothing in the row, so the field's end and the corner's
     action stand where typing will leave them, the leaf beside them; typing puts Send in
     that corner, wearing every composer's accent arrow rather than the panel's own press
-    face, and the field runs to the leaf; a line break is a draft as a word is. A press
+    face, and the field runs to the room the leaf's badges hang into; a line break is a
+    draft as a word is. A press
     that takes the caret away leaves the draft as it stands, Send and every line in
     place, and so does a press back into it."""
     page = floating(browser, serve(LONG_PAGE))
@@ -5998,7 +6000,7 @@ def test_send_stands_in_the_field_s_corner_while_the_field_holds_a_draft(
         "() => document.querySelector('.lf-fp-leaf').getBoundingClientRect().left"
         " - document.querySelector('.lf-fp-field').getBoundingClientRect().right"
     )
-    assert short <= 2, f"the drafted field stops {short}px short of the leaf"
+    assert short <= 8, f"the drafted field stops {short}px short of the leaf"
     assert leaf.bounding_box() == beside
     words = field(page).bounding_box()
     page.mouse.click(5, 5)

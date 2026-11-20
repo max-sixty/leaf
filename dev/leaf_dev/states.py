@@ -1337,7 +1337,7 @@ def option_answered(page: Page) -> None:
     """The panel's row once the server has read a pick that leaves more On Me, where the
     field's end offers the next item On Me lists."""
     page.locator("#off-release-hold").click()
-    expect(page.locator(".lf-fp-row .lf-fp-num")).to_have_text("2")
+    expect(page.locator(".lf-fp-row .lf-fp-badge")).to_have_text("2")
 
 
 def panel_resolved(page: Page) -> None:

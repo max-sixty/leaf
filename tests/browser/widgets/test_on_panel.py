@@ -1156,7 +1156,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-leaf > .lf-fp-num")).to_have_text("2")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("2")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
@@ -1167,7 +1167,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
         ["widget:ship", []],
         ["widget:timeline", [f"message:{reply}"]],
     ]
-    expect(page.locator(".lf-fp-leaf > .lf-fp-num")).to_have_text("2")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("2")
     held[0].continue_()
     page.unroute("**/api/event")
 

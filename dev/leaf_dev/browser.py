@@ -503,7 +503,7 @@ def scroll_settled(page, scroller=None, axis="y"):
 
 
 # The floating panel's row ends in the leaf, which counts what waits on the user
-# (`.lf-fp-num`) and dots a thread with news, and opens the On view on the tab those
+# on a badge over its corner (`.lf-fp-badge`) and dots a thread with news, and opens the On view on the tab those
 # marks point at (floating-panel.js, `leafOpens`). While a stance or search stands, its
 # way out (`.lf-fp-row > .lf-fp-exit`) stands before it. A view's Close
 # (`.lf-fp-exit.lf-fp-close`) ends a list's tabs or another view's head line instead.

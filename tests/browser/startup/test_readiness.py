@@ -336,7 +336,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     assert held, "the positive control did not hold the first state response"
     # The leaf stands on every page, and claims no count before the log has answered:
     # not the authored suggestion's 1, which the log has already decided.
-    expect(page.locator(".lf-fp-leaf > .lf-fp-num")).to_have_text("")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("")
     # The blanket answer claims no action before the first state answer.
     expect_panel_offers(page, "blanket:accept", offered=False)
 
@@ -351,7 +351,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     # Nothing waits on the user, which the leaf says by counting nothing.
-    expect(page.locator(".lf-fp-leaf > .lf-fp-num")).to_have_text("")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("")
     expect_obligations_answered(page, "1/1")
     expect_panel_offers(page, "blanket:accept", offered=False)
 

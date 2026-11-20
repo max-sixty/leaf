@@ -183,8 +183,8 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url, pin=True)
     leaf = "document.querySelector('.lf-fp-leaf')"
-    # What the leaf counts beside its mark.
-    owing = f"{leaf}.querySelector('.lf-fp-num').textContent"
+    # What the leaf counts on its badge.
+    owing = f"{leaf}.querySelector('.lf-fp-badge').textContent"
     expect_open_threads(page, 9)
     page_at_rest(page)
     owed = int(page.evaluate(f"() => {owing}"))

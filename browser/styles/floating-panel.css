@@ -209,38 +209,13 @@
     min-height: calc(2 * var(--lf-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   /* The leaf is a symbol (controls.css), a line tall, its mark a size up from an
-     action's symbol. At the row's end its count of what waits on the user stands
-     beside the mark, past the leaf's own box, in room the leaf keeps beside it whether
-     or not it has a number, so a count arriving moves nothing. The leaf is so one box
-     at the row's end and folded, which a fold carries whole, its badges with it.
-     Folded, the count stands in the badge over its corner instead (below). */
+     action's symbol. Its badges hang past its top-left corner (below), so it stands
+     the row's padding further off what precedes it, which keeps them clear of the
+     field's ring while the user writes. */
   .lf-fp-leaf {
     --lf-icon-action-face: var(--lf-line);
-    --lf-fp-count-room: 22px;
     flex: none;
-    margin-inline-end: var(--lf-fp-count-room);
-  }
-  /* The count wears the user's turn, and stands on the baseline of the field's words
-     beside it, as a message head's name stands on its time's (surfaces.css): its line
-     is a line of the field's face, from a strut, so both engines place the two
-     baselines alike. Centred on a line of its own, the smaller count stood higher. */
-  .lf-fp-leaf > .lf-fp-num {
-    position: absolute;
-    inset-block: 0;
-    inset-inline-start: 100%;
-    inline-size: var(--lf-fp-count-room);
-    display: flex;
-    flex-wrap: wrap;
-    align-content: center;
-    align-items: baseline;
-    color: var(--lf-turn-ink);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    line-height: 0;
-    &::before {
-      content: "\200b" / "";
-      font: var(--lf-font-message);
-    }
+    margin-inline-start: var(--lf-fp-row-pad);
   }
   .lf-fp-leaf > svg[data-lf-icon="leaf"] {
     inline-size: 19px;
@@ -271,12 +246,16 @@
   .lf-fp-error-dot[data-lf-shown] {
     display: inline-block;
   }
-  /* The leaf's badges (`.lf-badges`, controls.css): its dots for news and an error
-     inside its corner while the panel stands as a row, beside the count, and folded,
-     the count, news and error over its top edge. */
+  /* The leaf's badges (`.lf-badges`, controls.css): its count of what waits on the
+     user, a dot for news, faint grey for a put-away draft where nothing has news, and a
+     dot for an error, over its top edge, at the row's end as folded, so a fold carries
+     them as they stand. The user chose the folded leaf's badge for the row too, over
+     the count beside the mark in room the leaf kept for it, which crowded the row's
+     end. */
   .lf-fp-leaf > .lf-badges {
     position: absolute;
-    inset: 3px 3px auto;
+    inset: -3px -3px auto;
+    --lf-badge-reach: 3px;
     pointer-events: none;
   }
   .lf-badges > .lf-fp-error-dot {
@@ -861,6 +840,9 @@
       min-height: 0;
       padding: var(--lf-fp-fold-pad-block) var(--lf-fp-fold-pad-inline);
     }
+    .lf-fp-leaf {
+      margin-inline-start: 0;
+    }
     .lf-fp-leaf::after {
       inset: calc(-1 * var(--lf-fp-fold-pad-block))
         calc(-1 * var(--lf-fp-fold-pad-inline));
@@ -892,19 +874,6 @@
       transition: opacity var(--lf-motion-disclosure);
     }
   }
-  /* What waits on the user, on the leaf: a count, and a dot for news, faint grey for a
-     put-away draft where nothing has news (controls.css). Folded, the count leaves the
-     row's room by the mark for the badge over the corner. */
-  .lf-floating-panel[data-lf-rest="mark"] .lf-fp-leaf {
-    margin-inline-end: 0;
-    & > .lf-fp-num {
-      display: none;
-    }
-    & > .lf-badges {
-      inset: -3px -3px auto;
-      --lf-badge-reach: 3px;
-    }
-  }
   .lf-fp-leaf > .lf-badges > .lf-fp-badge,
   .lf-fp-leaf > .lf-badges > .lf-fp-news-dot {
     display: none;
@@ -916,10 +885,7 @@
     color: var(--lf-badge-ink);
   }
   .lf-fp-leaf > .lf-badges > .lf-fp-news-dot[data-lf-shown],
-  .lf-floating-panel[data-lf-rest="mark"]
-    .lf-fp-leaf
-    > .lf-badges
-    > .lf-fp-badge[data-lf-shown] {
+  .lf-fp-leaf > .lf-badges > .lf-fp-badge[data-lf-shown] {
     display: grid;
   }
 

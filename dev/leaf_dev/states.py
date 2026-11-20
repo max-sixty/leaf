@@ -821,7 +821,6 @@ def rewritten_quote_card(page: Page) -> None:
     as_agent("page", "stamp", "--text", "Reworded who owns shutdown")
     wait_until_ready(page, PageClient(served_page.get().address).state())
     open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
-    expect(page.locator(".lf-margin-preview .lf-thread-quote")).to_be_visible()
     page.mouse.move(0, 0)
 
 

@@ -66,8 +66,7 @@ all of it: the user's end (`userEnd`), the `case`, `comment` for the release ask
 `steps` for each step's duration and its comments' timings, and the code version
 the journey ran. A comment whose step held a permission prompt the user answered
 says so (`approved`), since the prompt held the session for as long as it stood. A
-comment a fork of the conversation decided on carries the fork's outcome, time and
-tokens (`fork`).
+comment a line fork ran on carries that fork's outcome, time and tokens (`fork`).
 
 A failure receipt ends the journey on the first ask
 (`worker/README.md` owns that contract).
@@ -1368,16 +1367,15 @@ class User:
         return deployment_answer(self.events(), self.ids[name]) is not None
 
     def fork(self, name: str) -> dict | None:
-        """The record of the last line fork of the session's conversation that decided
-        on step `name`'s comment, if one has: a working fork's start and end are
-        records of their own (`step`), which this leaves out."""
+        """The record of the last line fork that ran on step `name`'s comment, if one
+        has."""
         if self.forks is None:
             return None
         return next(
             (
                 record
                 for record in reversed(self.forks())
-                if self.ids[name] in record["inputs"] and "step" not in record
+                if self.ids[name] in record["inputs"]
             ),
             None,
         )
@@ -1405,7 +1403,7 @@ class User:
 
     def timing(self, name: str) -> str:
         """When step `name`'s comment was picked up and answered, after its
-        admission (`input_rows`), and what a fork that decided on it did."""
+        admission (`input_rows`), and what a line fork that ran on it did."""
         milestones = self.end.timings()[self.ids[name]]["milestones"]
         fork = self.fork(name)
         return (
@@ -1423,7 +1421,7 @@ class User:
         """The journey's reading: the user's end, the release ask's, and each step's
         duration and the timings of the comments it sent (`end.reading`), each marked
         with the permission prompts answered during its step. Where the journey runs
-        the session, each comment also carries what a fork that decided on it did,
+        the session, each comment also carries what a line fork that ran on it did,
         and its reply's breakdown as `input_rows` reads it with the session's whole
         record, read here: the call that replied ends after the reply does, and a
         record read while the session writes it can end in a partial line."""
@@ -1436,7 +1434,7 @@ class User:
             )
 
         def replied(name: str) -> dict:
-            """What a fork that decided on step `name`'s comment did, and where the
+            """What a line fork that ran on step `name`'s comment did, and where the
             session's reply to it went."""
             fork = self.fork(name)
             reading: dict[str, dict | None] = (
@@ -1490,9 +1488,9 @@ FORK_TOKENS = (
 
 
 def fork_summary(record: dict) -> str:
-    """A fork's `fork_outcome` record as a step prints it: what the fork did, in how
-    long, on how many tokens, and the working line it posted as it handed the
-    thread over, or Leaf's reason where Leaf handed it."""
+    """A line fork's `fork_outcome` record as a step prints it: what came of it, in how
+    long, on how many tokens, why no line went in where none did, and the line the
+    fork wrote where it answered."""
     usage = record.get("usage") or {}
     tokens = ", ".join(
         f"{usage[key]} {name}" for key, name in FORK_TOKENS if key in usage
@@ -1502,7 +1500,7 @@ def fork_summary(record: dict) -> str:
         + (f" after {record['elapsedMs']:.0f} ms" if "elapsedMs" in record else "")
         + (f" on {tokens} tokens" if tokens else "")
         + (f": {record['why']}" if "why" in record else "")
-        + (f': "{record["text"]}"' if "line" in record else "")
+        + (f': "{record["text"]}"' if "text" in record else "")
     )
 
 

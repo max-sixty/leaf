@@ -1,6 +1,8 @@
 """What a live revision's patch changes: the markup and words it rewrote, the nodes,
 widgets and editors it keeps, and the markup it releases."""
 
+import re
+
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
@@ -1077,8 +1079,8 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     )
     second = first.replace(reading, questions + reading)
     page = open_page(browser, live_url(serve(first, packages=("diff",))))
-    door = page.locator(".lf-fp-on-user")
-    expect(door).to_have_attribute("aria-label", "On Me")
+    door = page.locator(".lf-fp-leaf")
+    expect(door).to_have_attribute("aria-label", re.compile(r"^Page menu · "))
     target = (
         page.locator("#reading")
         if subject != "diff"
@@ -1096,7 +1098,9 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     # An empty but open composer was sufficient to hold the original report.
     (serve.page_dir / "index.html").write_text(second)
     expect(page.locator("lf-options")).to_have_count(3)
-    expect(door).to_have_attribute("aria-label", "On Me: 3")
+    expect(door).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · 3 waiting on me · ")
+    )
     if subject == "selection":
         assert (
             page.evaluate("getSelection().toString().trim()")
@@ -1112,7 +1116,9 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     (serve.page_dir / "index.html").write_text(first)
     expect(page.locator("lf-options")).to_have_count(0)
     # With nothing on the user, the door names the comment they are writing.
-    expect(door).to_have_attribute("aria-label", "On Me, 1 draft unsent")
+    expect(door).to_have_attribute(
+        "aria-label", re.compile(r"^Threads · 1 draft unsent · ")
+    )
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property(
         "value", "Keep this comment while questions change."
@@ -1142,16 +1148,16 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page.locator("#subject p")).to_have_count(1)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", "On Me, 1 draft unsent"
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Threads · 1 draft unsent · ")
     )
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "This occurrence matters.")
 
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", "On Me: 1, 1 draft unsent"
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · 1 waiting on me, 1 draft unsent · ")
     )
 
 
@@ -1211,7 +1217,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     )
     page = open_page(browser, live_url(serve(first)))
     expect_obligations_answered(page, "0/3")
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
     cards = f"{panel_view('queue')} .lf-fp-on-item"
     expect(page.locator(cards)).to_have_count(3)
@@ -1247,7 +1253,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     expect(page.locator(cards)).to_have_count(2)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
     expect(page.locator(cards)).to_have_count(2)
     assert asked() == [

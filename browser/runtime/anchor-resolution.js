@@ -42,6 +42,7 @@ import {
   pageText,
   readingPart,
   readingFrom,
+  runReading,
   readingHolding,
   rangeOf,
   segmentsIn,
@@ -120,23 +121,25 @@ export const projectedDatum = (source, key) => {
 // What an anchor's datum is called: the label its projection gave the element drawn
 // for it, found as resolution finds it, or for a datum its lazy widget has not drawn,
 // what that widget calls it (`lfDatumLabel`), so a thread on a line of a closed file
-// is named as its row would be. It reads the page's nodes (`currentDatums`), so a paint
-// that draws it follows the document changing, as a projection relabelling it does.
+// is named as its row would be. A passage across data is named by its first datum and
+// its last. It reads the page's nodes (`currentDatums`), so a paint that draws it
+// follows the document changing, as a projection relabelling it does.
 /** @param {Anchor | null | undefined} anchor */
 export function datumLabel(anchor) {
   if (!anchor?.datum) return "";
   const source = sectionOf(anchor);
-  const datums = currentDatums(
-    source,
-    anchor.datum,
-    anchor.identity ?? null,
-    anchor.source ?? null,
-  );
-  const [datum] = datums;
-  const label = datum
-    ? datums.length === 1 && datum.getAttribute("data-lf-datum-label")
-    : source?.lfDatumLabel?.(anchor.datum);
-  return typeof label === "string" ? label.trim() : "";
+  /** @param {string} key @param {string | null} identity */
+  const labelOf = (key, identity) => {
+    const datums = currentDatums(source, key, identity, anchor.source ?? null);
+    const [datum] = datums;
+    const label = datum
+      ? datums.length === 1 && datum.getAttribute("data-lf-datum-label")
+      : source?.lfDatumLabel?.(key);
+    return typeof label === "string" ? label.trim() : "";
+  };
+  const last = labelOf(anchor.datum, anchor.identity ?? null);
+  const first = anchor.from ? labelOf(anchor.from, null) : "";
+  return first && last ? `${first} – ${last}` : last;
 }
 
 /** @param {Element} source @param {string} key */
@@ -178,13 +181,23 @@ export const addressedFocus = (source, key) =>
 // Travel's half of that key space: ask the widget to draw what a key addresses before
 // anything reads it. A visual part drawn only in another state is drawn now, as
 // `registerVisualParts` promises; a lazy datum answers with its hydration promise. Every
-// travel to a part of a widget asks this, a thread's anchor (`anchor.visual` or
-// `anchor.datum`) and a module's `navigateToDatum` key alike, so neither route reaches a
-// part the other cannot.
+// travel to a part of a widget asks this, for a thread's anchor (`revealAnchor`) and a
+// module's `navigateToDatum` key alike, so neither route reaches a part the other
+// cannot.
 /** @param {Element} source @param {string} key */
 export function revealAddressed(source, key) {
   if (revealVisualPart(source, key)) return null;
   return source.lfRevealDatum?.(key) ?? null;
+}
+
+// The same for each part of a widget an anchor names: its visual part, or each datum,
+// the one a passage across data starts in (`from`) as well as `datum`.
+/** @param {Element} source @param {Anchor} anchor */
+export function revealAnchor(source, anchor) {
+  const asked = [anchor.visual, anchor.from, anchor.datum].flatMap((key) =>
+    key ? [revealAddressed(source, key)] : [],
+  );
+  return asked.some((hydration) => hydration?.then) ? Promise.all(asked) : null;
 }
 
 // A generated visual part keeps an id its provider's declaration admits.
@@ -377,7 +390,7 @@ const addressableAimTarget = (addressable) => ({
 // The one coordinate minted from a projected datum. Pointer aim, passage capture, and
 // widget-local comment affordances all pass through this function so source provenance
 // cannot disappear merely because the gesture began in generated UI rather than text.
-/** @param {Element} datum @param {{quote?: string}} [fields] @returns {Anchor | null} */
+/** @param {Element} datum @param {{quote?: string, from?: string}} [fields] @returns {Anchor | null} */
 const anchorForDatum = (datum, fields = {}) => {
   const section = datum.getAttribute("data-lf-projection");
   const key = datum.getAttribute("data-lf-datum");
@@ -393,6 +406,13 @@ const anchorForDatum = (datum, fields = {}) => {
     ...(identity ? { identity } : {}),
   };
 };
+
+// Whether a widget drew two datums from one value: the same projection, source and
+// revision, which both ends of a passage across its data share.
+const DRAWN = ["data-lf-projection", "data-lf-source", "data-lf-source-revision"];
+/** @param {Element} a @param {Element} b */
+const drawnTogether = (a, b) =>
+  DRAWN.every((name) => a.getAttribute(name) === b.getAttribute(name));
 
 /** @param {Node | null} datum @returns {AimTarget | null} */
 export function datumAimTarget(datum) {
@@ -420,7 +440,6 @@ export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
 /** @param {import("./passages.js").Segment[]} selected @param {Node} node @returns {CapturedAnchor | null} */
 export function anchorForPassage(selected, node) {
-  const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
   // The passage is the selection's words: a drag from a paragraph's end into a
   // document's first line holds the newline between them, which is neither's word.
   /** @param {import("./passages.js").Segment} segment */
@@ -428,35 +447,60 @@ export function anchorForPassage(selected, node) {
   const from = selected.findIndex(says);
   const to = selected.findLastIndex(says);
   const segments = from < 0 ? [] : selected.slice(from, to + 1);
+  // The words, not the range, say which element holds the passage: a triple-click in
+  // Chromium, or a drag past an item's last word, ends the range at the next item's
+  // start, whose common ancestor is the list. Named by the list, a passage a revision
+  // rewrites falls back to the whole list rather than the item that still stands.
+  const firstText = segments[0]?.node;
+  const lastText = segments.at(-1)?.node;
+  let holder = firstText
+    ? upFrom(firstText)
+    : node.nodeType === Node.ELEMENT_NODE
+      ? node
+      : upFrom(node);
+  while (holder && lastText && !under(lastText, holder)) holder = upFrom(holder);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm
   // context across their seam.
   const { text: quote, units } = readingFrom(segments);
-  const dataNodes = new Set(
-    segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean),
-  );
-  const [onlyDatum] = dataNodes;
+  /** @param {import("./passages.js").Segment | undefined} seg */
+  const datumOf = (seg) => (seg ? closestAcross(seg.node, DATUM) : null);
+  const first = datumOf(segments[0]);
+  const last = datumOf(segments.at(-1));
   const datum =
-    dataNodes.size === 1 &&
-    segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
-      ? onlyDatum
+    first && first === last && segments.every((seg) => datumOf(seg) === first)
+      ? first
       : null;
-  const projected = datum && anchorForDatum(datum);
+  // Words that start in one datum and end in a later one its widget drew from the same
+  // value, as a drag across two lines of a diff holds, name both: `datum` the last, which
+  // the thread stands beside as it would for a comment on that datum alone, and `from`
+  // the first.
+  const projected = datum
+    ? anchorForDatum(datum)
+    : first && last && first !== last && drawnTogether(first, last)
+      ? anchorForDatum(last, { from: first.getAttribute("data-lf-datum") ?? "" })
+      : null;
   if (projected && !quote) return projected;
   const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
   if (!quote) return section === null ? null : { section };
-  // Words on both sides of a part's edge stand in no one reading, and no copy of them is
-  // found again, since every part is a passage cell of its own (passages.js, `pageText`).
+  // Other words on both sides of a part's edge stand in no one reading, and no copy of
+  // them is found again, since every part is a passage cell of its own (passages.js,
+  // `pageText`).
   if (!projected && segments.some((seg) => readingPart(seg.node)))
     return { section, quote, detached: true };
   // Identity is the context for projected data: the display values beside a datum may
   // reorder or repeat, so their words would make incidental layout a second,
   // conflicting answer to which datum the user selected. Its own words still tell
   // repeats within it apart, as the lines around each copy tell apart a line a text
-  // document holds twice, so a datum's context is read from its words alone, the
-  // reading `resolveAnchor` searches.
-  const reading = pageText(projected ? datum : null);
+  // document holds twice, so a datum's context is read from its words alone, and a
+  // run's from the words of the data it runs across (`runReading`): the reading
+  // `resolveAnchor` searches.
+  const reading = datum
+    ? pageText(datum)
+    : projected && first && last
+      ? runReading(first, last)
+      : pageText();
   const base = projected || { section };
   const [start, stop] = spanIn(reading, segments);
   for (let width = CONTEXT; ; width *= 2) {
@@ -850,6 +894,14 @@ export function aimTargets(options = {}) {
   });
 }
 
+// The datum a passage across data starts in: the one drawn for `key` from the value
+// `last` was drawn from, or null where none or several are.
+/** @param {Element | null} source @param {string} key @param {Element} last */
+function runStart(source, key, last) {
+  const first = projectedDatum(source, key);
+  return first && first !== last && drawnTogether(first, last) ? first : null;
+}
+
 /** @param {Anchor} anchor @returns {import("./resolved-target.js").ElementTarget | import("./resolved-target.js").PassageTarget | null} */
 export function resolveAnchor(anchor) {
   // Capture exhausted the selected occurrence's real fences without identifying it.
@@ -932,7 +984,25 @@ export function resolveAnchor(anchor) {
         exact: true,
         status: "exact",
       };
-    const segments = findQuote(pageText(datum), anchor.quote, anchor, datum);
+    // A passage across data is found in the words from the datum it starts in to this
+    // one, the last. While its widget hasn't drawn its first datum, as in a file the
+    // user closed, the passage stands on its last, as a datum not drawn stands on its
+    // widget; once that datum is gone, the passage is too.
+    const start = anchor.from ? runStart(source, anchor.from, datum) : datum;
+    if (!start) {
+      const virtual = anchor.from ? source?.lfDataDatum?.(anchor.from) : null;
+      if (!(virtual instanceof Element) || !under(virtual, source)) return null;
+      return {
+        ...resolvedElement({ element: datum }),
+        datumElement: null,
+        exact: false,
+        status: "fallback",
+      };
+    }
+    const segments =
+      start === datum
+        ? findQuote(pageText(datum), anchor.quote, anchor, datum)
+        : findQuote(runReading(start, datum), anchor.quote, anchor);
     const [first] = segments;
     if (!first && (anchor.prefix || anchor.suffix)) return null;
     return first

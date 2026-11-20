@@ -1131,8 +1131,7 @@ cases:
         transform: context.metadata.texts?.['evidence'] ?? ''
   # Advice alone wakes nobody (`render_gate.handover_pass`), so it reaches the agent
   # with the user's next message. A base arm with no render pass hears it as the page's
-  # error beside the same message. The message asks for work, since a fork of the
-  # conversation answers a question without waking the agent.
+  # error beside the same message.
   render-advice-with-comment:
     inputs:
       prompts:

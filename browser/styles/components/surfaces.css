@@ -1091,7 +1091,7 @@ summary {
   margin-bottom: 0;
 }
 /* A thread's disclosure, an inline press (controls.css): a summary's "N earlier
-   messages" at its head, and a retained quote's Full quote (floating-panel.js). */
+   messages" at its head. */
 .lf-thread-disclosure {
   display: inline-flex;
   align-items: center;
@@ -1380,19 +1380,22 @@ button.lf-thread-news {
   overflow: clip;
 }
 /* A quote of the words a thread is about, where its container asks for one, as the
-   floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
-   chrome and a thread drawn by a package's reader stands in the page, so the face is
-   stated here, where every surface reads it. Only the quoted words stand behind the
-   rule, which with the quiet ink says they are quoted, so they take no marks. Leaf's
-   words about them form a label over the rule in the status face: first a status word
-   in Leaf's italic (voice.js) where the page no longer reads as the quote does, such as
-   a passage a revision took out of the latest version, which a finger reads as a
-   pointer does (`quoteReading`), then where they stand (`anchorPlace`,
-   thread/messages.js). A thread on a place with no quoted words draws the label alone.
-   The words stand over the thread's messages in three lines, the whole on Full quote,
-   its press above the words it grows. The head only says what the thread is about,
-   since the container's way to the words, as the panel's Show on page, goes there: it
-   takes no press, no aim's room and no title. The rule stands on the thread's edge, and
+   floating panel's view does, or where the page no longer reads as the quote does
+   (thread-card.js, `#drawQuote`). The panel and a margin card stand in the chrome and a
+   thread drawn by a package's reader stands in the page, so the face is stated here,
+   where every surface reads it. Only the quoted words stand behind the rule, which
+   with the quiet ink says they are quoted, so they take no marks. Leaf's words about
+   them form a label over the rule in the status face: first a status word in Leaf's
+   italic (voice.js) where the page no longer reads as the quote does, such as a
+   passage a revision took out of the latest version, which a finger reads as a pointer
+   does (`quoteReading`), then where they stand (`anchorPlace`, thread/messages.js),
+   which a margin card's bracket already shows. A thread on a place with no quoted
+   words draws the label alone.
+   The words stand over the thread's messages in three lines. Where three lines cut
+   words the page no longer shows, the label is the press that opens them whole, above
+   the words it grows. The head only says what the thread is about, since the
+   container's way to the words, as the panel's Show on page, goes there: it takes no
+   other press, no aim's room and no title. The rule stands on the thread's edge, and
    the words and the label start on its text. */
 .lf-quote-label {
   margin: 0;
@@ -1426,19 +1429,24 @@ button.lf-thread-news {
   display: block;
   overflow: visible;
 }
-/* Full quote, an inline press (controls.css) at the quote's size, its disclosure's
-   marker before its word. Its reach (the aim floor, above) lies inside the scroller
-   holding the thread, as the panel's view, which clips what passes its 8px top
-   padding, so under a finger it stands low enough for the reach above it. */
-.lf-thread-quote-head > .lf-quote-expand {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+/* The label as the press that opens the quote, an inline press (controls.css) in the
+   label's quiet face (`data-lf-hint`). Its box starts on the quote's rule and its
+   disclosure arrow stands the arrow's usual gap before its words, so the words keep
+   the quote's edge whether or not the label takes a press, and its ring and reach take
+   in the arrow, which a panel's narrower inset stands just past the rule. Its
+   reach (the aim floor, above) lies inside the scroller holding the thread, as the
+   panel's view, which clips what passes its 8px top padding, so under a finger a label
+   that can take the press stands low enough for the reach above it. */
+.lf-quote-label[data-lf-opens] {
   margin-block-start: max(0px, (var(--lf-aim-floor) - 1lh) / 2 - 8px);
-  min-height: 0;
-  padding: 0;
 }
-.lf-thread-quote-head > .lf-quote-expand::before {
-  inline-size: 1em;
-  text-align: center;
+.lf-quote-label > .lf-quote-expand {
+  margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+  padding-inline-start: var(--lf-thread-text-inset);
+  text-align: start;
+}
+.lf-quote-label > .lf-quote-expand::before {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: calc(var(--lf-thread-text-inset) - 0.9em);
 }

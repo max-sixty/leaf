@@ -299,7 +299,8 @@ def test_undo_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve
     take back, read from the log rather than from the tab that made it: the leaf's
     menu names the thread they resolved and how long ago, and so does the undo's
     notice. An action is named in its own document's words, under the name the page
-    gives its widget."""
+    gives its widget. However long the words, the row stands on one line beside its
+    age, cut where the line runs out."""
     url = serve(UNDO_PAGE, comments=1)
     [comment] = [
         event["id"]
@@ -353,6 +354,29 @@ def test_undo_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve
         "Undo: chose “Keep the mounts” in “Should we keep the mounts?”"
     )
     expect(row.locator(".lf-fp-value")).to_have_text("just now")
+
+    # A comment's words run past the row's line: they stand on it cut, beside the
+    # age, and the row stands as tall as the menu's one-line rows.
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "The CLI exiting does not mean its background jobs have finished.",
+            "anchor": {"quote": "Second paragraph of the note."},
+        },
+    )
+    told(page)
+    row = panel_control(page, "command:history.undo")
+    label = row.locator(".lf-fp-label")
+    expect(label).to_have_text(
+        "Undo: commented “The CLI exiting does not mean its background…”"
+    )
+    expect(row.locator(".lf-fp-value")).to_have_text("just now")
+    assert label.evaluate("el => el.scrollWidth > el.clientWidth")
+    about = panel_control(page, "inspection")
+    assert row.bounding_box()["height"] == about.bounding_box()["height"]
 
 
 def _undos(page_dir):
@@ -2407,7 +2431,7 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     holding(page, held, 1, "the accepted suggestion")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
-    elsewhere = page.locator(".lf-fp-on-user")
+    elsewhere = page.locator(".lf-fp-leaf")
     elsewhere.focus()
     held.pop(0).continue_()
     round_trip(page)

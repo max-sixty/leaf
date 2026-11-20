@@ -328,6 +328,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         expect(editor).to_have_js_property("value", "First line")
         if edit == "mirrored":
             # The other tab, still holding the tall draft, mirrors these words in turn.
+            # Its moves are judged once they have painted, so the judgement waits for
+            # the words to reach it.
+            expect(other.locator(selector).locator("leaf-text")).to_have_js_property(
+                "value", "First line"
+            )
             consume_moves_below_the_reply(other)
         return
 

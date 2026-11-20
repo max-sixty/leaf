@@ -230,11 +230,11 @@ def diff_page(serve):
 def dial_page(serve, repeat=1):
     """The incident report example without its chart, with the words of the cause's
     first paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds
-    behind the section's gist. The places below were measured on the report's gists
-    alone: the chart, which Skim keeps, moves where each line stands and which block
+    behind the section's gist. The places below were measured on the report's words
+    alone: the chart, a gist Skim keeps, moves where each line stands and which block
     the browser anchors on."""
     source = named_source("incident-report").read_text()
-    chart = source.index('<figure id="incident-impact-chart">')
+    chart = source.index('<figure class="gist" id="incident-impact-chart">')
     source = (
         source[:chart] + source[source.index("</figure>", chart) + len("</figure>") :]
     )
@@ -782,7 +782,7 @@ def put_pane(page, built):
 def put_on_me_row(page, built):
     """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     rows = page.locator(".lf-fp-on-item")
     expect(rows).to_have_count(ASKS)
     rows.first.evaluate(
@@ -807,7 +807,7 @@ def put_on_me_turned_back(page, built):
     scrolled with the wheel past its first cards, the pointer resting on one in sight.
     Nothing the user does after the tab press repaints the panel, and no card holds a
     message for Leaf's reader to draw, so the list's next paint is the news's."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     cards = page.locator(".lf-fp-on-item")
     expect(cards).to_have_count(ASKS)
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")

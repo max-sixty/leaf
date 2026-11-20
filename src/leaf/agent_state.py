@@ -8,11 +8,7 @@ updates handed back to them among them; On <agent>
 inventory (`obligations`) also retains finished records, whatever their `status`.
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
-agent recovers what it owes without the delivery. Each thread's `holder` names who
-holds it (`holding.py`): the main thread, a line turn or a working fork, with whether
-that turn runs, closed or lapsed; and each obligation
-record's `holder` who on the agent's side owes it now (`holding.owed_by`), null for a
-record the agent doesn't owe. `source` states whether a document
+agent recovers what it owes without the delivery. `source` states whether a document
 is live and whether an invalid source save leaves the last valid version active. Its
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
@@ -168,6 +164,9 @@ def _base_state(
                 "title": thread["title"],
                 "anchor": thread["anchor"],
                 "detached_from": thread["detached_from"],
+                # The passage a version rewrote, which left the thread on its section:
+                # the words the thread is about once the page no longer shows them.
+                "rewritten_from": thread["rewritten_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for thread_id, thread in threads.items()
@@ -435,17 +434,11 @@ def page_state(
         _apply_thread_state(state, reading.thread, facts)
         served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
-        # taken in yet, at their current content version; and who on the agent's side
-        # has the thread.
+        # taken in yet, at their current content version.
         for thread in state["threads"]:
             thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
-            thread["holder"] = context.work.holding.hold(thread["id"]).holder
-        owing = {item["obligation"]: item["holder"] for item in folded["obligations"]}
-        state["obligations"] = [
-            {**record, "holder": owing.get(record["id"])}
-            for record in view["obligations"]
-        ]
+        state["obligations"] = view["obligations"]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]

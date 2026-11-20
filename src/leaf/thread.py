@@ -1,7 +1,8 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
 import json
-from dataclasses import dataclass, replace
+from collections.abc import Callable
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import NamedTuple, Never
@@ -478,13 +479,15 @@ class Receipt:
     """A writer that answers only what is still owed: a harness's failure receipt,
     or the working line a line fork of the agent's conversation posts (`forks`). An
     update that no longer owes an answer takes none. With `only_if_unclaimed`, an
-    update some turn already picked up is left to the writer following that turn. A
-    receipt's progress, such as the working line a line fork posts as it hands a
-    thread to the session, takes nothing in hand: its writer is not the turn that
-    will answer, and a start would read as that turn's, renewing it and holding the
-    update at Working before the session has it."""
+    update some turn already picked up is left to the writer following that turn.
+    With `fence`, the receipt writes only while `fence` holds of the page under the
+    lock its append takes, as a line goes in only while its round still awaits it. A
+    receipt's progress, such as a line fork's working line, takes nothing in hand: its
+    writer is not the turn that will answer, and a start would read as that turn's,
+    renewing it and holding the update at Working before the session has it."""
 
     only_if_unclaimed: bool = False
+    fence: Callable[[PageTransaction], bool] | None = None
 
 
 Settlement = Refuse | ProviderFinal | Receipt
@@ -557,8 +560,7 @@ def post_reply(
 
     ``claimed_session`` names the session Leaf writes for, as a line fork's working
     message or a harness's failure receipt: Leaf's own write, which goes in as the
-    claimant's and says nothing beside it. A command's own write says which fork or
-    line fork holds the thread it writes in (`holding.authorize`).
+    claimant's and says nothing beside it.
 
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
@@ -602,28 +604,6 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
-        from .forks import page_holding
-        from .holding import authorize, owed_by
-
-        # A fork may answer only what its turn holds, and write in no thread
-        # another turn took, and an ended one nothing; it asks first, so a refused
-        # fork is never handed another turn's answer as the repeat of its own. The
-        # main thread writes anywhere, and hears of a fork it writes beside. Only an
-        # answer, which responds to a message, takes the thread.
-        holding = page_holding(page)
-        responds = address.get("responds")
-        thread = (
-            holding.found.names.get(address["parent"])
-            if address.get("parent")
-            else None
-        )
-        beside = authorize(
-            page,
-            holding,
-            posting_identity.get("session"),
-            [responds] if responds else [],
-            thread,
-        )
         if attempt is not None and (
             repeated := _repeated_reply(
                 page.events, attempt, address, ephemeral, failure is not None
@@ -661,14 +641,8 @@ def post_reply(
             detach=detach,
             title=title,
         )
-        if beside is not None and addressed.responds is not None:
-            # Whether the answer took the thread, by the reading once it is in: one to
-            # an older message, or to a widget in one, leaves a message the fork
-            # picked up waiting, and the thread with the fork.
-            took = owed_by(page_holding(page).hold(thread).holder)["kind"] == "main"
-            beside = replace(beside, values={**beside.values, "answers": took})
     if claimed_session is None:
-        note(*([beside] if beside is not None else []), *addressed.advice)
+        note(*addressed.advice)
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))
@@ -872,10 +846,12 @@ def _resolve_obligation(
                     severity="advice",
                 )
             )
-    if (
-        isinstance(settlement, Receipt)
-        and settlement.only_if_unclaimed
-        and pickup_receipts(events, phase=None, input_id=responds)
+    if isinstance(settlement, Receipt) and (
+        (
+            settlement.only_if_unclaimed
+            and pickup_receipts(events, phase=None, input_id=responds)
+        )
+        or (settlement.fence is not None and not settlement.fence(page))
     ):
         return None
     return _Obligation(parent, thread_id, answers, in_hand, tuple(advice))
@@ -1037,8 +1013,8 @@ def _compose_and_append(
     from .state import acting_turn
 
     # The turn the reply's command acts in, which names the start it carries
-    # (`todos.start_reading`) and holds the messages it answers
-    # (`holding.refuse_unheld`).
+    # (`todos.start_reading`) and says whether the turn that wrote a progress
+    # message still runs (`activity.turn_runs`).
     if turn := acting_turn(page.claim, posting_identity.get("session")):
         event["turn"] = turn
     if explicit_obligation:

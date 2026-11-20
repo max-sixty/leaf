@@ -251,7 +251,7 @@ class _DeployedPage:
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(self, expression: str, *, arg, timeout: int):
+    def wait_for_function(self, expression: str, *, arg, timeout: int, polling=None):
         if expression == OUTSTANDING:
             return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
         if expression != "window.__leafVerifier.revisionAtLeast":

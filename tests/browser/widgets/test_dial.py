@@ -1,11 +1,14 @@
-"""A detail dial: Skim folds all but the lede, the gists, the pictures and the headings
-above them and keeps the reader's place, ⋯ unfolds one section, Everything opens every
+"""A detail dial: Skim folds all but the lede, the gists and the headings above them
+and keeps the reader's place, ⋯ unfolds one section, Everything opens every
 closed detail, and Read takes back exactly what the dial changed."""
+
+import re
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page, preview_parts, resized
+from render_harness import PREVIEW, leaf_page, open_page, preview_parts, resized
 
+from leaf.render_checks import one_frame
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -87,8 +90,8 @@ def test_depths_fold_keep_the_place_and_restore(browser, serve):
     expect(page.locator("main [hidden]")).to_have_count(0)
 
     # The depths are one radio group: an arrow from Read chooses the depth beside it.
-    read = page.get_by_role("radio", name="Read", exact=True)
-    skim = page.get_by_role("radio", name="Skim", exact=True)
+    read = page.get_by_role("radio", name=re.compile(r"^Read \d+ min$"))
+    skim = page.get_by_role("radio", name=re.compile(r"^Skim \d+ min$"))
     read.focus()
     page.keyboard.press("ArrowLeft")
     expect(skim).to_be_focused()
@@ -125,6 +128,57 @@ def test_a_turn_that_glides_keeps_the_place_in_every_engine(request, serve, engi
     assert top(page, "#incident-cause-gist") == pytest.approx(gist, abs=1)
 
 
+def centre_x(locator):
+    box = locator.bounding_box()
+    return box["x"] + box["width"] / 2
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
+    request, serve, engine
+):
+    """Each depth says under its word how long it takes to read. Pointing at one hangs
+    each depth's page under its own button, Skim's shortest and Everything's longest,
+    with Leaf's own preview face unseen, and fades on the page what Skim would fold. A
+    press on another depth keeps them up the whole time it is held,
+    and moves the frame to it; Escape puts them away and leaves focus on the depth."""
+    page = open_page(request.getfixturevalue(engine), serve(DIAL_PAGE))
+    buttons = page.locator("lf-dial .lf-dial-depth")
+    expect(buttons.locator(".lf-dial-time")).to_have_text([re.compile(r"\d+ min")] * 3)
+    panel = page.locator(".lf-dial-hang-panel")
+    sheets = panel.locator(".lf-dial-hang-page")
+    frame = panel.locator(".lf-dial-hang-frame")
+    read = buttons.filter(has_text="Read")
+    read.hover()
+    expect(panel).to_have_attribute("data-lf-open", "")
+    expect(page.locator(PREVIEW)).to_have_attribute("data-lf-face", "unseen")
+    expect(page.locator(PREVIEW)).to_be_hidden()
+    for i in range(3):
+        assert centre_x(sheets.nth(i)) == pytest.approx(centre_x(buttons.nth(i)), abs=1)
+    heights = [sheets.nth(i).bounding_box()["height"] for i in range(3)]
+    assert heights[0] < heights[1] <= heights[2]
+    assert centre_x(frame) == pytest.approx(centre_x(read), abs=1)
+    buttons.filter(has_text="Skim").hover()
+    expect(page.locator('[data-lf-dial-ghost="goes"]').first).to_be_attached()
+
+    everything = buttons.filter(has_text="Everything")
+    everything.hover()
+    page.mouse.down()
+    # The sheets would go a frame after the press puts Leaf's preview away.
+    one_frame(page)
+    one_frame(page)
+    expect(panel).to_have_attribute("data-lf-open", "")
+    page.mouse.up()
+    expect(page.locator("details[open]")).to_have_count(len(SECTIONS))
+    expect(panel).to_have_attribute("data-lf-open", "")
+    page.wait_for_function("() => document.getAnimations().length === 0")
+    assert centre_x(frame) == pytest.approx(centre_x(everything), abs=1)
+
+    page.keyboard.press("Escape")
+    expect(panel).not_to_have_attribute("data-lf-open", "")
+    expect(page.get_by_role("radio", name=re.compile("^Everything"))).to_be_focused()
+
+
 def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
     """A folded `lf-diagram` kept the 170px its package's `min-block-size` reserved, so
     Skim left a blank gap where the drawing was. A block Skim folds takes no room
@@ -150,20 +204,21 @@ def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
 
 
 SQUARE = '<svg viewBox="0 0 10 10" width="40" height="40"><rect width="10" height="10"/></svg>'
-ICON = '<svg aria-hidden="true" viewBox="0 0 10 10" width="12" height="12"></svg>'
 
 
-def test_skim_keeps_every_picture(browser, serve):
-    """Skim folded every picture the author hadn't marked `.gist`, so a skimmer saw
-    the page's words alone. Skim keeps each picture the page shows, with a figure's
-    caption, and the heading above it: a figure, a chart, a picture in a tab, and a
-    paragraph, list item or open disclosure holding one, whole, words and links
-    beside it included. A section or list item of blocks is laid out in place, a
-    button among its blocks included, so a gist in one keeps its support folded. A picture inside a closed
-    disclosure stays closed, since Skim shows nothing Read doesn't, and an icon HTML
-    marks as decoration is no picture, so a section holding only those folds whole."""
+def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
+    """Skim kept every picture by a list of tags, so it folded a video or a canvas a
+    skimmer needed and kept pictures one didn't. Skim keeps whatever the author marks
+    `.gist`, of any kind, and the heading above it: a figure with its caption, a chart, a
+    video, a canvas, a picture in a tab, a picture marked inside a figure, with the
+    figure's caption, and a paragraph or list item holding a gist, whole, words and
+    links beside it included. A picture the author didn't mark folds with the words
+    around it, headings inside it included. A section or list item of blocks is laid
+    out in place, a button among its blocks included, so a gist in one keeps its
+    support folded. A gist or heading inside a closed disclosure stays closed, since
+    Skim shows nothing Read doesn't, so a section holding only those folds whole."""
     chart = (
-        '<lf-chart id="latency-chart"><pre>{ ariaLabel: "p99 by hour", '
+        '<lf-chart class="gist" id="latency-chart"><pre>{ ariaLabel: "p99 by hour", '
         "marks: [Plot.lineY([1, 3, 2])] }"
         "</pre></lf-chart>"
     )
@@ -177,33 +232,45 @@ def test_skim_keeps_every_picture(browser, serve):
                 '<section id="cause"><h2 id="cause-heading">Cause</h2>'
                 '<p class="gist" id="cause-gist">The key changed.</p>'
                 '<p id="cause-0">How the key changed.</p>'
-                f'<figure id="key-figure">{SQUARE}'
+                f'<figure class="gist" id="key-figure">{SQUARE}'
                 '<figcaption id="key-caption">The key, before and after.</figcaption>'
                 "</figure>"
+                f'<figure id="cause-aside">{SQUARE}</figure>'
                 '<p id="cause-1">More detail.</p>'
                 '<button id="cause-copy" type="button">Copy the key</button>'
-                '<p id="shot-line">The dashboard then: '
-                '<img id="shot" alt="The dashboard" width="40" height="30"> at 3%.</p>'
-                '<p id="captioned"><img alt="The cache" width="40" height="30"><br>'
-                '<em id="captioned-words">The cache at 16:30.</em></p>'
+                '<p id="shot-line">The dashboard then: <img class="gist" id="shot" '
+                'alt="The dashboard" width="40" height="30"> at 3%.</p>'
+                '<p id="unmarked-line"><img alt="The cache" width="40" height="30">'
+                " The cache at 16:30.</p>"
                 '<ul><li><p class="gist" id="finding-gist">4.2 changed the key.</p>'
                 '<p id="finding-support">Found by diffing the releases.</p></li>'
-                '<li><img alt="Run 3" width="40" height="30"> '
+                '<li><img class="gist" alt="Run 3" width="40" height="30"> '
                 '<a id="run-link" href="#key-figure">Run 3</a> '
                 '<em id="run-rate">hit rate 3%</em></li></ul>'
                 '<details id="cause-raw" open><summary id="cause-raw-summary">Raw'
-                f'</summary><figure id="cause-raw-figure">{SQUARE}</figure></details>'
-                "</section>"
+                f'</summary><figure class="gist" id="cause-raw-figure">{SQUARE}'
+                "</figure></details></section>"
                 '<section id="latency"><h2 id="latency-heading">Latency</h2>'
+                f'<figure id="latency-figure"><h4>Before</h4>{SQUARE}<h4>After</h4>'
+                f"{SQUARE}<figcaption>p99 before and after.</figcaption></figure>"
                 f'{chart}<p id="latency-0">p99 doubled.</p></section>'
+                '<section id="demo"><h2 id="demo-heading">Demo</h2>'
+                '<video class="gist" id="demo-video" width="40" height="30"></video>'
+                '<canvas class="gist" id="demo-canvas" width="40" height="30"></canvas>'
+                '<figure><img class="gist" id="demo-shot" alt="The checkout" '
+                'width="40" height="30"><figcaption id="demo-caption">The checkout '
+                "after the fix.</figcaption></figure>"
+                '<p id="demo-0">Recorded on staging.</p></section>'
                 '<section id="views"><h2 id="views-heading">Views</h2>'
                 '<lf-tabs id="views-tabs"><lf-tab id="views-a" label="Before">'
-                f'<figure id="views-figure">{SQUARE}</figure></lf-tab></lf-tabs>'
-                '<p id="views-0">Both views.</p></section>'
-                f'<section id="method"><h2 id="method-heading">{ICON} Method</h2>'
-                f'<ul id="method-checks"><li id="method-lint">{ICON}Lint passed</li></ul>'
-                '<details id="method-raw"><summary>Raw</summary>'
-                f'<figure id="raw-figure">{SQUARE}</figure></details></section>',
+                f'<figure class="gist" id="views-figure">{SQUARE}</figure></lf-tab>'
+                '</lf-tabs><p id="views-0">Both views.</p></section>'
+                '<section id="method" style="border: 1px solid">'
+                '<h2 id="method-heading">Method</h2>'
+                f'<figure id="method-figure">{SQUARE}</figure>'
+                '<details id="method-raw"><summary>Raw</summary><h3>Runs</h3>'
+                f'<figure class="gist" id="raw-figure">{SQUARE}</figure></details>'
+                "</section>",
             )
         ),
     )
@@ -214,7 +281,6 @@ def test_skim_keeps_every_picture(browser, serve):
         "#key-figure",
         "#key-caption",
         "#shot-line",
-        "#captioned-words",
         "#finding-gist",
         "#run-link",
         "#run-rate",
@@ -222,19 +288,29 @@ def test_skim_keeps_every_picture(browser, serve):
         "#cause-raw-figure",
         "#latency-heading",
         "#latency-chart",
+        "#demo-heading",
+        "#demo-video",
+        "#demo-canvas",
+        "#demo-shot",
+        "#demo-caption",
         "#views-heading",
         "#views-figure",
     ):
         expect(page.locator(kept)).to_be_visible()
     for folded in (
         "#cause-0",
+        "#cause-aside",
         "#cause-1",
         "#cause-copy",
+        "#unmarked-line",
         "#finding-support",
+        "#latency-figure",
         "#latency-0",
+        "#demo-0",
         "#views-0",
+        "#method",
         "#method-heading",
-        "#method-lint",
+        "#method-figure",
         "#method-raw",
     ):
         expect(page.locator(folded)).to_be_hidden()

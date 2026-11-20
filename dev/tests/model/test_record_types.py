@@ -74,7 +74,7 @@ def invalid(directory: Path):
         )
     invalid = check()
     assert invalid.returncode != 0
-    assert "error[invalid-key]" in invalid.stdout
+    assert "error[invalid-typed-dict-key]" in invalid.stdout
     assert invalid.stdout.count("error[invalid-assignment]") == 2
     assert "error[invalid-argument-type]" in invalid.stdout
     assert "error[missing-typed-dict-key]" in invalid.stdout

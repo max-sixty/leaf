@@ -1224,7 +1224,7 @@ def test_data_record_obligations_follow_approval_undo_and_source_membership():
     assert remaining == untouched
 
 
-def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
+def test_data_record_feedback_hands_only_its_obligations_to_the_agent():
     registry = model.model_layer("visual-review")
     source = json.loads(
         (
@@ -1232,7 +1232,7 @@ def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
             / "examples/developer/visual-review-gallery.data.json"
         ).read_text()
     )["gallery-visual-run"]
-    cases = source["cases"][:2]
+    cases = source["cases"][:3]
     source["cases"] = cases
     document = model.leaf_page(
         "Review",
@@ -1269,7 +1269,7 @@ def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
         )["all"]
 
     items = read([comment])
-    assert [item["next_actor"] for item in items] == ["agent", "user"]
+    assert [item["next_actor"] for item in items] == ["agent", "user", "user"]
     assert all(item["status"] == "open" and item["answer"] is None for item in items)
     reply = {
         "kind": "reply",
@@ -1278,7 +1278,20 @@ def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
         "responds": "feedback",
         "text": "Updated.",
     }
-    assert [item["next_actor"] for item in read([comment, reply])] == ["user", "user"]
+    assert [item["next_actor"] for item in read([comment, reply])] == ["user"] * 3
+    # Words selected from the first case into the second are about both.
+    across = {
+        **comment,
+        "id": "across",
+        "anchor": {
+            **comment["anchor"],
+            "from": cases[0]["id"],
+            "datum": cases[1]["id"],
+            "identity": cases[1]["id"],
+            "quote": "words",
+        },
+    }
+    assert [item["next_actor"] for item in read([across])] == ["agent", "agent", "user"]
 
 
 def test_data_record_requests_keep_conditional_registration_and_their_group():

@@ -712,8 +712,8 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     Settled thread input alone never wakes; it remains in the next receipt batch.
     Once the turn has closed, the watch also wakes for an answer it left owed
     (`left_owed`), and for a line Leaf queued that tells the session of work it now
-    owes, such as a to-do a fork opened or a turn-end finding Leaf changed nothing
-    for (`clerk.waking`), until a hook has printed it; the watch follows the queue's
+    owes, such as a turn-end finding Leaf changed nothing for (`clerk.waking`),
+    until a hook has printed it; the watch follows the queue's
     file itself (`Watch.told`), since no page's reading stamps it. Escape leaves the turn open, so after it both wait for the
     user's next prompt, as input the stopped turn confirmed does. The session lease
     and each page transaction retain ownership of delivery, revival and
@@ -771,24 +771,21 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
         seen = successor_due.setdefault(turn_ending(claim), time.monotonic())
         return time.monotonic() > seen + HOOK_TIMEOUT_S
 
-    # What `left_owed` found on each page, by the log, the turn and the agent turns
-    # running it read, so a pass that finds nothing changed folds no page. An agent's
-    # turn closing or lapsing gives what it held to the main thread without a log
-    # write (`holding.running_turns`).
+    # What `left_owed` found on each page, by the log, the turn and the harness's
+    # word on the session it read, so a pass that finds nothing changed folds no
+    # page. The session's background work ending lapses the starts it carried
+    # without a log write (`activity.start_holds`).
     owed: dict[Path, tuple[tuple, list[dict]]] = {}
 
     def reminders(page: PageTransaction) -> list[dict]:
-        from .holding import running_turns
-        from .state import agent_turn_stamps
-
         claim = page.active_claim
+        live = harness.live_turn() or {}
         key = (
             len(page.events),
             claim and claim["turn"],
             claim and claim["turn_closed"],
-            frozenset(running_turns(agent_turn_stamps(claim, page.events)))
-            if claim
-            else frozenset(),
+            live.get("state"),
+            live.get("since"),
         )
         if (kept := owed.get(page.page_dir)) is None or kept[0] != key:
             owed[page.page_dir] = kept = (key, left_owed(page))

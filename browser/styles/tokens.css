@@ -724,12 +724,11 @@
      - --lf-work: the agent at work, on the leaf, the bar beside a block and a plan's
        progress.
      - --lf-news: what the user hasn't read, the unread dot.
-     - --lf-draft: words the user put away unsent, the dot the On Me mark and the
-       folded leaf wear for them where nothing has news. It is the neutral step
-       between --lf-border and --lf-muted that holds 3:1 against the panel's ground in
-       either scheme, the least WCAG 1.4.11 asks of a mark the user must see. The On Me
-       mark's symbol is drawn in the muted ink, and at a dot's size a dot in that ink is
-       hard to tell from news's, so the draft's dot stands nearer the ground. A draft's
+     - --lf-draft: words the user put away unsent, the dot the leaf wears for them
+       where nothing has news. It is the neutral step between --lf-border and
+       --lf-muted that holds 3:1 against the panel's ground in either scheme, the least
+       WCAG 1.4.11 asks of a mark the user must see. At a dot's size a dot in the muted
+       ink is hard to tell from news's, so the draft's dot stands nearer the ground. A draft's
        margin entry keeps the muted ink (controls.css).
      - --lf-change: what changed since the version compared, the bar beside a block and
        its stretch of the contents.
@@ -911,6 +910,9 @@
   /* A segmented control's choices, at the weight a chosen one takes, so choosing
      never widens its words: a dial's depths, a shot's views. */
   --lf-font-choice: 500 var(--lf-t-5) / var(--lf-ui-lh) var(--lf-sans);
+  /* A choice whose word stands over a fact, set solid so the word and the fact under it
+     in the fine face fit a one-line control: a dial's depth over its minutes. */
+  --lf-font-choice-stacked: 500 var(--lf-t-5) / 1.1 var(--lf-sans);
   /* The words a widget holds beside the page's prose, a rung below it and on its
      leading, since they run to sentences: a card's, a note on a line of source, a
      review's, a worktree's, a row of options. */

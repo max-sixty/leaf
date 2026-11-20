@@ -1205,10 +1205,10 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
             "title",
             "anchor",
             "detached_from",
+            "rewritten_from",
             "resolved",
             "unread",
             "attention",
-            "holder",
         }
         for thread in state["threads"]
     )

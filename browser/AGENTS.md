@@ -328,7 +328,7 @@ directly as in a terminal").
   token for what it tells the user (`styles/tokens.css`, at `--lf-turn`), never a hue, so
   the user's turn, a thread, the agent's work, what is unread, what changed and what
   is settled each look alike in the margin, the contents and the panel. Every surface
-  paints a thread's `unread` and `attention` from one value, so the On Me mark's dot,
+  paints a thread's `unread` and `attention` from one value, so the leaf's dot,
   Threads, the panel, a margin entry and the Page Map change together, and marking read
   never moves the user.
 

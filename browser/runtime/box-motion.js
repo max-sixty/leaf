@@ -493,8 +493,10 @@ export function boxMotion({
     const shape = Math.min(1, progress / shapeUntil);
     const w = width(from) + (width(to) - width(from)) * shape;
     const h = height(from) + (height(to) - height(from)) * shape;
-    if (rtl) rect.left = rect.right - w;
-    else rect.right = rect.left + w;
+    // A fold gathers the box into the leaf at its row's end, so the shape holds that
+    // edge as it shrinks.
+    if (rtl) rect.right = rect.left + w;
+    else rect.left = rect.right - w;
     rect.top = rect.bottom - h;
     return rect;
   };

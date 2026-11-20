@@ -76,7 +76,7 @@ def test_on_me_materializes_a_reply_review_at_its_requested_case(browser, serve)
         },
     )
     page = open_page(browser, url)
-    count = page.locator(".lf-fp-on-user")
+    count = page.locator(".lf-fp-leaf")
     expect_on_me(page, 6)
     count.click()
     card = page.locator(

@@ -39,7 +39,6 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
-from leaf import holding as holding_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import obligations as obligations_model
@@ -48,7 +47,6 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
-from leaf.events import build_threads
 from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
 
@@ -289,7 +287,8 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     subagents it left run. Until the record leaves `busy`, the page reads working,
     in the agent's last line, with the background observed beside it. A background
     shell leaves the record `shell`, which is idle, and the page reads the turn
-    ended at once."""
+    ended at once. The record dates its `busy`, so work that starts after that
+    break doesn't bring the start back."""
     serving(claimed, 1)
     registry = harness_model.claude_code_sessions()
     registry.mkdir(parents=True, exist_ok=True)
@@ -350,6 +349,14 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             True,
             "",
         )
+
+    # Background work the session starts after that break carries no start the
+    # break dropped.
+    harness_says("busy")
+    assert _activity_at(claimed, 10)["obligations"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "work",
+    }
 
 
 def test_a_turn_claude_code_runs_reads_working_over_unstarted_to_dos(claimed):
@@ -471,7 +478,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "turn_opened": old,
         "turn_closed": None,
         "turn_takes_input": False,
-        "agent_turns": {},
     }
     voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
     events = [
@@ -504,9 +510,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "awaiting_approval"},
         updates=nothing,
-        holding=holding_model.reading_of(
-            events, present, now.isoformat(), build_threads(events, {})
-        ),
     )
     assert (waiting["kind"], waiting["observed_kind"]) == (
         "working",
@@ -519,9 +522,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "thinking"},
         updates=nothing,
-        holding=holding_model.reading_of(
-            events, present, now.isoformat(), build_threads(events, {})
-        ),
     )
     assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
 
@@ -559,9 +559,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([owed]),
-        holding=holding_model.reading_of(
-            events, present, now.isoformat(), build_threads(events, {})
-        ),
     )["workflows"]
     assert ended["condition"] == {"kind": "ended", "operation": "response"}
 
@@ -1429,7 +1426,6 @@ def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
         "delivery_seq": 1,
         "delivery_session": "s1",
         "delivery_turn": None,
-        "holder": {"kind": "main"},
         "started_by": [],
     }
     state = {
@@ -1439,6 +1435,5 @@ def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
         "session_alive": True,
         "turn": None,
         "turn_closed": "2026-10-28T12:00:00+00:00",
-        "agent_turns": {},
     }
     assert activity_model.left_owed(state, lambda _: False) == [obligation]

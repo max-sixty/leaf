@@ -8,18 +8,11 @@
 // that text by the first line of the fork's prompt;
 // `forkRejects`, which makes every fork reject; `completeReply`, the text
 // `$.model.complete` answers with, after `completeRefusals` completions it
-// answers as a provider's 429; `agentId`, the id each `$.agent.spawn` answers with,
-// or a list of them answered in turn, the last for every spawn after, each printing
-// what it was asked as `{"spawned"}`; `spawnWaits`, which holds each spawn's answer
-// until a stdin line `{"spawnReturns": true}`, as a fork's run can end before Claude
-// Code answers; `stepFails`, the fields of a `leaf hook --fork` payload whose step
-// then fails without running, as Leaf's process can, each equal to the payload's, or
-// `true` for a field it has and `null` for one it lacks; `sendRefuses`, the reason every
-// `$.session.send` gives for delivering nothing, which otherwise delivers, each send
-// printing what it was asked as `{"sent"}`; `state`, the values `$.state` holds as
-// the module loads, by key, as a reload finds them; and `env`, Claude Code's
-// environment, all that `$.env`
-// reads and what the module's processes inherit over the driver's own. Each
+// answers as a provider's 429; `stepFails`, the fields of a `leaf hook --fork`
+// payload whose step then fails without running, as Leaf's process can, each equal
+// to the payload's, or `true` for a field it has and `null` for one it lacks; and
+// `env`, Claude Code's environment, all that `$.env` reads and what the module's
+// processes inherit over the driver's own. Each
 // `leaf hook --fork` the module runs prints its payload as `{"report"}`. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
@@ -45,17 +38,6 @@ import { register } from "../hooks/claude-code.ts";
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [session, options] = [process.argv[2], JSON.parse(process.argv[3])];
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
-// `$.state`'s values by key, each with its version.
-// How many forks `$.agent.spawn` has started, and what answers the one held for
-// `spawnWaits`.
-let spawns = 0;
-let spawnReturns = () => {};
-const held = new Map(
-  Object.entries(options.state ?? {}).map(([key, value]) => [
-    key,
-    { value, version: 1 },
-  ]),
-);
 let band = { terminal: null, desktop: null };
 // How many completions have answered as a provider's 429.
 let refused = 0;
@@ -163,39 +145,12 @@ const $ = {
         ? { deny: `no row ${after} to read on from` }
         : rows.slice(at + 1);
     },
-    send: async (args) => {
-      print({ sent: args });
-      return options.sendRefuses === undefined
-        ? { isDelivered: true }
-        : { isDelivered: false, reason: options.sendRefuses };
-    },
   },
   env: {
     get: async (name) => options.env?.[name],
   },
   clock: {
     now: async () => Date.now(),
-  },
-  state: {
-    get: async ({ key }) => held.get(key) ?? { value: undefined, version: 0 },
-    set: async ({ key }, value, { ifVersion } = {}) => {
-      const version = held.get(key)?.version ?? 0;
-      if (ifVersion !== undefined && ifVersion !== version)
-        return { isSet: false, version };
-      held.set(key, { value: JSON.parse(JSON.stringify(value)), version: version + 1 });
-      return { isSet: true, version: version + 1 };
-    },
-  },
-  agent: {
-    spawn: async (args) => {
-      print({ spawned: args });
-      if (options.spawnWaits)
-        await new Promise((resolve) => {
-          spawnReturns = resolve;
-        });
-      const ids = [options.agentId ?? "agent-1"].flat();
-      return { agentId: ids[Math.min(spawns++, ids.length - 1)] };
-    },
   },
   ui: {
     // A line for Claude Code's debug log prints as `{"debug": <text>}`.
@@ -338,20 +293,9 @@ await register((event, ...rest) => {
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const {
-    emit,
-    e,
-    flush,
-    press,
-    spawnReturns: returns,
-    conversation: rows,
-  } = JSON.parse(line);
+  const { emit, e, flush, press, conversation: rows } = JSON.parse(line);
   if (rows) {
     conversation = rows;
-    continue;
-  }
-  if (returns) {
-    spawnReturns();
     continue;
   }
   if (press !== undefined) {

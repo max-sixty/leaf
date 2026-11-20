@@ -307,7 +307,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
         resized(page, width, 700)
         for opened in (False, True):
             if opened:
-                page.locator(".lf-fp-on-user").click()
+                page.locator(".lf-fp-leaf").click()
             panel_settled(page, open=opened)
             box = page.evaluate(reading)
             assert box["bottom"] <= box["height"] - insets["bottom"], (width, box)

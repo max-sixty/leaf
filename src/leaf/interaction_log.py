@@ -23,7 +23,7 @@ time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; one 
 sandbox bridge runs for Claude Code is timed from the bridge's start of it.
 
 Claude Code's pages follower records in each page the session holds that it runs
-there, keeping threads back for line forks (`record_follower`).
+there, listing line forks for the page's rounds (`record_follower`).
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
@@ -99,12 +99,9 @@ def launched() -> float:
     return process.create_time()
 
 
-def record_command(
-    command: str, *, turn: str | None = None, refused: str | None = None
-) -> None:
+def record_command(command: str, *, refused: str | None = None) -> None:
     """Record in each page this command acted on how long it has taken, with the
-    harness session that ran it, the agent turn of the session it named (`turn`,
-    `leaf --turn`), and the error it ended with where Leaf refused it
+    harness session that ran it, and the error it ended with where Leaf refused it
     (`refused`, what `cli.LeafGroup` printed), once: a later call records nothing. A diagnostic
     the system won't let this process gather or write, as a sandbox may refuse a
     session record or a page, is dropped, since the command's own result has
@@ -128,7 +125,6 @@ def record_command(
             "started": datetime.fromtimestamp(started, UTC).isoformat(),
             "durationMs": round((ended - started) * 1000, 1),
             "session": session,
-            **({"turn": turn} if turn else {}),
             **({"refused": refused} if refused is not None else {}),
             "context": session_context(session),
         }

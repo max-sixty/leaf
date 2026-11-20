@@ -392,7 +392,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     )
     expect(offered).to_have_attribute("aria-label", "Comment on the selection")
     page.locator(".lf-fp-leaf").focus()
-    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(field).to_be_focused()
     page.keyboard.type("A page note")
     expect(field).to_have_js_property("value", "A page note")

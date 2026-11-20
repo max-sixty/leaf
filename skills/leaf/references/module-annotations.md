@@ -205,7 +205,9 @@ drawn}`, each part optional:
   box's words agree with Resolve and the notice. `attention` is what the thread waits
   on, with the `word` Threads says it in, or null where it waits on nothing, as once
   it is resolved.
-- `quote: true` quotes the words the thread is about over its messages.
+- `quote: true` quotes the words the thread is about over its messages, for a widget
+  that stands apart from them. Without it, the thread quotes them only once the page
+  no longer shows them as quoted, as after a revision rewrote them.
 - `scroller: (transcript) => box` names the box that scrolls the thread's messages,
   which may be the thread's own `transcript`. An answer the user waits for that arrives
   past its foot then says New reply there.
@@ -255,7 +257,8 @@ box. Return, in the same order, an outlet for each target or `null`, or a promis
 that array; an asynchronous `threadOutlets` checks `signal` before changing the DOM. A
 target is `{anchor, placement, thread}`, with `thread` `null` for the comment box. A
 target on a datum names it in `anchor.datum`, with its element at
-`placement.datumElement`. A target with no `anchor.datum` is the widget itself: a
+`placement.datumElement`; a passage running across several data names the last there and
+the first in `anchor.from`. A target with no `anchor.datum` is the widget itself: a
 thread anchored to its element and nothing inside it. A thread on a passage or a visual
 part of the widget is never a target, and stays in the margin. Here `this.outletFor` is
 the widget's own method that finds or makes the outlet beside a datum (`lf-diff`'s

@@ -22,6 +22,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    panel_field,
     panel_settled,
     panel_view,
     put_preview_away,
@@ -36,6 +37,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -46,7 +48,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 ):
     """A dialog-shaped command reference behaves like a dialog for the native Tab walk."""
     page = open_page(browser, serve(LONG_PAGE))
-    door = page.locator(".lf-fp-on-user")
+    door = page.locator(".lf-fp-leaf")
     door.focus()
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
@@ -79,12 +81,15 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
+def test_tab_from_the_pages_last_control_reaches_the_panel_s_row(
     engine, request, serve
 ):
     """The chrome's foreground is an empty box holding the panel and the overlays, so a
-    Tab never stops on it. Firefox can give the open dialog a Tab stop of its own,
-    which draws nothing between the page's last control and the leaf."""
+    Tab never stops on it: Tabs from the page's last control walk the panel's row as
+    it stands, the field, the control in its corner (Dictate where the browser can
+    dictate, else Send), then the leaf at the row's end. Firefox can give the open
+    dialog a Tab stop of its own, which draws nothing between the page's last control
+    and the panel."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(leaf_page("Tab order", '<p>Words <button id="last">Last</button></p>')),
@@ -92,6 +97,10 @@ def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Tab")
     expect(page.locator("#last")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(panel_field(page)).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-field button:focus")).to_have_count(1)
     page.keyboard.press("Tab")
     expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
@@ -145,7 +154,7 @@ def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     the page with the user in it. An arrival that stood them on the message On Me drew
     would let On Me closing drop them on the page."""
     page = open_page(browser, serve(named_source("ship-review")))
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
         has_text="The vendor release is the only schedule"
     )
@@ -242,17 +251,20 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     """Putting On Me away hands the user back the page, however they opened it.
 
     Opened with the pointer, the view takes focus; opened from the keyboard, its first
-    row does. Either way Escape lands on the page rather than on the mark that opened
+    row does. Either way Escape lands on the page rather than on the leaf that opened
     it: a focused button there would own the user's next Space, so the view they had
     just dismissed would come back and nothing would say why.
 
     The scroll is what the landing has to hand back. Root scrolling is native, but a
     focused button still owns Space; focus therefore returns to the page rather than
     merely blurring to nowhere."""
-    page = open_page(browser, serve(LONG_PAGE, comments=1))
-    toggle = page.locator(".lf-fp-on-user")
+    url = serve(LONG_PAGE, comments=1)
+    # Something waits on the user, so the leaf opens On Me.
+    panel_comment(serve.page_dir, "Ship it today?", author="agent", obligation=True)
+    page = open_page(browser, url)
+    toggle = page.locator(".lf-fp-leaf")
     panel = page.locator(panel_view("queue"))
-    ringed = """() => getComputedStyle(document.querySelector('.lf-fp-on-user'))
+    ringed = """() => getComputedStyle(document.querySelector('.lf-fp-leaf'))
       .outlineStyle !== 'none'"""
     top = "() => document.scrollingElement.scrollTop"
     on_body = "() => document.activeElement === document.body"
@@ -288,7 +300,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
 
     # Opened from the keyboard, and left the same way one opened by pointer is: the
     # view's parent is the document, so Escape lands the user there rather than on
-    # the mark that reopens it.
+    # the leaf that reopens it.
     toggle.focus()
     assert page.evaluate(ringed), "the control the user is located on says nothing"
     page.keyboard.press("Enter")

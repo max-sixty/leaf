@@ -208,8 +208,9 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
 
 
 # What a stand-in fork answers in each case, the checks the grader then passes, and
-# words the judge reads: a stale lede's fix, which lands on the page, and a decision
-# asked as a choice of the answers the agent offered, which the user presses.
+# words the judge reads: a stale lede's fix, which lands on the page, a decision
+# asked as a choice of the answers the agent offered, which the user presses, and the
+# working line a line fork wrote, which Leaf posts.
 REPLAYED = {
     "stale-edit": (
         {
@@ -255,6 +256,11 @@ REPLAYED = {
         {"answered": True, "labels-found": True, "choices-right": True},
         "<strong>Rebuild on Saturday</strong>",
     ),
+    "why-ci": (
+        {"line": "reading why it fails only on CI"},
+        {"answered": True, "lined": True},
+        "reading why it fails only on CI",
+    ),
 }
 
 
@@ -262,11 +268,12 @@ REPLAYED = {
 def test_fork_replay_hands_the_answer_through_the_arms_leaf(
     case, tmp_path, monkeypatch
 ):
-    # No model runs: a stand-in for Claude Code reads the turn-end check's prompt
-    # and answers it, so this shows the question reaching the fork and the answer
-    # reaching the grader through the arm's Leaf.
+    # No model runs: a stand-in for Claude Code reads the fork's prompt and answers
+    # it, so this shows the question reaching the fork and the answer reaching the
+    # grader through the arm's Leaf.
     import os
 
+    from leaf import clerk, forks
     from leaf_dev import ROOT, fork_eval
 
     work = tmp_path / "work"
@@ -297,16 +304,22 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(
         }
 
     monkeypatch.setattr(fork_eval, "claude_child", child)
+    snapshot = {"type": "prompt_snapshot", "cliPrefix": fork_eval.INTERACTIVE}
+    prefix = {"attachment": snapshot, "sessionId": "live", "version": "2"}
+    monkeypatch.setattr(fork_eval, "live_prefix", lambda run: prefix)
     response = fork_eval.execute_scenario(case, ROOT, work)
     metadata = response["metadata"]
     assert metadata["checks"] == checks
-    assert "<leaf-fork-check>" in asked.read_text()
+    opening = {"turn-end": clerk.OPENING, "line": forks.LINE_OPENING}
+    assert opening[fork_eval.CASES[case]["fork"]] in asked.read_text()
     first, environment, after = [
         json.loads(line)
         for line in (work / "transcript.jsonl").read_text().splitlines()[:3]
     ]
     assert (environment["parentUuid"], after["parentUuid"]) == (first["uuid"], "env")
-    assert judged in metadata["texts"]["judge"]
+    # The live session's prefix follows the environment, as it does in a live session.
+    assert after["attachment"] == snapshot
+    assert any(judged in text for text in metadata["texts"].values())
 
 
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):

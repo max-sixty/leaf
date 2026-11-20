@@ -63,7 +63,36 @@
  * do. Tab and the go-to key reach it, and inside it the arrow keys step one depth, as
  * in any radio group. It sticks at the window's top, at the column's end, so the
  * reader can turn it wherever they are reading rather than only at the top, which is
- * where keeping their place matters. */
+ * where keeping their place matters.
+ *
+ * Each depth's button says under its word how long that depth takes to read, so the
+ * reader can weigh a depth before turning to it. The time is an estimate: the words a
+ * depth shows at a silent reading rate, and a fixed time for each picture
+ * (`WORDS_PER_SECOND`, `PICTURE_SECONDS`). Pointing at a depth, with a pointer, focus or
+ * a finger's hold, hangs each depth's page under its own button as a sheet of its own,
+ * drawn to one scale, so how far down a sheet runs shows how much of the page its depth
+ * keeps. The page shows between the sheets, the pointed one stands in full ink, and a
+ * frame in the accent rings the depth that stands. On the page, what turning to the
+ * pointed depth would hide fades, and where it would open more wears a dashed ring. The
+ * maintainer chose this from a playground that also tried minutes beside each word and
+ * a gauge at rest, and bars, strips and a map of the page in Leaf's preview face, and
+ * minutes on each ⋯.
+ *
+ * The sheets are the dial's preview, drawn by the dial while Leaf keeps its own preview
+ * face unseen (`unseen`, module-input.md, "Previews"). Leaf's preview stands clear of the
+ * controls on the page, so where a link sat under the dial a chart in it stood beside
+ * the dial, away from the buttons it compares; hanging each sheet under its own button
+ * is an exception to one preview face the maintainer chose. Leaf still opens and ends
+ * the preview on every route, makes it Escape's first step and gives a screen reader
+ * each depth's description on focus. A plain click on the dial or an arrow key in its
+ * depths, while the sheets hang, aims at the depth it reached, as a chart's key reaching
+ * another point does (`previewChanged` with `aim`), so the sheets stay up and the frame
+ * can be seen gliding to the depth turned to, the maintainer's choice. Otherwise they go
+ * as Leaf's preview goes, a tap on touch included, since a finger that lifted reads no
+ * preview. A sheet holds no control, since a preview reads and never
+ * acts: pressing one only aims at the sheets again. Pointing marks the page only within
+ * a window's height of what the window shows, so a reader who scrolls far while
+ * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
   actionClass,
   addressableLabel,
@@ -71,13 +100,20 @@ import {
   focusDestination,
   foldDuration,
   holdPlace,
+  keeps,
+  keepsText,
   LeafElement,
   motion,
   move,
+  nextRender,
   offer,
   offerAction,
   PAGE_INTERFACE,
   phrasing,
+  onPress,
+  plainPress,
+  previewChanged,
+  PREVIEW_ENDED,
   readingAt,
   registerRootHeader,
   shownWindow,
@@ -85,6 +121,7 @@ import {
   viewDocument,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
 const DEPTHS = [
@@ -146,6 +183,132 @@ const outermost = (blocks) => {
 /** @param {Element} node */
 const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
 
+// A depth's time is its words at a silent reading rate of 238 a minute, Brysbaert's
+// (2019) mean for non-fiction, and 12 seconds for each picture.
+const WORDS_PER_SECOND = 238 / 60;
+const PICTURE_SECONDS = 12;
+// What holds no words a reader reads: Leaf's chrome, a drawing, a widget's data.
+const UNREAD = `${STANDS}, svg, [data-lf-content="data"]`;
+// What the estimate times as a picture: what draws rather than says, apart from
+// decoration, which no reader looks at for its own sake.
+const PICTURE = 'img, svg, video, canvas, [data-lf-content="data"]';
+const DECORATIVE =
+  '[aria-hidden="true"], img[alt=""], [role="presentation"], [role="none"]';
+const GHOST = "data-lf-dial-ghost";
+// How tall Everything's sheet stands, the tallest, since each depth shows all the one
+// before it does. A sheet is drawn in rows of one line of text and its gap.
+const TALL = 112;
+const ROW = 3;
+
+/** @typedef {"skim" | "read" | "all"} Depth */
+/** @typedef {{kind: "heading" | "picture" | "text", skim: boolean, read: number, all: number}} Sized */
+/** @typedef {{kind: Sized["kind"], rows: number}} Bar */
+/** @typedef {{skim: number, read: number, all: number, bars: Record<Depth, Bar[]>, folds: Element[], closed: HTMLDetailsElement[]}} Sizes */
+
+/** @param {number} seconds */
+const minutes = (seconds) => `${Math.max(1, Math.round(seconds / 60))} min`;
+/** @param {Sized} block @param {string} depth */
+const secondsAt = (block, depth) =>
+  depth === "skim"
+    ? block.skim
+      ? block.read
+      : 0
+    : depth === "read"
+      ? block.read
+      : block.all;
+
+// A depth's blocks as the bars its sheet draws, `scale` rows' worth of pixels to the
+// second: each block as many rows as its place on the sheet rounds to, and a heading or
+// a picture a row at least, where that leaves the sheet no more than a row past its
+// length. A block with no row of its own is drawn with the bar after it, so a sheet
+// draws at most a bar a row however long the page.
+/** @param {Sized[]} blocks @param {Depth} depth @param {number} scale */
+const barsAt = (blocks, depth, scale) => {
+  /** @type {Bar[]} */
+  const bars = [];
+  let length = 0;
+  let rows = 0;
+  for (const block of blocks) {
+    const seconds = secondsAt(block, depth);
+    if (!seconds) continue;
+    length += seconds * scale;
+    const due = Math.round(length / ROW);
+    const to = block.kind === "text" ? due : Math.max(due, Math.min(rows + 1, due + 1));
+    if (to > rows) bars.push({ kind: block.kind, rows: to - rows });
+    rows = Math.max(rows, to);
+  }
+  return bars;
+};
+/** @param {Bar[]} bars */
+const rowsOf = (bars) => bars.reduce((sum, bar) => sum + bar.rows, 0);
+
+// The nodes among `nodes`, in document order down the page, that stand within a
+// window's height of what the window shows, found by halving, so pointing marks the
+// same few blocks on a page of any length.
+/** @template {Element} T @param {T[]} nodes @returns {T[]} */
+const nearWindow = (nodes) => {
+  const window = shownWindow();
+  const reach = window.bottom - window.top;
+  let low = 0;
+  let high = nodes.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    const box = /** @type {T} */ (nodes[middle]).getBoundingClientRect();
+    if (box.bottom < window.top - reach) low = middle + 1;
+    else high = middle;
+  }
+  const near = [];
+  for (const node of nodes.slice(low)) {
+    if (node.getBoundingClientRect().top > window.bottom + reach) break;
+    near.push(node);
+  }
+  return near;
+};
+
+// Each depth's page hanging under its own button as a sheet of its own, to one scale,
+// each block a bar as long as it takes to read, so the sheets read as how far down
+// each depth's page runs, with the page showing between them. The pointed sheet stands
+// in full ink, and a frame rings the depth that stands. `columns` is where each button
+// stands across the dial, which the panel spans edge to edge; the pointer reaching a
+// sheet points at its depth (`point`).
+/** @param {Sizes} sizes @param {string} pointed @param {string} chosen @param {{left: number, width: number}[]} columns @param {(name: string) => void} point */
+const sizeHang = (sizes, pointed, chosen, columns, point) => {
+  const at = DEPTHS.findIndex(({ name }) => name === chosen);
+  const frame = columns[at] ?? { left: 0, width: 0 };
+  // A sheet's height: its rows, its padding and its border.
+  const sheet = rowsOf(sizes.bars[/** @type {Depth} */ (chosen)]) * ROW + 10;
+  return html`<span
+    class="lf-dial-hang"
+    style=${`--tall: ${rowsOf(sizes.bars.all) * ROW}px`}
+  >
+    ${DEPTHS.map(({ name }, i) => {
+      const { left, width } = columns[i] ?? { left: 0, width: 0 };
+      return html`<span
+        class="lf-dial-hang-column"
+        ?data-lf-pointed=${name === pointed}
+        style=${`inset-inline-start: ${left}px; inline-size: ${width}px`}
+        @pointerenter=${() => point(name)}
+      >
+        <span class="lf-dial-hang-page"
+          ><span class="lf-dial-hang-bars"
+            >${sizes.bars[/** @type {Depth} */ (name)].map(
+              ({ kind, rows }) =>
+                html`<span
+                  class=${`lf-dial-hang-${kind}`}
+                  style=${`block-size: ${rows * ROW}px`}
+                ></span>`,
+            )}</span
+          ></span
+        >
+      </span>`;
+    })}
+    <span
+      class="lf-dial-hang-frame"
+      style=${`inset-inline-start: ${frame.left}px; inline-size: ${frame.width}px; --sheet: ${sheet}px`}
+    ></span>
+  </span>`;
+};
+
 /** @typedef {{after: Element | null, blocks: Element[]}} FoldRun */
 
 customElements.define(
@@ -163,6 +326,48 @@ customElements.define(
     #opened = new Set();
     /** @type {AbortController | null} */
     #listening = null;
+    // The page's reading time at each depth, measured once for each presentation of the
+    // page.
+    /** @type {Sizes | null} */
+    #sizes = null;
+    // Each depth's radio, by depth.
+    /** @type {Map<string, HTMLElement>} */
+    #radios = new Map();
+    // Taking back what pointing at a depth marked on the page.
+    /** @type {(() => void) | null} */
+    #unghost = null;
+    // What the last depth's preview declared, whose ending alone takes back its marks.
+    /** @type {object | null} */
+    #declared = null;
+    // The depth whose preview stands.
+    /** @type {string | null} */
+    #pointed = null;
+    // Whether a plain press on the dial is under way.
+    #pressing = false;
+    // What puts the sheets away once the press on the dial is over.
+    /** @type {(() => void) | null} */
+    #lifted = null;
+    // The sheets go as the reading they show ends, unless a newer one took its place: the
+    // next depth's reading comes before the last one's ending, and a turn reads the depth
+    // it turned to again (`#aim`) after the press or key that put Leaf's preview away.
+    // So they go a frame later, or for a press once it is over, and stay up through a
+    // turn without a flicker.
+    #ended = (/** @type {Event} */ event) => {
+      if (/** @type {CustomEvent} */ (event).detail.declared !== this.#declared) return;
+      const declared = this.#declared;
+      const away = () => {
+        if (this.#declared === declared) this.#unpoint();
+      };
+      // Leaf's preview hears a press go down before the dial does.
+      nextRender(() => {
+        if (this.#pressing) this.#lifted = away;
+        else away();
+      });
+    };
+    // The panel the sheets hang in, under the dial, open while its preview stands.
+    /** @type {HTMLElement | null} */
+    #hang = null;
+
     get #key() {
       return `lf-dial:${this.id}`;
     }
@@ -188,7 +393,7 @@ customElements.define(
       group.name = `${this.id}-depth`;
       group.size = "s";
       group.orientation = "horizontal";
-      for (const { name, label, title } of DEPTHS) {
+      for (const { name, label } of DEPTHS) {
         const depth = offer(
           "wa-radio",
           actionClass("word", "lf-dial-depth"),
@@ -199,17 +404,64 @@ customElements.define(
         depth.value = name;
         // An attribute, so the theme seats it as a chooser from its first paint.
         depth.setAttribute("appearance", "button");
-        depth.title = title;
+        depth.append(offer("span", "lf-dial-time"));
+        /** @type {any} */ (depth).lfPreview = () => this.#read(name);
+        depth.addEventListener(PREVIEW_ENDED, this.#ended);
+        this.#radios.set(name, depth);
         group.append(depth);
       }
-      group.addEventListener("change", () => this.turn(String(group.value)));
+      group.addEventListener("change", () => {
+        const name = String(group.value);
+        this.turn(name);
+        this.#aim(this.#radios.get(name) ?? this);
+      });
       this.append(group);
+      this.#hang = offer("div", "lf-dial-hang-panel");
+      this.#hang.setAttribute("aria-hidden", "true");
+      // A press on the sheets leaves focus where it was.
+      this.#hang.addEventListener("mousedown", (event) => event.preventDefault());
+      this.append(this.#hang);
+      // The sheets are the preview's face, so the pointer reaching them, or the gaps
+      // between the buttons, reads the depth last pointed at again, standing by the dial
+      // as each depth's does, and keeps them.
+      /** @type {any} */ (this).lfPreview = () =>
+        this.#pointed ? this.#read(this.#pointed) : null;
+      this.addEventListener(PREVIEW_ENDED, this.#ended);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
         this.ownerDocument.addEventListener(
           PAGE_INTERFACE,
-          () => this.#apply(this.#depth, { moving: false }),
+          () => {
+            this.#sizes = null;
+            this.#apply(this.#depth, { moving: false });
+          },
+          { signal },
+        );
+        // A plain press on the dial puts Leaf's preview away as it goes down, and its
+        // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
+        // until the press is over. A finger's tap reads no preview again, so its sheets
+        // go at once.
+        const stopPress = onPress((down, path) => {
+          if (!path.includes(this) || !plainPress(down) || down.pointerType === "touch")
+            return null;
+          this.#pressing = true;
+          return () => () => {
+            this.#pressing = false;
+            const away = this.#lifted;
+            this.#lifted = null;
+            if (away) nextRender(away);
+          };
+        });
+        signal.addEventListener("abort", stopPress);
+        this.addEventListener(
+          "click",
+          (event) => {
+            if (!plainPress(event)) return;
+            const depth =
+              event.target instanceof Element && event.target.closest(".lf-dial-depth");
+            this.#aim(depth || this);
+          },
           { signal },
         );
         const stored = tabStore.get(this.#key);
@@ -234,6 +486,177 @@ customElements.define(
 
     #draw() {
       if (this.#depths) this.#depths.value = this.#depth;
+      const sizes = this.#measure();
+      if (!sizes) return;
+      for (const [name, radio] of this.#radios)
+        keepsText(
+          radio.querySelector(".lf-dial-time"),
+          ` ${minutes(sizes[/** @type {Depth} */ (name)])}`,
+        );
+    }
+
+    // While the sheets hang, a press or an arrow key on the dial aims at what it reached,
+    // as a chart's key reaching another point does, so Leaf's preview reads the depth it
+    // turned to, or the sheets, again, whatever put the last reading away, and the frame
+    // glides there with the sheets up (the maintainer's choice).
+    /** @param {Element} at */
+    #aim(at) {
+      if (this.#pointed) previewChanged(at, { aim: true });
+    }
+
+    // Read what pointing at a depth shows, as Leaf's preview of it does.
+    /** @param {string} name */
+    #read(name) {
+      return (this.#declared = this.#preview(name));
+    }
+
+    // Take back what pointing at a depth showed, as its preview goes.
+    #unpoint() {
+      this.#unghost?.();
+      this.#unghost = null;
+      this.#pointed = null;
+      if (this.#hang) keeps(this.#hang, "data-lf-open", null);
+    }
+
+    // What pointing at a depth shows: the sheets under the dial, and on the page, what
+    // turning to it would hide or open. Leaf's preview keeps what the depth shows unseen,
+    // for a screen reader to hear on focus; it stands by the dial for each depth, so
+    // crossing the buttons redraws it in place.
+    /** @param {string} name */
+    #preview(name) {
+      const { title } = /** @type {(typeof DEPTHS)[number]} */ (
+        DEPTHS.find((depth) => depth.name === name)
+      );
+      const sizes = this.#measure();
+      if (!sizes || !this.#hang) return { detail: [title] };
+      this.#unghost?.();
+      this.#unghost = this.#ghost(name);
+      this.#pointed = name;
+      keeps(this.#hang, "data-lf-open", "");
+      // Each button's place across the panel's inside, which its border insets.
+      const from = this.getBoundingClientRect().left + this.#hang.clientLeft;
+      const columns = DEPTHS.map((depth) => {
+        const box = this.#radios.get(depth.name)?.getBoundingClientRect();
+        return box
+          ? { left: box.left - from, width: box.width }
+          : { left: 0, width: 0 };
+      });
+      render(
+        sizeHang(
+          sizes,
+          name,
+          this.#depth,
+          columns,
+          (depth) => this.#pointed && this.#preview(depth),
+        ),
+        this.#hang,
+      );
+      return { name: title, unseen: true, at: this };
+    }
+
+    // Mark on the page what turning to `name` would change, near the window: fade what
+    // it would hide and ring where it would open more. Returns what takes the marks back.
+    /** @param {string} name */
+    #ghost(name) {
+      const sizes = this.#measure();
+      if (!sizes || name === this.#depth) return null;
+      /** @type {Element[]} */
+      const goes = [];
+      /** @type {Element[]} */
+      const comes = [];
+      if (name === "skim")
+        for (const block of nearWindow(sizes.folds)) if (shown(block)) goes.push(block);
+      // Everything's disclosures close at Skim and Read.
+      if (this.#depth === "all")
+        for (const details of nearWindow([...this.#opened]))
+          if (shown(details))
+            goes.push(
+              ...[...details.children].filter((child) => child.localName !== "summary"),
+            );
+      // Leaving Skim opens every fold.
+      if (this.#depth === "skim") comes.push(...nearWindow([...this.#runs.keys()]));
+      if (name === "all")
+        for (const details of nearWindow(sizes.closed))
+          if (!details.open && shown(details)) comes.push(details);
+      for (const node of goes) node.setAttribute(GHOST, "goes");
+      for (const node of comes) node.setAttribute(GHOST, "comes");
+      return () => {
+        for (const node of [...goes, ...comes]) node.removeAttribute(GHOST);
+      };
+    }
+
+    // Seconds to read `block` as Read shows it, or with `all` as Everything does.
+    /** @param {Element} block @param {Element} scope @param {boolean} all */
+    #secondsIn(block, scope, all) {
+      let words = 0;
+      if (!block.matches(UNREAD)) {
+        const walker = block.ownerDocument.createTreeWalker(
+          block,
+          NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+          (node) =>
+            node instanceof Element &&
+            (node.matches(UNREAD) ||
+              (!all &&
+                node.parentElement !== null &&
+                this.#closed(node.parentElement) &&
+                node.localName !== "summary"))
+              ? NodeFilter.FILTER_REJECT
+              : NodeFilter.FILTER_ACCEPT,
+        );
+        for (let node = walker.nextNode(); node; node = walker.nextNode())
+          if (node.nodeType === Node.TEXT_NODE)
+            words += node.textContent?.match(/\S+/g)?.length ?? 0;
+      }
+      return (
+        words / WORDS_PER_SECOND + this.#picturesIn(block, scope, all) * PICTURE_SECONDS
+      );
+    }
+
+    // The page's reading time at each depth and the bars each sheet draws, with the
+    // blocks Skim folds and the closed disclosures Everything opens, read once for each
+    // presentation of the page.
+    #measure() {
+      if (this.#sizes) return this.#sizes;
+      const scope = this.#scope;
+      if (!scope) return null;
+      /** @type {Sized[]} */
+      const blocks = [];
+      /** @type {Element[]} */
+      const folds = [];
+      for (const block of this.#blocks(scope, scope)) {
+        if (block === this) continue;
+        const skim = this.#kept(block, scope);
+        if (!skim) folds.push(block);
+        blocks.push({
+          kind: block.matches(HEADING)
+            ? "heading"
+            : this.#picturesIn(block, scope, false)
+              ? "picture"
+              : "text",
+          skim,
+          read: this.#secondsIn(block, scope, false),
+          all: this.#secondsIn(block, scope, true),
+        });
+      }
+      const total = (/** @type {Depth} */ depth) =>
+        blocks.reduce((sum, block) => sum + secondsAt(block, depth), 0);
+      const all = total("all");
+      const scale = TALL / Math.max(all, 1);
+      return (this.#sizes = {
+        skim: total("skim"),
+        read: total("read"),
+        all,
+        bars: {
+          skim: barsAt(blocks, "skim", scale),
+          read: barsAt(blocks, "read", scale),
+          all: barsAt(blocks, "all", scale),
+        },
+        folds,
+        closed: [...scope.querySelectorAll("details")].filter(
+          (details) =>
+            (!details.open || this.#opened.has(details)) && !details.closest(STANDS),
+        ),
+      });
     }
 
     /** @param {string} name @param {{moving: boolean}} options */
@@ -293,6 +716,23 @@ customElements.define(
       return (
         node instanceof HTMLDetailsElement && (!node.open || this.#opened.has(node))
       );
+    }
+    // How many pictures in `block` the estimate times: each outermost one in the
+    // author's markup in `scope`, so not decoration, Leaf's chrome or a widget's own
+    // icons, and with `all` false, not inside a closed disclosure.
+    /** @param {Element} block @param {Element} scope @param {boolean} all */
+    #picturesIn(block, scope, all) {
+      return [block, ...block.querySelectorAll(PICTURE)].filter((node) => {
+        if (!node.matches(PICTURE) || node.matches(DECORATIVE)) return false;
+        for (let at = node.parentElement; at && at !== scope; at = at.parentElement)
+          if (
+            at.matches(`${PICTURE}, ${STANDS}, ${DECORATIVE}`) ||
+            (isLeafElement(at) && !at.hasAttribute("data-lf-content")) ||
+            (!all && this.#closed(at))
+          )
+            return false;
+        return true;
+      }).length;
     }
     // Whether a child is kept whole at Skim: what Skim shows, or a block holding some of
     // it that the dial doesn't enter.

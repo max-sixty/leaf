@@ -1157,6 +1157,31 @@ function fieldEditor(
       EditorView.atomicRanges.of((view) => view.state.field(field)),
     ],
   });
+  // The first line whose words all come after the last change: the line the change
+  // ended in where it ended at that line's start, as Backspace at the start of a line
+  // leaves it, and otherwise the line below; none where the change ended at the field's
+  // end, as clearing or replacing all its words does, since no words follow. A line a
+  // key takes away moves those words with the field's end edge, and the words before
+  // them with its start edge, so an owner carrying the words splits its carry there
+  // (text-field.js, `--lf-field-after`).
+  const afterMark = Decoration.line({ attributes: { "data-lf-after": "" } });
+  const afterChange = StateField.define({
+    create: () => Decoration.none,
+    update(lines, tr) {
+      if (!tr.docChanged) return lines;
+      let end = 0;
+      tr.changes.iterChangedRanges((_fromA, _toA, _fromB, toB) => {
+        end = Math.max(end, toB);
+      });
+      const { doc } = tr.state;
+      if (end === doc.length) return Decoration.none;
+      const line = doc.lineAt(end);
+      if (end === line.from) return Decoration.set([afterMark.range(line.from)]);
+      if (line.number === doc.lines) return Decoration.none;
+      return Decoration.set([afterMark.range(line.to + 1)]);
+    },
+    provide: (field) => EditorView.decorations.from(field),
+  });
 
   // Return in a field that reads as a file begins a line the body shows too, carrying
   // the markers of the containers the caret's line stands in. Among a paragraph's words
@@ -1705,6 +1730,7 @@ function fieldEditor(
         reading,
         message.of(field.message()),
         joints,
+        afterChange,
         livePreview,
         EditorView.lineWrapping,
         editable.of(EditorState.readOnly.of(field.readOnly)),

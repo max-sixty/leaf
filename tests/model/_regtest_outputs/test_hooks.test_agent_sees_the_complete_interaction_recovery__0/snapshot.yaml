@@ -111,6 +111,7 @@ reminded at prompt:
 
       `leaf page state <page>` lists what is owed, and `leaf page state <page> <message>` reads a thread's history.
       Read these unanswered updates and their exact answer references:
+
       ```xml
       <leaf-delivery id="<delivery>" operation="delivery read" />
       ```

@@ -258,10 +258,13 @@
  * room it reaches past the box and the aim's veil. None inherits, so a box inside a
  * marked one is marked only as it is itself, and marking a box restyles that box
  * alone: an inherited veil would restyle every element of a long text document each
- * time ⌥ aimed at it. */
+ * time ⌥ aimed at it. The gap is a length, so a box's edge stated as `0` reaches the
+ * brackets' `calc` as `0px`: untyped, a unitless 0 there is a number, the clip is
+ * invalid and the mark draws whole. */
 @property --lf-band-gap {
-  syntax: "*";
+  syntax: "<length>";
   inherits: false;
+  initial-value: 0px;
 }
 @property --lf-band-w {
   syntax: "*";
@@ -488,16 +491,22 @@ body {
   inherits: false;
   initial-value: 0px 0px 0px 0px;
 }
-/* How far across and down from their places a text field draws its words, and how much
-   of its box it cuts them to from each side, while an owner's tween carries them with
-   the field's edges (composing/text-field.js, runtime/box-motion.js). At rest both are
-   `none`, which leaves the words untransformed and uncut. */
+/* How far across and down from their places a text field draws its words, how much
+   of its box it cuts them to from each side, and how much farther the words after a
+   change are drawn, while an owner's tween carries them with the field's edges
+   (composing/text-field.js, runtime/box-motion.js). At rest all are `none`, which leaves
+   the words untransformed and uncut. */
 @property --lf-field-carry {
   syntax: "<length>+ | none";
   inherits: true;
   initial-value: none;
 }
 @property --lf-field-cut {
+  syntax: "<length>+ | none";
+  inherits: true;
+  initial-value: none;
+}
+@property --lf-field-after {
   syntax: "<length>+ | none";
   inherits: true;
   initial-value: none;

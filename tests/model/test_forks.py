@@ -18,6 +18,7 @@ from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     append_command,
+    inlined,
     page_packages,
     serving,
     stamp,
@@ -494,9 +495,8 @@ def test_a_fork_takes_work_it_judges_its_own_as_a_pickup_in_its_own_turn(
     assert turn in state_model.open_agent_turns("s1")
     assert taken["prompt"].startswith(forks_model.WORK_OPENING)
     assert "Which Python does the project need?" in taken["prompt"]
-    # The fork's task offers each way it ends: an answer, one opening a to-do, or
-    # the thread given back.
-    assert "--todo" in taken["prompt"] and forks_model.HAND_BACK in taken["prompt"]
+    # The fork's task names the option of the reply that opens a to-do.
+    assert "--todo" in taken["prompt"]
     *_line, pickup = [
         e for e in events_model.read_events(claimed) if e["kind"] == "pickup"
     ]
@@ -1146,8 +1146,7 @@ def test_a_running_forks_tool_boundary_carries_a_rewrite_as_logged(
             "text": "And the autocomplete service?",
         },
     )
-    _opening, envelope = agent_context(capsys, "agent-1").split("\n", 1)
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(agent_context(capsys, "agent-1"))["batches"]
     assert [
         (event["kind"], event["text"], event.get("was"), "edited" in event)
         for event in batch["events"]
@@ -1552,7 +1551,7 @@ def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
         "s1",
         agent="agent-1",
         turn=None,
-        answer=f"{forks_model.HAND_BACK} the session is changing its startup.",
+        answer="The session is changing its startup.",
         failed=None,
     )
     watching.thread.join(STATED_TIMEOUT)
@@ -1565,7 +1564,7 @@ def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
         "additionalContext"
     ]
     assert "Does the suggest service cache?" in prompt, prompt
-    assert "the session is changing its startup" in prompt, prompt
+    assert "The session is changing its startup." in prompt, prompt
 
 
 def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
@@ -1672,9 +1671,7 @@ def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(
     assert deliverable(claimed) == []
     assert context(capsys, "PostToolBatch") == ""
 
-    opening, envelope = agent_context(capsys, "agent-1").split("\n", 1)
-    assert opening == hook_transport_model.INLINE_OPENING
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(agent_context(capsys, "agent-1"))["batches"]
     assert [event["id"] for event in batch["events"]] == [more["id"]]
     pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
     assert (pickup["events"], pickup["turn"]) == ([more["id"]], taken["turn"])
@@ -1796,7 +1793,7 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(claimed, lane):
     assert resume.startswith(forks_model.WORK_OPENING)
     assert "And which uv?" in resume and answer_ref(claimed, more["id"]) in resume
     assert f"`leaf --turn {taken['turn']} page state {claimed}`" in resume
-    assert "--todo" in resume and forks_model.HAND_BACK in resume
+    assert "--todo" in resume
 
     with state_model.acting_in(taken["turn"]):
         answer = thread_model.post_response(
@@ -1825,7 +1822,7 @@ def test_a_thread_whose_fork_cannot_be_resumed_goes_to_the_main_thread(claimed, 
         "s1",
         agent="agent-1",
         turn=None,
-        answer=f"{forks_model.HAND_BACK} the session is changing it.",
+        answer="The session is changing it.",
         failed=None,
     )
     assert thread_model.post_response(
@@ -1897,8 +1894,7 @@ def test_one_fork_works_a_thread_while_its_turn_runs(claimed, lane, capsys):
     assert (note["kept_back"], note["held_by"]) == (False, running["turn"])
     assert kept_back(claimed) == []
     assert deliverable(claimed) == []
-    _opening, envelope = agent_context(capsys, "agent-5").split("\n", 1)
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(agent_context(capsys, "agent-5"))["batches"]
     assert [event["id"] for event in batch["events"]] == [soon["id"]]
     pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
     assert (pickup["events"], pickup["turn"]) == ([soon["id"]], running["turn"])
@@ -2049,7 +2045,7 @@ def test_a_command_naming_a_turn_that_is_not_open_acts_as_nobody(
         "s1",
         agent="agent-1",
         turn=None,
-        answer=f"{forks_model.HAND_BACK} the session is changing it.",
+        answer="The session is changing it.",
         failed=None,
     )
     context(capsys, "UserPromptSubmit")
@@ -2184,8 +2180,7 @@ def test_a_fork_ending_on_a_thread_the_user_resolved_hands_nothing_back(
         if row.get("step") == "end"
     ] == [(asked["id"], [asked["id"]])]
     assert clerk_model.queued("s1") == []
-    _opening, envelope = context(capsys, "UserPromptSubmit").split("\n", 1)
-    [batch] = json.loads(envelope)["batches"]
+    [batch] = inlined(context(capsys, "UserPromptSubmit"))["batches"]
     assert [event["id"] for event in batch["events"]] == [resolved["id"]]
 
 
@@ -2372,11 +2367,11 @@ def test_the_reading_changes_when_a_turn_whose_start_is_unconfirmed_lapses(
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
     claimed, lane
 ):
-    """A fork that gives the thread back, fails to start, or goes unheard for the
-    working grace leaves the thread's answer owed by the main thread, under the
-    answer reference the fork's delivery gave it until the main thread's next
-    delivery hands the message over; and the main thread hears which fork gave which
-    thread back, and why."""
+    """A fork that gives the thread back, ends its run with no words, fails to start,
+    or goes unheard for the working grace leaves the thread's answer owed by the main
+    thread, under the answer reference the fork's delivery gave it until the main
+    thread's next delivery hands the message over; and the main thread hears which
+    fork gave which thread back, and why: the fork's last words, or its failure."""
     asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -2385,14 +2380,14 @@ def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
         "s1",
         agent="agent-1",
         turn=None,
-        answer=f"{forks_model.HAND_BACK} the session is changing its startup.",
+        answer="The session is changing its startup.\n",
         failed=None,
     ) == [
         {
             "page": str(claimed),
             "thread": asked["id"],
             "outcome": "hand_back",
-            "why": "the session is changing its startup.",
+            "why": 'the fork\'s last words were "The session is changing its startup."',
         }
     ]
     [owed] = activity_model.turn_obligations(reading(claimed), watched=False)
@@ -2400,6 +2395,9 @@ def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
     assert owed["answer"]["ref"] == answer_ref(claimed, asked["id"])
     gave = clerk_model.queued("s1")[-1]
     assert gave.startswith(f"Your fork agent-1 gave thread {asked['id']}"), gave
+    assert gave.endswith(
+        ': the fork\'s last words were "The session is changing its startup."'
+    ), gave
 
     unstarted, given = taken_by_a_fork(claimed, "How many shards does staging have?")
     [failed] = forks_model.ended(
@@ -2410,12 +2408,21 @@ def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
     gave = clerk_model.queued("s1")[-1]
     assert gave.startswith(f"Your fork gave thread {unstarted['id']}"), gave
 
+    silent, left = taken_by_a_fork(claimed, "Which index does search read?")
+    forks_model.started(
+        "s1", basis(claimed, silent["id"], silent["id"]), left["turn"], "agent-2"
+    )
+    [ended] = forks_model.ended(
+        "s1", agent="agent-2", turn=None, answer="\n", failed=None
+    )
+    assert ended["why"] == "the fork ended without answering"
+
     quiet, kept = taken_by_a_fork(claimed, "Which region is staging in?")
     owing = {
         item["input"]
         for item in activity_model.turn_obligations(reading(claimed), watched=False)
     }
-    assert owing == {asked["id"], unstarted["id"]}
+    assert owing == {asked["id"], unstarted["id"], silent["id"]}
     turns = state_model.agent_turns("s1")
     long_ago = datetime.now().astimezone() - activity_model.WORKING_GRACE
     turns[kept["turn"]]["renewed"] = long_ago.isoformat()
@@ -2463,7 +2470,7 @@ def test_a_thread_a_fork_gave_back_goes_to_the_main_thread_once(claimed, lane):
         "s1",
         agent="agent-1",
         turn=None,
-        answer=f"{forks_model.HAND_BACK} the header is the session's to change.",
+        answer="The header is the session's to change.",
         failed=None,
     )
     assert deliverable(claimed) == [asked["id"], more["id"]]

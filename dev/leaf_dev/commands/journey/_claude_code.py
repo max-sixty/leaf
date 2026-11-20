@@ -31,8 +31,7 @@ which the line fork hands to the session (`evals/line-fork/case.yaml`,
 `withdrawn`'s comment needs none, since the user resolves it at once. The fork steps
 run right after `release`. `fork-lookup` needs its line fork to give a count in the
 page's source to a fork, as `evals/line-fork/case.yaml` labels it once the session has
-finished editing that file (`source-edited`); after the delivery steps' edits, the
-line fork gave it to the session instead.
+finished editing that file (`source-edited`).
 
 The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
 more than one harness takes, as `_journey.Terminal` has them:
@@ -1195,8 +1194,8 @@ def deliveries(records: list[dict], update: str) -> list[int]:
         and any(
             event["id"] == update
             for content in attachment.get("content") or []
-            if (delivery := inline_delivery(content)) is not None
-            for batch in delivery["batches"]
+            if (inline := inline_delivery(content)) is not None
+            for batch in inline[0]["batches"]
             for event in batch["events"]
         )
     ]

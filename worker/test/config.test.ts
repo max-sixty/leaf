@@ -14,7 +14,6 @@ interface DeploymentConfig {
     class_name: string;
     max_instances: number;
     instance_type: { vcpu: number; memory_mib: number; disk_mb: number };
-    rollout_active_grace_period: number;
   }>;
   durable_objects: {
     bindings: Array<{ name: string; class_name: string }>;

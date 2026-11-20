@@ -56,11 +56,13 @@ lf-options {
   --lf-options-row-width: initial;
   /* A picked row's or cell's ground: the card a step toward the settled colour, deeper
    * than the aim's wash (below), so a pick still shows where the focus ring covers its
-   * ring and a digit takes its check. Rejected: the settled tint, the chips' ground,
-   * which stands no deeper than the aim's wash and differs from it only in chroma, so
-   * over a whole card it reads as khaki on the reading theme's paper, and it hides the
-   * card's own chips. */
-  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 82%, var(--lf-settled));
+   * ring and a digit takes its check, but no deeper than keeps the muted words an
+   * option holds, such as its mark's word and a § reference, at 4.5:1 on it
+   * (tokens.css, `--lf-muted`). Rejected: the settled tint, the chips' ground, which
+   * stands no deeper than the aim's wash and differs from it only in chroma, so over a
+   * whole card it reads as khaki on the reading theme's paper, and it hides the card's
+   * own chips. */
+  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 85%, var(--lf-settled));
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -578,9 +580,11 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       background-color: var(--lf-ground);
     }
     /* The aim wash: the cell under the pointer or the keyboard deepens toward the ink,
-     * which reads in both palettes. The fill is not transitioned, since the tokens
+     * which reads in both palettes. A pick keeps its ground: it already stands deeper
+     * than the wash, and washing it deeper would take its muted words below 4.5:1
+     * (tokens.css, `--lf-muted`). The fill is not transitioned, since the tokens
      * change when the palette flips and every cell would animate between them. */
-    & > lf-option:is(:hover, [data-lf-control-focus]) {
+    & > lf-option:not([selected]):is(:hover, [data-lf-control-focus]) {
       --lf-ground: color-mix(in srgb, var(--lf-fill) 92%, var(--lf-ink));
     }
     /* The pick fills the cell with the picked ground and rings it inside its edge
@@ -617,7 +621,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     border-radius: var(--lf-r);
     /* The group draws its own edge, so its marks stand on it (tokens.css, "Where it
      * stands"), the location ring where it asks alone in a message included. */
-    --lf-ring-at: 0;
+    --lf-ring-at: 0px;
     /* Clip, not hidden: a hidden box is a scroll container, which would take a sticky
      * header inside an option (a diff's file header) off the window's top. */
     overflow: clip;
@@ -935,14 +939,13 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another {
   }
 }
 /* An opened settled group's option answers the pointer with the aim's wash a live cell
- * takes (above), without moving its words. */
+ * takes (above), without moving its words, and its pick keeps its ground as a live
+ * cell's does. */
 @media screen {
-  lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
+  lf-options[settled]:not(:where([data-lf-exhibit]) *)
+    > lf-option:not([selected]):hover {
     --lf-ground: color-mix(in srgb, var(--lf-card) 92%, var(--lf-ink));
     background: var(--lf-ground);
-  }
-  lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option[selected]:hover {
-    --lf-ground: color-mix(in srgb, var(--lf-picked-ground) 92%, var(--lf-ink));
   }
 }
 /* The reference floats to the end of the words' last line where it fits there and

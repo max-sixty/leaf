@@ -16,7 +16,8 @@
    to the server behind the keystroke (`writeDraft`); a page going away sends what is
    still waiting, and a reload of its tab starts from its copy of it. Words typed while
    the server is out of reach stay in the tab until a look reaches it again, and
-   leaving the page before then asks first (`beforeunload`). The server's store names itself, and within
+   leaving the page before then asks first (`beforeunload`), as it does over a
+   comment's drawing. The server's store names itself, and within
    one store nothing this document heard goes back (`drafts.py`). A store that
    replaced the one this document heard from, as a new leaf.page release starts one,
    gets this document's words: alone where it holds nothing for their draft, and
@@ -117,6 +118,7 @@ import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
 import { signal } from "./framework.js";
+import { takesNoWords } from "./composing/input.js";
 
 /** @typedef {object} DraftPayload
  * @typedef {{attempt: string, text: string, payload?: DraftPayload, held?: string, settled?: never}} ActiveDraft
@@ -445,19 +447,19 @@ const writeWaiting = () => {
 // generations but not its copy, since only the server's answer says whether the log
 // took those words.
 //
-// Words no write is carrying, as after one failed while the server was out of reach,
-// or on an exported page, which has no server, go with the document. So leaving asks
-// first, through the browser's own prompt, and the user says whether they still want
-// them (SOUL.md, "Leaf drops words the user typed only when it knows they no longer
-// want them"). Keeping them in the browser past the tab instead would need the store
-// to know every write it ever took, or a late replay brings back words sent,
-// cancelled or written over elsewhere. Words a write is carrying need no prompt,
-// since the resend above takes them on. A reload asks too, though its tab keeps the
-// words for it, since the prompt can't tell a reload from a close.
+// Words or a drawing no write is carrying (`holdsWork`), as after one failed while the
+// server was out of reach, or on an exported page, which has no server, go with the
+// document. So leaving asks first, through the browser's own prompt, and the user says
+// whether they still want them (SOUL.md, "Leaf drops words the user typed only when it
+// knows they no longer want them"). Keeping them in the browser past the tab instead
+// would need the store to know every write it ever took, or a late replay brings back
+// words sent, cancelled or written over elsewhere. Work a write is carrying needs no
+// prompt, since the resend above takes it on. A reload asks too, though its tab keeps
+// the work for it, since the prompt can't tell a reload from a close.
 addEventListener("beforeunload", (event) => {
   const stranded = [...draftCache].some(
     ([ctx, { durable }]) =>
-      !durable && !writing.has(ctx) && activeDraftRecord(ctx)?.text.trim(),
+      !durable && !writing.has(ctx) && holdsWork(activeDraftRecord(ctx)),
   );
   if (stranded) event.preventDefault();
 });
@@ -781,6 +783,12 @@ const LISTED = ["anchor", "suggest", "about", "drawing"];
 /** @param {DraftPayload | undefined} payload @param {string} key */
 const field = (payload, key) =>
   /** @type {Record<string, unknown> | undefined} */ (payload)?.[key];
+// Whether a draft holds the user's work: words, or a comment's drawing, which a
+// selection composer can hold with no words. Leaving asks over it and the drafts list
+// shows it. Words given back test more widely (`giveBackWords`).
+/** @param {ActiveDraft | null} record */
+const holdsWork = (record) =>
+  Boolean(record?.text.trim() || field(record?.payload, "drawing"));
 /** @param {DraftPayload | undefined} was @param {DraftPayload | undefined} now */
 const listsAlike = (was, now) =>
   LISTED.every((key) => {
@@ -792,7 +800,7 @@ function listDraft(ctx) {
   const subject = draftSubject(ctx);
   if (!subject || subject.part === "page") return;
   const record = activeDraftRecord(ctx);
-  const holds = Boolean(record?.text.trim() || field(record?.payload, "drawing"));
+  const holds = holdsWork(record);
   const was = listing.get(ctx);
   if (!holds && !was) return;
   if (holds && was && listsAlike(was.payload, record?.payload)) return;
@@ -1080,6 +1088,8 @@ const atEnd = (ctx) => {
 /** @param {string} ctx @param {string} text @param {DraftPayload} [payload] @param {string | null} [under] */
 export function giveBackWords(ctx, text, payload, under = null) {
   const current = activeDraftRecord(ctx);
+  // Any text counts here, whitespace included, so a box the user has begun keeps
+  // what they typed and its own payload, such as the passage of a comment begun since.
   const own =
     current && (current.text || field(current.payload, "drawing")) ? current : null;
   const reply = under === null ? null : activeDraftRecord(under);
@@ -1284,10 +1294,13 @@ export function createWritingResume({
       (view) => view.ctx === place.context && editorInput(view) === input,
     );
     const field = editor && editorInput(editor);
+    // Whether the box takes words now (`takesNoWords`), not its painted `readOnly`,
+    // which still reads shut until the next paint after the same task ends a stance,
+    // as `g i` ends Go-to's.
     if (
       field?.isConnected &&
       field.checkVisibility() &&
-      !field.readOnly &&
+      !takesNoWords(field) &&
       !("disabled" in field && field.disabled)
     ) {
       // Coming back to the words is the user dealing with any error over them, as a

@@ -85,9 +85,9 @@ Fix it and post again. Where Leaf has no browser, the failure reaches you instea
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
 wall there. The user should take in at a glance what a message tells them and what it
 asks of them. A message is generally a sentence or two; where it has several points,
-such as the options a question weighs, give each a short paragraph or item, and a
-question a line of its own. The page carries the work. Record a decision, result,
-or deferred work on the page and link it from the reply with a fragment link such as
+give each a short paragraph or item, and a question a paragraph of its own. The page
+carries the work. Record a decision, result, or deferred work on the page and link it
+from the reply with a fragment link such as
 `[the decision](#decision)`, which previews its target while the user points at it and
 opens any tab or group hiding it. The thread already reaches the passage or section it
 is on, as a card beside it or by Show on page in the panel, so a link to it takes the
@@ -205,9 +205,11 @@ send the answers in the message as an `<lf-options id="…">` holding an
 the user than typing a reply, so a choice usually serves them better than answers
 listed in words. The user answers with a press in the thread, and the `lf-options`
 waits on them until they do, so the message takes no `--obligation`, which the command
-refuses beside it. The message's text asks the question and gives your reason, so the
-`lf-options` needs no heading or group round it. Title each option by what choosing it
-does and mark the one you advise (`authoring-on-me.md`, "What a question holds").
+refuses beside it. The text holds the question, what is true of every option and your
+reason; each card holds what is true of its option alone, such as what choosing it
+does and costs. The `lf-options` needs no heading or group round it. Title each option by what
+choosing it does and mark the one you advise (`authoring-on-me.md`, "What a question
+holds").
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'
@@ -241,9 +243,11 @@ its text becomes your line in Leaf's panel status, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.
 
-The thread shows the latest progress as one dim working message where you posted it,
-Progress never counts as unread. Your next ordinary reply replaces the preceding
-progress.
+The thread shows your latest progress as one dim working message where you posted
+it, and progress never counts as unread. Your next message in the thread replaces it,
+progress included, but progress the user has written after stays until your next
+reply. Where nothing in the thread before it still waits on your answer, it also goes
+when your turn ends.
 Progress carries only text;
 questions, to-dos, HTML, anchor moves and failure receipts each need a reply of
 their own.
@@ -302,8 +306,8 @@ be asked. New input may carry `summary_hint`, a suggested range. Read the origin
 with `leaf page state <page> <message>` and choose a contiguous range yourself,
 starting and ending on spoken messages rather than reactions.
 
-Fold what compresses most: settled detail, finished exchanges and progress, whose
-outcome a few sentences carry. Keep in full the messages whose wording still matters
+Fold what compresses most: settled detail and finished exchanges, whose outcome a
+few sentences carry. Keep in full the messages whose wording still matters
 to the current exchange, such as the question a kept answer replies to, or an opening
 message whose words still frame the thread. A range may take in summaries already in
 the thread, and the new summary replaces them. Take them in, as the hint does, so the

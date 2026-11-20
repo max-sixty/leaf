@@ -1915,7 +1915,10 @@ def test_a_preview_covers_no_neighbour_and_takes_the_pointer_in_a_modal(
     expect(word).to_have_text("A control in the dialog")
     box = tip.bounding_box()
     middle = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
-    page.mouse.move(*middle, steps=4)
+    # One move onto it, so the pointer never rests on the dialog between: the preview
+    # goes a dwell after the pointer leaves for nothing, on the page's clock, which
+    # keeps real time until the test runs it forward.
+    page.mouse.move(*middle)
     dwelt(page)
     expect(word).to_have_text("A control in the dialog")
     assert page.evaluate(

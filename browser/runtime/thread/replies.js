@@ -78,7 +78,7 @@ import { tick } from "../version-signal.js";
  * landSent: typeof import("./landing.js").landSent,
  * landInThread: typeof import("./landing.js").landInThread}} ReplyCommands */
 /** @typedef {Partial<Pick<import("../composing/input.js").InputOptions,
- * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy">> & {
+ * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed">> & {
  * onChange?: () => void,
  * editLast?: ReturnType<typeof import("./message-edit.js").threadRewrites>["editLast"] | null,
  * sending?: (() => void) | null, sent?: (() => unknown) | null}} ReplyOptions */
@@ -379,13 +379,13 @@ function sendReply(draftCtx, key, text, owns, actions, back) {
 /** @param {string} key @param {HTMLDivElement} row
  * @param {ReturnType<typeof import("../composing/text-field.js").textField>} input
  * @param {ReplyCommands} commands
- * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy">>} options */
+ * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed">>} options */
 function wireReply(
   key,
   row,
   input,
   commands,
-  { hint, hintParts, hintLead, enters, accessibleName, busy },
+  { hint, hintParts, hintLead, enters, accessibleName, busy, closed },
 ) {
   row.classList.add("lf-comment-box");
   input.setAttribute("data-lf-voice", "leaf");
@@ -398,6 +398,7 @@ function wireReply(
     enters,
     accessibleName,
     busy,
+    closed,
     sends: "send",
     sendClass: "lf-thread-send",
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -568,7 +569,7 @@ export async function restoreReplyEditing(editing, land) {
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`), what stands before that
-// (`hintLead`), the press its end offers (`enters`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
+// (`hintLead`), the press its end offers (`enters`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), take no words while its owner says so (`closed`), and
 // land a send's turn itself (`sent`), as the floating panel's view does at its end,
 // told before the send draws (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
@@ -587,6 +588,7 @@ export function createReplyView(
     enters = () => "",
     accessibleName = "Reply",
     busy = () => false,
+    closed = () => false,
     sending = null,
     sent = null,
   } = {},
@@ -603,6 +605,7 @@ export function createReplyView(
       enters,
       accessibleName,
       busy,
+      closed,
     });
   };
   let composition = fresh();

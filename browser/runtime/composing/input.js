@@ -97,6 +97,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {() => unknown} [hintLead]
  * @property {() => string | BoxPress | null} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
+ * @property {() => boolean} [closed]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
  * @property {string} [sendClass]
@@ -110,7 +111,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {readonly import("../keyboard/bindings.js").Command[]} [rows]
  * @property {HTMLElement | null} [submitIn]
  * @property {boolean} [sentMedia]
- * @typedef {{(): void, cancelDictation: () => void, value: () => string, hasMedia: () => boolean,
+ * @typedef {{(): void, cancelDictation: () => void, value: () => string, closed: () => boolean, hasMedia: () => boolean,
  * arrive: () => void, load: (value: string) => void, button: HTMLButtonElement | null,
  * composition: () => {field: HTMLElement, frame: CompositionField}, addMedia: (images: readonly Blob[]) => Promise<boolean>}} InputSync
  * @typedef {TextField & {[INPUT_DRAFT]?: InputSync}} WiredInput
@@ -271,6 +272,11 @@ export const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
 // name reads has changed and the caller holds the field rather than its wiring.
 /** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
+// Whether a wired box takes no words now (`closed`), as the panel's field while a
+// stance stands. It asks `closed` rather than `readOnly`, which an upload in flight
+// also sets on a box that `c` may still move to another passage.
+/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
+export const takesNoWords = (ta) => Boolean(ta?.[INPUT_DRAFT]?.closed());
 // Whether an error stands at a box, which says it there; the panel's dot marks only
 // those that stand nowhere. A box that stops showing the words passes its errors, so a
 // standing one is always on screen.
@@ -282,7 +288,7 @@ export const standsAtItsBox = (error) => {
 };
 // A box's own press at rest (`enters`, `BoxPress`), at its placeholder's far end, the
 // field's `end` slot (text-field.js), as the entering word and its key are, so it
-// stands exactly while the box's words do and reads in their face. Its mousedown keeps
+// stands only while the box's words do, and reads in their face. Its mousedown keeps
 // the caret and focus where they are, and the press keeps the notice that offers it
 // (notifications.js, `keepsNotice`). The keyboard's route is the press's own command
 // and a finger's is this, so it takes no tab stop.
@@ -311,9 +317,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
   /** @type {import("@preact/signals-core").Signal<Element | null>} */
   const hintedBox = signal(null);
   const hintLabel = signal("");
-  // A box's press says its key only while that key would make it (floating-panel.js,
+  // A box's press stands only while a key of its would make it (floating-panel.js,
   // `noticePress`), which the dispatcher decides from focus and the keys' liveness
-  // rather than from anything a box reads, so this frame reads each standing press
+  // rather than from anything a box reads, so this frame reads each offered press
   // again, as it gives every box the comment key's destination, and repaints a box
   // whose press now reads otherwise than it drew.
   /** @type {Map<CompositionField, () => boolean>} */
@@ -350,11 +356,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // passing notice's Undo: its word and the keys of the command that makes it, read
       // as the entering word and its key are, and pressed where they read, by a pointer
       // or a finger, since it stands where the box's own words do and goes when they go
-      // (`pressAtRest`). A finger is shown its word alone, as no key is shown there.
+      // (`pressAtRest`). It stands only while one of its keys would make it now, and a
+      // finger, shown no keys, is shown its word alone.
       // Null where no key enters the box at rest, so not even its key stands there, as
       // while the page holds keys pressed before it loaded, which a key would only join.
       enters = () => "",
       accessibleName = null,
+      // Whether the box takes no words now, as the panel's field while a stance
+      // stands (field-readings.js, `still`): its draft stays, unwritable, and it
+      // offers neither Send nor the microphone until this says otherwise.
+      closed = () => false,
       save,
       send,
       sendClass = "",
@@ -601,24 +612,35 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineKey = lineKeyOf(sendKeys);
       const lineHint = focusedHere.value && !status ? lineKey : "";
       const entering = suffix && typeof offered === "string" ? offered : "";
-      const pressText = press ? [press.word, ...pressKeys].join(" ") : "";
+      // What a press says at rest, or nothing where it stands nowhere (`enters`).
       /** @param {BoxPress} reading */
       const said = (reading) =>
-        [reading.word, ...(advertisesKeys() ? reading.keys : [])].join(" ");
+        !advertisesKeys()
+          ? reading.word
+          : reading.keys.length
+            ? [reading.word, ...reading.keys].join(" ")
+            : "";
+      const pressText = press ? said(press) : "";
       // The press as drawn, whose keys its owner reads at each ask, so the recheck
       // costs that reading alone rather than the box's words.
       if (press) pressing.set(field, () => said(press) !== pressText);
       else pressing.delete(field);
+      const shown = pressText ? press : null;
       const placeholder =
-        (suffix || press) && !status
+        (suffix || shown) && !status
           ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${pressText ? ` · ${pressText}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+      // The paint is the one writer of `readOnly`: a box that takes no words, and one
+      // whose image is still uploading (`addMedia`), which keeps its Send and microphone.
+      const shut = closed();
+      const locked = shut || uploading;
+      if (ta.readOnly !== locked) ta.readOnly = locked;
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
       const lead = status ? "" : hintLead();
-      const richHint = ((suffix || press) && !status) || parts != null || lead;
+      const richHint = ((suffix || shown) && !status) || parts != null || lead;
       render(
         html`${
           richHint
@@ -635,7 +657,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
                 }
               </span>`
             : nothing
-        }${press && !status ? pressAtRest(press, pressKeys) : nothing}`,
+        }${shown && !status ? pressAtRest(shown, pressKeys) : nothing}`,
         ta,
       );
       let error = inputError.value;
@@ -652,7 +674,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const phase = dictationPhase();
       const live = phase === "starting" || phase === "listening";
       const failed = loadingFailure || dictation?.failure;
-      const micShown = offersDictation && (phase !== "idle" || !hasWords);
+      const micShown = offersDictation && !shut && (phase !== "idle" || !hasWords);
       const micAction = live
         ? "Stop dictation"
         : phase === "stopping"
@@ -669,7 +691,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
-        ?hidden=${micShown}
+        ?hidden=${micShown || shut}
         aria-keyshortcuts=${sendBindings().flatMap(ariaBindings).join(" ")}
         @mousedown=${keepEditing}
         @click=${() => pressed()}
@@ -805,6 +827,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // guessing whether a hidden field is merely outside the viewport.
     sync.cancelDictation = cancelDictation;
     sync.value = draftValue;
+    sync.closed = closed;
     sync.hasMedia = () => attachedMedia.length > 0;
     // The box takes up the draft it now stands on as it is, with a history of its own:
     // another draft, or this one as another tab left it. The caller's next paint shows
@@ -892,6 +915,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (focused() === ta) followBoxGrowth(ta);
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
+    // A press on a box that takes no words leaves the caret where it was (`closed`),
+    // and goes on to whatever the box's owner does with it, such as commenting on words
+    // selected on the page.
+    ta.addEventListener("pointerdown", (event) => {
+      if (closed()) event.preventDefault();
+    });
     ta.addEventListener(
       "lf-before-edit",
       () => {
@@ -989,9 +1018,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         return false;
       }
       rememberWriting(ta);
-      const wasReadOnly = ta.readOnly;
       uploading = true;
-      ta.readOnly = true;
       ta.setAttribute("aria-busy", "true");
       refresh();
       // The thumbnail arriving in the shelf is the attachment's result, so only a
@@ -1003,6 +1030,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia(image)));
         if (!paths.every((path) => path !== null)) return false;
+        // A thumbnail arrives at its picture's size. A picture that decodes after its
+        // tile is drawn grows the tile from its empty size, moving the shelf without
+        // input, so each picture is decoded first and the tile's image draws from it.
+        await Promise.all(
+          paths.map((path) => {
+            const picture = document.createElement("img");
+            picture.src = scopedMediaUrl(path);
+            return picture.decode().catch(() => {});
+          }),
+        );
         if (arrivals !== attachedAt) {
           raiseError(
             "Image not added — the comment moved before it finished uploading",
@@ -1033,7 +1070,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         return false;
       } finally {
         uploading = false;
-        ta.readOnly = wasReadOnly;
         ta.removeAttribute("aria-busy");
         refresh();
       }

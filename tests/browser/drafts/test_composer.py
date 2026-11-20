@@ -297,6 +297,20 @@ def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
     assert page.evaluate("document.activeElement === window.uploadFocus")
 
 
+def test_a_box_takes_no_words_while_its_picture_uploads(browser, serve):
+    """The box holds its words still while a pasted picture uploads, so the draft the
+    picture joins is the one the user pasted it into, and takes words again once the
+    picture has arrived."""
+    page, box, held = _a_picture_uploading(browser, serve)
+    expect(box).to_be_focused()
+    page.keyboard.type("Early")
+    expect(box).to_have_js_property("value", "")
+    held.pop().continue_()
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    page.keyboard.type("Later")
+    expect(box).to_have_js_property("value", "Later")
+
+
 def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser, serve):
     """The comment box moves to another passage while a pasted picture uploads. The
     picture was the first passage's, so it does not land in the second one's draft, and

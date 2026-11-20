@@ -5,8 +5,8 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     draft_control,
-    latest_press,
     leaf_page,
+    open_latest,
     open_page,
     round_trip,
     stamp_page,
@@ -39,17 +39,6 @@ def editing_revision_source(mode, body=None):
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
-// Native prototype activation route: activate the Open latest the panel's field offers
-// at its end, without transferring the editor's focus to the panel before the
-// carry is captured. It listens in capture, since a key typed into a Leaf field never
-// bubbles to the page (field-keys.js).
-addEventListener('keydown',event=>{
-  if(event.code==='KeyR' && event.ctrlKey && event.altKey){
-    event.preventDefault();
-    [...document.querySelectorAll('.lf-floating-panel .lf-fp-field .lf-compose-press')]
-      .find(press => press.textContent.includes('Open latest'))?.click();
-  }
-},true);
 </script>""".replace("MODE", mode)
     return leaf_page("Editor continuity", body).replace("</head>", module + "</head>")
 
@@ -76,14 +65,6 @@ def replace_editing_document(page, serve):
     )
     told(page)
     if page.evaluate("performance.timeOrigin") == birth:
-        if latest_press(page).count():
-            page.keyboard.press("Control+Alt+r")
-        else:
-            # A reply in the panel's field leaves its end no press: run what the press
-            # runs, which moves no focus either.
-            page.evaluate(
-                "import('/runtime/version-picker.js')"
-                ".then(({versionPicker}) => versionPicker.latest())"
-            )
+        open_latest(page)
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin") != birth

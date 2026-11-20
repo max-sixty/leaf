@@ -608,7 +608,7 @@
      - A control standing on its own: outside its edge at --lf-focus-ring-gap.
      - A box that draws its own edge, such as a field, a mark (controls.css) or a margin
        entry, or a control whose neighbours stand closer than a control's gap, such as
-       a reaction beside others: on its edge, at 0. A field's ring replaces its border,
+       a reaction beside others: on its edge, at 0px. A field's ring replaces its border,
        and any box that draws a frame round itself stands its rings on the frame (the
        user's choice): a ring a gap off a frame read as a second box round it.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a

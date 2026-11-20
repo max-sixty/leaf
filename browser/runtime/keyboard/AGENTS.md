@@ -51,8 +51,9 @@ and only if none prevented the key (`controller.js`).
 ## Escape
 
 Escape closes one step of the current interaction and lands the user on that step's
-parent. Both depend only on what is open now, so a surface opened by pointer or Tab
-closes the same way as one opened by its key. The focused control's own step comes
+parent. Both depend on what is open now, never on the route that opened it, so a
+surface opened by pointer or Tab closes the same way as one opened by its key; only a
+stance and a view of the floating panel are also ordered by which came last. The focused control's own step comes
 first, then steps inside the focused surface, then the surface itself, then steps
 outside it; `STACK` and `RUNG_LADDER` order siblings, and native modals and popovers
 keep the browser's order. A close request, such as Android's back gesture, takes the
@@ -70,7 +71,9 @@ same step, through its row's `keep` where `run` would throw away unsent words
   focus handed back as it closes or as Escape backs the user out (`return`), costs no
   Escape, and one put away stays away until the user aims again, whatever a widget
   declares meanwhile.
-- Draw and Design are page modes; surfaces opened inside them close first.
+- Draw and Design are page modes; surfaces opened inside them close first, and a
+  stance entered over a view of the floating panel ends before the view closes, so
+  Escape takes whichever of the two came last.
 - A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
   floating panel opens, and focus decides which answers first.
@@ -122,8 +125,9 @@ between matches, a drawing's composer can undo a stroke, and the page's field ca
 comment on selected words. Page scope rows therefore have no touch labels: each row
 that runs a press declares `touch: false` or is the `exit` of a stance accessible by
 touch. Examples include page search, the target picker and Draw mode. The panel
-offers the innermost active stance's exit as Close at its field's end, or one ✕ while
-the field says something else. Either leaves the stance even where Escape would first
+offers the innermost active stance's exit as one ✕ at its row's end, named beside it,
+and as Close with `esc` at its field's end while Escape would take the stance off. The ✕
+leaves the stance even where Escape would first
 close something inside it or take back a typed hint letter. The register
 refuses a page command without `touch` and a scope row whose `run` is neither `exit`
 nor `touch: false`.

@@ -325,8 +325,9 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
 
 
 def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, serve):
-    """Revealing a held answer hides all progress, including across an intervening
-    user reply. A fresh reading shows the same transcript without a disclosure."""
+    """A step the user wrote after stands above their reply beside the agent's next
+    step, and revealing a held answer ends both. A fresh reading shows the same
+    transcript without a disclosure."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     thread_model.post_reply(
@@ -361,8 +362,11 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, 
     identity = "data-lf-event"
     original = card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
     expect(original).to_be_hidden()
-    expect(card.locator(".lf-thread-working")).to_have_count(2)
-    expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
+    faces = card.locator(".lf-thread-working")
+    expect(faces).to_have_count(2)
+    expect(faces.first).to_contain_text("Checking the camera")
+    expect(faces.last).to_contain_text("Checking the mount")
+    expect(faces.get_by_role("button")).to_have_count(0)
 
     answer = thread_model.post_reply(
         serve.page_dir, {"responds": owed}, "The schedule works."
@@ -373,9 +377,6 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, 
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(card.locator(".lf-thread-working")).to_have_count(0)
     expect(original).to_be_hidden()
-    expect(
-        card.get_by_role("button", name=re.compile("progress message"))
-    ).to_have_count(0)
 
     fresh = open_page(browser, url)
     fresh_card = show(fresh)
@@ -385,156 +386,6 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, 
     expect(fresh_card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(fresh_card.locator(".lf-thread-working")).to_have_count(0)
     expect(fresh_card.get_by_text("Check the mount too.", exact=True)).to_be_visible()
-
-
-@pytest.mark.parametrize(("width", "touch"), [(1400, False), (1400, True)])
-def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
-    browser, serve, width, touch
-):
-    """A card at its least width, as a 1400px window stands one beside its words, keeps
-    the full disclosure beside shared-target controls."""
-    url = serve(PANEL_PAGE)
-    roots = [
-        panel_comment(serve.page_dir, text, {"section": "lede"})
-        for text in ("Check the schedule.", "Check the camera.", "Check the mount.")
-    ]
-    root = roots[0]
-    progress = [
-        thread_model.post_reply(
-            serve.page_dir, {"responds": root}, text, ephemeral=True
-        )
-        for text in (
-            "I'm checking the afternoon schedule against the break.",
-            "The three sessions take two hours. I'm checking whether the discussion still fits.",
-            "The room is available until five. That leaves enough time for the break.",
-        )
-    ]
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "user",
-            "parent": root,
-            "text": "And does the room stay free after five?",
-        },
-    )
-    context = browser.new_context(
-        viewport={"width": width, "height": 670}, has_touch=touch, is_mobile=touch
-    )
-    page = open_page(browser, url, context=context)
-    page.locator(".lf-margin-marker").first.click()
-    preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
-    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
-    for _ in roots[1:]:
-        if card.count():
-            break
-        preview.get_by_role("button", name="Previous thread", exact=True).click()
-    expect(card).to_be_visible()
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/3")
-
-    # What every head on the actions' line shows stops short of them: the first
-    # message's head ends at them and cuts what it can't fit, and a later message's head,
-    # which runs to the card's edge, shows only its name and time there until its
-    # message is offered.
-    def expect_headers_clear_actions():
-        # Read where the card comes to rest, once its entrance and any landing settle.
-        preview.evaluate(
-            """card => Promise.all(card.getAnimations({subtree: true})
-              .filter(motion => motion.timeline === document.timeline &&
-                motion.effect.getComputedTiming().endTime !== Infinity)
-              .map(motion => motion.finished))"""
-        )
-        geometry = card.evaluate("""card => {
-          const actions = card.querySelector('.lf-margin-thread-controls');
-          const line = [...actions.querySelectorAll('.lf-icon-action')]
-            .filter(control => control.checkVisibility())
-            .map(control => control.getBoundingClientRect());
-          const top = Math.min(...line.map(box => box.top));
-          const bottom = Math.max(...line.map(box => box.bottom));
-          const shown = head => Math.max(...[...head.querySelectorAll(
-            ':scope > :not(.lf-msg-control-room), :scope .lf-msg-controls > *')]
-            .filter(item => item.checkVisibility(
-              {visibilityProperty: true, opacityProperty: true}))
-            .map(item => item.getBoundingClientRect().right));
-          return {
-            actions: actions.getBoundingClientRect().left,
-            heads: [...card.querySelectorAll('.lf-msg-head')]
-              .filter(head => head.checkVisibility())
-              .filter(head => {
-                const box = head.getBoundingClientRect();
-                return box.top < bottom && box.bottom > top;
-              })
-              .map(head => Math.min(head.getBoundingClientRect().right, shown(head))),
-          };
-        }""")
-        assert geometry["heads"], geometry
-        assert all(right <= geometry["actions"] + 0.5 for right in geometry["heads"]), (
-            geometry
-        )
-
-    expect_headers_clear_actions()
-    originals = [
-        card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
-        for message in progress
-    ]
-    for original in originals:
-        expect(original).to_be_hidden()
-
-    def expect_unclipped_words(control):
-        expect(control).to_be_visible()
-        expect(control).to_be_in_viewport(ratio=1)
-        geometry = control.evaluate("""control => {
-          const range = document.createRange();
-          range.selectNodeContents(control);
-          const words = [...range.getClientRects()].filter(box => box.width && box.height);
-          const clipped = [];
-          for (let node = control; node; node = node.parentElement) {
-            if (!/^(hidden|clip|auto|scroll)$/.test(getComputedStyle(node).overflowX)) continue;
-            const box = node.getBoundingClientRect();
-            if (words.some(word => word.left < box.left - 1 || word.right > box.right + 1))
-              clipped.push({class: node.className, left: box.left, right: box.right});
-          }
-          return {words: words.length, clipped};
-        }""")
-        assert geometry["words"] > 0, geometry
-        assert geometry["clipped"] == [], geometry
-
-    expand = card.get_by_role("button", name="Show 3 progress messages", exact=True)
-    expect_unclipped_words(expand)
-    # A keyboard arrival: the disclosure is the card's first stop, so Shift+Tab goes
-    # back to the margin entry the card hangs from and Tab comes into the card again.
-    expand.focus()
-    page.keyboard.press("Shift+Tab")
-    expect(page.locator(".lf-margin-marker").first).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(expand).to_be_focused()
-    assert expand.evaluate("node => node.matches(':focus-visible')")
-    page.keyboard.press("Enter")
-    for original in originals:
-        expect(original).to_be_visible()
-    expect_headers_clear_actions()
-    collapse = card.get_by_role("button", name="Hide 3 progress messages", exact=True)
-    expect(collapse).to_be_focused()
-    expect_unclipped_words(collapse)
-    page.keyboard.press("Enter")
-    for original in originals:
-        expect(original).to_be_hidden()
-    expect(expand).to_be_focused()
-    expect_unclipped_words(expand)
-
-    # A newer reading gesture supersedes that landing even while focus stays on Hide.
-    page.keyboard.press("Enter")
-    expect_unclipped_words(collapse)
-    transcript = card.locator(":scope > .lf-thread-transcript")
-    transcript.hover()
-    page.mouse.wheel(0, -1000)
-    expect(transcript).to_have_js_property("scrollTop", 0)
-    expect(collapse).to_be_focused()
-    resized(page, width, 650)
-    expect(card.locator(".lf-msg").first).to_be_in_viewport()
-    expect(collapse).to_be_focused()
-    expect(originals[0]).to_be_in_viewport()
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

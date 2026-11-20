@@ -337,7 +337,7 @@
   --wa-form-control-background-color: var(--lf-card);
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   width: auto;
 }
 

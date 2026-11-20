@@ -153,6 +153,7 @@ from .delivery import (
 )
 from .findings import Finding
 from .harness import HOOK_TIMEOUT_S, Harness, claim_harness
+from .json_block import json_block, read_json_block
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
@@ -510,15 +511,22 @@ INLINE_OPENING = (
 )
 
 
-def inline_delivery(context: str) -> dict | None:
-    """The delivery a hook's `context` handed over inline, its opening line
-    (`INLINE_OPENING`) followed by the delivery's JSON, or None where it handed none
-    over: a pointer, a reminder, or a context cut short."""
-    opening, _, rest = context.partition("\n")
+def inline_context(delivery: dict) -> str:
+    """The context that hands `delivery` over inline: its opening line
+    (`INLINE_OPENING`), a blank line and the delivery's block (`json_block`), which
+    `inline_delivery` reads back."""
+    return "\n\n".join([INLINE_OPENING, json_block(delivery)])
+
+
+def inline_delivery(context: str) -> tuple[dict, str] | None:
+    """The delivery a hook's `context` handed over inline (`inline_context`) and the
+    lines after its block, or None where it handed none over: a pointer, a reminder,
+    or a context cut short."""
+    opening, _, rest = context.partition("\n\n")
     if opening != INLINE_OPENING:
         return None
     try:
-        return json.loads(rest.partition("\n")[0])
+        return read_json_block(rest)
     except ValueError:
         return None
 
@@ -707,7 +715,7 @@ def carry_turn(
         attention.extend(
             [
                 "Read these unanswered updates and their exact answer references:",
-                *(delivery_pointer_prompt(identity) for identity in reminders),
+                *(f"\n{delivery_pointer_prompt(identity)}" for identity in reminders),
             ]
         )
     delivery = freeze_delivery(batches) if batches else None
@@ -720,11 +728,7 @@ def carry_turn(
 
         def inline(batches: list[dict]) -> str:
             return "\n".join(
-                [
-                    INLINE_OPENING,
-                    json.dumps({**delivery, "batches": batches}, ensure_ascii=False),
-                    *attention,
-                ]
+                [inline_context({**delivery, "batches": batches}), *attention]
             )
 
         # Record only input the model will see whole, while the hook can still
@@ -758,7 +762,7 @@ def carry_turn(
             message = "\n".join(
                 [
                     pointer_opening(delivery),
-                    delivery_pointer_prompt(delivery["id"]),
+                    f"\n{delivery_pointer_prompt(delivery['id'])}",
                     *attention,
                 ]
             )
@@ -816,7 +820,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     if not batches:
         return
     delivery = freeze_delivery(batches)
-    message = "\n".join([INLINE_OPENING, json.dumps(delivery, ensure_ascii=False)])
+    message = inline_context(delivery)
     deadline = started + CONFIRM_WITHIN
     recorded = (
         receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
@@ -825,7 +829,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     )
     if recorded:
         inline = {**delivery, "batches": recorded}
-        message = "\n".join([INLINE_OPENING, json.dumps(inline, ensure_ascii=False)])
+        message = inline_context(inline)
     else:
         note_pointer(
             sid,

@@ -6,9 +6,16 @@ read their current bound data through the same canonical work reading.
 A serving context holds this result once; its browser selects the same objects.
 """
 
+from datetime import datetime
 from typing import NamedTuple
 
-from ..activity import canonical_activity, canonical_stream_reply
+from ..activity import (
+    Turn,
+    canonical_activity,
+    canonical_stream_reply,
+    current_turn,
+    declared_at,
+)
 from ..holding import Holding, reading_of
 from ..projection import ThreadMarkupReading, page_reading
 from ..service import no_stream
@@ -25,6 +32,9 @@ class WorkState(NamedTuple):
     # Who holds each thread, as the fold read it (`holding.reading_of`), which
     # `leaf page state` names and delivery filters.
     holding: Holding
+    # The claimant's turn as activity reads it (`activity.current_turn`), which says
+    # whether the turn that wrote a progress message still runs (`activity.turn_runs`).
+    turn: Turn
 
     @property
     def obligations(self) -> list[dict]:
@@ -153,4 +163,10 @@ def work_state(
         if source
         else activity["workflows"]
     )
-    return WorkState(durable, activity, workflows, reply, present, holding)
+    turn, _ = current_turn(
+        present,
+        declared_at(present, events),
+        stream["activity"],
+        datetime.fromisoformat(now),
+    )
+    return WorkState(durable, activity, workflows, reply, present, holding, turn)

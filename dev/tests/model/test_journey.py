@@ -20,7 +20,7 @@ from playwright.sync_api import Page as BrowserPage
 
 from leaf import harness
 from leaf.harness import NUDGE_WORDS
-from leaf.hook_transport import INLINE_OPENING
+from leaf.hook_transport import inline_context
 from leaf.interaction_log import read_interactions
 from leaf_dev import ROOT
 from leaf_dev.commands.journey import _claude_code as journey_claude_code
@@ -114,6 +114,9 @@ def test_release_publication_requires_the_marker_in_board_markup():
     )
     assert end.names(active, marker)
     request.html = f'<main><lf-column label="Release {marker}"></lf-column></main>'
+    assert end.names(active, marker)
+    # The agent's casing of the release's name is its own.
+    request.html = f"<main><h2>Release {marker.upper()} passed</h2></main>"
     assert end.names(active, marker)
 
 
@@ -586,7 +589,7 @@ def test_a_delivered_update_waits_for_the_turn_it_opened_to_end():
             "attachment": {
                 "type": "hook_additional_context",
                 "hookEvent": "UserPromptSubmit",
-                "content": [INLINE_OPENING + "\n" + json.dumps(delivery)],
+                "content": [inline_context(delivery)],
             },
         },
     ]
@@ -1029,7 +1032,7 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     assert after == {"ms": 2000, "calls": []}
 
 
-def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
+def test_the_release_ask_over_http_is_the_shared_check(tmp_path, monkeypatch):
     """Over HTTP the release ask is posted as the page's tab posts one, and the same
     check as in a browser waits on its turn, title and answer, requiring a published
     revision naming the release; it reads nothing a browser would. A step's comment
@@ -1042,6 +1045,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     state, page = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page)
     version = "abcd1234" + "0" * 32
+    # The run chooses the release's name once; this one is held for the check.
+    monkeypatch.setattr(journey, "release_name", lambda: "summit-maple")
     agent = {"agent": "The agent", "session": "journey-release"}
     paused = []
 
@@ -1055,7 +1060,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         index = page / "index.html"
         index.write_text(
             index.read_text().replace(
-                "</main>", "<p>Release abcd1234 passed.</p></main>"
+                "</main>",
+                "<p>Release summit-maple passed.</p></main>",
             )
         )
         run_leaf(
@@ -1075,7 +1081,7 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         reading = journey.run_journey(journey.HttpEnd(url, page, pause), version)
         step = post(url, "ending")
     assert reading["change"] == {
-        "marker": "abcd123",
+        "marker": "summit-maple",
         "revision": 2,
         "reply": "Recorded.",
     }
@@ -1085,6 +1091,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     [asked] = [
         e for e in read_events(page) if e.get("attempt") == "journey-step-release"
     ]
+    # The ask carries the name the run chose, which the check then required.
+    assert asked["text"] == journey.release_ask("summit-maple")
     assert "anchor" not in asked or asked["anchor"].get("section") is None
     [anchored] = [e for e in read_events(page) if e["id"] == step]
     assert anchored["anchor"]["section"] == "triage-why"

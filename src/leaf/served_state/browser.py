@@ -2,6 +2,7 @@
 
 from typing import NamedTuple
 
+from ..activity import turn_runs
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..gesture_words import GestureWords, RevisionReader
@@ -177,7 +178,13 @@ def browser_state(
         # widgets with the obligations and attention they give, under its registry.
         viewed = durable.viewing(page)
         reading = viewed.document
-        thread, thread_reading = browser_thread(viewed, work.live_reply)
+        thread, thread_reading = browser_thread(
+            viewed,
+            work.live_reply,
+            lambda event: turn_runs(
+                event, work.presence, work.turn, work.holding.running
+            ),
+        )
         # The view's obligations are its own document's beside its threads', and
         # the page's updates', served once: a list row names a
         # record by its id.

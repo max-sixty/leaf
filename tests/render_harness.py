@@ -1552,6 +1552,12 @@ def clean_browser(test=None):
     assert not problems, "\n".join(problems)
 
 
+# How Firefox words, in its console, a module import that did not complete.
+_MODULE_LOAD_FAILED = re.compile(
+    r'\[JavaScript Warning: "Loading failed for the module with source “([^”]+)”'
+)
+
+
 def _named_problems(captured):
     return [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
@@ -1658,7 +1664,13 @@ def watched(page, *, java_script_enabled=True):
     (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
-    them: console warnings and errors, and uncaught exceptions.
+    them: console warnings and errors, and uncaught exceptions. Firefox's warning that
+    a module failed to load counts where the network shows that module's load failing
+    too: its request failed other than by the browser's own cut (`NS_BINDING_ABORTED`),
+    or was answered with an error status. Leaving a document cuts off what it was
+    still loading, and as Firefox lets the document go it says each module import
+    there failed, the cut modules and those waiting on them, though no reader sees
+    any of it; the network shows no failure for those.
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
@@ -1682,8 +1694,22 @@ def watched(page, *, java_script_enabled=True):
     page.lf_errors = errors
     page.lf_java_script_enabled = java_script_enabled
 
+    # The modules whose loads failed in the network rather than by a cut, which only
+    # a Firefox page asks of (`_MODULE_LOAD_FAILED`).
+    failed_loads = set()
+
+    def request_failed(request):
+        if request.failure != "NS_BINDING_ABORTED":
+            failed_loads.add(request.url)
+
+    def responded(response):
+        if response.status >= 400:
+            failed_loads.add(response.url)
+
     def console_message(message):
-        if (problem := render_gate_model.console_finding(message)) is not None:
+        problem = render_gate_model.console_finding(message)
+        cut = _MODULE_LOAD_FAILED.match(message.text)
+        if problem is not None and (cut is None or cut[1] in failed_loads):
             errors.append(problem)
 
     def window_error(error):
@@ -1696,6 +1722,9 @@ def watched(page, *, java_script_enabled=True):
         else:
             errors.append(problem)
 
+    if page.context.browser.browser_type.name == "firefox":
+        page.on("requestfailed", request_failed)
+        page.on("response", responded)
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
@@ -2040,15 +2069,30 @@ def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
     (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
     Resolve's Next thread, a stance's Close, or the page's own, Open latest or Next On
-    Me (field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the
-    key that makes it the `kbd` after it."""
+    Me (field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the key that
+    makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
+
+
+def stance_exit(page):
+    """The ✕ at the panel row's end that ends the stance standing, such as Draw mode or
+    the target picker, named by its `aria-label`, beside the mode chip that names the
+    stance (floating-panel.js, `fieldExit`)."""
+    return page.locator(".lf-fp-quick .lf-fp-exit")
 
 
 def latest_press(page):
     """Open latest, which the panel field's end offers while the page shows an older version
     than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
     return field_press(page).filter(has_text="Open latest")
+
+
+def open_latest(page):
+    """Run what Open latest at the panel field's end runs, which moves no focus, for a
+    test whose caret stands in a box. There the press's keys type letters, so the end
+    shows a keyboard nothing (field-readings.js, `end`), and a finger's press on the
+    word it shows alone is the route that keeps the caret where it is."""
+    page.evaluate("async () => (await window.__lfCheckApi()).versionPicker.latest()")
 
 
 def open_latest_by_keys(page):
@@ -3638,11 +3682,10 @@ def left_alone(page):
     page.evaluate(RELEASE_FOCUS)
     page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    # A passing notice stands in the panel's empty field, in the line over it once the
-    # field is written in, or in the leaf's peek (notifications.js).
+    # A passing notice stands in the panel's empty field or in the leaf's peek
+    # (notifications.js).
     notice = (
-        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-context[data-notice],"
-        " .lf-fp-peek[data-lf-shown])"
+        ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-peek[data-lf-shown])"
     )
     while any(frame.locator(notice).count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"

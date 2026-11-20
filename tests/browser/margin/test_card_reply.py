@@ -845,9 +845,9 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     expect(preview).to_be_hidden()
 
 
-# The long thread's opening comment, the agent's two steps of progress on it and the
-# user's turn after them, which fold the steps behind "Show 2 progress messages".
-STEPPED_THREAD = [
+# The long thread's opening comment, two of the agent's replies to it, folded behind
+# their summary's "2 earlier messages", and the user's turn after them.
+FOLDED_THREAD = [
     LONG_THREAD_ROOT,
     *(
         {
@@ -857,10 +857,22 @@ STEPPED_THREAD = [
             "parent": LONG_THREAD_ROOT["id"],
             "revision": 1,
             "text": words,
-            "ephemeral": True,
+            "id": identity,
         }
-        for words in ("Comparing the two layers.", "Checking where each one closes.")
+        for identity, words in (
+            ("b" * 32, "Comparing the two layers."),
+            ("c" * 32, "Checking where each one closes."),
+        )
     ),
+    {
+        "kind": "summary",
+        "author": "agent",
+        "agent": "Claude",
+        "thread": LONG_THREAD_ROOT["id"],
+        "from": "b" * 32,
+        "through": "c" * 32,
+        "text": "",
+    },
     {
         "kind": "reply",
         "author": "user",
@@ -876,8 +888,8 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     engine, request, serve
 ):
     """A card read beside its passage, whose foot stands within a line of where the
-    window's foot holds a card, is held by that foot once a press shows its progress,
-    and stands beside its passage again once a press hides it, which travels. The
+    window's foot holds a card, is held by that foot once a press opens its summary,
+    and stands beside its passage again once a press closes it, which travels. The
     travel starts from where the card stood held: at the motion's first frame its
     outline and head row are drawn where they were, and at rest the card has moved
     down. Read by the edge holding the card after the press, its placement's move
@@ -886,7 +898,7 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     beside its passage holds the card's foot instead: thread-preview.js, `heldEdge`)."""
     page = open_page(
         request.getfixturevalue(engine),
-        serve(LOW_PASSAGE_PAGE, events=STEPPED_THREAD),
+        serve(LOW_PASSAGE_PAGE, events=FOLDED_THREAD),
     )
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1440, 900)
@@ -896,7 +908,8 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     page.keyboard.press("Escape")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     disclosure = preview.locator(".lf-summary-expand")
-    expect(disclosure).to_have_text("Show 2 progress messages")
+    expect(disclosure).to_have_text("2 earlier messages")
+    expect(disclosure).to_have_attribute("aria-expanded", "false")
 
     def foot_after_scrolling(by):
         page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
@@ -919,22 +932,22 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     page.evaluate("() => {" + HOLD_MOTION + "}")
     stood = preview.evaluate(CARD_DRAWN)
     disclosure.click()
-    expect(disclosure).to_have_text("Hide 2 progress messages")
+    expect(disclosure).to_have_attribute("aria-expanded", "true")
     rendered(page)
     page.wait_for_function(CARD_RELEASED)
     held_up = preview.evaluate(CARD_DRAWN)
     assert held_up[0] < stood[0] - 5, (
-        f"the progress held the card nowhere: {stood} -> {held_up}"
+        f"the summary held the card nowhere: {stood} -> {held_up}"
     )
     disclosure.click()
-    expect(disclosure).to_have_text("Show 2 progress messages")
+    expect(disclosure).to_have_attribute("aria-expanded", "false")
     page.wait_for_function(
         "() => window.__lfHeld.some(motion => motion.playState !== 'idle')"
     )
     drawn = preview.evaluate(CARD_DRAWN)
     page.wait_for_function(CARD_RELEASED)
     rest = preview.evaluate(CARD_DRAWN)
-    assert rest[0] > held_up[0] + 5, f"the progress went and the card stayed: {rest}"
+    assert rest[0] > held_up[0] + 5, f"the summary closed and the card stayed: {rest}"
     # The transcript changed size, so its turns show where they now stand (box-motion.js).
     assert drawn[:2] == pytest.approx(held_up[:2], abs=1), f"{held_up} -> {drawn}"
 

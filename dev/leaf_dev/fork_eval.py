@@ -38,7 +38,21 @@ resends the session's, with its per-machine sections moved out of the system pro
 so the prefix is cached across cases. One `PreToolUse` hook (`BLOCKED`), the fresh
 home's only one, refuses every call, and `--max-turns 1` then ends the fork without
 an answer, which fails every check of the case rather than raising a provider
-error. Plugins and MCP servers are off.
+error. Plugins, skills and MCP servers are off.
+
+A live fork's request ends with its prompt, since `$.model.fork` appends the prompt
+to the session's last request. A resume instead reads its environment afresh (its
+working directory, the tools, agents and skills it lists, the session's context) and
+puts each record of it that the transcript lacks after the new prompt, a few
+thousand tokens that change how the fork judges the prompt. So a first resume, sent
+to an address no API listens on (`UNREACHABLE`), writes those records without a
+request, and the transcript carries them after its first prompt, where a live
+session's are (`announced`). Today's date stays out of them: a case's conversation
+is written on its own date, and the fork reads a date at the session's start as the
+day the conversation took place. The second resume then adds only the line giving
+today's date after the prompt. Skills are off because the listing a resume reads
+offline differs from the one it reads online, which would put a listing after the
+prompt.
 
 What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 `answered`. Its asks are the records it wrote (`wrote`), as the user reads them; its
@@ -123,6 +137,9 @@ BLOCKED = {
         ]
     }
 }
+
+# An API address nothing listens on, which ends a resume before its first request.
+UNREACHABLE = "http://127.0.0.1:9"
 
 # List prices by model, dollars per million tokens.
 PRICES = {
@@ -228,10 +245,11 @@ def execute_scenario(
     conversation once, and score what the arm's Leaf took of the answer."""
     if harness != ClaudeCodeHarness.name:
         raise ValueError("Leaf's conversation forks run only in Claude Code")
-    scenario = CASES[case]
     work.mkdir(parents=True, exist_ok=True)
     session = str(uuid.uuid4())
     page = work / "page"
+    # The case's `{page}` and `{session}`, wherever they stand, such as a running call.
+    scenario = substitute(CASES[case], {"{page}": str(page), "{session}": session})
     leaf = Leaf(payload, work / "state", session)
     source = work / "source" / "index.html"
     source.parent.mkdir()
@@ -552,34 +570,61 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
 
 
 def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
-    """Resume the rendered conversation once with the prompt the arm's Leaf `asked`
-    for, at the effort it names or the session's, as `$.model.fork` forks it, in a
-    home and cwd of its own outside the repository, keeping its stream and transcript
-    under `work`; its answer, or why it gave none."""
+    """Resume the rendered conversation with the prompt the arm's Leaf `asked` for,
+    at the effort it names or the session's, as `$.model.fork` forks it, in a home
+    and cwd of its own outside the repository, once a resume that reaches no API has
+    written the environment the transcript carries (the module header says why),
+    keeping its stream and transcript under `work`; its answer, or why it gave none."""
     stream = work / "fork.jsonl"
     effort = asked["request"].get("effort", SESSION_EFFORT)
     with tempfile.TemporaryDirectory(prefix="leaf-fork-") as directory:
         cwd = Path(directory).resolve() / "cwd"
         cwd.mkdir()
-        child = claude_child(
-            cwd,
-            *("--resume", session, "--effort", effort, "--max-turns", "1"),
-            *("--exclude-dynamic-system-prompt-sections", "--settings"),
-            json.dumps(BLOCKED),
-            model=MODEL,
-            sandbox=False,
-        )
+
+        def resume(**env: str) -> dict:
+            return claude_child(
+                cwd,
+                *("--resume", session, "--effort", effort, "--max-turns", "1"),
+                *(
+                    "--exclude-dynamic-system-prompt-sections",
+                    "--disable-slash-commands",
+                ),
+                *("--settings", json.dumps(BLOCKED)),
+                env=env,
+                model=MODEL,
+                sandbox=False,
+            )
+
+        child = resume()
         project = Path(child["env"]["HOME"]) / ".claude/projects"
         project /= re.sub(r"[^A-Za-z0-9]", "-", str(cwd))
         project.mkdir(parents=True)
         kept = project / f"{session}.jsonl"
-        start = datetime.fromisoformat(DEFINITION["start"])
-        kept.write_text(
-            "".join(
-                json.dumps(record) + "\n"
-                for record in transcript(turns, session, cwd, start)
-            )
+        records = transcript(
+            turns, session, cwd, datetime.fromisoformat(DEFINITION["start"])
         )
+        kept.write_text("".join(json.dumps(record) + "\n" for record in records))
+        # The environment a resume announces, written by one that reaches no API.
+        offline = resume(ANTHROPIC_BASE_URL=UNREACHABLE, CLAUDE_CODE_MAX_RETRIES="0")
+        calibrated = subprocess.run(
+            offline["args"],
+            cwd=offline["cwd"],
+            env=offline["env"],
+            input=".",
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        written = [json.loads(line) for line in kept.read_text().splitlines()]
+        seeded = announced(records, written[len(records) :])
+        if len(seeded) == len(records):
+            # Without them the fork would read its environment after the prompt.
+            raise RuntimeError(
+                "the offline resume wrote no environment: "
+                f"{calibrated.stderr or calibrated.stdout}"
+            )
+        kept.write_text("".join(json.dumps(record) + "\n" for record in seeded))
         started = time.monotonic()
         with stream.open("w") as out:
             ran = subprocess.run(
@@ -618,6 +663,24 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
         "elapsed_ms": result.get("duration_ms"),
         "tool_calls": calls,
     }
+
+
+def announced(records: list[dict], written: list[dict]) -> list[dict]:
+    """The transcript `records` with the attachments a resume `written` after them,
+    which describe the session's environment, moved after its first prompt, where a
+    live session's carry them; all but today's date (the module header says why)."""
+    found = [
+        record
+        for record in written
+        if record.get("type") == "attachment" and record["attachment"]["type"] != "date"
+    ]
+    first, *rest = records
+    parent = first["uuid"]
+    for record in found:
+        record["parentUuid"], parent = parent, record["uuid"]
+    if rest:
+        rest[0]["parentUuid"] = parent
+    return [first, *found, *rest]
 
 
 def price(usage: dict, model: str) -> float:

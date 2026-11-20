@@ -477,10 +477,11 @@ def native(path: Path) -> list[dict]:
 def told(text: str) -> list[str]:
     """What one context a Leaf hook gave the session says: the delivery it carried, by
     event id, and each line Leaf's clerk queued after it (`clerk.queued`)."""
-    if (delivery := inline_delivery(text)) is None:
+    if (inline := inline_delivery(text)) is None:
         return [
             f"said “{clip(line, 90)}”" for line in text.splitlines() if line.strip()
         ]
+    delivery, after = inline
     ids = [
         event["id"]
         for batch in delivery.get("batches", [])
@@ -488,8 +489,8 @@ def told(text: str) -> list[str]:
     ]
     return [
         f"carried delivery {delivery.get('id')}: {', '.join(ids) or 'no events'}",
-        # The lines after the delivery's own, which the clerk queued.
-        *told("".join(text.split("\n", 2)[2:])),
+        # The lines after the delivery's block, which the clerk queued.
+        *told(after),
     ]
 
 

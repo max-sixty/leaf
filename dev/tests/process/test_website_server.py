@@ -352,8 +352,10 @@ class _DeployedSite:
         return self.context
 
 
-class _RollingOutContainer:
-    """An allocation the image rollout has not reached, so the edge answers for it."""
+class _PreviousImageContainer:
+    """An allocation the image rollout has not reached. Its container runs the
+    previous image, which exits as the page store refuses its release, so the
+    activating read gets the Containers SDK's failure to start it."""
 
     def __init__(self, release: str, page: _DeployedPage):
         self.release = release
@@ -375,23 +377,17 @@ class _RollingOutContainer:
                 },
                 headers={"leaf-release": self.release, "leaf-session": "passive"},
             )
-        # What `rollingOut` in `worker/src/index.ts` sends: the deployed release
-        # rather than this container's, no session at all, and `Retry-After` naming
-        # the rollout as the reason there is nothing to compare.
-        starting = _Read(
-            {},
-            "this release is still starting",
-            headers={"retry-after": "5", "leaf-release": self.release},
+        return _answered(
+            500,
+            {"leaf-release": self.release, "leaf-session": "active"},
+            "Failed to start container: the container exited before its port was ready",
         )
-        starting.ok = False
-        starting.status = 503
-        return starting
 
     def close(self) -> None:
         self.closed = True
 
 
-class _RollingSite:
+class _Allocations:
     """Successive allocations, so the gate's retry gets a fresh one each time."""
 
     def __init__(self, contexts: list):
@@ -413,27 +409,11 @@ def _rolling_clock(monkeypatch, samples: list[float], slept: list[float]) -> Non
     )
 
 
-class _Allocation:
-    """One activating read, answering as the edge or as the container it reached."""
-
-    def __init__(self, answer: _Read):
-        self.answer = answer
-        self.request = self
-        self.asked: list[str] = []
-
-    def get(self, url: str, **kwargs) -> _Read:
-        self.asked.append(url)
-        return self.answer
-
-
 def _answered(status: int, headers: dict | None = None, body: str = "") -> _Read:
     answer = _Read({}, body, headers=headers)
     answer.ok = status < 400
     answer.status = status
     return answer
-
-
-ACTIVATION = "https://leaf.page/examples/triage-board/api/view?revision=1&through_seq=1"
 
 
 def run_browser_journey(site):
@@ -1210,19 +1190,12 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
 def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(
     monkeypatch,
 ):
-    """A rollout answered by the edge is the same wait as one read off a container.
-
-    `publish-site` deployed release `a471af1a…` and its release pass verified
-    leaf.page in Chrome; six seconds later the agent pass failed outright on
-    `https://leaf.page/examples/triage-board/api/view?revision=1&through_seq=1
-    returned 503` (run 35320758891). `api/view` activates a session, and until the
-    container image rollout reaches the allocation it gets, the Worker unseats the
-    session and answers `503` rather than handing a foreign release on. That is the
-    condition this loop already waits out when the container answers for itself, so
-    it has to end in the same retry rather than in a red deploy.
-    """
+    """The release pass can verify one allocation while the rollout has yet to reach
+    the next. `api/view` activates a session, and a container still on the previous
+    image fails to start, so the agent pass tries a fresh session rather than ending
+    the deploy."""
     release = "a471af1a" + "0" * 56
-    starting = _RollingOutContainer(
+    starting = _PreviousImageContainer(
         release, _DeployedPage("", revision=1, presented_at=900.0)
     )
     ready = _DeployedContainer(
@@ -1231,7 +1204,7 @@ def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(
     slept: list[float] = []
     _rolling_clock(monkeypatch, [0.0, 12.0], slept)
 
-    site = _RollingSite([starting, ready])
+    site = _Allocations([starting, ready])
     session = website.agent_session(site, release, origin="https://leaf.page")
 
     assert session.context is ready
@@ -1245,7 +1218,7 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
     release = "a471af1a" + "0" * 56
     page = _DeployedPage("", revision=1, presented_at=900.0)
 
-    class Resetting(_RollingOutContainer):
+    class Resetting(_PreviousImageContainer):
         def get(self, url: str, headers: dict | None = None, **kwargs):
             if "api/view" in url:
                 raise website.PlaywrightError("APIRequestContext.get: read ECONNRESET")
@@ -1256,7 +1229,7 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
     slept: list[float] = []
     _rolling_clock(monkeypatch, [0.0, 12.0], slept)
 
-    site = _RollingSite([resetting, ready])
+    site = _Allocations([resetting, ready])
     session = website.agent_session(site, release, origin="https://leaf.page")
 
     assert session.context is ready
@@ -1268,7 +1241,7 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
 def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
     """The bound still holds, and the message says which reading ran it out."""
     release = "a471af1a" + "0" * 56
-    starting = _RollingOutContainer(
+    starting = _PreviousImageContainer(
         release, _DeployedPage("", revision=1, presented_at=900.0)
     )
     slept: list[float] = []
@@ -1276,52 +1249,12 @@ def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
 
     with pytest.raises(RuntimeError) as failure:
         website.agent_session(
-            _RollingSite([starting]), release, origin="https://leaf.page"
+            _Allocations([starting]), release, origin="https://leaf.page"
         )
 
     assert "reached no container able to admit its agent's turn" in str(failure.value)
-    assert website.STILL_STARTING in str(failure.value)
+    assert "returned 500: Failed to start container" in str(failure.value)
     assert slept == []
-
-
-def test_the_rollout_answer_is_the_one_503_the_activating_read_waits_on():
-    """Both passes make this request, so one function reads what comes back.
-
-    Run 35320758891 printed `...api/view?revision=1&through_seq=1 returned 503` seven
-    times: six inside the release pass's `until` loop, then the seventh in the agent
-    pass, which ended the deploy. Every one was the Worker's own `rollingOut` answer,
-    which says the deployment is still landing. A bare status cannot say that, and
-    two investigations went to Cloudflare's control plane instead.
-    """
-    rolling = _Allocation(
-        _answered(
-            503,
-            {"retry-after": "5", "leaf-release": "a" * 64},
-            "this release is still starting",
-        )
-    )
-
-    assert website.activation_read(rolling, ACTIVATION) is None
-    assert rolling.asked == [ACTIVATION]
-
-
-def test_a_503_the_worker_did_not_write_is_this_release_failing():
-    """`Retry-After` separates the Worker's rollout answer from a container's own 503.
-
-    A container answering `503` for itself comes back through the pass-through path
-    without the header, and waiting that out would sit on a broken release until the
-    workflow's deadline instead of reporting it.
-    """
-    broken = _Allocation(
-        _answered(503, {"leaf-session": "active"}, "the page has no revision 1")
-    )
-
-    with pytest.raises(RuntimeError) as failure:
-        website.activation_read(broken, ACTIVATION)
-
-    assert str(failure.value) == (
-        f"{ACTIVATION} returned 503: the page has no revision 1"
-    )
 
 
 def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
@@ -1339,7 +1272,8 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     presentation does not imply the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
-    recorded = f"Deployment {release[:7]} verified"
+    monkeypatch.setattr(journey, "release_name", lambda: "summit-maple")
+    recorded = "Deployment summit-maple verified"
     page = _DeployedPage(
         recorded,
         revision=1,
@@ -1469,7 +1403,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             ],
         },
         "change": {
-            "marker": release[:7],
+            "marker": "summit-maple",
             "revision": 2,
             "reply": "deployment verified",
         },

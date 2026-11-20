@@ -522,7 +522,7 @@ a[data-lf-external]::after,
   ):not(path, rect, circle, ellipse, line, polyline, polygon):not(
     :has(:is(path, rect, circle, ellipse, line, polyline, polygon):not(defs *))
   ) {
-  --lf-ring-at: 0;
+  --lf-ring-at: 0px;
   outline-style: solid !important;
 }
 :where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
@@ -797,9 +797,9 @@ summary {
 }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
-/* An open progress group's border overhangs the transcript's end by
-   `--lf-group-ring-end`, so a transcript that scrolls keeps at least that much room
-   there (`--lf-transcript-room`, annotation-chrome.css). */
+/* An open summary's region overhangs the transcript's end by `--lf-group-ring-end`,
+   so a transcript that scrolls keeps at least that much room there
+   (`--lf-transcript-room`, annotation-chrome.css). */
 :root,
 .lf-page-thread,
 .lf-fab-bar {
@@ -812,8 +812,8 @@ summary {
      head's gap to its words, so each head reads with the message under it. */
   --lf-msg-gap: 24px;
   /* How far a summary's region stands inside the conversation's start edge, so its
-     words stand at the conversation's inset. At its end it reaches past the words as
-     far as an open progress fold's frame does (`--lf-group-ring-end`). */
+     words stand at the conversation's inset. At its end it reaches past the words by
+     `--lf-group-ring-end`. */
   --lf-summary-edge: 3px;
   /* The room a thread's own controls take beside the line they stand on: a head's
      height, or a finger's width under one. */
@@ -857,7 +857,7 @@ summary {
   inherits: false;
   initial-value: 0;
 }
-/* A message and a progress run's face arrive in one tint (messages.js, `arrivalTint`). */
+/* A message and a step's face arrive in one tint (messages.js, `arrivalTint`). */
 .lf-msg,
 .lf-thread-working {
   --lf-msg-rest-ground: transparent;
@@ -1030,24 +1030,6 @@ summary {
 .lf-thread-transcript > .lf-msg[hidden="until-found"] {
   margin-block: 0;
 }
-/* A border groups an open fold's messages without changing their headers or giving
-   progress a separate background. It is drawn around them rather than taking room,
-   so opening a group moves none of their words: an answer folding the progress a
-   reader is on keeps it open in place (held-news.js). It spans siblings, from the
-   checkpoint's head to the foot of its last message, so it is anchored to both, in the
-   thread content outside the scrolling transcript. Collapsed disclosures stay inline.
-   An open summary fills the same span with its region's tint instead (below). */
-.lf-thread-checkpoint[data-lf-expanded="true"]::before {
-  content: "";
-  position: absolute;
-  inset-block-start: calc(anchor(var(--lf-fold-head) start) - 7px);
-  inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 7px);
-  inset-inline-start: calc(anchor(var(--lf-fold-head) start) - 12px);
-  inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
-  border: 1px solid var(--lf-rule);
-  border-radius: var(--lf-r);
-  pointer-events: none;
-}
 .lf-summary-checkpoint {
   padding: 8px calc(var(--lf-thread-text-inset) - var(--lf-summary-edge));
   margin-inline: calc(var(--lf-summary-edge) - var(--lf-thread-text-inset))
@@ -1055,18 +1037,19 @@ summary {
   border-radius: var(--lf-r);
   background: var(--lf-settled-tint);
 }
-/* Open, the region takes in the messages the summary folds: the fill stands where the
-   border of an open progress fold does, under them, and each stands on the tint as its
-   own ground, so a head stuck at a card's top keeps it. A message keeps its box and so
-   its lines: a summary arriving open over the message the reader is on moves none of
-   its words. Under them, the fill needs the transcript to be the stacking context it
-   paints in. */
-.lf-thread-transcript:has(
-  > .lf-thread-checkpoint[data-lf-summarized][data-lf-expanded="true"]
-) {
+/* Open, the region takes in the messages the summary folds: the fill stands under
+   them, and each stands on the tint as its own ground, so a head stuck at a card's top
+   keeps it. A message keeps its box and so its lines: a summary arriving open over the
+   message the reader is on moves none of its words. The fill spans siblings, from the
+   checkpoint's head to the foot of its last message, so it is anchored to both, in the
+   thread content outside the scrolling transcript. Under them, it needs the transcript
+   to be the stacking context it paints in. */
+.lf-thread-transcript:has(> .lf-thread-checkpoint[data-lf-expanded="true"]) {
   isolation: isolate;
 }
-.lf-thread-checkpoint[data-lf-summarized][data-lf-expanded="true"]::before {
+.lf-thread-checkpoint[data-lf-expanded="true"]::before {
+  content: "";
+  position: absolute;
   z-index: -1;
   inset-block-start: anchor(var(--lf-fold-head) start);
   inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 8px);
@@ -1075,8 +1058,9 @@ summary {
       var(--lf-thread-text-inset)
   );
   inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
-  border: 0;
+  border-radius: var(--lf-r);
   background: var(--lf-settled-tint);
+  pointer-events: none;
 }
 .lf-thread-transcript > .lf-msg[data-lf-summarized] {
   --lf-ground: var(--lf-settled-tint);
@@ -1106,8 +1090,8 @@ summary {
 .lf-summary-text > :last-child {
   margin-bottom: 0;
 }
-/* A thread's disclosure, an inline press (controls.css): a progress run's "N steps" in
-   its message's head, and a retained quote's Full quote (floating-panel.js). */
+/* A thread's disclosure, an inline press (controls.css): a summary's "N earlier
+   messages" at its head, and a retained quote's Full quote (floating-panel.js). */
 .lf-thread-disclosure {
   display: inline-flex;
   align-items: center;
@@ -1117,30 +1101,13 @@ summary {
   flex-shrink: 0;
   padding: 4px 0;
 }
-/* Progress belongs to the completing reply's metadata, or to the face of a run no
-   reply folds, with no summary row. Flex wrapping keeps its complete label and hit
-   target at narrow widths. */
-.lf-msg-head:has(> .lf-summary-expand),
-.lf-thread-working-head:has(> .lf-summary-expand) {
-  flex-wrap: wrap;
-  overflow: visible;
-  white-space: normal;
-  row-gap: 0;
-}
-:is(.lf-msg-head, .lf-thread-working-head) > .lf-thread-disclosure {
-  padding-block: 0;
-}
-/* The age can change without a gesture; keep its progress control at the row end. */
-:is(.lf-msg-head, .lf-thread-working-head) > .lf-progress-expand {
-  margin-inline-start: auto;
-}
 .lf-summary-required {
   margin-top: 6px;
   color: var(--lf-turn-ink);
   font: var(--lf-font-heading);
 }
-/* A progress run's face, the working message among them: its latest step, where it
-   was said (thread/transcript.js). It takes a message's head and body faces, but its
+/* A step's face, the working message among them: the step, where it was said
+   (thread/transcript.js). It takes a message's head and body faces, but its
    words stay dim, and while the work runs a sheen passes over them, as over a title
    being generated, so a step reads as work under way rather than as a reply. Its words
    wrap as a message's do, so the whole step shows however narrow the surface. Its

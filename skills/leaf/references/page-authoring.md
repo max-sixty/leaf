@@ -7,16 +7,17 @@ have to picture or piece together from a description, and put that thing on the 
 in its own form:
 
 - An existing interface is a screenshot, cropped or marked so the eye lands on the
-  point, and a visual change between two versions is an `lf-shot` before-and-after
-  pair (`authoring-evidence.md`, "Interactive and visual evidence").
+  point, and a visual change between two versions is a before-and-after pair of
+  captures (`authoring-evidence.md`, "Interactive and visual evidence").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live
-  sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
-  package. An order of events between actors is an `lf-timeline`.
+  sample the user operates (`live-samples.md`), or as previews the reader plays and
+  scrubs together. An order of events between actors is a timeline the reader steps
+  through.
 - A proposal or mechanism nothing can show yet is drawn: where things sit, what
   contains, calls or feeds what, how a state changes, today beside the proposal, and
   alternatives in one frame at one scale.
 - Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
-  are an `lf-chart`, even when they compare the same measures across items. Label the
+  are a chart, even when they compare the same measures across items. Label the
   values the argument cites, and put exact values in a table below it when readers
   need them.
 - Items the user reads one at a time and compares on the same facts, such as settings,
@@ -29,6 +30,11 @@ in its own form:
   When the point is what code does, such as what it draws or which rule wins, show
   that effect in one of the forms above, with the code beside it.
 
+The page's vocabulary provides most of these forms as widgets whose entries say what
+each shows ("Read the registry"). Use the one it offers rather than building the form
+yourself, and where the page has none, select the package that adds it
+(`packages.md`, "Package reach").
+
 A drawing or chart makes its point through its geometry: where its marks sit, their
 sizes, and what contains or links them. Add one where that geometry makes a
 relationship or pattern the argument rests on easier to see than the words or a table
@@ -38,8 +44,8 @@ per counted item shows only the count, and boxes holding sentences show only the
 sentences. When the user has nothing to picture, as when they weigh a refactor's reasons
 and cost, leave the case in words and draw nothing.
 
-`authoring-evidence.md` says which element draws each kind of evidence, and how to draw
-a figure of your own.
+`authoring-evidence.md` says how to present each kind of evidence, and how to draw a
+figure of your own.
 
 ## Develop the work
 
@@ -98,7 +104,8 @@ nested disclosures reveal substantial content of their own.
 Preserve the meaning and units of facts you use. Check derived quantities against their
 inputs, and keep uncertainty and evidence limits beside the claims they qualify. When
 your findings contradict the user's supplied facts, show the discrepancy explicitly.
-Use `lf-gloss` for unfamiliar terms the reader can open locally.
+Explain an unfamiliar term where the reader meets it, in a gloss they can open beside
+the phrase without leaving the sentence.
 
 Link each pull request, issue, commit, URL, and file or source line with a known
 destination in every section, decision and reply that names it. The user reaches each
@@ -143,7 +150,7 @@ Give a long scrolling document a contents outline so the reader can move between
 sections and see where they are; a document short enough to take in at a glance needs
 none.
 
-Write an empty `lf-toc` with a stable id in the authored sidebar track. A reading
+Write the contents outline in the authored sidebar track, as its entry says. A reading
 page composes the route and its document as siblings:
 
 ```html
@@ -298,12 +305,12 @@ formula. Leaf typesets the LaTeX in the surrounding text's size and colour,
 by its LaTeX.
 
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
-put the same block inside `lf-code` for a line-numbered walkthrough. Name the actual
-language from `$languages.names` or a bundled grammar's alias, such as `language-js`
-and `language-sh`. Leaf colours a native
-block only where the reading face reaches it: the `reading` theme turns it on, and a
-page with no theme sets `--lf-reading-face: 1` on a box around the `<pre>`
-(`package-themes.md`, "Personal themes"). Format example code with
+put the same block inside a code excerpt with numbered lines for a walkthrough. Name
+the actual language from `$languages.names` or a bundled grammar's alias, such as
+`language-js` and `language-sh`. Leaf colours a native block only where the reading
+face reaches it: the `reading` theme turns it on, and a page with no theme sets
+`--lf-reading-face: 1` on a box around the `<pre>` (`package-themes.md`, "Personal
+themes"). Format example code with
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it.
 Data in a language Leaf colours, such as a JSON object a tool returned, is code wherever
@@ -313,10 +320,9 @@ other samples are plain. Text in no such language, such as a log or a message as
 agent receives it, stays literal and uncoloured.
 
 Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
-from a doc or a pull request's description, in `lf-text-document preview="markdown"`
-with its exact text in the `<pre>` (`authoring-evidence.md`, "Source files and media").
-Leaf renders it, and its Source tab shows the exact Markdown. Where Markdown syntax is
-itself the subject, show it literally in `<pre><code>`.
+from a doc or a pull request's description, in a text document that previews it, with
+its exact Markdown a tab away (`authoring-evidence.md`, "Source files and media").
+Where Markdown syntax is itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="lf-scroll"` to that same box. Leaf contains its positioned descendants and

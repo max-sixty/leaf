@@ -150,6 +150,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
                 "thread": "first",
                 "inputs": ["second"],
                 "outcome": "hand_over",
+                "work": "hand_over",
                 "why": "it asks for a measurement",
                 "elapsedMs": 2100.0,
             }
@@ -172,6 +173,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
     # read Delivered from its opened pickup to the agent's first words.
     assert rows["edited"]["fork"] == {
         "outcome": "hand_over",
+        "work": "hand_over",
         "elapsed_s": 2.1,
         "why": "it asks for a measurement",
     }

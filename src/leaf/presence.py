@@ -380,10 +380,9 @@ def presence_with_activity(
         # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim["turn_opened"] if claim else None,
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
-        # The turns of the agents the claiming session runs beside its main thread,
-        # such as a fork that took a thread's work, which a pickup or start names as
-        # it names the main thread's (`agent_turn_stamps`).
-        "agent_turns": agent_turn_stamps(claim, events) if claim else {},
+        # The line turns the claiming session runs beside its main thread, which a
+        # pickup or line names as it names the main thread's (`agent_turn_stamps`).
+        "agent_turns": agent_turn_stamps(claim) if claim else {},
         # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that

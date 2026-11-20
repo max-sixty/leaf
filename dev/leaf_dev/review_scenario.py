@@ -27,8 +27,9 @@ from leaf_dev.eval_cases import definition
 REQUEST = definition("delivery_eval")["prompts"]["initial"]
 
 # Each step's comment, on the section it is posted on. A Claude Code session's line
-# fork hands a request for a change to the page to the session, and a working fork
-# would take a question the session could answer by reading (`leaf.forks`), so each
+# fork leaves a request for a change to the page to the session, and judges a question
+# the session could answer by reading a fork's work, which the session gives a
+# subagent (`leaf.forks`), so each
 # of the claude-code journey's delivery steps asks to reword one phrase, and so do
 # `mid-turn` and `escape` on the other harnesses, which share them. A rewording keeps
 # the page's meaning and shape, which leaves the session and Claude Code's turn-end
@@ -84,24 +85,16 @@ COMMENTS = {
         "In this paragraph, change “the only release blocker” to “the one release "
         "blocker”.",
     ),
-    # A question the conversation already answers, which a working fork takes.
-    "fork-idle": ("triage-lede", "What did I ask you to do with this page?"),
-    # A question a fork takes and looks up in the page's source, which the user
-    # follows up in its thread as the fork starts (`FOLLOW_UP`).
-    "fork-lookup": (
+    # A question answered by reading the page's source, sent while the session runs
+    # the user's own turn, which the line fork judges a fork's work and the session
+    # gives a subagent, and which the user follows up in its thread once it is
+    # answered (`FOLLOW_UP`). The session judges whether a lookup is worth a fork, and
+    # does a one-step count itself, so the user asks for this beside its work.
+    "fork-busy": (
         "triage-lede",
-        "How many cards does this page's source hold? Count them in the file.",
-    ),
-    # A question a fork takes, whose rest the user leaves as work for later, which
-    # the fork answers with a to-do on the thread for the session. The message asks
-    # only for the list and leaves the change for later, since the line fork can
-    # judge a request for the change itself, even after the session's current work,
-    # the session's, as a change to the page is.
-    "fork-todo": (
-        "triage-lede",
-        "Which cards on this page mention customers or partners? List them here. "
-        "Tagging those cards on the page is a bigger job for later: don't do it now, "
-        "keep it as a to-do.",
+        "Look into this beside your own work, no rush: read the cards in this page's "
+        "source and tell me which one a release manager would ask about first, and "
+        "why.",
     ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (

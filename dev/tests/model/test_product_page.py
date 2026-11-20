@@ -107,8 +107,7 @@ def test_how_it_works_shows_each_prompt_as_leaf_writes_it():
     validator.validate(
         prompts.delivery("f7667dd2ce39fdb3", prompts.JOURNEY["line"]["batch"])
     )
-    for step in ("work", "follow-up", "resume"):
-        validator.validate(prompts.journey_delivery(step))
+    validator.validate(prompts.journey_delivery("hand-over"))
 
 
 def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():

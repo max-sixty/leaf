@@ -56,3 +56,11 @@ claims belongs to this session. A `leaf wait` it runs is refused while Leaf watc
 and otherwise takes input from every page you hold away from you, so keep `leaf wait`
 with you. A separate Claude Code session has its own id and can drive a page of its
 own.
+
+When Leaf tells you that a fork of this session could do a thread message's work
+beside you, start the message, `leaf task start <page> <message> --text "<what the
+fork is doing>"`, since the working line Leaf posted takes nothing in hand. Then spawn
+a fork of yourself for it in the background (the Agent tool's `fork` type), so its
+work runs beside yours and you stay free for the user; it does the work and answers
+the message itself with its `answer.ref`. Pass the user's later messages in that
+thread on to the same fork with SendMessage, each with its `answer.ref`.

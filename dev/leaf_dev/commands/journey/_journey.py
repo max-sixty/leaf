@@ -1369,15 +1369,14 @@ class User:
 
     def fork(self, name: str) -> dict | None:
         """The record of the last line fork of the session's conversation that decided
-        on step `name`'s comment, if one has: a working fork's start and end are
-        records of their own (`step`), which this leaves out."""
+        on step `name`'s comment, if one has."""
         if self.forks is None:
             return None
         return next(
             (
                 record
                 for record in reversed(self.forks())
-                if self.ids[name] in record["inputs"] and "step" not in record
+                if self.ids[name] in record["inputs"]
             ),
             None,
         )
@@ -1479,7 +1478,7 @@ class User:
 
 
 # What a sample keeps of a fork's `fork_outcome` record (`leaf.forks.route`).
-FORK_READING = ("outcome", "why", "elapsedMs", "usage")
+FORK_READING = ("outcome", "work", "why", "elapsedMs", "usage")
 # The usage counts a fork reports, as a step prints them.
 FORK_TOKENS = (
     ("input_tokens", "in"),
@@ -1490,15 +1489,17 @@ FORK_TOKENS = (
 
 
 def fork_summary(record: dict) -> str:
-    """A fork's `fork_outcome` record as a step prints it: what the fork did, in how
-    long, on how many tokens, and the working line it posted as it handed the
-    thread over, or Leaf's reason where Leaf handed it."""
+    """A fork's `fork_outcome` record as a step prints it: what the fork did and who
+    it judged should do the work, in how long, on how many tokens, and the working
+    line it posted as it handed the thread over, or Leaf's reason where Leaf handed
+    it."""
     usage = record.get("usage") or {}
     tokens = ", ".join(
         f"{usage[key]} {name}" for key, name in FORK_TOKENS if key in usage
     )
     return (
         f"a fork's {record['outcome']}"
+        + (f" ({record['work']})" if "work" in record else "")
         + (f" after {record['elapsedMs']:.0f} ms" if "elapsedMs" in record else "")
         + (f" on {tokens} tokens" if tokens else "")
         + (f": {record['why']}" if "why" in record else "")

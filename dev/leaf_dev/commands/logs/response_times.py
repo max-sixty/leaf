@@ -118,17 +118,17 @@ def response_times(
         ],
     )
     summary["fork_hand_over"] = distribution(
-        [row for row in rows if row["fork"] and row["fork"]["outcome"] == "hand_over"],
+        [row for row in rows if row["fork"] and row["fork"]["work"] == "hand_over"],
         "first_reply",
     )
     summary["fork_take"] = distribution(
-        [row for row in rows if row["fork"] and row["fork"]["outcome"] == "take"],
+        [row for row in rows if row["fork"] and row["fork"]["work"] == "take"],
         "answered",
     )
-    # How often the line fork decided each way, and how each working fork's turn
-    # ended (`leaf.forks.Ending`), over the inputs each counts.
-    fork_counts = Counter(row["fork"]["outcome"] for row in rows if row["fork"])
-    work_counts = Counter(row["work"]["outcome"] for row in rows if row["work"])
+    # How often the line fork judged each way, over the inputs it decided.
+    fork_counts = Counter(
+        row["fork"]["work"] or row["fork"]["outcome"] for row in rows if row["fork"]
+    )
     summary["leaf_commands"] = spread(
         rows,
         [row["leaf_commands_s"] for row in rows if row["leaf_commands_s"] is not None],
@@ -160,7 +160,6 @@ def response_times(
                     ],
                     "summary": summary,
                     "forks": dict(fork_counts),
-                    "working_forks": dict(work_counts),
                     "selection": selection,
                     "samples": rows,
                 },
@@ -184,11 +183,9 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "delivered runs from opened to the session's start or answer; fork_hand_over is first_reply over the inputs a fork handed to the session, its working line included; fork_take is answered over the inputs a line fork gave a working fork."
+        "delivered runs from opened to the session's start or answer; fork_hand_over is first_reply over the inputs a line fork judged the session's, its working line included; fork_take is answered over the inputs it judged a fork's, which the session gives a subagent."
     )
-    click.echo(
-        f"Line forks decided: {dict(fork_counts) or 'none'}; working forks' turns ended: {dict(work_counts) or 'none'}"
-    )
+    click.echo(f"Line forks judged: {dict(fork_counts) or 'none'}")
     click.echo(
         "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input."
     )

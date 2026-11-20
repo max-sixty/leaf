@@ -12,20 +12,19 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from .obligations import response_address
-from .state import leaf_invocation, turn_closed, turn_open
+from .state import turn_closed, turn_open
 
 if TYPE_CHECKING:
     from .holding import Holding
 
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
-# How long an agent turn is believed before its start is confirmed (`agent_turn_end`).
-# Nothing confirms a line turn's start, so this bounds a line turn (`forks.py`), and a
-# working fork's turn opens at the take, whose start its harness confirms within
-# this. It sits well above how long either takes.
+# How long a line turn is believed while open (`agent_turn_end`): nothing renews
+# one, so this bounds a line fork that never answers (`forks.py`). It sits well above
+# how long a line fork takes.
 STARTING_GRACE = timedelta(seconds=30)
 # The steps a harness may report, whose home is the served state's `WorkKind`: the
 # browser words each one, and its type makes that table name every kind.
@@ -211,11 +210,9 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     deliver the page's whole pending batch and mark its other input Delivered
     unseen, so the command names the `leaf wait` that delivers it, after the claim
     its receipt needs where this command's session does not hold the page
-    (`service.may_receive`). The command that names a ref begins as the command
-    printing it does (`state.leaf_invocation`), so a fork that runs it as printed
-    answers in its own turn."""
+    (`service.may_receive`)."""
     if "ref" in answer:
-        return f"`{leaf_invocation()} thread reply {answer['ref']}`"
+        return f"`leaf thread reply {answer['ref']}`"
     from .harness import session_harness
     from .service import may_receive, page_claim
 
@@ -367,10 +364,10 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
 def running_agent_turns(
     stamps: dict[str, dict], alive: bool, now: datetime
 ) -> set[str]:
-    """The agent turns of the claimant's session believed running at `now`, from
-    their stamps (`state.agent_turn_stamps`): open in a live session, and renewed
-    within the working grace, as a main turn's stamp is believed (`claimant_turn`),
-    since an agent whose run ended unseen leaves its turn open."""
+    """The line turns of the claimant's session believed running at `now`, from
+    their stamps (`state.agent_turn_stamps`): open in a live session, and not yet
+    lapsed (`agent_turn_end`), since a line fork that never answered leaves its turn
+    open."""
     if not alive:
         return set()
     return {
@@ -381,41 +378,23 @@ def running_agent_turns(
 
 
 def agent_turn_end(stamp: dict) -> datetime:
-    """When an agent turn ended by its stamp (`state.agent_turn_stamps`): its close,
-    or, while it is open, its last renewal plus the working grace, when it lapses
-    unless something renews it. A turn never renewed since it opened, whose start
-    nothing has confirmed yet, has `STARTING_GRACE` from its opening instead: a line
-    turn, which nothing renews, and a working fork's, spawned or resumed, until its
-    harness confirms the start (`state.name_agent_turn`). A start is confirmed within
-    seconds, so one never confirmed, as when the step that took the thread timed out
-    or the module was reloaded, has lost its agent, and its thread goes back to the
-    main thread."""
+    """When a line turn ended by its stamp (`state.agent_turn_stamps`): its close,
+    or, while it is open, `STARTING_GRACE` after it opened, when it lapses, since
+    nothing renews it. A line fork answers within seconds, so one that hasn't by then,
+    as when its step timed out or the module was reloaded, never will, and its thread
+    goes back to the main thread."""
     if stamp["closed"] is not None:
         return datetime.fromisoformat(stamp["closed"])
-    grace = STARTING_GRACE if stamp["renewed"] == stamp["opened"] else WORKING_GRACE
-    return datetime.fromisoformat(stamp["renewed"]) + grace
-
-
-def agent_turn_state(
-    turn: str, stamps: dict[str, dict], running: set[str]
-) -> Literal["running", "closed", "lapsed"]:
-    """Where the agent turn `turn` of `stamps` stands: `running` while it is in
-    `running` (`running_agent_turns`), `closed` once its harness said its run ended,
-    and otherwise `lapsed`, open but believed running no longer."""
-    if turn in running:
-        return "running"
-    return "lapsed" if stamps[turn]["closed"] is None else "closed"
+    return datetime.fromisoformat(stamp["opened"]) + STARTING_GRACE
 
 
 def agent_holds(obligation: dict) -> bool:
-    """Whether an agent other than the main thread owes this update now (`holder`,
-    `holding.owed_by`), a running turn of an agent the claimant's session runs beside
-    its main thread (`state.AGENT_TURNS`): a fork that took a thread's work, or a
-    line turn, in which a line fork judges a message Leaf keeps back. The main thread
-    neither holds its turn over it, is reminded of it, nor takes it in again
-    (`hook_transport.pick_up_acknowledged`) until that turn ends; once it does, an
-    update still owed is the main thread's input, which its next delivery hands over
-    (`delivery.deliverable`)."""
+    """Whether a turn other than the main thread's owes this update now (`holder`,
+    `holding.holder`): a running line turn (`state.AGENT_TURNS`), in which a line
+    fork judges a message Leaf keeps back. The main thread neither holds its turn over
+    it, is reminded of it, nor takes it in again (`hook_transport.pick_up_acknowledged`)
+    until that turn ends; once it does, an update still owed is the main thread's
+    input, which its next delivery hands over (`delivery.deliverable`)."""
     return obligation["holder"]["kind"] != "main"
 
 
@@ -560,8 +539,8 @@ def nudge_due(present: dict, turn: Turn) -> bool:
 
 def turn_runs(written: dict, present: dict, turn: Turn, agents: set[str]) -> bool:
     """Whether the turn that wrote `written`, a logged event naming its session and
-    turn, still runs: an agent's turn beside the claimant's main thread while it runs
-    (`agents`, `running_agent_turns`, which lapses one nothing renews), and the main
+    turn, still runs: a line turn beside the claimant's main thread while it runs
+    (`agents`, `running_agent_turns`), and the main
     thread's while it is the claimant's current `turn` and no ending of it has been
     seen, or after one while the harness says the session still works in the
     background (`Turn.busy`). A main turn nothing has renewed lately still runs, since a
@@ -712,14 +691,13 @@ def canonical_activity(
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it. `holding` is who
     holds each thread, and each owed answer's `holder` who owes it
-    now (`holding.owed_by`): a running fork, the line fork, or the main thread.
+    now (`holding.holder`): a running line turn, or the main thread.
     `holding.reading_of` reads it.
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
-    from .holding import owed_by
     from .todos import TodoReading
 
     log = todo_reading or TodoReading(events)
@@ -756,16 +734,14 @@ def canonical_activity(
         present["session_alive"] is None and not present["listening"] and declared_quiet
     )
     held = not unheld
-    # The turns of the agents the claimant's session runs beside its main thread
-    # that are running now, line turns and working forks', which hold the threads
-    # they took (`holding.py`).
+    # The line turns of the claimant's session running now beside its main thread,
+    # which hold the threads they keep back (`holding.py`).
     agents = holding.running
 
     def owes(item: dict) -> dict:
-        """Who owes the answer to `item` now (`holding.owed_by`, `agent_holds`): a
-        running fork that holds its thread, the line turn judging it, or the main
-        thread."""
-        return owed_by(holding.of(item["input"]).holder)
+        """Who owes the answer to `item` now (`holding.holder`, `agent_holds`): the
+        line turn judging it, or the main thread."""
+        return holding.of(item["input"]).holder
 
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn, agents=agents
@@ -854,10 +830,7 @@ def canonical_activity(
         if item.get("delivery_session") == present.get("claim_session")
         and item.get("delivery_turn") == present["turn"]
     ]
-    # An update an agent's running turn holds is in hand for that turn, whatever
-    # the main thread's turn does.
-    in_agent_turn = [item for item in opened if owes(item)["kind"] == "fork"]
-    handling = (in_this_turn if turn.running else []) + in_agent_turn
+    handling = in_this_turn if turn.running else []
     for item in opened:
         if item in handling:
             continue

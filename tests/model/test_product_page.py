@@ -4,7 +4,6 @@ import json
 import re
 import shlex
 from pathlib import Path
-from typing import get_args
 
 import click
 from click.testing import CliRunner
@@ -360,17 +359,14 @@ def test_the_event_log_page_quotes_the_registry():
     }
 
 
-def test_how_it_works_lists_the_judgments_and_endings_forks_keeps():
+def test_how_it_works_lists_the_judgments_the_line_fork_answers():
     """How it works' Forks tab names each judgment the line fork can answer
-    (`forks.ANSWER`) in its sorting table, and each outcome `forks.ended` gives a
-    thread in its endings table, so a judgment or outcome added to the code fails
-    here until the tab says what it means."""
+    (`forks.ANSWER`) in its sorting table, so a judgment added to the code fails here
+    until the tab says what it means."""
     tree = SourceDocument(named_source("how-it-works").read_text()).tree
     answer: dict = forks_model.ANSWER
     judgments = {code.text for code in tree.select("table#sorting-table td code")}
     assert judgments == set(answer["properties"]["work"]["enum"])
-    endings = [code.text for code in tree.select("table#endings tbody th code")]
-    assert sorted(endings) == sorted(get_args(forks_model.Ending))
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():
@@ -403,25 +399,11 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
     def named(tokens):
-        """The subcommand path these tokens walk from the root Click group, past a
-        group's own options, as `leaf --turn <turn> thread reply` passes `--turn`."""
+        """The subcommand path these tokens walk from the root Click group."""
         command, path = cli_model.cli, []
-        tokens = iter(tokens)
         for token in tokens:
             if not isinstance(command, click.Group):
                 break
-            option = next(
-                (
-                    p
-                    for p in command.params
-                    if isinstance(p, click.Option) and token in p.opts
-                ),
-                None,
-            )
-            if option is not None:
-                if not option.is_flag:
-                    next(tokens, None)
-                continue
             sub = command.get_command(click.Context(command), token)
             if sub is None:
                 break

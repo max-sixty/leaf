@@ -1,7 +1,7 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import NamedTuple, Never
@@ -557,8 +557,8 @@ def post_reply(
 
     ``claimed_session`` names the session Leaf writes for, as a line fork's working
     message or a harness's failure receipt: Leaf's own write, which goes in as the
-    claimant's and says nothing beside it. A command's own write says which fork or
-    line fork holds the thread it writes in (`holding.authorize`).
+    claimant's and says nothing beside it. A command's own write says where a line
+    fork holds the thread it writes in (`holding.authorize`).
 
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
@@ -603,13 +603,12 @@ def post_reply(
             ):
                 raise ReceiptRefused("response no longer matches its page log")
         from .forks import page_holding
-        from .holding import authorize, owed_by
+        from .holding import authorize
 
-        # A fork may answer only what its turn holds, and write in no thread
-        # another turn took, and an ended one nothing; it asks first, so a refused
-        # fork is never handed another turn's answer as the repeat of its own. The
-        # main thread writes anywhere, and hears of a fork it writes beside. Only an
-        # answer, which responds to a message, takes the thread.
+        # A line fork's line may go in only on what its line turn holds, and an
+        # ended one's nothing; it asks first, so a refused line is never handed
+        # another turn's answer as the repeat of its own. The main thread writes
+        # anywhere, and hears of a line fork it writes beside.
         holding = page_holding(page)
         responds = address.get("responds")
         thread = (
@@ -661,12 +660,6 @@ def post_reply(
             detach=detach,
             title=title,
         )
-        if beside is not None and addressed.responds is not None:
-            # Whether the answer took the thread, by the reading once it is in: one to
-            # an older message, or to a widget in one, leaves a message the fork
-            # picked up waiting, and the thread with the fork.
-            took = owed_by(page_holding(page).hold(thread).holder)["kind"] == "main"
-            beside = replace(beside, values={**beside.values, "answers": took})
     if claimed_session is None:
         note(*([beside] if beside is not None else []), *addressed.advice)
     if published is not None:

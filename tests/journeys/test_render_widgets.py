@@ -21,6 +21,7 @@ from render_harness import (
     AVAILABLE_COMMANDS,
     RELEASE_FOCUS,
     CutOff,
+    held_frames,
     holding,
     leaf_page,
     open_page,
@@ -800,34 +801,39 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         page.locator("#route > .layout-track").evaluate("node => node.scrollTop") == 0
     )
 
-    # Map travel keeps the user oriented rather than teleporting. Start recording
-    # on the click so preparing the gesture cannot exhaust the frame sequence.
-    verify.evaluate("""link => {
-      document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
-      window.lfTocFrames = [];
-      link.addEventListener('click', () => {
-        const sample = () => {
-          window.lfTocFrames.push(document.scrollingElement.scrollTop);
-          if (window.lfTocFrames.length < 90) requestAnimationFrame(sample);
-        };
-        sample();
-      }, {once: true});
-    }""")
+    # Map travel keeps the user oriented rather than teleporting. The glide runs for a
+    # fixed time (scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
+    # after it ends shows a jump; holding the frame clock steps it a frame's length per
+    # frame, so the frames sampled show the same glide on any host.
+    page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
     verify_box = verify.bounding_box()
     assert verify_box is not None
     page.mouse.move(verify_box["x"] + 4, verify_box["y"] + 4)
     expect(verify).to_have_css("opacity", "1")
-    page.mouse.click(verify_box["x"] + 60, verify_box["y"] + verify_box["height"] / 2)
-    expect(page).to_have_url(re.compile(r"#verify$"))
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
+    top = "() => document.scrollingElement.scrollTop"
+    frames = [page.evaluate(top)]
+    with held_frames(page) as step:
+        page.mouse.click(
+            verify_box["x"] + 60, verify_box["y"] + verify_box["height"] / 2
+        )
+        expect(page).to_have_url(re.compile(r"#verify$"))
+        for _ in range(300):
+            step()
+            frames.append(page.evaluate(top))
+            if frames[-1] > 0:
+                break
+        else:
+            raise AssertionError(f"the glide never set off: {frames}")
+        # Twenty frames of the held clock run well past SCROLL_MS.
+        for _ in range(20):
+            step()
+            frames.append(page.evaluate(top))
     scroll_settled(page)
-    frames = page.evaluate("window.lfTocFrames")
-    travelled = [position for position in frames if position > 0]
-    # The glide runs for a fixed time (scrolling.js, `SCROLL_MS`), so how many frames
-    # show it depends on the machine's frame rate; one frame between the start and the
-    # destination is what tells a glide from a jump.
-    assert len({round(position) for position in travelled}) >= 2, frames
-    assert all(left <= right for left, right in pairwise(travelled)), frames
+    destination = page.evaluate(top)
+    assert frames[-1] == destination, (frames, destination)
+    assert any(0 < position < destination for position in frames), frames
+    assert all(left <= right for left, right in pairwise(frames)), frames
 
     start_href = start.get_attribute("href")
     assert start_href is not None

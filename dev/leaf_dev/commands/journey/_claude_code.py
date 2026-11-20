@@ -82,11 +82,14 @@ Then the delivery steps:
   again, whose prompt hook hands the comment over anew, and a turn answers it;
 - `withdrawn`: the same for an update that owes nothing, a resolve of a thread whose
   comment had no answer yet, which must still reach a hook's context after Escape;
-- `boundary`: a comment that arrives while a wake's turn runs, handed over at a tool
-  boundary whose other hook sleeps, and Escape then ends that turn. The watch the
-  wake's prompt started wakes the session, whose prompt names the boundary's comment
-  as owed rather than handing it over again, so it is handed over once, and a turn
-  answers both comments;
+- `boundary`: a comment that arrives while a wake's turn answers another, handed over
+  at the tool boundary after that answer, whose other hook sleeps, and Escape then
+  ends that turn with neither comment half done. Another hook before each shell
+  command, the session's own setting, holds the answer until the line fork has handed
+  the comment over, so where the handover lands depends neither on how the agent
+  batches its calls nor on how long the fork takes. The watch the wake's prompt
+  started wakes the session, whose prompt names the comment as owed rather than
+  handing it over again, so it is handed over once, and a turn of its own answers it;
 - `deferred`: the user's own turn, told to leave Leaf's comments for later, is
   handed a comment at a tool boundary and ends on its answer with the comment
   unanswered, and no Stop hook continues it over the comment. The watch wakes a
@@ -585,13 +588,15 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         )
         step("woken", started, "woken", "after-wake", detail=escaped)
 
-        def drop(update: str) -> int:
-            """Slow the session's other prompt and tool-batch hooks, and press Escape
+        def drop(update: str, release: Callable[[], object] = lambda: None) -> int:
+            """Slow the session's other prompt and tool-batch hooks, `release` a turn
+            the step holds short of the hook that hands `update` over, and press Escape
             once Leaf's hook has handed `update` over and while the other still runs, so
             Claude Code drops what Leaf's hook returned. Returns how many records the
             conversation held as Escape was pressed."""
             slow_prompt(place).touch()
             try:
+                release()
                 cc.until(
                     lambda: bool(picked_up(page, update)),
                     f"{update}: no hook handed it over",
@@ -638,16 +643,35 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         step("withdrawn", started)
 
         started = time.monotonic()
-        first = user.comment("first-wake")
-        cc.until(
-            lambda: bool(picked_up(page, first)),
-            "boundary: the wake was not handed its comment",
-        )
-        boundary = user.comment("boundary")
-        drop(boundary)
+        # The wake's answer to `first-wake` waits before its command runs, so
+        # `boundary`, sent then and handed to the session by its line fork, reaches
+        # the turn at the tool boundary after that answer. Handed over between the
+        # wake's edit and its answer, it would leave `first-wake` half done as Escape
+        # lands, which the woken turn may reasonably ask the user about rather than
+        # finish.
+        hold, holding = answer_hold(place)
+        hold.touch()
+        try:
+            user.comment("first-wake")
+            cc.until(
+                holding.exists, "boundary: the wake's turn did not answer its comment"
+            )
+            boundary = user.comment("boundary")
+            cc.until(
+                lambda: user.fork("boundary"), "boundary: no fork decided on it", 60
+            )
+            fork = require(user.fork("boundary"), "boundary: no fork decided on it")
+            require(
+                fork["outcome"] == "hand_over",
+                f"boundary: the fork kept it from the session: {fork_summary(fork)}",
+            )
+            escaped = drop(boundary, release=hold.unlink)
+        finally:
+            hold.unlink(missing_ok=True)
+            holding.unlink(missing_ok=True)
         cc.until(
             answered("first-wake", "boundary"),
-            "boundary: the comment Escape dropped was not answered",
+            "boundary: the comment Escape kept was not answered",
             150,
         )
         # Escape during a tool boundary's hooks keeps that boundary's context, so the
@@ -661,6 +685,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         require(
             records[handed[0]]["attachment"].get("hookEvent") == "PostToolBatch",
             "boundary: the comment reached the turn by a prompt, not a tool boundary",
+        )
+        require(
+            any(
+                ATTENTION_OPENING in content and boundary in content
+                for content in hook_contexts("UserPromptSubmit", escaped)
+            ),
+            "boundary: no prompt after Escape named the comment as owed",
         )
         step("boundary", started, "first-wake", "boundary")
 
@@ -1024,6 +1055,13 @@ def slow_prompt(place: Isolation) -> Path:
     return place.root / "slow-prompt"
 
 
+def answer_hold(place: Isolation) -> tuple[Path, Path]:
+    """The file whose presence holds the session's answer to a comment, a `leaf
+    thread reply`, in its other hook before the command runs, and the file that hook
+    makes once it holds one."""
+    return place.root / "hold-answer", place.root / "answer-held"
+
+
 def native_records(home: Path, session: str) -> list[dict]:
     """The native session record, including hook context attachments
     (`reply_phases.transcript_records`)."""
@@ -1075,22 +1113,41 @@ def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
         # ask it to be, so an Escape can land after Leaf's hook has handed an
         # update over and before Claude Code reads its output.
         slow = shlex.quote(str(slow_prompt(place)))
-        settings: dict[str, object] = {
-            "hooks": {
-                event: [
-                    {
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": f"if [ -e {slow} ]; then sleep 6; fi",
-                                "timeout": 20,
-                            }
-                        ]
-                    }
-                ]
-                for event in ("UserPromptSubmit", "PostToolBatch")
-            }
+        hooks: dict[str, list[dict]] = {
+            event: [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f"if [ -e {slow} ]; then sleep 6; fi",
+                            "timeout": 20,
+                        }
+                    ]
+                }
+            ]
+            for event in ("UserPromptSubmit", "PostToolBatch")
         }
+        # And its hook before each shell command, which holds the session's answer to
+        # a comment while the `boundary` step asks it to (`answer_hold`). A progress
+        # line, `leaf thread reply --ephemeral`, is no answer and passes.
+        hold, held = (shlex.quote(str(path)) for path in answer_hold(place))
+        hooks["PreToolUse"] = [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": (
+                            f'if [ -e {hold} ]; then case "$(cat)" in '
+                            f"*--ephemeral*) ;; *'thread reply'*) touch {held}; "
+                            f"while [ -e {hold} ]; do sleep 0.1; done ;; esac; fi"
+                        ),
+                        "timeout": 120,
+                    }
+                ],
+            }
+        ]
+        settings: dict[str, object] = {"hooks": hooks}
         if sandbox:
             # The README's settings ("Agent sandboxes"), which let Leaf's sandboxed
             # commands reach the bridge its hooks keep outside the sandbox.

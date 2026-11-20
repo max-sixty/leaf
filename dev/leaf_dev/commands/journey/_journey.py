@@ -3,7 +3,7 @@ release ask every target answers, and for a harness target, its isolation and th
 terminal typing into its session. `run.py` names the targets and runs one.
 
 The user tells the agent that a release passed its deployment checks, asking it to
-record that on the board. How the page records it is the agent's call, as with a
+record that on the page. How the page records it is the agent's call, as with a
 real user's request; this `release` step requires a reply and a published revision
 that names the release. Every target gets the same ask and the same checks.
 
@@ -389,7 +389,7 @@ def release_ask(marker: str) -> str:
     happened and leaves how the page shows it to the agent, as a user would, so the
     journey times the agent's own way of working rather than a scripted edit."""
     return (
-        f"Release {marker} passed its deployment checks. Record that on the board, "
+        f"Release {marker} passed its deployment checks. Record that on the page, "
         "and tell me when it's done."
     )
 
@@ -653,7 +653,7 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
 
     The ask names the release by a name chosen once for this run (`release_name`),
     which the page check finds in the authored board markup and the reload in the
-    rendered page: where on the board the agent records it is the agent's call.
+    rendered page: where on the page the agent records it is the agent's call.
     """
     marker = release_name()
     opening = end.opening()

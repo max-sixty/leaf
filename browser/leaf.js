@@ -401,6 +401,7 @@ async function boot() {
 
   app = mountApplication({
     arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
+    showTodo: (todo) => floatingPanel?.showTodo(todo),
     nextObligationWithin: (options) => queueWalk.nextWithin(options),
     goToObligation: (record) => queueWalk.goToObligation(record),
     createEngagement,

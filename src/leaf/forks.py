@@ -173,9 +173,15 @@ def unlined(thread: dict, through: int | None = None) -> list[dict]:
     """The user's turns waiting in `thread` (`events.unanswered_turns`), oldest
     first, while the thread stands open and the agent has said nothing in it since
     the oldest of them, by a message or a rewrite of one: a round that awaits a line
-    (the module header); else none. `through` reads the round as it stood at that
-    seq, as the follower reads it as its newest turn arrived (`look`) and a delivery
-    as the message it carries did (`thread_context.batch_threads`)."""
+    (the module header); else none.
+
+    `through` reads the round as it stood at that seq, as the follower reads it as
+    its newest turn arrived (`look`) and a delivery as the message it carries did
+    (`thread_context.batch_threads`). That reading counts the agent's messages
+    alone: the fold keeps only a message's latest rewrite, so counting rewrites
+    would let a later one change what an earlier moment read, and the follower and
+    a delivery must read each round the same way for good. A rewrite counts where
+    it matters, in the reading that decides whether the line goes in."""
     from .events import spoken_turns, unanswered_turns
 
     if thread["resolved"]:
@@ -189,7 +195,11 @@ def unlined(thread: dict, through: int | None = None) -> list[dict]:
         waiting[0]["seq"] < said and (through is None or said <= through)
         for message in spoken_turns(thread)
         if message["author"] == "agent"
-        for said in (message["seq"], message.get("edited", {}).get("seq", 0))
+        for said in (
+            (message["seq"], message.get("edited", {}).get("seq", 0))
+            if through is None
+            else (message["seq"],)
+        )
     ):
         return []
     return waiting

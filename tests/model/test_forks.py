@@ -742,3 +742,19 @@ def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
         hooks_model.cmd_pages(FOLLOWER)
+
+
+def test_a_round_reads_as_it_arrived_whatever_the_agent_rewrites_later(claimed):
+    """The follower and a delivery read a round as it stood when its newest message
+    arrived, and no later write of the agent's moves that reading: rewriting its
+    earlier answer twice across the user's messages leaves the round listed as it
+    was, so its forks are asked once and the summary keeps one owner."""
+    opened = said(claimed, "Which TTL should the cache use?")
+    earlier = thread_model.post_reply(claimed, {"responds": opened["id"]}, "Ten s.")
+    first = said(claimed, "Make it five.", parent=opened["id"])
+    thread_model.cmd_edit(claimed, earlier["id"], "Five s.")
+    second = said(claimed, "And the retries?", parent=opened["id"])
+    arrived = [basis(claimed, opened["id"], first["id"], second["id"])]
+    assert listed(claimed) == arrived
+    thread_model.cmd_edit(claimed, earlier["id"], "Five s, and three retries.")
+    assert listed(claimed) == arrived

@@ -167,6 +167,9 @@ def _base_state(
                 "title": thread["title"],
                 "anchor": thread["anchor"],
                 "detached_from": thread["detached_from"],
+                # The passage a version rewrote, which left the thread on its section:
+                # the words the thread is about once the page no longer shows them.
+                "rewritten_from": thread["rewritten_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for thread_id, thread in threads.items()

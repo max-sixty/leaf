@@ -911,6 +911,9 @@
   /* A segmented control's choices, at the weight a chosen one takes, so choosing
      never widens its words: a dial's depths, a shot's views. */
   --lf-font-choice: 500 var(--lf-t-5) / var(--lf-ui-lh) var(--lf-sans);
+  /* A choice whose word stands over a fact, set solid so the word and the fact under it
+     in the fine face fit a one-line control: a dial's depth over its minutes. */
+  --lf-font-choice-stacked: 500 var(--lf-t-5) / 1.1 var(--lf-sans);
   /* The words a widget holds beside the page's prose, a rung below it and on its
      leading, since they run to sentences: a card's, a note on a line of source, a
      review's, a worktree's, a row of options. */

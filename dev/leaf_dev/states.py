@@ -805,6 +805,25 @@ def summary_card_opened(page: Page) -> None:
     page.mouse.move(0, 0)
 
 
+def rewritten_quote_card(page: Page) -> None:
+    """The plan's stop thread once a version rewrote the words its comment quoted, which
+    leaves the thread on their item: its margin card quotes the words the bracket no
+    longer marks, under its actions, marked as changed."""
+    source = served_page.get().directory / "index.html"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "The trusted supervisor owns shutdown.",
+            "Shutdown belongs to the supervisor.",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    as_agent("page", "stamp", "--text", "Reworded who owns shutdown")
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    page.mouse.move(0, 0)
+
+
 def thread_by_marker(page: Page) -> None:
     """The plan's stop thread, opened by a press on its marker: a margin card on a
     window with room for the rail, the floating panel's view of it on a phone."""
@@ -1681,14 +1700,14 @@ def retained_quote(page: Page) -> None:
 
 
 def retained_quote_full(page: Page) -> None:
-    """The same original words opened locally. Full quote stands with the quote's first
-    paint, before the view has finished arriving; the click waits until the reply has
-    been read where it stood, as a reader's would, since opening the quote at once
+    """The same original words opened locally. The label opens them from the quote's
+    first paint, before the view has finished arriving; the click waits until the reply
+    has been read where it stood, as a reader's would, since opening the quote at once
     pushes the reply out of view unread and offers Next unread."""
     retained_quote(page)
     child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
     expect(child.locator(f"{panel_view('thread')} .lf-msg-new")).to_have_count(0)
-    full = child.get_by_role("button", name="Full quote", exact=True)
+    full = child.locator(".lf-quote-label").get_by_role("button")
     full.click()
     expect(full).to_have_attribute("aria-expanded", "true")
 
@@ -3485,6 +3504,12 @@ STATES = (
         "summary-card-opened",
         "review-a-plan",
         summary_card_opened,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "rewritten-quote-card",
+        "review-a-plan",
+        rewritten_quote_card,
         region=".lf-margin-preview",
     ),
     State(

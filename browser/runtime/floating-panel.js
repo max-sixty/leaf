@@ -2195,12 +2195,12 @@ export function createFloatingPanel({
   // A thread's view stands on its foot, so what grows in it carries its name, and all
   // the view holds, up the window. That is the growth news and the user's own turns
   // make (`answersAtOnce`), but a press keeps what it pressed under the pointer. So where
-  // what a press in the view grows would carry the pressed control away, as Full quote,
-  // Show on a fold that opens below it, or a rewrite's pencil would, the view holds the
-  // height it stood at as the press came (`judgePress`, before the frame shows the
-  // growth) until the user's next turn, and what the press grew goes on inside the
-  // view, revealed by scrolling. A press whose growth leaves it in place, as Show on
-  // progress, which opens above it, holds nothing, so the view grows to show what
+  // what a press in the view grows would carry the pressed control away, as a quote's
+  // label opening it, Show on a fold that opens below it, or a rewrite's pencil would,
+  // the view holds the height it stood at as the press came (`judgePress`, before the
+  // frame shows the growth) until the user's next turn, and what the press grew goes on
+  // inside the view, revealed by scrolling. A press whose growth leaves it in place, as
+  // Show on progress, which opens above it, holds nothing, so the view grows to show what
   // opened; nor does a press that grows nothing, so an answer the user waits for still
   // grows the view. A press on the head line, which every growth carries, holds the
   // view whatever it grows (below). The

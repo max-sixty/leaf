@@ -1,8 +1,8 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
- * session's pages, the drawing of Leaf's own rows in the conversation, the cap on
- * how long a foreground Bash call holds the main thread while the session holds a
- * page (`capped`), and the carrier of the model calls Leaf asks of the session
+ * session's pages, the drawing of Leaf's own rows in the conversation, the limit
+ * on how long a foreground command holds the turn while the session holds a page
+ * (`limitSteps`), and the carrier of the model calls Leaf asks of the session
  * (`carry`): forks of the
  * conversation, such as the turn-end check's and the one that writes the agent's
  * working line on a thread's waiting messages, and completions on the session's
@@ -21,21 +21,21 @@
  * an Escape would become a cross-session nudge (measured at 2.1.307 with the
  * claude-code journey).
  *
- * While the session holds a page, a foreground Bash call on the main thread runs
- * for at most `FOREGROUND_CAP_MS`. Page input reaches the session only between its
- * steps, so a message sent during a longer command waits for it to end. Claude Code
- * moves a command still running at its timeout to the background, says so in the
- * call's result and wakes the session when the command exits (measured at 2.1.329),
- * so capping the timeout ends the step but not the command, and the result already
- * tells the agent what happened. The maintainer chose that a session holding a page
- * keeps each step it waits on to about a minute (the leaf skill's "Stay
- * responsive"), with a hook as the backstop where agents still miss it, as they do
- * on foreground test runs. A hook that only flags a long timeout fires mostly on
- * commands that finish in time, since agents give quick commands long timeouts, and
- * the agent then waits out the ones that don't. A subagent's calls keep their
- * timeout: a fork or a reporter whose call moved to the background may end its turn,
- * which its parent reads as its report. A call the agent runs in the background, or
- * with a shorter timeout, goes as it came.
+ * Page input reaches the session only between its steps, so a message sent during a
+ * long foreground command waits for it to end. The maintainer chose that a session
+ * holding a page keeps each step it waits on to about a minute, and that Leaf back
+ * the instruction where agents still wait longer, as they do on foreground test
+ * runs. So while the session holds a page the module sets Claude Code's own limit,
+ * `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS`, to 90 s. Claude Code reads it at each of
+ * the main agent's foreground commands, moves one still running then to the
+ * background, says so in the result and wakes the session when it exits; it leaves
+ * out what it can't move, such as a command that starts with `sleep`, and keeps a
+ * subagent's commands to its own limit (read in 2.1.329's source). A hook that flags
+ * a long timeout instead fires mostly on commands that finish in time, and one that
+ * rewrites the timeout kills the commands Claude Code can't move. The limit holds
+ * from the return of any `leaf` command, since the session takes a page only through
+ * one, until the follower lists none. Every process the session starts meanwhile
+ * inherits the variable, a nested Claude Code session included.
  *
  * Starting an idle turn always draws a row, and no hook or exit code wakes the
  * session without one (read in 2.1.307's source). The watch's wake is a task
@@ -243,6 +243,29 @@ async function openPage(
 function show($: EngineInterface, listed: Leaf[]) {
   leaves = listed;
   $.ui.invalidate("ui.render");
+  void limitSteps($, listed.length > 0);
+}
+
+// The limit Leaf gives Claude Code's auto-background timeout while the session
+// holds a page, in ms: about the minute a step should take, with room for one that
+// runs a little over it.
+const STEP_LIMIT = "90000";
+
+/** Set `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` to `STEP_LIMIT` while the session
+ * holds a page, and unset it once it holds none. A value the user set stays; one
+ * equal to Leaf's is taken for Leaf's, as after the module reloads. */
+async function limitSteps($: EngineInterface, holding: boolean) {
+  try {
+    const current = await $.env.get("CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS");
+    if (current !== undefined && current !== STEP_LIMIT) return;
+    const wanted = holding ? STEP_LIMIT : undefined;
+    if (current === wanted) return;
+    const set = await $.env.set("CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS", wanted);
+    if (set.deny)
+      $.ui.log(`Leaf: the step limit was not set: ${set.deny}`, { to: "debug" });
+  } catch (error) {
+    $.ui.log(`Leaf: the step limit was not set: ${error}`, { to: "debug" });
+  }
 }
 
 /** Start the follower of the session's pages, or once the running one exits. */
@@ -546,24 +569,6 @@ const running = new Map<string, { tool: string; input: Record<string, string> }>
 // The arguments of a call a fork's prompt names, each cut to a line's worth.
 const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"];
 
-// The longest a foreground Bash call holds the main thread while the session holds a
-// page: the minute the leaf skill asks of a step, with room for one that runs a
-// little over it.
-const FOREGROUND_CAP_MS = 90_000;
-
-/** `e` with a foreground Bash call's timeout held to `FOREGROUND_CAP_MS` while the
- * session holds a page, as the follower last listed its pages; any other call as it
- * came. */
-function capped<E extends { tool: string }>(e: E): E {
-  if (e.tool !== "Bash" || leaves.length === 0) return e;
-  const { timeout, run_in_background } = e as {
-    timeout?: number;
-    run_in_background?: boolean;
-  };
-  if (run_in_background) return e;
-  return { ...e, timeout: Math.min(timeout ?? FOREGROUND_CAP_MS, FOREGROUND_CAP_MS) };
-}
-
 /** Make the completion `request`, as Leaf wrote it, on the session's own model client
  * (`src/leaf/completions.py`, whose header says how the request reaches the module),
  * and what it came to: the text or why there is none, with its usage and time. */
@@ -605,14 +610,16 @@ export const register: Register = (on) => {
     { tool: "Bash", command: /(^|[\s;&|(/])leaf(\s|$)/ },
     async ($, e, next) => {
       const result = await next(e);
+      // The command may have taken a page on, so the limit holds from the next call,
+      // before the follower can say; its listing takes the limit back if not.
+      await limitSteps($, true);
       // A gate on the tool's own call: nothing after its result may fail it.
       void sessionOf($).then((session) => follow($, session));
       return result;
     },
   );
 
-  // Every call the main thread runs, for the prompt of a fork made meanwhile, each
-  // foreground Bash call capped while the session holds a page.
+  // Every call the main thread runs, for the prompt of a fork made meanwhile.
   on("tool.call", async ($, e, next) => {
     if (e.agentId !== undefined) return next(e);
     const input: Record<string, string> = {};
@@ -622,7 +629,7 @@ export const register: Register = (on) => {
     }
     running.set(e.tool_use_id, { tool: e.tool, input });
     try {
-      return await next(capped(e));
+      return await next(e);
     } finally {
       running.delete(e.tool_use_id);
     }

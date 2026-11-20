@@ -297,6 +297,9 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(
         }
 
     monkeypatch.setattr(fork_eval, "claude_child", child)
+    snapshot = {"type": "prompt_snapshot", "cliPrefix": fork_eval.INTERACTIVE}
+    prefix = {"attachment": snapshot, "sessionId": "live", "version": "2"}
+    monkeypatch.setattr(fork_eval, "live_prefix", lambda run: prefix)
     response = fork_eval.execute_scenario(case, ROOT, work)
     metadata = response["metadata"]
     assert metadata["checks"] == checks
@@ -306,6 +309,8 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(
         for line in (work / "transcript.jsonl").read_text().splitlines()[:3]
     ]
     assert (environment["parentUuid"], after["parentUuid"]) == (first["uuid"], "env")
+    # The live session's prefix follows the environment, as it does in a live session.
+    assert after["attachment"] == snapshot
     assert judged in metadata["texts"]["judge"]
 
 

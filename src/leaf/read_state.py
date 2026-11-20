@@ -5,7 +5,7 @@ each later edit id name distinct content versions. Content needs evidence the us
 took it in unless it is progress. Two kinds of read evidence count:
 
 - a `read` event naming that exact version, which the browser posts when its visible
-  body, or the words of a summary folding it, have been shown to the user;
+  body, or the prose of a summary folding it, have been shown to the user;
 - an update made in the version's thread and logged after the version, which is
   the thread the update names (`thread_context.event_threads`): a reply or reaction,
   a resolve or reopen, an action on a widget a message of that thread

@@ -581,7 +581,9 @@ export class Transcript {
                 class="lf-summary-text"
                 .innerHTML=${summaryWords(range.summary)}
                 ${ref((node) => {
-                  if (node)
+                  // A label alone says nothing of what the messages say, and stays
+                  // through an edit to one of them, so only prose reads them.
+                  if (node && range.summary.text)
                     this.#commands.read.observeSummary(
                       node,
                       range.messages.map(({ id, version }) => ({

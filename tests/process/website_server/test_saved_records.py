@@ -56,7 +56,7 @@ def durable_page_store():
 
     class Store(BaseHTTPRequestHandler):
         def refused(self):
-            # As the Worker does (`answerPageStore`), refuse a container on another
+            # As the session object does (`pageStore`), refuse a container on another
             # release before reading or writing anything.
             if self.headers["Leaf-Release"] == stored["release"]:
                 return False

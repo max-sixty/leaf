@@ -277,7 +277,7 @@ export class LeafSession extends DurableObject<Env> {
     }
     if (request.method === "PUT" && path === "/drafts") {
       const drafts = readPageDrafts(await request.json());
-      return Response.json({ drafts: await this.pages.saveDrafts(drafts, manifest) });
+      return Response.json({ drafts: this.pages.saveDrafts(drafts, manifest) });
     }
     return new Response("unknown page storage operation", { status: 404 });
   }

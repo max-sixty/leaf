@@ -41,24 +41,64 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
-def test_a_copy_that_lost_its_project_refuses(tmp_path):
-    """Claude Code may delete the files of a copy a running session still runs; its
-    launcher refuses, naming the cause, rather than leave uv to run the caller's
-    `python`, which has no `leaf` or another tree's."""
-    launcher = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
-    (launcher / "bin").mkdir(parents=True)
-    shutil.copy(PLUGIN_ROOT / "bin/leaf", launcher / "bin/leaf")
-    refused = subprocess.run(
-        [str(launcher / "bin/leaf"), "page", "state", "a page"],
-        cwd=tmp_path,
-        input="the hook's payload\n",
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (refused.returncode, refused.stdout) == (1, ""), refused.stderr
-    assert "has lost its files" in refused.stderr
+def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path, monkeypatch):
+    """Claude Code installs an update beside the copy a running session loaded and
+    records the installed copy in `installed_plugins.json`, and an older copy may
+    lose its files, its marker of replacement among them, while the session still
+    runs its launcher. That launcher runs the first absolute, executable launcher
+    the record names, with the call's arguments and stdin, unless that is its own.
+    Where its project is gone and it has no other copy to run, it refuses, naming
+    the cause, rather than leave uv to run the caller's `python`."""
+    from leaf import session_runtime
+
+    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
+    replaced = cache / "0a0a0a0a0a0a"
+    (replaced / "bin").mkdir(parents=True)
+    shutil.copy(PLUGIN_ROOT / "bin/leaf", replaced / "bin/leaf")
+    installed = cache / "1b1b1b1b1b1b"
+    (installed / "bin").mkdir(parents=True)
+    (installed / "bin/leaf").write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\ncat\n")
+    (installed / "bin/leaf").chmod(0o755)
+    # Recorded, without a launcher.
+    unrunnable = cache / "2c2c2c2c2c2c"
+    record = tmp_path / "plugins" / "installed_plugins.json"
+
+    def run(installs: list):
+        record.write_text(
+            json.dumps(
+                {"plugins": {"leaf@leaf": [{"installPath": str(p)} for p in installs]}}
+            )
+        )
+        return subprocess.run(
+            [str(replaced / "bin/leaf"), "page", "state", "a page"],
+            cwd=cache,
+            input="the hook's payload\n",
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+
+    for installs in ([installed], [unrunnable, installed]):
+        handed = run(installs)
+        assert (handed.returncode, handed.stdout) == (
+            0,
+            "page\nstate\na page\nthe hook's payload\n",
+        ), handed.stderr
+    # Its own launcher named first, a relative path, or none.
+    for installs in ([replaced, installed], [installed.name], []):
+        refused = run(installs)
+        assert (refused.returncode, refused.stdout) == (1, "")
+        assert "has lost its files" in refused.stderr
+    # A whole copy Claude Code marked runs the installed one too, as the pages
+    # follower expects of a copy it reads as replaced.
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", replaced)
+    assert session_runtime.replaced()
+    (replaced / "pyproject.toml").write_text("")
+    assert not session_runtime.replaced()
+    (replaced / ".orphaned_at").write_text("1795146911571")
+    assert session_runtime.replaced()
+    assert run([installed]).stdout == "page\nstate\na page\nthe hook's payload\n"
 
 
 def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):

@@ -108,6 +108,8 @@ Each consumer selects its own obligations. `leaf page close` refuses over
 holds (below). A start is the agent's answer for now. It holds its update while the
 turn that wrote it runs, and after that turn while the harness says the session has
 worked without a break since the start, in the background (`activity.start_holds`).
+A harness that says nothing of the session (`Harness.live_turn`) never does, so
+there a start lapses with its turn.
 The page reads the update in hand, and no prompt or wake reminds the agent of it,
 for exactly that long. Only the records the agent owes enter activity counts. Pickup never declares a status, and
 ending a turn settles none of its input.

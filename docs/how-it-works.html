@@ -814,10 +814,11 @@ flowchart TD
                     Long work runs in background workers whose results start a later
                     turn, so the Stop hook doesn't hold a turn open for an update the
                     agent started in it. The update reads On it, with the agent's line
-                    beside it, and no later turn is reminded of it, while Claude Code
-                    reports the session's background work running. Once that work ends,
-                    it reads <a href="#stages-stale">Gone quiet</a>, and the next turn
-                    answers it or starts it again.
+                    beside it, and no later turn is reminded of it, while the harness
+                    reports the session's background work running, as Claude Code does.
+                    Once nothing does, it reads
+                    <a href="#stages-stale">Gone quiet</a>, and the next turn answers it
+                    or starts it again.
                   </li>
                   <li id="turn-end-watch">
                     <strong>Between turns, a page needs a watcher:</strong> Claude

@@ -376,8 +376,8 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     outlasts the turn runs in background workers whose results wake a later turn
     (`references/conversation-loop.md`, "Long-running work"). So the turn that
     started the update may end over it, and later turns are not reminded of it while
-    the session's background work goes on (`start_holds`). Once that ends, the next
-    turn answers the update or starts it again. Idling still refuses over a started
+    the harness reports the session's background work going on (`start_holds`). Once
+    nothing holds it, the next turn answers the update or starts it again. Idling still refuses over a started
     update, since closing the page answers nothing."""
     return [
         obligation

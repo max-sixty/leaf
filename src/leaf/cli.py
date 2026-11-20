@@ -1630,8 +1630,9 @@ def task_start(page_dir: Path, item: str, line: str) -> dict:
     open to-do's id. --text names the work and its subject in one sentence; it shows
     beside the update or to-do and in Leaf's panel. Your answer to the update, or the
     to-do's end, ends the start. The start lasts through your turn, and after it while
-    agents you started work in the background. Once your turn and that work have both
-    ended, the update or to-do reads stalled until you answer it or start it again."""
+    your harness reports agents you started working in the background, as Claude Code
+    does. Once nothing holds it, the update or to-do reads stalled until you answer it
+    or start it again."""
     from leaf.todos import cmd_start
 
     return cmd_start(page_dir, item, line)

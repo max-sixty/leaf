@@ -420,11 +420,12 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 }
 /* A control's badges: a count, and dots for news and for an error, on the top edge of
    the folded leaf and of a margin entry. They stand in one row, so no badge covers
-   another whichever show. The count holds a corner, the dots stand side by side at the
-   other corner, and where no count shows the dots take the count's corner. The user
-   chose that arrangement for the folded leaf. Rejected: a rule per badge seating it on
-   a corner of its own, which let one badge cover another wherever two rules chose the
-   same corner, as the unread dot covered a margin entry's count.
+   another whichever show. The count holds one corner and the dots stand side by side
+   at the other, with room between them (`::after`), so a dot stays where it is as a
+   count comes and goes. The user chose that over dots that took the count's corner
+   where no count showed. Rejected: a rule per badge seating it on a corner of its own,
+   which let one badge cover another wherever two rules chose the same corner, as the
+   unread dot covered a margin entry's count.
 
    The row runs left to right whatever the page's direction, since its carriers stand
    at the window's right and a pin keeps its count off the window's edge. A carrier
@@ -447,13 +448,19 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   align-items: start;
   gap: 2px;
 }
+.lf-badges::after {
+  content: "";
+  flex: 1 0 0;
+  order: 1;
+}
 .lf-badges > * {
   flex: none;
   box-shadow: 0 0 0 2px var(--lf-paper);
 }
 .lf-badges > .lf-badge-count {
+  order: 2;
   margin: calc(-1 * var(--lf-badge-reach, 0px)) calc(-1 * var(--lf-badge-reach, 0px)) 0
-    auto;
+    0;
   min-width: 17px;
   height: 17px;
   padding: 0 5px;

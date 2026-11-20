@@ -89,10 +89,13 @@ reported the row and treated its question as answered.
   a transcript the main thread could be pointed at.
 - Claude Code only. The Leaf side is harness-neutral: Codex App Server has
   `thread/fork`, and Pi's extension could resend its session (`clerk.py`).
-- `$.model.fork` has nothing to fork until the main thread sends a request: in a new
-  process, after `/clear` (its doc comment), and, as observed below, after a
-  compaction or Claude Code's away summary. A forked subagent starts from the
-  transcript instead, so it would cover those.
+- `$.model.fork` has nothing to fork in a new process until the main thread's first
+  request, and after `/clear` (its doc comment). After a compaction it resends the
+  compacted conversation, and after Claude Code's away summary the conversation as it
+  was. One fork after a compaction still had nothing to fork, unexplained; it is the
+  only one whose session had shown an away summary before the compaction (page
+  gh-needs-me, session `cfdfabd1`, 19 November). A forked subagent starts from the
+  transcript instead, so it would cover a new process.
 
 ## How well the fork judges
 
@@ -254,6 +257,21 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   then shows the user "Prompt dropped by a hook" (2.1.322 on 2026-11-10; the probe
   module is in `.tmp/resume-probe/` of the `send-pickup-latency` worktree, which may
   be gone, run with `uv run python .tmp/resume-probe/run.py sonnet`).
+- On screen, a `$.model.fork` fork, as the line fork and the turn-end check make,
+  draws nothing. A spawned fork adds `↓ to manage` to the footer and, under it, two
+  rows of Claude Code's agent list: `⏺ main`, and a grey
+  `◯ fork  <its description>  <elapsed> · ↓ <tokens>` that names the spawn `fork`.
+  The rows come and go with the fork's run. On an idle session nothing else moves:
+  no spinner, and the last turn's closing line stays. On a busy one the session's
+  spinner runs on, with the rows under `esc to interrupt · ↓ to manage`. As a first
+  run ends the rows go, the footer reads `/tasks to see subagents`, and the
+  conversation gains nothing. A resumed run's row takes the resume's description and
+  carries on the first run's timer, and the run's end adds
+  `⏺ Agent "<description>" finished · <time>` to the conversation and starts a turn
+  (2.1.329 on 2026-11-19, from
+  `uv run leaf-dev journey run claude-code` with its tmux session
+  `leaf-journey-claude-code-<pid>` captured every 0.5 s by `tmux capture-pane -p`,
+  and the busy case from `leaf-dev journey session`).
 - A name doesn't stay with its fork. `$.agent.spawn` accepts a name another fork
   already has, ended or running, and the newest spawn takes it. The main thread's
   first SendMessage to a name pins that agent, so once the name has moved a send to

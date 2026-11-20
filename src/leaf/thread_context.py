@@ -542,7 +542,12 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
 
 
 def batch_threads(
-    events: list, batch: list, within: dict, *, whole: bool = False
+    events: list,
+    batch: list,
+    within: dict,
+    *,
+    whole: bool = False,
+    beside_line: bool = False,
 ) -> list:
     """The threads a delivered batch lands in, with what was said before it.
 
@@ -579,8 +584,10 @@ def batch_threads(
     unseats one.
 
     `whole` carries every message and gesture, for a reader that can't page
-    through the rest, as a fork can't (`forks.line_prompt`)."""
-    from leaf.delivery import pickup_receipts
+    through the rest, as a fork can't (`forks.line_prompt`). `beside_line` says that
+    a follower lists line forks for the session the batch goes to (`forks.lane_up`),
+    each with a fork beside it that summarizes its thread (`summary_fork`)."""
+    from leaf.forks import unlined
 
     names = thread_names(events)
     structure = thread_structure(events)
@@ -620,11 +627,6 @@ def batch_threads(
     # action naming ids nothing in the envelope spells out, which is the defect
     # this whole reading exists to fix, surviving in the long-thread case.
     summaries_for = active_summaries(events, threads)
-    kept = {
-        identity
-        for receipt in pickup_receipts(events, phase="held")
-        for identity in receipt["events"]
-    }
     carried = []
     for t in named:
         if t not in threads:
@@ -637,11 +639,16 @@ def batch_threads(
         digest = thread_digest(threads[t], delivered, pin, whole=whole)
         summaries = summaries_for[t]
         digest["summaries"] = summaries
-        # A thread whose newest message in the batch Leaf kept back for a line fork
-        # is one a fork beside that line fork summarizes (`summary_fork`), so the
-        # hint is the fork's, and the session isn't asked to spend a step on it too.
-        newest = [event["id"] for event in batch if t in memberships[event["id"]]][-1]
-        if newest not in kept and (hint := summary_hint(threads[t], summaries)):
+        # A thread whose newest message in the batch came to a round that awaited a
+        # line (`forks.unlined`) is one a fork beside that round's line fork
+        # summarizes, so the hint is the fork's, and the session isn't asked to
+        # spend a step on it too.
+        newest = [event for event in batch if t in memberships[event["id"]]][-1]
+        forked = beside_line and any(
+            turn["id"] == newest["id"]
+            for turn in unlined(threads[t], through=newest["seq"])
+        )
+        if not forked and (hint := summary_hint(threads[t], summaries)):
             # The range only: what the agent does with it is a `handling` clause.
             digest["summary_hint"] = hint
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)

@@ -19,14 +19,6 @@ readers ask these too, and activity folds the stamps as dated evidence. Every
 opening passes through `advance_turn`, which keeps the one rule the transitions
 share: a turn id the record holds closed never reopens.
 
-Leaf also runs line forks of a Claude Code session's conversation, each of which
-posts the agent's working line on a thread message beside the main thread
-(`forks.py`). Each runs in a turn of its own (`AGENT_TURNS`), the line turn, opened as
-Leaf keeps the message back and closed as the line fork's answer hands the thread on,
-or lapsing; it ends with its session's generation or instance too
-(`agent_turn_open`). The line goes in acting in that turn (`acting_in`), so its held
-pickup and its line name the line turn (`holding.py`).
-
 The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
 session. Session transitions never acquire page locks or call an external harness;
@@ -763,203 +755,13 @@ def close_session_turn(
         return advance_turn(session_id, turn_id, running=False) is not None
 
 
-AGENT_TURNS = Record(
-    "agent-turns",
-    described(
-        "The line turns of a session, in which a line fork of its conversation writes "
-        "the agent's working line on a thread message beside its main thread, in the "
-        "state home's `sessions/<digest>.agent-turns` (`session_file`): by turn id, "
-        "the session generation it opened in, when it opened, and when it closed, or "
-        "null while it is open.",
-        object_schema(
-            {
-                "turns": {
-                    "type": "object",
-                    "additionalProperties": object_schema(
-                        {
-                            "generation": STRING,
-                            "opened": TIME,
-                            "closed": _TIME_OR_NONE,
-                        }
-                    ),
-                }
-            }
-        ),
-    ),
-    since=52,
-)
-# The line turn the line fork's line goes in under (`acting_in`), so the writes that
-# make it act in that turn (`acting_turn`). It lives in the process rather than its
-# environment, so a process the write starts, such as a page server, names no turn.
-# A subagent's commands run in the session's own environment, with nothing that
-# names it (`harness.ClaudeCodeHarness`), and act as the main thread.
-_named_turn: str | None = None
-
-
-@contextlib.contextmanager
-def acting_in(turn: str):
-    """Act in the line turn `turn` inside the block, then restore the turn named
-    before, so writes made in the same process, as a test's are, act in whichever
-    turn they name."""
-    global _named_turn
-    before, _named_turn = _named_turn, turn
-    try:
-        yield
-    finally:
-        _named_turn = before
-
-
-def agent_turns(session_id: str) -> dict[str, dict]:
-    """The session's line turns by id, open and closed (`AGENT_TURNS`)."""
-    record = AGENT_TURNS.read(session_file(session_id, AGENT_TURNS.kind))
-    return record["turns"] if record else {}
-
-
-def agent_turn_open(entry: dict, record: dict | None) -> bool:
-    """Whether the line turn `entry` is open in the session lifecycle `record`: not
-    closed, and opened in the generation the session still lives in. Its line fork
-    runs inside its session's harness instance, so a turn of an ended generation has
-    ended with it, whatever its own record says."""
-    return (
-        entry["closed"] is None
-        and session_live(record)
-        and entry["generation"] == record["generation"]
-    )
-
-
-def open_agent_turns(session_id: str) -> dict[str, dict]:
-    """The session's open line turns by id (`agent_turn_open`)."""
-    record = session_record(session_id)
-    return {
-        turn: entry
-        for turn, entry in agent_turns(session_id).items()
-        if agent_turn_open(entry, record)
-    }
-
-
-def agent_turn_stamps(claim: dict) -> dict[str, dict]:
-    """The line turns of the session `claim` names, opened in the claim's
-    generation, that are still open and not yet lapsed, which alone may hold a thread
-    (`holding.holder`). By turn id: when the turn opened and closed, null while it is
-    open, which `activity.running_agent_turns` reads. The page's served reading
-    carries them for every reader of its claim (`presence`)."""
-    open_turns = {
-        turn: {"opened": entry["opened"], "closed": entry["closed"]}
-        for turn, entry in agent_turns(claim["id"]).items()
-        if entry["generation"] == claim["generation"] and entry["closed"] is None
-    }
-    if not open_turns:
-        return open_turns
-    from .activity import agent_turn_end
-
-    now = datetime.now().astimezone()
-    return {
-        turn: stamp for turn, stamp in open_turns.items() if now < agent_turn_end(stamp)
-    }
-
-
-def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
-    AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
-
-
-def open_agent_turn(session_id: str) -> str | None:
-    """Open a line turn and return its id; None for a session that has ended. A
-    line fork runs in it, writing the agent's working line on a thread message
-    admission keeps from the main thread (`forks.py`); nothing renews it, so it
-    lapses a `STARTING_GRACE` after it opened unless it closes first
-    (`activity.agent_turn_end`). Each opening mints a new id, so a closed turn never
-    reopens.
-
-    The opening drops the turns no reading needs: the session's earlier
-    generations', and those that have closed or lapsed. A thread such a turn last
-    held reads as the main thread's whether its entry is there or not, so the record
-    holds only the turns still running."""
-    from .activity import agent_turn_end
-
-    with flocked(session_lock_path(session_id)):
-        record = session_record(session_id)
-        if not session_live(record):
-            return None
-        turn = secrets.token_hex(8)
-        now = now_iso()
-        moment = datetime.fromisoformat(now)
-        _write_agent_turns(
-            session_id,
-            {
-                **{
-                    id: entry
-                    for id, entry in agent_turns(session_id).items()
-                    if entry["generation"] == record["generation"]
-                    and moment < agent_turn_end(entry)
-                },
-                turn: {
-                    "generation": record["generation"],
-                    "opened": now,
-                    "closed": None,
-                },
-            },
-        )
-        return turn
-
-
-def close_agent_turns(session_id: str, *, turn: str) -> list[str]:
-    """Close the session's open line turn `turn`; the ids it closed, none where the
-    turn was no longer open."""
-    closed: list[str] = []
-    stamp = now_iso()
-
-    def close(id: str, entry: dict) -> dict | None:
-        if id != turn:
-            return None
-        closed.append(id)
-        return {**entry, "closed": stamp}
-
-    _update_agent_turns(session_id, close)
-    return closed
-
-
-def _update_agent_turns(session_id: str, change) -> bool:
-    """Replace each open line turn with what `change(id, entry)` returns for it,
-    leaving those it returns None for, under the session lock; whether any changed."""
-    with flocked(session_lock_path(session_id)):
-        record = session_record(session_id)
-        turns = agent_turns(session_id)
-        changed = {
-            id: new
-            for id, entry in turns.items()
-            if agent_turn_open(entry, record) and (new := change(id, entry)) is not None
-        }
-        if changed:
-            _write_agent_turns(session_id, {**turns, **changed})
-        return bool(changed)
-
-
-def acting_agent_turn(session: str | None) -> str | None:
-    """The line turn of `session` a write acts in: the one it names (`acting_in`);
-    None for a write that names none, which acts as the main thread. A write naming a
-    turn that isn't one of the session's open line turns, as a line fork's line that
-    comes after its turn closed does, or any turn where no session makes the write,
-    is refused (`refusals.Refused`): it acts neither in a closed turn nor with the
-    main thread's authority."""
-    turn = _named_turn
-    if not turn:
-        return None
-    if session is None or turn not in open_agent_turns(session):
-        from .refusals import Refused
-
-        raise Refused(f"turn {turn} is not an open line turn of this session")
-    return turn
-
-
 def acting_turn(claim: dict | None, session: str | None) -> str | None:
-    """The turn a write of `session` acts in on a page held by `claim`: its line
-    turn's (`acting_agent_turn`, which refuses a turn that has ended), and otherwise
-    the claim's turn; None for a write of a session that doesn't hold the page. A
-    command acts as the main thread, whoever ran it, a subagent included, which
-    `holding.authorize` says the user chose."""
+    """The turn a write of `session` acts in on a page held by `claim`: the claim's
+    turn; None for a write of a session that doesn't hold the page. A command acts in
+    the session's turn whoever ran it, a subagent the session spawned included."""
     if claim is None or session is None or claim["id"] != session:
         return None
-    return acting_agent_turn(session) or claim["turn"]
+    return claim["turn"]
 
 
 def end_session(session_id: str) -> None:
@@ -1050,16 +852,6 @@ def end_harness_instance(session_id: str) -> None:
         if record and record["lifetime"] and "pid" not in record["lifetime"]:
             if not turn_closed(record):
                 advance_turn(session_id, record["turn"], running=False)
-            # The instance's agents ended with it.
-            if turns := agent_turns(session_id):
-                ended = now_iso()
-                _write_agent_turns(
-                    session_id,
-                    {
-                        id: {**entry, "closed": entry["closed"] or ended}
-                        for id, entry in turns.items()
-                    },
-                )
             session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
             return
         _end_session(session_id)

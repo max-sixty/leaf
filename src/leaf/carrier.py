@@ -42,7 +42,7 @@ Turn ends report one at a time: the report, the instructions its answer lists an
 their reports all finish before the next, and turns that end meanwhile report once
 after. The pages follower lists instructions too (`hooks.cmd_pages`), the module's way
 in for what the session's pages ask, such as a completion a page server wants or a
-thread a line turn keeps back."""
+line fork for a round of the user's that awaits the agent's working line."""
 
 
 def fork(instruction: str, prompt: str, basis: dict) -> dict:

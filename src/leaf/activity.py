@@ -12,20 +12,13 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import NamedTuple
 
 from .obligations import response_address
 from .state import turn_closed, turn_open
 
-if TYPE_CHECKING:
-    from .holding import Holding
-
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
-# How long a line turn is believed while open (`agent_turn_end`): nothing renews
-# one, so this bounds a line fork that never answers (`forks.py`). It sits well above
-# how long a line fork takes.
-STARTING_GRACE = timedelta(seconds=30)
 # The steps a harness may report, whose home is the served state's `WorkKind`: the
 # browser words each one, and its type makes that table name every kind.
 WORK_KINDS = frozenset(
@@ -369,14 +362,12 @@ def left_owed(state: dict, reminded: Callable[[str], bool]) -> list[dict]:
         if "ref" in obligation["answer"]
         and not in_hand(obligation, state)
         and not reminded(obligation["input"])
-        and not agent_holds(obligation)
     ]
 
 
 def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that hold the claimant's turn open, which its prompt names:
-    the blocking ones no start holds (`in_hand`), less those an agent's running turn
-    holds (`agent_holds`).
+    the blocking ones no start holds (`in_hand`).
 
     A start is the agent's answer for now, shown beside the update, and work that
     outlasts the turn runs in background workers whose results wake a later turn
@@ -388,45 +379,8 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     return [
         obligation
         for obligation in blocking_obligations(state, watched=watched)
-        if not in_hand(obligation, state) and not agent_holds(obligation)
+        if not in_hand(obligation, state)
     ]
-
-
-def running_agent_turns(
-    stamps: dict[str, dict], alive: bool, now: datetime
-) -> set[str]:
-    """The line turns of the claimant's session believed running at `now`, from
-    their stamps (`state.agent_turn_stamps`): open in a live session, and not yet
-    lapsed (`agent_turn_end`), since a line fork that never answered leaves its turn
-    open."""
-    if not alive:
-        return set()
-    return {
-        turn
-        for turn, stamp in stamps.items()
-        if stamp["closed"] is None and now < agent_turn_end(stamp)
-    }
-
-
-def agent_turn_end(stamp: dict) -> datetime:
-    """When a line turn ended by its stamp (`state.agent_turn_stamps`): its close,
-    or, while it is open, `STARTING_GRACE` after it opened, when it lapses, since
-    nothing renews it. A line fork answers within seconds, so one that hasn't by then,
-    as when its step timed out or the module was reloaded, never will, and its thread
-    goes back to the main thread."""
-    if stamp["closed"] is not None:
-        return datetime.fromisoformat(stamp["closed"])
-    return datetime.fromisoformat(stamp["opened"]) + STARTING_GRACE
-
-
-def agent_holds(obligation: dict) -> bool:
-    """Whether a turn other than the main thread's owes this update now (`holder`,
-    `holding.holder`): a running line turn (`state.AGENT_TURNS`), in which a line
-    fork judges a message Leaf keeps back. The main thread neither holds its turn over
-    it, is reminded of it, nor takes it in again (`hook_transport.pick_up_acknowledged`)
-    until that turn ends; once it does, an update still owed is the main thread's
-    input, which its next delivery hands over (`delivery.deliverable`)."""
-    return obligation["holder"]["kind"] != "main"
 
 
 class Turn(NamedTuple):
@@ -569,21 +523,17 @@ def nudge_due(present: dict, turn: Turn) -> bool:
     return turn.ended is not None and not takes_input(present, turn)
 
 
-def turn_runs(written: dict, present: dict, turn: Turn, agents: set[str]) -> bool:
+def turn_runs(written: dict, present: dict, turn: Turn) -> bool:
     """Whether the turn that wrote `written`, a logged event naming its session and
-    turn, still runs: a line turn beside the claimant's main thread while it runs
-    (`agents`, `running_agent_turns`), and the main
-    thread's while it is the claimant's current `turn` and no ending of it has been
-    seen, or after one while the harness says the session still works in the
-    background (`Turn.busy`). A main turn nothing has renewed lately still runs, since a
+    turn, still runs: while it is the claimant's current `turn` and no ending of it
+    has been seen, or after one while the harness says the session still works in the
+    background (`Turn.busy`). A turn nothing has renewed lately still runs, since a
     long step renews nothing, and a later one never runs for it. Unlike a start
     (`_start_age`), a step gets no quiet grace past its turn's end, and another
     session's step none at all."""
     session = written.get("session")
     if not session or session != present.get("claim_session"):
         return False
-    if written.get("turn") in present["agent_turns"]:
-        return written["turn"] in agents
     if (
         written.get("turn") != present.get("turn")
         or present["session_alive"] is not True
@@ -694,7 +644,6 @@ def canonical_activity(
     *,
     todo_reading=None,
     updates: dict,
-    holding: "Holding",
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
@@ -711,10 +660,7 @@ def canonical_activity(
     (`_receipt_bindings`). `reservations` reserve automatic replies from the
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
-    answer may commit first; the automatic final then yields to it. `holding` is who
-    holds each thread, and each owed answer's `holder` who owes it
-    now (`holding.holder`): a running line turn, or the main thread.
-    `holding.reading_of` reads it.
+    answer may commit first; the automatic final then yields to it.
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
@@ -756,14 +702,6 @@ def canonical_activity(
         present["session_alive"] is None and not present["listening"] and declared_quiet
     )
     held = not unheld
-    # The line turns of the claimant's session running now beside its main thread,
-    # which hold the threads they keep back (`holding.py`).
-    agents = holding.running
-
-    def owes(item: dict) -> dict:
-        """Who owes the answer to `item` now (`holding.holder`, `agent_holds`): the
-        line turn judging it, or the main thread."""
-        return holding.of(item["input"]).holder
 
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn
@@ -817,10 +755,6 @@ def canonical_activity(
             if item["stage"] == "sent"
         ),
         *((_moment(start["ts"]), WORKING_GRACE) for start, _age in in_hand),
-        *(
-            (agent_turn_end(present["agent_turns"][agent]), timedelta())
-            for agent in agents
-        ),
     ]
     if stream and stream.get("kind") not in AWAITING_KINDS:
         lapses.append((_moment(stream.get("ts")), WORKING_GRACE))
@@ -973,7 +907,6 @@ def canonical_activity(
                 **item,
                 "obligation": owing[item["input"]]["id"],
                 "answer": owed_answer(item),
-                "holder": owes(item),
             }
             for item in obligations
         ],

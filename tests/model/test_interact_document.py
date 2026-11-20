@@ -3248,7 +3248,6 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
                 "reason": "workflow",
                 "workflow": opened["id"],
             },
-            "holder": {"kind": "main"},
         }
     ]
     history = CliRunner().invoke(

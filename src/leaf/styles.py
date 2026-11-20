@@ -9,7 +9,7 @@ the wrapper or a later sheet inside this sheet's last block, string or comment.
 """
 
 import re
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from functools import lru_cache
 
 from .findings import Finding
@@ -102,13 +102,18 @@ def set_properties(texts: Iterable[str]) -> tuple[frozenset[str], tuple[str, ...
     return frozenset(names), tuple(sorted(prefixes))
 
 
-def unguarded_reads(css: str) -> Iterator[tuple[str, int]]:
-    """Each `var(--name)` with no fallback in a declaration's value, as its name and
-    line. Where nothing sets the name, the declaration that reads it is invalid at
-    computed-value time, so the property falls back to what it inherits or its initial
-    value, and the page shows no sign of it. A rule's prelude, such as
-    `@supports (color: var(--probe))`, tests syntax rather than reading the property,
-    so only declarations, at any depth of nested rules, are read."""
+def unguarded_reads(
+    css: str, is_set: Callable[[str], bool]
+) -> Iterator[tuple[str, int]]:
+    """Each `var(--name)` in a declaration's value that computes to nothing, as its name
+    and line: one with no fallback whose name `is_set` refuses. Such a declaration is
+    invalid at computed-value time, so the property falls back to what it inherits or
+    its initial value, and the page shows no sign of it. A fallback is read only when
+    its own `var()`'s name is unset, since a browser substitutes it only then: in
+    `var(--present, var(--missing))` nothing reads `--missing` while `--present` is
+    set. A rule's prelude, such as `@supports (color: var(--probe))`, tests syntax
+    rather than reading the property, so only declarations, at any depth of nested
+    rules, are read."""
 
     def values(nodes):
         for node in nodes:
@@ -118,12 +123,13 @@ def unguarded_reads(css: str) -> Iterator[tuple[str, int]]:
                     for item in node.arguments
                     if item.type not in ("whitespace", "comment")
                 ]
-                if (
-                    len(arguments) == 1
-                    and arguments[0].type == "ident"
-                    and arguments[0].value.startswith("--")
-                ):
-                    yield arguments[0].value, node.source_line
+                if arguments and arguments[0].type == "ident":
+                    name = arguments[0].value
+                    if is_set(name):
+                        continue
+                    if len(arguments) == 1:
+                        yield name, node.source_line
+                        continue
             for part in ("content", "arguments"):
                 inner = getattr(node, part, None)
                 if isinstance(inner, list):

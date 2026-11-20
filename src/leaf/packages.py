@@ -310,9 +310,11 @@ def unset_properties(package: Path, composition: LayerComposition) -> list:
         if not path.endswith(".css") or "vendor" in Path(path).parts:
             continue
         rows = {}
-        for name, row in unguarded_reads(data.decode("utf-8", errors="replace")):
-            if name not in names and not name.startswith(prefixes):
-                rows.setdefault(name, []).append(row)
+        for name, row in unguarded_reads(
+            data.decode("utf-8", errors="replace"),
+            lambda name: name in names or name.startswith(prefixes),
+        ):
+            rows.setdefault(name, []).append(row)
         found += [
             Finding(
                 "unset-property",

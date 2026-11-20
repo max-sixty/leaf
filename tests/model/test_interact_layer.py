@@ -2621,7 +2621,7 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
 
 
 def test_every_token_a_sheet_reads_is_set_somewhere():
-    """A `var(--name)` with no fallback in Leaf's own sheets reads a property something
+    """A `var(--name)` with no fallback that Leaf's own sheets reach reads a property something
     sets: a sheet's declaration or `@property`, or a module or delivery writing it by
     name (`styles.set_properties`). `package check` holds a package's sheets to the same
     reading (`packages.unset_properties`); this holds every bundled package's at once,
@@ -2639,8 +2639,10 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
         f"{path.relative_to(ROOT)}:{row} reads {name}"
         for path in paths
         if path.suffix == ".css" and "vendor" not in path.parts
-        for name, row in styles_model.unguarded_reads(path.read_text())
-        if name not in names and not name.startswith(prefixes)
+        for name, row in styles_model.unguarded_reads(
+            path.read_text(),
+            lambda name: name in names or name.startswith(prefixes),
+        )
     )
     assert len(paths) > 20, paths
     assert not unset, "a token nothing sets:\n" + "\n".join(unset)
@@ -2650,8 +2652,9 @@ def test_package_check_advises_on_a_token_nothing_sets(tmp_path):
     """A package sheet that reads a custom property nothing sets, as one written for a
     token Leaf has renamed does, passes the check with advice naming the property and
     its lines; a theme token, a fallback, a property the package sets and one an
-    `@supports` condition names, which tests syntax rather than reading it, pass
-    quietly."""
+    `@supports` condition names, which tests syntax rather than reading it, and a
+    fallback read only when a set primary value is unset, pass quietly; a fallback
+    behind an unset primary value is read."""
     package = tmp_path / "notebox"
     package.mkdir()
     (package / "defaults.css").write_text(
@@ -2666,6 +2669,8 @@ def test_package_check_advises_on_a_token_nothing_sets(tmp_path):
         "@supports (color: var(--probe)) {\n"
         "  lf-note-box { color: var(--muted); }\n"
         "}\n"
+        "p { --present: green; color: var(--present, var(--missing)); }\n"
+        "p { color: var(--absent, var(--muted)); }\n"
     )
 
     status, findings = package_findings(package)
@@ -2674,7 +2679,7 @@ def test_package_check_advises_on_a_token_nothing_sets(tmp_path):
     assert [(f.code, f.severity, f.values["property"]) for f in findings] == [
         ("unset-property", "advice", "--muted")
     ]
-    assert findings[0].values["rows"] == [2, 7, 10]
+    assert findings[0].values["rows"] == [2, 7, 10, 13]
 
 
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():

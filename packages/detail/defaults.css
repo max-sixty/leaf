@@ -61,13 +61,20 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 
 /* Where a run of blocks is folded: a quiet mark the reader can press to show it. It
    takes a short row of its own, which its press overhangs, and stands into the gaps
-   the blocks around it leave, so Skim's own marks spend little of the room it saves. */
+   the blocks around it leave, so Skim's own marks spend little of the room it saves.
+   As its block's last box, the end of a section, it stands into the wider gap after
+   the block, so the ⋯ hangs under what it follows and the next section comes up
+   closer than Read sets it, while the block's own box, and every mark drawn on it,
+   still hold the ⋯ whole (lf-dial.js). */
 .lf-dial-more {
   display: flex;
   align-items: center;
   inline-size: fit-content;
   block-size: var(--lf-sp-3);
   margin-block: calc(-1 * var(--lf-sp-1)) calc(-1 * var(--lf-sp-2));
+}
+.lf-dial-more:last-child {
+  margin-block-end: calc(-1 * var(--lf-sp-3));
 }
 
 /* Each depth's time on a line of its own under its word, a step quieter (lf-dial.js).
@@ -88,6 +95,13 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   font: var(--lf-font-fine);
   color: color-mix(in srgb, currentColor 72%, transparent);
   font-variant-numeric: tabular-nums;
+}
+
+/* Once the reader unfolds a gap, the page shows more than Skim, so Skim's selection
+   steps back while it still names the depth that stands; pressing it folds again. */
+lf-dial[data-lf-dial-unfolded] .lf-dial-depth[aria-checked="true"] {
+  border-color: rgb(from var(--lf-accent) r g b / 40%);
+  color: rgb(from var(--lf-accent) r g b / 75%);
 }
 
 /* Pointing at a depth, on the page: what turning to it would hide fades, and where it
@@ -121,11 +135,21 @@ details[data-lf-dial-ghost="comes"] > summary,
 .lf-dial-hang-panel:not([data-lf-open]) {
   display: none;
 }
+/* The sheets and the frame arrive as one, a short drop and a fade as quick as a
+   disclosure, so the frame stands round its sheet from the first frame, as a ring
+   stands round the place a walk lands on. */
 .lf-dial-hang {
   position: relative;
   display: block;
   /* The tallest sheet with its padding and border, and the frame around it. */
   block-size: calc(var(--tall) + 13px);
+  transition:
+    translate var(--lf-motion-disclosure) ease-out,
+    opacity var(--lf-motion-disclosure) ease-out;
+  @starting-style {
+    translate: 0 -4px;
+    opacity: 0;
+  }
 }
 .lf-dial-hang-column {
   position: absolute;
@@ -135,7 +159,6 @@ details[data-lf-dial-ghost="comes"] > summary,
   flex-direction: column;
   padding-inline: 3px;
 }
-/* The sheets drop from their buttons together as they open. */
 .lf-dial-hang-page {
   --lf-ground: var(--lf-card);
   box-sizing: border-box;
@@ -146,15 +169,7 @@ details[data-lf-dial-ghost="comes"] > summary,
   border-radius: 5px;
   background: var(--lf-ground);
   box-shadow: var(--lf-raise-1);
-  transform-origin: top;
-  transition:
-    transform var(--lf-motion-mark) ease-out,
-    opacity var(--lf-motion-disclosure) ease-out,
-    box-shadow var(--lf-motion-disclosure) ease;
-  @starting-style {
-    transform: translateY(-4px) scaleY(0.6);
-    opacity: 0;
-  }
+  transition: box-shadow var(--lf-motion-disclosure) ease;
 }
 .lf-dial-hang-column[data-lf-pointed] .lf-dial-hang-page {
   box-shadow: var(--lf-raise-2);
@@ -203,14 +218,11 @@ details[data-lf-dial-ghost="comes"] > summary,
   transition:
     inset-inline-start var(--lf-motion-fold) ease-out,
     inline-size var(--lf-motion-fold) ease-out,
-    block-size var(--lf-motion-fold) ease-out,
-    opacity var(--lf-motion-disclosure) ease-out;
-  @starting-style {
-    opacity: 0;
-  }
+    block-size var(--lf-motion-fold) ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-lf-dial-ghost="goes"],
+  .lf-dial-hang,
   .lf-dial-hang-page,
   .lf-dial-hang-bars,
   .lf-dial-hang-frame {

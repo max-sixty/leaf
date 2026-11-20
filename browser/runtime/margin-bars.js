@@ -57,7 +57,7 @@
    the planes that carry its target, so a scroll moves it without a write and the
    target's own borders, shadows and display are left as authored. A widget drawn
    through `display: contents` stands where its parts do, a list item's paint stands
-   round the marker the browser draws outside the item's box, and a table cell's bar
+   round the marker the browser draws in its list's inset, and a table cell's bar
    stands at its table's edge rather than in the cell before it. Layout, resize and a
    change in the target's size place it again. */
 import { effect, signal } from "/runtime/framework.js";
@@ -121,15 +121,19 @@ export function outlineChange(change) {
   outlined.value = change;
 }
 
-// Where a block draws: `rect`, reaching out on its start side to the edge of the list
-// the block stands in, since the browser draws a list item's marker outside the item's
-// box, in the list's inset. So the paint beside an item, or beside anything in one,
-// stands clear of the marker.
+// Where a block draws: `rect`, reaching out on its start side from the edge of the list
+// item the block stands in by its list's inset, since the browser draws the item's
+// marker outside the item's box, in that inset. So the paint beside an item, or beside
+// anything in one, stands clear of the marker. The reach starts at the item rather than
+// the list, so an item in a list laid out as a grid or a row of cards keeps its paint
+// beside it rather than beside the list's first item.
 /** @param {Element} target @param {Box} rect @returns {Box} */
 function inked(target, rect) {
-  const list = target.closest("li")?.parentElement;
-  if (!list) return rect;
-  const edge = list.getBoundingClientRect();
+  const item = target.closest("li");
+  if (!item?.parentElement) return rect;
+  const inset = parseFloat(getComputedStyle(item.parentElement).paddingInlineStart);
+  const box = item.getBoundingClientRect();
+  const edge = { left: box.left - inset, right: box.right + inset };
   const rtl = target.matches(":dir(rtl)");
   return {
     left: rtl ? rect.left : Math.min(rect.left, edge.left),

@@ -132,7 +132,7 @@ import {
   workflowWord,
   hasWorkflowLine,
 } from "./workflow.js";
-import { leafSays, voiced } from "../voice.js";
+import { leafSays, voiced, wordsText } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -1353,8 +1353,11 @@ export class ThreadView {
   // The label says the quote's status and where its words stand, and where three lines
   // cut words the page no longer shows, it is the press that opens them whole: one line
   // over the quote, its disclosure arrow hanging on the quote's rule so its words keep
-  // the quote's edge. Rejected: a Full quote press on a line of its own under the
-  // label, which the user read as a second label, set in from the quote's edge.
+  // the quote's edge. Its words say the quote's state rather than the press's act, so
+  // the press names that act after them to a listener, and its preview names what a
+  // press does now, as a promise's word naming where it opens does (thread/messages.js).
+  // Rejected: a Full quote press on a line of its own under the label, which the user
+  // read as a second label, set in from the quote's edge.
   /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} opens */
   #quoteTemplate(quote, opens) {
     if (!quote) return nothing;
@@ -1372,14 +1375,20 @@ export class ThreadView {
       where || quote.status
         ? html`${status}${where && quote.status ? " · " : ""}${where}`
         : null;
+    const saidText = [quote.status && wordsText(quote.status), where]
+      .filter(Boolean)
+      .join(" · ");
+    const act = expanded ? "Fold the quote" : "Full quote";
     const line =
       quote.words && quote.localReading && opens
         ? html`<button
             type="button"
             ${offeredAction("inline", "lf-quote-expand lf-disclosure-marker")}
             data-lf-hint
+            aria-label=${saidText ? `${saidText}, Full quote` : "Full quote"}
             aria-expanded=${String(expanded)}
             aria-controls=${this.#quoteId}
+            .lfPreview=${() => ({ name: act })}
             @click=${() => {
               this.#quoteExpanded.value = !this.#quoteExpanded.peek();
             }}

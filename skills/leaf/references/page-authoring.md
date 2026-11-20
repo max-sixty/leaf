@@ -25,10 +25,8 @@ in its own form:
   grouped or sorted by the fact they scan first. Values the user looks up, and
   measures in units that can't share an axis, go in a table too.
 - Wording the user judges, such as code, a command or a message, is shown as the text
-  itself, and so is a source a claim rests on, such as a rule in a doc. Quote that
-  passage whole, conditions included, so the reader can check the claim on the page.
-  When the point is what code does, such as what it draws or which rule wins, show
-  that effect in one of the forms above, with the code beside it.
+  itself. When the point is what code does, such as what it draws or which rule wins,
+  show that effect in one of the forms above, with the code beside it.
 
 The page's vocabulary provides most of these forms as widgets whose entries say what
 each shows ("Read the registry"). Use the one it offers rather than building the form
@@ -46,6 +44,23 @@ and cost, leave the case in words and draw nothing.
 
 `authoring-evidence.md` says how to present each kind of evidence, and how to draw a
 figure of your own.
+
+## Show what a claim rests on
+
+A claim the page makes about the work, such as a count, a cause, what code does or
+what a change changes, rests on material you read: the cases behind the count, the
+records of what happened, the code, the diff. Put that material on the page with the
+claim, quoted rather than retold, so the user can see what the claim means and check it
+without asking you or leaving the page. They often see in it what your summary left
+out. Quote a passage whole, conditions included.
+
+The page holds material at more than one depth, so its length decides where it goes
+rather than whether it goes on the page. The case or the few lines that show the claim
+most plainly stand beside it. The rest, such as every case behind a count, a whole diff
+or a session's transcript, goes in a disclosure, which costs the reader one line until
+they open it ("Reading cost"). A link to where the material lives goes beside the
+material, not in its place. Leave material off only where the reader has no reason to
+check the claim, as with a fact they already hold.
 
 ## Develop the work
 

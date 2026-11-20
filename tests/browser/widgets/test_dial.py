@@ -159,10 +159,10 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
     video, a canvas, a picture in a tab, a picture marked inside a figure, with the
     figure's caption, and a paragraph or list item holding a gist, whole, words and
     links beside it included. A picture the author didn't mark folds with the words
-    around it, headings inside it included. A section or list item of blocks is laid out in place, a button among its
-    blocks included, so a gist in one keeps its support folded. A gist or heading inside
-    a closed disclosure stays closed, since Skim shows nothing Read doesn't, so a section
-    holding only those folds whole."""
+    around it, headings inside it included. A section or list item of blocks is laid
+    out in place, a button among its blocks included, so a gist in one keeps its
+    support folded. A gist or heading inside a closed disclosure stays closed, since
+    Skim shows nothing Read doesn't, so a section holding only those folds whole."""
     chart = (
         '<lf-chart class="gist" id="latency-chart"><pre>{ ariaLabel: "p99 by hour", '
         "marks: [Plot.lineY([1, 3, 2])] }"

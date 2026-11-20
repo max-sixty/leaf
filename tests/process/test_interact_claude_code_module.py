@@ -439,30 +439,19 @@ FORK_USAGE = {
 }
 
 
-def main_thread_request(driven, messages: int = 12) -> None:
-    """The main thread's request and the rows it stored, which a fork resends: the
-    model's reply and a tool's result, by Claude Code's doors for them. A subagent's
-    row after them, hook context and a queue record, which are no rows the model
-    reads in the transcript, and a Skill call's body, which a machine with managed
-    settings sends past the module, don't move the cut."""
-    row = {
-        "message": {"type": "assistant", "role": "assistant", "content": []},
-        "door": "response",
-        "origin": {"kind": "model", "model": "claude-opus-5-5"},
-    }
-    driven.emit("session.append", {**row, "uuid": "r0"})
-    driven.emit("session.append", {**row, "uuid": "r1", "door": "tool-result"})
+def main_thread_request(driven) -> None:
+    """The main thread's request and the conversation's rows by the time of a fork,
+    which resends them: the request went out after a tool's result, `r1`, and the
+    model's reply, `r2`, came after it. A subagent's request leaves the main thread's
+    as it was."""
+    driven.send({"conversation": ["r0", "r1"]})
     step = {"turnId": "t1", "index": 0, "model": "claude-opus-5-5", "effort": "xhigh"}
     driven.emit("turn.step", {**step, "messageCount": 12})
-    driven.emit("session.append", {**row, "uuid": "r2"})
+    driven.send({"conversation": ["r0", "r1", "r2"]})
     driven.emit(
         "turn.step",
         {**step, "model": "claude-haiku-5-5", "messageCount": 3, "agentId": "a1"},
     )
-    driven.emit("session.append", {**row, "uuid": "r3", "agentId": "a1"})
-    driven.emit("session.append", {**row, "uuid": "r4", "door": "hook-context"})
-    driven.emit("session.append", {**row, "uuid": "r5", "door": "queue"})
-    driven.emit("session.append", {**row, "uuid": "r6", "door": "tool-message"})
 
 
 def test_a_turn_end_forks_the_conversation_for_the_clerk(
@@ -623,6 +612,48 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     assert note["request"] == RESENT, note
     assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
     assert driven.diagnostics.empty()
+    driven.quit()
+
+
+def test_a_fork_after_a_compaction_names_no_row_of_the_request_before_it(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A thread message that comes after Claude Code compacted the conversation, with
+    no main-thread request since, gets a fork that resends the compacted
+    conversation. Its diagnostics name the last request's model and effort and that
+    the conversation was rewritten, and none of that request's rows or its count, at
+    which a replay would cut the conversation as it stood before the compaction."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-compacted",
+        {"forkAnswer": json.dumps({"line": "Checking", "work": "hand_over"})},
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    main_thread_request(driven)
+    # The compaction's summary, and the reply it kept.
+    driven.send({"conversation": ["s1", "r2"]})
+    driven.settle()
+    admitted(page_dir, {"kind": "comment", "author": "user", "text": "Why 2 s?"})
+    wait_for(
+        lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+        lambda line: line.startswith("Leaf: the line fork for thread"),
+        failure=lambda: f"the fork never reported: {list(driven.diagnostics.queue)}",
+    )
+    [note] = read_interactions(page_dir, types=("fork_outcome",))
+    assert note["request"] == {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh",
+        "rewritten": True,
+    }, note
     driven.quit()
 
 

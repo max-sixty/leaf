@@ -68,7 +68,6 @@ lf-event::before {
   padding-block: var(--lf-sp-3) var(--lf-sp-1);
   padding-inline-end: var(--lf-sp-1);
   background: var(--lf-timeline-ground);
-  white-space: nowrap;
 }
 .lf-timeline-run + .lf-timeline-run {
   padding-block-start: var(--lf-sp-4);

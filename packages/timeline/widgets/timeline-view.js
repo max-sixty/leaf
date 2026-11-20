@@ -193,8 +193,9 @@ export function render(host, current, model, layout) {
       style="--lf-timeline-bands: ${model.bands}; --lf-axis-edge: ${EDGE}px"
     >
       ${model.runs.map(
-        (run) =>
+        (run, column) =>
           html`<span class="lf-timeline-run lf-label" style="grid-row: ${run.row}"
+            ><span class="lf-timeline-step-number">${column + 1}</span
             >${run.label}</span
           >`,
       )}
@@ -280,7 +281,25 @@ export function render(host, current, model, layout) {
         ></span>
       </div>
     </div>
-    <ol class="lf-timeline-steps lf-rows" ${generated({ says: true })}>
+    <ol
+      class="lf-timeline-steps lf-rows"
+      ${generated({ says: true })}
+      style=${model.runs.length ? `--lf-timeline-runs: ${model.runs.length}` : nothing}
+    >
+      ${
+        model.runs.length
+          ? html`<li class="lf-timeline-steps-head" aria-hidden="true">
+              ${model.runs.map(
+                (run, column) =>
+                  html`<span
+                    class="lf-timeline-steps-run lf-label"
+                    style="grid-column: ${column + 2}"
+                    >${run.label}</span
+                  >`,
+              )}
+            </li>`
+          : nothing
+      }
       ${repeat(
         model.steps,
         (step) => step.time,
@@ -297,17 +316,41 @@ export function render(host, current, model, layout) {
               <span class="lf-timeline-step-time lf-row-lead"
                 >${seconds(step.time)}</span
               >
-              ${step.events.map((event, order) => {
-                // A row names each run once, before the first of its events.
-                const lane = event.lane;
-                const before = step.events[order - 1]?.lane;
-                const who =
-                  lane.run && lane.run !== before?.run ? lane.name : lane.label;
-                return html`<span class="lf-timeline-step-event lf-row-main"
-                  ><span class="lf-timeline-step-lane">${who}: </span
-                  >${event.label}</span
-                >`;
-              })}
+              ${
+                model.runs.length
+                  ? model.runs.map((run, column) => {
+                      const events = step.events.filter((event) => event.lane.run === run);
+                      if (!events.length) return nothing;
+                      return html`<span
+                        class="lf-timeline-step-cell"
+                        style="grid-column: ${column + 2}"
+                        >${events.map(
+                          (event, order) =>
+                            html`<span class="lf-timeline-step-event lf-row-main"
+                              ><span class="lf-timeline-step-number"
+                                >${column + 1}</span
+                              >${
+                                order === 0
+                                  ? html`<span class="lf-timeline-step-run"
+                                      >${run.label} · </span
+                                    >`
+                                  : nothing
+                              }<span class="lf-timeline-step-lane"
+                                >${event.lane.label}: </span
+                              >${event.label}</span
+                            >`,
+                        )}</span
+                      >`;
+                    })
+                  : step.events.map(
+                      (event) =>
+                        html`<span class="lf-timeline-step-event lf-row-main"
+                          ><span class="lf-timeline-step-lane"
+                            >${event.lane.label}: </span
+                          >${event.label}</span
+                        >`,
+                    )
+              }
             </span>
           </li>`,
       )}

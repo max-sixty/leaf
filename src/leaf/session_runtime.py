@@ -4,18 +4,15 @@ A harness session keeps running the plugin copy it loaded: Claude Code installs 
 update into a new cache directory and leaves every running session on the old
 one until `/reload-plugins`. A page a newer Leaf initialized is then one the
 session's hooks and watch can't read, and the user's input waits until someone
-reloads. So the session's hooks, its watch and, from an installed copy, its bare
-`leaf` commands all hand themselves to one launcher (`delivering_launcher`) before
-they read a page or change a turn; the Codex delivery adapter follows the selection
-alone (`selected_launcher`):
-
-- the launcher the session selected, while it exists: the checkout a user preview
-  serves (`dev/leaf_dev/commands/preview.py`), or a checkout whose command
-  claimed one of the session's pages or initialized one it holds
-  (`select_checkout`), whose protocol the session's own copy may not speak yet;
-- otherwise, from a copy Claude Code installed, the copy it has installed since,
-  which the marketplace sweep moves to each new commit;
-- otherwise this one.
+reloads. So the launcher of a copy Claude Code has replaced runs the copy installed
+since, which the marketplace sweep moves to each new commit (`bin/leaf`), and the
+session's hooks, its watch and, from an installed copy, its bare `leaf` commands
+hand themselves on to the launcher the session selected (`delivering_launcher`)
+before they read a page or change a turn: the checkout a user preview serves
+(`dev/leaf_dev/commands/preview.py`), or a checkout whose command claimed one of the
+session's pages or initialized one it holds (`select_checkout`), whose protocol the
+installed copy may not speak yet. The Codex delivery adapter follows the selection
+alone (`selected_launcher`).
 
 Each hook runs the chosen launcher's Python as it stands, so an update reaches a
 session at its next hook without a reload; Claude Code still reads `hooks.json`
@@ -36,7 +33,6 @@ ends with its generation. Page servers retain their own runtime, so choosing
 delivery does not replace a comparison arm's renderer.
 """
 
-import json
 import os
 from pathlib import Path
 
@@ -53,9 +49,9 @@ from .state import (
 
 
 def delivering_launcher(session_id: str) -> Path:
-    """The launcher that runs this session's delivery, as the module header
-    ranks them."""
-    return selected_launcher(session_id) or installed_launcher() or own_launcher()
+    """The launcher that runs this session's delivery: the one it selected, while
+    it exists, else this one."""
+    return selected_launcher(session_id) or own_launcher()
 
 
 def selected_launcher(session_id: str) -> Path | None:
@@ -69,30 +65,13 @@ def selected_launcher(session_id: str) -> Path | None:
     return None
 
 
-def installed_launcher() -> Path | None:
-    """The launcher of the copy Claude Code has installed now, where this Leaf is
-    one it installed: the `installPath` its `installed_plugins.json`, beside the
-    cache, records for this plugin."""
-    if not plugin_cache_copy(PLUGIN_ROOT):
-        return None
-    plugins = PLUGIN_ROOT.parents[3]
-    name = f"{PLUGIN_ROOT.parent.name}@{PLUGIN_ROOT.parents[1].name}"
-    try:
-        record = json.loads((plugins / "installed_plugins.json").read_text())
-        launchers = [
-            Path(install["installPath"]) / "bin" / "leaf"
-            for install in record["plugins"][name]
-        ]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    return next(
-        (
-            launcher.resolve()
-            for launcher in launchers
-            if launcher.is_absolute() and os.access(launcher, os.X_OK)
-        ),
-        None,
-    )
+def replaced() -> bool:
+    """Whether this copy's launcher looks for the copy Claude Code installed in its
+    place (`bin/leaf`): Claude Code marked this copy as one `installed_plugins.json`
+    no longer names (`.orphaned_at`), or the copy has lost its project."""
+    return (PLUGIN_ROOT / ".orphaned_at").exists() or not (
+        PLUGIN_ROOT / "pyproject.toml"
+    ).exists()
 
 
 def select_launcher(session_id: str, launcher: Path) -> bool:
@@ -112,11 +91,10 @@ def select_launcher(session_id: str, launcher: Path) -> bool:
 
 
 def hand_off_command(argv: list[str]) -> None:
-    """Run this `leaf` command under the session's delivering launcher, replacing
-    this process, where this Leaf is a copy Claude Code installed and another
-    launcher delivers for the session. A checkout's launcher is one someone chose
-    to run, so it runs as it is; a hook hands itself off with its payload's
-    session (`hooks.main`)."""
+    """Run this `leaf` command under the checkout the session selected, replacing
+    this process, where this Leaf is a copy Claude Code installed. A checkout's
+    launcher is one someone chose to run, so it runs as it is; a hook hands itself
+    off with its payload's session (`hooks.main`)."""
     if not plugin_cache_copy(PLUGIN_ROOT) or argv[:1] == ["hook"]:
         return
     from .harness import session_harness

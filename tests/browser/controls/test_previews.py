@@ -207,6 +207,39 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
         assert not preview.is_visible(), preview.inner_text()
 
 
+# Two runs whose step list names each run in a column's head, and a lane by its short
+# form: listeners hear each cell's run and the lane's full name instead.
+COMPARED_RUNS = """<h1>Race</h1>
+<lf-timeline id="race" aria-label="The race">
+  <lf-run label="Before the fix" abbr="Before">
+    <lf-lane label="Job A" abbr="A"><lf-event id="before-read" at="0" label="Reads 100"></lf-event></lf-lane>
+  </lf-run>
+  <lf-run label="After the fix" abbr="After">
+    <lf-lane label="Job A" abbr="A"><lf-event id="after-read" at="0" label="Reads 100"></lf-event></lf-lane>
+  </lf-run>
+</lf-timeline>"""
+
+
+def test_a_control_whose_spoken_words_its_face_shows_another_way_previews_nothing(
+    browser, serve
+):
+    """A timeline's step row is named by its words, as a listener hears them: each
+    cell's run, which the column's head shows, and a lane's full name, which its short
+    form shows. Neither a resting pointer nor Tab previews the row, since it would
+    repeat the row the user reads whole."""
+    page = open_page(
+        browser, serve(leaf_page("Race", COMPARED_RUNS), packages=("timeline",))
+    )
+    preview = page.locator(PREVIEW)
+    row = page.locator("#race .lf-timeline-step").first
+    row.hover()
+    dwelt(page)
+    assert not preview.is_visible(), preview.inner_text()
+    tab_onto(row)
+    rendered(page)
+    assert not preview.is_visible(), preview.inner_text()
+
+
 # Option cards whose picks Done completes.
 FEEDERS = """<lf-group id="ask" label="Which feeders should we refill?"><h2 id="ask-h">Which feeders should we refill?</h2>
 <lf-options id="feeders" multiple>

@@ -604,29 +604,41 @@ function labelText(control) {
 // preview stands over, whose words the face rule leaves unread, so reading a face costs
 // as little over a long section as over a button.
 const FACE = 300;
+// Leaf's quiet words (declared-words.js), a listener's reading of what the page shows
+// around them, as a column's head names the run of each cell under it. A reading for
+// the eye leaves them out, as the clipboard and a comment's quote do.
+const QUIET = ".lf-quiet";
 // The runs of text under `root` that a face or a label's text reads. The walk passes
-// over `skip` and a select's or datalist's options without entering them, so they cost
-// no room: the control's words aren't its label's, and a list shows only its chosen
-// option (`controlFace`), however many it holds.
+// over `skip`, a select's or datalist's options and quiet words without entering them,
+// so they cost no room: the control's words aren't its label's, a list shows only its
+// chosen option (`controlFace`), however many it holds, and the eye reads no quiet word.
 /** @param {Element} root @param {Element | null} skip */
 const faceWalker = (root, skip) =>
   document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
     acceptNode: (node) =>
       node instanceof Text
         ? NodeFilter.FILTER_ACCEPT
-        : node === skip || /** @type {Element} */ (node).matches("select, datalist")
+        : node === skip ||
+            /** @type {Element} */ (node).matches(`select, datalist, ${QUIET}`)
           ? NodeFilter.FILTER_REJECT
           : NodeFilter.FILTER_SKIP,
   });
-/** @typedef {{words: string, joined: string, partial: boolean, chips: string[]}} Face */
+// The element inside `root` hiding `parent`'s words from listeners, if any.
+/** @param {Element | null} parent @param {Element} root */
+const hiddenWithin = (parent, root) => {
+  const hidden = parent?.closest('[aria-hidden="true"]');
+  return hidden && root.contains(hidden) ? hidden : null;
+};
+/** @typedef {{words: string, joined: string, heard: string, partial: boolean, chips: string[]}} Face */
 // What `root` shows the user whole, less any part inside `skip`, or null where it holds
 // more than a face. A run of its text counts where the browser draws it (`drawsText`) and
 // every box that clips it leaves it whole (`clippedContents`), so words an ellipsis, a
 // clamp to a few lines, a visually hidden label or a panel scrolled past them cut short
 // don't count. `words` reads the runs apart, as a row's words and its key chip stand, and
-// `joined` together, as a word split by its markup reads; `partial` says some of its words
-// or numbers don't show, so the face can't stand for a name it only begins; `chips` are
-// the key chips it shows, in order.
+// `joined` together, as a word split by its markup reads, and `heard` apart, less the
+// words it hides from listeners, as a short form beside its spoken full name;
+// `partial` says some of its words or numbers don't show, so the face can't stand for a
+// name it only begins; `chips` are the key chips it shows, in order.
 /** @param {Element} root @param {Element | null} [skip] @returns {Face | null} */
 function faceOf(root, skip = null) {
   const walker = faceWalker(root, skip);
@@ -634,6 +646,7 @@ function faceOf(root, skip = null) {
   /** @type {import("./geometry.js").ClipCache} */
   const clips = new Map();
   const runs = [];
+  const heard = [];
   const chips = [];
   let partial = false;
   let room = FACE;
@@ -662,12 +675,14 @@ function faceOf(root, skip = null) {
       continue;
     }
     runs.push(text.data);
+    if (!hiddenWithin(parent, root)) heard.push(text.data);
     const chip = parent?.closest("kbd.lf-key-badge");
     if (chip && root.contains(chip)) chips.push(text.data.trim());
   }
   return {
     words: wordsOf(runs.join(" ")),
     joined: wordsOf(runs.join("")),
+    heard: wordsOf(heard.join(" ")),
     partial,
     chips,
   };
@@ -684,13 +699,13 @@ function controlFace(control) {
   const own =
     chosen === null
       ? faceOf(control)
-      : { words: chosen, joined: chosen, partial: false, chips: [] };
+      : { words: chosen, joined: chosen, heard: chosen, partial: false, chips: [] };
   if (!own) return null;
   const faces = [
     ...labelsOf(control).flatMap((label) => faceOf(label, control) ?? []),
     own,
   ];
-  /** @param {"words" | "joined"} read */
+  /** @param {"words" | "joined" | "heard"} read */
   const all = (read) =>
     faces
       .map((face) => face[read])
@@ -699,16 +714,18 @@ function controlFace(control) {
   return {
     words: all("words"),
     joined: all("joined"),
+    heard: all("heard"),
     partial: faces.some((face) => face.partial),
     chips: [...own.chips, ...drawnKeys(control)],
   };
 }
-// Whether `face` shows `line` whole, read apart or together.
+// Whether `face` shows `line` whole, read apart, together, or apart with the words it
+// hides from listeners left out, as a short form between the spoken words of a row.
 /** @param {Face} face @param {Words | null} line */
 const shows = (face, line) =>
   typeof line === "string" &&
   /\p{L}/u.test(line) &&
-  [face.words, face.joined].some((words) =>
+  [face.words, face.joined, face.heard].some((words) =>
     ` ${words} `.includes(` ${wordsOf(line)} `),
   );
 // Whether a control's face says its name: the name's words stand in it, as beside a key
@@ -738,7 +755,8 @@ function markupName(control) {
 }
 // The name a control's content gives it, as a screen reader reads it: the words the
 // browser draws, each box's apart and a word its inline markup splits whole, less what
-// `aria-hidden` hides, as a menu row's key chip.
+// `aria-hidden` hides, as a menu row's key chip, and less Leaf's quiet words, which the
+// eye reads no more than it does in the face.
 /** @param {Element} control */
 function contentName(control) {
   const walker = document.createTreeWalker(control, NodeFilter.SHOW_TEXT);
@@ -747,8 +765,13 @@ function contentName(control) {
   let last = null;
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const parent = node.parentElement;
-    const hidden = parent?.closest('[aria-hidden="true"]');
-    if (!parent || (hidden && control.contains(hidden)) || !drawsText(parent)) continue;
+    if (
+      !parent ||
+      hiddenWithin(parent, control) ||
+      parent.closest(QUIET) ||
+      !drawsText(parent)
+    )
+      continue;
     if (last && apart(last, parent, control)) name += " ";
     name += /** @type {Text} */ (node).data;
     last = parent;

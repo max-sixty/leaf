@@ -224,10 +224,9 @@ QUIET_WORDS = {
 
 
 def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serve):
-    """A control's quiet words name a mark its face shows, which the screen doesn't
-    show in words: a check's verdict, a symbol's action, a short form's full name. A
-    resting pointer and Tab read those words alone, not the words the face shows
-    whole."""
+    """A control's quiet words say what the screen doesn't show in words, such as a
+    check's verdict, a symbol's action or a short form's full name. A resting pointer
+    and Tab read those words alone, not the words the face shows whole."""
     page = open_page(browser, serve(leaf_page("Cases", QUIET_MARKS)))
     page.evaluate(
         """(words) => { for (const [selector, word] of Object.entries(words))

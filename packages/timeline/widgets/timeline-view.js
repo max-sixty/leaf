@@ -183,7 +183,8 @@ const laneName = (lane) =>
 
 /** A step row previews nothing (`lfPreview`). Its quiet words, which a preview would
  * otherwise read, name what the timeline shows elsewhere: each cell's run in the head
- * above its column, and a lane's full name in the chart. */
+ * above its column, and a lane's full name in the chart. No key reaches a row, which
+ * `false` would also leave out. */
 const stepPreview = () => false;
 
 /** One retained template for connection, revision, resizing and stepping. */

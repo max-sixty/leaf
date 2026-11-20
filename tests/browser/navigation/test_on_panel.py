@@ -100,7 +100,7 @@ def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, se
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
     as at an open obligation, and passes a thread waiting on the agent; `t` still walks both
-    threads. The panel's On Me mark counts what waits on the user. A reply the user
+    threads. The panel's leaf counts what waits on the user. A reply the user
     sends takes its thread off that count and out of the walk once the server has read
     the reply."""
     url = serve(QUEUE_PAGE)
@@ -643,13 +643,13 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
     page.keyboard.press("m")
     page.wait_for_function("window.threadRevealStarted === true")
-    page.locator(".lf-fp-on-user").focus()
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    page.locator(".lf-fp-leaf").focus()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
     page.wait_for_function("window.threadRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     assert walk_position(page) is None
     # The control: the same press left alone arrives and says where.
     page.locator("#h").click()

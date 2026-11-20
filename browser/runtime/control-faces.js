@@ -15,7 +15,8 @@
    - `symbol`: a press drawn as one of Leaf's icons, named by its tooltip and
      accessible name (browser/AGENTS.md): quiet at rest, with the library's fill under
      a hovering pointer, and the chip while what it opens shows (`aria-expanded`). One
-     that commits what it stands in, as Send and a rewrite's Save do, is in the
+     that carries badges (`.lf-badges`), as the panel's leaf does, draws no ground in
+     any state, since its badges stand over its top edge. One that commits what it stands in, as Send and a rewrite's Save do, is in the
      accent (`data-lf-tone="accent"`). A disc (`data-lf-disc`) is drawn in its
      action's own ink (`data-lf-tone`: `accent`, `ink`, `positive` or `negative`) and
      shows its state on a disc behind the glyph rather than a chip, as the composer's

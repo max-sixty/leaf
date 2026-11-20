@@ -752,8 +752,10 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
+    # The gallery waits on the user, so the leaf opens On Me, and its name ends in the
+    # status.
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile(r"^Page menu · \S")
+        "aria-label", re.compile(r"^On Me · .+ · \S")
     )
     panel_control(page, "queue").click()
     map_obligation = page.locator(".lf-fp-on-item").filter(
@@ -1103,7 +1105,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     )
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
-    expect(child.get_by_role("button", name="On Me", exact=True)).to_be_visible()
+    expect(child.locator(".lf-fp-leaf")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
         sample.scroll_into_view_if_needed()

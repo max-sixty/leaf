@@ -974,7 +974,7 @@ def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, se
     )
     page.mouse.move(1, 1)
     page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     band = page.locator(".lf-rows-group").filter(
         has_text="Should this wait for the vendor's release?"
     )

@@ -157,7 +157,8 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     browser, serve, annotations
 ):
     """The shared control says its name as its preview wherever a page seats it, and the
-    keyboard reads it at once."""
+    keyboard reads it at once and takes it away as it leaves, here for the panel's
+    field, which previews nothing."""
     source = leaf_page(
         "Inline names",
         '<button id="before">Before</button> <button id="inline">Read</button>',
@@ -180,7 +181,7 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     page.mouse.move(0, 0)
     page.keyboard.press("Tab")
     expect(control).not_to_be_focused()
-    expect(preview).not_to_have_text("Read inline name")
+    expect(preview).to_be_hidden()
 
 
 def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):

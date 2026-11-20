@@ -1747,3 +1747,26 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
             {"event": "comment-id"},
         ),
     ]
+
+
+WRITE_THROUGH_DRIVER = """
+import sys
+from playwright.sync_api import sync_playwright
+from leaf_dev import website
+
+with sync_playwright():
+    website.write_fully(2, b"x" * int(sys.argv[1]))
+"""
+
+
+def test_script_evidence_reaches_a_stderr_pipe_the_driver_made_non_blocking():
+    # The Node driver leaves the inherited stderr pipe non-blocking, so a dump
+    # larger than the pipe's buffer must wait for the reader rather than stop.
+    size = 4 << 20
+    run = subprocess.run(
+        [sys.executable, "-c", WRITE_THROUGH_DRIVER, str(size)],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr[-2000:].decode(errors="replace")
+    assert run.stderr == b"x" * size

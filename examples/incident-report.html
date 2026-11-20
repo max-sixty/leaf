@@ -9,35 +9,87 @@
   </head>
   <body>
     <main class="layout-column">
-      <hgroup id="detail-title">
-        <p>detail package</p>
+      <hgroup id="incident-title">
+        <p>postmortem · checkout</p>
         <h1>Why checkout got twice as slow on Tuesday</h1>
       </hgroup>
-      <p class="lede" id="detail-lede">
+      <p class="lede" id="incident-lede">
         The 4.2 release added the currency to the cart cache key, so no cached cart
         matched and every checkout read the cart from Postgres. Rolling the key back
         restored latency; the lasting fix needs your pick below.
       </p>
-      <lf-dial id="detail-dial"></lf-dial>
+      <lf-dial id="incident-dial"></lf-dial>
 
-      <section id="detail-impact">
+      <section id="incident-impact">
         <h2>Impact</h2>
-        <p class="gist" id="detail-impact-gist">
-          For 3 hours 40 minutes, checkout p99 sat at 410 ms instead of 180 ms; no
+        <p class="gist" id="incident-impact-gist">
+          For 3 hours 42 minutes, checkout p99 sat at 410 ms instead of 180 ms; no
           orders failed, but conversion fell 2.1% against the same hours last week.
         </p>
-        <p id="detail-impact-1">
+        <figure id="incident-impact-chart">
+          <lf-chart id="incident-latency" data-height="240">
+            <pre>
+{
+  ariaLabel: "Checkout p99 on Tuesday: 180 ms until 14:02, rising to about 410 ms by 15:10 as 4.2 reached each region, under the 500 ms canary alert throughout, and back to 180 ms after the rollback finished at 17:44",
+  marginRight: 40,
+  x: {type: "utc", tickFormat: "%H:%M", label: null},
+  y: {grid: true, domain: [0, 600], label: "checkout p99 (ms)"},
+  marks: [
+    Plot.ruleY([500], {stroke: "var(--lf-muted)"}),
+    Plot.text(["canary alert at 500 ms"], {
+      x: new Date("2026-11-17T18:30Z"),
+      y: 500,
+      dy: -8,
+      textAnchor: "end",
+      fill: "var(--lf-muted)",
+    }),
+    Plot.lineY(
+      [
+        ["13:00", 181], ["13:20", 178], ["13:40", 183], ["14:00", 180],
+        ["14:10", 226], ["14:20", 268], ["14:30", 301], ["14:40", 334],
+        ["14:50", 362], ["15:00", 388], ["15:10", 404], ["15:30", 409],
+        ["16:00", 412], ["16:30", 407], ["17:00", 411], ["17:20", 408],
+        ["17:40", 395], ["17:50", 196], ["18:00", 182], ["18:30", 179],
+      ].map(([time, ms]) => ({at: new Date(`2026-11-17T${time}Z`), ms})),
+      {x: "at", y: "ms", stroke: "var(--lf-series-1)", strokeWidth: 2},
+    ),
+    Plot.text(["4.2 reaches the first region"], {
+      x: new Date("2026-11-17T14:02Z"),
+      y: 180,
+      dx: 6,
+      dy: 14,
+      textAnchor: "start",
+      fill: "var(--lf-muted)",
+    }),
+    Plot.text(["rollback complete"], {
+      x: new Date("2026-11-17T17:50Z"),
+      y: 196,
+      dx: 6,
+      dy: -12,
+      textAnchor: "start",
+      fill: "var(--lf-muted)",
+    }),
+  ],
+}
+</pre>
+          </lf-chart>
+          <figcaption>
+            Checkout p99 doubled as 4.2 reached each region and held there until the
+            rollback, never crossing the 500 ms line the canary alert fires at.
+          </figcaption>
+        </figure>
+        <p id="incident-impact-1">
           The slowdown began at 14:02, the minute 4.2 reached the first region, and
           ended at 17:44 when the rollback finished. Every region was affected once its
           deploy landed, in the order the release train visits them.
         </p>
-        <p id="detail-impact-2">
+        <p id="incident-impact-2">
           Error rates stayed flat: Postgres absorbed the extra reads with headroom to
           spare, peaking at 61% CPU. The cost was time, which shoppers felt as a pause
           after pressing Pay. The conversion figure compares the affected hours with the
           same weekday window a week earlier and carries the usual ±0.8% weekly noise.
         </p>
-        <table id="detail-impact-table">
+        <table id="incident-impact-table">
           <thead>
             <tr>
               <th>Measure</th>
@@ -65,25 +117,25 @@
         </table>
       </section>
 
-      <section id="detail-cause">
+      <section id="incident-cause">
         <h2>Cause</h2>
-        <p class="gist" id="detail-cause-gist">
+        <p class="gist" id="incident-cause-gist">
           The release appended the currency to the cart's cache key, and nothing warmed
           the new keys, so the cache missed on every cart until it refilled one shopper
           at a time.
         </p>
-        <p id="detail-cause-1">
+        <p id="incident-cause-1">
           Multi-currency carts needed the currency in the key so a shopper switching
           currency would not see stale prices. The change was correct for that case.
           What it missed is that every existing entry became unreachable at once: 1.9
           million warm carts turned into misses the moment the new code read them.
         </p>
-        <p id="detail-cause-2">
+        <p id="incident-cause-2">
           A cold cart refills on its first read, so the hit rate would have recovered on
           its own as shoppers returned, but most carts are read once per session, and
           the refill was slower than the rate at which new sessions arrived.
         </p>
-        <details id="detail-cause-key">
+        <details id="incident-cause-key">
           <summary>The key, before and after</summary>
           <pre>
 cart:{user_id}            →  cart:{user_id}:{currency}
@@ -91,32 +143,32 @@ cart:{user_id}            →  cart:{user_id}:{currency}
         </details>
       </section>
 
-      <section id="detail-missed">
+      <section id="incident-missed">
         <h2>Why the checks missed it</h2>
-        <p class="gist" id="detail-missed-gist">
+        <p class="gist" id="incident-missed-gist">
           Staging starts every test run with an empty cache, so it measures the cold
           path both before and after the change and could not see a warm cache go cold.
         </p>
-        <p id="detail-missed-1">
+        <p id="incident-missed-1">
           The load test compares p99 against the previous release on the same staging
           stack. Both runs started cold, so both paid the database read on every cart,
           and the difference was within noise. Production is the only place the cache is
           ever warm.
         </p>
-        <p id="detail-missed-2">
+        <p id="incident-missed-2">
           The canary region did show the jump, but its alert compares against a fixed
           500 ms threshold, which 410 ms stayed under.
         </p>
       </section>
 
-      <section id="detail-fix">
+      <section id="incident-fix">
         <h2>What to do next</h2>
-        <p class="gist" id="detail-fix-gist">
+        <p class="gist" id="incident-fix-gist">
           Rolling back fixed Tuesday; shipping multi-currency carts again needs either a
           dual-read migration or a cache warmed before the switch.
         </p>
         <lf-group
-          id="detail-fix-ask"
+          id="incident-fix-ask"
           label="How should 4.3 change the cache key?"
           class="gist"
         >
@@ -125,24 +177,24 @@ cart:{user_id}            →  cart:{user_id}:{currency}
             Both ship multi-currency carts without a cold cache; they differ in risk and
             effort.
           </p>
-          <lf-options id="detail-fix-choice">
-            <lf-option id="detail-fix-dual" label="Read both keys for a week"
+          <lf-options id="incident-fix-choice">
+            <lf-option id="incident-fix-dual" label="Read both keys for a week"
               ><strong>Read both keys for a week</strong> Two days of work; old entries
               keep hitting while new ones fill.</lf-option
             >
-            <lf-option id="detail-fix-warm" label="Warm the new keys before switching"
+            <lf-option id="incident-fix-warm" label="Warm the new keys before switching"
               ><strong>Warm the new keys before switching</strong> Half a day; one
               backfill job, but a slow backfill delays the release.</lf-option
             >
           </lf-options>
         </lf-group>
-        <p id="detail-fix-1">
+        <p id="incident-fix-1">
           Either way, the canary alert should compare against the previous release
           rather than a fixed threshold, so a 2× jump fires whatever the absolute
           number. That change is independent of the choice above and is already in
           review.
         </p>
-        <details id="detail-fix-ruled-out">
+        <details id="incident-fix-ruled-out">
           <summary>Ruled out: a short cache lifetime during the rollout</summary>
           <p>
             Expiring entries after five minutes would bound staleness but keeps the cold
@@ -151,20 +203,20 @@ cart:{user_id}            →  cart:{user_id}:{currency}
         </details>
       </section>
 
-      <section id="detail-timeline">
+      <section id="incident-timeline">
         <h2>Timeline</h2>
-        <p id="detail-timeline-summary">
+        <p id="incident-timeline-summary">
           From the first region's deploy to a finished rollback took 3 hours 42 minutes,
           2 hours of it before anyone connected the slowdown to the release.
         </p>
-        <ol id="detail-timeline-list">
+        <ol id="incident-timeline-list">
           <li>14:02 4.2 reaches the first region; p99 starts climbing.</li>
           <li>14:40 Support reports slow checkouts in two tickets.</li>
           <li>16:05 On-call links the slowdown to the deploy times.</li>
           <li>16:30 Cache hit rate found at 3%; key change identified.</li>
           <li>17:44 Rollback complete in every region; p99 back to 180 ms.</li>
         </ol>
-        <details id="detail-timeline-log">
+        <details id="incident-timeline-log">
           <summary>The on-call channel, abridged</summary>
           <pre>
 16:05 jo: checkout p99 tracks the deploy wave region by region

@@ -164,11 +164,10 @@
 
    - A pointer resting on a target for `DWELL` shows its preview; moving onto another
      target within `WARM` of the last one shows the next at once, so reading along a row
-     of controls waits once. Moving onto another part of the element whose preview
-     stands, where that element still speaks for the part, as from one of a widget's
-     controls to the next when the widget declares one preview for all of them, is a new
-     aim inside it, as a chart's next point is: the preview redraws where it stands,
-     with no fade, so the reading changes under a face that holds still. Leaving the
+     of controls waits once. Where the next one stands by the element the last one
+     stands by, as each of a widget's controls may stand its preview by the widget, the
+     preview redraws where it stands, with no fade, so the reading changes under a face
+     that holds still. Leaving the
      target hides it, and so do a press and any key but Escape, as the platform's
      tooltip goes, while the key does its own work; the target then stays quiet until
      the pointer comes back to it. A modifier alone is
@@ -203,7 +202,8 @@
      user's longer touch-and-hold setting makes a slow one, presses; a WebKit touch
      engine says nothing (WebKit bug 213953), so there it shows after `HOLD`
      (notes/browser-support.md, "A touch long press in WebKit"). The finger reads its
-     neighbours by sliding onto them: one of the same parent shows its own instead. A
+     neighbours by sliding onto them: one of the same parent shows its own instead, in
+     place where it stands by the same element, as the pointer's next does. A
      hold is the touch form of pointing, so it reads and presses nothing, as a
      platform's long press follows no link and its tooltip clicks nothing: once the hold
      has shown a preview, the touch's end is cancelled (`touchend`), wherever the finger
@@ -1050,20 +1050,25 @@ function readFrom(from, route, read) {
 // as empty space inside a chart, leaves it standing, as plain text does, and a preview
 // shown `again` for what it stands for goes once that says nothing. Shown `again`, it
 // draws what its target says now where it stands, with no fade, as a new `aim` inside
-// it where that is what changed. A focus reading whose subject can't be seen is
-// suspended (`away`) and shows nothing yet, and any other ends. A hold that shows a
-// reading has read, whichever way the reading came, so its release presses nothing.
+// it where that is what changed; so does the same route's next reading where it stands
+// by the element the standing one stands by (`standsBy`). A focus reading whose subject
+// can't be seen is suspended (`away`) and shows nothing yet, and any other ends. A hold
+// that shows a reading has read, whichever way the reading came, so its release presses
+// nothing.
 /** @param {Target} from @param {Route} route @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] @param {boolean} [aim] */
 function show(from, route, read = null, at, again = false, aim = false) {
   if (!again && shown?.from === from && shown.route === route) return !shown.away;
   const found = readFrom(from, route, read);
-  // The pointer reaching another part of the element whose preview stands, which that
-  // element's preview speaks for too, is a new aim inside it (`aimsInside`).
-  const within = !again && aimsInside(from);
-  const inside = within && Boolean(found) && found?.target === shown?.target;
-  const standing = (again && shown?.from === from) || inside ? shown : null;
+  // The same route's next reading that stands by the element the standing one stands
+  // by takes its place there (`standsBy`).
+  const by = !again && found ? standsBy(found) : null;
+  const standing =
+    (again && shown?.from === from) ||
+    (by && shown && !shown.away && shown.route === route && standsBy(shown) === by)
+      ? shown
+      : null;
   if (!found) {
-    if (standing || within) hide();
+    if (standing) hide();
     return false;
   }
   // Ending the standing record's watch can run its disconnect, which hides whatever
@@ -1112,20 +1117,18 @@ function show(from, route, read = null, at, again = false, aim = false) {
     }
   }
   // Described first, so a reading that stands nowhere and ends puts that back too.
-  const stands = stand(record, reading, Boolean(standing), aim || inside);
+  const stands = stand(record, reading, Boolean(standing), aim);
   if (stands && route === "hold" && hold) hold.read = true;
   return stands;
 }
-// Whether the pointer at `target` is on a part of the element whose pointer preview
-// stands, as on the next of the controls that element declares one preview for, where
-// the preview, if that element still speaks for the part, redraws in place.
-/** @param {Target | null} target */
-const aimsInside = (target) =>
-  shown?.route === "pointer" &&
-  !shown.away &&
-  isElement(target) &&
-  isElement(shown.target) &&
-  renderedUnder(target, shown.target);
+// The element a reading of an element stands by: the one it declares (`at`), or the
+// element that declares it, also where it declares a box inside itself. Readings that
+// stand by one element are one preview to the eye, as each of a widget's controls
+// standing its preview by the widget, or one element's next reading, so the next takes
+// the standing one's place with no fade. A range's stands by its own line.
+/** @param {{target: Target, holder: Element, reading: Reading}} found */
+const standsBy = ({ target, holder, reading }) =>
+  target instanceof Range ? null : isElement(reading.at) ? reading.at : holder;
 
 // Where a preview stands (`stand`), decided here, from the box the browser will draw,
 // and drawn by the browser from that decision alone, with no fallback of its own. Its
@@ -1792,24 +1795,27 @@ function point(target, read = null, at) {
   pointingRead = read;
   pointingAt = at;
   clearTimeout(dwell);
-  if (shown?.route === "pointer" && !target) {
-    const record = shown;
+  // The preview the pointer leaves, which a focus preview never is.
+  const left =
+    shown && shown.route !== "focus" && !sameTarget(shown.from, target) ? shown : null;
+  if (left?.route === "pointer" && !target) {
     leaving = setTimeout(() => {
-      if (shown === record && !pointing) hide();
+      if (shown === left && !pointing) hide();
     }, DWELL);
-  } else if (
-    shown &&
-    shown.route !== "focus" &&
-    !sameTarget(shown.from, target) &&
-    !aimsInside(target)
-  )
-    hide();
-  if (!target) return;
+    return;
+  }
+  if (!target) {
+    if (left) hide();
+    return;
+  }
   // Back on the target whose preview stands, as from a link onto the words around it.
   if (shown?.route === "pointer" && sameTarget(shown.from, target)) return;
-  if (aimsInside(target) || performance.now() - cooled < WARM)
-    show(target, "pointer", read, at);
-  else
+  // The next target's preview replaces the one the pointer left at once, which reads
+  // the next before the last ends, and takes its place where it stands by the same
+  // element (`standsBy`); a next that says nothing leaves none.
+  if (left || performance.now() - cooled < WARM) {
+    if (!show(target, "pointer", read, at) && shown === left) hide();
+  } else
     dwell = setTimeout(() => {
       if (pointing === target) show(target, "pointer", pointingRead, pointingAt);
     }, DWELL);

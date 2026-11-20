@@ -81,7 +81,6 @@ import {
   PAGE_INTERFACE,
   phrasing,
   PREVIEW_ENDED,
-  previewChanged,
   readingAt,
   registerRootHeader,
   shownWindow,
@@ -346,9 +345,9 @@ customElements.define(
     // Taking back what pointing at a depth marked on the page.
     /** @type {(() => void) | null} */
     #unghost = null;
-    // The depth a pointer or finger last reached, which the dial's one preview reads.
-    /** @type {string | null} */
-    #aimed = null;
+    // What the last depth's preview declared, whose ending alone takes back its marks.
+    /** @type {object | null} */
+    #declared = null;
     // PROTOTYPE: the panel hanging each depth's page under its button, which the dial
     // draws under itself while its preview stands.
     /** @type {HTMLElement | null} */
@@ -395,34 +394,19 @@ customElements.define(
         depth.setAttribute("appearance", "button");
         // PROTOTYPE: the depth's time, which the dial's `rest` shows or hides.
         depth.append(offer("span", "lf-dial-time"));
-        // Each depth previews itself, standing under its button, except the hanging
-        // pages, which the dial previews for all three at once, so a pointer crossing
-        // from one to the next is a new aim inside one preview, which redraws in place.
         /** @type {any} */ (depth).lfPreview = () =>
-          this.#setting("point", "words") === "hang" ? null : this.#preview(name);
-        depth.addEventListener(PREVIEW_ENDED, () => this.#unpoint());
-        depth.addEventListener("pointerover", () => {
-          if (this.#aimed === name) return;
-          this.#aimed = name;
-          if (this.#hang?.hasAttribute("data-open"))
-            previewChanged(this, { aim: true });
+          (this.#declared = this.#preview(name));
+        // The next depth's reading comes before the last one's ending, which then takes
+        // back nothing.
+        depth.addEventListener(PREVIEW_ENDED, (event) => {
+          if (/** @type {CustomEvent} */ (event).detail.declared === this.#declared)
+            this.#unpoint();
         });
         this.#radios.set(name, depth);
         group.append(depth);
       }
       group.addEventListener("change", () => this.turn(String(group.value)));
       this.append(group);
-      // Focus reads the depth it is on; a pointer or finger the one it last reached.
-      /** @type {any} */ (this).lfPreview = (/** @type {string} */ route) => {
-        if (this.#setting("point", "words") !== "hang") return null;
-        const focused = [...this.#radios].find(([, radio]) => radio.matches(":focus"));
-        return this.#preview(
-          (route === "focus" ? focused?.[0] : this.#aimed) ??
-            focused?.[0] ??
-            this.#depth,
-        );
-      };
-      this.addEventListener(PREVIEW_ENDED, () => this.#unpoint());
       this.#hang = offer("div", "lf-dial-hang-panel");
       this.#hang.setAttribute("aria-hidden", "true");
       this.append(this.#hang);
@@ -541,6 +525,7 @@ customElements.define(
       // preview (pointer, focus, a finger's hold, Escape), whose face stays unseen:
       // Leaf's preview stands clear of the controls on the page, so where a link sat
       // under the dial it stood beside it, away from the buttons its columns hang from.
+      // Each depth's stands by the dial, so crossing the buttons redraws it in place.
       if (point === "hang" && this.#hang) {
         keeps(this.#hang, "data-open", "");
         // Each button's place across the panel's inside, which its border insets.

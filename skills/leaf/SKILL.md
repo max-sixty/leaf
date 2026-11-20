@@ -118,10 +118,14 @@ testing. Keep direct answers, small edits, and review and integration of worker
 results with you. Having more work to do is a reason to
 delegate it while you remain available for the user's next move.
 
+New input from the page reaches you only between your steps, so while you hold a
+page, keep each step you wait on to about a minute. Run a longer command, or a wait
+on CI or on your own background work, in the background, and check on it a minute
+at a time. The same holds for a fork you give a thread message to, since the
+thread's later messages reach it between its own steps.
+
 `references/conversation-loop.md`, "Long-running work", owns worker briefs,
-results and work continuing beyond your turn. If subagents are unavailable, run
-long operations in the background and follow the harness delivery loop between
-bounded steps.
+results and work continuing beyond your turn.
 
 ## Commands
 

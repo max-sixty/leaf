@@ -128,12 +128,10 @@ answer to it. The stamped version that records a widget answer takes it in witho
 
 ## Long-running work
 
-Follow the parent and worker roles in the main skill's "Stay responsive" section.
-New input reaches you between your own operations, so leave workers running while
-you follow the harness's delivery loop. When a worker reports, review and integrate
-its result, put it on the page, move finished work out of the open work
-(`authoring-revisions.md`, "Keep the current page current"), and reply in the thread
-that asked, linking to the result.
+Follow the main skill's "Stay responsive" section while workers run. When a worker
+reports, review and integrate its result, put it on the page, move finished work out
+of the open work (`authoring-revisions.md`, "Keep the current page current"), and
+reply in the thread that asked, linking to the result.
 
 Work that needs its own conversation with the user belongs in its own session, with
 its own page.

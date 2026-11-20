@@ -113,7 +113,9 @@ def run(page):
                 page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
             if route == "keyboard" and action == ".":
                 page.locator(".lf-fp-field leaf-text").click()
-                page.keyboard.press("Shift+Tab")
+                # Past the field's control in its corner, to the row's end.
+                page.keyboard.press("Tab")
+                page.keyboard.press("Tab")
                 expect(leaf).to_be_focused()
             # What the setup drew, such as the field's focus outline, rests before
             # the route's clock starts.

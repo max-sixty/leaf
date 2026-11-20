@@ -629,7 +629,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     preview = page.locator(".lf-margin-preview")
     marker.focus()
     expect(preview).to_be_hidden()
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     expect(toggle).to_be_focused()
     expect(preview).to_be_hidden()

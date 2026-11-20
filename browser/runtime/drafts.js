@@ -768,7 +768,7 @@ export const draftContexts = () => [...draftCache.keys()];
 // The page's own draft isn't listed: the floating panel's field shows it and no view of
 // drafts does, so listing it would repaint every view of drafts as the field's words
 // start and end. It is the one list every view of drafts reads: Threads' Drafts band and the
-// On Me mark's dot (floating-panel.js), and each draft's margin entry. It publishes when
+// leaf's dot (floating-panel.js), and each draft's margin entry. It publishes when
 // a draft starts or stops holding something or what it is about changes, so a
 // keystroke in a draft already listed costs one comparison and repaints nothing; a
 // view reads the draft's words where it draws them (`loadDraft`).

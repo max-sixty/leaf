@@ -121,7 +121,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const control = document.querySelector(".lf-fp-on-user");
+        const control = document.querySelector(".lf-fp-leaf");
         control.setAttribute("aria-busy", "true");
         const runtimeAnimation = control.getAnimations()[0];
         return {

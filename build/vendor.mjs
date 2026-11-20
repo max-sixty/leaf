@@ -761,6 +761,21 @@ const bundles = {
           ),
       },
       {
+        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
+        // The viewport's clamp compares the box's scrollTop with a maximum computed
+        // from the same fractional measure. At the list's end Chrome holds the box at
+        // 1039 while the maximum comes out at 1038.94, so every scroll event and
+        // model change there would write a scroll that moves nothing. A box within a
+        // pixel of the maximum already stands at it.
+        edit: (source) =>
+          seam(
+            source,
+            "if (scrollElement.scrollTop > maxScrollTop) scrollElement.scrollTop = maxScrollTop;",
+            "if (scrollElement.scrollTop - maxScrollTop >= 1) scrollElement.scrollTop = maxScrollTop;",
+            "Trees viewport clamp",
+          ),
+      },
+      {
         file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
         edit: (source) =>
           seam(

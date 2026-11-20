@@ -974,7 +974,7 @@ def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, se
     )
     page.mouse.move(1, 1)
     page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     band = page.locator(".lf-rows-group").filter(
         has_text="Should this wait for the vendor's release?"
     )
@@ -2803,6 +2803,115 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     page.evaluate(aim, "Third item detail")
     expect(tip).to_be_visible()
     expect(tip.locator(".lf-preview-word")).to_have_text("Third item detail")
+
+
+# Two controls that each stand their preview by the row holding them, the second's six
+# lines long, and a third that stands its own by itself, in a row near the window's foot
+# that a finger's slide doesn't scroll; `window.lfLog` records each reading, each ending
+# with what it declared, and each time the preview closes.
+SHARED_ROW = leaf_page(
+    "Shared row",
+    '<div id="row" style="display: flex; touch-action: none; position: fixed;'
+    ' left: 40px; bottom: 60px">'
+    '<button id="one">One</button>'
+    '<button id="two">Two</button><button id="three">Three</button></div>'
+    + "<p>More.</p>"
+    * 5,
+)
+SHARED_ROW_LOG = """() => {
+  const row = document.getElementById('row');
+  window.lfLog = [];
+  for (const id of ['one', 'two', 'three']) {
+    const el = document.getElementById(id);
+    el.lfPreview = () => {
+      window.lfLog.push(`read ${id}`);
+      return {name: `Reads ${id}`, at: id === 'three' ? undefined : row,
+        detail: id === 'two' ? ['Two', 'Three', 'Four', 'Five', 'Six'] : []};
+    };
+    el.addEventListener('lf-preview-ended', (event) =>
+      window.lfLog.push(`ended ${event.detail.declared.name}`));
+  }
+  document.getElementById('lf-preview').addEventListener('beforetoggle', (event) => {
+    if (event.newState === 'closed') window.lfLog.push('closed');
+  });
+}"""
+
+
+def _crossed(page):
+    """The log since the last call, emptied."""
+    return page.evaluate("() => window.lfLog.splice(0)")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_crosses(
+    engine, request, serve
+):
+    """A pointer crossing from one control to the next whose preview stands by the same
+    element, as each of a widget's controls may stand its preview by the widget, redraws
+    the preview where it stands without closing it, on the side it stood, even where
+    the next reading is longer than that side's room; the control it left hears its
+    reading end after the next was read. Crossing to a control whose preview stands by
+    itself closes the preview and shows the next."""
+    page = open_page(request.getfixturevalue(engine), serve(SHARED_ROW))
+    page.evaluate(SHARED_ROW_LOG)
+    tip = page.locator(PREVIEW)
+    word = tip.locator(".lf-preview-word")
+    page.mouse.move(2, 2)
+    page.locator("#one").hover()
+    expect(word).to_have_text("Reads one")
+    expect(tip).to_have_attribute("data-lf-y", "below")
+    _crossed(page)
+
+    two = page.locator("#two").bounding_box()
+    page.mouse.move(two["x"] + two["width"] / 2, two["y"] + two["height"] / 2, steps=4)
+    expect(word).to_have_text("Reads two")
+    rendered(page)
+    assert _crossed(page) == ["read two", "ended Reads one"]
+    expect(tip).to_have_attribute("data-lf-y", "top")
+
+    three = page.locator("#three").bounding_box()
+    page.mouse.move(
+        three["x"] + three["width"] / 2, three["y"] + three["height"] / 2, steps=4
+    )
+    expect(word).to_have_text("Reads three")
+    assert "closed" in _crossed(page)
+
+
+def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_place(
+    browser, serve
+):
+    """A finger holding one control and sliding onto the next whose preview stands by
+    the same element redraws the preview where it stands without closing it, as the
+    pointer does, and the control it left stops wearing the hold's mark."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(SHARED_ROW), context=context)
+    page.evaluate(SHARED_ROW_LOG)
+    cdp = context.new_cdp_session(page)
+    word = page.locator(PREVIEW).locator(".lf-preview-word")
+
+    def centre(selector):
+        box = page.locator(selector).bounding_box()
+        return {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+
+    def touch(kind, at=None):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [at] if at else []},
+        )
+
+    touch("touchStart", centre("#one"))
+    long_press(page, centre("#one"))
+    expect(word).to_have_text("Reads one")
+    _crossed(page)
+    touch("touchMove", centre("#two"))
+    expect(word).to_have_text("Reads two")
+    rendered(page)
+    assert _crossed(page) == ["read two", "ended Reads one"]
+    expect(page.locator("#two")).to_have_attribute("data-lf-held", "")
+    expect(page.locator("#one")).not_to_have_attribute("data-lf-held", "")
+    touch("touchEnd")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

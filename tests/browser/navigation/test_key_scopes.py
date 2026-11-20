@@ -58,7 +58,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -261,7 +261,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 844})
     on_body = "() => document.activeElement === document.body"
     preview = page.locator(".lf-margin-preview")
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
         page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
@@ -277,7 +277,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         assert page.evaluate(on_body)
 
     # On Me by pointer: out with the panel's view.
-    toggle.click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -1877,7 +1877,7 @@ def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
     page.evaluate(BROWSER_BACK)
 
     page.locator(".lf-fp-leaf").tap()
-    panel_settled(page, view="menu")
+    panel_settled(page)
     back_gesture(page)
     panel_settled(page, open=False)
 

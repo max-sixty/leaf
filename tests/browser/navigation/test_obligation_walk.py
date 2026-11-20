@@ -428,13 +428,13 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
     page.wait_for_function("window.obligationRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
-    page.locator(".lf-fp-on-user").focus()
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    page.locator(".lf-fp-leaf").focus()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     page.evaluate("releaseObligationReveal()")
     page.wait_for_function("window.obligationRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     # The user left the walk, so it says nothing more; it never says the next arrival.
     position = walk_position(page)
     assert (position or {}).get("text") in (None, "1 of 4 waiting on me")

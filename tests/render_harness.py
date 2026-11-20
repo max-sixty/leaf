@@ -91,10 +91,11 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
-    ON_ME_MARK,
     PANEL,
     PANEL_SAYS,
     chromium_metrics,
+    on_tab,
+    open_menu,
     panel_view,
     scroll_settled,
     slow_cpu,
@@ -2075,10 +2076,10 @@ def field_press(page):
 
 
 def stance_exit(page):
-    """The ✕ at the panel row's end that ends the stance standing, such as Draw mode or
-    the target picker, named by its `aria-label`, beside the mode chip that names the
-    stance (floating-panel.js, `fieldExit`)."""
-    return page.locator(".lf-fp-quick .lf-fp-exit")
+    """The ✕ in the panel's row, before the leaf, that ends the stance standing, such as
+    Draw mode or the target picker, named by its `aria-label`, beside the mode chip that
+    names the stance (floating-panel.js, `fieldExit`)."""
+    return page.locator(".lf-fp-row > .lf-fp-exit")
 
 
 def latest_press(page):
@@ -2240,7 +2241,7 @@ OPEN_THREAD_COUNT = """async () => {
 def expect_open_threads(page, count):
     """Wait until the page's reading holds `count` open threads (`OPEN_THREAD_COUNT`).
 
-    The count stands on the Threads tab, behind a press on the On Me mark, so this
+    The count stands on the Threads tab, behind a press on the leaf, so this
     reads it without one, leaving focus, the open view and any card as they are; where
     the tab itself is the subject, read `threads_tab`'s `.lf-fp-count`."""
     page.evaluate(OPEN_THREAD_COUNT)
@@ -2256,9 +2257,9 @@ def expect_open_threads(page, count):
 
 
 def expect_on_me(page, count):
-    """Wait until the panel counts `count` items waiting on the user. The folded leaf's
-    badge carries the count the On Me mark does, whatever view stands open, where the
-    mark gives its seat to the view's ✕, and whatever news its name goes on to say."""
+    """Wait until the panel counts `count` items waiting on the user. The leaf's badge
+    carries the count its row's count does, whatever view stands open and whatever news
+    its name goes on to say."""
     expect(page.locator(".lf-fp-badge")).to_have_text(str(count) if count else "")
 
 
@@ -2267,24 +2268,22 @@ def panel_menu(page, at=None, *, touch=False):
     opened over it: a group (`navigate`, `annotate`) or `versions`. Each press is a
     mouse's, or a finger's with `touch`.
 
-    The leaf opens the panel's view on the menu, the On view's first tab
-    (floating-panel.js, `VIEWS.menu`); a list it leads to opens as a view over it, whose
-    way back returns to the menu. A row's `data-lf-row` is its key among the page's
-    control rows (page-controls.js). The menu holds the rows it opened with while it
-    stands (floating-panel.js, `holdMenu`), a row news took away staying disabled and
-    one news offered waiting for the next opening, so a reading of it is a reading of
-    the moment it opened. A mouse's press on the leaf leaves the user in the menu's
-    search."""
-    host = page.locator(PANEL)
-    leaf = page.locator(".lf-fp-leaf")
-    if host.get_attribute("data-lf-rest") == "mark":
-        press_visible(page, leaf, touch=touch)
-        expect(host).to_have_attribute("data-lf-rest", "row")
-    if host.get_attribute("data-lf-open") != "menu":
-        back = page.locator(".lf-fp-head").get_by_role(
-            "button", name="Back to Menu", exact=True
-        )
-        press_visible(page, back if back.count() else leaf, touch=touch)
+    The menu is the On view's first tab (floating-panel.js, `VIEWS.menu`), which
+    `leaf_dev.browser.open_menu` reaches by the leaf and the Menu tab; a list the menu
+    leads to opens as a view over it, whose way back returns to the menu. A row's
+    `data-lf-row` is its key among the page's control rows (page-controls.js). The menu
+    holds the rows it opened with while it stands (floating-panel.js, `holdMenu`), a row
+    news took away staying disabled and one news offered waiting for the next opening,
+    so a reading of it is a reading of the moment it opened. A mouse's press on a leaf
+    that opens the menu leaves the user in the menu's search."""
+
+    def press(control):
+        # A view the leaf opened stands still before its tab is aimed at.
+        if page.locator(PANEL).get_attribute("data-lf-open"):
+            panel_settled(page)
+        press_visible(page, control, touch=touch)
+
+    open_menu(page, press=press)
     panel_settled(page, view="menu")
     menu = page.locator(panel_view("menu"))
     if at is None:
@@ -2307,9 +2306,9 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    On Me (`queue`) is the row's mark, standing while no view or stance does, and
-    Threads (`threads`) the tab at the foot of On, which the mark opens to reach it
-    (`leaf_dev.browser.threads_tab`). Every other row is the menu's, by its key:
+    On Me (`queue`) is the leaf where the leaf opens it, and otherwise, as Threads
+    (`threads`) always is, a tab at the foot of the On view the leaf opens
+    (`leaf_dev.browser.on_tab`). Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
@@ -2317,7 +2316,9 @@ def panel_control(page, key, at=None):
     and the page comment is `page_comment`'s, offering selected words as
     `selection_field`'s."""
     if key == "queue":
-        control = page.locator(ON_ME_MARK)
+        leaf = page.locator(".lf-fp-leaf")
+        opens_on_me = (leaf.get_attribute("aria-label") or "").startswith("On Me ")
+        control = leaf if opens_on_me else on_tab(page, "On Me")
     elif key == "threads":
         control = threads_tab(page)
     else:

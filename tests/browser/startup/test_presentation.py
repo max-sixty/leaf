@@ -35,7 +35,7 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
 ):
     """The page and the floating panel's row both stand from the first paint, before
     the runtime loads, and the runtime moves neither: the panel takes the row over
-    with its leaf, field and On Me mark where the row's stood."""
+    with its field and leaf where the row's stood."""
     boot = []
     context = browser.new_context(
         viewport={"width": width, "height": 900}, has_touch=has_touch
@@ -48,9 +48,7 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
         document.querySelector('.lf-floating-panel[data-lf-served]'));
     })""")
     page.route("**/leaf.js", lambda route: boot.append(route))
-    row = {
-        part: f"{PANEL} .lf-fp-{part}" for part in ("card", "leaf", "field", "on-user")
-    }
+    row = {part: f"{PANEL} .lf-fp-{part}" for part in ("card", "field", "leaf")}
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(

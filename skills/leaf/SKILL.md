@@ -54,7 +54,8 @@ Read the applicable references under **Author a version** below. For substantial
 new material, including a new section on an existing page, start an author without
 inherited conversation (`fork_turns: "none"` where available). Give it the reader's
 question, task, relevant facts and constraints, initial content and state, the page
-registry, `references/page-authoring.md` and a fresh output directory (`mktemp -d`).
+registry, **Must remember** above, `references/page-authoring.md` and a fresh output
+directory (`mktemp -d`).
 Ask it to construct the subject the page discusses, following "Show the subject" and
 "Develop the work", and return finished files and captions. Keep the research
 history and existing page with you. Integrate the returned material following

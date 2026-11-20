@@ -1,0 +1,48 @@
+# An incident write-up can tell what happened in its own words, as a timeline of
+# paraphrased events and a cause named by file and line, though the author has read
+# the log lines and the code the cause rests on. The reader then takes the diagnosis
+# on trust, or asks to see the code and the log. The reader here is not Leaf's
+# maintainer and the work is not Leaf's, and no word budget is quoted.
+description: Duplicate invoices diagnosis
+metadata:
+  purpose: "A diagnosis quotes the code its cause rests on and the records of what
+    happened, at a depth that keeps the cause and the decision leading the page."
+  authoring: true
+  tags:
+    - evidence
+vars:
+  prompt: file://diagnosis-quotes-code-and-log/request.md
+assert:
+  - type: llm-rubric
+    metric: quotes-the-code
+    transform: "JSON.stringify({html: output, data: context.metadata.page_data})"
+    value: |
+      The output holds the page's markup as `html` and, as `data`, the value of each
+      data source the page binds, by id, which a widget naming that `source` draws. The
+      cause is that `retry` wraps the whole of `deliver`, so an UPDATE that times out
+      after the email went runs the send again. Pass only if the page quotes the code
+      this rests on, verbatim from `billing/send_invoices.py`: at least the
+      `@retry(...)` decorator on `deliver` together with the `mailer.send(` call and the
+      `UPDATE invoices SET sent_at` statement in its body (elisions between them are
+      fine), on arrival or behind a disclosure. Fail if the code appears only as file
+      and line references, a paraphrase, or a diagram or timeline of the calls.
+  - type: llm-rubric
+    metric: shows-what-happened
+    transform: "JSON.stringify({html: output, data: context.metadata.page_data})"
+    value: |
+      The output holds the page's markup as `html` and, as `data`, the value of each
+      data source the page binds, by id, which a widget naming that `source` draws. Pass
+      only if the page shows actual lines of `logs/invoice-run-2026-11-18.log`,
+      verbatim, for at least one duplicated invoice: such as `inv_88213`'s two `sent`
+      lines with the lock-timeout warning between them, or `inv_88211`'s three. They may
+      stand on arrival or behind a disclosure, and a timeline may sit beside them. Fail
+      if the run appears only as a timeline, table or prose that paraphrases the log.
+  - type: llm-rubric
+    metric: diagnosis-leads
+    value: |
+      Pass if a reader arriving at the page meets what happened, why, and the fix Dana
+      has to choose before tonight's run, without first reading through raw code or log:
+      long excerpts stand after the explanation they support or behind a disclosure or
+      tab. Fail if raw code or log fills the page ahead of the explanation or the
+      decision, or if the page leaves out the decision or the 6 invoices that need
+      `sent_at` set.

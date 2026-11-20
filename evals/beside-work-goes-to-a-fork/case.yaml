@@ -2,8 +2,8 @@
 # work could run beside the session (`forks.beside_line`), with the message's
 # delivery, while the session is partway through a change of its own. The rule is in
 # `references/harness-claude-code.md`, "Subagents": start the message, since the line
-# fork's working line takes nothing in hand, spawn a fork for it in the background,
-# which answers it itself, and pass the thread's later messages on to that fork. The
+# fork's working line doesn't start it, give it to a fork in the background, which
+# answers it itself, and pass the thread's later messages on to that fork. The
 # failure it invites is skipping the start because the thread already shows a working
 # line. Each context is the hook's output as Leaf writes it
 # (`hook_transport.carry_turn`: `inline_context` and the queued line), rendered from
@@ -110,7 +110,7 @@ vars:
      ]
     }
     ```
-    Leaf's line fork judged that a fork of this session could do the work of the user's message 70a0f2c6 in thread 70a0f2c6 on /Users/max/.local/state/leaf/pages/importer-review beside you, and posted your working line there, which takes nothing in hand. Start the message and spawn a fork for it, as the Leaf skill's `references/harness-claude-code.md`, "Subagents", says.
+    Leaf's line fork judged that a fork of this session could do the work of the user's message 70a0f2c6 in thread 70a0f2c6 on /Users/max/.local/state/leaf/pages/importer-review beside you, and posted your working line there, which doesn't start it. Start the message and give it to a fork, as the Leaf skill's `references/harness-claude-code.md`, "Subagents", says.
 
     The repository is /Users/max/src/importer.
 
@@ -249,7 +249,7 @@ variants:
          ]
         }
         ```
-        Leaf's line fork judged that a fork of this session could do the work of the user's message e2b85c17 in thread 70a0f2c6 on /Users/max/.local/state/leaf/pages/importer-review beside you, and posted your working line there, which takes nothing in hand. Start the message and spawn a fork for it, as the Leaf skill's `references/harness-claude-code.md`, "Subagents", says.
+        Leaf's line fork judged that a fork of this session could do the work of the user's message e2b85c17 in thread 70a0f2c6 on /Users/max/.local/state/leaf/pages/importer-review beside you, and posted your working line there, which doesn't start it. Start the message and give it to a fork, as the Leaf skill's `references/harness-claude-code.md`, "Subagents", says.
 
         The repository is /Users/max/src/importer.
 

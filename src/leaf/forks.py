@@ -669,15 +669,16 @@ def _post(session_id: str, basis: dict, text: str, beside: bool) -> dict:
 def beside_line(basis: dict) -> str:
     """The line telling the main session that the line fork judged that a fork of the
     session could do the work of the thread `basis` names beside it, for which the main
-    session starts the message and spawns one (`references/harness-claude-code.md`,
-    "Subagents"). The line fork's line takes nothing in hand (the module header), so
-    until the session starts the message, its turn's end leaves the message owed and
-    under way nowhere the page shows, which wakes the session for it again."""
+    session starts the message and gives it to a fork, a new one or the thread's own
+    (`references/harness-claude-code.md`, "Subagents"). The line fork's line takes
+    nothing in hand (the module header), so until the session starts the message, its
+    turn's end leaves the message owed and under way nowhere the page shows, which wakes
+    the session for it again."""
     return (
         "Leaf's line fork judged that a fork of this session could do the work of the "
         f"user's message {basis['inputs'][-1]} in thread {basis['thread']} on "
-        f"{basis['page']} beside you, and posted your working line there, which takes "
-        "nothing in hand. Start the message and spawn a fork for it, as the Leaf "
+        f"{basis['page']} beside you, and posted your working line there, which doesn't "
+        "start it. Start the message and give it to a fork, as the Leaf "
         'skill\'s `references/harness-claude-code.md`, "Subagents", says.'
     )
 

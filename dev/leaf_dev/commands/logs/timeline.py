@@ -614,7 +614,7 @@ def debug_entries(log: str, session: str, *, calls: bool) -> list[dict]:
 
 def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
     """One message's steps, in seconds after its admission: whether admission kept
-    it back or a fork turn held it (`kept`, its `fork_admission` notes), and why it
+    it back or a line turn held it (`kept`, its `fork_admission` notes), and why it
     found no fork lane (`followers`, `without_lane`), what its fork did, and the
     page's and the session's steps on it (`row`, `page_timings`' reading of it)."""
     marks = row["milestones"]

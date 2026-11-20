@@ -561,7 +561,7 @@ def turn_runs(written: dict, present: dict, turn: Turn, agents: set[str]) -> boo
 
 
 def _start_age(
-    start: dict, present: dict, now: datetime, turn: Turn, agents: set[str]
+    start: dict, present: dict, now: datetime, turn: Turn
 ) -> tuple[bool, bool]:
     """How quiet a start is, and whether dropped: a start the claimant's ended turn
     wrote, from the moment that ending is seen, or any start unheard for the working
@@ -572,18 +572,10 @@ def _start_age(
     while the harness says the session still works in the background
     (`Turn.busy`), as a coordinator's workers do. Without that word the page
     stops reading as working once the turn is seen to end, rather than holding the
-    agent's last line under a grace in case a later turn takes it up.
-
-    A start an agent of the session wrote in its own turn (`state.acting_turn`)
-    stands while that turn runs (`agents`, `running_agent_turns`), whatever the main
-    thread's turn does, and is quiet once it ends."""
+    agent's last line under a grace in case a later turn takes it up."""
     same_session = bool(
         start.get("session") and start["session"] == present.get("claim_session")
     )
-    if same_session and start.get("turn") in present["agent_turns"]:
-        return _quiet(start["ts"], now, WORKING_GRACE) or start[
-            "turn"
-        ] not in agents, False
     dropped = same_session and not turn.busy and _dropped(start["ts"], turn.ended)
     return _quiet(start["ts"], now, WORKING_GRACE) or dropped, dropped
 
@@ -595,7 +587,6 @@ def _canonical_workflows(
     *,
     held: bool,
     turn: Turn,
-    agents: set[str],
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
     """Age each workflow's evidence, and return beside them, for each Working update,
     the start that holds it and how quiet and whether dropped that start is, which
@@ -608,7 +599,7 @@ def _canonical_workflows(
         stage = item["stage"]
         if stage == "working":
             if held:
-                quiet, dropped = _start_age(start, present, now, turn, agents)
+                quiet, dropped = _start_age(start, present, now, turn)
                 if quiet:
                     item["condition"] = {"kind": "stale", "operation": "work"}
                 aging[item["id"]] = (start, quiet, dropped)
@@ -636,7 +627,6 @@ def _canonical_todos(
     *,
     held: bool,
     turn: Turn,
-    agents: set[str],
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
     """Age the start running on each open to-do as a Working update's is aged, and
     return beside them, for each to-do a start ran on, that start and how quiet and
@@ -651,7 +641,7 @@ def _canonical_todos(
         todo = dict(raw)
         start = todo["running"]
         if start is not None and held:
-            quiet, dropped = _start_age(start, present, now, turn, agents)
+            quiet, dropped = _start_age(start, present, now, turn)
             aging[todo["id"]] = (start, quiet, dropped)
             if quiet:
                 todo["running"] = None
@@ -744,11 +734,9 @@ def canonical_activity(
         return holding.of(item["input"]).holder
 
     workflows, aging = _canonical_workflows(
-        interaction_evidence, present, now, held=held, turn=turn, agents=agents
+        interaction_evidence, present, now, held=held, turn=turn
     )
-    todos, todo_aging = _canonical_todos(
-        log.owed, present, now, held=held, turn=turn, agents=agents
-    )
+    todos, todo_aging = _canonical_todos(log.owed, present, now, held=held, turn=turn)
     bindings = _receipt_bindings(workflows, present)
     _bind_reply(workflows, reply)
     owing = {

@@ -58,9 +58,11 @@ with you. A separate Claude Code session has its own id and can drive a page of 
 own.
 
 When Leaf tells you that a fork of this session could do a thread message's work
-beside you, start the message, `leaf task start <page> <message> --text "<what the
-fork is doing>"`, since the working line Leaf posted takes nothing in hand. Then spawn
-a fork of yourself for it in the background (the Agent tool's `fork` type), so its
-work runs beside yours and you stay free for the user; it does the work and answers
-the message itself with its `answer.ref`. Pass the user's later messages in that
-thread on to the same fork with SendMessage, each with its `answer.ref`.
+beside you, give the message to a fork of yourself in the background (the Agent
+tool's `fork` type), so its work runs beside yours and you stay free for the user.
+Unlike a worker that reports to you, the fork answers the message itself, with its
+`answer.ref`. Give the user's later messages in that thread to the same fork with
+SendMessage, each with its `answer.ref`. Start each message you give a fork, as
+`conversation-loop.md`, "Long-running work", says for any worker's update:
+`leaf task start <page> <message> --text "<what the fork is doing>"`. The working
+line Leaf posted doesn't start it.

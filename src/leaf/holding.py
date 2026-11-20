@@ -396,7 +396,7 @@ def authorize(
     thread from the turn that held it, by the module header's rule. The user chose
     that such a write goes through on a thread a line turn holds, rather than being
     refused, and says so beside its result: the advice this returns
-    (`fork-holds-thread`), where a line turn holds the thread (`holder`). `thread`,
+    (`fork-holds-thread`), where a line turn holds the thread. `thread`,
     where given, names the write's thread, as a reply's parent or a to-do's subject
     does, which an answer to a thread widget names by no message of its own;
     otherwise each of `input_ids` names its own."""
@@ -416,12 +416,8 @@ def authorize(
         [thread] if thread is not None else [names[i] for i in input_ids if i in names]
     )
     for name in threads:
-        if (owes := holding.hold(name).holder)["kind"] != "main":
-            return Finding(
-                "fork-holds-thread",
-                values={"holder": owes},
-                severity="advice",
-            )
+        if holding.hold(name).holder["kind"] != "main":
+            return Finding("fork-holds-thread", severity="advice")
     return None
 
 

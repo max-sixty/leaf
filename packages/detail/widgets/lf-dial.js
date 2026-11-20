@@ -156,7 +156,7 @@ const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
 
 // PROTOTYPE: ways the dial can show how long each depth takes, for the maintainer to
 // pick from. Each is a custom property a page sets on the dial, read as it draws:
-// `--lf-dial-rest` (`none`, `minutes`, `chosen`, `gauge`), what the dial shows at
+// `--lf-dial-rest` (`none`, `minutes`, `stacked`, `gauge`), what the dial shows at
 // rest; `--lf-dial-point` (`title`, `words`, `bars`, `strips`, `map`), what pointing at a depth
 // adds; `--lf-dial-page` (`none`, `ghost`), whether pointing at a depth marks on the
 // page what turning to it would hide or open; and `--lf-dial-folds` (`plain`,
@@ -174,6 +174,11 @@ const GHOST = "data-lf-dial-ghost";
 /** @typedef {{skim: number, read: number, all: number, blocks: Sized[]}} Sizes */
 /** @typedef {"skim" | "read" | "all"} Depth */
 
+// Set a property only where it changes, so observers of the dial hear no idle write.
+/** @param {HTMLElement} node @param {string} name @param {string} value */
+const restyle = (node, name, value) => {
+  if (node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value);
+};
 /** @param {number} seconds */
 const minutes = (seconds) => `${Math.max(1, Math.round(seconds / 60))} min`;
 /** @param {Sized} block @param {string} depth */
@@ -189,45 +194,47 @@ const secondsAt = (block, depth) =>
 // Each depth a bar on one baseline, as long as it takes to read, the pointed one in
 // full ink and the others faint.
 /** @param {Sizes} sizes @param {string} pointed */
-const sizeBars = (sizes, pointed) => html`<span class="lf-dial-bars">
-  ${DEPTHS.map(({ name, label }) => {
-    const time = sizes[/** @type {Depth} */ (name)];
-    return html`<span
-      class="lf-dial-bars-row"
-      ?data-pointed=${name === pointed}
-      style=${`--share: ${(100 * time) / Math.max(sizes.all, 1)}%`}
-    >
-      <span class="lf-dial-bars-name">${label}</span>
-      <span class="lf-dial-bars-track"><span class="lf-dial-bars-fill"></span></span>
-      <span class="lf-dial-bars-time">${minutes(time)}</span>
-    </span>`;
-  })}
-</span>`;
+const sizeBars = (sizes, pointed) =>
+  html`<span class="lf-dial-bars">
+    ${DEPTHS.map(({ name, label }) => {
+      const time = sizes[/** @type {Depth} */ (name)];
+      return html`<span
+        class="lf-dial-bars-row"
+        ?data-pointed=${name === pointed}
+        style=${`--share: ${(100 * time) / Math.max(sizes.all, 1)}%`}
+      >
+        <span class="lf-dial-bars-name">${label}</span>
+        <span class="lf-dial-bars-track"><span class="lf-dial-bars-fill"></span></span>
+        <span class="lf-dial-bars-time">${minutes(time)}</span>
+      </span>`;
+    })}
+  </span>`;
 
 // The bars, each drawn as the page it reads: a run of the depth's blocks in order,
 // each as long as it takes to read, a heading strong, a picture tinted, text pale.
 /** @param {Sizes} sizes @param {string} pointed */
-const sizeStrips = (sizes, pointed) => html`<span class="lf-dial-bars lf-dial-strips">
-  ${DEPTHS.map(({ name, label }) => {
-    const time = sizes[/** @type {Depth} */ (name)];
-    const all = Math.max(sizes.all, 1);
-    return html`<span class="lf-dial-bars-row" ?data-pointed=${name === pointed}>
-      <span class="lf-dial-bars-name">${label}</span>
-      <span class="lf-dial-bars-track"
-        >${sizes.blocks.map((block) => {
-          const seconds = secondsAt(block, name);
-          return seconds
-            ? html`<span
-                class=${`lf-dial-strip-${block.kind}`}
-                style=${`inline-size: ${(100 * seconds) / all}%`}
-              ></span>`
-            : null;
-        })}</span
-      >
-      <span class="lf-dial-bars-time">${minutes(time)}</span>
-    </span>`;
-  })}
-</span>`;
+const sizeStrips = (sizes, pointed) =>
+  html`<span class="lf-dial-bars lf-dial-strips">
+    ${DEPTHS.map(({ name, label }) => {
+      const time = sizes[/** @type {Depth} */ (name)];
+      const all = Math.max(sizes.all, 1);
+      return html`<span class="lf-dial-bars-row" ?data-pointed=${name === pointed}>
+        <span class="lf-dial-bars-name">${label}</span>
+        <span class="lf-dial-bars-track"
+          >${sizes.blocks.map((block) => {
+            const seconds = secondsAt(block, name);
+            return seconds
+              ? html`<span
+                  class=${`lf-dial-strip-${block.kind}`}
+                  style=${`inline-size: ${(100 * seconds) / all}%`}
+                ></span>`
+              : null;
+          })}</span
+        >
+        <span class="lf-dial-bars-time">${minutes(time)}</span>
+      </span>`;
+    })}
+  </span>`;
 
 // The page at each depth, drawn to one scale, each block a bar as long as it takes
 // to read: a heading a short strong bar, a picture a tinted box, text a pale bar.
@@ -403,9 +410,10 @@ customElements.define(
       if (this.#depths) this.#depths.value = this.#depth;
       // PROTOTYPE: the settings, and each depth's size where they show it.
       const rest = this.#setting("rest", "none");
-      this.dataset.rest = rest;
+      if (this.dataset.rest !== rest) this.dataset.rest = rest;
       const folds = this.#setting("folds", "plain");
-      for (const marker of this.#runs.keys()) marker.dataset.folds = folds;
+      for (const marker of this.#runs.keys())
+        if (marker.dataset.folds !== folds) marker.dataset.folds = folds;
       const sizes = rest === "none" ? null : this.#measure();
       if (!sizes || !this.#gauge) return;
       const share = (/** @type {number} */ seconds) =>
@@ -413,11 +421,12 @@ customElements.define(
       for (const [name, radio] of this.#radios) {
         const time = sizes[/** @type {Depth} */ (name)];
         const words = radio.querySelector(".lf-dial-time");
-        if (words) words.textContent = ` ${minutes(time)}`;
+        if (words && words.textContent !== ` ${minutes(time)}`)
+          words.textContent = ` ${minutes(time)}`;
       }
-      this.#gauge.style.setProperty("--skim", share(sizes.skim));
-      this.#gauge.style.setProperty("--read", share(sizes.read));
-      this.#gauge.style.setProperty("--at", share(sizes[/** @type {Depth} */ (this.#depth)]));
+      restyle(this.#gauge, "--skim", share(sizes.skim));
+      restyle(this.#gauge, "--read", share(sizes.read));
+      restyle(this.#gauge, "--at", share(sizes[/** @type {Depth} */ (this.#depth)]));
     }
 
     // PROTOTYPE: one of the dial's settings, from its `--lf-dial-NAME`.
@@ -437,11 +446,13 @@ customElements.define(
     /** @param {string} name @param {string} title */
     #preview(name, title) {
       this.#unghost?.();
-      this.#unghost = this.#setting("page", "none") === "ghost" ? this.#ghost(name) : null;
+      this.#unghost =
+        this.#setting("page", "none") === "ghost" ? this.#ghost(name) : null;
       const all = this.#measure()?.all ?? 1;
       const at = this.#measure()?.[/** @type {Depth} */ (name)] ?? 0;
-      this.dataset.pointed = name;
-      this.#gauge?.style.setProperty("--pointed", `${(100 * at) / Math.max(all, 1)}%`);
+      if (this.dataset.pointed !== name) this.dataset.pointed = name;
+      if (this.#gauge)
+        restyle(this.#gauge, "--pointed", `${(100 * at) / Math.max(all, 1)}%`);
       const point = this.#setting("point", "words");
       const sizes = point === "title" ? null : this.#measure();
       if (!sizes) return { detail: [title] };
@@ -474,7 +485,9 @@ customElements.define(
       if (this.#depth === "all")
         for (const details of this.#opened)
           if (shown(details))
-            goes.push(...[...details.children].filter((child) => child.localName !== "summary"));
+            goes.push(
+              ...[...details.children].filter((child) => child.localName !== "summary"),
+            );
       // Leaving Skim opens every fold.
       if (this.#depth === "skim") comes.push(...this.#runs.keys());
       if (name === "all")
@@ -758,7 +771,9 @@ customElements.define(
           offer(
             "span",
             "lf-dial-more-time",
-            seconds < 50 ? `${Math.max(10, Math.round(seconds / 10) * 10)} s` : minutes(seconds),
+            seconds < 50
+              ? `${Math.max(10, Math.round(seconds / 10) * 10)} s`
+              : minutes(seconds),
           ),
         );
         marker.dataset.folds = this.#setting("folds", "plain");

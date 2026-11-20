@@ -51,16 +51,28 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 
 /* PROTOTYPE: each depth's size, as the dial's settings show it (lf-dial.js). */
 
-/* At rest, minutes: each depth's time after its word, a step quieter, or only the
-   chosen depth's. */
+/* At rest, minutes: each depth's time after its word, a step quieter. */
 .lf-dial-time {
   display: none;
 }
-lf-dial[data-rest="minutes"] .lf-dial-time,
-lf-dial[data-rest="chosen"] .lf-dial-depth[aria-checked="true"] .lf-dial-time {
+lf-dial[data-rest="minutes"] .lf-dial-time {
   display: inline;
   white-space: pre;
   font-weight: 400;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* At rest, stacked: each depth's time on a line of its own under its word. */
+lf-dial[data-rest="stacked"] .lf-dial-depth::part(label) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+}
+lf-dial[data-rest="stacked"] .lf-dial-time {
+  display: block;
+  font: var(--lf-font-fine);
   color: color-mix(in srgb, currentColor 62%, transparent);
   font-variant-numeric: tabular-nums;
 }

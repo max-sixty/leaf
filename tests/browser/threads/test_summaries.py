@@ -5,7 +5,6 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record, append_command
-from leaf_dev.browser import ON_ME_MARK
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_harness import (
@@ -24,6 +23,7 @@ from browser.threads import (
 )
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import ON_ME_MARK
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -192,7 +192,9 @@ def test_on_me_opens_the_fold_over_a_message_it_lists(browser, serve):
     others, so the thread shows the summary alone. On Me still lists what they ask, and
     its Show lands on the asking message, opening the fold around it."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Is forty megabytes enough?", {"section": "s-how"})
+    root = panel_comment(
+        serve.page_dir, "Is forty megabytes enough?", {"section": "s-how"}
+    )
     asked = append_carried_log_record(
         serve.page_dir,
         {

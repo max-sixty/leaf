@@ -234,12 +234,14 @@ lf-event::before {
 }
 .lf-timeline-steps-run,
 .lf-timeline-step-cell {
+  box-sizing: border-box;
   padding-inline-end: var(--lf-sp-3);
 }
 /* An event that wraps hangs its later lines, so the next event's lane starts its
    own line at the column's edge. */
 .lf-timeline-step-event {
   display: block;
+  box-sizing: border-box;
   padding-inline-start: 1em;
   text-indent: -1em;
 }

@@ -11,8 +11,8 @@
  *   with its count of what waits on the user as a badge over its corner and a dot for
  *   threads with news, the row gathered into it where it stands at the row's end. The
  *   user folds it from the leaf's menu or with `.`, or by a pointer with the small round
- *   button that rides the box's top-right corner while the pointer is near it and no
- *   view's Close holds that corner; a
+ *   button that rides the box's top-left corner while the pointer is near it and no
+ *   view's head line holds that corner; a
  *   press on the leaf unfolds it, and it stays as it was left across pages (`rest`).
  *   Once the page presents, its status tooltip keeps the explanation it opened for
  *   one pointer or focus exposure, so news and aging words cannot move text being
@@ -965,16 +965,19 @@ export function createFloatingPanel({
   const stage = shell("stage");
   const head = shell("head");
   const controls = shell("controls");
-  // The fold mark rides the box's top-right corner, chosen over the row's end.
-  // The menu's fold row and `.` provide its keyboard and touch routes.
-  // It shows only while the pointer is near the corner it rides, so the panel at rest,
-  // and under a pointer passing over the field or the marks, carries no control the user
-  // did not reach for. Near is the box's top-right corner, a mark's width in
-  // and half a row down, which holds the button itself. The corner moves when the box changes
-  // size under a still pointer, as a view opening above a press on Send carries it up,
-  // so nearness is read again then (`follow`): a button left showing where the
-  // pointer no longer is would ride the box's next change, such as a refused send
-  // taking that view back, across the window without input.
+  // The fold mark rides the box's top-left corner, where macOS keeps a window's
+  // minimize, at the far end from the leaf it folds to. The user chose it over the
+  // top-right corner, where the leaf's count badge stands since the leaf took the
+  // row's end, and over dropping the mark, which leaves a pointer two presses from a
+  // fold, through the menu's row. That row and `.` provide its keyboard and touch
+  // routes. It shows only while the pointer is near the corner it rides, so the panel
+  // at rest, and under a pointer passing over the field or the leaf, carries no
+  // control the user did not reach for. Near is the box's top-left corner, a mark's
+  // width in and half a row down, which holds the button itself. The corner moves when
+  // the box changes size under a still pointer, as a view opening above a press on Send
+  // carries it up, so nearness is read again then (`follow`): a button left showing
+  // where the pointer no longer is would ride the box's next change, such as a refused
+  // send taking that view back, across the window without input.
   const CORNER = { across: 64, down: 24 };
   /** @type {{x: number, y: number} | null} */
   let pointer = null;
@@ -982,7 +985,7 @@ export function createFloatingPanel({
     const box = card.getBoundingClientRect();
     const near =
       pointer !== null &&
-      pointer.x >= box.right - CORNER.across &&
+      pointer.x <= box.left + CORNER.across &&
       pointer.y <= box.top + CORNER.down;
     keeps(host, "data-lf-corner", near ? "" : null);
   };

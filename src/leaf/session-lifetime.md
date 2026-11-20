@@ -134,14 +134,13 @@ keeps nothing. The line goes in acting in its line turn (`state.acting_in`), and
 refused once that turn isn't open (`state.acting_agent_turn`). Every command acts as
 the main thread, a subagent's included. A pickup or a reply names the line turn as it
 names the main thread's turn: the page's served reading carries the claimant's line
-turns that are open and not yet lapsed or that its log names (`agent_turns`), and the
-fold believes one running while it is open and not yet lapsed
-(`activity.running_agent_turns`).
+turns that are open and not yet lapsed (`agent_turns`), the only ones the fold believes
+running (`activity.running_agent_turns`).
 
 Which turn holds each thread, the main thread's or a line turn, with its waiting
 messages, is one reading every reader asks (`holding.py`, whose header states the
 rule; `forks.page_holding`), and `leaf page state`'s `holder` names it: the main
-thread, or a line turn, with whether it runs. The newest pickup of a thread's
+thread, or a running line turn. The newest pickup of a thread's
 waiting messages holds them, and an answer takes its thread as a pickup does. A
 thread Leaf keeps back while a line fork judges it is its line turn's, by that turn's
 `held` pickup, which takes nothing in: no reader of delivery counts it, so the

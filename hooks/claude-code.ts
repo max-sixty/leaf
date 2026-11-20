@@ -10,7 +10,8 @@
  * forks needs no change here. The module adds what only it sees: the tool calls the
  * main thread is running (`running`), the main thread's last request (`lastStep`)
  * and a main-loop turn's end (`turnEnded`). A subagent the session spawns runs these
- * hooks too, naming itself (`agentId`), and they leave its calls and turns alone.
+ * hooks too, naming itself (`agentId`), and they leave its calls and turns alone, but
+ * for starting the pages follower after a `leaf` command, as any session's does.
  * Claude Code loads the module from the installed plugin (measured at 2.1.305).
  * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which

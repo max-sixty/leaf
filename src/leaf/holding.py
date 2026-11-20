@@ -158,8 +158,6 @@ def rounds(events: list[dict], threads: dict[str, dict]) -> Rounds:
 
 
 MAIN = {"kind": "main"}
-
-
 LINE = {"kind": "line"}
 
 
@@ -398,10 +396,9 @@ def authorize(
     thread from the turn that held it, by the module header's rule. The user chose
     that such a write goes through on a thread a line turn holds, rather than being
     refused, and says so beside its result: the advice this returns
-    (`fork-holds-thread`), where the thread's holder owes its answer (`holder`).
-    `thread`, where
-    given, names the write's thread, as a reply's parent or a to-do's subject does,
-    which an answer to a thread widget names by no message of its own;
+    (`fork-holds-thread`), where a line turn holds the thread (`holder`). `thread`,
+    where given, names the write's thread, as a reply's parent or a to-do's subject
+    does, which an answer to a thread widget names by no message of its own;
     otherwise each of `input_ids` names its own."""
     from .state import acting_agent_turn
 

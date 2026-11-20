@@ -104,10 +104,14 @@ through the failure answer `thread.fail_answer` writes.
 
 Each consumer selects its own obligations. `leaf page close` refuses over
 `activity.blocking_obligations`, and the Stop hook holds the turn over
-`activity.turn_obligations`, the blocking ones the open turn has not started and no
-agent turn holds (below). A start
-is the agent's answer for now, and it does not carry into the next turn. Only the
-records the agent owes enter activity counts. Pickup never declares a status, and
+`activity.turn_obligations`, the blocking ones no start holds and no agent turn
+holds (below). A start is the agent's answer for now. It holds its update while the
+turn that wrote it runs, and after that turn while the harness says the session has
+worked without a break since the start, in the background (`activity.start_holds`).
+A harness that says nothing of the session (`Harness.live_turn`) never does, so
+there a start lapses with its turn.
+The page reads the update in hand, and no prompt or wake reminds the agent of it,
+for exactly that long. Only the records the agent owes enter activity counts. Pickup never declares a status, and
 ending a turn settles none of its input.
 
 A start names one item and has to be renewed. What holds work across turns is the
@@ -223,7 +227,7 @@ tool-boundary and Stop hooks hand into a turn:
 
 - Stop continues a turn for a page of the session's that has no running watcher and
   holds pending input or a status other than idle, and, where no watch follows the
-  turn, for each owed update the turn has not started (`activity.turn_obligations`).
+  turn, for each owed update no start holds (`activity.turn_obligations`).
   Where a watch follows the turn, the turn ends on its answer, and the watch wakes a
   turn of its own that names an owed update once per delivery (`session.left_owed`).
 - A page carrying `preview.json` owes no watcher for its status, since only a page

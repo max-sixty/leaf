@@ -289,7 +289,8 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     subagents it left run. Until the record leaves `busy`, the page reads working,
     in the agent's last line, with the background observed beside it. A background
     shell leaves the record `shell`, which is idle, and the page reads the turn
-    ended at once."""
+    ended at once. The record dates its `busy`, so work that starts after that
+    break doesn't bring the start back."""
     serving(claimed, 1)
     registry = harness_model.claude_code_sessions()
     registry.mkdir(parents=True, exist_ok=True)
@@ -350,6 +351,14 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             True,
             "",
         )
+
+    # Background work the session starts after that break carries no start the
+    # break dropped.
+    harness_says("busy")
+    assert _activity_at(claimed, 10)["obligations"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "work",
+    }
 
 
 def test_a_turn_claude_code_runs_reads_working_over_unstarted_to_dos(claimed):

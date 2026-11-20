@@ -821,9 +821,9 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     Working, with the start's line beside it. Work longer than a few minutes goes to
     background workers whose results wake a later turn, so the turn that started the
     move may end over it. Holding that turn made agents post a reply saying only what
-    the start already said. The start does not carry into the next turn, which
-    answers the move or starts it again, and idling still refuses over it: closing
-    the page answers nothing."""
+    the start already said. With no background work the harness reports to carry it,
+    the start does not carry into the next turn, which answers the move or starts it
+    again, and idling still refuses over it: closing the page answers nothing."""
     lease = _watched(claimed)
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "sketch both?"}
@@ -850,10 +850,11 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"your start on {asked['id']} predates this turn" in prompt["additionalContext"]
+        f"your start on {asked['id']} lapsed when its turn ended"
+        in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"your start on {asked['id']} predates this turn" in reason
+    assert f"your start on {asked['id']} lapsed when its turn ended" in reason
     assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
@@ -879,7 +880,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
-    assert f"your start on {asked['id']} predates this turn" in reason
+    assert f"your start on {asked['id']} lapsed when its turn ended" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 

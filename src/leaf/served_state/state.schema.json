@@ -597,7 +597,7 @@
           ]
         },
         "started_by": {
-          "description": "The starts that take the update in hand, which the Stop hook reads.",
+          "description": "The starts that take the update in hand, from which the hooks read whether one holds it now (`activity.in_hand`).",
           "type": "array",
           "items": {
             "type": "object",
@@ -605,9 +605,10 @@
               "item": { "type": "string" },
               "session": { "type": ["string", "null"] },
               "turn": { "type": ["string", "null"] },
-              "seq": { "type": "integer" }
+              "seq": { "type": "integer" },
+              "ts": { "type": "string" }
             },
-            "required": ["item", "session", "turn", "seq"],
+            "required": ["item", "session", "turn", "seq", "ts"],
             "additionalProperties": false
           }
         },

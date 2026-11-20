@@ -771,10 +771,12 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
         seen = successor_due.setdefault(turn_ending(claim), time.monotonic())
         return time.monotonic() > seen + HOOK_TIMEOUT_S
 
-    # What `left_owed` found on each page, by the log, the turn and the agent turns
-    # running it read, so a pass that finds nothing changed folds no page. An agent's
-    # turn closing or lapsing gives what it held to the main thread without a log
-    # write (`holding.running_turns`).
+    # What `left_owed` found on each page, by the log, the turn, the agent turns
+    # running and the harness's word on the session it read, so a pass that finds
+    # nothing changed folds no page. An agent's turn closing or lapsing gives what it
+    # held to the main thread without a log write (`holding.running_turns`), and the
+    # session's background work ending lapses the starts it carried
+    # (`activity.start_holds`).
     owed: dict[Path, tuple[tuple, list[dict]]] = {}
 
     def reminders(page: PageTransaction) -> list[dict]:
@@ -782,6 +784,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
         from .state import agent_turn_stamps
 
         claim = page.active_claim
+        live = harness.live_turn() or {}
         key = (
             len(page.events),
             claim and claim["turn"],
@@ -789,6 +792,8 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             frozenset(running_turns(agent_turn_stamps(claim)))
             if claim
             else frozenset(),
+            live.get("state"),
+            live.get("since"),
         )
         if (kept := owed.get(page.page_dir)) is None or kept[0] != key:
             owed[page.page_dir] = kept = (key, left_owed(page))

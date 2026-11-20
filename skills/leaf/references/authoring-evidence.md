@@ -1,7 +1,7 @@
 # Interactive and external evidence
 
 Where the page's vocabulary has no widget for a form below, select the package that
-adds it (`packages.md`, "Package reach").
+adds it (`leaf package list`).
 
 ## Measured facts
 

@@ -74,11 +74,15 @@ def require_capture_fonts(page: Page) -> None:
         document = session.send("DOM.getDocument")["root"]["nodeId"]
         missing = {}
         for selector, required in REQUIRED_FONTS.items():
-            node = session.send(
-                "DOM.querySelector", {"nodeId": document, "selector": selector}
-            )["nodeId"]
+            # Chrome reports the fonts of a node's own text, and the words may stand
+            # in an element inside the one the selector names.
+            nodes = session.send(
+                "DOM.querySelectorAll",
+                {"nodeId": document, "selector": f"{selector}, {selector} *"},
+            )["nodeIds"]
             actual = {
                 font["familyName"]
+                for node in nodes
                 for font in session.send(
                     "CSS.getPlatformFontsForNode", {"nodeId": node}
                 )["fonts"]

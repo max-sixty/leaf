@@ -33,7 +33,7 @@ in its own form:
 The page's vocabulary provides most of these forms as widgets whose entries say what
 each shows ("Read the registry"). Use the one it offers rather than building the form
 yourself, and where the page has none, select the package that adds it
-(`packages.md`, "Package reach").
+(`leaf package list`).
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
 sizes, and what contains or links them. Add one where that geometry makes a

@@ -66,6 +66,7 @@ from leaf import revision_artifact as artifact_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
 from leaf.page import page_instructions
@@ -2620,41 +2621,65 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
 
 
 def test_every_token_a_sheet_reads_is_set_somewhere():
-    """A `var(--name)` with no fallback reads a property something sets: a sheet's
-    declaration or `@property`, or a module or delivery writing it by name. One nothing
-    sets makes its declaration invalid, so the property falls back to what it inherits or
-    its initial value, and the page shows no sign of it: a hover background that never
-    painted, an empty state with no padding, a size the scale has no step for."""
-    # Anything that names a property as a declaration, an `@property` or a string sets
-    # it, a vendored component's sheet included; what is read is Leaf's own sheets.
-    written, prefixes, reads = set(), set(), []
+    """A `var(--name)` with no fallback that Leaf's own sheets reach reads a property something
+    sets: a sheet's declaration or `@property`, or a module or delivery writing it by
+    name (`styles.set_properties`). `package check` holds a package's sheets to the same
+    reading (`packages.unset_properties`); this holds every bundled package's at once,
+    with each bundled package counted as setting what it sets."""
     sources = (
         schema_model.ASSETS,
         schema_model.BUNDLED_PACKAGES,
         Path(schema_model.__file__).parent,
     )
-    for source in sorted(path for root in sources for path in root.rglob("*")):
-        if source.suffix not in (".css", ".js", ".py"):
-            continue
-        text = source.read_text()
-        written |= set(re.findall(r"(--[\w-]+)\s*:", text))
-        written |= set(re.findall(r"@property\s+(--[\w-]+)", text))
-        written |= set(re.findall(r"[\"'`](--[\w-]+)[\"'`]", text))
-        prefixes |= set(re.findall(r"`(--[\w-]+)\$\{", text))
-        if source.suffix != ".css" or "vendor" in source.parts:
-            continue
-        for _conditions, _enclosing, selector, declarations in _style_rules(source):
-            reads += [
-                (name, f"{source.relative_to(schema_model.ASSETS.parent)}: {selector}")
-                for _property, value in declarations
-                for name in re.findall(r"var\(\s*(--[\w-]+)\s*\)", value)
-            ]
-    unset = sorted(
-        f"{where} reads {name}"
-        for name, where in set(reads)
-        if name not in written and not name.startswith(tuple(prefixes))
+    paths = sorted(path for root in sources for path in root.rglob("*"))
+    names, prefixes = styles_model.set_properties(
+        path.read_text() for path in paths if path.suffix in (".css", ".js", ".py")
     )
+    unset = sorted(
+        f"{path.relative_to(ROOT)}:{row} reads {name}"
+        for path in paths
+        if path.suffix == ".css" and "vendor" not in path.parts
+        for name, row in styles_model.unguarded_reads(
+            path.read_text(),
+            lambda name: name in names or name.startswith(prefixes),
+        )
+    )
+    assert len(paths) > 20, paths
     assert not unset, "a token nothing sets:\n" + "\n".join(unset)
+
+
+def test_package_check_advises_on_a_token_nothing_sets(tmp_path):
+    """A package sheet that reads a custom property nothing sets, as one written for a
+    token Leaf has renamed does, passes the check with advice naming the property and
+    its lines; a theme token, a fallback, a property the package sets and one an
+    `@supports` condition names, which tests syntax rather than reading it, and a
+    fallback read only when a set primary value is unset, pass quietly; a fallback
+    behind an unset primary value is read."""
+    package = tmp_path / "notebox"
+    package.mkdir()
+    (package / "defaults.css").write_text(
+        "lf-note-box {\n"
+        "  color: var(--muted);\n"
+        "  background: var(--lf-ground);\n"
+        "  border-color: var(--absent, currentColor);\n"
+        "  --own: 1px;\n"
+        "  border-width: var(--own);\n"
+        "  outline-color: var( --muted );\n"
+        "}\n"
+        "@supports (color: var(--probe)) {\n"
+        "  lf-note-box { color: var(--muted); }\n"
+        "}\n"
+        "p { --present: green; color: var(--present, var(--missing)); }\n"
+        "p { color: var(--absent, var(--muted)); }\n"
+    )
+
+    status, findings = package_findings(package)
+
+    assert status == 0
+    assert [(f.code, f.severity, f.values["property"]) for f in findings] == [
+        ("unset-property", "advice", "--muted")
+    ]
+    assert findings[0].values["rows"] == [2, 7, 10, 13]
 
 
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
@@ -4791,7 +4816,7 @@ def test_page_init_does_not_treat_an_unknown_bare_name_as_a_path(tmp_path, monke
 
     assert result.exit_code == 1
     assert "unknown package 'solo'" in result.output
-    assert "run `leaf package install`" in result.output
+    assert "`leaf package list`" in result.output
     assert "use './solo'" in result.output
     assert not page.exists()
 
@@ -5424,6 +5449,52 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
+
+
+def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_path):
+    """`package list` names what `page init --package NAME` selects: an installed
+    package under a name of its own beside the bundled ones, described by the first
+    paragraph of its author instructions and its entries' descriptions, and an
+    installed package in place of the bundled one whose name it takes. `default`, on
+    every page already, and the theme `theme list` offers are not listed."""
+    team = tmp_path / "src" / "team-charts"
+    packages_model.cmd_package_init(team, "lf-trend")
+    (team / "instructions").mkdir(exist_ok=True)
+    (team / "instructions" / "author.md").write_text(
+        "## When to select it\n\n"
+        "Select this package for the analytics team's pages.\n"
+        "It charts in their house style.\n\n"
+        "Give every chart a label.\n"
+    )
+    diagram = tmp_path / "src" / "diagram"
+    packages_model.cmd_package_init(diagram)
+    for source in (team, diagram):
+        installed = CliRunner().invoke(
+            cli_model.cli, ["package", "install", str(source)]
+        )
+        assert installed.exit_code == 0, installed.output
+
+    listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
+
+    assert listed.exit_code == 0, listed.output
+    packages = {each["name"]: each for each in json.loads(listed.output)["packages"]}
+    assert packages["team-charts"] == {
+        "name": "team-charts",
+        "installed": True,
+        "description": "Select this package for the analytics team's pages. "
+        "It charts in their house style.",
+        "entries": {
+            "lf-trend": packages_model.starter_element_declaration("lf-trend")[
+                "description"
+            ]
+        },
+    }
+    assert packages["diagram"]["installed"] is True
+    assert packages["diagram"]["entries"] == {}
+    assert packages["playwright"]["installed"] is False
+    assert "lf-trace" in packages["playwright"]["entries"]
+    assert "default" not in packages
+    assert "reading" not in packages
 
 
 def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(

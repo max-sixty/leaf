@@ -39,7 +39,6 @@ import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import * as z from "zod/mini";
 import type {
   Event,
-  ServedDraftsAnswer,
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
@@ -234,30 +233,53 @@ export class LeafSession extends DurableObject<Env> {
     );
   }
 
-  savedRecords(): Response {
-    return this.pages.records();
-  }
-
-  async saveBlob(digest: string, bytes: ArrayBuffer): Promise<void> {
-    await this.pages.saveBlob(digest, bytes);
-  }
-
-  async preparePublication(
-    value: unknown,
-  ): Promise<{ identity: string; missing: string[] }> {
-    const publication = readPublication(value);
+  /** A request the container sent its page store, which `SessionOutbound` passes on.
+   * The object answers it under its own code and refuses a container on another release
+   * before reading or writing anything (`storage.ts`). The handler can't: Cloudflare can
+   * run it on a newer Worker version than the object for some seconds after a deploy,
+   * and the object can restart on newer code while a request the handler passed is on
+   * its way. */
+  async pageStore(request: Request): Promise<Response> {
     const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
-    return this.pages.prepare(publication, manifest);
-  }
-
-  savePublication(value: unknown): void {
-    this.pages.publish(readPublicationCommit(value));
-  }
-
-  async saveDrafts(value: unknown): Promise<ServedDraftsAnswer | null> {
-    const drafts = readPageDrafts(value);
-    const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
-    return this.pages.saveDrafts(drafts, manifest);
+    if (request.headers.get("Leaf-Release") !== manifest.release) {
+      return new Response(`the page store serves release ${manifest.release}`, {
+        status: 409,
+      });
+    }
+    const path = new URL(request.url).pathname;
+    if (request.method === "GET" && path === "/records") {
+      return this.pages.records();
+    }
+    if (request.method === "PUT" && path === "/prepare") {
+      const publication = readPublication(await request.json());
+      return Response.json(await this.pages.prepare(publication, manifest));
+    }
+    const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
+    if (blob !== null && request.method === "PUT") {
+      // Bound the body before it enters SQLite.
+      let length = 0;
+      const body = request.body?.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            length += chunk.byteLength;
+            if (length > CHUNK_BYTES)
+              throw new Error("page storage chunk exceeds 1 MiB");
+            controller.enqueue(chunk);
+          },
+        }),
+      );
+      await this.pages.saveBlob(blob[1], await new Response(body).arrayBuffer());
+      return new Response(null, { status: 204 });
+    }
+    if (request.method === "PUT" && path === "/publication") {
+      this.pages.publish(readPublicationCommit(await request.json()));
+      return new Response(null, { status: 204 });
+    }
+    if (request.method === "PUT" && path === "/drafts") {
+      const drafts = readPageDrafts(await request.json());
+      return Response.json({ drafts: this.pages.saveDrafts(drafts, manifest) });
+    }
+    return new Response("unknown page storage operation", { status: 404 });
   }
 
   // Every request the container sends goes to `SessionOutbound`, which names this
@@ -525,7 +547,8 @@ export class SessionOutbound extends WorkerEntrypoint<Env, OutboundProps> {
     switch (new URL(request.url).hostname) {
       case PAGE_STORE_HOST:
         try {
-          return await answerPageStore(request, this.env, session);
+          const store = this.env.PAGES.get(this.env.PAGES.idFromString(session));
+          return await store.pageStore(request);
         } catch (error) {
           // A handler that throws reaches the container as a connection closed without
           // a response, so answer with the store's reason for the container to log.
@@ -539,51 +562,6 @@ export class SessionOutbound extends WorkerEntrypoint<Env, OutboundProps> {
         return new Response("Origin is disallowed", { status: 520 });
     }
   }
-}
-
-async function answerPageStore(
-  request: Request,
-  env: Env,
-  session: string,
-): Promise<Response> {
-  // A container still on the previous image after a deploy is refused before it
-  // reads or writes anything, as `storage.ts` says.
-  const { release } = await siteManifest(new Request("https://leaf.page/"), env);
-  if (request.headers.get("Leaf-Release") !== release) {
-    return new Response(`the page store serves release ${release}`, { status: 409 });
-  }
-  const store = env.PAGES.get(env.PAGES.idFromString(session));
-  const path = new URL(request.url).pathname;
-  if (request.method === "GET" && path === "/records") {
-    return store.savedRecords();
-  }
-  if (request.method === "PUT" && path === "/prepare") {
-    return Response.json(await store.preparePublication(await request.json()));
-  }
-  const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
-  if (blob !== null && request.method === "PUT") {
-    // Bound the body before it crosses the RPC boundary or enters SQLite.
-    let length = 0;
-    const body = request.body?.pipeThrough(
-      new TransformStream<Uint8Array, Uint8Array>({
-        transform(chunk, controller) {
-          length += chunk.byteLength;
-          if (length > CHUNK_BYTES) throw new Error("page storage chunk exceeds 1 MiB");
-          controller.enqueue(chunk);
-        },
-      }),
-    );
-    await store.saveBlob(blob[1], await new Response(body).arrayBuffer());
-    return new Response(null, { status: 204 });
-  }
-  if (request.method === "PUT" && path === "/publication") {
-    await store.savePublication(await request.json());
-    return new Response(null, { status: 204 });
-  }
-  if (request.method === "PUT" && path === "/drafts") {
-    return Response.json({ drafts: await store.saveDrafts(await request.json()) });
-  }
-  return new Response("unknown page storage operation", { status: 404 });
 }
 
 function randomSessionId(): string {
@@ -827,20 +805,22 @@ function stampDelivery(
   if (reference !== undefined) headers.set("Leaf-Session-Reference", reference);
 }
 
-const manifests = new WeakMap<object, Promise<SiteManifest>>();
+// The isolate keeps the manifest once a request has read it, and keeps no promise of
+// it: a promise settles only in the request that made it, so one shared while pending
+// never settles for the others once that request ends, as when its browser navigates
+// away, and every later request in the isolate fails.
+const manifests = new WeakMap<object, SiteManifest>();
 
 async function siteManifest(request: Request, env: Env): Promise<SiteManifest> {
-  let pending = manifests.get(env.ASSETS as object);
-  if (!pending) {
-    const url = new URL("/_leaf/site.json", request.url);
-    pending = env.ASSETS.fetch(new Request(url)).then(async (response) => {
-      if (!response.ok) throw new Error(`site manifest returned ${response.status}`);
-      return (await response.json()) as SiteManifest;
-    });
-    manifests.set(env.ASSETS as object, pending);
-    pending.catch(() => manifests.delete(env.ASSETS as object));
-  }
-  return pending;
+  const known = manifests.get(env.ASSETS as object);
+  if (known) return known;
+  const response = await env.ASSETS.fetch(
+    new Request(new URL("/_leaf/site.json", request.url)),
+  );
+  if (!response.ok) throw new Error(`site manifest returned ${response.status}`);
+  const manifest = (await response.json()) as SiteManifest;
+  manifests.set(env.ASSETS as object, manifest);
+  return manifest;
 }
 
 function stampedStaticResponse(

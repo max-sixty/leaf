@@ -33,7 +33,7 @@ in its own form:
 The page's vocabulary provides most of these forms as widgets whose entries say what
 each shows ("Read the registry"). Use the one it offers rather than building the form
 yourself, and where the page has none, select the package that adds it
-(`packages.md`, "Package reach").
+(`leaf package list`).
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
 sizes, and what contains or links them. Add one where that geometry makes a
@@ -212,8 +212,10 @@ revisions and checks cover it as they cover `main`. Only `main` takes the Layout
 the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
 
 Leaf pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
-panel, and its head by `--lf-head-room`, the phone's status bar. Set the page's ground
-in `--lf-paper`, which the theme paints the window in. A page that takes no theme
+panel, and its head by `--lf-head-room`, the phone's status bar. A workspace `main`
+keeps that foot room inside its own regions instead, so content after it adds
+`padding-bottom: var(--lf-foot-room)` of its own. Set the page's ground in
+`--lf-paper`, which the theme paints the window in. A page that takes no theme
 paints its own ground on `html`, since `body` is a container, which keeps its own
 background off the window below a short page. It also sets `--lf-paper` and
 `--lf-ink` to its ground and text colours, so Leaf's panel, thread cards and

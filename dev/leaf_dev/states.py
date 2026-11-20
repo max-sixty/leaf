@@ -1239,6 +1239,25 @@ def card_held_step(page: Page) -> None:
     wait_until_ready(page, state, through="state")
 
 
+def card_promise(page: Page) -> None:
+    """A margin card whose agent reply promises work with `--todo`: its head's
+    underlined Still to do, which opens the to-do's row in On <agent>."""
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
+    root = thread.get_attribute("data-lf-thread")
+    assert root
+    as_agent(
+        "thread",
+        "reply",
+        root,
+        "--todo",
+        "Rerun the stop check on staging",
+        "--text",
+        "I'll rerun the stop check on staging and post what it finds.",
+    )
+    expect(thread.locator(".lf-msg-leaves")).to_be_visible()
+
+
 def card_after_interjection(page: Page) -> None:
     """An arriving answer grows a card after Send has fitted its reply against the window."""
     card_held_step(page)
@@ -3223,8 +3242,8 @@ STATES = (
         activated=False,
         region="#rn-console-section",
     ),
-    State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
-    State("dial-press", "detail", dial_press, region="lf-dial"),
+    State("dial-keyboard", "incident-report", dial_keyboard, region="lf-dial"),
+    State("dial-press", "incident-report", dial_press, region="lf-dial"),
     State(
         "image-in-page",
         "feature-gallery",
@@ -3515,6 +3534,9 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
+    State(
+        "plan-card-promise", "review-a-plan", card_promise, region=".lf-margin-preview"
+    ),
     # A window with no room beside the stop's words, so its card stands under them and
     # holds what would move the reply the user drafts (thread-preview.js,
     # `endNewsMoves`); beside them, it shows the news at once.

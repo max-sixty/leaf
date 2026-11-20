@@ -31,6 +31,24 @@
  * nonce. Native load is distinct from Leaf upgrade;
  * an opaque destination cannot be classified from its load event. Retirement
  * records the local realm's destruction, before the allocation release answers.
+ * The page counts each document the frame loads, on mount, Reset or a reload, as
+ * arriving: its presentation and then whatever it deferred, the samples it started
+ * included. An allocation counts from when it begins until its frame loads, wherever
+ * the frame stands, since loading needs no rendering. What the document does after,
+ * until it reports its arrival, fails or departs, may wait on a rendering, which a
+ * frame off screen or in a closed disclosure doesn't get (rendering.js): a chart sized
+ * by its first layout waits, and so does the upgrade of the widget layer holding it.
+ * So the page counts that part until the browser's first reading of the frame, and
+ * after that only while the browser renders the frame (`rendered`), as rendering
+ * readiness reads such a document as settled; meanwhile the frame carries
+ * `data-lf-unseen`. Counting it wherever the frame stands would keep a page with a
+ * chart in a sample below the window arriving for as long as it stays open; a check
+ * that reads every document brings each `data-lf-unseen` frame into view instead
+ * (render_checks.py, `start_near_work`). A reload's document counts once it connects;
+ * the parent cannot tell its departure from one to a page outside Leaf, whose load can
+ * land before the departure's notice, so nothing counts between. Work a child starts
+ * after it has arrived, such as one of its own samples' Reset or the near work a check
+ * asks for (`nearWork`), is the child's to count.
  * A mounted frame answers for its image: the child draws the requested part of its
  * viewport, which an image of the containing page puts in the frame's place.
  * The frame's sandbox admits scripts, forms, popups that escape it, modals, downloads
@@ -238,7 +256,6 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     height: new Set(),
     input: new Set(),
     "current-location": new Set(),
-    arrived: new Set(),
     loading: new Set(),
     departed: new Set(),
   };
@@ -253,18 +270,55 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   );
   frame.toggleAttribute("data-lf-contained", true);
 
-  // Whether the user can see the frame and read what it shows: the frame on screen
-  // (frame-visibility.js) and admitted by this page, which itself shows.
-  function admitted() {
+  // Whether this page shows, and so renders what it holds.
+  function pageShows() {
     return (
-      document.visibilityState === "visible" &&
-      presented(frame) &&
-      seen.shown() &&
-      frameVisibility()?.visible !== false
+      document.visibilityState === "visible" && frameVisibility()?.visible !== false
     );
+  }
+  // Whether the browser renders the frame: on screen (frame-visibility.js) in a page
+  // that itself shows.
+  function rendered() {
+    return pageShows() && seen.shown();
+  }
+  // Whether the user can see the frame and read what it shows: rendered, and admitted
+  // by this page.
+  function admitted() {
+    return rendered() && presented(frame);
   }
   function visibility() {
     channel?.postMessage({ type: "visibility", detail: { visible: admitted() } });
+    arrive();
+  }
+  // Where the frame's document stands in its arrival: `loading` from an allocation
+  // until its frame loads, counted wherever the frame stands, and `drawing` from then
+  // or from a reload's connection until it reports its arrival or departs, counted
+  // while this page shows, until the browser's first reading of the frame and then
+  // only while `rendered`.
+  /** @typedef {"loading" | "drawing" | null} Arriving */
+  /** @type {Arriving} */
+  let arriving = null;
+  /** @type {(() => void) | null} */
+  let counted = null;
+  /** @param {Arriving} [stage] */
+  function arrive(stage = arriving) {
+    arriving = stage;
+    const counts =
+      stage === "loading" ||
+      (stage === "drawing" && pageShows() && (!seen.read() || seen.shown()));
+    frame.toggleAttribute("data-lf-unseen", stage === "drawing" && !counts);
+    if (counts && !counted) {
+      const { promise, resolve } = Promise.withResolvers();
+      counted = () => resolve(undefined);
+      deferredArrival(promise);
+    } else if (!counts && counted) {
+      counted();
+      counted = null;
+    }
+  }
+  /** @param {Arriving} from @param {Arriving} to */
+  function moveOn(from, to) {
+    if (arriving === from) arrive(to);
   }
   /** @param {MessagePort} port @param {number} id */
   async function readVisibility(port, id) {
@@ -291,6 +345,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   }
   /** @param {unknown} reason */
   function disconnect(reason) {
+    moveOn("drawing", null);
     channel?.close();
     channel = null;
     lost = reason;
@@ -389,6 +444,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
           connectedNonce = nonce;
           hasConnected = true;
           record("connected", { reloading });
+          if (arriving !== "loading") arrive("drawing");
           if (reloading) {
             awaitNext();
             notify("loading", undefined);
@@ -401,6 +457,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
         if (data.type === "departed") {
           record("departed");
           disconnect(departure("sample document navigated"));
+          arrive(null);
           // Reset need not wait for a document that may never come.
           operation = null;
           awaitNext();
@@ -456,7 +513,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
         } else if (data.type === "height") notify("height", data.detail);
         else if (data.type === "current-location")
           notify("current-location", data.detail);
-        else if (data.type === "arrived") notify("arrived", undefined);
+        else if (data.type === "arrived") moveOn("drawing", null);
       };
     frame.contentWindow?.postMessage(
       {
@@ -470,7 +527,9 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   }
   window.addEventListener("message", connect);
   const loaded = () => {
-    if (current && frame.hasAttribute("src")) record("loaded");
+    if (!current || !frame.hasAttribute("src")) return;
+    record("loaded");
+    moveOn("loading", "drawing");
   };
   frame.addEventListener("load", loaded);
   const room = watchRoom(visibility);
@@ -522,57 +581,62 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     });
   }
   async function replace() {
+    arrive("loading");
     await retire("reset");
     allocation++;
     record("queued");
-    return settle(
-      loadWithinLimit(async (release) => {
-        if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-        record("allocating");
-        /** @type {import("../types/contract.js").ServedSampleAnswer} */
-        const { url, page } = await request(
-          pageUrl("api/samples"),
-          { template, source, message },
-          revision ? { "Leaf-View-Revision": String(revision) } : {},
-        );
-        current = new URL(url, location.href).href;
-        samplePage = page;
-        record("allocated");
-        try {
-          if (destroyed) {
-            await retire("destroyed");
-            throw new DOMException("sample destroyed", "AbortError");
-          }
-          // The opaque frame cannot expose its document or order cross-process
-          // bootstrap messages against load. Admit the server's document contract
-          // before native navigation; later authored destinations remain native.
-          const admission = await fetch(current, {
-            method: "HEAD",
-            credentials: "omit",
-            signal: lifetimeController.signal,
-          });
-          record("admission", {
-            status: admission.status,
-            leafDocument: admission.headers.get("Leaf-Document"),
-          });
-          if (!admission.ok || !admission.headers.has("Leaf-Document"))
-            throw new Error("The sample document did not start Leaf");
-          if (destroyed) {
-            await retire("destroyed");
-            throw new DOMException("sample destroyed", "AbortError");
-          }
-          const upgraded = interfaceReady();
-          // A loaded module graph frees its slot even while Leaf upgrade waits on
-          // widget preparation. Native load needs no access to the opaque child document.
-          frame.addEventListener("load", release, { once: true });
-          record("loading");
-          frame.src = current;
-          return await upgraded;
-        } finally {
-          frame.removeEventListener("load", release);
+    const loading = loadWithinLimit(async (release) => {
+      if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+      record("allocating");
+      /** @type {import("../types/contract.js").ServedSampleAnswer} */
+      const { url, page } = await request(
+        pageUrl("api/samples"),
+        { template, source, message },
+        revision ? { "Leaf-View-Revision": String(revision) } : {},
+      );
+      current = new URL(url, location.href).href;
+      samplePage = page;
+      record("allocated");
+      try {
+        if (destroyed) {
+          await retire("destroyed");
+          throw new DOMException("sample destroyed", "AbortError");
         }
-      }, lifetimeController.signal),
+        // The opaque frame cannot expose its document or order cross-process
+        // bootstrap messages against load. Admit the server's document contract
+        // before native navigation; later authored destinations remain native.
+        const admission = await fetch(current, {
+          method: "HEAD",
+          credentials: "omit",
+          signal: lifetimeController.signal,
+        });
+        record("admission", {
+          status: admission.status,
+          leafDocument: admission.headers.get("Leaf-Document"),
+        });
+        if (!admission.ok || !admission.headers.has("Leaf-Document"))
+          throw new Error("The sample document did not start Leaf");
+        if (destroyed) {
+          await retire("destroyed");
+          throw new DOMException("sample destroyed", "AbortError");
+        }
+        const upgraded = interfaceReady();
+        // A loaded module graph frees its slot even while Leaf upgrade waits on
+        // widget preparation. Native load needs no access to the opaque child document.
+        frame.addEventListener("load", release, { once: true });
+        record("loading");
+        frame.src = current;
+        return await upgraded;
+      } finally {
+        frame.removeEventListener("load", release);
+      }
+    }, lifetimeController.signal);
+    // A document that upgrades before its frame's load event draws from then.
+    loading.then(
+      () => moveOn("loading", "drawing"),
+      () => moveOn("loading", null),
     );
+    return settle(loading);
   }
   function reset() {
     if (destroyed)
@@ -595,7 +659,8 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   }
   // A check that asks this page for all the work it holds until the reader comes near
   // (presentation.js, `startNearWork`) asks each upgraded child document the same, once,
-  // and the page counts the child as arriving until it answers.
+  // and counts the child as arriving until it has started that work. The check waits
+  // for each document itself (render_checks.py, `start_near_work`).
   /** @type {string | null} */
   let askedNear = null;
   function nearWork() {
@@ -633,6 +698,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     destroy() {
       if (closing) return closing;
       destroyed = true;
+      arrive(null);
       record("destroyed");
       lifetimeController.abort(new DOMException("sample destroyed", "AbortError"));
       mounted.delete(frame);

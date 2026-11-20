@@ -56,7 +56,7 @@ take-back of a message in its range cancelled it, by the rules that cancel any
 summary (`events.active_summaries`). The agent hears what Leaf wrote at its next step,
 with its id, range and words, as its own (`clerk.queue`), and replaces it as it would
 a summary it wrote. The page's diagnostics note each outcome (`summary_fork`), with
-the fork's usage, time and the request it resent, as `forks` notes the line fork's.
+the fork's usage, time and what it resent, as `forks` notes the line fork's.
 """
 
 from pathlib import Path

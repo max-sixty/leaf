@@ -39,14 +39,13 @@ contents, On Me or Threads, and opens what it names from there.
 ## Author the page
 
 Record the work you take on as `references/conversation-loop.md`, "When to write",
-says. Initialize a new page with `leaf page init <page>`, adding the packages its
-content needs: `leaf page init --package diagram --package diff <page>`.
-`references/packages.md`, "Package reach", lists the bundled packages and what each
-adds, such as a live preview in which the user compares candidates or tunes a
-configuration before sending it; a package the user names, such as one they
-installed, can be selected the same way. Running `page init` again with `--package`
-replaces the page's packages, so name every package the page keeps. Personal themes
-and their author instructions are discoverable with `leaf theme list`;
+says. Choose a page's packages from `leaf package list`, which prints each package
+this machine can select, bundled or installed by the user, with what it adds, such as
+a live preview in which the user compares candidates or tunes a configuration before
+sending it. Initialize the page with each package whose purpose fits it:
+`leaf page init --package diagram --package diff <page>`. Running `page init` again
+with `--package` replaces the page's packages, so name every package the page keeps.
+Personal themes and their author instructions are discoverable with `leaf theme list`;
 `references/package-themes.md`, "Personal themes", covers choosing one and how the
 page captures it.
 

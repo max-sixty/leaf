@@ -102,7 +102,6 @@ export interface Thread {
     "id" | "seq" | "from" | "through" | "text" | "label"
   > & {
     covers: readonly string[];
-    protected: readonly string[];
   })[];
   unread: Readonly<Record<string, string>>;
   attention: Attention;

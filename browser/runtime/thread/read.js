@@ -414,7 +414,7 @@ export function createReadTracking({ markRead, openThread }) {
     return observeBody(body, { items: [], feedback });
   }
 
-  // A summary's words, read for the messages it folds, each in the version it folds.
+  // A fold, read for the messages it folds, each in the version it folds.
   /** @param {Element} body @param {readonly ContentVersion[]} items */
   function observeSummary(body, items) {
     return observeBody(body, { items, feedback: null });

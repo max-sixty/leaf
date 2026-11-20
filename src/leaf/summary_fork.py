@@ -153,7 +153,7 @@ The whole thread, as Leaf delivers it but with every message; "events" are the u
 Leaf suggests folding the messages from {hint["from"]} through {hint["through"]}, a range that takes in every summary in force among them, which yours replaces. Choose the range yourself, as the session's guidance has it:
 {folds}
 
-The range runs forward from one spoken message of the thread through another, ends before the user's newest messages in "events", and leaves no message but the thread's opening one in full above any summary; Leaf takes no other. Leaf posts your summary as the session's own: the thread shows it in place of the range, and the originals stay available to unfold. It answers nothing; the main session answers the newest messages. Write it as the session's guidance has it:
+The range runs forward from one spoken message of the thread through another and ends before the user's newest messages in "events"; Leaf takes no other. Leaf posts your summary as the session's own: the thread shows it in place of the range, and the originals stay available to unfold. It answers nothing; the main session answers the newest messages. Write it as the session's guidance has it:
 {holds}
 
 Reply with this JSON alone: {{"from": "<the range's first message id>", "through": "<its last message id>", "text": "<the summary's Markdown>"}}, or {{"fold": false}} where nothing in the thread compresses without losing wording the current exchange still turns on.

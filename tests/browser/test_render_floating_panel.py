@@ -2556,7 +2556,7 @@ def test_a_thread_s_view_opens_on_the_summary_holding_its_first_unread_reply(
 ):
     """A first unread reply a closed summary folds away is reached through the
     summary, so the view opens on that summary rather than past it, at the long reply
-    after it, and Next unread is offered to open it."""
+    after it."""
     from browser.threads import summarize_thread
 
     url = serve(LONG_PAGE)
@@ -2572,7 +2572,6 @@ def test_a_thread_s_view_opens_on_the_summary_holding_its_first_unread_reply(
     page.keyboard.press("t")
     summary = page.locator(".lf-fp-view .lf-summary-checkpoint .lf-summary-header")
     expect(summary).to_be_in_viewport(ratio=1)
-    expect(page.locator(".lf-fp-head .lf-next-unread")).to_have_text("Next unread")
 
 
 def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve):

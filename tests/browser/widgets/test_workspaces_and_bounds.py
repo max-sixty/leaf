@@ -272,8 +272,11 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     browser, serve
 ):
+    """The workspace is the window, so the page has nothing to scroll, even where a
+    browser extension adds an element of its own to the body after `main`."""
     page = open_page(browser, serve(WORKSPACE_PAGE))
     resized(page, 1200, 900)
+    page.evaluate("document.body.append(document.createElement('extension-root'))")
     geometry = page.evaluate(
         """() => {
           const main = document.querySelector('main');
@@ -306,8 +309,8 @@ def test_a_link_to_a_held_workspaces_region_leaves_the_page_where_it_stands(
 ):
     """A region reaching the window's foot keeps room there for the floating panel,
     which holds none of its content, so the region shows whole where it stands. A link
-    to it leaves the page still, though something after `main`, such as a browser
-    extension's element, gives the page room to scroll its header away."""
+    to it leaves the page still, though something after `main`, such as a site footer,
+    gives the page room to scroll its header away."""
     page = open_page(
         browser,
         serve(

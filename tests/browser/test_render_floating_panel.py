@@ -4247,7 +4247,7 @@ def test_only_an_open_thread_says_new_in_threads(browser, serve):
 def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, serve):
     """On Claude is the agent's work list: what it has in hand, what is queued behind
     that, and what it finished, a line each with its stage and how long it has stood
-    there. The chooser at its foot shows the same work as a summary instead, a choice
+    there, and under the work in hand, what its running step wrote. The chooser at its foot shows the same work as a summary instead, a choice
     the browser keeps across a reload."""
     url = serve(LONG_PAGE)
     page_dir = serve.page_dir
@@ -4296,11 +4296,16 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
             re.compile(r"^Done \S+$"),
         ]
     )
-    # A press opens the work in hand, saying what its last step wrote.
+    # Only the work in hand says what its running step wrote, under its name, and its
+    # card opened shows that line rather than a second copy.
+    expect(lines.locator(".lf-fp-running")).to_have_text(
+        ["Drafting the note's first line"]
+    )
     lines.first.click()
-    expect(view.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+    expect(view.locator(".lf-fp-on-item[data-lf-open] .lf-fp-running")).to_have_text(
         "Drafting the note's first line"
     )
+    expect(view.locator(".lf-fp-answers .lf-fp-said")).to_have_count(0)
 
     chooser = page.get_by_role("combobox", name="Show On Claude as")
     expect(chooser).to_have_value("list")

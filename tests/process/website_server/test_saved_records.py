@@ -276,11 +276,11 @@ def test_a_release_that_drops_a_page_restores_the_sessions_others(
 
 
 def test_a_container_on_another_release_does_not_start(tmp_path, monkeypatch):
-    """After a deploy a session's container can still start on the previous image,
-    whose code may misread a record the new release shaped, and whose answers and
-    saved responses would name the previous release's document. The store refuses it
-    before it reads anything, and the refusal ends its start, so nothing it would
-    write reaches the session's record."""
+    """After a deploy a session's container can still run the previous image until
+    its session's next request stops it, and that code may misread a record the new
+    release shaped, and its saved responses would name the previous release's
+    document. The store refuses it before it reads anything, and a refusal at restore
+    ends a start, so nothing it would write reaches the session's record."""
     from leaf_website.storage import PageStoreRefused, restore
 
     site = tmp_path / "site"

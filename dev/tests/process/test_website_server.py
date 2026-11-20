@@ -1258,7 +1258,7 @@ def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
 
 
 def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
-    monkeypatch, capsys
+    monkeypatch, capfd
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
 
@@ -1352,7 +1352,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # The startup profile the run reports, and the verifier's own readings.
     assert page.init_scripts == [startup.SCRIPT, website.SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
-    reported = capsys.readouterr().err
+    reported = capfd.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
     assert '"responseVisible": 12500.0' in reported
     # On a website the journey reads the log the page serves, which says when the

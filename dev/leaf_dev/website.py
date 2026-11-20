@@ -464,7 +464,8 @@ def logged(log: Path) -> Generator[IO[str]]:
             yield output
         except BaseException:
             output.flush()
-            sys.stderr.write(log.read_text())
+            sys.stderr.flush()
+            write_fully(sys.stderr.fileno(), log.read_bytes())
             raise
 
 

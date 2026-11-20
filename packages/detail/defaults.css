@@ -59,7 +59,7 @@ lf-dial[data-rest="minutes"] .lf-dial-time {
   display: inline;
   white-space: pre;
   font-weight: 400;
-  color: color-mix(in srgb, currentColor 62%, transparent);
+  color: color-mix(in srgb, currentColor 72%, transparent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -73,7 +73,7 @@ lf-dial[data-rest="stacked"] .lf-dial-depth::part(label) {
 lf-dial[data-rest="stacked"] .lf-dial-time {
   display: block;
   font: var(--lf-font-fine);
-  color: color-mix(in srgb, currentColor 62%, transparent);
+  color: color-mix(in srgb, currentColor 72%, transparent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -140,12 +140,15 @@ lf-dial[data-pointed] .lf-dial-gauge-fill {
 /* Pointing, bars: each depth a bar on one baseline, the pointed one in full ink. */
 .lf-dial-bars {
   display: grid;
-  grid-template-columns: auto 8rem auto;
+  grid-template-columns: auto 10rem;
   align-items: center;
   gap: 3px 8px;
   margin-block: 6px 2px;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
+}
+.lf-dial-bars[data-timed] {
+  grid-template-columns: auto 8rem auto;
 }
 .lf-dial-bars-row {
   display: contents;
@@ -241,11 +244,6 @@ lf-dial[data-pointed] .lf-dial-gauge-fill {
 }
 details[data-lf-dial-ghost="comes"] > summary,
 .lf-dial-more[data-lf-dial-ghost="comes"] .lf-dial-unfold {
-  border-radius: var(--lf-r-s);
-  background: light-dark(
-    oklch(from var(--lf-accent) 0.93 min(c, 0.04) h),
-    oklch(from var(--lf-accent) 0.33 min(c, 0.05) h)
-  );
   color: var(--lf-accent);
 }
 

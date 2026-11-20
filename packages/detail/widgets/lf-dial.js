@@ -192,10 +192,10 @@ const secondsAt = (block, depth) =>
       : block.all;
 
 // Each depth a bar on one baseline, as long as it takes to read, the pointed one in
-// full ink and the others faint.
-/** @param {Sizes} sizes @param {string} pointed */
-const sizeBars = (sizes, pointed) =>
-  html`<span class="lf-dial-bars">
+// full ink and the others faint, with its minutes unless the dial shows them at rest.
+/** @param {Sizes} sizes @param {string} pointed @param {boolean} timed */
+const sizeBars = (sizes, pointed, timed) =>
+  html`<span class="lf-dial-bars" ?data-timed=${timed}>
     ${DEPTHS.map(({ name, label }) => {
       const time = sizes[/** @type {Depth} */ (name)];
       return html`<span
@@ -205,7 +205,7 @@ const sizeBars = (sizes, pointed) =>
       >
         <span class="lf-dial-bars-name">${label}</span>
         <span class="lf-dial-bars-track"><span class="lf-dial-bars-fill"></span></span>
-        <span class="lf-dial-bars-time">${minutes(time)}</span>
+        ${timed ? html`<span class="lf-dial-bars-time">${minutes(time)}</span>` : null}
       </span>`;
     })}
   </span>`;
@@ -458,7 +458,17 @@ customElements.define(
       if (!sizes) return { detail: [title] };
       const time = sizes[/** @type {Depth} */ (name)];
       if (point === "map") return { detail: [title, sizeMap(sizes, name)] };
-      if (point === "bars") return { detail: [title, sizeBars(sizes, name)] };
+      if (point === "bars")
+        return {
+          detail: [
+            title,
+            sizeBars(
+              sizes,
+              name,
+              !["minutes", "stacked"].includes(this.#setting("rest", "none")),
+            ),
+          ],
+        };
       if (point === "strips") return { detail: [title, sizeStrips(sizes, name)] };
       return {
         detail: [

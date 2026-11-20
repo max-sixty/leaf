@@ -543,7 +543,8 @@ def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_i
     a sample out of view draws only once its frame shows, and the page reads as ready
     without it. A check that reads every document the page can show brings each such
     frame into view, a sample's own samples included, waits for its chart, and puts
-    back every box it scrolled, leaving nothing to move after it returns."""
+    back every box it scrolled, leaving nothing to move after it returns. One a scroll
+    can't show, as in a box clipped to nothing, stays as the page has it."""
     chart = (
         '<lf-chart id="line" data-height="120"><pre>'
         '{ariaLabel: "A rising line", marks: [Plot.lineY([1, 3, 2, 4])]}'
@@ -560,6 +561,9 @@ def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_i
                 + '<div id="box" style="height: 200px; overflow: auto">'
                 + '<div style="height: 1200px"></div>'
                 + live_sample("boxed", " window", chart)
+                + "</div>"
+                + '<div style="max-height: 0; overflow: hidden">'
+                + live_sample("clipped", " window", chart)
                 + "</div>"
                 + '<div style="height: 900px"></div>'
                 + live_sample(
@@ -581,7 +585,7 @@ def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_i
     wait_until_ready(page)
     assert (drawn("shown"), drawn("boxed")) == (1, 0)
     start_near_work(page)
-    assert (drawn("boxed"), drawn("outer", "inner")) == (1, 1)
+    assert (drawn("boxed"), drawn("outer", "inner"), drawn("clipped")) == (1, 1, 0)
     places = """() => [scrollY, document.querySelector('#box').scrollTop,
         document.querySelector('#outer iframe').getBoundingClientRect().height]"""
     after = page.evaluate(places)

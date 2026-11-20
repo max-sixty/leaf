@@ -270,14 +270,16 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   );
   frame.toggleAttribute("data-lf-contained", true);
 
+  // Whether this page shows, and so renders what it holds.
+  function pageShows() {
+    return (
+      document.visibilityState === "visible" && frameVisibility()?.visible !== false
+    );
+  }
   // Whether the browser renders the frame: on screen (frame-visibility.js) in a page
   // that itself shows.
   function rendered() {
-    return (
-      document.visibilityState === "visible" &&
-      seen.shown() &&
-      frameVisibility()?.visible !== false
-    );
+    return pageShows() && seen.shown();
   }
   // Whether the user can see the frame and read what it shows: rendered, and admitted
   // by this page.
@@ -291,7 +293,8 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   // Where the frame's document stands in its arrival: `loading` from an allocation
   // until its frame loads, counted wherever the frame stands, and `drawing` from then
   // or from a reload's connection until it reports its arrival or departs, counted
-  // until the browser's first reading of the frame and then only while `rendered`.
+  // while this page shows, until the browser's first reading of the frame and then
+  // only while `rendered`.
   /** @typedef {"loading" | "drawing" | null} Arriving */
   /** @type {Arriving} */
   let arriving = null;
@@ -301,7 +304,8 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   function arrive(stage = arriving) {
     arriving = stage;
     const counts =
-      stage === "loading" || (stage === "drawing" && (!seen.read() || rendered()));
+      stage === "loading" ||
+      (stage === "drawing" && pageShows() && (!seen.read() || seen.shown()));
     frame.toggleAttribute("data-lf-unseen", stage === "drawing" && !counts);
     if (counts && !counted) {
       const { promise, resolve } = Promise.withResolvers();

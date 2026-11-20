@@ -493,6 +493,14 @@ _PUT_BACK = """held => {
 _SHOWS = "frame => frame.checkVisibility({visibilityProperty: true})"
 _UNSEEN = "frame => frame.hasAttribute('data-lf-unseen')"
 _SEEN = "frame => !frame.hasAttribute('data-lf-unseen')"
+# Settles once the holder's next rendering has run and delivered its observers'
+# readings, the host's reading of whether the frame shows among them. A holder that
+# itself stays out of sight renders nothing but still runs its timers, so the wait
+# also ends after 5 s, two orders of magnitude above one rendering.
+_RENDERED = """() => new Promise((settle) => {
+  setTimeout(settle, 5000);
+  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(settle)));
+})"""
 _LEAF = "() => Boolean(document.querySelector('script[data-lf-entry]')?.lfReadiness)"
 
 
@@ -551,22 +559,25 @@ def _show(frame, page, state, ready) -> None:
         frame = frame.parent_frame
     if not all(element.evaluate(_SHOWS) for element in elements):
         return
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
     held = [element.evaluate_handle(_HOLDERS) for element in elements]
-    # A frame's document renders, as Playwright's wait for a stable box needs, only
-    # once its own frame shows.
-    for element in reversed(elements):
-        element.scroll_into_view_if_needed()
     holder = elements[0].owner_frame()
-    holder.wait_for_function(
-        _SEEN,
-        arg=elements[0],
-        timeout=ready.get("timeout_ms") or HANDOVER_DEADLINE_MS,
-        polling=PROBE_POLL_MS,
-    )
-    if holder.parent_frame is None:
-        wait_until_ready(page, state, **ready)
-    else:
-        wait_until_ready(holder, timeout_ms=ready.get("timeout_ms"))
+    try:
+        # A frame's document renders, as Playwright's wait for a stable box needs,
+        # only once its own frame shows.
+        for element in reversed(elements):
+            element.scroll_into_view_if_needed()
+        holder.evaluate(_RENDERED)
+        # A frame a scroll can't bring into view, such as one an ancestor clips, keeps
+        # its mark, and stays as the page has it.
+        if elements[0].evaluate(_SEEN):
+            if holder.parent_frame is None:
+                wait_until_ready(page, state, **ready)
+            else:
+                wait_until_ready(holder, timeout_ms=ready.get("timeout_ms"))
+    except PlaywrightTimeout:
+        pass  # A box that never stops moving can't be scrolled into view.
     for boxes in held:
         boxes.evaluate(_PUT_BACK)
 

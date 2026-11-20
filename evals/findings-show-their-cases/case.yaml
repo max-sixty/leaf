@@ -6,9 +6,9 @@
 # which pulls toward cutting the cases rather than placing them a disclosure away.
 description: Live fork asks survey
 metadata:
-  purpose: "A count over records shows a real case beside it, and the rest of the
-    cases it counts a disclosure away, while the answer and the decision still lead
-    the page."
+  purpose: "A count over records shows a real case beside it and keeps the rest of the
+    cases it counts within reach, while the answer and the decision still lead the
+    page."
   authoring: true
   tags:
     - evidence
@@ -17,32 +17,33 @@ vars:
 assert:
   - type: llm-rubric
     metric: shows-a-case
+    transform: "JSON.stringify({html: output, data: context.metadata.page_data})"
     value: |
-      The page reports that real forks' asks break the form rules, such as 3 of the 7
-      asks since both rules landed, or 15 of the newest 24. Pass only if, at or near
-      that claim, the page shows the actual words of at least one real ask that breaks a
+      The output holds the page's markup as `html` and, as `data`, the value of each
+      data source the page binds, by id, which a widget naming that `source` draws. The
+      page reports that real forks' asks break the form rules, such as 3 of the 7 asks
+      since both rules landed, or 15 of the newest 24. Pass only if, at or near that
+      claim, the page shows the actual words of at least one real ask that breaks a
       rule, as the forks wrote it in `fork-asks/choice24.json` or as the worker's report
       quotes it: whole, or excerpted with the question and a sentence it shares a
       paragraph with kept intact, marked up or not, on arrival or one disclosure away
       from the claim. Fail if the claim stands only on counts, event ids, a summary of
-      the rules, an invented or eval example, or a rewrite with no original beside it. A
-      widget that names a `source`, such as a patch or code view, draws its text from
-      the page's data, which this HTML doesn't carry: count it as showing the material
-      its markup and labels say it holds.
+      the rules, an invented or eval example, or a rewrite with no original beside it.
   - type: llm-rubric
     metric: cases-reachable
+    transform: "JSON.stringify({html: output, data: context.metadata.page_data})"
     value: |
-      Pass if a reader can read on the page, in their actual words from
-      `fork-asks/choice24.json`, every failing ask behind at least one of the page's
-      counts: for the 7 since both rules landed, `e3d07595` ("since #6530 moved the
-      tests to Playwright 1.65.2…"), `3bf598fd` ("keeps a comment on the item its words
-      stand in…") and `8d23a17a` ("Should I merge PR #6574 once its rework passes…");
-      for the newest 24, the 15 the report counts. They may stand openly or behind a
-      disclosure, tab or similar. Fail if the failing asks behind every count appear
-      only as ids, titles, counts, one example or a path to the file. A widget that
-      names a `source`, such as a patch or code view, draws its text from the page's
-      data, which this HTML doesn't carry: count it as showing the material its markup
-      and labels say it holds.
+      The output holds the page's markup as `html` and, as `data`, the value of each
+      data source the page binds, by id, which a widget naming that `source` draws. Pass
+      if a reader can read on the page every ask behind each count the page reports of
+      asks that break or keep the rules, in its actual words from
+      `fork-asks/choice24.json`, with whether it broke a rule, shown openly or behind a
+      disclosure, tab or similar: for "3 of 7", all 7 since both rules landed, among
+      them `e3d07595` ("since #6530 moved the tests to Playwright 1.65.2…"), `3bf598fd`
+      ("keeps a comment on the item its words stand in…") and `8d23a17a` ("Should I
+      merge PR #6574 once its rework passes…"); for "15 of 24", all 24, of which the
+      report lists the 15 that fail. Fail if any ask behind a reported count appears
+      only as an id, a title, a count, a verdict or a path to the file.
   - type: llm-rubric
     metric: answer-leads
     value: |

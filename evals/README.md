@@ -513,7 +513,10 @@ captures with registered page media, including cropped or marked images. Its
 `exact_inputs` records computed source matches, leaving visual comparison to
 transformed images. The judge can read only copied images under the run's
 screenshot tree; the assertion
-supplies authored HTML to identify the references, without the author's trace.
+supplies authored HTML to identify the references, without the author's trace. A
+widget bound to a data source, such as a patch view, draws text the HTML doesn't hold,
+so a rubric about that text passes `metadata.page_data`, each bound source's value by
+id, beside the HTML in its `transform`, as `findings-show-their-cases` does.
 
 Use authoring cases for media preparation and checking or repairing rendering. Keep
 source and reading probes for decisions that need no rendered page: those whose rules

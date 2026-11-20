@@ -1,8 +1,9 @@
 # A page asking the user to merge a fix can show what the fix does, its measurements
 # and its risk, and leave the code change itself behind a link to the pull request,
 # though the author's notes name the file holding the diff. The user then asks what
-# the change is before deciding. The request quotes the user's standing word budget,
-# which pulls toward leaving the diff off rather than placing it a disclosure away.
+# the change is before deciding. The request quotes the user's standing instructions,
+# as the sessions that left a diff off carried them; `leaf page inspect` counts no code
+# or bound data, so their word budget doesn't count the diff.
 description: Merge decision for a CSS fix
 metadata:
   purpose: "A page that asks the user to merge a change shows the change's diff on
@@ -15,17 +16,17 @@ vars:
 assert:
   - type: llm-rubric
     metric: shows-the-change
+    transform: "JSON.stringify({html: output, data: context.metadata.page_data})"
     value: |
-      Pass only if the page shows #6555's code change itself, verbatim from
-      `pr-6555.diff`: in a patch or diff view, code blocks, or the rule before and
-      after, on arrival or behind a disclosure. Both the removed selector
-      (`body:not(:has(> main ~ :not(…)))`, with its list of exempt tags and attributes)
-      and the rule that replaces it (`body:has(> main.layout-workspace)`) must be
-      readable on the page. Fail if the change appears only in prose, as a link to the
-      pull request, a file list or diffstat, or with only one of the two rules. A widget
-      that names a `source`, such as a patch or code view, draws its text from the
-      page's data, which this HTML doesn't carry: count it as showing the material its
-      markup and labels say it holds.
+      The output holds the page's markup as `html` and, as `data`, the value of each
+      data source the page binds, by id, which a widget naming that `source` draws. Pass
+      only if the page shows #6555's code change itself, verbatim from `pr-6555.diff`:
+      in a patch or diff view, code blocks, or the rule before and after, on arrival or
+      behind a disclosure. Both the removed selector (`body:not(:has(> main ~
+      :not(…)))`, with its list of exempt tags and attributes) and the rule that
+      replaces it (`body:has(> main.layout-workspace)`) must be readable on the page.
+      Fail if the change appears only in prose, as a link to the pull request, a file
+      list or diffstat, or with only one of the two rules.
   - type: llm-rubric
     metric: question-leads
     value: |

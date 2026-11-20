@@ -139,15 +139,15 @@ Work that needs its own conversation with the user belongs in its own session, w
 its own page.
 
 Pages and decisions built from a worker's report tend to keep the report's shape, and
-the brief sets that shape. Ask a worker for the material each finding rests on, such
-as the cases behind a count or the lines of code, quoted or with the files that hold
-them, as well as the finding (`page-authoring.md`, "Show what a claim rests on").
-When the user will decide on what a worker finds, such as an audit's candidates, ask
-it for each decision's material rather than a record of each finding: the question
-the finding raises, each option titled by the result the user would get for that
-finding (not a kind of change shared by every finding, such as Remove), and each
-result shown as the user would meet it, such as a capture of the interface with the
-change applied beside today's, or a request the service would then refuse
+the brief sets that shape. Ask a worker to return, with each finding, the material it
+rests on: the cases behind a count, each with how it was counted, or the lines of
+code, quoted or in files it names (`page-authoring.md`, "Show what a claim rests
+on"). When the user will decide on what a worker finds, such as an audit's
+candidates, ask it for each decision's material rather than a record of each finding:
+the question the finding raises, each option titled by the result the user would get
+for that finding (not a kind of change shared by every finding, such as Remove), and
+each result shown as the user would meet it, such as a capture of the interface with
+the change applied beside today's, or a request the service would then refuse
 (`authoring-on-me.md`, "What a question holds").
 
 Each item you start shows its line where the user looks for that work: in its

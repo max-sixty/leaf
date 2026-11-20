@@ -58,12 +58,12 @@ parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
-Show a text file or quoted passage the user can comment on as a text document. When
-the page discusses an edit to code, prose or configuration, show its exact patch and
-explain the effect beside it. Choose the comparison that covers the work being
-discussed; `wt step diff`, when available, often covers a branch. The patch widget's
-and its package's author instructions own markup, source binding and patch
-preparation.
+Show a text file or quoted passage the user can comment on as a text document. When a
+claim or decision on the page turns on an edit to code, prose or configuration, show
+its exact patch and explain the effect beside it. Choose the comparison that covers
+the work being discussed; `wt step diff`, when available, often covers a branch. The
+patch widget's and its package's author instructions own markup, source binding and
+patch preparation.
 
 Choose whether evidence should follow the current source or preserve what was
 reviewed. A bound widget always shows its source's current value, in every version

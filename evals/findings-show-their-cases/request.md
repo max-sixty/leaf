@@ -38,6 +38,16 @@ reported:
 >   `3402d5d0`, `2b6691bc`) and two borderline (`777a43e6`, `7767205c`).
 > - **Fails either:** 15 of 24.
 >
+> **Failing asks (page, event id)**
+>
+> - fork-messages: `8d23a17a`, `777a43e6`, `7767205c`, `465fc747`
+> - card-rewritten-quote: `3bf598fd`
+> - gh-needs-me: `e3d07595`, `a277c981`
+> - draft-dot-page-dir: `e82c7594`, `d6cd64f5`, `0146706b`, `2b6691bc`
+> - fork-roadmap: `c56a44b5`
+> - compact-when-done-release: `be083ef9`, `20b90cf1`
+> - panel-status-whole: `3402d5d0`
+>
 > **Which prompt they ran under.** Rule A reached the prompt on `main` with #6502 at
 > 11-19 18:04Z, and rule B with #6536 and #6545 between 22:22 and 22:54Z. Of the 7 asks
 > written after both landed, 3 fail A and none fail B. I didn't pin which plugin

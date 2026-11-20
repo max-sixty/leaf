@@ -52,15 +52,15 @@ what a change changes, rests on material you read: the cases behind the count, t
 records of what happened, the code, the diff. Put that material on the page with the
 claim, quoted rather than retold, so the user can see what the claim means and check it
 without asking you or leaving the page. They often see in it what your summary left
-out. Quote a passage whole, conditions included.
+out. Quote a rule or other passage the claim turns on whole, conditions included, and
+excerpt a log or a diff to the lines that show the claim.
 
-The page holds material at more than one depth, so its length decides where it goes
-rather than whether it goes on the page. The case or the few lines that show the claim
-most plainly stand beside it. The rest, such as every case behind a count, a whole diff
-or a session's transcript, goes in a disclosure, which costs the reader one line until
-they open it ("Reading cost"). A link to where the material lives goes beside the
-material, not in its place. Leave material off only where the reader has no reason to
-check the claim, as with a fact they already hold.
+How long the material is decides where it goes, not whether it goes on the page
+("Reading cost"). A link to where the material lives goes beside the material rather
+than in its place, except where the reader has no reason to check the claim, as with
+a fact they already hold or a status they take on trust, such as a passing CI run.
+Where the cases are too many, too large or private to show, show those the claim turns
+on and say how to reach the rest.
 
 ## Develop the work
 
@@ -92,10 +92,10 @@ interaction operable when trying it reveals more than seeing its states together
 
 Use real material where available. Fill gaps needed to demonstrate a proposal with
 plausible fictional content, clearly labeled as illustrative. This lets the reader
-judge a design before it is implemented or tested; claims about real behavior
-still require evidence. Keep the distinction visible beside the demonstration.
-`authoring-evidence.md` owns evidence and its presentation; `live-samples.md` owns
-operable Leaf examples.
+judge a design before it is implemented or tested, while a claim about real behavior
+rests on real material ("Show what a claim rests on"). Keep the distinction visible
+beside the demonstration. `authoring-evidence.md` says how to present each kind of
+evidence; `live-samples.md` owns operable Leaf examples.
 
 Compose the page from that material. Explain the conclusion, reasons, costs and
 limits beside the result they concern, and remove descriptions the result makes
@@ -113,8 +113,11 @@ few words and state its finding in the panel's first line.
 
 Keep essential content visible. Collapse optional detail when it saves enough reading
 to justify finding and opening it; short qualifications and evidence needed for a
-judgment belong beside that judgment. Keep disclosure controls reachable, and make
-nested disclosures reveal substantial content of their own.
+judgment belong beside that judgment. Material a claim rests on that is too long to
+read in passing, such as every case behind a count or a whole diff, is such detail,
+while the case or the lines that show the claim most plainly stay beside it. Keep
+disclosure controls reachable, and make nested disclosures reveal substantial content
+of their own.
 
 Preserve the meaning and units of facts you use. Check derived quantities against their
 inputs, and keep uncertainty and evidence limits beside the claims they qualify. When

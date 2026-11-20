@@ -41,13 +41,16 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
-def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path):
-    """Claude Code installs an update beside the copy a running session loaded, then
-    marks each copy `installed_plugins.json` no longer records with `.orphaned_at`,
-    and a marked copy may lose its files while the session still runs its launcher.
-    That launcher runs the first absolute, executable launcher the record names,
-    with the call's arguments and stdin, unless that is its own, and a copy not yet
-    marked runs itself."""
+def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path, monkeypatch):
+    """Claude Code installs an update beside the copy a running session loaded and
+    records the installed copy in `installed_plugins.json`, and an older copy may
+    lose its files, its marker of replacement among them, while the session still
+    runs its launcher. That launcher runs the first absolute, executable launcher
+    the record names, with the call's arguments and stdin, unless that is its own.
+    Where its project is gone and it has no other copy to run, it refuses, naming
+    the cause, rather than leave uv to run the caller's `python`."""
+    from leaf import session_runtime
+
     cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
     replaced = cache / "0a0a0a0a0a0a"
     (replaced / "bin").mkdir(parents=True)
@@ -59,19 +62,14 @@ def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path):
     # Recorded, without a launcher.
     unrunnable = cache / "2c2c2c2c2c2c"
     record = tmp_path / "plugins" / "installed_plugins.json"
-    marker = replaced / ".orphaned_at"
 
-    def hands_on(marked: bool, installs: list) -> bool:
-        if marked:
-            marker.write_text("1795146911571")
-        else:
-            marker.unlink(missing_ok=True)
+    def run(installs: list):
         record.write_text(
             json.dumps(
                 {"plugins": {"leaf@leaf": [{"installPath": str(p)} for p in installs]}}
             )
         )
-        ran = subprocess.run(
+        return subprocess.run(
             [str(replaced / "bin/leaf"), "page", "state", "a page"],
             cwd=cache,
             input="the hook's payload\n",
@@ -80,15 +78,27 @@ def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path):
             timeout=STATED_TIMEOUT,
             check=False,
         )
-        return ran.stdout == "page\nstate\na page\nthe hook's payload\n"
 
-    assert hands_on(True, [installed])
-    assert hands_on(True, [unrunnable, installed])
-    # The copy the record names runs itself, as does one not yet marked.
-    assert not hands_on(True, [replaced, installed])
-    assert not hands_on(False, [installed])
-    assert not hands_on(True, [installed.name])
-    assert not hands_on(True, [])
+    for installs in ([installed], [unrunnable, installed]):
+        handed = run(installs)
+        assert (handed.returncode, handed.stdout) == (
+            0,
+            "page\nstate\na page\nthe hook's payload\n",
+        ), handed.stderr
+    # Its own launcher named first, a relative path, or none.
+    for installs in ([replaced, installed], [installed.name], []):
+        refused = run(installs)
+        assert (refused.returncode, refused.stdout) == (1, "")
+        assert "has lost its files" in refused.stderr
+    # A whole copy Claude Code marked runs the installed one too, as the pages
+    # follower expects of a copy it reads as replaced.
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", replaced)
+    assert session_runtime.replaced()
+    (replaced / "pyproject.toml").write_text("")
+    assert not session_runtime.replaced()
+    (replaced / ".orphaned_at").write_text("1795146911571")
+    assert session_runtime.replaced()
+    assert run([installed]).stdout == "page\nstate\na page\nthe hook's payload\n"
 
 
 def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):
@@ -404,6 +414,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(harness, event, tmp_
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
+    (project / "pyproject.toml").touch()
     tools = tmp_path / "tools"
     tools.mkdir()
     uv = tools / "uv"
@@ -464,6 +475,7 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
+    (project / "pyproject.toml").touch()
     program = project / "src/leaf/state.py"
     program.parent.mkdir(parents=True)
     program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())

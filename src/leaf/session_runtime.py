@@ -67,10 +67,12 @@ def selected_launcher(session_id: str) -> Path | None:
 
 
 def replaced() -> bool:
-    """Whether Claude Code has marked this copy as one it no longer records
-    (`.orphaned_at`). This copy's launcher then runs the copy the record names,
-    where it names another (`bin/leaf`)."""
-    return (PLUGIN_ROOT / ".orphaned_at").exists()
+    """Whether this copy's launcher looks for the copy Claude Code installed in its
+    place (`bin/leaf`): Claude Code marked this copy as one `installed_plugins.json`
+    no longer names (`.orphaned_at`), or the copy has lost its project."""
+    return (PLUGIN_ROOT / ".orphaned_at").exists() or not (
+        PLUGIN_ROOT / "pyproject.toml"
+    ).exists()
 
 
 def select_launcher(session_id: str, launcher: Path) -> bool:

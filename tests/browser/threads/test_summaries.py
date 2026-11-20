@@ -24,7 +24,7 @@ from browser.threads import (
 from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import ON_ME_MARK
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -235,8 +235,7 @@ def test_on_me_opens_the_fold_over_a_message_it_lists(browser, serve):
     expect(toggle).to_have_attribute("aria-expanded", "false")
     expect(message).to_be_hidden()
 
-    page.locator(ON_ME_MARK).click()
-    page.locator(".lf-fp-on-item").first.get_by_role(
+    open_on_me(page).locator(".lf-fp-on-item").first.get_by_role(
         "button", name="Show", exact=True
     ).click()
     expect(message).to_be_focused()

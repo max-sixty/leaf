@@ -10,6 +10,7 @@ from render_harness import (
     dwelt,
     leaf_page,
     open_page,
+    preview_parts,
     select,
     tab_onto,
     told,
@@ -389,6 +390,32 @@ def test_a_compared_step_row_previews_nothing(browser, serve):
     tab_onto(row)
     rendered(page)
     assert not preview.is_visible(), preview.inner_text()
+
+
+SHORT_RUNS = (
+    RUNS.replace('label="Before the fix"', 'label="Before the fix" abbr="Before"')
+    .replace('label="After the fix"', 'label="After the fix" abbr="After"')
+    .replace('label="Job A"', 'label="Job A" abbr="A"')
+    .replace('label="Job B"', 'label="Job B" abbr="B"')
+)
+
+
+def test_a_short_form_previews_what_it_stands_for(browser, serve):
+    """A pointer resting on a lane's or a run's short form in the step list reads its
+    label, and the keyboard's focus, which reaches a row and none of its short forms,
+    reads what each lane's short form in the row stands for, once each."""
+    page = open_page(
+        browser, serve(leaf_page("Race", SHORT_RUNS), packages=("timeline",))
+    )
+    race = page.locator("#race")
+    row = race.locator(".lf-timeline-step").first
+    assert preview_parts(
+        row.locator(".lf-timeline-step-lane > [aria-hidden]").first
+    ) == ["Job A"]
+    assert preview_parts(race.locator(".lf-timeline-steps-run").last) == [
+        "After the fix"
+    ]
+    assert preview_parts(row, "focus") == ["A = Job A"]
 
 
 def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(

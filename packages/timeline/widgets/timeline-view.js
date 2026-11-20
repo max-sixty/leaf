@@ -171,6 +171,12 @@ const stepButton = (action, available) =>
     aria-disabled=${available ? nothing : "true"}
   ></button>`;
 
+/** What a short form stands for, as its preview (`lfPreview`) reads it to a pointer
+ * resting on the short form or a finger holding it. The user chose this over a key
+ * beside each label in the chart, the alternative that shows before anyone points.
+ * @param {string} label */
+const spelledOut = (label) => () => ({ name: label });
+
 /** A step's lane name. A short form is hidden from listeners, who hear the label as
  * its quiet word.
  * @param {TimelineLane} lane */
@@ -178,14 +184,34 @@ const laneName = (lane) =>
   html`<span
     class="lf-timeline-step-lane"
     data-lf-quiet=${lane.abbr ? lane.label : nothing}
-    >${lane.abbr ? html`<span aria-hidden="true">${lane.abbr}</span>` : lane.label}${": "}</span
+    >${
+      lane.abbr
+        ? html`<span aria-hidden="true" .lfPreview=${spelledOut(lane.label)}
+            >${lane.abbr}</span
+          >`
+        : lane.label
+    }${": "}</span
   >`;
 
-/** A step row previews nothing (`lfPreview`). Its quiet words, which a preview would
- * otherwise read, name what the timeline shows elsewhere: each cell's run in the head
- * above its column, and a lane's full name in the chart. No key reaches a row, which
- * `false` would also leave out. */
-const stepPreview = () => false;
+/** A step row's preview (`lfPreview`). Its quiet words name what the timeline shows
+ * elsewhere, each cell's run in the head above its column and a lane's full name in
+ * the chart, so a pointer or a finger on the row previews nothing but the short form
+ * it rests on. Focus, which reaches the row and none of its short forms, previews what
+ * each lane's short form in the row stands for. No key reaches a row.
+ * @param {TimelineStep} step */
+const stepPreview = (step) => {
+  const forms = [
+    ...new Set(
+      step.events.flatMap(({ lane }) =>
+        lane.abbr ? [`${lane.abbr} = ${lane.label}`] : [],
+      ),
+    ),
+  ];
+  return (/** @type {string} */ route) =>
+    route === "focus" && forms.length
+      ? { name: forms[0], detail: forms.slice(1) }
+      : false;
+};
 
 /** One retained template for connection, revision, resizing and stepping. */
 /** @param {HTMLElement} host @param {number} current
@@ -324,6 +350,7 @@ export function render(host, current, model, layout) {
                   html`<span
                     class="lf-timeline-steps-run lf-label"
                     style="grid-column: ${column + 2}"
+                    .lfPreview=${run.abbr ? spelledOut(run.label) : nothing}
                     >${run.abbr ?? run.label}</span
                   >`,
               )}
@@ -342,7 +369,7 @@ export function render(host, current, model, layout) {
               data-lf-step=${index}
               aria-current=${index === current ? "step" : nothing}
               ?data-lf-ahead=${index > current}
-              .lfPreview=${stepPreview}
+              .lfPreview=${stepPreview(step)}
             >
               <span class="lf-timeline-step-time lf-row-lead"
                 >${seconds(step.time)}</span

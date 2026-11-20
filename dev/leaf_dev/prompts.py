@@ -235,10 +235,10 @@ def title_request() -> str:
 
 
 def references() -> list[Path]:
-    """The shipped references the prompts quote, which a preview follows."""
+    """The shipped skill files the prompts quote, which a preview follows."""
     quoted = (*clerk.GUIDANCE, summary_fork.RANGE, summary_fork.GUIDANCE)
     names = sorted({name for name, _ in quoted})
-    return [clerk.REFERENCE, *(clerk.REFERENCES / name for name in names)]
+    return [clerk.REFERENCE, *(clerk.SKILL / name for name in names)]
 
 
 # Each prompt by the name its slot on How it works gives (`data-prompt`).

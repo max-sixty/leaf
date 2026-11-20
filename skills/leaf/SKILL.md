@@ -27,14 +27,14 @@ it before a page heading, a chat open item or a `needs input:` line mentions it.
 `references/conversation-loop.md`, "The On lists", owns registration and
 reconciliation.
 
-The user meets each thing you write on its own, often hours later: a thread card
-beside its passage, a row in On Me, a title in Threads, a section reached from the
-contents. So in each, where you first mention a pull request, a decision or anything
-else, even in passing, say what it is or does in words the user already uses, and link
-those words to it; its number, a name you coined while working or its place on the
-page doesn't say what it is. Title a thread “Merging the retry for dropped uploads”,
-not “Merging #431”, and write “it doesn't need [the upload queue fix](…)”, not “it
-doesn't need #428”.
+Where a section, decision, thread message or thread title first mentions a pull
+request, an issue, a commit or another decision, say what it is or does in words the
+user already uses, and link those words to it; its number, or a name coined during
+the work, doesn't say what it is. Write “it doesn't need [the upload queue fix](…)”,
+not “it doesn't need #428”, and title a thread “Merging the retry for dropped
+uploads”, not “Merging #431”. Link the files, source lines and URLs it names too,
+where each has a known destination. The user reaches each of these on its own, from
+the contents, On Me or Threads, and opens what it names from there.
 
 ## Author the page
 

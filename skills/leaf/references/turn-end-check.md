@@ -27,16 +27,14 @@ hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent
 message in a thread, and the agent takes the user's answer or withdraws the ask. For
 each, give:
 
-- `title`: a few words naming its thread's subject by what it is, since the user reads
-  it alone in Threads ("Merging the two mark styles", not "Merging #431").
+- `title`: a few words naming its thread's subject ("Merging the two mark styles",
+  "Reloading the plugin").
 - `text`: the message that asks it, written as that guidance says the agent writes
   one, a choice included, which Leaf posts as the agent's `leaf thread` command
   would. It holds the question, in a paragraph of its own, and around it the facts
-  true of every option, among them what each piece of work it mentions is or does,
-  and any advice; what is true of one option alone, such as what choosing it does,
-  goes on that option's card, titled by its result rather than a number ("Merge the
-  two mark styles", not "Merge #431"). It marks an option recommended only where the
-  agent advised it.
+  true of every option and any advice; what is true of one option alone, such as what
+  choosing it does, goes on that option's card. It marks an option recommended only
+  where the agent advised it.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
   stands on; otherwise empty, and it stands on the page as a whole.

@@ -232,29 +232,29 @@ from .state import (
     session_record,
 )
 
-REFERENCES = SKILL_FILE.parent / "references"
+SKILL = SKILL_FILE.parent
 # What the fork is asked, as the skill ships it.
-REFERENCE = REFERENCES / "turn-end-check.md"
+REFERENCE = SKILL / "references" / "turn-end-check.md"
 # The agent's own guidance the fork follows for its asks and its overtaken threads,
-# each a paragraph of a reference named by the words that open it: what goes On Me,
-# which action asks for permission and which is a step, what a question holds, how
-# HTML in a message draws, when it asks with a choice, how a message reads in a
-# thread's narrow card, what it links, where a correction to an unanswered reply
-# goes, and the reply a thread is owed once the work it discusses is done. The fork
-# opens no file, so it can't follow a pointer in one of these paragraphs to another
-# reference: what it needs to write the message is in the paragraph, or in the example
-# right after it, which it gets with the paragraph and which shows the markup, such
-# as `recommended` on the option the agent advises.
+# each a paragraph of a file in the skill named by the words that open it: what goes
+# On Me, which action asks for permission and which is a step, what a question holds,
+# how HTML in a message draws, when it asks with a choice, how a message reads in a
+# thread's narrow card, how it names and links the work it mentions, where a
+# correction to an unanswered reply goes, and the reply a thread is owed once the work
+# it discusses is done. The fork opens no file, so it can't follow a pointer in one of
+# these paragraphs to another reference: what it needs to write the message is in the
+# paragraph, or in the example right after it, which it gets with the paragraph and
+# which shows the markup, such as `recommended` on the option the agent advises.
 GUIDANCE = (
-    ("conversation-loop.md", "The user's **On Me** list holds"),
-    ("conversation-loop.md", "For an action you take once the user agrees"),
-    ("authoring-on-me.md", "Make each question self-contained"),
-    ("threads.md", "A message is Markdown, and HTML in it draws"),
-    ("threads.md", "When a message asks the user to choose among answers"),
-    ("threads.md", "A thread shows in a narrow card"),
-    ("page-authoring.md", "Link each pull request"),
-    ("threads.md", "While your reply is still the thread's latest message"),
-    ("authoring-revisions.md", "The user reads threads to find out"),
+    ("references/conversation-loop.md", "The user's **On Me** list holds"),
+    ("references/conversation-loop.md", "For an action you take once the user agrees"),
+    ("references/authoring-on-me.md", "Make each question self-contained"),
+    ("references/threads.md", "A message is Markdown, and HTML in it draws"),
+    ("references/threads.md", "When a message asks the user to choose among answers"),
+    ("references/threads.md", "A thread shows in a narrow card"),
+    ("SKILL.md", "Where a section, decision, thread message"),
+    ("references/threads.md", "While your reply is still the thread's latest message"),
+    ("references/authoring-revisions.md", "The user reads threads to find out"),
 )
 
 _WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
@@ -523,10 +523,10 @@ def guidance() -> list[str]:
 
 
 def reference_paragraph(name: str, opening: str) -> str:
-    """The paragraph of the skill's reference `name` that opens with `opening`, with
-    any fenced example right after it, as the agent reads it, for a fork that follows
-    the agent's guidance."""
-    text = (REFERENCES / name).read_text()
+    """The paragraph of the skill's file `name`, such as `SKILL.md` or
+    `references/threads.md`, that opens with `opening`, with any fenced example right
+    after it, as the agent reads it, for a fork that follows the agent's guidance."""
+    text = (SKILL / name).read_text()
     start = text.find(f"\n\n{opening}") + 2
     if start < 2:
         raise ValueError(f"{name} has no paragraph opening {opening!r}")

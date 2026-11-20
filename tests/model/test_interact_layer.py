@@ -5426,6 +5426,50 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert "unknown package 'tallies'" in unknown.stderr
 
 
+def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_path):
+    """`package list` names what `page init --package NAME` selects: an installed
+    package under a name of its own beside the bundled ones, described by the opening
+    paragraph of its author instructions and its entries' descriptions, and an
+    installed package in place of the bundled one whose name it takes. `default`, on
+    every page already, is not offered."""
+    team = tmp_path / "src" / "team-charts"
+    packages_model.cmd_package_init(team, "lf-trend")
+    (team / "instructions").mkdir(exist_ok=True)
+    (team / "instructions" / "author.md").write_text(
+        "Select this package for the analytics team's pages.\n"
+        "It charts in their house style.\n\n"
+        "Give every chart a label.\n"
+    )
+    diagram = tmp_path / "src" / "diagram"
+    packages_model.cmd_package_init(diagram)
+    for source in (team, diagram):
+        installed = CliRunner().invoke(
+            cli_model.cli, ["package", "install", str(source)]
+        )
+        assert installed.exit_code == 0, installed.output
+
+    listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
+
+    assert listed.exit_code == 0, listed.output
+    packages = {each["name"]: each for each in json.loads(listed.output)["packages"]}
+    assert packages["team-charts"] == {
+        "name": "team-charts",
+        "installed": True,
+        "summary": "Select this package for the analytics team's pages. "
+        "It charts in their house style.",
+        "entries": {
+            "lf-trend": packages_model.starter_element_declaration("lf-trend")[
+                "description"
+            ]
+        },
+    }
+    assert packages["diagram"]["installed"] is True
+    assert packages["diagram"]["entries"] == {}
+    assert packages["playwright"]["installed"] is False
+    assert "lf-trace" in packages["playwright"]["entries"]
+    assert "default" not in packages
+
+
 def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     tmp_path, monkeypatch
 ):

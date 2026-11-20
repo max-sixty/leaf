@@ -470,9 +470,9 @@ skill. These probes may only read (Claude Code's Skill and Read tools; Codex's
 read-only sandbox), so a prompt that needs a page asks for its HTML in the reply,
 and one that grades what the
 agent would do asks for the commands it would run. They may also ask the arm's Leaf
-what a page's packages tell an author: Claude Code runs `leaf page instructions` and
-`leaf page vocabulary`, and Codex runs any `leaf` command through the plugin's `leaf`
-tool. A case that declares `metadata.page`, the packages its page takes beside the
+what a page's packages tell an author and which packages it could select: Claude Code
+runs `leaf page instructions`, `leaf page vocabulary` and `leaf package list`, and
+Codex runs any `leaf` command through the plugin's `leaf` tool. A case that declares `metadata.page`, the packages its page takes beside the
 defaults (`[]` for none), gives its probe that page, initialized, and the prompt names
 it (`page_prompt` in `workflows/eval.yaml`). The runner tells such a probe
 the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
@@ -490,6 +490,9 @@ arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory
 Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
+`metadata.installed` lists package directories, relative to the repository, that
+`leaf package install` adds to that Leaf state before the agent starts, as packages
+the user installed on the machine.
 Declaring `html` in `metadata.conditions` adds the plain HTML control, which gets
 the same prompt without the Leaf skill prefix, an empty directory and the headless
 Chrome path; its `page-valid` means the page loaded without script errors. A

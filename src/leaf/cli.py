@@ -576,6 +576,16 @@ def package_install(package_path: Path) -> dict:
     return cmd_package_install(package_path)
 
 
+@package.command("list", short_help="List the packages a page can select by name.")
+def package_list() -> dict:
+    """Print each package `page init --package NAME` can select, bundled or
+    installed, with the opening paragraph of its author instructions and the
+    description of each entry it declares. Every page already has `default`."""
+    from leaf.packages import cmd_package_list
+
+    return cmd_package_list()
+
+
 @package.command(
     "run",
     cls=PrintsItself,

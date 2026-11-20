@@ -31,7 +31,10 @@ from .locations import (
 from .machine import package_store
 from .refusals import Refused
 from .schema import (
+    BUNDLED_PACKAGES,
+    DEFAULT_PACKAGE,
     HTML_NAME,
+    INSTRUCTIONS_DIR,
     PACKAGE_DIRS,
     PACKAGE_FILES,
     PAGE_OWNED_DIRS,
@@ -464,6 +467,41 @@ def cmd_package_install(source: Path) -> dict:
             os.replace(pointer, destination)
             fsync_parents([published, destination])
         return {"package": str(published)}
+
+
+def cmd_package_list() -> dict:
+    """List the packages `page init --package NAME` can select by name: each bundled
+    one but `default`, which every page composes, and each installed one, which stands
+    in for a bundled package of its name as selection resolves it (`named_package`).
+
+    A package is described in its own words, so one installed under a name of its own
+    reaches an author as a bundled one does: its `summary` is the opening paragraph of
+    its author instructions, which says when to select it, and `entries` maps each of
+    its registry keys to that entry's description."""
+    names = package_store() / "names"
+    installed = {path.name for path in names.iterdir()} if names.is_dir() else set()
+    bundled = {path.name for path in BUNDLED_PACKAGES.iterdir() if path.is_dir()}
+    packages = []
+    for name in sorted((bundled | installed) - {DEFAULT_PACKAGE.name}):
+        if (root := named_package(name)) is None:
+            continue
+        author = root / INSTRUCTIONS_DIR / "author.md"
+        text = author.read_text(encoding="utf-8") if author.is_file() else ""
+        opening = text.strip().split("\n\n", 1)[0]
+        entries = read_json(root / "registry.json") or {}
+        packages.append(
+            {
+                "name": name,
+                "installed": name in installed,
+                "summary": " ".join(opening.split()),
+                "entries": {
+                    key: entry["description"]
+                    for key, entry in entries.items()
+                    if not key.startswith("$")
+                },
+            }
+        )
+    return {"packages": packages}
 
 
 def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:

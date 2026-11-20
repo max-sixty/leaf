@@ -167,6 +167,10 @@ def execute(
             else {}
         )
         if leaf:
+            # Packages the user installed on this machine, as `metadata.installed`
+            # names them, before the page the agent writes.
+            for package in metadata.get("installed", ()):
+                run_leaf(payload, state, "package", "install", package, check=True)
             run_leaf(payload, state, "page", "init", str(page), check=True)
         else:
             page.mkdir()

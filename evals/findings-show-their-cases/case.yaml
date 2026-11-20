@@ -41,9 +41,11 @@ assert:
       disclosure, tab or similar: for "3 of 7", all 7 since both rules landed, among
       them `e3d07595` ("since #6530 moved the tests to Playwright 1.65.2…"), `3bf598fd`
       ("keeps a comment on the item its words stand in…") and `8d23a17a` ("Should I
-      merge PR #6574 once its rework passes…"); for "15 of 24", all 24, of which the
-      report lists the 15 that fail. Fail if any ask behind a reported count appears
-      only as an id, a title, a count, a verdict or a path to the file.
+      merge PR #6574 once its rework passes…"); for "15 of 24", all 24, of which these
+      15 fail: `8d23a17a`, `777a43e6`, `7767205c`, `465fc747`, `3bf598fd`, `e3d07595`,
+      `a277c981`, `e82c7594`, `d6cd64f5`, `0146706b`, `2b6691bc`, `c56a44b5`,
+      `be083ef9`, `20b90cf1`, `3402d5d0`. Fail if any ask behind a reported count
+      appears only as an id, a title, a count, a verdict or a path to the file.
   - type: llm-rubric
     metric: answer-leads
     value: |

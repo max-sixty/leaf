@@ -55,12 +55,14 @@ without asking you or leaving the page. They often see in it what your summary l
 out. Quote a rule or other passage the claim turns on whole, conditions included, and
 excerpt a log or a diff to the lines that show the claim.
 
-How long the material is decides where it goes, not whether it goes on the page
-("Reading cost"). A link to where the material lives goes beside the material rather
-than in its place, except where the reader has no reason to check the claim, as with
-a fact they already hold or a status they take on trust, such as a passing CI run.
-Where the cases are too many, too large or private to show, show those the claim turns
-on and say how to reach the rest.
+How long the material is decides where it goes, not whether it goes on the page. The
+case or the few lines that show the claim most plainly stand beside it, and the rest,
+such as every case behind a count or a whole diff, stays on the page; "Reading cost"
+says when to collapse it. A link to where the material lives goes beside the material
+rather than in its place, except where the reader has no reason to check the claim,
+as with a fact they already hold or a status they take on trust, such as a passing CI
+run. Where the cases are too many, too large or private to show, show those the claim
+turns on and say how to reach the rest.
 
 ## Develop the work
 
@@ -113,11 +115,8 @@ few words and state its finding in the panel's first line.
 
 Keep essential content visible. Collapse optional detail when it saves enough reading
 to justify finding and opening it; short qualifications and evidence needed for a
-judgment belong beside that judgment. Material a claim rests on that is too long to
-read in passing, such as every case behind a count or a whole diff, is such detail,
-while the case or the lines that show the claim most plainly stay beside it. Keep
-disclosure controls reachable, and make nested disclosures reveal substantial content
-of their own.
+judgment belong beside that judgment. Keep disclosure controls reachable, and make
+nested disclosures reveal substantial content of their own.
 
 Preserve the meaning and units of facts you use. Check derived quantities against their
 inputs, and keep uncertainty and evidence limits beside the claims they qualify. When

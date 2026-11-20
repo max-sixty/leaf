@@ -1,9 +1,9 @@
 # A page asking the user to merge a fix can show what the fix does, its measurements
 # and its risk, and leave the code change itself behind a link to the pull request,
 # though the author's notes name the file holding the diff. The user then asks what
-# the change is before deciding. The request quotes the user's standing instructions,
-# as the sessions that left a diff off carried them; `leaf page inspect` counts no code
-# or bound data, so their word budget doesn't count the diff.
+# the change is before deciding. The request quotes the user's standing instructions;
+# `leaf page inspect` counts no bare `<pre>` code or bound data, so their word budget
+# doesn't count the diff.
 description: Merge decision for a CSS fix
 metadata:
   purpose: "A page that asks the user to merge a change shows the change's diff on

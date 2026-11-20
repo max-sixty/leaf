@@ -869,9 +869,8 @@ export function createThreadPreview({
               session.wide || !fromSubject
                 ? Math.min(cardMeasure(), width, carried)
                 : narrow;
-            // Only the messages it shows count: a run's earlier progress steps and the
-            // turns under a closed checkpoint fold (`hidden="until-found"`) and still
-            // lay out when measured.
+            // Only the messages it shows count: the turns under a closed checkpoint
+            // fold (`hidden="until-found"`) and still lay out when measured.
             const outgrown = () =>
               fromSubject &&
               !held.writing &&

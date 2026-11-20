@@ -64,10 +64,9 @@ const moduleOwnsBox = (el) => {
 // paragraph.
 //
 export function trappedMargins() {
-  // Which document each box is in is OPEN_ROOTS', imported rather than restated, for
-  // the same reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow
-  // roots of its own, and a `closest` written out here stops at the first of them and
-  // calls what it finds the page's.
+  // Which document each box is in is openRoots', imported rather than restated: the
+  // runtime's layer holds shadow roots of its own, and a `closest` written out here
+  // stops at the first of them and calls what it finds the page's.
   const px = (/** @type {string} */ v) => parseFloat(v) || 0;
   // The platform's own answer to "does a child's margin reach my edge, and can it get
   // past it": a box that establishes a formatting context keeps every margin inside.

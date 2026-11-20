@@ -1,5 +1,5 @@
-This package has no widgets. Select it together with the packages for the evidence the
-review needs.
+Select this package for a page that reviews a change, such as a pull request. It has no
+widgets, so select it together with the packages for the evidence the review needs.
 
 Lead with the finding, the behavior that changes, and any unresolved risks. Name the
 revision you reviewed, and keep the change author's description apart from your own

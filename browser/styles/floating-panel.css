@@ -1308,22 +1308,17 @@
     padding-block: 10px 6px;
   }
 
-  /* A list's rows lay out as every list's do (controls.css, `.lf-rows`). */
+  /* A list's rows lay out as every list's do (controls.css, `.lf-rows`). A row's words
+     stand on one line, cut with an ellipsis where the panel's width runs out, and its
+     hover reads them whole (preview.js). So a menu row with long words, such as Undo
+     naming the gesture it would take back, stands as tall as the rows around it. The
+     user chose that over wrapping such a row's words to a second line, which pushed
+     every row below it down. */
   .lf-fp-label {
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  /* A menu row whose words name what it acts on, such as Undo naming the gesture it
-     would take back, wraps to a second line rather than cutting the name it exists to
-     say; its value keeps the first line's baseline. */
-  .lf-fp-item > .lf-fp-label {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    white-space: normal;
-    overflow-wrap: anywhere;
   }
   .lf-fp-value {
     color: var(--lf-muted);
@@ -1453,8 +1448,6 @@
     display: none;
   }
   .lf-fp-version > .lf-fp-item > .lf-fp-label {
-    display: block;
-    white-space: nowrap;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
@@ -1467,9 +1460,7 @@
     display: none;
   }
   @media (pointer: coarse), (hover: none) {
-    .lf-fp-item > .lf-fp-label,
-    .lf-fp-version > .lf-fp-item > .lf-fp-label {
-      display: block;
+    .lf-fp-item > .lf-fp-label {
       white-space: normal;
     }
     .lf-fp-item > .lf-fp-label > .lf-fp-note {

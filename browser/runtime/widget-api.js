@@ -14,6 +14,7 @@
    so a widget that must also run off a Leaf page imports from there and every other
    widget keeps importing from here. */
 import "./element-integration.js";
+import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { iconTemplate } from "./icons.js";
@@ -139,7 +140,7 @@ export {
 } from "./reading-regions.js";
 export { raiseError } from "./errors.js";
 export { MAX_EDIT_LENGTH } from "./text-alignment.js";
-export { named, says } from "./passages.js";
+export { named, phrasing, says } from "./passages.js";
 export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";
@@ -194,7 +195,8 @@ export { leafEditorView } from "./editor-view.js";
  * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
  * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
-  const owner = await import("./sample.js");
+  // The page counts the sample's arrival from here; the host counts it once it starts.
+  const owner = await deferredArrival(import("./sample.js"));
   return owner.mountSample(frame, options);
 }
 export { wear } from "./dress.js";

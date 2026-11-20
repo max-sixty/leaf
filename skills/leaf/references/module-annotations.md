@@ -257,7 +257,8 @@ box. Return, in the same order, an outlet for each target or `null`, or a promis
 that array; an asynchronous `threadOutlets` checks `signal` before changing the DOM. A
 target is `{anchor, placement, thread}`, with `thread` `null` for the comment box. A
 target on a datum names it in `anchor.datum`, with its element at
-`placement.datumElement`. A target with no `anchor.datum` is the widget itself: a
+`placement.datumElement`; a passage running across several data names the last there and
+the first in `anchor.from`. A target with no `anchor.datum` is the widget itself: a
 thread anchored to its element and nothing inside it. A thread on a passage or a visual
 part of the widget is never a target, and stays in the margin. Here `this.outletFor` is
 the widget's own method that finds or makes the outlet beside a datum (`lf-diff`'s

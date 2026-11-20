@@ -388,11 +388,9 @@ its own state and theme scope. Declare its template in the authored document, fo
 
 The host's `ready` promise belongs to its current child, and changes when loading
 starts again. `on(type, callback)` returns an unsubscribe function. Its notices are
-`loading`, `waiting`, `departed`, `arrived`, `input` (with the event's `{type}`),
-`current-location` (with `{focused}`), and `height` (with `{height}`). `waiting` says
-the server asked the host to wait before placing the child, or the child waits to
-load behind one the server asked; either can last minutes, so stop holding the page's
-presentation on `ready` when it comes. Use `height` to size a block frame, holding
+`loading`, `departed`, `input` (with the event's `{type}`), `current-location` (with
+`{focused}`), and `height` (with `{height}`). The host counts the child's arrival in
+the page's readiness itself. Use `height` to size a block frame, holding
 growth the user did not request as described in `module-scroll-and-motion.md` until a
 `click`, `keydown` or `input` notice says they acted in the child.
 `restoreCurrentLocation()` returns focus to the child's last focused control;

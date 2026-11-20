@@ -220,7 +220,7 @@ else:
 def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     scenario = CASES[case]
     if scenario["fork"] == "line":
-        return ["answered", "lined", "judged"]
+        return ["answered", "lined"]
     if scenario["fork"] == "summary":
         return ["answered", "declined" if scenario.get("declines") else "summarized"]
     expect = scenario.get("labels", {}).get("expect", [])
@@ -916,9 +916,6 @@ def score_line(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
         "checks": {
             "answered": True,
             "lined": line is not None,
-            # Who should do the work: `take` where a fork of the session could do it
-            # beside the session, the case's label.
-            "judged": note.get("work") == scenario["labels"]["work"],
         },
         "outcome": note["outcome"],
         "note": note,

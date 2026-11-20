@@ -124,9 +124,9 @@ def basis(page_dir, thread: str, *inputs: str) -> dict:
     }
 
 
-def judged(line: str, work: str = "hand_over") -> str:
-    """A fork's answer: the agent's working line, and who should do the work."""
-    return json.dumps({"line": line, "work": work})
+def line_answer(line: str) -> str:
+    """A line fork's answer: the agent's working line."""
+    return json.dumps({"line": line})
 
 
 def context(capsys, event: str) -> str:
@@ -178,10 +178,10 @@ def test_a_kept_back_message_gets_the_forks_working_line_and_goes_to_the_session
     handed = forks_model.route(
         "s1",
         question["thread"],
-        answer=judged(" checking why the poll is 2 s\n"),
+        answer=line_answer(" checking why the poll is 2 s\n"),
         failed=None,
     )
-    assert (handed["outcome"], handed["work"]) == ("hand_over", "hand_over")
+    assert handed["outcome"] == "hand_over"
     [line] = [
         event for event in events_model.read_events(claimed) if event["kind"] == "reply"
     ]
@@ -210,16 +210,13 @@ def test_a_kept_back_message_gets_the_forks_working_line_and_goes_to_the_session
     assert forked(claimed) == []
 
 
-@pytest.mark.parametrize("work", ["take", "hand_over"])
-def test_a_take_hands_the_thread_over_as_a_hand_over_does_and_tells_the_session(
-    claimed, lane, interactive, capsys, monkeypatch, work
+def test_a_line_hands_the_thread_to_the_session(
+    claimed, lane, interactive, capsys, monkeypatch
 ):
-    """Whichever way the line fork judges the work, Leaf posts its line, closes the
-    line turn and nudges a session no watch follows, and the session's next delivery
-    hands it the message with its answer reference. A `take` first queues the one
-    line telling the session that a fork of it could do the work beside it
-    (`forks.beside_line`), which that delivery's step hears with it; a `hand_over`
-    queues nothing."""
+    """Leaf posts the line fork's line, closes the line turn and nudges a session no
+    watch follows, and the session's next delivery hands it the message with its
+    answer reference, telling it nothing more, since the session decides who does
+    the work."""
     nudged = []
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
@@ -230,9 +227,9 @@ def test_a_take_hands_the_thread_over_as_a_hand_over_does_and_tells_the_session(
     asked = said(claimed, "Which Python does the project need?")
     listed = basis(claimed, asked["id"], asked["id"])
     routed = forks_model.route(
-        "s1", listed, answer=judged("checking the Python version", work), failed=None
+        "s1", listed, answer=line_answer("checking the Python version"), failed=None
     )
-    assert (routed["outcome"], routed["work"]) == ("hand_over", work), routed
+    assert routed["outcome"] == "hand_over", routed
     [line] = [
         event for event in events_model.read_events(claimed) if event["kind"] == "reply"
     ]
@@ -243,16 +240,13 @@ def test_a_take_hands_the_thread_over_as_a_hand_over_does_and_tells_the_session(
     )
     assert listed["turn"] not in state_model.open_agent_turns("s1")
     assert nudged == [claimed.resolve()]
-    told = [forks_model.beside_line(listed)] if work == "take" else []
-    assert clerk_model.queued("s1") == told
+    assert clerk_model.queued("s1") == []
 
     handed = context(capsys, "UserPromptSubmit")
     [batch] = inlined(handed)["batches"]
     [event] = batch["events"]
     assert event["id"] == asked["id"]
     assert event["answer"]["ref"] == answer_ref(claimed, asked["id"])
-    assert all(line in handed for line in told), handed
-    assert clerk_model.queued("s1") == []
 
 
 def long_thread(page_dir) -> tuple[dict, list[dict]]:
@@ -528,7 +522,7 @@ def taken_in_by_the_main_thread(page_dir, capsys, monkeypatch) -> dict:
     forks_model.route(
         "s1",
         basis(page_dir, first["id"], first["id"]),
-        answer=judged("on it"),
+        answer=line_answer("on it"),
         failed=None,
     )
     assert first["id"] in context(capsys, "UserPromptSubmit")
@@ -561,7 +555,7 @@ def test_a_kept_back_thread_the_cursor_passed_goes_to_the_main_thread_once(
     forks_model.route(
         "s1",
         basis(claimed, one["id"], one["id"], two["id"]),
-        answer=judged("checking the versions"),
+        answer=line_answer("checking the versions"),
         failed=None,
     )
     handed = context(capsys, "PostToolBatch")
@@ -598,7 +592,7 @@ def test_a_prompt_while_a_message_is_kept_back_leaves_it_to_the_line_fork(
     routed = forks_model.route(
         "s1",
         basis(claimed, kept["id"], kept["id"]),
-        answer=judged("checking the Python version"),
+        answer=line_answer("checking the Python version"),
         failed=None,
     )
     assert routed["outcome"] == "hand_over"
@@ -700,7 +694,7 @@ def test_the_main_threads_answer_to_a_kept_back_message_takes_its_thread(
     assert answer["turn"] == claim["turn"]
     assert kept_back(claimed) == []
     routed = forks_model.route(
-        "s1", listed, answer=judged("checking the cache"), failed=None
+        "s1", listed, answer=line_answer("checking the cache"), failed=None
     )
     assert "line" not in routed, routed
     assert [
@@ -765,7 +759,7 @@ def test_only_a_commands_own_write_hears_of_the_line_fork_holding_its_thread(
     handed = forks_model.route(
         "s1",
         basis(claimed, asked["id"], asked["id"]),
-        answer=judged("reading the poll code"),
+        answer=line_answer("reading the poll code"),
         failed=None,
     )
     assert handed["outcome"] == "hand_over"
@@ -941,7 +935,7 @@ def test_a_handed_over_message_acknowledged_by_pointer_is_no_repeat(
     handed = forks_model.route(
         "s1",
         basis(claimed, asked["id"], asked["id"]),
-        answer=judged("reading the config"),
+        answer=line_answer("reading the config"),
         failed=None,
     )
     assert handed["outcome"] == "hand_over", handed
@@ -978,7 +972,7 @@ def test_a_page_reads_only_the_line_turns_it_needs(claimed, lane):
     forks_model.route(
         "s1",
         basis(claimed, asked["id"], asked["id"]),
-        answer=judged("checking"),
+        answer=line_answer("checking"),
         failed=None,
     )
     assert kept not in state_model.open_agent_turns("s1")
@@ -1014,7 +1008,7 @@ def test_a_line_turn_that_has_ended_holds_nothing(claimed, lane):
         forks_model.route(
             "s1",
             basis(claimed, asked["id"], asked["id"]),
-            answer=judged("checking"),
+            answer=line_answer("checking"),
             failed=None,
         )["outcome"]
         == "hand_over"
@@ -1039,7 +1033,7 @@ def test_a_line_turn_that_ended_leaves_the_record_and_its_thread_reads_as_before
         forks_model.route(
             "s1",
             basis(claimed, handed["id"], handed["id"]),
-            answer=judged("checking"),
+            answer=line_answer("checking"),
             failed=None,
         )["outcome"]
         == "hand_over"
@@ -1086,7 +1080,10 @@ def test_a_failed_fork_gives_the_thread_to_the_session_bare(claimed, lane):
         "s1", basis(claimed, failed["id"], failed["id"]), answer=None, failed="aborted"
     ) == {"outcome": "hand_over", "why": "the fork failed: aborted"}
     assert forks_model.route(
-        "s1", basis(claimed, blank["id"], blank["id"]), answer=judged(" "), failed=None
+        "s1",
+        basis(claimed, blank["id"], blank["id"]),
+        answer=line_answer(" "),
+        failed=None,
     )["why"].startswith("the fork failed: the fork's answer doesn't fit its schema")
     assert kept_back(claimed) == []
     assert deliverable(claimed) == [failed["id"], blank["id"]]
@@ -1121,9 +1118,8 @@ def test_a_message_while_kept_back_gives_a_new_line_fork_both(claimed, lane):
     correction, closes that line turn and opens a new one holding both, which the
     follower lists, so the module asks a new line fork about both, and the page's
     diagnostics say the turn it replaced held the thread. The first line fork's
-    answer, about the first alone, drops and tells the session nothing; the new
-    one's line goes in, and its take hands both to the session, telling it a fork
-    could do their work."""
+    answer, about the first alone, drops; the new one's line goes in, and it hands
+    both to the session."""
     first = said(claimed, "Why 30 s?")
     earlier = basis(claimed, first["id"], first["id"])
     second = said(claimed, "Or rather, why not 20?", parent=first["id"])
@@ -1143,7 +1139,7 @@ def test_a_message_while_kept_back_gives_a_new_line_fork_both(claimed, lane):
         forks_model.route(
             "s1",
             earlier,
-            answer=judged("checking why 30 s", "take"),
+            answer=line_answer("checking why 30 s"),
             failed=None,
         )["outcome"]
         == "dropped"
@@ -1154,17 +1150,16 @@ def test_a_message_while_kept_back_gives_a_new_line_fork_both(claimed, lane):
     taken = forks_model.route(
         "s1",
         later,
-        answer=judged("weighing 20 s against 30 s", "take"),
+        answer=line_answer("weighing 20 s against 30 s"),
         failed=None,
     )
-    assert (taken["outcome"], taken["work"]) == ("hand_over", "take"), taken
+    assert taken["outcome"] == "hand_over", taken
     lines = [
         event
         for event in events_model.read_events(claimed)
         if event["kind"] == "reply" and event["author"] == "agent"
     ]
     assert [line["text"] for line in lines] == ["weighing 20 s against 30 s"]
-    assert clerk_model.queued("s1") == [forks_model.beside_line(later)]
     assert deliverable(claimed) == [first["id"], second["id"]]
 
 
@@ -1172,7 +1167,7 @@ def test_a_rewrite_while_kept_back_gives_a_new_line_fork_the_new_words(claimed, 
     """The user's rewrite of their message while the line fork writes about it joins
     the thread's waiting turns as a further message does, though it is no message:
     it replaces the line turn, the new line fork is asked with the rewritten words,
-    and its take hands the thread over, while the first fork's answer drops."""
+    and its line hands the thread over, while the first fork's answer drops."""
     first = said(claimed, "Why 30 s?")
     earlier = basis(claimed, first["id"], first["id"])
     edit = append_carried_log_record(
@@ -1188,7 +1183,7 @@ def test_a_rewrite_while_kept_back_gives_a_new_line_fork_the_new_words(claimed, 
     assert deliverable(claimed) == []
 
     stale = forks_model.route(
-        "s1", earlier, answer=judged("checking 30 s", "take"), failed=None
+        "s1", earlier, answer=line_answer("checking 30 s"), failed=None
     )
     assert stale["outcome"] == "dropped"
     question = forks_model.ask("s1", later, [])
@@ -1196,10 +1191,10 @@ def test_a_rewrite_while_kept_back_gives_a_new_line_fork_the_new_words(claimed, 
     taken = forks_model.route(
         "s1",
         later,
-        answer=judged("checking 40 s", "take"),
+        answer=line_answer("checking 40 s"),
         failed=None,
     )
-    assert (taken["outcome"], taken["work"]) == ("hand_over", "take"), taken
+    assert taken["outcome"] == "hand_over", taken
     assert edit["id"] in deliverable(claimed)
 
 
@@ -1246,13 +1241,12 @@ def test_a_line_fork_answering_after_its_turn_lapsed_writes_nothing(claimed, lan
     assert forks_model.route(
         "s1",
         listed,
-        answer=judged("The fork.", "take"),
+        answer=line_answer("The fork."),
         failed=None,
     ) == {
         "outcome": "dropped",
         "why": "its line turn no longer runs",
         "text": "The fork.",
-        "work": "take",
     }
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(claimed)
@@ -1261,28 +1255,24 @@ def test_a_line_fork_answering_after_its_turn_lapsed_writes_nothing(claimed, lan
     assert clerk_model.queued("s1") == []
 
 
-def test_a_line_fork_step_repeated_after_its_take_changes_nothing(claimed, lane):
-    """A take closes the line turn as it hands the thread over, and each step of a
-    line fork acts only while its line turn runs. So a step a module reloaded mid-fork
-    repeats for the same thread, its question or a second answer, posts no second
-    line and tells the session nothing more, and the thread stays the main
-    thread's."""
+def test_a_line_fork_step_repeated_after_its_hand_over_changes_nothing(claimed, lane):
+    """A line fork's answer closes the line turn as it hands the thread over, and each
+    step of a line fork acts only while its line turn runs. So a step a module
+    reloaded mid-fork repeats for the same thread, its question or a second answer,
+    posts no second line, and the thread stays the main thread's."""
     asked = said(claimed, "Which Python?")
     listed = basis(claimed, asked["id"], asked["id"])
-    taken = forks_model.route(
-        "s1", listed, answer=judged("looking", "take"), failed=None
-    )
+    taken = forks_model.route("s1", listed, answer=line_answer("looking"), failed=None)
     assert taken["outcome"] == "hand_over", taken
     events = events_model.read_events(claimed)
 
     assert forks_model.ask("s1", listed, []) is None
-    assert forks_model.route("s1", listed, answer=judged("again", "take"), failed=None)[
+    assert forks_model.route("s1", listed, answer=line_answer("again"), failed=None)[
         "outcome"
     ] == ("dropped")
     assert [e for e in events_model.read_events(claimed) if e["kind"] == "reply"] == [
         e for e in events if e["kind"] == "reply"
     ]
-    assert clerk_model.queued("s1") == [forks_model.beside_line(listed)]
     assert deliverable(claimed) == [asked["id"]]
 
 
@@ -1309,9 +1299,9 @@ def test_a_hold_ending_while_the_reply_goes_in_leaves_the_thread_to_the_session(
     assert forks_model.route(
         "s1",
         basis(claimed, asked["id"], asked["id"]),
-        answer=judged("Yes."),
+        answer=line_answer("Yes."),
         failed=None,
-    ) == {"outcome": "dropped", "text": "Yes.", "work": "hand_over"}
+    ) == {"outcome": "dropped", "text": "Yes."}
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(claimed)
     )
@@ -1330,7 +1320,7 @@ def test_a_line_fork_answering_after_the_lane_went_down_still_routes_its_thread(
     routed = forks_model.route(
         "s1",
         basis(claimed, asked["id"], asked["id"]),
-        answer=judged("checking the restart"),
+        answer=line_answer("checking the restart"),
         failed=None,
     )
     assert routed["outcome"] == "hand_over", routed
@@ -1347,7 +1337,7 @@ def test_a_fork_the_page_has_since_left_writes_nothing_on_it(claimed, lane):
         forks_model.route(
             "s2",
             basis(claimed, asked["id"], asked["id"]),
-            answer=judged("checking who holds it"),
+            answer=line_answer("checking who holds it"),
             failed=None,
         )["outcome"]
         == "dropped"

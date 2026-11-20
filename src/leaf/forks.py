@@ -1,9 +1,9 @@
 """The line fork: a fork of a Claude Code session's conversation that posts the
-agent's working line on a thread's waiting messages at once and judges who should do
-their work. It runs in every Claude Code session, and only there, from Leaf's hooks
-module (`hooks/claude-code.ts`). How it works' Forks tab (`docs/how-it-works.html`)
-explains the design, diagrams included; this header holds the rules this module keeps
-and the choices behind them, and `holding.py` the rule for which turn holds a message.
+agent's working line on a thread's waiting messages at once. It runs in every Claude
+Code session, and only there, from Leaf's hooks module (`hooks/claude-code.ts`). How
+it works' Forks tab (`docs/how-it-works.html`) explains the design, diagrams
+included; this header holds the rules this module keeps and the choices behind them,
+and `holding.py` the rule for which turn holds a message.
 
 On a real page the session's answer to a thread message takes tens of seconds, longer
 when it is busy, and the thread shows nothing from the agent after a message until the
@@ -12,27 +12,29 @@ session's first model call ends (`notes/fork-replies.md`, "Forks on real pages")
 mid-command too, and a fork decides in seconds. The user had the fork post only
 the agent's working line and hand the thread on, rather than answer it: a line
 fork can't call tools (`$.model.fork` denies every one), and answering is left to
-an agent that can act. The line fork also judges whether a fork of the session could
-do the work beside the main session (`ANSWER`'s `work`). Either way Leaf posts the
-line and hands the thread to the main session by the same path (`_post`); where the
-line fork judged `take`, Leaf first tells the main session so (`beside_line`). The
-main session then starts the message, since the line takes nothing in hand, and
-spawns a fork of its conversation for it, a subagent that answers in the thread
-(`references/harness-claude-code.md`, "Subagents"). Leaf records the judgment either
-way.
+an agent that can act. Leaf posts the line and hands the thread to the main session
+(`_post`), which routes every message: it answers the message itself, gives it to a
+new fork of its conversation, a subagent that answers in the thread, or passes it to
+the fork already answering that thread (`references/harness-claude-code.md`,
+"Subagents").
 
-The user chose that the main session spawn that subagent, as the simpler approach for
-now. The main session holds every thread, so one turn holds each and Leaf keeps no
-record of a fork's own: no turn, holder, hand-back or end. The main session passes
-the thread's later messages on to its subagent, and Claude Code tells it as the
+The user chose that the main session judge every message this way. The line fork
+could also judge whether a fork of the session could do the work beside it and tell
+the session so, but that only adds a line to what the session reads, and the session
+decides anyway, knowing its own work better than a fork judging from a snapshot of
+it. What the user accepted with that choice: nothing marks which messages could run
+beside the session, so how often it delegates rests on its own judgment. The main
+session holds every thread, so one turn holds each and Leaf keeps no record of a
+fork's own: no turn, holder, hand-back or end. Claude Code tells the session as a
 subagent ends, waking an idle session, so the subagent's report reaches its context.
-The distributed approach a
-later change might reach for is Leaf spawning the fork itself (`$.agent.spawn`) as
-the line fork judges `take`. Its answer comes sooner, since it waits neither for the
-main session's next tool call nor on a main session blocked in a long command; but
-it puts a second holder on each thread it takes, and with it the turns, records and
-hooks that hold a thread for an agent Leaf spawned and tell the main session what that
-agent did, since Claude Code tells a session nothing of an agent a plugin spawned.
+The distributed approach a later change might reach for is Leaf spawning the fork
+itself (`$.agent.spawn`) and sending it the thread's later messages. Its answer comes
+sooner, since it waits neither for the main session's next tool call nor on a main
+session blocked in a long command; but Leaf would need its own judgment of which
+messages to give a fork, and it puts a second holder on each thread it gives one, and
+with it the turns, records and hooks that hold a thread for an agent Leaf spawned and
+tell the main session what that agent did, since Claude Code tells a session nothing
+of an agent a plugin spawned.
 
 A thread's waiting messages are the user's messages the agent still owes an answer
 in it while it stands open (`holding.rounds`). Each thread with
@@ -137,8 +139,7 @@ page's diagnostics (`interaction_log`) note why admission kept each thread messa
 to a Claude Code session from the main thread, kept back or held by a running line
 turn, and where neither, whether its lane was up (`fork_admission`); each question as
 Leaf gives it to the module (`fork_asked`), so a line fork that never answers shows;
-and every outcome of a thread's line fork (`fork_outcome`), with its judgment
-(`work`), its tokens and time, why Leaf refused its line where it did, and what it
+and every outcome of a thread's line fork (`fork_outcome`), with its tokens and time, why Leaf refused its line where it did, and what it
 resent of the main thread's conversation (`resends` in `hooks/claude-code.ts`, which
 says where a replay cuts it; its `effort` is the fork's), as the clerk's
 `turn_end_check` notes have it, which is what a later replay or audit scores.
@@ -171,16 +172,14 @@ from .state import (
 # The words that open the line fork's question, which the transcript carries.
 LINE_OPENING = "<leaf-line-fork>"
 
-# What a line fork answers (`line_prompt`): the agent's working line, and whether a fork
-# of the session could do the work beside it (`take`) or the work belongs with the
-# session (`hand_over`). Leaf records the judgment and acts on it (`route`).
+# What a line fork answers (`line_prompt`): the agent's working line, which Leaf posts
+# (`route`).
 ANSWER = {
     "type": "object",
     "properties": {
         "line": {"type": "string", "minLength": 1, "pattern": r"\S"},
-        "work": {"enum": ["take", "hand_over"]},
     },
-    "required": ["line", "work"],
+    "required": ["line"],
     "additionalProperties": False,
 }
 
@@ -553,7 +552,7 @@ def line_prompt(data: dict, running: list[dict]) -> str:
     """The one message a fork answers: what it is for, the thread as Leaf would
     deliver it (`delivery.batch_data`) but whole, and what the session is running."""
     return f"""{LINE_OPENING}
-This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds. You are a fork of the session, and Leaf asks you for two things: the working line it posts in the thread at once, saying what the agent will do about the message, and who should do that work, a fork of the session beside the main session or the main session itself.
+This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds. You are a fork of the session, and Leaf asks you for the working line it posts in the thread at once, saying what the agent will do about the message.
 
 Every tool call is denied here, so don't call tools, and reply straight away without thinking it over.
 
@@ -563,9 +562,7 @@ Every tool call is denied here, so don't call tools, and reply straight away wit
 
 The line stands in the thread as the agent's until the agent's answer replaces it. Write what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer out of the line, even where the conversation above holds it.
 
-The work is "take" where a fork of the session with the session's tools could do it start to finish beside the main session: it changes nothing the main session works on (its files and branch, the page's source, its pull requests), settles no question the main session is weighing, and waits on nothing the session has under way, such as a command it is running or a change it has started and not finished. Reading, a lookup, or research that writes only its own scratch files is such work, in the session's files and the page's source too. Otherwise it is "hand_over", and the main session does it.
-
-Reply with this JSON alone: {{"line": "<the line>", "work": "take" or "hand_over"}}
+Reply with this JSON alone: {{"line": "<the line>"}}
 </leaf-line-fork>"""
 
 
@@ -581,12 +578,10 @@ def route(
     request: dict | None = None,
 ) -> dict:
     """Route a kept-back thread by its line fork's answer: post the line as the
-    agent's working line and hand the thread to the session, telling it first where
-    the line fork judged the work could run beside it (`take`, `_post`); or hand it
+    agent's working line and hand the thread to the session (`_post`); or hand it
     over bare where the line fork failed (`failed`, its reason) or its answer doesn't
     fit `ANSWER`; or do nothing where the line turn no longer runs (`_line_runs`).
-    What came of it, with the fork's judgment of who should do the work (`work`), is
-    recorded in the page's diagnostics."""
+    What came of it is recorded in the page's diagnostics."""
     from .clerk import read_answer
     from .refusals import Refused
 
@@ -600,21 +595,14 @@ def route(
         outcome = {
             "outcome": "dropped",
             "why": "its line turn no longer runs",
-            **(
-                {"text": read["line"].strip(), "work": read["work"]}
-                if read is not None
-                else {}
-            ),
+            **({"text": read["line"].strip()} if read is not None else {}),
         }
     elif read is None:
         outcome = _hand_over(
             session_id, basis, f"the fork failed: {failed or 'no answer'}"
         )
     else:
-        outcome = {
-            **_post(session_id, basis, read["line"].strip(), read["work"] == "take"),
-            "work": read["work"],
-        }
+        outcome = _post(session_id, basis, read["line"].strip())
     _record(
         session_id,
         basis,
@@ -654,33 +642,13 @@ def note(page_dir: Path, record: dict) -> None:
         pass
 
 
-def _post(session_id: str, basis: dict, text: str, beside: bool) -> dict:
+def _post(session_id: str, basis: dict, text: str) -> dict:
     """The line fork's working line, posted as the agent's in its line turn, and the
-    thread handed to the session after it, which hears first where the line fork
-    judged the work could run beside it (`beside`, `beside_line`); or why nothing
-    was."""
+    thread handed to the session after it; or why nothing was."""
     posted = _line(session_id, basis, text)
     if "line" not in posted:
         return posted
-    told = (beside_line(basis),) if beside else ()
-    return {**_hand_over(session_id, basis, None, told), **posted}
-
-
-def beside_line(basis: dict) -> str:
-    """The line telling the main session that the line fork judged that a fork of the
-    session could do the work of the thread `basis` names beside it, for which the main
-    session starts the message and gives it to a fork, a new one or the thread's own
-    (`references/harness-claude-code.md`, "Subagents"). The line fork's line takes
-    nothing in hand (the module header), so until the session starts the message, its
-    turn's end leaves the message owed and under way nowhere the page shows, which wakes
-    the session for it again."""
-    return (
-        "Leaf's line fork judged that a fork of this session could do the work of the "
-        f"user's message {basis['inputs'][-1]} in thread {basis['thread']} on "
-        f"{basis['page']} beside you, and posted your working line there, which doesn't "
-        "start it. Start the message and give it to a fork, as the Leaf "
-        'skill\'s `references/harness-claude-code.md`, "Subagents", says.'
-    )
+    return {**_hand_over(session_id, basis, None), **posted}
 
 
 def _line(session_id: str, basis: dict, text: str) -> dict:
@@ -724,27 +692,16 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
     return {"text": text, "line": record["id"]}
 
 
-def _hand_over(
-    session_id: str, basis: dict, why: str | None, told: tuple[str, ...] = ()
-) -> dict:
+def _hand_over(session_id: str, basis: dict, why: str | None) -> dict:
     """Hand the thread `basis` names to the session by ending its line turn, which
     leaves the thread's waiting messages the main thread's (`holding.holder`), and
     nudge a session no watch follows, as admission would have; `why` is Leaf's
-    reason, where the fork didn't choose it. The lines `told` go on the queue for
-    the session's next step before the turn closes (`clerk.queue`), so the session
-    hears them with the thread, or at worst a step apart from it, where a hook read
-    the queue just as the thread changed hands; and only while the turn runs, which
-    admission, which replaces a line turn under the page's lock, can't change
-    meanwhile."""
-    from .clerk import queue
+    reason, where the fork didn't choose it."""
     from .presence import nudge_unwatched
 
     reason = {} if why is None else {"why": why}
     try:
         with PageTransaction(Path(basis["page"])) as page:
-            if not _line_runs(session_id, basis["turn"]):
-                return {"outcome": "dropped", **reason}
-            queue(session_id, list(told))
             if not close_agent_turns(session_id, turn=basis["turn"]):
                 return {"outcome": "dropped", **reason}
             nudge_unwatched(page)

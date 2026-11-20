@@ -4,7 +4,7 @@ prose that describes each (`docs.compose`, `lf-text-document[data-prompt]`).
 Each entry of `PROMPTS` calls the function that writes its prompt, so the page shows
 Leaf's text, and the references it quotes, as the code has them now. This module
 supplies only the values a prompt is written around. The messages of a fork journey
-(`line`, `hand-over`, `beside`), which How it works' "Anatomy of a fork journey" shows
+(`line`, `hand-over`), which How it works' "Anatomy of a fork journey" shows
 beside the timings and Claude Code's text of one recorded run, are written around that
 run's own values (`JOURNEY`). The rest come from one
 illustrative scenario: a page, a thread on it, the user's newest message there and a
@@ -165,20 +165,6 @@ def hand_over() -> str:
     return inline_context(journey_delivery("hand-over"))
 
 
-def beside() -> str:
-    """The line Leaf queued for the session as it handed over the thread whose work
-    the line fork judged a fork's (`forks.route`), for the thread as the line fork
-    read it."""
-    read = JOURNEY["line"]["batch"]
-    return forks.beside_line(
-        {
-            "page": read["page"],
-            "thread": read["threads"][0]["id"],
-            "inputs": [event["id"] for event in read["events"]],
-        }
-    )
-
-
 def summary() -> str:
     # The range Leaf suggests (`thread_context.summary_hint`): all but the newest
     # exchange.
@@ -237,7 +223,6 @@ def references() -> list[Path]:
 PROMPTS = {
     "line": line,
     "hand-over": hand_over,
-    "beside": beside,
     "summary": summary,
     "turn-end": turn_end,
     "title-system": title_system,

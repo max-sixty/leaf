@@ -1,5 +1,5 @@
 """`leaf-dev logs timeline` answers who did what to a message: which line turn held it,
-what its line fork judged, why no fork lane took a message, and where each of the
+what came of its line fork, why no fork lane took a message, and where each of the
 session's line turns stands now."""
 
 from datetime import datetime, timedelta
@@ -16,7 +16,7 @@ def at(minute: int, second: int = 0) -> str:
     return f"2026-10-14T12:{minute:02d}:{second:02d}+00:00"
 
 
-def test_timeline_names_the_line_turns_judgments_and_why_no_lane_took_a_message(
+def test_timeline_names_the_line_turns_outcomes_and_why_no_lane_took_a_message(
     tmp_path,
 ):
     state.prompt_turn("s1", "p1")
@@ -105,7 +105,6 @@ def test_timeline_names_the_line_turns_judgments_and_why_no_lane_took_a_message(
                 "thread": "c1",
                 "inputs": ["c1"],
                 "outcome": "hand_over",
-                "work": "take",
                 "text": "checking the lease",
                 "line": "line",
                 "elapsedMs": 1500.0,
@@ -119,9 +118,9 @@ def test_timeline_names_the_line_turns_judgments_and_why_no_lane_took_a_message(
     )
     assert result.exit_code == 0, result.output
     out = result.output
-    # Which line turn held the message, and what its line fork judged.
+    # Which line turn held the message, and what came of its line fork.
     assert f"pickup held of c1 in turn {running[:8]}" in out
-    assert "hand_over in 1.5 s, work take: line “checking the lease”" in out
+    assert "hand_over in 1.5 s: line “checking the lease”" in out
     # Why admission found no fork lane, each cause told apart.
     assert "c0 not kept back: no fork lane: no pages follower noted" in out
     assert "c3 not kept back: no fork lane: the follower from " in out

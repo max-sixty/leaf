@@ -14,8 +14,8 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
   fork or a running line turn held it, and where neither, whether the session's fork
   lane was up, with why not by the session's last `follower` note
   (`leaf.hooks.cmd_pages`); `fork_asked`,
-  as Leaf gave a line fork its question; `fork_outcome`, what came of it and who it
-  judged should do the work (`leaf.forks`); `turn_end_check`, the
+  as Leaf gave a line fork its question; `fork_outcome`, what came of it
+  (`leaf.forks`); `turn_end_check`, the
   clerk's fork (`leaf.clerk`); `leaf_command`, with the error where Leaf refused it;
   and `watch`
   (`leaf.interaction_log`); and the browser's own `event_submit` and
@@ -380,11 +380,8 @@ def fork_entries(row: dict) -> list[dict]:
         if "line" in row
         else row.get("why") or row.get("refused") or ""
     )
-    work = f", work {row['work']}" if "work" in row else ""
     took = f" in {elapsed / 1000:.1f} s" if elapsed is not None else ""
-    out.append(
-        entry(at, "fork", f"{row['outcome']}{took}{work}: {said}", thread=thread)
-    )
+    out.append(entry(at, "fork", f"{row['outcome']}{took}: {said}", thread=thread))
     return out
 
 
@@ -639,7 +636,6 @@ def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
         took = f" {fork['elapsed_s']:.1f}s" if fork["elapsed_s"] is not None else ""
         told += (
             f"fork {fork['outcome']}"
-            + (f" ({fork['work']})" if fork["work"] else "")
             + took
             + (f" ({clip(fork['why'], 50)})" if fork["why"] else "")
         )

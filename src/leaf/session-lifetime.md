@@ -142,7 +142,7 @@ messages, is one reading every reader asks (`holding.py`, whose header states th
 rule; `forks.page_holding`), and `leaf page state`'s `holder` names it: the main
 thread, or a running line turn. The newest pickup of a thread's
 waiting messages holds them, and an answer takes its thread as a pickup does. A
-thread Leaf keeps back while a line fork judges it is its line turn's, by that turn's
+thread Leaf keeps back while a line fork writes its line is its line turn's, by that turn's
 `held` pickup, which takes nothing in: no reader of delivery counts it, so the
 message reads as sent to the session until a turn opens it. The main thread doesn't
 owe a message a running line turn holds (`holding.holder`): its hooks neither hold

@@ -117,9 +117,8 @@ says how long the line has stood. This was the user's choice over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, and what a line fork judged of a thread it handed over
-(`forks.beside_line`), one line each (`clerk.queued`), and take them off the queue
-once printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn
+the last turn's end, and what a summary fork wrote (`summary_fork`), one line each
+(`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn
 has ended.
 
 A subagent's tool boundary carries nothing: Claude Code names the subagent in its

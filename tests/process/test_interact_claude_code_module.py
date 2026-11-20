@@ -564,7 +564,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     driven = ClaudeCode(
         spawn,
         "cc-reply",
-        {"forkAnswer": json.dumps({"line": said, "work": "hand_over"})},
+        {"forkAnswer": json.dumps({"line": said})},
     )
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
@@ -621,7 +621,7 @@ def test_a_fork_after_a_compaction_names_no_row_of_the_request_before_it(
     driven = ClaudeCode(
         spawn,
         "cc-compacted",
-        {"forkAnswer": json.dumps({"line": "Checking", "work": "hand_over"})},
+        {"forkAnswer": json.dumps({"line": "Checking"})},
     )
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
@@ -663,9 +663,7 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
         "cc-reply",
         {
             "forkAnswer": {
-                "<leaf-line-fork>": json.dumps(
-                    {"line": "Checking", "work": "hand_over"}
-                ),
+                "<leaf-line-fork>": json.dumps({"line": "Checking"}),
                 "<leaf-summary-fork>": json.dumps(
                     {"from": "q0", "through": "q5", "text": "The earlier discussion."}
                 ),
@@ -747,7 +745,7 @@ def test_a_line_fork_whose_step_leaf_could_not_take_still_hands_its_thread_over(
         spawn,
         "cc-unrouted",
         {
-            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
+            "forkAnswer": json.dumps({"line": "Checking the version"}),
             # The report of the fork's answer, not the one saying that step failed.
             "stepFails": {"do": "fork", "failed": None},
         },
@@ -856,7 +854,7 @@ def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
         {
             "completeReply": '{"title": "Poll interval"}',
             "completeRefusals": 1,
-            "forkAnswer": json.dumps({"line": "Checking", "work": "hand_over"}),
+            "forkAnswer": json.dumps({"line": "Checking"}),
         },
     )
     holding_page(driven, page_dir, monkeypatch)

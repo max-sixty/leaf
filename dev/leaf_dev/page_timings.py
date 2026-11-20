@@ -56,17 +56,14 @@ waited on (`pickup`, `reply_phases.pickup_wait`), and the `response-times` summa
 sort those waits by cause, each over its own inputs, with the seconds they add up
 to.
 
-Each input also carries the line fork that decided it (`fork`: its outcome, who
-it judged should do the work, `take` for a fork of the session or `hand_over` for the
-session itself, and seconds), the last whose inputs name its message. A fork's
-working line, posted as it handed the thread over, is the progress and first reply of
-the thread's newest waiting message. The `response-times` summary's `delivered` row
-is how long an update read Delivered, from its opened pickup to the session starting
-or answering it; `fork_hand_over` times the first reply over the inputs a line fork
-judged the session's, so a survey shows whether forks bring the agent's first words
-sooner, and `fork_take` the answer over the inputs it judged a fork's, which the
-session gives a subagent. A line under the table counts the line forks'
-judgments.
+Each input also carries the line fork that decided it (`fork`: its outcome and
+seconds), the last whose inputs name its message. A fork's working line, posted as it
+handed the thread over, is the progress and first reply of the thread's newest
+waiting message. The `response-times` summary's `delivered` row is how long an update
+read Delivered, from its opened pickup to the session starting or answering it;
+`forked` times the first reply over the inputs a line fork handed over, so a survey
+shows whether forks bring the agent's first words sooner. A line under the table
+counts the line forks' outcomes.
 
 `prompted` waits are where nothing of Leaf's woke an idle session before the user
 typed. The watch record says whether a watch ran and the protocol its Leaf spoke,
@@ -427,7 +424,6 @@ def page_timings(
             if fork is None
             else {
                 "outcome": fork["outcome"],
-                "work": fork.get("work"),
                 "elapsed_s": fork["elapsedMs"] / 1000 if "elapsedMs" in fork else None,
                 # Leaf's reason, where Leaf handed the thread over without a line.
                 "why": None if "line" in fork else fork.get("why"),

@@ -353,9 +353,9 @@ QUEUED = Record(
     described(
         "The lines Leaf queued for a session's next step, in the state home's "
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
-        "clerk wrote and each finding it passes on (`clerk`), and one as a line fork "
-        "hands over a thread whose work it judged could run beside the session "
-        "(`forks.beside_line`). Each says whether it wakes the session (`wake`): a "
+        "clerk wrote and each finding it passes on (`clerk`), and one for each "
+        "summary a summary fork wrote or left to the agent (`summary_fork`). Each "
+        "says whether it wakes the session (`wake`): a "
         "line that tells it of work it now owes wakes it while it is idle, until a "
         "hook has printed the line.",
         object_schema(

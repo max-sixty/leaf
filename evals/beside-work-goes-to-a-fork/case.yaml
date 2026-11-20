@@ -1,22 +1,22 @@
-# A Claude Code session hears from Leaf that its line fork judged a thread message's
-# work could run beside the session (`forks.beside_line`), with the message's
-# delivery, while the session is partway through a change of its own. The rule is in
-# `references/harness-claude-code.md`, "Subagents": start the message, since the line
-# fork's working line doesn't start it, give it to a fork in the background, which
-# answers it itself, and pass the thread's later messages on to that fork. The
-# failure it invites is skipping the start because the thread already shows a working
+# A Claude Code session gets a thread message whose work, a lookup in the repository,
+# could run beside the change the session is partway through. Leaf marks nothing: the
+# session judges who does the work. The rule is in `references/harness-claude-code.md`,
+# "Subagents": give work that touches and awaits nothing of the session's to a fork in
+# the background, which answers it itself, start the message, since the line fork's
+# working line doesn't start it, and send the thread's later messages to a fork. The
+# failures it invites are doing the work inline, which holds up both the user and the
+# session's change, and skipping the start because the thread already shows a working
 # line. Each context is the hook's output as Leaf writes it
-# (`hook_transport.carry_turn`: `inline_context` and the queued line), rendered from
-# `delivery.handled` with the kernel registry's clauses, its ids, page and claim
-# substituted. The `later` variant is the thread's next message after the fork
-# answered, which the line fork judged the same way. The subject can't run the Agent
-# tool, so it writes the operations out.
+# (`hook_transport.carry_turn`'s `inline_context`), rendered from `delivery.handled`
+# with the kernel registry's clauses, its ids, page and claim substituted. The `later`
+# variant is the thread's next message after the fork answered. The subject can't run
+# the Agent tool, so it writes the operations out.
 description: beside-work-goes-to-a-fork
 metadata:
   purpose:
-    A message Leaf marks as work a fork could do beside the session is started by the
-    session and goes to a fork it spawns in the background, which answers it, and the
-    thread's later messages go to that fork.
+    A thread message whose work can run beside the session's own goes to a fork the
+    session spawns in the background, which answers it, the session starts it, and the
+    thread's later messages go to a fork too.
   tags:
     - wait-loop
     - forks
@@ -110,8 +110,6 @@ vars:
      ]
     }
     ```
-    Leaf's line fork judged that a fork of this session could do the work of the user's message 70a0f2c6 in thread 70a0f2c6 on /Users/max/.local/state/leaf/pages/importer-review beside you, and posted your working line there, which doesn't start it. Start the message and give it to a fork, as the Leaf skill's `references/harness-claude-code.md`, "Subagents", says.
-
     The repository is /Users/max/src/importer.
 
     Only Skill and Read run in this probe, so describe the operations you would perform next, in order, including each command with its full arguments, the words you would put in the thread and the full brief of any subagent you would start or message. Then end your answer.
@@ -147,11 +145,12 @@ variants:
   later:
     metadata:
       purpose:
-        The thread's next message, which Leaf marks the same way, goes to the fork that
-        answered the thread rather than to a new subagent or the session itself.
+        The thread's next message, whose work can run beside the session's too, goes
+        to a fork, the one that answered the thread or a new one, rather than to the
+        session itself.
     vars:
       prompt: |
-        You are a Claude Code session using Leaf, serving the page /Users/max/.local/state/leaf/pages/importer-review to the user. The user asked you to move the importer's retry loop out of `importer/worker.py` into a new `importer/retry.py`, and you are editing its call sites. Earlier in this turn Leaf told you that a fork of this session could look into the user's question "Why does the importer poll every 2 seconds? Check what the lease allows." in thread 70a0f2c6 on that page, and you spawned a fork for it in the background, agent id a7c31e9f04b2d58e6, which answered the user there and reported back to you that the lease renews every 10 s. Your last command, `uv run pytest tests/test_retry.py -q`, passed, and with its result Leaf's tool-boundary hook added this to your context:
+        You are a Claude Code session using Leaf, serving the page /Users/max/.local/state/leaf/pages/importer-review to the user. The user asked you to move the importer's retry loop out of `importer/worker.py` into a new `importer/retry.py`, and you are editing its call sites. Earlier in this turn you gave the user's question "Why does the importer poll every 2 seconds? Check what the lease allows." in thread 70a0f2c6 on that page to a fork of yourself in the background, agent id a7c31e9f04b2d58e6, which answered the user there and reported back to you that the lease renews every 10 s. Your last command, `uv run pytest tests/test_retry.py -q`, passed, and with its result Leaf's tool-boundary hook added this to your context:
 
         Leaf has new input for your turn. Read this complete delivery before answering.
 
@@ -249,8 +248,6 @@ variants:
          ]
         }
         ```
-        Leaf's line fork judged that a fork of this session could do the work of the user's message e2b85c17 in thread 70a0f2c6 on /Users/max/.local/state/leaf/pages/importer-review beside you, and posted your working line there, which doesn't start it. Start the message and give it to a fork, as the Leaf skill's `references/harness-claude-code.md`, "Subagents", says.
-
         The repository is /Users/max/src/importer.
 
         Only Skill and Read run in this probe, so describe the operations you would perform next, in order, including each command with its full arguments, the words you would put in the thread and the full brief of any subagent you would start or message. Then end your answer.
@@ -259,12 +256,14 @@ variants:
       - type: llm-rubric
         metric: spawns-a-fork
         value: |
-          Pass only if the agent passes the user's message e2b85c17 on to the fork that
-          answered the thread, agent a7c31e9f04b2d58e6, such as with SendMessage to that
-          id, with the message and its reference `5d08e6b1:0:e2b85c17` for the fork's
-          answer, and the agent itself goes on with the retry change. Posting a progress
-          line on the message (`--ephemeral`) is fine. Fail if the agent answers the
-          message or does its work itself, or spawns a new subagent for it.
+          Pass only if the agent gives the user's message e2b85c17 to a fork of its
+          conversation in the background, either the fork that answered the thread,
+          agent a7c31e9f04b2d58e6, with SendMessage to that id, or a new one, with the
+          message and its reference `5d08e6b1:0:e2b85c17` for the fork's answer, and the
+          agent itself goes on with the retry change. Posting a progress line on the
+          message (`--ephemeral`) is fine. Fail if the agent answers the message or
+          does its work itself, waits for the fork before going on, or starts a fresh
+          subagent of another type for it.
       - type: llm-rubric
         metric: starts-the-message
         value: |

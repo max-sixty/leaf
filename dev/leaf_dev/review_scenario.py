@@ -86,9 +86,8 @@ COMMENTS = {
         "blocker”.",
     ),
     # A question answered by reading the page's source, sent while the session runs
-    # the user's own turn, which the line fork judges a fork's work and the session
-    # gives a subagent, and which the user follows up in its thread once it is
-    # answered (`FOLLOW_UP`). The session judges whether a lookup is worth a fork, and
+    # the user's own turn, which the session gives a subagent, and which the user
+    # follows up in its thread once it is answered (`FOLLOW_UP`). The session judges whether a lookup is worth a fork, and
     # does a one-step count itself, so the user asks for this beside its work.
     "fork-busy": (
         "triage-lede",

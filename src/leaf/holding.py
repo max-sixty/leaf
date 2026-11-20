@@ -22,10 +22,10 @@ the moment it takes the thread until another turn does (`Hold`).
   prompt or tool boundary does, takes the whole thread from whichever turn had it.
 - Where no turn has picked up a waiting message, the turn that last took the
   thread, by a pickup of an earlier message or by an answer, holds it.
-- A thread Leaf keeps back while a line fork judges its waiting messages is held by
-  the line turn admission opened for it, by that turn's `held` pickup, which takes
-  nothing in and keeps nothing once the turn ends, so the thread is then the main
-  thread's (`forks.py`).
+- A thread Leaf keeps back while a line fork writes its line on its waiting messages
+  is held by the line turn admission opened for it, by that turn's `held` pickup,
+  which takes nothing in and keeps nothing once the turn ends, so the thread is then
+  the main thread's (`forks.py`).
 - An answered message is held by the turn that answered it, the one its thread's
   answer names, so an answer takes the thread as a pickup does.
 

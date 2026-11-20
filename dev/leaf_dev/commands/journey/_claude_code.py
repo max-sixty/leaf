@@ -22,21 +22,15 @@ change what is under test: Claude Code then holds admission's nudge, which reach
 the session as a message from another session (`crossSessionInbound`), unread.
 
 As in every Claude Code session, Leaf keeps each comment back from the session
-while a line fork posts the agent's working line on it and judges whether a fork of
-the session could do its work beside it (`take`) or the work belongs with the session
-(`hand_over`), then hands it to the session either way, telling it so for a `take`
-(`leaf.forks`). A session told so gives the message to a subagent, which would answer
-in the session's place, so each delivery step's comment asks for a change to the
-page, which the line fork leaves to the session (`evals/line-fork/case.yaml`,
-`work-request`), and the step tests the session's own delivery from then on;
-`withdrawn`'s comment needs none, since the user resolves it at once. The fork steps
-run right after `release`. `fork-busy` needs its line fork to judge reading the
-page's source a fork's work, as `evals/line-fork/case.yaml` labels a lookup there once
-the session has finished editing that file (`source-edited`). Whether a message is
-worth a fork is the session's call, and it does a one-step lookup itself, so both
-fork steps send their message while the session runs the user's own turn, and the
-first asks for the work beside it; `evals/beside-work-goes-to-a-fork` scores the
-instruction itself.
+while a line fork posts the agent's working line on it, then hands it to the session
+(`leaf.forks`), which decides who does its work: itself, or a subagent that would
+answer in its place. So each delivery step's comment asks for a change to the page,
+which the session makes itself, and the step tests the session's own delivery from
+then on; `withdrawn`'s comment needs none, since the user resolves it at once. The
+fork steps run right after `release`. Whether a message is worth a fork is the
+session's call, and it does a one-step lookup itself, so both fork steps send their
+message while the session runs the user's own turn, and the first asks for the work
+beside it; `evals/beside-work-goes-to-a-fork` scores the instruction itself.
 
 The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
 more than one harness takes, as `_journey.Terminal` has them:
@@ -50,17 +44,16 @@ line fork's own time and tokens from its record in the page's diagnostics
 (`fork_outcome`):
 
 - `fork-busy`: during the user's own turn's shell command, a question answered by
-  reading the page's source: the line fork judges it a fork's and posts the agent's working
-  line as its first reply, Leaf hands it to the session at its next tool boundary
-  with the line saying a fork could do it (`forks.beside_line`), and the session
-  starts it, so no prompt reminds it of the message as owed, and gives it to a
-  subagent of its own, which answers it in the thread itself with `leaf thread
+  reading the page's source: the line fork posts the agent's working line as its
+  first reply, Leaf hands the message to the session at its next tool boundary, and
+  the session starts it, so no prompt reminds it of the message as owed, and gives
+  it to a subagent of its own, which answers it in the thread itself with `leaf thread
   reply` while Leaf's hooks hand the subagent no delivery; Claude Code then tells
   the session the subagent finished, in a turn of its own or the one running, and
   the session doesn't answer the message again;
 - `fork-follow-up`: once that subagent has answered, the user's further message in
-  its thread, sent during another turn of the user's, which the session passes on to
-  the same subagent with SendMessage, and that subagent answers it.
+  its thread, sent during another turn of the user's, which the session gives to a
+  subagent again, the same one with SendMessage or a new one, which answers it.
 
 Then the delivery steps:
 
@@ -786,22 +779,11 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             if event["id"] == update and "ref" in event.get("answer", {})
         ]
 
-    def told(update: str) -> bool:
-        """Whether a hook told the session that a fork could do `update`'s work
-        beside it, the line Leaf queues as it hands such a message over
-        (`forks.beside_line`)."""
-        return any(
-            f"user's message {update} " in content and "beside you" in content
-            for event in ("UserPromptSubmit", "PostToolBatch")
-            for content in hook_contexts(event)
-        )
-
     def delegated(name: str, update: str, started: float) -> tuple[str, dict]:
-        """Require that the line fork judged `update`'s work a fork's and posted its
-        line, that Leaf handed the message to the session with the line saying so, and
-        that the session gave it to a subagent of its own, which answered it there
-        itself while Leaf's hooks handed it no delivery. Returns that subagent's id
-        and its record (`subagents`)."""
+        """Require that the line fork posted its line on `update`, that Leaf handed
+        the message to the session, and that the session gave it to a subagent of its
+        own, which answered it there itself while Leaf's hooks handed it no delivery.
+        Returns that subagent's id and its record (`subagents`)."""
         cc.until(
             lambda: bool(answers(page, update)) and cc.idle(),
             f"{name}: nobody answered the message",
@@ -819,11 +801,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             f"{name}: no line fork decided on the message",
         )
         require(
-            decided.get("work") == "take" and "line" in decided,
-            f"{name}: the line fork didn't judge the work a fork's: "
-            f"{fork_summary(decided)}",
+            "line" in decided,
+            f"{name}: the line fork posted no working line: {fork_summary(decided)}",
         )
-        require(told(update), f"{name}: no hook told the session a fork could do it")
         refs = require(references(update), f"{name}: no delivery handed it over")
         workers = {
             agent: kept
@@ -932,7 +912,8 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             ),
         )
 
-        # `fork-follow-up`: the thread's next message goes to the same subagent.
+        # `fork-follow-up`: the thread's next message goes to a subagent again, the
+        # same one or a new one, as the session judges.
         started = time.monotonic()
         cc.user_turn(page)
         more = PageClient(url).post(
@@ -944,28 +925,33 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             }
         )["id"]
         again, _ = delegated("fork-follow-up", more, started)
-        require(
-            again == agent,
-            f"fork-follow-up: subagent {again} answered it, not {agent}, which "
-            "answered the thread before",
-        )
-        # The session reaches its subagent by the id or the name it spawned it with.
-        addresses = {agent, f"agent-{agent}", worker["meta"].get("name")} - {None}
-        require(
-            any(
-                call["input"].get("to") in addresses
-                for call in tool_uses(native_records(cc.home, session), "SendMessage")
-            ),
-            f"fork-follow-up: the session sent nothing to {agent}",
-        )
+        if again == agent:
+            # The session reaches its subagent by the id or the name it spawned it
+            # with.
+            addresses = {agent, f"agent-{agent}", worker["meta"].get("name")} - {None}
+            require(
+                any(
+                    call["input"].get("to") in addresses
+                    for call in tool_uses(
+                        native_records(cc.home, session), "SendMessage"
+                    )
+                ),
+                f"fork-follow-up: {agent} answered it, but the session sent nothing "
+                "to it",
+            )
         events = {event["id"]: event for event in read_events(page)}
         [reply] = answers(page, more)
         step(
             "fork-follow-up",
             started,
             detail=(
-                f"`fork-follow-up`: the session passed the message on to {agent}, "
-                f"which answered it "
+                "`fork-follow-up`: the session passed the message on to "
+                + (
+                    f"{agent}, the thread's subagent"
+                    if again == agent
+                    else f"a new subagent {again}"
+                )
+                + ", which answered it "
                 f"{instant(reply['ts']) - instant(events[more]['ts']):.1f} s after "
                 f"it was sent: {reply['text'][:200]!r}"
             ),

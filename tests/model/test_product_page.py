@@ -12,7 +12,6 @@ from unidiff import PatchSet
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
-from leaf import forks as forks_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
@@ -357,16 +356,6 @@ def test_the_event_log_page_quotes_the_registry():
             "answered": entry["awaits"]["answered"],
         },
     }
-
-
-def test_how_it_works_lists_the_judgments_the_line_fork_answers():
-    """How it works' Forks tab names each judgment the line fork can answer
-    (`forks.ANSWER`) in its sorting table, so a judgment added to the code fails here
-    until the tab says what it means."""
-    tree = SourceDocument(named_source("how-it-works").read_text()).tree
-    answer: dict = forks_model.ANSWER
-    judgments = {code.text for code in tree.select("table#sorting-table td code")}
-    assert judgments == set(answer["properties"]["work"]["enum"])
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

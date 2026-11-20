@@ -56,3 +56,19 @@ claims belongs to this session. A `leaf wait` it runs is refused while Leaf watc
 and otherwise takes input from every page you hold away from you, so keep `leaf wait`
 with you. A separate Claude Code session has its own id and can drive a page of its
 own.
+
+Each thread message comes to you, and you decide who does its work, so that the user
+hears back soon while your own work goes on. Give a message whose work can run beside
+yours to a fork of yourself in the background (the Agent tool's `fork` type): work
+that changes nothing you are working on, such as your files and branch, the page's
+source or your pull requests, settles no question you are weighing, and waits on
+nothing you have under way, such as a command you are running or a change you have
+started. Reading, a lookup, or research that writes only its own scratch files is
+such work, and the fork's answer in the thread carries what it found. Answer a
+message yourself where its work is a step or two, or you have nothing else under way.
+Unlike a worker that reports to you, the fork answers the message itself, with its
+`answer.ref`. A later message in that thread can go to the same fork with
+SendMessage, or to a new fork, each with its `answer.ref`. Start each message you
+give a fork, as `conversation-loop.md`, "Long-running work", says for any worker's
+update: `leaf task start <page> <message> --text "<what the fork is doing>"`. The
+working line Leaf posts in the thread doesn't start it.

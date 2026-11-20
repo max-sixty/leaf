@@ -11,9 +11,7 @@
 # the ask is a widget in its text, such as a choice (true), or in words (false). A
 # stale label's `edit` is the words its fix must remove, or null where the turn-end
 # check's prompt asks for no edit (skills/leaf/references/turn-end-check.md). A reply case judges the working line
-# the fork posted as it handed the message on, and its label `work`
-# says who should do the work: `take` where a fork of the session could do it
-# beside the session without touching or awaiting what the session is doing.
+# the fork posted as it handed the message on.
 
 # When each conversation starts; its records follow seven seconds apart.
 start: "2026-11-03T09:00:00+00:00"
@@ -1129,8 +1127,6 @@ cases:
         anchor:
           section: ft-lede
           quote: fails in about 1 run in 30 on CI and never on a laptop
-    labels:
-      work: take
     assert:
       - *line
   meaning:
@@ -1148,8 +1144,6 @@ cases:
         anchor:
           section: ft-cause-body
           quote: launches the warmup as a background task
-    labels:
-      work: take
     assert:
       - *line
   work-request:
@@ -1167,8 +1161,6 @@ cases:
         anchor:
           section: ft-cause
           quote: Cause
-    labels:
-      work: hand_over
     assert:
       - *line
   user-decides:
@@ -1208,8 +1200,6 @@ cases:
         parent: q1
         id: w1
         text: Await it. 200 ms at startup doesn't matter for us.
-    labels:
-      work: hand_over
     assert:
       - *line
   still-running:
@@ -1239,8 +1229,6 @@ cases:
         anchor:
           section: ft-fix-await
           quote: Await the warmup in
-    labels:
-      work: hand_over
     assert:
       - *line
   work-out:
@@ -1258,8 +1246,6 @@ cases:
         anchor:
           section: ft-cause-body
           quote: the first request can arrive before the cache is filled
-    labels:
-      work: take
     assert:
       - *line
   still-deciding:
@@ -1282,8 +1268,6 @@ cases:
         anchor:
           section: ft-fixes
           quote: Two fixes
-    labels:
-      work: hand_over
     assert:
       - *line
   # A message that changes how the session does work it has said it will do next.
@@ -1307,8 +1291,6 @@ cases:
         anchor:
           section: ft-fixes
           quote: Two fixes
-    labels:
-      work: hand_over
     assert:
       - *line
   # A message that changes a command the session is running.
@@ -1339,8 +1321,6 @@ cases:
         anchor:
           section: ft-fix-await
           quote: Await the warmup in
-    labels:
-      work: hand_over
     assert:
       - *line
   # The journey's `fork-lookup` question, after the session added a card for a passed
@@ -1397,7 +1377,7 @@ cases:
           Passed deployment checks column at the end. I didn't move any other card,
           and the migration card is still the one release blocker. The update is
           live, and I've answered your comment on the page.
-    waiting: &count-cards
+    waiting:
       - kind: comment
         author: user
         revision: 1
@@ -1405,41 +1385,6 @@ cases:
         text: How many cards does this page's source hold? Count them in the file.
         anchor:
           section: rt-lede
-    labels:
-      work: take
-    assert:
-      - *line
-  # The same question once the session has started on a change to the page's source
-  # that changes the count, before its first edit.
-  source-editing:
-    fork: line
-    page: line-fork/pages/release-board.html
-    conversation:
-      - from: board
-      - *leaf-input
-      - leaf: >-
-          Leaf has new input for your turn. Read this complete delivery before
-          answering.
-          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
-          [{"id": "r1", "title": "Splitting the webhook retries card", "anchor":
-          {"section": "card-retry"}, "resolved": null, "messages": [{"id": "r2",
-          "author": "agent", "text": "splitting the webhook retries card into one per
-          partner", "ephemeral": true}]}], "handling": {"h1": "Do the work, put the
-          result on the page, and answer with `leaf thread reply <answer.ref>
-          <declaration> --file reply.md`: what changed, in a sentence or two, linking
-          the section that shows it."}, "events": [{"kind": "comment", "author":
-          "user", "id": "r1", "text": "Split this card into one card per partner that
-          rate limits us: Acme, Globex and Initech.", "anchor": {"section":
-          "card-retry"}, "handling": ["h1"], "answer": {"kind": "reply", "parent":
-          "r1", "ref": "d1:0:r1"}}]}]}
-      - assistant: Splitting the webhook retries card into three, one per partner, starting with Acme.
-    running:
-      - tool: Read
-        input:
-          file_path: "{page}/index.html"
-    waiting: *count-cards
-    labels:
-      work: hand_over
     assert:
       - *line
   # A long thread whose delivery would suggest a range to summarize: the summary fork

@@ -188,10 +188,9 @@ to a Claude Code session from the main thread, kept back or held by a running ag
 turn, and where neither, whether its lane was up (`fork_admission`); each question as Leaf gives it to the module (`fork_asked`), so a
 line fork that never answers shows; and every outcome of a thread's forks
 (`fork_outcome`): the line fork's, with its tokens and time, why Leaf refused its
-line where it did, and the request
-it resent (`request` in `hooks/claude-code.ts`, which says where a replay cuts the
-conversation: to `sent` while `running` lists a call, else to `row`; its
-`effort` is the fork's), as the clerk's `turn_end_check` notes have it, which is
+line where it did, and what it resent of the main thread's conversation (`resends`
+in `hooks/claude-code.ts`, which says where a replay cuts it; its `effort` is the
+fork's), as the clerk's `turn_end_check` notes have it, which is
 what a later replay or audit scores; and a working fork's start and end (`step`).
 `leaf-dev logs timeline` reads them beside the session's transcript.
 `leaf-dev eval run 'line-fork*' --harness claude-code --base` scores a change to the

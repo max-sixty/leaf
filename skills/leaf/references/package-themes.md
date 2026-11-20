@@ -245,7 +245,9 @@ package the page keeps: `leaf page init <page> --package diff --package ./chrome
 These are the custom properties a page, a theme or a package sets or reads to share
 Leaf's look. Leaf declares each on the root (`browser/styles/tokens.css`). Set one
 there to change it for the page and everything Leaf draws on it, or on a subtree to
-change it for that subtree. Any other `--lf-` property is Leaf's own.
+change it for that subtree. Any other `--lf-` property is Leaf's own. `leaf package check`
+advises on each property a package's sheet reads with `var()` and no fallback that
+nothing in Leaf, the package or the layer it composes sets, as a renamed token leaves.
 
 A theme sets these colours. Where the foreground and background need a deliberate
 contrast choice, they are independent tokens:

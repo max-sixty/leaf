@@ -15,7 +15,10 @@ rather than a registry entry (`skills/leaf/references/packages.md`, "A widget"),
 passage that has grown into a list is rewritten around its goals. The fix states the
 goal the failing page missed and what an author weighs to meet it, and offers the form
 that passed the eval as a default to depart from where the content calls for it, not
-as a requirement.
+as a requirement. Where the author passed over a widget, as by drawing a chart by hand
+that the vocabulary already draws, the fix names the form in the workflow and sharpens
+the entry's `description`, rather than naming the tag in the workflow (root
+`AGENTS.md`, "Keep the layer open").
 
 ## Score an instruction change
 

@@ -24,10 +24,14 @@
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
-// it does without waiting on anything outside. Each redraw the module asks for
-// prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
-// hook draws it for each surface, each element `{tag, props, children}`; a render
-// hook of another component is raised as the event `ui.render:<component>`. The
+// it does without waiting on anything outside. A line `{"conversation": [<row id>,
+// ...]}` sets the rows of the main conversation, oldest first, which
+// `$.session.messages` reads: `last` the newest of them, `after` those after a row
+// it holds, and a deny for a row it doesn't, as for one a compaction dropped. Each
+// redraw the module asks for prints `{"band": {terminal, desktop}}`, the band above
+// the prompt as its render hook draws it for each surface, each element `{tag,
+// props, children}`; a render hook of another component is raised as the event
+// `ui.render:<component>`. The
 // first line printed is `{"pid"}`, the process the module's processes see as
 // their parent. A line `{"press": <key>}` presses the Button of that key in the
 // terminal's band last drawn; what a press copies prints as `{"copied": <text>}`,
@@ -55,6 +59,8 @@ const held = new Map(
 let band = { terminal: null, desktop: null };
 // How many completions have answered as a provider's 429.
 let refused = 0;
+// The ids of the main conversation's rows, oldest first.
+let conversation = [];
 
 /** Whether `options.stepFails` picks out the `leaf hook --fork` payload `payload`. */
 const fails = (payload) =>
@@ -144,6 +150,19 @@ const $ = {
   plugin: { name: "leaf", root: options.pluginRoot ?? ROOT },
   session: {
     id: async () => session,
+    messages: async ({ last, after }) => {
+      const rows = conversation.map((uuid) => ({
+        role: "user",
+        text: "",
+        toolUses: [],
+        uuid,
+      }));
+      if (after === undefined) return rows.slice(-last);
+      const at = conversation.indexOf(after);
+      return at === -1
+        ? { deny: `no row ${after} to read on from` }
+        : rows.slice(at + 1);
+    },
     send: async (args) => {
       print({ sent: args });
       return options.sendRefuses === undefined
@@ -319,7 +338,18 @@ await register((event, ...rest) => {
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, flush, press, spawnReturns: returns } = JSON.parse(line);
+  const {
+    emit,
+    e,
+    flush,
+    press,
+    spawnReturns: returns,
+    conversation: rows,
+  } = JSON.parse(line);
+  if (rows) {
+    conversation = rows;
+    continue;
+  }
   if (returns) {
     spawnReturns();
     continue;

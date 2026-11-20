@@ -1468,9 +1468,10 @@ def thread_create(
 
     Use --obligation when the next move is the user's: the message waits on
     On Me until their reply or settling reaction. A question whose answers you
-    can list takes an `lf-options` choice in the text instead, which waits on
-    the user until they pick. Refuses a quote the active revision does not
-    hold, or holds more than once. The comment's id is the thread's.
+    can list takes a widget that asks in the text instead, such as an
+    `lf-options` choice, which waits on the user until they pick. Refuses a
+    quote the active revision does not hold, or holds more than once. The
+    comment's id is the thread's.
     """
     from leaf.thread import cmd_comment
 

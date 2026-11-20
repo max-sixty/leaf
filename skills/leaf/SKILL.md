@@ -32,10 +32,10 @@ reconciliation.
 Record the work you take on as `references/conversation-loop.md`, "When to write",
 says. Initialize a new page with `leaf page init <page>`, adding the packages its
 content needs: `leaf page init --package diagram --package diff <page>`.
-`references/packages.md`, "Package reach", lists the packages. Use `playground`
-when the user explores candidates or tunes a configuration before sending it; its
-choices can contain the previews themselves. Simple choices use `lf-options`
-(`references/authoring-on-me.md`). Running `page init` again with `--package`
+`references/packages.md`, "Package reach", lists the bundled packages and what each
+adds, such as a live preview in which the user compares candidates or tunes a
+configuration before sending it; a package the user names, such as one they
+installed, can be selected the same way. Running `page init` again with `--package`
 replaces the page's packages, so name every package the page keeps. Personal themes
 and their author instructions are discoverable with `leaf theme list`;
 `references/package-themes.md`, "Personal themes", covers choosing one and how the

@@ -74,18 +74,18 @@ rubrics:
       check asked a fork of that conversation, and every item of the fork's answer
       that Leaf took. Judge only the asks (items of kind question), each as the user
       meets it, often hours later, without the conversation and without rereading the
-      page: its title alone, as a row in their list of what waits on them; each
-      option's title alone; and its text in a narrow card. Pass only if, in every
+      page: its title alone, as a row in their list of what waits on them, and its
+      text and options in a narrow card beneath that title. Pass only if, in every
       ask, the title says what the work is or does, each option title says what
-      choosing it does without naming the work only by its number ("Merge it" or
-      "Merge the cache" may pass), and the text says what each piece of work it
-      mentions is or does where it first mentions it,
-      in words the user used or the page shows, so the user can decide from the card
-      alone what merging changes. A pull request's number may stand beside such
-      words, as their link, and a later sentence may refer back to work the card has
-      already described. Fail if a title or an option title names work only by its
-      number (as "Merging #812" or "Merge #812" would), if the text mentions work it
-      never describes (as "It builds on #809" would), or if it describes work only by
+      choosing it does ("Merge it", "Merge the cache", or "Merge #812" under a title
+      that says what #812 is, may pass), and the text says what each piece of work
+      it mentions is or does where it first mentions it, in words the user used or
+      the page shows, so the user can decide from the card alone what merging
+      changes. A pull request's number may stand beside such words, as their link,
+      and a later sentence or an option may refer back to work the card has already
+      described. Fail if a title names work only by its number (as "Merging #812"
+      would), if the text mentions work it never describes (as "It builds on #809"
+      would), or if it describes work only by
       code the user never wrote, or by something only the conversation identifies.
   line: &line
     type: llm-rubric

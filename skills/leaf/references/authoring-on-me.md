@@ -13,6 +13,9 @@ recalling the conversation or reading your notes. Say why the choice arises, wha
 option leads to in a case the user can picture, and what each costs, including the one
 you recommend, so they could reach your recommendation or turn it down for reasons the
 question gives. Where you can't yet say what an option does, find out before you ask.
+Beside each pull request, issue or commit the question mentions, say what that work is
+or does, in words the user already uses: title its thread “Merging #431, the retry for
+dropped uploads”, not “Merging #431”.
 
 Each option is a result the user can pick, so its title says what choosing it does to
 the subject, keeping today's behavior included: “Generate shared types” and “Keep

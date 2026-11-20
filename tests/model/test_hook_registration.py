@@ -41,28 +41,43 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
-def test_a_copy_claude_code_replaced_runs_the_copy_installed_since(tmp_path):
-    """Claude Code installs an update beside the copy a running session loaded,
-    marks the older copy orphaned and may delete its files while the session still
-    runs its launcher. That launcher runs the copy `installed_plugins.json` records,
-    with the call's arguments and stdin, and refuses, naming the way out, where it
-    records no other copy, rather than run a copy whose files may be gone or hand
-    the call back to itself."""
+def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path, monkeypatch):
+    """Claude Code installs an update beside the copy a running session loaded, then
+    marks each copy `installed_plugins.json` no longer records with `.orphaned_at`,
+    and a marked copy may lose its files while the session still runs its launcher.
+    That launcher runs the first absolute, executable launcher the record names,
+    with the call's arguments and stdin, unless that is its own. The pages follower
+    moves on in exactly the cases the launcher hands a call on
+    (`session_runtime.replaced`), since the module starts it again through that
+    launcher: a follower that moved on where the launcher ran its own copy would
+    start again and again."""
+    from leaf import session_runtime
+
     cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
     replaced = cache / "0a0a0a0a0a0a"
     (replaced / "bin").mkdir(parents=True)
     shutil.copy(PLUGIN_ROOT / "bin/leaf", replaced / "bin/leaf")
-    # Its project still there, as until Claude Code deletes its files.
-    (replaced / "pyproject.toml").write_text("")
-    (replaced / ".orphaned_at").write_text("1795146911571")
-    installed = cache / "1b1b1b1b1b1b" / "bin" / "leaf"
-    installed.parent.mkdir(parents=True)
-    installed.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\ncat\n")
-    installed.chmod(0o755)
+    installed = cache / "1b1b1b1b1b1b"
+    (installed / "bin").mkdir(parents=True)
+    (installed / "bin/leaf").write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\ncat\n")
+    (installed / "bin/leaf").chmod(0o755)
+    # Recorded, without a launcher.
+    unrunnable = cache / "2c2c2c2c2c2c"
     record = tmp_path / "plugins" / "installed_plugins.json"
+    marker = replaced / ".orphaned_at"
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", replaced)
 
-    def run():
-        return subprocess.run(
+    def hands_on(marked: bool, installs: list) -> bool:
+        if marked:
+            marker.write_text("1795146911571")
+        else:
+            marker.unlink(missing_ok=True)
+        record.write_text(
+            json.dumps(
+                {"plugins": {"leaf@leaf": [{"installPath": str(p)} for p in installs]}}
+            )
+        )
+        ran = subprocess.run(
             [str(replaced / "bin/leaf"), "page", "state", "a page"],
             cwd=cache,
             input="the hook's payload\n",
@@ -71,26 +86,17 @@ def test_a_copy_claude_code_replaced_runs_the_copy_installed_since(tmp_path):
             timeout=STATED_TIMEOUT,
             check=False,
         )
+        handed = ran.stdout == "page\nstate\na page\nthe hook's payload\n"
+        assert handed == session_runtime.replaced(), (marked, installs, ran.stderr)
+        return handed
 
-    record.write_text(
-        json.dumps(
-            {"plugins": {"leaf@leaf": [{"installPath": str(installed.parent.parent)}]}}
-        )
-    )
-    handed = run()
-    assert (handed.returncode, handed.stdout) == (
-        0,
-        "page\nstate\na page\nthe hook's payload\n",
-    ), handed.stderr
-    for installs in ([], [installed.parent.parent.name], [str(replaced)]):
-        record.write_text(
-            json.dumps(
-                {"plugins": {"leaf@leaf": [{"installPath": p} for p in installs]}}
-            )
-        )
-        refused = run()
-        assert (refused.returncode, refused.stdout) == (1, "")
-        assert "run /reload-plugins" in refused.stderr
+    assert hands_on(True, [installed])
+    assert hands_on(True, [unrunnable, installed])
+    # The copy the record names runs itself, as does one not yet marked.
+    assert not hands_on(True, [replaced, installed])
+    assert not hands_on(False, [installed])
+    assert not hands_on(True, [installed.name])
+    assert not hands_on(True, [])
 
 
 def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):

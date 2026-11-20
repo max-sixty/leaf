@@ -34,6 +34,7 @@ ends with its generation. Page servers retain their own runtime, so choosing
 delivery does not replace a comparison arm's renderer.
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -67,9 +68,24 @@ def selected_launcher(session_id: str) -> Path | None:
 
 
 def replaced() -> bool:
-    """Whether Claude Code has replaced this copy with a newer one, which this
-    copy's launcher now runs in its place (`bin/leaf`)."""
-    return (PLUGIN_ROOT / ".orphaned_at").exists()
+    """Whether this copy's launcher runs another copy in its place (`bin/leaf`), by
+    its rule: this copy carries Claude Code's `.orphaned_at`, and the first
+    absolute, executable launcher `installed_plugins.json` records for this plugin
+    is another copy's."""
+    if not (PLUGIN_ROOT / ".orphaned_at").exists():
+        return False
+    record = PLUGIN_ROOT.parents[3] / "installed_plugins.json"
+    try:
+        installs = json.loads(record.read_text())["plugins"]
+        installs = installs[f"leaf@{PLUGIN_ROOT.parents[1].name}"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    for install in installs if isinstance(installs, list) else []:
+        path = install.get("installPath") if isinstance(install, dict) else None
+        launcher = Path(path) / "bin" / "leaf" if isinstance(path, str) else None
+        if launcher and launcher.is_absolute() and os.access(launcher, os.X_OK):
+            return launcher.resolve() != own_launcher()
+    return False
 
 
 def select_launcher(session_id: str, launcher: Path) -> bool:

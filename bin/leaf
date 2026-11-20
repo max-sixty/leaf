@@ -28,15 +28,15 @@
 # nothing to say; a failed resolve is reported either way.
 #
 # Claude Code installs each plugin update as a new copy beside the one a running
-# session loaded, marks the older copy orphaned (`.orphaned_at`), and may delete its
-# files while the session still runs this launcher. A copy it replaced never runs
-# itself: it runs the copy `installed_plugins.json` records, so every session's hooks
-# and commands run the installed Leaf, which reads the pages a newer Leaf wrote, and
-# keep running once the old copy's files go. The check compares launcher paths, so
-# the installed copy runs itself and a call moves at most once. Where no other copy
-# is recorded, as once the plugin is uninstalled, it refuses, since its own files may
-# be gone. The installed Leaf hands a session's hooks and commands on to a checkout
-# the session selected (`src/leaf/session_runtime.py`).
+# session loaded, then marks each copy `installed_plugins.json` no longer records
+# with `.orphaned_at`, and a marked copy may lose its files while the session still
+# runs this launcher. A marked copy runs the first absolute, executable launcher the
+# record names, unless that is this one, so the session's hooks and commands run the
+# installed Leaf, which reads the pages a newer Leaf wrote, and still reach it once
+# this copy's project is gone. The marker only spares the installed copy a read of
+# the record; the record decides, by the rule `session_runtime.replaced` follows for
+# the pages follower. The installed Leaf hands a session's hooks and commands on to
+# a checkout the session selected (`src/leaf/session_runtime.py`).
 #
 # uv opens its cache even with nothing to sync, and Codex's workspace-write sandbox
 # writes only to the workspace and the temporary directories, so inside that
@@ -80,14 +80,13 @@ if [ -e "$root/.orphaned_at" ]; then
     name="leaf@$(basename -- "$(dirname -- "$(dirname -- "$root")")")"
     while IFS= read -r install <&3; do
         case $install in /*) ;; *) continue ;; esac
-        [ -x "$install/bin/leaf" ] && [ ! "$install/bin/leaf" -ef "$0" ] &&
-            exec "$install/bin/leaf" "$@" 3<&-
+        [ -x "$install/bin/leaf" ] || continue
+        [ "$install/bin/leaf" -ef "$0" ] || exec "$install/bin/leaf" "$@" 3<&-
+        break
     done 3<<EOF
 $(jq -r --arg name "$name" '.plugins[$name][]?.installPath // empty' \
     "$plugins/installed_plugins.json" 2>/dev/null)
 EOF
-    echo "leaf: Claude Code replaced $root and records no other Leaf to run; run /reload-plugins" >&2
-    exit 1
 fi
 state="$root/src/leaf/state.py"
 python="$root/.venv/bin/python"

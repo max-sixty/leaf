@@ -5511,9 +5511,10 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
 
 
 def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serve):
-    """An image pasted into the page's field hangs just over the panel's top edge,
-    outside its box, so attaching grows the panel by nothing and leaves the field its
-    width; its thumbnail is the paste's result, so no notice says it was added."""
+    """An image pasted into the page's field hangs just over the panel's top edge from
+    its start edge, outside its box, so attaching grows the panel by nothing and leaves
+    the field its width; its thumbnail is the paste's result, so no notice says it was
+    added."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
     card = page.locator(".lf-fp-card")
@@ -5525,7 +5526,7 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     assert field(page).bounding_box()["width"] > 300
     tile = shelf.bounding_box()
     assert tile["y"] + tile["height"] <= before["y"], (tile, before)
-    assert tile["x"] >= field(page).bounding_box()["x"] - 1, tile
+    assert tile["x"] == pytest.approx(before["x"], abs=1), (tile, before)
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
 
 

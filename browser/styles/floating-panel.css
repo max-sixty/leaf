@@ -479,18 +479,19 @@
     background: none;
   }
   /* What the field's draft carries, its attached images, hangs off the box rather
-     than standing in it: the shelf stands just over the box's top edge, above the
-     editor's start, so attaching neither grows the box nor moves a word, in the page's
-     field, an open thread's reply and the comment box seated in the field's place
-     (`.lf-fp-response`) alike, one of which shows at a time. With a view open it hangs
-     over the view's head. The user chose this over the shelf taking a line of its own
-     over the words, which grew the box by a line the one thumbnail left mostly empty,
-     and over thumbnails shrunk into the row beside the words,
-     which kept the box whole but made each picture a chip. The shelf follows the
-     editors, which stay put as focus comes and goes. Rejected: following the field's
-     slot, which reaches out to the panel's edge while it wears the ring, so a press on
-     a picture, taking focus from the editor, moved the picture from under the
-     pointer. */
+     than standing in it: the shelf stands just over the box's top edge, from the
+     panel's start edge, where the field's box starts while it wears the ring, so
+     attaching neither grows the box nor moves a word, in the page's field, an open
+     thread's reply and the comment box seated in the field's place (`.lf-fp-response`)
+     alike, one of which shows at a time. With a view open it hangs over the view's
+     head. The user chose this over the shelf taking a line of its own over the words,
+     which grew the box by a line the one thumbnail left mostly empty, and over
+     thumbnails shrunk into the row beside the words, which kept the box whole but made
+     each picture a chip. The shelf takes its start from the panel and its measure from
+     the editors, which stay put as focus comes and goes. Rejected: following the
+     field's slot, which reaches out to the panel's edge only while it wears the ring,
+     so a press on a picture, taking focus from the editor, moved the picture from
+     under the pointer. */
   .lf-fp-editors,
   .lf-fp-response {
     anchor-name: --lf-fp-field;
@@ -502,7 +503,7 @@
     bottom: calc(
       anchor(--lf-fp-panel top) + var(--lf-media-gap) - var(--lf-media-room)
     );
-    left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));
+    left: calc(anchor(--lf-fp-panel left) - var(--lf-media-room));
     width: max-content;
     max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));
     margin: 0;

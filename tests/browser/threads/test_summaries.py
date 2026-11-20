@@ -5,6 +5,7 @@ import re
 
 import pytest
 from interact_support import append_carried_log_record, append_command
+from leaf_dev.browser import ON_ME_MARK
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_harness import (
@@ -184,6 +185,60 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(
         view = open_panel_thread(page, root)
         expect(view.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')).to_be_hidden()
         expect(note).to_be_attached()
+
+
+def test_on_me_opens_the_fold_over_a_message_it_lists(browser, serve):
+    """A summary folds messages that still ask something of the user as it folds any
+    others, so the thread shows the summary alone. On Me still lists what they ask, and
+    its Show lands on the asking message, opening the fold around it."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Is forty megabytes enough?", {"section": "s-how"})
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "obligation": True,
+            "text": "It holds a week of edits. Try a week offline and tell me.",
+        },
+    )
+    corrected = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "obligation": True,
+            "text": "A correction: it holds three days, not a week.",
+        },
+    )
+    summarize_thread(
+        serve.page_dir,
+        asked["id"],
+        corrected["id"],
+        "Forty megabytes holds three days of edits; try three days offline.",
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="s-how"] .lf-margin-marker').click()
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    toggle = card.locator(".lf-summary-expand")
+    message = card.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')
+    expect(toggle).to_have_attribute("aria-expanded", "false")
+    expect(message).to_be_hidden()
+
+    page.locator(ON_ME_MARK).click()
+    page.locator(".lf-fp-on-item").first.get_by_role(
+        "button", name="Show", exact=True
+    ).click()
+    expect(message).to_be_focused()
+    expect(message).to_be_visible()
+    expect(toggle).to_have_attribute("aria-expanded", "true")
 
 
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):

@@ -7,7 +7,7 @@
  * the part a widget's key names, an obligation to its own arrival region, and a
  * module's `navigateToDatum` to the part its reference names. Every route shares three
  * steps: `revealAddressed` draws the part (`revealAnchor` each part an anchor names),
- * `reveal` opens what holds it, and `clearFor` puts away a surface that would stand
+ * `reveal` opens what holds it and what takes focus, and `clearFor` puts away a surface that would stand
  * over it where it lands (floating-panel.js). Each
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
  * the reveal, clearing, painting, focus and scrolling, and no route does them itself.
@@ -152,9 +152,13 @@ export function createAnchorTravel({
     if (!first || !intent()) return false;
     const holder = placeHolder(first.where);
     if (!holder) return false;
-    const disclosures = [holder, ...(first.reveal ?? [])].map((target) =>
-      reveal(target, intent),
-    );
+    // What takes focus is shown too, as a message a closed fold holds in a thread
+    // whose place the arrival lands on.
+    const disclosures = [
+      holder,
+      ...(first.focus ? [focusElement(first.focus)] : []),
+      ...(first.reveal ?? []),
+    ].map((target) => reveal(target, intent));
     const replacedView = disclosures.some((disclosure) => disclosure.replacedView);
     const place = (complete = false) => {
       let completed = false;

@@ -82,9 +82,10 @@ def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
     tmp_path,
 ):
     """Claude Code may delete an orphaned copy's files while a session still runs
-    its launcher; that launcher runs the copy `installed_plugins.json` records, and
-    refuses, naming the cause, where none is recorded, rather than leaving uv to run
-    the caller's `python`."""
+    its launcher; that launcher runs the copy `installed_plugins.json` records at an
+    absolute path, and refuses, naming the cause, where none is recorded, rather
+    than leaving uv to run the caller's `python` or a copy found relative to the
+    caller's working directory."""
     cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
     orphan = cache / "0a0a0a0a0a0a" / "bin" / "leaf"
     orphan.parent.mkdir(parents=True)
@@ -98,6 +99,7 @@ def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
     def run():
         return subprocess.run(
             [str(orphan), "page", "state", "a page"],
+            cwd=cache,
             input="the hook's payload\n",
             capture_output=True,
             text=True,
@@ -115,10 +117,11 @@ def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
         0,
         "page\nstate\na page\nthe hook's payload\n",
     )
-    record.write_text(json.dumps({"plugins": {}}))
-    refused = run()
-    assert (refused.returncode, refused.stdout) == (1, "")
-    assert "has lost its files" in refused.stderr
+    for plugins in ({}, {"leaf@leaf": [{"installPath": installed.parent.parent.name}]}):
+        record.write_text(json.dumps({"plugins": plugins}))
+        refused = run()
+        assert (refused.returncode, refused.stdout) == (1, "")
+        assert "has lost its files" in refused.stderr
 
 
 def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):

@@ -3240,6 +3240,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "anchor": {"section": "s-1", "quote": "Ship dark"},
             "title": None,
             "detached_from": None,
+            "rewritten_from": None,
             "resolved": None,
             "unread": [answered["id"]],
             # The reply names no `responds`, so the comment is still owed an answer.

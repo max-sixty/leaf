@@ -31,14 +31,15 @@
      as its block's toolbar, as a code block's Copy does, wears the toolbar's frame
      (`data-lf-bar`).
    - `inline`: a press read as part of the line of words it stands in, such as a
-     thread's held news or a quote's Full quote, drawn as words in the accent at the
+     thread's held news, drawn as words in the accent at the
      line's size with no frame. One that announces news waiting says so with
      `data-lf-news` and keeps the accent the unread dot wears, and one whose words say
      a warning with `data-lf-tone="warn"` takes the warning's ink. One standing among
      quieter words (`data-lf-hint`) wears their face: a passing notice's Undo among a
      box's empty words at the floating panel field's end, as the word and key that
-     enter the box do (composing/input.js, `pressAtRest`), and a summary's count at
-     its head, set as a message's time is (thread/transcript.js). One that opens the
+     enter the box do (composing/input.js, `pressAtRest`), a summary's count at its
+     head, set as a message's time is (thread/transcript.js), and a quote's label
+     where it opens the whole quote (thread/thread-card.js). One that opens the
      item its words name elsewhere (`data-lf-link`), as a promise's word opens its row
      in On Claude (thread/messages.js), is underlined at rest as a link is.
    - `row`: one row of a list or menu, whose words are what the reader scans, so they

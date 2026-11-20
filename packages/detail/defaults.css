@@ -6,6 +6,7 @@ lf-dial {
   z-index: 2;
   display: block;
   inline-size: fit-content;
+  max-inline-size: 100%;
   margin-block: var(--lf-sp-3);
   margin-inline-start: auto;
 }
@@ -16,10 +17,13 @@ html[data-lf-interactive] lf-dial {
 /* Measure the three labels in their radios' face before the radios arrive, each as
    wide as the widest, Everything. Zero width separators prevent kerning across radio
    boundaries. The inset is the three radios' padding and borders (the word face,
-   controls.css), the row's frame, and its two gaps (webawesome.css). */
+   controls.css), the row's frame, and its two gaps (webawesome.css). In a column too
+   narrow for three, it takes the column's width, as the row then does. */
 html[data-lf-interactive] lf-dial:not(:defined)::before {
   content: "Everything\200b Everything\200b Everything";
   display: block;
+  max-inline-size: 100%;
+  overflow: hidden;
   visibility: hidden;
   white-space: nowrap;
   font: var(--lf-font-choice);
@@ -32,11 +36,12 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   font: var(--lf-font-compact);
 }
 /* The three depths are one width, the widest one's, so the row reads as one control
-   and what stands under each depth lines up with it. */
+   and what stands under each depth lines up with it. In a column too narrow for that,
+   each keeps its words whole and the others share what is left. */
 .lf-dial-depths::part(form-control-input) {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  grid-auto-columns: minmax(max-content, 1fr);
 }
 .lf-dial-depth {
   justify-content: center;
@@ -62,17 +67,17 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 }
 
 /* Each depth's time on a line of its own under its word, a step quieter (lf-dial.js).
-   The two lines stand in a one-line control's height, their glyphs inside it and only
-   their leading past its padding, so the dial stands no taller than a row of words and
-   its first paint holds its room. */
+   The two lines fit a one-line control's height, so the dial stands no taller than a
+   row of words and its first paint holds its room; larger type grows the control. */
 .lf-dial-depth {
-  block-size: var(--lf-line);
+  min-block-size: var(--lf-line);
   padding-block: 0;
 }
 .lf-dial-depth::part(label) {
   display: flex;
   flex-direction: column;
   align-items: center;
+  font: var(--lf-font-choice-stacked);
 }
 .lf-dial-time {
   display: block;
@@ -85,7 +90,7 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
    would open more wears a dashed ring, the mark of a state not yet taken. */
 [data-lf-dial-ghost="goes"] {
   opacity: 0.22;
-  transition: opacity 120ms ease;
+  transition: opacity var(--lf-motion-disclosure) ease;
 }
 details[data-lf-dial-ghost="comes"] > summary,
 .lf-dial-more[data-lf-dial-ghost="comes"] {
@@ -171,7 +176,7 @@ details[data-lf-dial-ghost="comes"] > summary,
 .lf-dial-hang-text {
   background: repeating-linear-gradient(
     to bottom,
-    color-mix(in srgb, currentColor 30%, transparent) 0 1.5px,
+    rgb(from currentColor r g b / 30%) 0 1.5px,
     transparent 1.5px 3px
   );
 }
@@ -201,6 +206,7 @@ details[data-lf-dial-ghost="comes"] > summary,
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  [data-lf-dial-ghost="goes"],
   .lf-dial-hang-page,
   .lf-dial-hang-bars,
   .lf-dial-hang-frame {

@@ -84,11 +84,12 @@
  * the dial, away from the buttons it compares; hanging each sheet under its own button
  * is an exception to one preview face the maintainer chose. Leaf still opens and ends
  * the preview on every route, makes it Escape's first step and gives a screen reader
- * each depth's description on focus. A plain press on the dial or an arrow key in its
+ * each depth's description on focus. A plain click on the dial or an arrow key in its
  * depths, while the sheets hang, aims at the depth it reached, as a chart's key reaching
  * another point does (`previewChanged` with `aim`), so the sheets stay up and the frame
  * can be seen gliding to the depth turned to, the maintainer's choice. Otherwise they go
- * as Leaf's preview goes. A sheet holds no control, since a preview reads and never
+ * as Leaf's preview goes, a tap on touch included, since a finger that lifted reads no
+ * preview. A sheet holds no control, since a preview reads and never
  * acts: pressing one only aims at the sheets again. Pointing marks the page only within
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
@@ -109,6 +110,7 @@ import {
   offerAction,
   PAGE_INTERFACE,
   phrasing,
+  onPress,
   plainPress,
   previewChanged,
   PREVIEW_ENDED,
@@ -340,16 +342,16 @@ customElements.define(
     // The depth whose preview stands.
     /** @type {string | null} */
     #pointed = null;
-    // Whether a plain press is down on the dial.
+    // Whether a plain press on the dial is under way.
     #pressing = false;
-    // What puts the sheets away once the press down on the dial lifts.
+    // What puts the sheets away once the press on the dial is over.
     /** @type {(() => void) | null} */
     #lifted = null;
     // The sheets go as the reading they show ends, unless a newer one took its place: the
     // next depth's reading comes before the last one's ending, and a turn reads the depth
     // it turned to again (`#aim`) after the press or key that put Leaf's preview away.
-    // So they go a frame later, or for a press once it lifts, and stay up through a turn
-    // without a flicker.
+    // So they go a frame later, or for a press once it is over, and stay up through a
+    // turn without a flicker.
     #ended = (/** @type {Event} */ event) => {
       if (/** @type {CustomEvent} */ (event).detail.declared !== this.#declared) return;
       const declared = this.#declared;
@@ -438,27 +440,18 @@ customElements.define(
         );
         // A plain press on the dial puts Leaf's preview away as it goes down, and its
         // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
-        // for it to lift.
-        this.addEventListener(
-          "pointerdown",
-          (event) => {
-            if (event.pointerType !== "mouse" || !plainPress(event)) return;
-            this.#pressing = true;
-            const press = new AbortController();
-            const lift = () => {
-              press.abort();
-              this.#pressing = false;
-              const away = this.#lifted;
-              this.#lifted = null;
-              if (away) nextRender(away);
-            };
-            for (const type of ["pointerup", "pointercancel"])
-              this.ownerDocument.addEventListener(type, lift, {
-                signal: AbortSignal.any([signal, press.signal]),
-              });
-          },
-          { signal },
-        );
+        // until the press is over.
+        const stopPress = onPress((down, path) => {
+          if (!path.includes(this) || !plainPress(down)) return null;
+          this.#pressing = true;
+          return () => () => {
+            this.#pressing = false;
+            const away = this.#lifted;
+            this.#lifted = null;
+            if (away) nextRender(away);
+          };
+        });
+        signal.addEventListener("abort", stopPress);
         this.addEventListener(
           "click",
           (event) => {

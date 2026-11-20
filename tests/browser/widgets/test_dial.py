@@ -138,8 +138,9 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
 ):
     """Each depth says under its word how long it takes to read. Pointing at one hangs
     each depth's page under its own button, Skim's shortest and Everything's longest,
-    with Leaf's own preview face unseen. A press on another depth keeps them up and
-    moves the frame to it; Escape puts them away and leaves focus on the depth."""
+    with Leaf's own preview face unseen, and fades on the page what Skim would fold. A
+    press on another depth keeps them up the whole time it is held, as a hand's is,
+    and moves the frame to it; Escape puts them away and leaves focus on the depth."""
     page = open_page(request.getfixturevalue(engine), serve(DIAL_PAGE))
     buttons = page.locator("lf-dial .lf-dial-depth")
     expect(buttons.locator(".lf-dial-time")).to_have_text([re.compile(r"\d+ min")] * 3)
@@ -156,9 +157,15 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     heights = [sheets.nth(i).bounding_box()["height"] for i in range(3)]
     assert heights[0] < heights[1] <= heights[2]
     assert centre_x(frame) == pytest.approx(centre_x(read), abs=1)
+    buttons.filter(has_text="Skim").hover()
+    expect(page.locator('[data-lf-dial-ghost="goes"]').first).to_be_attached()
 
     everything = buttons.filter(has_text="Everything")
-    everything.click()
+    everything.hover()
+    page.mouse.down()
+    page.wait_for_timeout(150)
+    expect(panel).to_have_attribute("data-lf-open", "")
+    page.mouse.up()
     expect(page.locator("details[open]")).to_have_count(len(SECTIONS))
     expect(panel).to_have_attribute("data-lf-open", "")
     page.wait_for_function("() => document.getAnimations().length === 0")

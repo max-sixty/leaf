@@ -9,7 +9,7 @@
 // `leaf-text`'s closed editor, whose `value` is the text. At every frame while any field
 // holds words, each is asked whether its words are still on the page: the field itself,
 // still connected and laid out (`checkVisibility`, which a field under `display: none`
-// fails) and still holding them, or else another laid-out field holding the same words,
+// fails) and still holding them, alone or within a longer text, or else another laid-out field holding the same words,
 // which is how a re-render hands a draft to the node replacing its box, and where the
 // watch follows them. A field scrolled out of view is still on the page, and so is one
 // under `visibility: hidden`, which is how a surface whose target a pane has scrolled
@@ -549,6 +549,12 @@
               source,
             });
         } else painting.delete(field);
+        continue;
+      }
+      // A field whose text grew around the words still shows them, as a draft that
+      // joins another tab's words does (runtime/drafts.js, `bothWords`).
+      if (drawn(field) && text(field).includes(held.words)) {
+        painting.delete(field);
         continue;
       }
       holding.delete(field);

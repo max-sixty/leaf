@@ -126,3 +126,47 @@ for (const [foreignFirst, reported] of [
     }
   });
 }
+
+// Words a field still shows within a longer text, as when a draft joins another tab's
+// words before them (runtime/drafts.js), have not left the screen; words the new text
+// leaves out have.
+test("words a join keeps in their field stay on the screen", () => {
+  const dom = new JSDOM("<textarea></textarea>", { runScripts: "outside-only" });
+  const { window } = dom;
+  const context = dom.getInternalVMContext();
+  const listeners = new Map();
+  const frames = [];
+  const findings = [];
+  let edit;
+  window.lfWatchPlatform = {
+    frame: (run) => frames.push(run),
+    later: (run) => run(),
+    listen: (_owner, type, run) => listeners.set(type, run),
+  };
+  window.lfInputWork = {
+    current: () => null,
+    subscribeEdits: (run) => (edit = run),
+    subscribe: () => {},
+    dispatching: () => false,
+  };
+  window.__leafWatchFinding = (finding) => findings.push(finding);
+  const field = window.document.querySelector("textarea");
+  field.checkVisibility = () => field.isConnected;
+  try {
+    vm.runInContext(source, context);
+    const words = "Keep this draft";
+    edit({ node: field, order: 1, event: { type: "beforeinput" } });
+    field.value = words;
+    listeners.get("input")({ isTrusted: true, composedPath: () => [field] });
+    frames.shift()();
+    field.value = `Theirs\n\n${words}`;
+    frames.shift()();
+    assert.equal(findings.length, 0);
+    field.value = "Theirs";
+    frames.shift()();
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].words, words);
+  } finally {
+    dom.window.close();
+  }
+});

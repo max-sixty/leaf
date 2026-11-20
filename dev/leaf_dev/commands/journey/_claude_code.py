@@ -169,8 +169,13 @@ from leaf_dev.review_scenario import (
 )
 
 # The user's further message in the thread of `fork-busy`'s question, sent once the
-# subagent that took the question has answered it.
-FOLLOW_UP = "And which would they ask about next?"
+# subagent that took the question has answered it. Like that question it asks for the
+# work beside the session's own, and for a card the first answer didn't rank, since a
+# session that holds the answer in the subagent's report rightly gives it itself.
+FOLLOW_UP = (
+    "Look into this beside your own work too: which card would they ask about last, "
+    "and why?"
+)
 
 # How a hook context that hands a delivery over by its pointer begins.
 POINTER_OPENING = delivery_pointer_prompt("00000000").partition(" id=")[0]
@@ -781,8 +786,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     def delegated(name: str, update: str, started: float) -> tuple[str, dict]:
         """Require that the line fork posted its line on `update`, that Leaf handed
-        the message to the session, and that the session gave it to a subagent of its
-        own, which answered it there itself while Leaf's hooks handed it no delivery.
+        the message to the session, and that the session gave it to a fork of its
+        conversation, which answered it there itself while Leaf's hooks handed it no
+        delivery.
         Returns that subagent's id and its record (`subagents`)."""
         cc.until(
             lambda: bool(answers(page, update)) and cc.idle(),
@@ -814,6 +820,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             list(workers.items()),
             f"{name}: no subagent answered it; subagents: "
             f"{[kept['meta'].get('agentType') for kept in subagents().values()]}",
+        )
+        # A fork of the session's conversation, as the reference asks, rather than a
+        # fresh subagent of another type.
+        require(
+            worker["meta"].get("agentType") == "fork",
+            f"{name}: a {worker['meta'].get('agentType')} subagent answered it, not a "
+            "fork of the session",
         )
         require(
             not any(

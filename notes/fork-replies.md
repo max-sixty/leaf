@@ -15,11 +15,10 @@ conversation, as against the forks and subagents made from it.
 
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
 call tools, so it now posts only the agent's working line and hands each message to
-the session, and the message reads On it from the moment Leaf keeps it back. The line
-fork also judges whether a fork of the session could do the work beside it, and where
-it could, Leaf tells the session, which spawns a subagent that answers in the thread
-(`src/leaf/forks.py`'s header says why the session, not Leaf, spawns it). The
-measurements below are of the fork that answered.
+the session, and the message reads On it from the moment Leaf keeps it back. The
+session decides who does the work, and spawns a subagent that answers in the thread
+where the work can run beside its own (`src/leaf/forks.py`'s header says why the
+session, not Leaf, decides). The measurements below are of the fork that answered.
 
 ## What a hooks module can fork
 

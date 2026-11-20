@@ -26,10 +26,9 @@ from leaf_dev.eval_cases import definition
 
 REQUEST = definition("delivery_eval")["prompts"]["initial"]
 
-# Each step's comment, on the section it is posted on. A Claude Code session's line
-# fork leaves a request for a change to the page to the session, and judges a question
-# the session could answer by reading a fork's work, which the session gives a
-# subagent (`leaf.forks`), so each
+# Each step's comment, on the section it is posted on. A Claude Code session does a
+# request for a change to the page itself, and may give a question it could answer by
+# reading to a subagent (`references/harness-claude-code.md`, "Subagents"), so each
 # of the claude-code journey's delivery steps asks to reword one phrase, and so do
 # `mid-turn` and `escape` on the other harnesses, which share them. A rewording keeps
 # the page's meaning and shape, which leaves the session and Claude Code's turn-end
@@ -87,8 +86,9 @@ COMMENTS = {
     ),
     # A question answered by reading the page's source, sent while the session runs
     # the user's own turn, which the session gives a subagent, and which the user
-    # follows up in its thread once it is answered (`FOLLOW_UP`). The session judges whether a lookup is worth a fork, and
-    # does a one-step count itself, so the user asks for this beside its work.
+    # follows up in its thread once it is answered (`FOLLOW_UP`). The session judges
+    # whether a lookup is worth a fork, and does a one-step count itself, so the user
+    # asks for this beside its work.
     "fork-busy": (
         "triage-lede",
         "Look into this beside your own work, no rush: read the cards in this page's "

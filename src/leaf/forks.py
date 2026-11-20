@@ -9,7 +9,7 @@ On a real page the session's answer to a thread message takes tens of seconds, l
 when it is busy, and the thread shows nothing from the agent after a message until the
 session's first model call ends (`notes/fork-replies.md`, "Forks on real pages").
 `$.model.fork` resends the session's last request with one more message, at any moment,
-mid-command too, and a fork decides in seconds. The user had the fork post only
+mid-command too, and a fork answers in seconds. The user had the fork post only
 the agent's working line and hand the thread on, rather than answer it: a line
 fork can't call tools (`$.model.fork` denies every one), and answering is left to
 an agent that can act. Leaf posts the line and hands the thread to the main session

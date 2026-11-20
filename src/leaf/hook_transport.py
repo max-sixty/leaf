@@ -626,9 +626,8 @@ def carry_turn(
     could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
     output its harness reads, recording a delivery it hands over inline by
     `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
-    # What Leaf's clerk wrote or found, and what line forks judged of the threads they
-    # handed over, since the agent last heard (`clerk.queued`), which the next prompt
-    # or tool boundary carries.
+    # What Leaf's clerk wrote or found, and what summary forks wrote, since the agent
+    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)
     if event == "PostToolBatch" and not told and not due and not new_input(sid):

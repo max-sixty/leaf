@@ -1071,9 +1071,8 @@ def test_the_reading_changes_when_a_line_turn_lapses(claimed, lane):
 
 
 def test_a_failed_fork_gives_the_thread_to_the_session_bare(claimed, lane):
-    """A fork that failed, or whose answer isn't the line and judgment Leaf asked
-    for, hands the thread over with no line, and the message reads as its delivery
-    stands."""
+    """A fork that failed, or whose answer isn't the line Leaf asked for, hands the
+    thread over with no line, and the message reads as its delivery stands."""
     failed = said(claimed, "And the lane?")
     blank = said(claimed, "What does the follower print?")
     assert forks_model.route(

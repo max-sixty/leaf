@@ -1377,8 +1377,7 @@ sequenceDiagram
               </p>
               <p id="fork-threads">
                 Leaf also forks the conversation when the user writes in a thread, to
-                post the agent's working line within seconds and to judge whether a fork
-                of the session could do the work beside it.
+                post the agent's working line within seconds.
                 <a href="#forks">Forks</a> explains how.
               </p>
             </details>
@@ -3948,10 +3947,14 @@ flowchart TD
               message and spawned a fork that answered it. The user's next question in
               the thread, after that answer and during another such command, went
               through a line fork again, and the main thread passed it on to the same
-              fork. The times and Claude Code's text are as the run recorded them.
-              Leaf's own messages are written by Leaf's current code from the run's
-              values, so they read as Leaf writes them now. Paths and ids are the
-              journey's scratch page and session.
+              fork. The run predates the main thread routing every message on its own:
+              its line fork also judged the message a fork's work, and Leaf told the
+              main thread so. This section leaves both out; the journey's
+              <code>fork-busy</code> step checks that the main thread still gives such a
+              message to a fork. The times and Claude Code's text are as the run
+              recorded them. Leaf's own messages are written by Leaf's current code from
+              the run's values, so they read as Leaf writes them now. Paths and ids are
+              the journey's scratch page and session.
             </p>
             <p id="anatomy-key">
               Who wrote each message: <span class="said from-cc">Claude Code</span>,

@@ -78,6 +78,7 @@ import {
   offerAction,
   PAGE_INTERFACE,
   phrasing,
+  PREVIEW_ENDED,
   readingAt,
   registerRootHeader,
   shownWindow,
@@ -153,8 +154,13 @@ const outermost = (blocks) => {
 /** @param {Element} node */
 const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
 
-// PROTOTYPE: how long each depth takes, shown three ways for the maintainer to pick
-// from (`--lf-dial-size`: `minutes`, `gauge` or `map`).
+// PROTOTYPE: ways the dial can show how long each depth takes, for the maintainer to
+// pick from. Each is a custom property a page sets on the dial, read as it draws:
+// `--lf-dial-rest` (`none`, `minutes`, `chosen`, `gauge`), what the dial shows at
+// rest; `--lf-dial-point` (`title`, `words`, `bars`, `strips`, `map`), what pointing at a depth
+// adds; `--lf-dial-page` (`none`, `ghost`), whether pointing at a depth marks on the
+// page what turning to it would hide or open; and `--lf-dial-folds` (`plain`,
+// `minutes`), whether each ⋯ at Skim says how long its gap takes.
 //
 // A depth's time is its words at a silent reading rate of 238 a minute, Brysbaert's
 // (2019) mean for non-fiction, and 12 seconds for each picture.
@@ -162,13 +168,14 @@ const WORDS_PER_SECOND = 238 / 60;
 const PICTURE_SECONDS = 12;
 // What holds no words a reader reads: Leaf's chrome, a drawing, a widget's data.
 const UNREAD = `${STANDS}, svg, [data-lf-content="data"]`;
+const GHOST = "data-lf-dial-ghost";
 
 /** @typedef {{kind: "heading" | "picture" | "text", skim: boolean, read: number, all: number}} Sized */
 /** @typedef {{skim: number, read: number, all: number, blocks: Sized[]}} Sizes */
+/** @typedef {"skim" | "read" | "all"} Depth */
 
 /** @param {number} seconds */
-const duration = (seconds) =>
-  seconds < 45 ? "under a minute" : `${Math.round(seconds / 60)} min`;
+const minutes = (seconds) => `${Math.max(1, Math.round(seconds / 60))} min`;
 /** @param {Sized} block @param {string} depth */
 const secondsAt = (block, depth) =>
   depth === "skim"
@@ -179,43 +186,87 @@ const secondsAt = (block, depth) =>
       ? block.read
       : block.all;
 
+// Each depth a bar on one baseline, as long as it takes to read, the pointed one in
+// full ink and the others faint.
+/** @param {Sizes} sizes @param {string} pointed */
+const sizeBars = (sizes, pointed) => html`<span class="lf-dial-bars">
+  ${DEPTHS.map(({ name, label }) => {
+    const time = sizes[/** @type {Depth} */ (name)];
+    return html`<span
+      class="lf-dial-bars-row"
+      ?data-pointed=${name === pointed}
+      style=${`--share: ${(100 * time) / Math.max(sizes.all, 1)}%`}
+    >
+      <span class="lf-dial-bars-name">${label}</span>
+      <span class="lf-dial-bars-track"><span class="lf-dial-bars-fill"></span></span>
+      <span class="lf-dial-bars-time">${minutes(time)}</span>
+    </span>`;
+  })}
+</span>`;
+
+// The bars, each drawn as the page it reads: a run of the depth's blocks in order,
+// each as long as it takes to read, a heading strong, a picture tinted, text pale.
+/** @param {Sizes} sizes @param {string} pointed */
+const sizeStrips = (sizes, pointed) => html`<span class="lf-dial-bars lf-dial-strips">
+  ${DEPTHS.map(({ name, label }) => {
+    const time = sizes[/** @type {Depth} */ (name)];
+    const all = Math.max(sizes.all, 1);
+    return html`<span class="lf-dial-bars-row" ?data-pointed=${name === pointed}>
+      <span class="lf-dial-bars-name">${label}</span>
+      <span class="lf-dial-bars-track"
+        >${sizes.blocks.map((block) => {
+          const seconds = secondsAt(block, name);
+          return seconds
+            ? html`<span
+                class=${`lf-dial-strip-${block.kind}`}
+                style=${`inline-size: ${(100 * seconds) / all}%`}
+              ></span>`
+            : null;
+        })}</span
+      >
+      <span class="lf-dial-bars-time">${minutes(time)}</span>
+    </span>`;
+  })}
+</span>`;
+
 // The page at each depth, drawn to one scale, each block a bar as long as it takes
-// to read: a heading a short dark bar, a picture a tinted box, text a pale bar.
+// to read: a heading a short strong bar, a picture a tinted box, text a pale bar.
 /** @param {Sizes} sizes @param {string} pointed */
 const sizeMap = (sizes, pointed) => {
   const width = 56;
-  const gap = 22;
-  const tall = 150;
-  const scale = tall / Math.max(sizes.all, 1);
+  const gap = 20;
+  const tall = 120;
+  const inset = 5;
+  const scale = (tall - 2 * inset) / Math.max(sizes.all, 1);
   const columns = DEPTHS.map(({ name, label }, i) => {
     const x = i * (width + gap);
-    let y = 0;
+    let y = inset;
     const bars = [];
     for (const block of sizes.blocks) {
       const seconds = secondsAt(block, name);
       if (!seconds) continue;
       const high = seconds * scale;
       bars.push(
-        svg`<rect class=${`lf-dial-map-${block.kind}`} x=${x} y=${y} width=${
-          block.kind === "heading" ? width * 0.6 : width
-        } height=${Math.max(high - 0.6, 0.6)}></rect>`,
+        svg`<rect class=${`lf-dial-map-${block.kind}`} x=${x + inset} y=${y} rx="1" width=${
+          block.kind === "heading" ? (width - 2 * inset) * 0.55 : width - 2 * inset
+        } height=${Math.max(high - 1.5, 1)}></rect>`,
       );
       y += high;
     }
-    const time = sizes[/** @type {"skim" | "read" | "all"} */ (name)];
+    const time = sizes[/** @type {Depth} */ (name)];
     return svg`<g class=${name === pointed ? "lf-dial-map-pointed" : "lf-dial-map-other"}>
-      <rect class="lf-dial-map-page" x=${x - 3} y=${-3} width=${width + 6} height=${y + 6}></rect>
+      <rect class="lf-dial-map-page" x=${x} y="0" rx="3" width=${width} height=${y + inset}></rect>
       ${bars}
-      <text x=${x + width / 2} y=${tall + 16}>${label}</text>
-      <text class="lf-dial-map-time" x=${x + width / 2} y=${tall + 29}>${duration(time)}</text>
+      <text x=${x + width / 2} y=${tall + 15}>${label}</text>
+      <text class="lf-dial-map-time" x=${x + width / 2} y=${tall + 28}>${minutes(time)}</text>
     </g>`;
   });
   const across = 3 * width + 2 * gap;
   return html`<svg
     class="lf-dial-map"
-    viewBox=${`-4 -4 ${across + 8} ${tall + 38}`}
-    width=${across + 8}
-    height=${tall + 38}
+    viewBox=${`-2 -2 ${across + 4} ${tall + 36}`}
+    width=${across + 4}
+    height=${tall + 36}
     aria-hidden="true"
   >
     ${columns}
@@ -245,6 +296,12 @@ customElements.define(
     #sizes = null;
     /** @type {HTMLElement | null} */
     #gauge = null;
+    // Each depth's radio, by depth.
+    /** @type {Map<string, HTMLElement>} */
+    #radios = new Map();
+    // Taking back what pointing at a depth marked on the page.
+    /** @type {(() => void) | null} */
+    #unghost = null;
     // The tags Leaf reads as a picture, from the page's layer.
     #pictures = "";
 
@@ -286,19 +343,33 @@ customElements.define(
         // An attribute, so the theme seats it as a chooser from its first paint.
         depth.setAttribute("appearance", "button");
         /** @type {any} */ (depth).lfPreview = () => this.#preview(name, title);
+        // PROTOTYPE: the depth's time, which the dial's `rest` shows or hides.
+        depth.append(offer("span", "lf-dial-time"));
+        depth.addEventListener(PREVIEW_ENDED, () => {
+          this.#unghost?.();
+          this.#unghost = null;
+          delete this.dataset.pointed;
+        });
+        this.#radios.set(name, depth);
         group.append(depth);
       }
       group.addEventListener("change", () => this.turn(String(group.value)));
       this.append(group);
-      if (this.#variant.includes("gauge")) {
-        this.#gauge = offer("div", "lf-dial-gauge");
-        this.#gauge.append(offer("span", "lf-dial-gauge-fill"));
-        for (const { name } of DEPTHS)
-          this.#gauge.append(offer("span", `lf-dial-gauge-mark lf-dial-gauge-${name}`));
-        this.append(this.#gauge);
-      }
+      this.#gauge = offer("div", "lf-dial-gauge");
+      this.#gauge.setAttribute("aria-hidden", "true");
+      this.#gauge.append(
+        offer("span", "lf-dial-gauge-fill"),
+        offer("span", "lf-dial-gauge-pointed"),
+      );
+      for (const { name } of DEPTHS)
+        this.#gauge.append(offer("span", `lf-dial-gauge-mark lf-dial-gauge-${name}`));
+      this.append(this.#gauge);
       this.#draw();
       whileConnected(this, (signal) => {
+        // PROTOTYPE: a playground sets the dial's settings through its sample's root.
+        const settings = new MutationObserver(() => this.#draw());
+        settings.observe(this.ownerDocument.documentElement, { attributes: true });
+        signal.addEventListener("abort", () => settings.disconnect());
         // A revision applied in place rebuilds the folds over its new structure.
         this.ownerDocument.addEventListener(
           PAGE_INTERFACE,
@@ -330,38 +401,90 @@ customElements.define(
 
     #draw() {
       if (this.#depths) this.#depths.value = this.#depth;
-      const sizes = this.#gauge && this.#measure();
-      if (this.#gauge && sizes) {
-        const share = (/** @type {number} */ seconds) =>
-          `${(100 * seconds) / Math.max(sizes.all, 1)}%`;
-        this.#gauge.style.setProperty("--skim", share(sizes.skim));
-        this.#gauge.style.setProperty("--read", share(sizes.read));
-        this.#gauge.style.setProperty(
-          "--at",
-          share(sizes[/** @type {"skim" | "read" | "all"} */ (this.#depth)]),
-        );
+      // PROTOTYPE: the settings, and each depth's size where they show it.
+      const rest = this.#setting("rest", "none");
+      this.dataset.rest = rest;
+      const folds = this.#setting("folds", "plain");
+      for (const marker of this.#runs.keys()) marker.dataset.folds = folds;
+      const sizes = rest === "none" ? null : this.#measure();
+      if (!sizes || !this.#gauge) return;
+      const share = (/** @type {number} */ seconds) =>
+        `${(100 * seconds) / Math.max(sizes.all, 1)}%`;
+      for (const [name, radio] of this.#radios) {
+        const time = sizes[/** @type {Depth} */ (name)];
+        const words = radio.querySelector(".lf-dial-time");
+        if (words) words.textContent = ` ${minutes(time)}`;
       }
+      this.#gauge.style.setProperty("--skim", share(sizes.skim));
+      this.#gauge.style.setProperty("--read", share(sizes.read));
+      this.#gauge.style.setProperty("--at", share(sizes[/** @type {Depth} */ (this.#depth)]));
     }
 
-    // PROTOTYPE: which way the dial shows each depth's size.
-    get #variant() {
+    // PROTOTYPE: one of the dial's settings, from its `--lf-dial-NAME`.
+    /** @param {string} name @param {string} fallback */
+    #setting(name, fallback) {
       return (
-        getComputedStyle(this).getPropertyValue("--lf-dial-size").trim() || "minutes"
+        getComputedStyle(this)
+          .getPropertyValue(`--lf-dial-${name}`)
+          .trim()
+          .replace(/^"|"$/g, "") || fallback
       );
     }
 
-    // What pointing at a depth shows: what it is, how long it takes to read, and with
-    // the map, the page at each depth to scale.
+    // What pointing at a depth shows: what it is, and as the settings say, how long it
+    // takes to read, the depths side by side, and on the page, what turning to it would
+    // hide or open.
     /** @param {string} name @param {string} title */
     #preview(name, title) {
-      const sizes = this.#measure();
+      this.#unghost?.();
+      this.#unghost = this.#setting("page", "none") === "ghost" ? this.#ghost(name) : null;
+      const all = this.#measure()?.all ?? 1;
+      const at = this.#measure()?.[/** @type {Depth} */ (name)] ?? 0;
+      this.dataset.pointed = name;
+      this.#gauge?.style.setProperty("--pointed", `${(100 * at) / Math.max(all, 1)}%`);
+      const point = this.#setting("point", "words");
+      const sizes = point === "title" ? null : this.#measure();
       if (!sizes) return { detail: [title] };
-      const time = sizes[/** @type {"skim" | "read" | "all"} */ (name)];
-      const words =
-        time < 45 ? "Under a minute to read" : `About ${duration(time)} to read`;
-      return this.#variant.includes("map")
-        ? { detail: [title, sizeMap(sizes, name)] }
-        : { detail: [title, words] };
+      const time = sizes[/** @type {Depth} */ (name)];
+      if (point === "map") return { detail: [title, sizeMap(sizes, name)] };
+      if (point === "bars") return { detail: [title, sizeBars(sizes, name)] };
+      if (point === "strips") return { detail: [title, sizeStrips(sizes, name)] };
+      return {
+        detail: [
+          title,
+          time < 45 ? "Under a minute to read" : `About ${minutes(time)} to read`,
+        ],
+      };
+    }
+
+    // PROTOTYPE: mark on the page what turning to `name` would change: fade what it
+    // would hide and ring where it would open more. Returns what takes the marks back.
+    /** @param {string} name */
+    #ghost(name) {
+      const scope = this.#scope;
+      if (!scope || name === this.#depth) return null;
+      /** @type {Element[]} */
+      const goes = [];
+      /** @type {Element[]} */
+      const comes = [];
+      if (name === "skim")
+        for (const run of this.#runsIn(scope))
+          for (const block of run.blocks) if (shown(block)) goes.push(block);
+      // Everything's disclosures close at Skim and Read.
+      if (this.#depth === "all")
+        for (const details of this.#opened)
+          if (shown(details))
+            goes.push(...[...details.children].filter((child) => child.localName !== "summary"));
+      // Leaving Skim opens every fold.
+      if (this.#depth === "skim") comes.push(...this.#runs.keys());
+      if (name === "all")
+        for (const details of scope.querySelectorAll("details:not([open])"))
+          if (shown(details) && !details.closest(STANDS)) comes.push(details);
+      for (const node of goes) node.setAttribute(GHOST, "goes");
+      for (const node of comes) node.setAttribute(GHOST, "comes");
+      return () => {
+        for (const node of [...goes, ...comes]) node.removeAttribute(GHOST);
+      };
     }
 
     // Seconds to read `block` as Read shows it, or with `all` as Everything does.
@@ -624,6 +747,22 @@ customElements.define(
           : null;
       };
       marker.append(button);
+      // PROTOTYPE: how long the gap takes, which the dial's `folds` shows or hides.
+      const scope = this.#scope;
+      if (scope) {
+        const seconds = blocks.reduce(
+          (sum, block) => sum + this.#secondsIn(block, scope, false),
+          0,
+        );
+        marker.append(
+          offer(
+            "span",
+            "lf-dial-more-time",
+            seconds < 50 ? `${Math.max(10, Math.round(seconds / 10) * 10)} s` : minutes(seconds),
+          ),
+        );
+        marker.dataset.folds = this.#setting("folds", "plain");
+      }
       const [first] = blocks;
       if (first?.parentElement) move(first.parentElement, marker, first);
       for (const block of blocks) {

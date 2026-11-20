@@ -878,8 +878,8 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
 
 
 def test_a_summary_leaves_the_question_it_folds_on_the_users_list():
-    """A summary over a question the user owes answers nothing: the question stays On
-    Me, where going to it opens the fold, whatever the summary shows in its place."""
+    """A summary over a question the user owes answers nothing, so the question stays
+    on the user's list under the message that asked it."""
     state = model.reading(
         HUB,
         (

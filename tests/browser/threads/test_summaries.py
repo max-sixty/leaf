@@ -21,6 +21,7 @@ from browser.threads import (
     open_panel_thread,
     summarize_thread,
 )
+from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
 from leaf_dev.browser import ON_ME_MARK
@@ -241,6 +242,40 @@ def test_on_me_opens_the_fold_over_a_message_it_lists(browser, serve):
     expect(message).to_be_focused()
     expect(message).to_be_visible()
     expect(toggle).to_have_attribute("aria-expanded", "true")
+
+
+def test_reading_a_summary_reads_the_messages_it_folds(browser, serve):
+    """A summary stands in the thread for the messages it folds, so once its words have
+    been on screen whole the messages count as read in the versions it folds, and
+    nothing offers to open the fold as unread."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Is forty megabytes enough?", {"section": "s-how"}
+    )
+    answer = append_agent_reply(serve.page_dir, root, "It holds a week of edits.")
+    correction = append_agent_reply(serve.page_dir, root, "A correction: three days.")
+    summarize_thread(
+        serve.page_dir, answer["id"], correction["id"], "It holds three days of edits."
+    )
+    page = open_page(browser, url)
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    with sending(page, "the summary read"):
+        page.locator('[data-lf-margin-for="s-how"] .lf-margin-marker').click()
+        expect(card.locator(".lf-summary-text")).to_be_visible()
+    marked = {
+        (item["message"], item["version"])
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "read"
+        for item in event["messages"]
+    }
+    assert marked == {
+        (answer["id"], answer["id"]),
+        (correction["id"], correction["id"]),
+    }
+    expect(card.locator(".lf-summary-expand")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    expect(page.locator(".lf-next-unread:visible")).to_have_count(0)
 
 
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):

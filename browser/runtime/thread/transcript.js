@@ -580,6 +580,16 @@ export class Transcript {
             ? html`<div
                 class="lf-summary-text"
                 .innerHTML=${summaryWords(range.summary)}
+                ${ref((node) => {
+                  if (node)
+                    this.#commands.read.observeSummary(
+                      node,
+                      range.messages.map(({ id, version }) => ({
+                        message: id,
+                        version,
+                      })),
+                    );
+                })}
               ></div>`
             : nothing
         }

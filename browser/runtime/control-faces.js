@@ -21,7 +21,9 @@
      shows its state on a disc behind the glyph rather than a chip, as the composer's
      Send and Dictate and a thread's Resolve and Reopen do.
    - `word`: a press that says what it does in words, quiet as a symbol is. A toggle
-     is a word whose `aria-pressed` the theme draws as selected.
+     is a word whose `aria-pressed` the theme draws as selected. A selection the page
+     shows only in part (`data-lf-partial`), as the Skim control's Skim once the reader
+     opens a gap it folded, steps its border back.
    - `commit`: the one press on a surface that commits the user's work, framed in the
      accent; pressed (`aria-pressed`), as a question's Done once answered, in the ok
      tone.

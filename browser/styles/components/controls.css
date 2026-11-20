@@ -940,6 +940,12 @@ wa-copy-button.lf-icon-action {
   color: var(--lf-accent);
   background: var(--lf-chip);
 }
+/* A selection the page shows only in part (`data-lf-partial`), as Skim once the reader
+   opens a gap it folded: the border steps back while the words keep the accent, since
+   fainter words read as a disabled control. */
+.lf-btn:is([aria-pressed="true"], [aria-checked="true"])[data-lf-partial] {
+  border-color: rgb(from var(--lf-accent) r g b / 40%);
+}
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
    is marked settled, as a chosen answer is (below). */
 .lf-btn.lf-commit[aria-pressed="true"] {

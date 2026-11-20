@@ -99,13 +99,6 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   font-variant-numeric: tabular-nums;
 }
 
-/* Once the reader unfolds a gap, the page shows more than Skim, so Skim's border steps
-   back while its words still name the depth that stands; pressing it folds again.
-   Fading the words too read as a disabled control. */
-lf-dial[data-lf-dial-unfolded] .lf-dial-depth[aria-checked="true"] {
-  border-color: rgb(from var(--lf-accent) r g b / 40%);
-}
-
 /* Pointing at a depth, on the page: what turning to it would hide fades, and where it
    would open more wears a dashed ring, the mark of a state not yet taken. */
 [data-lf-dial-ghost="goes"] {

@@ -145,8 +145,9 @@ const WHOLE = "table, figure, details";
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
-// On the dial while the page shows a gap Skim folded.
-const UNFOLDED = "data-lf-dial-unfolded";
+// On the standing depth's button while the page shows a gap it folded: the word
+// face's variant for a selection the page shows only in part (control-faces.js).
+const PARTIAL = "data-lf-partial";
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
 
@@ -490,7 +491,7 @@ customElements.define(
     /** @param {string} name */
     turn(name) {
       if (name === this.#depth) {
-        if (this.hasAttribute(UNFOLDED)) this.#refold();
+        if (this.#radios.get(name)?.hasAttribute(PARTIAL)) this.#refold();
         return;
       }
       tabStore.set(this.#key, name === "read" ? null : name);
@@ -581,7 +582,11 @@ customElements.define(
     /** @param {string} name */
     #ghost(name) {
       const sizes = this.#measure();
-      if (!sizes || (name === this.#depth && !this.hasAttribute(UNFOLDED))) return null;
+      if (
+        !sizes ||
+        (name === this.#depth && !this.#radios.get(name)?.hasAttribute(PARTIAL))
+      )
+        return null;
       /** @type {Element[]} */
       const goes = [];
       /** @type {Element[]} */
@@ -714,7 +719,7 @@ customElements.define(
         marker.remove();
       }
       this.#runs.clear();
-      this.removeAttribute(UNFOLDED);
+      this.#radios.get(this.#depth)?.removeAttribute(PARTIAL);
       for (const details of this.#opened) details.open = false;
       this.#opened.clear();
     }
@@ -733,7 +738,7 @@ customElements.define(
       const listening = (this.#listening ??= new AbortController());
       for (const run of this.#runsIn(scope))
         if (!run.blocks[0]?.hasAttribute(FOLDED)) this.#foldRun(run, listening.signal);
-      this.removeAttribute(UNFOLDED);
+      this.#radios.get(this.#depth)?.removeAttribute(PARTIAL);
     }
 
     // Whether `node` is a disclosure whose body Read shows none of, so Skim keeps
@@ -920,7 +925,7 @@ customElements.define(
       for (const block of run.blocks) this.#unfoldBlock(block);
       this.#runs.delete(marker);
       marker.remove();
-      this.setAttribute(UNFOLDED, "");
+      this.#radios.get(this.#depth)?.setAttribute(PARTIAL, "");
       if (before) {
         // The press's own control is gone, so the reader lands on what it showed.
         const [first] = run.blocks;

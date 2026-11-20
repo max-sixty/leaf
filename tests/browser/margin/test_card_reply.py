@@ -1554,13 +1554,14 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
 # macOS draws the transcript's scrollbar as an overlay, which takes no room; a styled
 # one takes room on every host, as Linux and Windows, or macOS with a mouse, draw it.
 # Chromium styles a bar with `::-webkit-scrollbar` only once the standard properties
-# are unset, so the sheet unsets them where the transcript shows its bar.
+# are unset. The sheet unsets them a type selector's weight above Leaf's thin bar, so a
+# rule Leaf states on the transcript's own state, such as hiding its bar, still wins.
 TRANSCRIPT_BAR_TAKES_ROOM = """(() => {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(`
-    .lf-margin-thread .lf-thread-transcript[data-lf-overflows] {
-      scrollbar-width: auto !important;
-      scrollbar-color: auto !important;
+    .lf-margin-thread .lf-thread-transcript:not(a) {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
     }
     .lf-margin-thread .lf-thread-transcript::-webkit-scrollbar { width: 11px; }`);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];

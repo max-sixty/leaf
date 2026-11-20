@@ -68,6 +68,7 @@ import {
   actionClass,
   addressableLabel,
   authoredScope,
+  commandsChanged,
   focusDestination,
   foldDuration,
   holdPlace,
@@ -79,6 +80,7 @@ import {
   nextRender,
   offer,
   offerAction,
+  onCurrentLocation,
   PAGE_INTERFACE,
   phrasing,
   plainPress,
@@ -86,6 +88,7 @@ import {
   readingAt,
   registerRootHeader,
   shownWindow,
+  signal,
   tabStore,
   viewDocument,
   whileConnected,
@@ -377,7 +380,7 @@ customElements.define(
     #pointed = null;
     // PROTOTYPE: whether the hanging pages stay up after Leaf's preview went, as a press
     // or an arrow key on the dial keeps them.
-    #staying = false;
+    #staying = signal(false);
     // The next depth's reading comes before the last one's ending, which then takes back
     // nothing. The pages go a frame later, so a press or a key that keeps them, heard
     // after Leaf's preview has gone, keeps them without a flicker.
@@ -385,7 +388,7 @@ customElements.define(
       if (/** @type {CustomEvent} */ (event).detail.declared !== this.#declared) return;
       const declared = this.#declared;
       nextRender(() => {
-        if (!this.#staying && this.#declared === declared) this.#unpoint();
+        if (!this.#staying.value && this.#declared === declared) this.#unpoint();
       });
     };
     // PROTOTYPE: the panel hanging each depth's page under its button, which the dial
@@ -433,6 +436,11 @@ customElements.define(
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () => this.#read(name);
         depth.addEventListener(PREVIEW_ENDED, this.#ended);
+        // PROTOTYPE: kept pages follow the pointer across the buttons at once, as
+        // across the sheets, where Leaf's preview waits its dwell after a press.
+        depth.addEventListener("pointerenter", () => {
+          if (this.#staying.value) this.#preview(name);
+        });
         this.#radios.set(name, depth);
         group.append(depth);
       }
@@ -449,6 +457,20 @@ customElements.define(
           ? this.#read(this.#pointed)
           : null;
       this.addEventListener(PREVIEW_ENDED, this.#ended);
+      /** @type {any} */ (this).lfCommands = {
+        title: "On the Skim control",
+        rows: [
+          {
+            id: "dial.sizes-away",
+            keys: ["Escape"],
+            title: "put the sizes away",
+            reach: "while the sizes hang under it",
+            when: () => this.#staying.value,
+            run: () => this.#keep(false),
+          },
+        ],
+      };
+      commandsChanged(this);
       this.#gauge = offer("div", "lf-dial-gauge");
       this.#gauge.setAttribute("aria-hidden", "true");
       this.#gauge.append(
@@ -470,23 +492,20 @@ customElements.define(
           () => {
             this.#sizes = null;
             this.#apply(this.#depth, { moving: false });
+            if (this.#staying.value && this.#pointed) this.#preview(this.#pointed);
           },
           { signal },
         );
         // PROTOTYPE: a plain press on the dial while its pages hang keeps them, since the
         // press turns the dial and the pages show the depth moving to it, as an arrow
-        // key in its depths does. They go as the pointer leaves the dial, at any other
-        // key or at a press elsewhere. Leaf's preview puts its reading away at the press
-        // or the key, which it hears first, and reads again where the pointer goes next.
-        const keep = (/** @type {boolean} */ kept) => {
-          if (!this.#hang?.hasAttribute("data-open")) return;
-          this.#staying = kept;
-          if (!kept) this.#unpoint();
-        };
+        // key in its depths does. Leaf's preview puts its reading away at the press or
+        // the key, which it hears first, and reads again where the pointer goes next.
+        // Kept pages go at Escape (the dial's command), as the pointer leaves the dial,
+        // as focus leaves it, or at a press elsewhere.
         this.addEventListener(
           "pointerdown",
           (event) => {
-            if (event.pointerType === "mouse" && plainPress(event)) keep(true);
+            if (event.pointerType === "mouse" && plainPress(event)) this.#keep(true);
           },
           { signal },
         );
@@ -496,25 +515,28 @@ customElements.define(
         this.addEventListener(
           "pointerleave",
           () => {
-            if (this.#staying) leaving = setTimeout(() => keep(false), 200);
+            if (this.#staying.value) leaving = setTimeout(() => this.#keep(false), 200);
           },
           { signal },
         );
         this.addEventListener("pointerenter", () => clearTimeout(leaving), { signal });
+        const stopLocation = onCurrentLocation((/** @type {Element | null} */ at) => {
+          if (this.#staying.value && !(at && this.contains(at))) this.#keep(false);
+        });
+        signal.addEventListener("abort", stopLocation);
         this.ownerDocument.addEventListener(
           "pointerdown",
           (event) => {
-            if (this.#staying && !event.composedPath().includes(this)) keep(false);
+            if (this.#staying.value && !event.composedPath().includes(this))
+              this.#keep(false);
           },
           { capture: true, signal },
         );
         this.ownerDocument.addEventListener(
           "keydown",
           (event) => {
-            const turning =
-              event.key.startsWith("Arrow") && event.composedPath().includes(this);
-            if (turning) keep(true);
-            else if (this.#staying) keep(false);
+            if (event.key.startsWith("Arrow") && event.composedPath().includes(this))
+              this.#keep(true);
           },
           { capture: true, signal },
         );
@@ -575,10 +597,18 @@ customElements.define(
       );
     }
 
+    // PROTOTYPE: keep the hanging pages up past Leaf's preview, or put them away.
+    /** @param {boolean} kept */
+    #keep(kept) {
+      if (!this.#hang?.hasAttribute("data-open")) return;
+      this.#staying.value = kept;
+      if (!kept) this.#unpoint();
+    }
+
     // Read what pointing at a depth shows, as Leaf's preview of it does.
     /** @param {string} name */
     #read(name) {
-      this.#staying = false;
+      this.#staying.value = false;
       return (this.#declared = this.#preview(name));
     }
 
@@ -587,7 +617,7 @@ customElements.define(
       this.#unghost?.();
       this.#unghost = null;
       this.#pointed = null;
-      this.#staying = false;
+      this.#staying.value = false;
       keeps(this, "data-pointed", null);
       if (this.#hang) keeps(this.#hang, "data-open", null);
     }

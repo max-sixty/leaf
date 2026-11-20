@@ -44,7 +44,7 @@ that name, so serving the page on another machine needs the package installed th
 too.
 
 `leaf package list` prints each package a page can select by name, bundled or
-installed: its `summary`, the opening paragraph of its author instructions, and the
+installed: its `description`, the first paragraph of its author instructions, and the
 description of each entry it declares. Choose a package by what those say it is for.
 
 Packages declare no dependencies on each other; a page lists every package it needs.
@@ -199,13 +199,13 @@ registry still validates. `page init` records the selected packages in
 ([package-themes.md, "Personal themes"](package-themes.md#personal-themes)).
 
 Name each file directly under `instructions/` `<audience>.md`, matching
-`[a-z][a-z0-9-]*\.md`, and start it with its first rule: Leaf adds a heading naming the
-package. Open `author.md` with a paragraph that says when to select the package, which
-`leaf package list` prints. Packages define their own audiences, such as `author` or
-`worker`, and files for the same audience join in package order. A data contract's
-`instructions` map holds text per audience beside its schema, and a registry entry's
-`instructions` is one
-string for the page author.
+`[a-z][a-z0-9-]*\.md`, and start it with its text rather than a title: Leaf adds a
+heading naming the package. `author.md` opens with a paragraph saying when to select
+the package; `leaf package list` prints it as the package's `description`. Packages
+define their own audiences, such as `author` or `worker`, and files for the same
+audience join in package order. A data contract's `instructions` map holds text per
+audience beside its schema, and a registry entry's `instructions` is one string for
+the page author.
 
 ```bash
 leaf page instructions PAGE --contract unified-diff | jq -er '.producer'

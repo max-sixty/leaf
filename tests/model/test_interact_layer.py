@@ -4791,7 +4791,7 @@ def test_page_init_does_not_treat_an_unknown_bare_name_as_a_path(tmp_path, monke
 
     assert result.exit_code == 1
     assert "unknown package 'solo'" in result.output
-    assert "run `leaf package install`" in result.output
+    assert "`leaf package list`" in result.output
     assert "use './solo'" in result.output
     assert not page.exists()
 
@@ -5428,14 +5428,15 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
 
 def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_path):
     """`package list` names what `page init --package NAME` selects: an installed
-    package under a name of its own beside the bundled ones, described by the opening
+    package under a name of its own beside the bundled ones, described by the first
     paragraph of its author instructions and its entries' descriptions, and an
     installed package in place of the bundled one whose name it takes. `default`, on
-    every page already, is not offered."""
+    every page already, and the theme `theme list` offers are not listed."""
     team = tmp_path / "src" / "team-charts"
     packages_model.cmd_package_init(team, "lf-trend")
     (team / "instructions").mkdir(exist_ok=True)
     (team / "instructions" / "author.md").write_text(
+        "## When to select it\n\n"
         "Select this package for the analytics team's pages.\n"
         "It charts in their house style.\n\n"
         "Give every chart a label.\n"
@@ -5455,7 +5456,7 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     assert packages["team-charts"] == {
         "name": "team-charts",
         "installed": True,
-        "summary": "Select this package for the analytics team's pages. "
+        "description": "Select this package for the analytics team's pages. "
         "It charts in their house style.",
         "entries": {
             "lf-trend": packages_model.starter_element_declaration("lf-trend")[
@@ -5468,6 +5469,7 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     assert packages["playwright"]["installed"] is False
     assert "lf-trace" in packages["playwright"]["entries"]
     assert "default" not in packages
+    assert "reading" not in packages
 
 
 def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(

@@ -30,14 +30,13 @@ reconciliation.
 ## Author the page
 
 Record the work you take on as `references/conversation-loop.md`, "When to write",
-says. Choose a page's packages from `leaf package list`, which prints the packages
-this machine can select, bundled and installed, each with what it is for, such as a
-live preview in which the user compares candidates or tunes a configuration before
-sending it, or widgets the user installed for their own work. Initialize the page with
-each package whose purpose fits it: `leaf page init --package diagram --package diff <page>`.
-Running `page init` again with `--package` replaces the page's packages, so name every
-package the page keeps. Personal themes
-and their author instructions are discoverable with `leaf theme list`;
+says. Choose a page's packages from `leaf package list`, which prints each package
+this machine can select, bundled or installed by the user, with what it adds, such as
+a live preview in which the user compares candidates or tunes a configuration before
+sending it. Initialize the page with each package whose purpose fits it:
+`leaf page init --package diagram --package diff <page>`. Running `page init` again
+with `--package` replaces the page's packages, so name every package the page keeps.
+Personal themes and their author instructions are discoverable with `leaf theme list`;
 `references/package-themes.md`, "Personal themes", covers choosing one and how the
 page captures it.
 

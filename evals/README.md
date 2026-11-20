@@ -472,8 +472,9 @@ and one that grades what the
 agent would do asks for the commands it would run. They may also ask the arm's Leaf
 what a page's packages tell an author and which packages it could select: Claude Code
 runs `leaf page instructions`, `leaf page vocabulary` and `leaf package list`, and
-Codex runs any `leaf` command through the plugin's `leaf` tool. A case that declares `metadata.page`, the packages its page takes beside the
-defaults (`[]` for none), gives its probe that page, initialized, and the prompt names
+Codex runs any `leaf` command through the plugin's `leaf` tool. A case that declares
+`metadata.page`, the packages its page takes beside the defaults (`[]` for none),
+gives its probe that page, initialized, and the prompt names
 it (`page_prompt` in `workflows/eval.yaml`). The runner tells such a probe
 the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
 the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a

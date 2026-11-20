@@ -104,10 +104,14 @@ through the failure answer `thread.fail_answer` writes.
 
 Each consumer selects its own obligations. `leaf page close` refuses over
 `activity.blocking_obligations`, and the Stop hook holds the turn over
-`activity.turn_obligations`, the blocking ones the open turn has not started and no
-agent turn holds (below). A start
-is the agent's answer for now, and it does not carry into the next turn. Only the
-records the agent owes enter activity counts. Pickup never declares a status, and
+`activity.turn_obligations`, the blocking ones no start holds and no agent turn
+holds (below). A start is the agent's answer for now. It holds its update while the
+turn that wrote it runs, and after that turn while the harness says the session has
+worked without a break since the start, in the background (`activity.start_holds`).
+A harness that says nothing of the session (`Harness.live_turn`) never does, so
+there a start lapses with its turn.
+The page reads the update in hand, and no prompt or wake reminds the agent of it,
+for exactly that long. Only the records the agent owes enter activity counts. Pickup never declares a status, and
 ending a turn settles none of its input.
 
 A start names one item and has to be renewed. What holds work across turns is the
@@ -223,7 +227,7 @@ tool-boundary and Stop hooks hand into a turn:
 
 - Stop continues a turn for a page of the session's that has no running watcher and
   holds pending input or a status other than idle, and, where no watch follows the
-  turn, for each owed update the turn has not started (`activity.turn_obligations`).
+  turn, for each owed update no start holds (`activity.turn_obligations`).
   Where a watch follows the turn, the turn ends on its answer, and the watch wakes a
   turn of its own that names an owed update once per delivery (`session.left_owed`).
 - A page carrying `preview.json` owes no watcher for its status, since only a page
@@ -262,12 +266,14 @@ the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
 input, once per ending of its turn (`presence.nudge_unwatched`). For a message a line
-fork holds, its hand-over nudges in admission's place (`forks.py`). An interrupted turn
-runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
-while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
-no watch holds the lease, the page's server sends for the input an interrupted turn
-left once its presence look reads the turn ended by the harness's record
-(`presence.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
+turn holds, the line turn's end nudges in admission's place: its hand-over where the
+line fork answers in time (`forks.py`), and otherwise the page's server at the
+activity fold's transition its lapse is. An interrupted turn runs no hook, so Claude
+Code also starts the watch as each prompt starts, which waits while that turn runs and
+wakes for what an interrupt leaves (`hooks.cmd_watch`). Where no watch holds the
+lease, the page's server sends for the input an interrupted turn left once its
+presence look reads the turn ended by the harness's record (`presence.nudge_left`).
+Claude Code's nudge is a user message through the session's messaging socket
 (`harness.message_claude_code_session`), whose docstring says when the recipient holds
 it; a background job whose worker has retired is resumed with the message as its next
 prompt instead (`harness.resume_claude_code_job`). The adapter and the host declare no

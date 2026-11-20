@@ -33,13 +33,17 @@ as a live fork runs, so `--base` scores a change of effort as it scores one of
 wording. The records keep the shapes Claude Code writes, without thinking blocks. A
 background command's result records no task id: Claude Code tells a resumed session
 that a task it recorded has stopped, which a live fork never hears, so the replay
-needs no sentence of its own in the prompt. The request carries the system prompt
-and tool definitions `claude -p` sends, Claude Code's headless ones, where a live fork
-resends an interactive session's, with its per-machine sections moved out of the
-system prompt so the prefix is cached across cases. One `PreToolUse` hook
-(`BLOCKED`), the fresh home's only one, refuses every call, and `--max-turns 1` then
-ends the fork without an answer, which fails every check of the case rather than
-raising a provider error. Plugins, skills and MCP servers are off.
+needs no sentence of its own in the prompt. After its first prompt, where a live
+session records it, the transcript carries the prompt snapshot of the newest
+interactive Claude Code session on the machine, pinned for the run (`live_prefix`):
+the system prompt and tool definitions that session's requests send, which a resume
+sends again verbatim. So the fork's request opens as a live fork's does, with Claude
+Code's interactive identity line, system prompt and tools, where `claude -p` would
+send its headless ones, and it follows each Claude Code update as the sessions do,
+which a snapshot kept in the tree would not. One `PreToolUse` hook (`BLOCKED`), the
+fresh home's only one, refuses every call, and `--max-turns 1` then ends the fork
+without an answer, which fails every check of the case rather than raising a
+provider error. Plugins, skills and MCP servers are off.
 
 A live fork's request ends with its prompt, since `$.model.fork` appends the prompt
 to the session's last request. A resume instead reads its environment afresh (its
@@ -49,9 +53,10 @@ thousand tokens that change how the fork judges the prompt. So a first resume, s
 to an address no API listens on (`UNREACHABLE`), writes those records without a
 request, and the transcript carries them after its first prompt, where a live
 session's are (`announced`). Today's date stays out of them: a case's conversation
-is written on its own date, and the fork reads a date at the session's start as the
-day the conversation took place. The second resume then adds only the line giving
-today's date after the prompt. Skills are off because the listing a resume reads
+is written on its own dates, some a day apart, and a fork that reads today's date at
+the session's start takes the conversation as today's and flags its dates as stale.
+The second resume then adds only the line giving today's date after the prompt, which
+a live fork's request lacks. Skills are off because the listing a resume reads
 offline differs from the one it reads online, which would put a listing after the
 prompt.
 
@@ -62,11 +67,12 @@ itself. A fork asked in one user message, with the conversation quoted above its
 prompt and no tools, passes the same deterministic checks for less, but misses a
 judgment live forks make: under a line fork prompt that live forks and the replay
 both sometimes answered by handing a read of the page's source to the session, it
-took the read every time. Sending a live fork's request exactly, turns included,
-takes a Messages API client, such as Promptfoo's `anthropic:messages`. It runs on an
-API key, which the runner keeps out of evals so that they bill the login
-(`commands/eval/run.py`), or on the login token the client takes from Claude Code's
-keychain entry (`apiKeyRequired: false`).
+took the read every time. Claude Code sends the replay's request itself, on the
+login the evals bill (`commands/eval/run.py`). A Messages API client, such as
+Promptfoo's `anthropic:messages`, could send the same request only on an API key,
+which the runner keeps out of evals, or on the login's token read from Claude Code's
+keychain entry, a token Anthropic's terms forbid developers to "collect, store, or
+intermediate".
 
 What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 `answered`. Its asks are the records it wrote (`wrote`), as the user reads them; its
@@ -106,7 +112,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from leaf.harness import ClaudeCodeHarness
+from leaf.harness import ClaudeCodeHarness, claude_code_config
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
@@ -121,6 +127,7 @@ from leaf_dev.arms import (
 )
 from leaf_dev.eval_cases import definition
 from leaf_dev.page_fixtures import ADMIT, fixture_environment
+from leaf_dev.reply_phases import transcript_records
 
 DEFINITION = definition("fork_eval")
 CASES = DEFINITION["cases"]
@@ -154,6 +161,10 @@ BLOCKED = {
 
 # An API address nothing listens on, which ends a resume before its first request.
 UNREACHABLE = "http://127.0.0.1:9"
+
+# The identity line an interactive session's prompt snapshot names, where `claude -p`'s
+# names the Agent SDK.
+INTERACTIVE = "You are Claude Code, Anthropic's official CLI for Claude."
 
 # List prices by model, dollars per million tokens.
 PRICES = {
@@ -310,7 +321,7 @@ def execute_scenario(
         run = fork(asked, session, turns, work)
     (work / "prompt.txt").write_text(asked["request"]["prompt"])
     metadata.update(
-        {key: run[key] for key in ("usage", "cost", "wall_s", "tool_calls")}
+        {key: run[key] for key in ("usage", "cost", "wall_s", "tool_calls", "prefix")}
     )
     response = {
         "output": run["text"] or f"(no answer: {run['failed']})",
@@ -454,12 +465,56 @@ def substitute(value, values: dict):
     return value
 
 
-def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> list:
+def live_prefix(run: Path) -> dict:
+    """The prompt snapshot record the run's forks resend (`newest_snapshot`), pinned
+    in `run`, the samples directory every arm's samples share (`scenario_provider`),
+    by the first fork to ask, so that every arm resends the same one."""
+    pinned = run / "live-prefix.json"
+    if not pinned.exists():
+        candidate = run / f"live-prefix-{uuid.uuid4().hex}.json"
+        candidate.write_text(json.dumps(newest_snapshot()))
+        try:
+            os.link(candidate, pinned)
+        except FileExistsError:
+            pass
+        candidate.unlink()
+    return json.loads(pinned.read_text())
+
+
+def newest_snapshot() -> dict:
+    """The last prompt snapshot record of the newest Claude Code session whose last
+    snapshot an interactive session recorded with its tools, as its requests resend
+    it."""
+    transcripts = sorted(
+        (claude_code_config() / "projects").glob("*/*.jsonl"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in transcripts:
+        snapshots = [
+            record
+            for record in transcript_records(path)
+            if record.get("type") == "attachment"
+            and record["attachment"].get("type") == "prompt_snapshot"
+        ]
+        last = snapshots[-1]["attachment"] if snapshots else {}
+        if last.get("cliPrefix") == INTERACTIVE and "tools" in last:
+            return snapshots[-1]
+    raise RuntimeError(
+        "no interactive Claude Code session on this machine recorded a prompt "
+        "snapshot for the fork to resend"
+    )
+
+
+def transcript(
+    turns: list[dict], session: str, cwd: Path, start: datetime, snapshot: dict
+) -> list:
     """The conversation as Claude Code's transcript records: a user's prompt, Leaf's
     hook line (`leaf`, in the context of the prompt or tool result it follows), the
     assistant's text, and a tool call (`tool`, `input`) with its `result`. A
     response's blocks share a message id and its stop reason, from the first block
-    after a prompt or tool result to the last."""
+    after a prompt or tool result to the last. The prompt `snapshot` follows the first
+    prompt."""
     records: list[dict] = []
     clock = (start + timedelta(seconds=7 * n) for n in range(10_000))
     common = {
@@ -522,10 +577,15 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
                     "message": {"role": "user", "content": turn["user"]},
                 }
             )
+            if len(records) == 1:
+                add({"type": "attachment", "attachment": snapshot})
         elif "leaf" in turn:
+            follows = next(
+                record for record in reversed(records) if "message" in record
+            )
             event = (
                 "UserPromptSubmit"
-                if isinstance(records[-1]["message"]["content"], str)
+                if isinstance(follows["message"]["content"], str)
                 else "PostToolBatch"
             )
             add(
@@ -584,11 +644,12 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
 
 
 def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
-    """Resume the rendered conversation with the prompt the arm's Leaf `asked` for,
-    at the effort it names or the session's, as `$.model.fork` forks it, in a home
-    and cwd of its own outside the repository, once a resume that reaches no API has
-    written the environment the transcript carries (the module header says why),
-    keeping its stream and transcript under `work`; its answer, or why it gave none."""
+    """Resume the rendered conversation, under a live session's prompt snapshot
+    (`live_prefix`), with the prompt the arm's Leaf `asked` for, at the effort it
+    names or the session's, as `$.model.fork` forks it, in a home and cwd of its own
+    outside the repository, once a resume that reaches no API has written the
+    environment the transcript carries (the module header says why), keeping its
+    stream and transcript under `work`; its answer, or why it gave none."""
     stream = work / "fork.jsonl"
     effort = asked["request"].get("effort", SESSION_EFFORT)
     with tempfile.TemporaryDirectory(prefix="leaf-fork-") as directory:
@@ -599,11 +660,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
             return claude_child(
                 cwd,
                 *("--resume", session, "--effort", effort, "--max-turns", "1"),
-                *(
-                    "--exclude-dynamic-system-prompt-sections",
-                    "--disable-slash-commands",
-                ),
-                *("--settings", json.dumps(BLOCKED)),
+                *("--disable-slash-commands", "--settings", json.dumps(BLOCKED)),
                 env=env,
                 model=MODEL,
                 sandbox=False,
@@ -614,8 +671,13 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
         project /= re.sub(r"[^A-Za-z0-9]", "-", str(cwd))
         project.mkdir(parents=True)
         kept = project / f"{session}.jsonl"
+        prefix = live_prefix(work.parent)
         records = transcript(
-            turns, session, cwd, datetime.fromisoformat(DEFINITION["start"])
+            turns,
+            session,
+            cwd,
+            datetime.fromisoformat(DEFINITION["start"]),
+            prefix["attachment"],
         )
         kept.write_text("".join(json.dumps(record) + "\n" for record in records))
         # The environment a resume announces, written by one that reaches no API.
@@ -676,6 +738,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
         "wall_s": round(wall, 1),
         "elapsed_ms": result.get("duration_ms"),
         "tool_calls": calls,
+        "prefix": {key: prefix[key] for key in ("sessionId", "version")},
     }
 
 

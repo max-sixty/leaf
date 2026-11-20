@@ -1729,7 +1729,7 @@ wa-copy-button.lf-icon-action {
 
 /* The inline face, for a press read as part of the line of words it stands in, such
    as a thread's held news, the activity feed's notice, the floating panel's Next
-   unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
+   unread. Its words take the accent ink at weight 600 and the
    line's own size, with no chip, fill or border, and an underline under a hovering
    pointer. One announcing news waiting (`data-lf-news`) keeps the accent the
    unread dot wears, as the user chose over the danger ink, which read
@@ -1761,8 +1761,9 @@ wa-copy-button.lf-icon-action {
    notice's Undo among a box's empty words at the floating panel field's end, as the
    word and key that enter the box do, saying by its pointer alone that it takes a
    press, since the user chose that the right side of a box holds its shortcut in one
-   format; and a summary's count at its head (surfaces.css), which a hovering pointer
-   underlines as it does any inline press. */
+   format; a summary's count at its head; and a quote's label where it opens the
+   whole quote (surfaces.css), which a hovering pointer underlines as it does any
+   inline press. */
 .lf-inline-action[data-lf-hint] {
   color: inherit;
   font: inherit;

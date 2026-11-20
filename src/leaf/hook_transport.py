@@ -15,8 +15,8 @@ output continues the turn (`Harness.hook_context`). Leaf's Pi extension
 (`hooks/pi.ts`) calls both hooks and commits their output to the session.
 
 The Stop hook continues the turn for a page with no running watcher that has
-input pending or a status other than idle, and for each owed answer the turn has
-not started (`activity.turn_obligations`) where no watch follows the turn
+input pending or a status other than idle, and for each owed answer no start
+holds (`activity.turn_obligations`) where no watch follows the turn
 (`stop_continues`). A repeated Stop (`stop_hook_active`) continues only for a
 newly delivered update that owes an answer. Where a watch follows the turn, the
 turn ends on the answer it wrote rather than on one more message about the owed
@@ -91,7 +91,7 @@ have reached the model, so it is input again (`delivery.deliverable`): Claude Co
 submits a wake Escape interrupted again at once as a new prompt, and the watch
 its turn's prompt started wakes for it (`hooks.cmd_watch`), or where none runs, as
 after the turn that first claimed the page, the page's server nudges the session
-(`presence.nudge_interrupted`). The hook of the prompt that opens confirms what the
+(`presence.nudge_left`). The hook of the prompt that opens confirms what the
 transcript shows before it reads the page, so it hands over again only what never
 reached the model, and names an update the model did read and left unanswered as
 owed.
@@ -212,10 +212,11 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
 
 
 def restart(obligations: list[dict]) -> str:
-    """What to do about owed updates a start covers that this turn did not write since
-    their pickup, which hold the turn until it answers them or starts them again
-    (`activity.turn_obligations`): named only for such updates, so an update nobody is at
-    work on is never offered a start in place of its answer."""
+    """What to do about owed updates a start covers that no longer holds them, which
+    hold the turn until it answers them or starts them again
+    (`activity.turn_obligations`, `activity.start_holds`): named only for such updates,
+    so an update nobody is at work on is never offered a start in place of its
+    answer."""
     items = list(
         dict.fromkeys(
             start["item"]
@@ -226,9 +227,11 @@ def restart(obligations: list[dict]) -> str:
     if not items:
         return ""
     return (
-        f"; your start on {', '.join(items)} predates this turn or the pickup of "
-        "a newer update in its thread. Answer once that work is done, or, while it runs, start it "
-        'again with `leaf task start <page> <id> --text "<what is still running>"`'
+        f"; your start on {', '.join(items)} lapsed when its turn ended with no agent "
+        "of yours reported working in the background, or predates the pickup of a "
+        "newer update in its thread. Answer once that work is done, or, while it runs, "
+        'start it again with `leaf task start <page> <id> --text "<what is still '
+        'running>"`'
     )
 
 
@@ -450,9 +453,12 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
     Debt the main thread doesn't owe, which a running line turn holds, is its, so
-    the pickup leaves it out (`holding.pickable`).
+    the pickup leaves it out (`holding.pickable`). So is debt a start holds
+    (`activity.in_hand`), such as a message a background agent is answering: the
+    prompt doesn't name it, and a pickup in this turn would put the update past its
+    start's reach and count as the reminder it never got (`delivery.reminded`).
     """
-    from .activity import acknowledged_obligations
+    from .activity import acknowledged_obligations, in_hand
     from .served_state.context import read_page
 
     for plan in plans:
@@ -475,7 +481,9 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                 work = read_page(plan.page, page.events).work
                 current = {**work.presence, "activity": work.activity}
                 still_owed = {
-                    item["input"] for item in acknowledged_obligations(current)
+                    item["input"]
+                    for item in acknowledged_obligations(current)
+                    if not in_hand(item, current)
                 }
                 by_id = {event["id"]: event for event in page.events}
                 record_pickup(

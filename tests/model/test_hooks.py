@@ -1516,6 +1516,89 @@ def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
     assert left_owed() == []
 
 
+def test_a_start_holds_its_message_while_background_work_runs(
+    claimed, interactive, monkeypatch, capsys
+):
+    """A turn that starts a message and gives its work to an agent in the background
+    ends over it. While Claude Code says the session has been busy since the start,
+    the page reads the message Working, and neither a later turn's prompt nor the
+    watch names it, as the user decided: the agent may still be answering it. Once
+    the background work ends with the message still owed, the page reads it stalled
+    and the watch wakes a turn that names it, once."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
+    )
+    asked = append_carried_log_record(
+        claimed,
+        {"kind": "comment", "author": "user", "text": "What does the lease allow?"},
+    )
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+
+    def left_owed() -> list[str]:
+        with service_model.PageTransaction(claimed) as page:
+            return [event["id"] for event in session_model.left_owed(page)]
+
+    def condition() -> dict | None:
+        [workflow] = [
+            item
+            for item in activity_reading(claimed)["workflows"]
+            if item["input"] == asked["id"]
+        ]
+        return workflow["condition"]
+
+    hooks_model.cmd_hook("claude-code", prompt)
+    capsys.readouterr()
+    started = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "task",
+            "start",
+            str(claimed),
+            asked["id"],
+            "--text",
+            "A fork reads the lease",
+        ],
+    )
+    assert started.exit_code == 0, started.output
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+    assert left_owed() == []
+
+    # The next turn, for a message in another thread, hands that one over and names
+    # nothing of the started one, nor does the watch once the turn ends.
+    other = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Shorten the intro."}
+    )
+    hooks_model.cmd_hook("claude-code", prompt)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert other["id"] in context
+    assert asked["id"] not in context
+    thread_model.post_reply(
+        claimed, {"parent": other["id"], "responds": other["id"]}, "Shortened."
+    )
+    hooks_model.cmd_hook("claude-code", stop)
+    capsys.readouterr()
+    assert left_owed() == []
+    assert condition() is None
+
+    # The background work ends with the message unanswered.
+    live.update(state="idle", since=datetime.now().astimezone().isoformat())
+    assert condition() == {"kind": "stale", "operation": "work"}
+    woke = hooks_model.cmd_watch("claude-code", stop)
+    assert woke is not None
+    assert woke.startswith(f"{claimed} has an update still owed an answer")
+    hooks_model.cmd_hook("claude-code", prompt)
+    reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert asked["id"] in reminder["additionalContext"]
+    assert left_owed() == []
+
+
 def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     claimed, printing, capsys
 ):

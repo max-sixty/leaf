@@ -17,7 +17,7 @@ delivered at prompt:
   instruction: >-
     Leaf has new input for your turn. Read this complete delivery before answering.
   delivery:
-    format: leaf-delivery/51
+    format: leaf-delivery/52
     id: <delivery>
     created_at: <time>
     acknowledge: null
@@ -30,6 +30,7 @@ delivered at prompt:
             title: null
             anchor: null
             detached_from: null
+            rewritten_from: null
             resolved: null
             elided:
               messages: 0

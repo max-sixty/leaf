@@ -716,13 +716,18 @@ def instruction_context(payload: Path, source: str) -> str:
 
 
 def retire_sessions(payload: Path, state: Path) -> None:
-    """End this sample's generations and join detached delivery retirement.
+    """End this sample's generations, join detached delivery retirement and stop
+    the page servers it started.
 
     The arm owns its records and leases, so its interpreter applies its canonical
     lifecycle transition. A private App Server ending does not end persisted-chat
     ownership. Take each adapter's lease, then its startup lock: the former joins
     the watch, and the latter joins the final writes its retirement makes after
-    releasing that lease. No native session may still use this state home.
+    releasing that lease. Then stop each server this state home's rows name and
+    wait for its lease: a session's server would otherwise outlive the session by
+    its orphan grace, and a persistent one until it noticed its page gone, writing
+    into the state home while `scratch` removes it. No native session or server
+    may still use this state home.
     """
     # Startup can fail before anything uses this isolated state home.
     if not state.exists() or not any(state.iterdir()):
@@ -736,6 +741,8 @@ import json
 from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home
 from leaf.leases import adapter_lease_path
 from leaf.codex_adapter import adapter_start_lock_path
+from leaf.hosting import cmd_stop
+from leaf.presence import live_servers
 
 sessions = state_home() / "sessions"
 for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
@@ -743,6 +750,8 @@ for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
     end_session(session)
     with flocked(adapter_lease_path(session)), flocked(adapter_start_lock_path(session)):
         pass
+for page, _row, _service in list(live_servers()):
+    cmd_stop(page)
 """,
         ],
         env=environment(XDG_STATE_HOME=str(state)),

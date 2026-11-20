@@ -2348,6 +2348,10 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reply(
     expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(card.locator("leaf-text")).to_be_focused()
     rendered(page)
+    # The answer's growth may still be moving. Mid-motion its turns can overflow the
+    # transcript, whose bar rewraps them a line taller, so judge Send from the card at
+    # rest.
+    page.wait_for_function(CARD_AT_REST)
     before_send = positions()
     assert before_send["reply"] == pytest.approx(writing["reply"], abs=0.5)
     held = []

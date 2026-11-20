@@ -331,8 +331,9 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
 
     The start names the turn the command acts in when the posting session holds the
     page (`state.acting_turn`): the claimant's. That is what lets the turn end over the
-    update it started (`activity.started_in_turn`) and what ends the start's hold with
-    the turn. Another session's start names none. A Claude Code subagent runs as its
+    update it started, and what ends the start's hold once that turn has ended and no
+    background work of the session carries it on (`activity.start_holds`). Another
+    session's start names none. A Claude Code subagent runs as its
     parent's session, so a worker's start is the main thread's.
     `leaf task start` writes this explicit event. Addressed ephemeral replies
     carry their start on the message itself (`thread.post_reply`), and every
@@ -377,8 +378,8 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
 
 
 def cmd_start(page_dir: Path, item: str, text: str) -> dict:
-    """Take `item`, an update's event id or an open to-do's id, in hand for this turn with
-    `text` as its line (`take_in_hand`); the record."""
+    """Take `item`, an update's event id or an open to-do's id, in hand with `text` as
+    its line (`take_in_hand`); the record."""
     from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source

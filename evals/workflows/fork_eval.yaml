@@ -62,6 +62,29 @@ rubrics:
       page, if an On Me item already holds it, if the user has since answered it, if
       it concerns a server, watcher or wait loop serving only the agent's own checks,
       or if it repeats another item.
+  names: &names
+    type: llm-rubric
+    metric: names-the-work
+    transform: context.metadata.texts?.judge || 'The fork gave no usable answer.'
+    value: >-
+      The input is the line "The fork gave no usable answer.", which fails, or a
+      conversation between a user and a coding agent, the question Leaf's turn-end
+      check asked a fork of that conversation, and every item of the fork's answer
+      that Leaf took. Judge only the asks (items of kind question), each as the user
+      meets it, often hours later, without the conversation and without rereading the
+      page: its title alone, as a row in their list of what waits on them, and its
+      text and options in a narrow card beneath that title. Pass only if, in every
+      ask, the title says what the work is or does, each option title says what
+      choosing it does ("Merge it", "Merge the cache", or "Merge #812" under a title
+      that says what #812 is, may pass), and the text says what each piece of work
+      it mentions is or does where it first mentions it, in words the user used or
+      the page shows, so the user can decide from the card alone what merging
+      changes. A pull request's number may stand beside such words, as their link,
+      and a later sentence or an option may refer back to work the card has already
+      described. Fail if a title names work only by its number (as "Merging #812"
+      would), if the text mentions work it never describes (as "It builds on #809"
+      would), or if it describes work only by
+      code the user never wrote, or by something only the conversation identifies.
   line: &line
     type: llm-rubric
     metric: line-right
@@ -233,7 +256,7 @@ conversations:
     - leaf: >-
         Leaf has new input for your turn. Read this complete delivery before
         answering.
-        {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
+        {"format": "leaf-delivery/52", "batches": [{"page": "{page}", "threads":
         [{"id": "c1", "anchor": {"section": "cache-findings"}, "messages": [{"id":
         "c1", "author": "user", "text": "Does TTL's 74% count the cache warming up
         from empty?"}]}], "handling": {"h1": "Answer it with `leaf thread reply`."},
@@ -435,6 +458,55 @@ cases:
           choice: true
     assert:
       - *items
+      - *names
+  # A closeout that names the pull requests by number and describes the change by its
+  # code, as a long session's does, so a fork copying its words asks to merge "#812".
+  ask-permission-named:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - user: Open a PR for it. Does it need the key fix that landed this morning?
+      - tool: Bash
+        input:
+          command: gh pr view 809 --json title,mergedAt && gh pr create --fill && gh pr checks --watch
+          description: Check the merged key fix, open the pull request and wait for its checks
+        result: |-
+          {"title": "Normalize query keys before lookup", "mergedAt": "2026-11-03T08:12:40Z"}
+          https://github.com/acme/search/pull/812
+          All checks were successful
+          review-bot  APPROVED
+      - assistant: >-
+          [#812](https://github.com/acme/search/pull/812) is open, CI is green and
+          review-bot approved it.
+
+
+          **What #812 changes**
+
+          - `SearchService.lookup` goes through `LRUCache.get_or_compute`, keyed on
+          `query.key`, where `flags.get("search.cache") == "lru"`.
+
+          - `cache_size` defaults to 50,000, from the simulation.
+
+          - It sits on #809, so equivalent queries share one entry; nothing else
+          waits.
+
+
+          📌 #1 🟡 **Merge #812**: ready.
+
+
+          To land it, run `/merge-pr`.
+    labels:
+      expect:
+        - kind: question
+          words: ["812"]
+          thread: null
+          choice: true
+    assert:
+      - *items
+      - *names
   ask-on-me:
     fork: turn-end
     page: turn-end-check/pages/cache.html
@@ -566,7 +638,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/52", "batches": [{"page": "{page}", "threads":
           [{"id": "q1", "title": "Turning on the LRU cache in staging", "resolved":
           "user", "messages": [{"id": "q1", "author": "agent", "text": "Setting
           staging flags needs your ops login, which this session doesn't have. Run
@@ -1338,7 +1410,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/52", "batches": [{"page": "{page}", "threads":
           [{"id": "r1", "title": "Release bf40b427 deployment checks passed",
           "anchor": null, "resolved": null, "messages": [{"id": "r2", "author":
           "agent", "text": "recording that release bf40b427 passed its deployment

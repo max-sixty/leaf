@@ -8,7 +8,7 @@
  * tall. A Markdown preview of written text instead takes its rendered height, which
  * its first paint already holds (`prepaint`), and its Source tab takes the same
  * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
- * source, a press shows every line (`cut`), as a thread's Full quote shows a whole
+ * source, a press shows every line (`cut`), as a quote's label opens a thread's whole
  * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
  * one way to the rest, and stays at the box's foot rather than scrolling off with the
  * lines.
@@ -862,7 +862,7 @@ class TextDocument extends LeafElement {
     else return;
     panel.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
-  // The press shows only while the box cuts lines off, as a thread's Full quote does.
+  // The press shows only while the box cuts lines off, as a thread's quote label does.
   measureCut() {
     if (!this.cut) return;
     const { panel, box } = this.cut;

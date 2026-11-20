@@ -30,7 +30,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/51",
+     "format": "leaf-delivery/52",
      "id": "3710e4d1",
      "created_at": 1794814489.3594618,
      "acknowledge": null,
@@ -50,6 +50,7 @@ vars:
           "suffix": ", and I'm leaving them a"
          },
          "detached_from": null,
+         "rewritten_from": null,
          "resolved": null,
          "elided": {
           "messages": 0,
@@ -203,7 +204,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/51",
+         "format": "leaf-delivery/52",
          "id": "a81f2c07",
          "created_at": 1794814489.3594618,
          "acknowledge": null,
@@ -220,6 +221,7 @@ variants:
               "section": "sample-clipboard-decision"
              },
              "detached_from": null,
+             "rewritten_from": null,
              "resolved": null,
              "elided": {
               "messages": 0,
@@ -425,7 +427,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/51",
+         "format": "leaf-delivery/52",
          "id": "4be02c19",
          "created_at": 1794814489.3594618,
          "acknowledge": null,
@@ -445,6 +447,7 @@ variants:
               "suffix": ", and the mark left none."
              },
              "detached_from": null,
+             "rewritten_from": null,
              "resolved": null,
              "elided": {
               "messages": 0,

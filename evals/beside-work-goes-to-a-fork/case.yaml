@@ -9,7 +9,12 @@
 # line. Each context is the hook's output as Leaf writes it
 # (`hook_transport.carry_turn`'s `inline_context`), rendered from `delivery.handled`
 # with the kernel registry's clauses, its ids, page and claim substituted. The `later`
-# variant is the thread's next message after the fork answered. The subject can't run
+# variant is the thread's next message after the fork answered. The `next-turn`
+# variant is a turn opened for a message in another thread while the fork still works
+# on the message the session started, which Leaf names nowhere then
+# (`activity.start_holds`); the failure it invites is starting that message again or
+# doing its work. `fork-ended` is Leaf's reminder once the fork has ended without
+# answering, which the session answers or puts to work again. The subject can't run
 # the Agent tool, so it writes the operations out.
 description: beside-work-goes-to-a-fork
 metadata:
@@ -30,7 +35,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/51",
+     "format": "leaf-delivery/52",
      "id": "c31f7a52",
      "created_at": 1795050000.0,
      "acknowledge": null,
@@ -47,6 +52,7 @@ vars:
           "section": "poll-interval"
          },
          "detached_from": null,
+         "rewritten_from": null,
          "resolved": null,
          "elided": {
           "messages": 0,
@@ -156,7 +162,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/51",
+         "format": "leaf-delivery/52",
          "id": "5d08e6b1",
          "created_at": 1795050000.0,
          "acknowledge": null,
@@ -173,6 +179,7 @@ variants:
               "section": "poll-interval"
              },
              "detached_from": null,
+             "rewritten_from": null,
              "resolved": null,
              "elided": {
               "messages": 0,
@@ -273,3 +280,152 @@ variants:
           or a progress line `leaf thread reply 5d08e6b1:0:e2b85c17 --ephemeral --text
           "<a line>"`. Fail if it leaves that to the fork, or starts nothing because
           Leaf's line fork already posted a working line.
+  next-turn:
+    metadata:
+      purpose: In a later turn, a message the session started and gave to a fork that is
+        still working stays with that fork, and the session takes the new message.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, serving the page /Users/max/.local/state/leaf/pages/importer-review to the user. The user asked you to move the importer's retry loop out of `importer/worker.py` into a new `importer/retry.py`. In your previous turn the user asked in thread 70a0f2c6 on that page: "Why does the importer poll every 2 seconds? Check what the lease allows." You ran `leaf task start /Users/max/.local/state/leaf/pages/importer-review 70a0f2c6 --text "checking the lease's renewal interval in the source"`, gave the question to a fork of yourself in the background, agent id a7c31e9f04b2d58e6, with its answer reference `c31f7a52:0:70a0f2c6`, finished moving the retry loop and editing its five call sites, and ended your turn. The fork has not reported back yet.
+
+        A new turn has begun. Leaf's watch woke you with "/Users/max/.local/state/leaf/pages/importer-review has new input; Leaf's prompt hook puts it in your context with this notification", and Leaf's prompt hook added this to your context:
+
+        Leaf has new input for your turn. Read this complete delivery before answering.
+
+        ```json
+        {
+         "format": "leaf-delivery/51",
+         "id": "e7a20c94",
+         "created_at": 1795050600.0,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/importer-review",
+           "claim": "4c8b14ff-072d-482b-99b1-c131ab44cf51",
+           "through_seq": 32,
+           "threads": [
+            {
+             "id": "8d41c2a0",
+             "title": null,
+             "anchor": {
+              "section": "retry-loop"
+             },
+             "detached_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [
+              {
+               "id": "5b27e1f6",
+               "seq": 32,
+               "ts": "2026-11-18T19:49:12.381-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "checking whether retry.py keeps the old loop's jitter",
+               "ephemeral": true
+              }
+             ],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "kind": "comment",
+             "text": "Does the new retry.py keep the jitter the old loop had?",
+             "anchor": {
+              "section": "retry-loop"
+             },
+             "revision": 3,
+             "author": "user",
+             "id": "8d41c2a0",
+             "attention": true,
+             "ts": "2026-11-18T19:49:10.044-08:00",
+             "seq": 31,
+             "subject": {
+              "kind": "thread",
+              "id": "8d41c2a0"
+             },
+             "threads": [
+              "8d41c2a0"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "8d41c2a0",
+              "responds": "8d41c2a0",
+              "ref": "e7a20c94:0:8d41c2a0",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+        The repository is /Users/max/src/importer.
+
+        Only Skill and Read run in this probe, so describe the operations you would perform next, in order, including each command with its full arguments, the words you would put in the thread and the full brief of any subagent you would start or message. Then end your answer.
+
+    assert:
+      - type: llm-rubric
+        metric: leaves-the-fork-its-message
+        value: |
+          Pass only if the agent leaves the user's message 70a0f2c6 to the fork still
+          working on it: it runs no `leaf task start` naming 70a0f2c6, posts nothing
+          with the reference `c31f7a52:0:70a0f2c6`, does none of that message's work
+          (reading what the lease allows), and sends the fork no new brief for it.
+          Noting that the fork is still running, or waiting for its report, is fine.
+          Fail if it starts 70a0f2c6 again, answers it, or does its work.
+      - type: llm-rubric
+        metric: takes-the-new-message
+        value: |
+          Pass only if the agent sees to the new message 8d41c2a0: it answers it with
+          `leaf thread reply e7a20c94:0:8d41c2a0`, after whatever check of
+          `importer/retry.py` the question needs, or gives it to a fork with that
+          reference. Fail if it leaves 8d41c2a0 unanswered with nothing at work on it.
+  fork-ended:
+    metadata:
+      purpose: Once the fork that held a started message has ended without answering it,
+        Leaf's reminder has the session answer the message or put it to work again.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, serving the page /Users/max/.local/state/leaf/pages/importer-review to the user. The user asked you to move the importer's retry loop out of `importer/worker.py` into a new `importer/retry.py`, and you have finished that change. Earlier the user asked in thread 70a0f2c6 on that page: "Why does the importer poll every 2 seconds? Check what the lease allows." You ran `leaf task start /Users/max/.local/state/leaf/pages/importer-review 70a0f2c6 --text "checking the lease's renewal interval in the source"` and gave the question to a fork of yourself in the background, agent id a7c31e9f04b2d58e6, with its answer reference `c31f7a52:0:70a0f2c6`. The fork has since finished, and its report read: "Found the renewal in importer/lease.py: RENEWAL = timedelta(seconds=10). Ran out of time before checking how the poll interval is chosen, and did not reply in the thread." Your last turn read that report and ended.
+
+        Leaf's watch then woke you with "/Users/max/.local/state/leaf/pages/importer-review has an update still owed an answer; Leaf's prompt hook names it in your context with this notification", and Leaf's prompt hook added this to your context:
+
+        Leaf needs attention:
+        - /Users/max/.local/state/leaf/pages/importer-review: 1 acknowledged user update with no answer (`leaf thread reply c31f7a52:0:70a0f2c6`); your start on 70a0f2c6 lapsed when its turn ended with no agent of yours working in the background, or predates the pickup of a newer update in its thread. Answer once that work is done, or, while it runs, start it again with `leaf task start <page> <id> --text "<what is still running>"`.
+
+        `leaf page state <page>` lists what is owed, and `leaf page state <page> <message>` reads a thread's history.
+        Read these unanswered updates and their exact answer references:
+
+        ```xml
+        <leaf-delivery id="c31f7a52" operation="delivery read" />
+        ```
+
+        The repository is /Users/max/src/importer.
+
+        Only Skill and Read run in this probe, so describe the operations you would perform next, in order, including each command with its full arguments, the words you would put in the thread and the full brief of any subagent you would start or message. Then end your answer.
+
+    assert:
+      - type: llm-rubric
+        metric: answers-or-restarts
+        value: |
+          Pass only if the agent sees to the user's message 70a0f2c6: it answers it
+          with `leaf thread reply c31f7a52:0:70a0f2c6`, after whatever check of the
+          poll interval the question still needs, or gives that work to a fork again
+          and starts the message (`leaf task start ... 70a0f2c6` or a progress line on
+          that reference). Fail if it leaves 70a0f2c6 unanswered with nothing at work
+          on it, or waits for the ended fork.

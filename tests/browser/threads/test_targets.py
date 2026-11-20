@@ -785,7 +785,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     else:
         expect(quote).to_have_attribute("role", "button")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
-    disclosure = card.get_by_role("button", name="Full quote", exact=True)
+    disclosure = card.locator(".lf-quote-label").get_by_role("button")
     expect(disclosure).to_be_visible()
     before = disclosure.bounding_box()
     if touch:
@@ -865,7 +865,7 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
         "data-lf-detached", ""
     )
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
-    disclosure = card.get_by_role("button", name="Full quote", exact=True)
+    disclosure = card.locator(".lf-quote-label").get_by_role("button")
     expect(disclosure).to_be_visible()
     compact = card.bounding_box()["height"]
     compact_quote = quote.bounding_box()["height"]
@@ -944,9 +944,7 @@ def test_a_retained_reference_with_nothing_hidden_offers_no_disclosure(
     wait_for_revision(page, 2)
     card = open_from_threads(page, root)
     expect(card.locator(".lf-thread-quote-head")).to_be_visible()
-    expect(
-        card.get_by_role("button", name="Full quote", exact=True)
-    ).not_to_be_visible()
+    expect(card.locator(".lf-quote-label").get_by_role("button")).to_have_count(0)
 
 
 def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
@@ -1033,7 +1031,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
     card = open_from_threads(page, comment["id"])
     quote = card.locator(".lf-thread-quote")
     expect(card.locator(".lf-anchor-status")).to_have_text("Changed")
-    disclosure = card.get_by_role("button", name="Full quote", exact=True)
+    disclosure = card.locator(".lf-quote-label").get_by_role("button")
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
     # The relabel alone repaints the quote, by the time the page has drawn it: nothing

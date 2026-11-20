@@ -565,6 +565,8 @@ export class ThreadView {
   });
   #quoteId = `lf-thread-quote-${randomId()}`;
   #quoteExpanded = signal(false);
+  // Whether three lines cut the quote, which its label then opens (`#fitQuote`).
+  #quoteCut = signal(false);
   /** @type {(() => void) | null} */
   #quoteEffect = null;
   // The answer to the user's last turn drawn since the container last stood the thread
@@ -582,9 +584,9 @@ export class ThreadView {
   // Whether this opening offers Next unread, and whether that has been asked (header).
   #unreadSeat = false;
   #unreadAsked = false;
-  // Full quote shows only where three lines cut the words. Once the quote stands, a
-  // change of its size resizes the view its container's observers watch, so the press
-  // follows in the next frame rather than inside this observer's delivery.
+  // The label opens the quote only where three lines cut the words. Once the quote
+  // stands, a change of its size resizes the view its container's observers watch, so
+  // the press follows in the next frame rather than inside this observer's delivery.
   #quoteSize = sizeObserver(() => nextRender(() => this.#fitQuote()));
 
   /** @param {ThreadCommands} commands @param {ThreadViewModel} model */
@@ -886,8 +888,9 @@ export class ThreadView {
     render(lined ? settlement : nothing, this.#apart.controls);
     render(lined ? this.#nextUnread() : nothing, this.#apart.unread);
     render(replyApart ? this.#reply.node : nothing, this.#apart.reply);
-    // Full quote stands from the quote's first paint, so its arrival moves nothing below
-    // it; later changes of the quote's size follow by its observer (`#quoteSize`).
+    // The label's press stands from the quote's first paint, in the label's own line,
+    // so its arrival moves nothing; later changes of the quote's size follow by its
+    // observer (`#quoteSize`).
     if (!this.#quoteHead.hidden) measure(this.#quoteHead, () => this.#fitQuote());
     if (!lined && model.news) measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -1319,20 +1322,21 @@ export class ThreadView {
   // asks for them or the page leaves them unmarked (`ThreadOutlets`, `quote`), in three
   // lines: where they still stand on the page, the container's way there goes to
   // them; where they no longer do, as for a thread a revision detached from its
-  // passage, the quotation the thread kept is all that is left of them, so Full quote
-  // shows the whole of it, its press standing above the words it grows so the press
+  // passage, the quotation the thread kept is all that is left of them, so the label
+  // over them opens the whole of it, standing above the words it grows so the press
   // never moves itself. The quote's status word leads its words, so the three lines
-  // never cut it. Full quote shows only where three lines cut them, and the quote stays
-  // whole while the view stands. Where the words stand is read from the page, which the
-  // thread's pass reads again after drawing (presentation.js, `readTargets`) and a data
-  // refresh changes without changing the thread, so the quote draws by an effect of its
-  // own that follows that reading as well as the thread.
+  // never cut it. The label takes a press only where three lines cut the words
+  // (`#quoteCut`), and the quote stays whole while the view stands. Where the words
+  // stand is read from the page, which the thread's pass reads again after drawing
+  // (presentation.js, `readTargets`) and a data refresh changes without changing the
+  // thread, so the quote draws by an effect of its own that follows that reading as
+  // well as the thread.
   #drawQuote() {
     this.#quoteEffect ??= effect(() => {
       const thread = this.#shown.value.source;
       documentChanged();
       const quote = quoteReading(thread, this.#commands);
-      const expanded = this.#quoteExpanded.value;
+      const opens = this.#quoteExpanded.value || this.#quoteCut.value;
       untracked(() => {
         keepsHidden(
           this.#quoteHead,
@@ -1340,15 +1344,21 @@ export class ThreadView {
         );
         keeps(this.#quoteHead, "data-lf-detached", quote?.detached ? "" : null);
         keeps(this.#quoteHead, "title", (quote?.place && quote.trail) || null);
-        render(this.#quoteTemplate(quote, expanded), this.#quoteHead);
+        render(this.#quoteTemplate(quote, opens), this.#quoteHead);
       });
     });
     return this.#quoteHead;
   }
 
-  /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} expanded */
-  #quoteTemplate(quote, expanded) {
+  // The label says the quote's status and where its words stand, and where three lines
+  // cut words the page no longer shows, it is the press that opens them whole: one line
+  // over the quote, its disclosure arrow hanging on the quote's rule so its words keep
+  // the quote's edge. Rejected: a Full quote press on a line of its own under the
+  // label, which the user read as a second label, set in from the quote's edge.
+  /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} opens */
+  #quoteTemplate(quote, opens) {
     if (!quote) return nothing;
+    const expanded = quote.localReading && this.#quoteExpanded.peek();
     const status = quote.status
       ? html`<span class="lf-anchor-status">${voiced(quote.status)}</span>`
       : nothing;
@@ -1358,37 +1368,35 @@ export class ThreadView {
     // user's controls. A container standing beside the words, as a margin card's
     // bracket does, already shows where they stand, so there they go unnamed.
     const where = quote.place || (this.#outlets.quote ? quote.trail : "");
-    const label =
+    const said =
       where || quote.status
-        ? html`<p class="lf-quote-label">
-            ${status}${where && quote.status ? " · " : ""}${where}
-          </p>`
-        : nothing;
-    if (!quote.words) return label;
-    const press = quote.localReading
-      ? html`<button
-          type="button"
-          ${offeredAction(
-            "inline",
-            "lf-thread-disclosure lf-quote-expand lf-disclosure-marker",
-          )}
-          aria-label="Full quote"
-          hidden
-          aria-expanded=${String(expanded)}
-          aria-controls=${this.#quoteId}
-          @click=${() => {
-            this.#quoteExpanded.value = !this.#quoteExpanded.peek();
-          }}
-        >
-          Full quote
-        </button>`
+        ? html`${status}${where && quote.status ? " · " : ""}${where}`
+        : null;
+    const line =
+      quote.words && quote.localReading && opens
+        ? html`<button
+            type="button"
+            ${offeredAction("inline", "lf-quote-expand lf-disclosure-marker")}
+            data-lf-hint
+            aria-expanded=${String(expanded)}
+            aria-controls=${this.#quoteId}
+            @click=${() => {
+              this.#quoteExpanded.value = !this.#quoteExpanded.peek();
+            }}
+          >
+            ${said ?? "Full quote"}
+          </button>`
+        : said;
+    const label = line
+      ? html`<p class="lf-quote-label" ?data-lf-opens=${quote.localReading}>${line}</p>`
       : nothing;
-    return html`${label}${press}
+    if (!quote.words) return label;
+    return html`${label}
       <blockquote
         ${ref(this.#watchQuote)}
         id=${this.#quoteId}
         class="lf-thread-quote"
-        data-lf-expanded=${String(quote.localReading && expanded)}
+        data-lf-expanded=${String(expanded)}
       >
         ${quote.words}
       </blockquote>`;
@@ -1400,17 +1408,11 @@ export class ThreadView {
     if (node) this.#quoteSize.observe(node);
   };
 
+  // An opened quote is whole, so whether three lines cut it is read while it is shut.
   #fitQuote() {
     const quote = this.#quoteHead.querySelector(":scope > .lf-thread-quote");
-    const press = this.#quoteHead.querySelector(":scope > .lf-quote-expand");
-    if (quote && press)
-      keeps(
-        press,
-        "hidden",
-        !this.#quoteExpanded.peek() && quote.scrollHeight <= quote.clientHeight
-          ? ""
-          : null,
-      );
+    if (quote && !this.#quoteExpanded.peek())
+      this.#quoteCut.value = quote.scrollHeight > quote.clientHeight;
   }
 
   // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn

@@ -827,20 +827,22 @@ function stampDelivery(
   if (reference !== undefined) headers.set("Leaf-Session-Reference", reference);
 }
 
-const manifests = new WeakMap<object, Promise<SiteManifest>>();
+// The isolate keeps the manifest once a request has read it, and keeps no promise of
+// it: a promise settles only in the request that made it, so one shared while pending
+// never settles for the others once that request ends, as when its browser navigates
+// away, and every later request in the isolate fails.
+const manifests = new WeakMap<object, SiteManifest>();
 
 async function siteManifest(request: Request, env: Env): Promise<SiteManifest> {
-  let pending = manifests.get(env.ASSETS as object);
-  if (!pending) {
-    const url = new URL("/_leaf/site.json", request.url);
-    pending = env.ASSETS.fetch(new Request(url)).then(async (response) => {
-      if (!response.ok) throw new Error(`site manifest returned ${response.status}`);
-      return (await response.json()) as SiteManifest;
-    });
-    manifests.set(env.ASSETS as object, pending);
-    pending.catch(() => manifests.delete(env.ASSETS as object));
-  }
-  return pending;
+  const known = manifests.get(env.ASSETS as object);
+  if (known) return known;
+  const response = await env.ASSETS.fetch(
+    new Request(new URL("/_leaf/site.json", request.url)),
+  );
+  if (!response.ok) throw new Error(`site manifest returned ${response.status}`);
+  const manifest = (await response.json()) as SiteManifest;
+  manifests.set(env.ASSETS as object, manifest);
+  return manifest;
 }
 
 function stampedStaticResponse(

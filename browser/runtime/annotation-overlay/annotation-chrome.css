@@ -468,15 +468,18 @@
      Over them stands the quote of words the card's bracket no longer marks, as once a
      revision rewrote them (thread-card.js, `#drawQuote`), where the bracket would show
      them: at the card's top, above its actions, holding still while the messages
-     scroll. Its row is empty while the bracket marks the words. Rejected: the quote
-     under the actions as the transcript's first item, as an opening summary stands,
-     which every rule reading the first message as the one beside the actions would
-     have had to learn, and which moved the panel's quote off its spacing. */
+     scroll. Its row is empty while the bracket marks the words, and shares the card's
+     room with the messages' row as the card shrinks, so a quote opened whole scrolls
+     inside its own share rather than pushing the actions and reply out of the card.
+     Rejected: the quote under the actions as the transcript's first item, as an
+     opening summary stands, which every rule reading the first message as the one
+     beside the actions would have had to learn, and which moved the panel's quote off
+     its spacing. */
   .lf-margin-thread .lf-page-thread {
     display: grid;
     grid-template-columns: minmax(0, 1fr) max-content;
     grid-template-rows:
-      auto minmax(auto, max-content) minmax(0, max-content)
+      minmax(0, max-content) minmax(auto, max-content) minmax(0, max-content)
       minmax(auto, max-content);
     min-height: 0;
     min-width: 0;
@@ -486,6 +489,11 @@
   }
   .lf-margin-thread .lf-thread-quote-head {
     grid-row: 1;
+    min-height: 0;
+  }
+  .lf-margin-thread .lf-thread-quote[data-lf-expanded="true"] {
+    min-height: 0;
+    overflow-y: auto;
   }
   .lf-margin-thread .lf-thread-transcript {
     grid-row: 2;

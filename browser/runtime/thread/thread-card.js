@@ -166,8 +166,9 @@ import { addressableLabel } from "../addressable-names.js";
 // may not be the version shown, where they can still stand; they can't be found on the
 // page; they come from earlier data; or they have changed. A thread draws it where its
 // container asks (`ThreadOutlets`, `quote`), as the floating panel's view does, and
-// wherever it has a status, since then no container's place beside the words shows
-// them. The status is a word over the quote because a finger never reads a title.
+// wherever the page leaves it unmarked (`unmarked`), since then no container's place
+// beside the words shows them. The status is a word over the quote because a finger
+// never reads a title.
 // Where the words still stand, `trail` names the headings over them (`partTrail`), else
 // the page's title, where no heading stands over them: a label of quoted words with no
 // place of their own, and the head's title for any other.
@@ -186,17 +187,23 @@ function quoteReading(thread, anchors) {
   const changed =
     Boolean(thread.rewritten_from) ||
     Boolean(words && placement?.datumElement && !placement.exact);
+  const status = detached
+    ? leafSays(thread.detached_from ? "Not in the latest version" : "Not found")
+    : anchored && placement?.status === "outdated"
+      ? leafSays("Earlier data")
+      : changed
+        ? leafSays("Changed")
+        : null;
   return Object.freeze({
     place,
     words,
     detached,
-    status: detached
-      ? leafSays(thread.detached_from ? "Not in the latest version" : "Not found")
-      : anchored && placement?.status === "outdated"
-        ? leafSays("Earlier data")
-        : changed
-          ? leafSays("Changed")
-          : null,
+    status,
+    // Whether the page leaves what the thread is about unmarked where the thread
+    // stands, so a container beside that place doesn't show it: a status says why, or
+    // the words only fell back to a place around them, as a diff line not yet loaded
+    // falls back to its file.
+    unmarked: Boolean(status) || Boolean(words && !placement?.exact),
     // A surviving element can still be a destination after its quoted words
     // have gone (rewritten text, replaced data or a virtual datum). Only a
     // resolved passage can supply the original quote's complete reading.
@@ -448,9 +455,9 @@ const lastTurn = (model) =>
      `createReplyView`).
    - `quote`, whether the thread draws the words it is about over its messages while
      the page still reads as the quote does; a container standing beside the words, as
-     a margin card does by its bracket, shows them by where it stands. Where the page no
-     longer reads as the quote does, as once a revision rewrote the quoted words and
-     left the thread on their section, every thread draws them (`quoteReading`).
+     a margin card does by its bracket, shows them by where it stands. Where the page
+     leaves them unmarked, as once a revision rewrote the quoted words and left the
+     thread on their section, every thread draws them (`quoteReading`, `unmarked`).
    - `scroller`, given the thread's transcript, the box that scrolls its messages, at
      whose foot it says New reply (the header); without one it says none.
    - `landing(resolved)`, given whether the thread stood resolved as the press came, the
@@ -1307,8 +1314,8 @@ export class ThreadView {
   }
 
   // The words the thread is about, over its to-dos and messages, where its container
-  // asks for them or the page no longer reads as they do (`ThreadOutlets`, `quote`), in
-  // three lines: where they still stand on the page, the container's way there goes to
+  // asks for them or the page leaves them unmarked (`ThreadOutlets`, `quote`), in three
+  // lines: where they still stand on the page, the container's way there goes to
   // them; where they no longer do, as for a thread a revision detached from its
   // passage, the quotation the thread kept is all that is left of them, so Full quote
   // shows the whole of it, its press standing above the words it grows so the press
@@ -1325,7 +1332,10 @@ export class ThreadView {
       const quote = quoteReading(thread, this.#commands);
       const expanded = this.#quoteExpanded.value;
       untracked(() => {
-        keepsHidden(this.#quoteHead, !quote || !(this.#outlets.quote || quote.status));
+        keepsHidden(
+          this.#quoteHead,
+          !quote || !(this.#outlets.quote || quote.unmarked),
+        );
         keeps(this.#quoteHead, "data-lf-detached", quote?.detached ? "" : null);
         keeps(this.#quoteHead, "title", (quote?.place && quote.trail) || null);
         render(this.#quoteTemplate(quote, expanded), this.#quoteHead);

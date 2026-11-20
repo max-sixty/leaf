@@ -30,11 +30,11 @@ reconciliation.
 Where a section, decision, thread message or thread title first mentions a pull
 request, an issue, a commit or another decision, say what it is or does in words the
 user already uses, and link those words to it; its number, or a name coined during
-the work, doesn't say what it is. Write “it doesn't need [the upload queue fix](…)”,
-not “it doesn't need #428”, and title a thread “Merging the retry for dropped
-uploads”, not “Merging #431”. Link the files, source lines and URLs it names too,
-where each has a known destination. The user reaches each of these on its own, from
-the contents, On Me or Threads, and opens what it names from there.
+the work, doesn't say what it is. Write “it doesn't need the upload queue fix”, not
+“it doesn't need #428”, and title a thread “Merging the retry for dropped uploads”,
+not “Merging #431”. Link the files, source lines and URLs it names too, where each
+has a known destination. The user reaches each of these on its own, from the
+contents, On Me or Threads, and opens what it names from there.
 
 ## Author the page
 

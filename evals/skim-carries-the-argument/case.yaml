@@ -138,9 +138,9 @@ assert:
       Read the page's HTML and find every picture it draws: a `figure`, an `img`, an
       inline `svg`, a `canvas` or `video`, or a widget that draws a chart, diagram or
       timeline, such as `lf-chart`, `lf-diagram` or `lf-timeline`. A table is not a
-      picture. With `lf-dial` at Skim, a picture shows only when it, or an element
-      containing it, has class `gist`, and it is not inside a closed `details`. Sort
-      each picture by what it shows:
+      picture. Count a picture as shown at Skim when it, or an element containing it,
+      has class `gist` and it is not inside a closed `details`, and every other picture
+      as folded. Sort each picture by what it shows:
 
       - The failure's course or size: the EU decline rate or failed payments over the
         incident, or failed, recovered and lost payments.

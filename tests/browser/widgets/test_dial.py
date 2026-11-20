@@ -156,12 +156,13 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
     """Skim kept every picture by a list of tags, so it folded a video or a canvas a
     skimmer needed and kept pictures one didn't. Skim keeps whatever the author marks
     `.gist`, of any kind, and the heading above it: a figure with its caption, a chart, a
-    video, a canvas, a picture in a tab, and a paragraph or list item holding a gist,
-    whole, words and links beside it included. A picture the author didn't mark folds
-    with the words around it. A section or list item of blocks is laid out in place, a
-    button among its blocks included, so a gist in one keeps its support folded. A gist
-    inside a closed disclosure stays closed, since Skim shows nothing Read doesn't, so a
-    section holding only that folds whole."""
+    video, a canvas, a picture in a tab, a picture marked inside a figure, with the
+    figure's caption, and a paragraph or list item holding a gist, whole, words and
+    links beside it included. A picture the author didn't mark folds with the words
+    around it. A section or list item of blocks is laid out in place, a button among its
+    blocks included, so a gist in one keeps its support folded. A gist or heading inside
+    a closed disclosure stays closed, since Skim shows nothing Read doesn't, so a section
+    holding only those folds whole."""
     chart = (
         '<lf-chart class="gist" id="latency-chart"><pre>{ ariaLabel: "p99 by hour", '
         "marks: [Plot.lineY([1, 3, 2])] }"
@@ -200,14 +201,18 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
                 '<section id="demo"><h2 id="demo-heading">Demo</h2>'
                 '<video class="gist" id="demo-video" width="40" height="30"></video>'
                 '<canvas class="gist" id="demo-canvas" width="40" height="30"></canvas>'
+                '<figure><img class="gist" id="demo-shot" alt="The checkout" '
+                'width="40" height="30"><figcaption id="demo-caption">The checkout '
+                "after the fix.</figcaption></figure>"
                 '<p id="demo-0">Recorded on staging.</p></section>'
                 '<section id="views"><h2 id="views-heading">Views</h2>'
                 '<lf-tabs id="views-tabs"><lf-tab id="views-a" label="Before">'
                 f'<figure class="gist" id="views-figure">{SQUARE}</figure></lf-tab>'
                 '</lf-tabs><p id="views-0">Both views.</p></section>'
-                '<section id="method"><h2 id="method-heading">Method</h2>'
+                '<section id="method" style="border: 1px solid">'
+                '<h2 id="method-heading">Method</h2>'
                 f'<figure id="method-figure">{SQUARE}</figure>'
-                '<details id="method-raw"><summary>Raw</summary>'
+                '<details id="method-raw"><summary>Raw</summary><h3>Runs</h3>'
                 f'<figure class="gist" id="raw-figure">{SQUARE}</figure></details>'
                 "</section>",
             )
@@ -230,6 +235,8 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         "#demo-heading",
         "#demo-video",
         "#demo-canvas",
+        "#demo-shot",
+        "#demo-caption",
         "#views-heading",
         "#views-figure",
     ):
@@ -244,6 +251,7 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         "#latency-0",
         "#demo-0",
         "#views-0",
+        "#method",
         "#method-heading",
         "#method-figure",
         "#method-raw",

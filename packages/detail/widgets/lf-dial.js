@@ -28,8 +28,9 @@
  * `lf-toc`'s outline does) and descends only into plain structure that holds the lede,
  * a gist or a heading that stands. Everything else is folded or kept whole: a line of
  * text, one with words of its own or only inline children, which keeps a gist in its
- * line whole; a table, whose cells stand in its grid; a disclosure, whose summary is
- * its control; and a Leaf element, whose children are its own. A heading stands at
+ * line whole; a table, whose cells stand in its grid; a figure, whose caption labels a
+ * marked chart inside it; a disclosure, whose summary is its control; and a Leaf
+ * element, whose children are its own. A heading stands at
  * Skim when a lede or gist follows it in document order
  * before the next heading of its rank or above, so a section with nothing for a
  * skimmer folds whole, heading included. Keeping every heading was rejected: it made
@@ -95,8 +96,9 @@ const HEADING = `${RANKED}, hgroup`;
 // What Skim keeps for its own sake; a heading stands for the ones it heads.
 const SUMMARY = ".lede, .gist";
 // Blocks the dial keeps whole whatever they hold: a table, whose cells stand in its
-// grid, and a disclosure, whose summary is its control.
-const WHOLE = "table, details";
+// grid, a figure, whose caption labels all it holds, and a disclosure, whose summary is
+// its control.
+const WHOLE = "table, figure, details";
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
@@ -321,8 +323,8 @@ customElements.define(
       return (
         child.contains(this) ||
         [...child.querySelectorAll(SUMMARY)].some(inside) ||
-        [...child.querySelectorAll(HEADING)].some((heading) =>
-          this.#heads(heading, scope),
+        [...child.querySelectorAll(HEADING)].some(
+          (heading) => inside(heading) && this.#heads(heading, scope),
         )
       );
     }

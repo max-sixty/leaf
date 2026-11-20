@@ -2882,7 +2882,7 @@ def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_
 ):
     """A finger holding one control and sliding onto the next whose preview stands by
     the same element redraws the preview where it stands without closing it, as the
-    pointer does."""
+    pointer does, and the control it left stops wearing the hold's mark."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -2909,6 +2909,8 @@ def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_
     expect(word).to_have_text("Reads two")
     rendered(page)
     assert _crossed(page) == ["read two", "ended Reads one"]
+    expect(page.locator("#two")).to_have_attribute("data-lf-held", "")
+    expect(page.locator("#one")).not_to_have_attribute("data-lf-held", "")
     touch("touchEnd")
 
 

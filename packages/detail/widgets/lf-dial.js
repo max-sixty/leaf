@@ -84,17 +84,18 @@
  * the dial, away from the buttons it compares; hanging each sheet under its own button
  * is an exception to one preview face the maintainer chose. Leaf still opens and ends
  * the preview on every route, makes it Escape's first step and gives a screen reader
- * each depth's description on focus. Unlike other previews, the sheets stay up through a
- * plain press on the dial or an arrow key in its depths, also the maintainer's choice,
- * so the frame can be seen gliding to the depth turned to (`#staying`). Kept sheets go at
- * Escape, the dial's own command, at any other key but a modifier alone, at a press
- * elsewhere, as focus leaves the dial and as the pointer leaves it. A sheet holds no
- * control, since a preview reads and never acts: pressing one only keeps the sheets. */
+ * each depth's description on focus. A plain press on the dial or an arrow key in its
+ * depths, while the sheets hang, aims at the depth it reached, as a chart's key reaching
+ * another point does (`previewChanged` with `aim`), so the sheets stay up and the frame
+ * can be seen gliding to the depth turned to, the maintainer's choice. Otherwise they go
+ * as Leaf's preview goes. A sheet holds no control, since a preview reads and never
+ * acts: pressing one only aims at the sheets again. Pointing marks the page only within
+ * a window's height of what the window shows, so a reader who scrolls far while
+ * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
   actionClass,
   addressableLabel,
   authoredScope,
-  commandsChanged,
   focusDestination,
   foldDuration,
   holdPlace,
@@ -106,15 +107,14 @@ import {
   nextRender,
   offer,
   offerAction,
-  onCurrentLocation,
   PAGE_INTERFACE,
   phrasing,
   plainPress,
+  previewChanged,
   PREVIEW_ENDED,
   readingAt,
   registerRootHeader,
   shownWindow,
-  signal,
   tabStore,
   viewDocument,
   whileConnected,
@@ -283,7 +283,7 @@ const sizeHang = (sizes, pointed, chosen, columns, point) => {
       const { left, width } = columns[i] ?? { left: 0, width: 0 };
       return html`<span
         class="lf-dial-hang-column"
-        ?data-pointed=${name === pointed}
+        ?data-lf-pointed=${name === pointed}
         style=${`inset-inline-start: ${left}px; inline-size: ${width}px`}
         @pointerenter=${() => point(name)}
       >
@@ -340,17 +340,26 @@ customElements.define(
     // The depth whose preview stands.
     /** @type {string | null} */
     #pointed = null;
-    // Whether the sheets stay up after Leaf's preview went, as a press or an arrow key on
-    // the dial keeps them.
-    #staying = signal(false);
-    // The next depth's reading comes before the last one's ending, which then takes back
-    // nothing. The sheets go a frame later, so a press or a key that keeps them, heard
-    // after Leaf's preview has gone, keeps them without a flicker.
+    // Whether a plain press is down on the dial.
+    #pressing = false;
+    // What puts the sheets away once the press down on the dial lifts.
+    /** @type {(() => void) | null} */
+    #lifted = null;
+    // The sheets go as the reading they show ends, unless a newer one took its place: the
+    // next depth's reading comes before the last one's ending, and a turn reads the depth
+    // it turned to again (`#aim`) after the press or key that put Leaf's preview away.
+    // So they go a frame later, or for a press once it lifts, and stay up through a turn
+    // without a flicker.
     #ended = (/** @type {Event} */ event) => {
       if (/** @type {CustomEvent} */ (event).detail.declared !== this.#declared) return;
       const declared = this.#declared;
+      const away = () => {
+        if (this.#declared === declared) this.#unpoint();
+      };
+      // Leaf's preview hears a press go down before the dial does.
       nextRender(() => {
-        if (!this.#staying.value && this.#declared === declared) this.#unpoint();
+        if (this.#pressing) this.#lifted = away;
+        else away();
       });
     };
     // The panel the sheets hang in, under the dial, open while its preview stands.
@@ -396,19 +405,18 @@ customElements.define(
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () => this.#read(name);
         depth.addEventListener(PREVIEW_ENDED, this.#ended);
-        // Kept sheets follow the pointer across the buttons at once, as across the
-        // sheets, where Leaf's preview waits its dwell after a press.
-        depth.addEventListener("pointerenter", () => {
-          if (this.#staying.value) this.#preview(name);
-        });
         this.#radios.set(name, depth);
         group.append(depth);
       }
-      group.addEventListener("change", () => this.turn(String(group.value)));
+      group.addEventListener("change", () => {
+        const name = String(group.value);
+        this.turn(name);
+        this.#aim(this.#radios.get(name) ?? this);
+      });
       this.append(group);
       this.#hang = offer("div", "lf-dial-hang-panel");
       this.#hang.setAttribute("aria-hidden", "true");
-      // A press on the sheets leaves focus where it was, so the dial keeps them.
+      // A press on the sheets leaves focus where it was.
       this.#hang.addEventListener("mousedown", (event) => event.preventDefault());
       this.append(this.#hang);
       // The sheets are the preview's face, so the pointer reaching them, or the gaps
@@ -417,20 +425,6 @@ customElements.define(
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
       this.addEventListener(PREVIEW_ENDED, this.#ended);
-      /** @type {any} */ (this).lfCommands = {
-        title: "On the Skim control",
-        rows: [
-          {
-            id: "dial.sizes-away",
-            keys: ["Escape"],
-            title: "put the sizes away",
-            reach: "while the sizes hang under it",
-            when: () => this.#staying.value,
-            run: () => this.#keep(false),
-          },
-        ],
-      };
-      commandsChanged(this);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
@@ -439,56 +433,41 @@ customElements.define(
           () => {
             this.#sizes = null;
             this.#apply(this.#depth, { moving: false });
-            if (this.#staying.value && this.#pointed) this.#preview(this.#pointed);
           },
           { signal },
         );
-        // A plain press on the dial while its sheets hang keeps them, since the press
-        // turns the dial and the frame shows the depth moving to it, as an arrow key in
-        // its depths does. Leaf's preview puts its reading away at the press or the key,
-        // which it hears first, and reads again where the pointer goes next.
+        // A plain press on the dial puts Leaf's preview away as it goes down, and its
+        // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
+        // for it to lift.
         this.addEventListener(
           "pointerdown",
           (event) => {
-            if (event.pointerType === "mouse" && plainPress(event)) this.#keep(true);
+            if (event.pointerType !== "mouse" || !plainPress(event)) return;
+            this.#pressing = true;
+            const press = new AbortController();
+            const lift = () => {
+              press.abort();
+              this.#pressing = false;
+              const away = this.#lifted;
+              this.#lifted = null;
+              if (away) nextRender(away);
+            };
+            for (const type of ["pointerup", "pointercancel"])
+              this.ownerDocument.addEventListener(type, lift, {
+                signal: AbortSignal.any([signal, press.signal]),
+              });
           },
           { signal },
         );
-        // Leaving puts kept sheets away after the dwell Leaf's preview leaves with, so a
-        // pointer overshooting the dial's edge and coming back keeps them.
-        let leaving = 0;
         this.addEventListener(
-          "pointerleave",
-          () => {
-            if (this.#staying.value) leaving = setTimeout(() => this.#keep(false), 200);
+          "click",
+          (event) => {
+            if (!plainPress(event)) return;
+            const depth =
+              event.target instanceof Element && event.target.closest(".lf-dial-depth");
+            this.#aim(depth || this);
           },
           { signal },
-        );
-        this.addEventListener("pointerenter", () => clearTimeout(leaving), { signal });
-        const stopLocation = onCurrentLocation((/** @type {Element | null} */ at) => {
-          if (this.#staying.value && !(at && this.contains(at))) this.#keep(false);
-        });
-        signal.addEventListener("abort", stopLocation);
-        this.ownerDocument.addEventListener(
-          "pointerdown",
-          (event) => {
-            if (this.#staying.value && !event.composedPath().includes(this))
-              this.#keep(false);
-          },
-          { capture: true, signal },
-        );
-        // Any other key puts kept sheets away while it does its own work, as it does
-        // Leaf's preview, but a modifier alone, which is half a press, and Escape, the
-        // dial's own step.
-        this.ownerDocument.addEventListener(
-          "keydown",
-          (event) => {
-            if (event.key.startsWith("Arrow") && event.composedPath().includes(this))
-              this.#keep(true);
-            else if (event.key !== "Escape" && !event.getModifierState(event.key))
-              this.#keep(false);
-          },
-          { capture: true, signal },
         );
         const stored = tabStore.get(this.#key);
         if (stored) this.#apply(stored, { moving: false });
@@ -508,8 +487,6 @@ customElements.define(
       if (name === this.#depth) return;
       tabStore.set(this.#key, name === "read" ? null : name);
       this.#apply(name, { moving: true });
-      // Sheets the turn kept up show the depth it turned to.
-      if (this.#pointed) this.#preview(name);
     }
 
     #draw() {
@@ -523,19 +500,18 @@ customElements.define(
         );
     }
 
-    // Keep the sheets up past Leaf's preview, or put them away.
-    /** @param {boolean} kept */
-    #keep(kept) {
-      if (!this.#hang?.hasAttribute("data-open") || kept === this.#staying.value)
-        return;
-      this.#staying.value = kept;
-      if (!kept) this.#unpoint();
+    // While the sheets hang, a press or an arrow key on the dial aims at what it reached,
+    // as a chart's key reaching another point does, so Leaf's preview reads the depth it
+    // turned to, or the sheets, again, whatever put the last reading away, and the frame
+    // glides there with the sheets up (the maintainer's choice).
+    /** @param {Element} at */
+    #aim(at) {
+      if (this.#pointed) previewChanged(at, { aim: true });
     }
 
     // Read what pointing at a depth shows, as Leaf's preview of it does.
     /** @param {string} name */
     #read(name) {
-      this.#staying.value = false;
       return (this.#declared = this.#preview(name));
     }
 
@@ -544,8 +520,7 @@ customElements.define(
       this.#unghost?.();
       this.#unghost = null;
       this.#pointed = null;
-      this.#staying.value = false;
-      if (this.#hang) keeps(this.#hang, "data-open", null);
+      if (this.#hang) keeps(this.#hang, "data-lf-open", null);
     }
 
     // What pointing at a depth shows: the sheets under the dial, and on the page, what
@@ -562,7 +537,7 @@ customElements.define(
       this.#unghost?.();
       this.#unghost = this.#ghost(name);
       this.#pointed = name;
-      keeps(this.#hang, "data-open", "");
+      keeps(this.#hang, "data-lf-open", "");
       // Each button's place across the panel's inside, which its border insets.
       const from = this.getBoundingClientRect().left + this.#hang.clientLeft;
       const columns = DEPTHS.map((depth) => {

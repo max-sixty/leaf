@@ -338,10 +338,8 @@ come back the same leave the preview as it is. It returns:
   the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above and takes no pointer, so the pointer goes on reading the element
-  beneath it. Readings that stand by one element are one preview to the eye: the
-  pointer or a finger moving to another element whose reading stands by the same one,
-  as each of a widget's controls may stand its preview by the widget, redraws it in
-  place with no fade. `about` is the element the preview is about, which Leaf leaves
+  beneath it. Readings standing by one element redraw in place as the aim moves between
+  their elements. `about` is the element the preview is about, which Leaf leaves
   in view as it places the preview, as a margin entry's passage or a time's message;
   the box it stands by is always left in view, and the preview shows only while some
   of that box does, so a point scrolled out of view takes its preview with it, though
@@ -352,11 +350,8 @@ come back the same leave the preview as it is. It returns:
   words or a template, as the threads standing at one place: Leaf shows as many as the
   room holds, through every resize, and under them `more(count)`'s words for the rest,
   such as "and 26 more threads", so the items need no measuring of their own; the rest
-  are hidden from sight and from a screen reader alike. `unseen: true` is for an
-  element that draws what pointing at it shows itself, as the Skim control hangs each
-  depth's page under its button: Leaf keeps the preview from sight but shows and ends
-  it on every route as any other, so `PREVIEW_ENDED` says when to take the drawing
-  away, Escape puts it away, and a screen reader hears its words on focus.
+  are hidden from sight and from a screen reader alike. `unseen: true` keeps the face
+  from sight where the element draws its own, as the Skim control's hanging pages.
 - `null` where the element adds nothing now, including where the words it would say
   already show on it or beside it: a control keeps its own preview, and the search goes
   on to what holds the element.

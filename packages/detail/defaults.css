@@ -57,12 +57,14 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 /* Where a run of blocks is folded: a quiet mark the reader can press to show it. */
 .lf-dial-more {
   display: flex;
+  inline-size: fit-content;
   margin-block: calc(-1 * var(--lf-sp-1)) var(--lf-sp-2);
 }
 
 /* Each depth's time on a line of its own under its word, a step quieter (lf-dial.js).
-   The two lines set solid fill a one-line control's height, so the dial stands no
-   taller than a row of words and its first paint holds its room. */
+   The two lines stand in a one-line control's height, their glyphs inside it and only
+   their leading past its padding, so the dial stands no taller than a row of words and
+   its first paint holds its room. */
 .lf-dial-depth {
   block-size: var(--lf-line);
   padding-block: 0;
@@ -71,12 +73,10 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  line-height: 1.1;
 }
 .lf-dial-time {
   display: block;
   font: var(--lf-font-fine);
-  line-height: 1.1;
   color: color-mix(in srgb, currentColor 72%, transparent);
   font-variant-numeric: tabular-nums;
 }
@@ -88,9 +88,9 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   transition: opacity 120ms ease;
 }
 details[data-lf-dial-ghost="comes"] > summary,
-.lf-dial-more[data-lf-dial-ghost="comes"] .lf-dial-unfold {
+.lf-dial-more[data-lf-dial-ghost="comes"] {
   outline: 1.5px dashed var(--lf-accent);
-  outline-offset: 3px;
+  outline-offset: var(--lf-focus-ring-gap);
   border-radius: var(--lf-r-s);
 }
 
@@ -109,7 +109,7 @@ details[data-lf-dial-ghost="comes"] > summary,
   padding-block-start: 5px;
   color: var(--lf-ink);
 }
-.lf-dial-hang-panel:not([data-open]) {
+.lf-dial-hang-panel:not([data-lf-open]) {
   display: none;
 }
 .lf-dial-hang {
@@ -147,7 +147,7 @@ details[data-lf-dial-ghost="comes"] > summary,
     opacity: 0;
   }
 }
-.lf-dial-hang-column[data-pointed] .lf-dial-hang-page {
+.lf-dial-hang-column[data-lf-pointed] .lf-dial-hang-page {
   box-shadow: var(--lf-raise-2);
 }
 .lf-dial-hang-bars {
@@ -158,7 +158,7 @@ details[data-lf-dial-ghost="comes"] > summary,
   opacity: 0.45;
   transition: opacity var(--lf-motion-disclosure) ease;
 }
-.lf-dial-hang-column[data-pointed] .lf-dial-hang-bars {
+.lf-dial-hang-column[data-lf-pointed] .lf-dial-hang-bars {
   opacity: 1;
 }
 /* Each block as the page draws it: text as lines, a heading as a short strong rule, a
@@ -177,7 +177,6 @@ details[data-lf-dial-ghost="comes"] > summary,
 }
 .lf-dial-hang-heading {
   inline-size: 55%;
-  min-block-size: 3px;
   background: currentColor;
 }
 .lf-dial-hang-picture {

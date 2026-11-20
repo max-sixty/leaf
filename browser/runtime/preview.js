@@ -1110,6 +1110,13 @@ function show(from, route, read = null, at, again = false, aim = false) {
     reading.unseen ? "unseen" : reading.excerpt ? "excerpt" : null,
   );
   keeps(tip, "data-lf-list", reading.list ? "" : null);
+  // A hold whose place the next reading takes leaves its holder as `hide` would.
+  if (
+    standing?.route === "hold" &&
+    standing.holder !== holder &&
+    !(standing.target instanceof Range)
+  )
+    standing.holder.removeAttribute("data-lf-held");
   if (route === "hold" && !(target instanceof Range)) keeps(holder, "data-lf-held", "");
   if (standing) record.described = standing.described;
   else {

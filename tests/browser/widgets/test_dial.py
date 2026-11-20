@@ -148,7 +148,7 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     frame = panel.locator(".lf-dial-hang-frame")
     read = buttons.filter(has_text="Read")
     read.hover()
-    expect(panel).to_have_attribute("data-open", "")
+    expect(panel).to_have_attribute("data-lf-open", "")
     expect(page.locator(PREVIEW)).to_have_attribute("data-lf-face", "unseen")
     expect(page.locator(PREVIEW)).to_be_hidden()
     for i in range(3):
@@ -160,12 +160,12 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     everything = buttons.filter(has_text="Everything")
     everything.click()
     expect(page.locator("details[open]")).to_have_count(len(SECTIONS))
-    expect(panel).to_have_attribute("data-open", "")
+    expect(panel).to_have_attribute("data-lf-open", "")
     page.wait_for_function("() => document.getAnimations().length === 0")
     assert centre_x(frame) == pytest.approx(centre_x(everything), abs=1)
 
     page.keyboard.press("Escape")
-    expect(panel).not_to_have_attribute("data-open", "")
+    expect(panel).not_to_have_attribute("data-lf-open", "")
     expect(page.get_by_role("radio", name=re.compile("^Everything"))).to_be_focused()
 
 

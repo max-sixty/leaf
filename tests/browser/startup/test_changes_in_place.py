@@ -887,3 +887,36 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
     _start(d, todo["id"], "Rewriting Gamma")
     expect(bars).to_have_count(1)
     expect(bars).to_have_attribute("data-lf-for", "c")
+
+
+def test_the_bar_beside_a_list_item_stands_clear_of_its_marker(browser, serve):
+    """The browser draws a list item's marker outside the item's box, in its list's
+    inset, so the bar beside an item, or beside a block in one, stands beyond the
+    list's edge rather than across the marker."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "List",
+                """
+<ul id="l">
+  <li id="i">An item.</li>
+  <li><p id="p">A paragraph in an item.</p></li>
+</ul>
+""",
+            )
+        )
+    )
+    d = serve.page_dir
+    page = open_page(browser, url)
+    for section, words in (("i", "An item."), ("p", "A paragraph in an item.")):
+        _start(d, _comment_on(d, section, words)["id"], "Rewording it")
+    expect(page.locator(".lf-at-work-bar")).to_have_count(2)
+    clear = page.evaluate(
+        """() => {
+          const list = document.getElementById('l').getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-at-work-bar')].every(
+            (bar) => bar.getBoundingClientRect().right <= list.left,
+          );
+        }"""
+    )
+    assert clear, "a list item's bar stands inside its list, across the marker"

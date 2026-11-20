@@ -56,9 +56,10 @@
    Each box is paint over the page (target-paint-geometry.js, `paintSet`), standing in
    the planes that carry its target, so a scroll moves it without a write and the
    target's own borders, shadows and display are left as authored. A widget drawn
-   through `display: contents` stands where its parts do, and a table cell's bar stands
-   at its table's edge rather than in the cell before it. Layout, resize and a change in
-   the target's size place it again. */
+   through `display: contents` stands where its parts do, a list item's paint stands
+   round the marker the browser draws outside the item's box, and a table cell's bar
+   stands at its table's edge rather than in the cell before it. Layout, resize and a
+   change in the target's size place it again. */
 import { effect, signal } from "/runtime/framework.js";
 import {
   CHANGE_CARD,
@@ -120,20 +121,38 @@ export function outlineChange(change) {
   outlined.value = change;
 }
 
-// Where a bar stands: `gap` from the start edge of the target's column, which is its
+// Where a block draws: `rect`, reaching out on its start side to the edge of the list
+// the block stands in, since the browser draws a list item's marker outside the item's
+// box, in the list's inset. So the paint beside an item, or beside anything in one,
+// stands clear of the marker.
+/** @param {Element} target @param {Box} rect @returns {Box} */
+function inked(target, rect) {
+  const list = target.closest("li")?.parentElement;
+  if (!list) return rect;
+  const edge = list.getBoundingClientRect();
+  const rtl = target.matches(":dir(rtl)");
+  return {
+    left: rtl ? rect.left : Math.min(rect.left, edge.left),
+    top: rect.top,
+    right: rtl ? Math.max(rect.right, edge.right) : rect.right,
+    bottom: rect.bottom,
+  };
+}
+// Where a bar stands: `gap` from the start edge of what the target draws, which is its
 // right in right-to-left text, and a table's edge for a cell, so the bar stands in the
 // margin rather than in the cell before it. A target with no room before it, such as a
 // site header standing at the window's edge beside `main`, keeps its bar inside the
 // window, over its own edge.
 /** @param {Element} target @param {Box} rect @param {number} gap */
 function barLeft(target, rect, gap) {
+  const ink = inked(target, rect);
   const edge = (target.closest("table") ?? target).getBoundingClientRect();
   return target.matches(":dir(rtl)")
     ? Math.min(
-        Math.max(rect.right, edge.right) + gap,
+        Math.max(ink.right, edge.right) + gap,
         document.documentElement.clientWidth - BAR,
       )
-    : Math.max(Math.min(rect.left, edge.left) - gap - BAR, 0);
+    : Math.max(Math.min(ink.left, edge.left) - gap - BAR, 0);
 }
 // The gap a change that only took blocks out stands in: from the element it stands by to
 // the nearest box across the gap, the next shown sibling, else its parent's own edge
@@ -201,16 +220,19 @@ function gapRange(change) {
   else range.setEndAfter(at);
   return range;
 }
-// What a change covers on the page: its blocks' boxes together, or its gap the width of
-// the block it stands by. `rect` is that block's, as its placement read it.
+// What a change covers on the page: what its blocks draw together, or its gap the width
+// of what the block it stands by draws. `rect` is that block's, as its placement read
+// it.
 /** @param {Change} change @param {Box} rect @returns {Box} */
 function extentOf(change, rect) {
-  if (!change.blocks.length)
-    return { left: rect.left, right: rect.right, ...gapOf(change, rect) };
-  const boxes = [
-    rect,
-    ...change.blocks.slice(1).map((block) => block.getBoundingClientRect()),
-  ].filter((box) => box.right > box.left || box.bottom > box.top);
+  if (!change.blocks.length) {
+    const { left, right } = inked(change.at, rect);
+    return { left, right, ...gapOf(change, rect) };
+  }
+  const boxes = change.blocks
+    .map((block, at) => ({ block, box: at ? block.getBoundingClientRect() : rect }))
+    .filter(({ box }) => box.right > box.left || box.bottom > box.top)
+    .map(({ block, box }) => inked(block, box));
   return {
     left: Math.min(...boxes.map((box) => box.left)),
     top: Math.min(...boxes.map((box) => box.top)),

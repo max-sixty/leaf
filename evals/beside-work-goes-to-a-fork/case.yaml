@@ -294,7 +294,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/51",
+         "format": "leaf-delivery/52",
          "id": "e7a20c94",
          "created_at": 1795050600.0,
          "acknowledge": null,
@@ -311,6 +311,7 @@ variants:
               "section": "retry-loop"
              },
              "detached_from": null,
+             "rewritten_from": null,
              "resolved": null,
              "elided": {
               "messages": 0,

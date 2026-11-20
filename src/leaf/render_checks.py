@@ -516,8 +516,8 @@ def start_near_work(page, state: dict | None = None, **ready) -> None:
     of the work that frame's page starts after loading, its own samples included, so
     each frame, at any depth, waits for the page holding it, and each `data-lf-unseen`
     frame is then scrolled into view and its holder waited for, and every box the
-    scroll moved goes back. One in a closed disclosure or a shut tab stays as the page
-    has it."""
+    scroll moved goes back. One no scroll can show, in a closed disclosure, a shut tab
+    or a box clipped to nothing, stays as the page has it."""
     from playwright.sync_api import Error as PlaywrightError
 
     evaluate_probe(page, "startNearWork")
@@ -553,14 +553,14 @@ def start_near_work(page, state: dict | None = None, **ready) -> None:
 def _show(frame, page, state, ready) -> None:
     """Scroll `frame` into view, outermost frame first, wait until its holder has
     taken in what it draws, and scroll every box it moved back."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
     elements = []
     while frame.parent_frame is not None:
         elements.append(frame.frame_element())
         frame = frame.parent_frame
     if not all(element.evaluate(_SHOWS) for element in elements):
         return
-    from playwright.sync_api import TimeoutError as PlaywrightTimeout
-
     held = [element.evaluate_handle(_HOLDERS) for element in elements]
     holder = elements[0].owner_frame()
     try:

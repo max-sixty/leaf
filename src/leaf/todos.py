@@ -11,9 +11,10 @@ build is asked in a thread, which the user's reply or settling reaction answers.
 An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. `leaf task start` writes a
 `start` event naming one item and the line the page's status shows as Working, and the
-item is in hand from then on. An ephemeral reply to an owed update writes the same
-start, with its text as the line (`take_in_hand`), so the thread and the Working
-line show the same words.
+item is in hand from then on. An ephemeral reply writes the same start, with its text
+as the line, on an owed update it addresses, or on the open to-do an answer opened,
+addressed by that answer's update or the to-do's own message (`thread.post_reply`), so
+the thread and the Working line show the same words.
 
 A to-do is on a thread, a page widget, an element, or the whole page.
 `leaf task create` writes a `todo` event. A reply that promises work it doesn't

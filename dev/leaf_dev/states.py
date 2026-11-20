@@ -1240,8 +1240,8 @@ def card_held_step(page: Page) -> None:
 
 
 def card_promise(page: Page) -> None:
-    """A margin card whose agent reply promises work with `--todo`: its head's Still to
-    do and chevron, which open the to-do's row in On <agent>."""
+    """A margin card whose agent reply promises work with `--todo`: its head's
+    underlined Still to do, which opens the to-do's row in On <agent>."""
     open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     root = thread.get_attribute("data-lf-thread")

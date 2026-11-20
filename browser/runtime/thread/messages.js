@@ -24,7 +24,6 @@ import {
   render,
 } from "/runtime/framework.js";
 import { setRenderedChildren } from "../dom-children.js";
-import { iconTemplate } from "../icons.js";
 import { generatedElement, offeredAction, worksInside } from "../widget-elements.js";
 import {
   loadMarkdown,
@@ -678,8 +677,8 @@ export function messageReading(
     // thread shows as a face, not a message, until something ends it (transcript.js).
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
-    // question the user owes words to, the agent's Still to do (`todoWord`) for work it
-    // promised and has not ended (thread-card.js), with that to-do's id.
+    // question the user owes words to, the agent's On it or Still to do (`todoWord`) for
+    // work it promised and has not ended (thread-card.js), with that to-do's id.
     leaves,
     version: message.content_version,
     // Original log order: edits move the words without moving where they were said.
@@ -1057,11 +1056,10 @@ export class MessageView {
   // What an answer leaves standing, beside its time. A to-do's word opens On <agent> at
   // the to-do's row, its card open (floating-panel.js, `showTodo`), since the row says
   // what the agent is doing about it and where it stands among the rest; its Discuss
-  // leads back here. A chevron after the word says it leads there, as one ends each
-  // row of the leaf's menu that opens a list. It is a Tab stop, since only a promise
-  // still open draws one. The user chose a press on the word over keeping it plain.
-  // Rejected: underlining the word, and a symbol in its place, which hides the word
-  // until hovered and means nothing readers already know.
+  // leads back here. The word is underlined, as a link is, and is a Tab stop, since
+  // only a promise still open draws one. The user chose the press over keeping the word
+  // plain, and the underline over a chevron after the word and over a symbol in its
+  // place, which hides the word until hovered and means nothing readers already know.
   /** @param {ReturnType<typeof messageReading>["leaves"]} leaves */
   #leavesWord(leaves) {
     if (!leaves) return nothing;
@@ -1076,7 +1074,7 @@ export class MessageView {
       .lfPreview=${() => ({ name: opens })}
       @click=${() => this.#commands.showTodo(todo)}
     >
-      ${voiced(word)}${iconTemplate("next", "lf-msg-leaves-chevron")}
+      ${voiced(word)}
     </button>`;
   }
 

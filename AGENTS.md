@@ -434,20 +434,19 @@ element declaration, its module and its styles. The registry's `$` keys hold fac
 about the layer as a whole, such as the event kinds in `$events`. Each tag's element
 declaration is that tag's complete schema.
 
-Leaf's own instructions are `skills/leaf/SKILL.md`, its references, and the entries
-in `browser/registry.json` and in the kernel registry
-(`browser/runtime/kernel-registry.json`). They don't depend on a widget's name
-either. Where one of them tells an author what to use, it names the form the author
-needs, such as a before-and-after pair, a chart or a choice. Where a behavior depends on a declared
+Leaf's own instructions are `skills/leaf/SKILL.md`, its references, and the entries in
+`browser/registry.json` and in the kernel registry
+(`browser/runtime/kernel-registry.json`). They don't depend on a widget's name either.
+Where one of them tells an author what to use, it names the form the author needs, such
+as a before-and-after pair, a chart or a choice. Where a behavior depends on a declared
 fact, such as `awaits` or `reading-role`, it names that fact. It names a package's
-widget only as an example of a form or of a declared fact, or inside a markup
-example. The page's vocabulary (`leaf page vocabulary <page>`) tells the author
-which widget provides each form, and `packages.md`, "A widget", says where a
-widget's own guidance goes. So an author finds a widget the same way whether Leaf
-bundles it or another package the page selects provides it, whatever the widget is
-called. A package's own guidance, in its registry entries and its
-`instructions/author.md`, is that package's advice rather than Leaf's, so it may
-name any widget.
+widget only as an example of a form or of a declared fact, or inside a markup example.
+The page's vocabulary (`leaf page vocabulary <page>`) tells the author which widget
+provides each form, and `packages.md`, "A widget", says where a widget's own guidance
+goes. So an author finds a widget the same way whether Leaf bundles it or another
+package the page selects provides it, whatever the widget is called. A package's own
+guidance, in its registry entries and its `instructions/author.md`, is that package's
+advice rather than Leaf's, so it may name any widget.
 
 ### Wait for the event that ends the work
 

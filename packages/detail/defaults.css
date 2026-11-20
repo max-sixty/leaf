@@ -280,16 +280,20 @@ details[data-lf-dial-ghost="comes"] > summary,
    preview, which opens and closes them, stays unseen. The pointed sheet stands in full
    ink and the others step back; a pointer crossing the buttons moves that emphasis
    while the sheets hold still. A frame in the accent rings the depth that stands and
-   glides to the one a press chooses, since a press keeps the sheets up. Each sheet
+   glides to the one a press or an arrow key turns to, which keeps the sheets up; a
+   sheet takes the press its button does. Each sheet
    drops from its button as they open, one after another. The panel takes the pointer
    across the gaps between the sheets, so the pointer crossing them keeps them up. */
 .lf-preview:has(.lf-dial-hang-unseen) {
   visibility: hidden;
 }
+/* The panel meets the dial's edge, its gap above the sheets its own, so the pointer
+   moving down onto them never leaves the dial. */
 .lf-dial-hang-panel {
   position: absolute;
-  inset-block-start: calc(100% + 5px);
+  inset-block-start: 100%;
   inset-inline: 0;
+  padding-block-start: 5px;
   color: var(--lf-ink);
   font: var(--lf-font-compact);
 }
@@ -312,6 +316,7 @@ details[data-lf-dial-ghost="comes"] > summary,
   position: absolute;
   inset-block-start: 0;
   box-sizing: border-box;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   padding-inline: 3px;

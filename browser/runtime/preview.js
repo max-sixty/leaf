@@ -170,12 +170,7 @@
      that holds still. Leaving the
      target hides it, and so do a press and any key but Escape, as the platform's
      tooltip goes, while the key does its own work; the target then stays quiet until
-     the pointer comes back to it. A press inside the element around the target that
-     the reading stands by acts on what the preview is about, as picking one of a
-     widget's controls changes the widget their shared preview shows, so the preview
-     stays and redraws as the widget says it changed (`previewChanged` at the element
-     it stands by); the platform closes a hint on any press outside it, so it opens
-     again where it stood. A modifier alone is
+     the pointer comes back to it. A modifier alone is
      half a press rather than a key (control-selectors.js, `MODIFIER_KEYS`), so ⌥ held
      to aim a comment leaves standing the preview of the point it aims at. A target that
      arrives under a pointer the user hasn't moved shows nothing, so news landing under
@@ -937,10 +932,6 @@ let shown = null;
 // inside an open popover the press after the preview's closed nothing, even a frame
 // later.
 const standsForEscape = () => Boolean(shown && !shown.away);
-// The element whose preview the pointer's last press kept standing (`pressedWidget`),
-// which its redrawing for what the press changed keeps too.
-/** @type {Element | null} */
-let pressedIn = null;
 let stoodForEscape = false;
 function stepMoved() {
   if (standsForEscape() === stoodForEscape) return;
@@ -1138,21 +1129,6 @@ function show(from, route, read = null, at, again = false, aim = false) {
 /** @param {{target: Target, holder: Element, reading: Reading}} found */
 const standsBy = ({ target, holder, reading }) =>
   target instanceof Range ? null : isElement(reading.at) ? reading.at : holder;
-
-// The element a press lands in that acts on what the standing preview is about, or
-// null: the element around the preview's target that its reading declares it stands by
-// (`at`), as a widget around the control the preview its controls share was read from,
-// which a press on one of them changes rather than leaves.
-/** @param {Event} event @returns {Element | null} */
-const pressedWidget = (event) => {
-  const by = shown && !shown.away ? shown.reading.at : null;
-  return isElement(by) &&
-    isElement(shown?.target) &&
-    renderedUnder(shown.target, by) &&
-    event.composedPath().includes(by)
-    ? by
-    : null;
-};
 
 // Where a preview stands (`stand`), decided here, from the box the browser will draw,
 // and drawn by the browser from that decision alone, with no fallback of its own. Its
@@ -2004,10 +1980,7 @@ function changed(node, aim) {
   /** @param {Target | null | undefined} at */
   const within = (at) => isElement(at) && renderedUnder(at, node);
   if (aim && within(quiet)) quiet = null;
-  if (
-    shown &&
-    (shown.target === node || shown.from === node || standsBy(shown) === node)
-  ) {
+  if (shown && (shown.target === node || shown.from === node)) {
     show(shown.from, shown.route, shown.read, shown.at, true, aim);
     return;
   }
@@ -2092,25 +2065,14 @@ export function mountPreviews(chrome) {
     { capture: true },
   );
   // The platform hides a hint as another popover opens over it, or as a press lands
-  // outside it, and the record goes with it; a suspended reading's own close keeps it.
-  // A press that acts on what the preview is about keeps it (`pressedWidget`), which
-  // the platform can't be told, so it opens again where it stood.
+  // elsewhere, and the record goes with it; a suspended reading's own close keeps it.
   tip.addEventListener("toggle", (event) => {
     if (
-      /** @type {ToggleEvent} */ (event).newState !== "closed" ||
-      !shown ||
-      shown.away
+      /** @type {ToggleEvent} */ (event).newState === "closed" &&
+      shown &&
+      !shown.away
     )
-      return;
-    const source = anchored?.deref();
-    if (
-      pressedIn &&
-      shown.reading.at === pressedIn &&
-      source instanceof HTMLElement &&
-      source.isConnected
-    )
-      showNativeLayer(tip, { source });
-    else hide();
+      hide();
   });
   document.addEventListener(
     "pointerover",
@@ -2244,8 +2206,7 @@ export function mountPreviews(chrome) {
       spent = false;
       if (shown?.route === "hold") hide();
       finger = event.pointerType === "touch";
-      pressedIn = finger ? null : pressedWidget(event);
-      if (!finger) return pressedIn ? undefined : quieten();
+      if (!finger) return quieten();
       if (!event.isPrimary || !plainPress(event)) return;
       const found = candidate(event.composedPath());
       if (found?.matches(":disabled, [aria-disabled='true']")) return;

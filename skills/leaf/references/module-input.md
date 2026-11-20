@@ -341,9 +341,7 @@ come back the same leave the preview as it is. It returns:
   beneath it. Readings that stand by one element are one preview to the eye: the
   pointer or a finger moving to another element whose reading stands by the same one,
   as each of a widget's controls may stand its preview by the widget, redraws it in
-  place with no fade, and a press inside the widget keeps it standing, since it acts on
-  what the preview shows: the widget calls `previewChanged(widget)` to have it read
-  again. `about` is the element the preview is about, which Leaf leaves
+  place with no fade. `about` is the element the preview is about, which Leaf leaves
   in view as it places the preview, as a margin entry's passage or a time's message;
   the box it stands by is always left in view, and the preview shows only while some
   of that box does, so a point scrolled out of view takes its preview with it, though

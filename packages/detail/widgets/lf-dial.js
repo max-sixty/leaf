@@ -76,12 +76,13 @@ import {
   LeafElement,
   motion,
   move,
+  nextRender,
   offer,
   offerAction,
   PAGE_INTERFACE,
   phrasing,
+  plainPress,
   PREVIEW_ENDED,
-  previewChanged,
   readingAt,
   registerRootHeader,
   shownWindow,
@@ -282,9 +283,10 @@ const sizeMap = (sizes, pointed) => {
 // far down each depth's page runs, with the page showing between them. A frame rings
 // the depth that stands and glides to the next as the reader turns the dial, and under
 // the sheets a caption names the pointed depth and what it shows. `columns` is where
-// each button stands across the dial, which the panel spans edge to edge.
-/** @param {Sizes} sizes @param {string} pointed @param {string} chosen @param {{left: number, width: number}[]} columns @param {boolean} timed */
-const sizeHang = (sizes, pointed, chosen, columns, timed) => {
+// each button stands across the dial, which the panel spans edge to edge. A sheet is its
+// depth's to point at and to press, as its button is (`point`, `pick`).
+/** @param {Sizes} sizes @param {string} pointed @param {string} chosen @param {{left: number, width: number}[]} columns @param {boolean} timed @param {(name: string) => void} point @param {(name: string) => void} pick */
+const sizeHang = (sizes, pointed, chosen, columns, timed, point, pick) => {
   const tall = 112;
   const scale = tall / Math.max(sizes.all, 1);
   const at = DEPTHS.findIndex(({ name }) => name === chosen);
@@ -307,6 +309,9 @@ const sizeHang = (sizes, pointed, chosen, columns, timed) => {
         ?data-pointed=${name === pointed}
         ?data-chosen=${name === chosen}
         style=${`inset-inline-start: ${left}px; inline-size: ${width}px; --i: ${i}`}
+        @pointerenter=${() => point(name)}
+        @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
+        @click=${() => pick(name)}
       >
         <span class="lf-dial-hang-page"
           ><span class="lf-dial-hang-bars" style=${`block-size: ${time * scale}px`}
@@ -370,11 +375,18 @@ customElements.define(
     // The depth whose preview stands.
     /** @type {string | null} */
     #pointed = null;
+    // PROTOTYPE: whether the hanging pages stay up after Leaf's preview went, as a press
+    // or an arrow key on the dial keeps them.
+    #staying = false;
     // The next depth's reading comes before the last one's ending, which then takes back
-    // nothing.
+    // nothing. The pages go a frame later, so a press or a key that keeps them, heard
+    // after Leaf's preview has gone, keeps them without a flicker.
     #ended = (/** @type {Event} */ event) => {
-      if (/** @type {CustomEvent} */ (event).detail.declared === this.#declared)
-        this.#unpoint();
+      if (/** @type {CustomEvent} */ (event).detail.declared !== this.#declared) return;
+      const declared = this.#declared;
+      nextRender(() => {
+        if (!this.#staying && this.#declared === declared) this.#unpoint();
+      });
     };
     // PROTOTYPE: the panel hanging each depth's page under its button, which the dial
     // draws under itself while its preview stands.
@@ -419,8 +431,7 @@ customElements.define(
         depth.setAttribute("appearance", "button");
         // PROTOTYPE: the depth's time, which the dial's `rest` shows or hides.
         depth.append(offer("span", "lf-dial-time"));
-        /** @type {any} */ (depth).lfPreview = () =>
-          (this.#declared = this.#preview(name));
+        /** @type {any} */ (depth).lfPreview = () => this.#read(name);
         depth.addEventListener(PREVIEW_ENDED, this.#ended);
         this.#radios.set(name, depth);
         group.append(depth);
@@ -435,7 +446,7 @@ customElements.define(
       // the dial as each depth's does, and keeps them.
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed && this.#setting("point", "words") === "hang"
-          ? (this.#declared = this.#preview(this.#pointed))
+          ? this.#read(this.#pointed)
           : null;
       this.addEventListener(PREVIEW_ENDED, this.#ended);
       this.#gauge = offer("div", "lf-dial-gauge");
@@ -462,6 +473,51 @@ customElements.define(
           },
           { signal },
         );
+        // PROTOTYPE: a plain press on the dial while its pages hang keeps them, since the
+        // press turns the dial and the pages show the depth moving to it, as an arrow
+        // key in its depths does. They go as the pointer leaves the dial, at any other
+        // key or at a press elsewhere. Leaf's preview puts its reading away at the press
+        // or the key, which it hears first, and reads again where the pointer goes next.
+        const keep = (/** @type {boolean} */ kept) => {
+          if (!this.#hang?.hasAttribute("data-open")) return;
+          this.#staying = kept;
+          if (!kept) this.#unpoint();
+        };
+        this.addEventListener(
+          "pointerdown",
+          (event) => {
+            if (event.pointerType === "mouse" && plainPress(event)) keep(true);
+          },
+          { signal },
+        );
+        // Leaving puts kept pages away after the dwell Leaf's preview leaves with, so a
+        // pointer overshooting the dial's edge and coming back keeps them.
+        let leaving = 0;
+        this.addEventListener(
+          "pointerleave",
+          () => {
+            if (this.#staying) leaving = setTimeout(() => keep(false), 200);
+          },
+          { signal },
+        );
+        this.addEventListener("pointerenter", () => clearTimeout(leaving), { signal });
+        this.ownerDocument.addEventListener(
+          "pointerdown",
+          (event) => {
+            if (this.#staying && !event.composedPath().includes(this)) keep(false);
+          },
+          { capture: true, signal },
+        );
+        this.ownerDocument.addEventListener(
+          "keydown",
+          (event) => {
+            const turning =
+              event.key.startsWith("Arrow") && event.composedPath().includes(this);
+            if (turning) keep(true);
+            else if (this.#staying) keep(false);
+          },
+          { capture: true, signal },
+        );
         const stored = tabStore.get(this.#key);
         if (stored) this.#apply(stored, { moving: false });
         // The dial sticks at the window's top while the reader scrolls the page under
@@ -480,9 +536,8 @@ customElements.define(
       if (name === this.#depth) return;
       tabStore.set(this.#key, name === "read" ? null : name);
       this.#apply(name, { moving: true });
-      // A press keeps the preview its depths share standing (preview.js), which reads
-      // the depth that now stands.
-      if (this.#pointed) previewChanged(this);
+      // PROTOTYPE: pages the turn kept up show the depth it turned to.
+      if (this.#pointed) this.#preview(name);
     }
 
     #draw() {
@@ -520,11 +575,19 @@ customElements.define(
       );
     }
 
+    // Read what pointing at a depth shows, as Leaf's preview of it does.
+    /** @param {string} name */
+    #read(name) {
+      this.#staying = false;
+      return (this.#declared = this.#preview(name));
+    }
+
     // Take back what pointing at a depth showed, as its preview goes.
     #unpoint() {
       this.#unghost?.();
       this.#unghost = null;
       this.#pointed = null;
+      this.#staying = false;
       keeps(this, "data-pointed", null);
       if (this.#hang) keeps(this.#hang, "data-open", null);
     }
@@ -555,7 +618,8 @@ customElements.define(
       const time = sizes[/** @type {Depth} */ (name)];
       const timed = !["minutes", "stacked"].includes(this.#setting("rest", "none"));
       // The hanging pages are the dial's own panel, opened and put away with its
-      // preview (pointer, focus, a finger's hold, Escape), whose face stays unseen:
+      // preview (pointer, focus, a finger's hold, Escape), and kept up through a press
+      // or an arrow key that turns the dial (`#staying`), whose face stays unseen:
       // Leaf's preview stands clear of the controls on the page, so where a link sat
       // under the dial it stood beside it, away from the buttons its columns hang from.
       // Each depth's stands by the dial, so crossing the buttons redraws it in place.
@@ -569,7 +633,18 @@ customElements.define(
             ? { left: box.left - from, width: box.width }
             : { left: 0, width: 0 };
         });
-        render(sizeHang(sizes, name, this.#depth, columns, timed), this.#hang);
+        render(
+          sizeHang(
+            sizes,
+            name,
+            this.#depth,
+            columns,
+            timed,
+            (depth) => this.#pointed && this.#preview(depth),
+            (depth) => this.turn(depth),
+          ),
+          this.#hang,
+        );
         return {
           name: html`<span class="lf-dial-hang-unseen">${label}: ${title}</span>`,
           at: this,

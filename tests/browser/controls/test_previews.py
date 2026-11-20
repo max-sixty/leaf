@@ -2877,6 +2877,44 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
     assert "closed" in _crossed(page)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_inside_the_element_a_reading_stands_by_keeps_it(
+    engine, request, serve
+):
+    """A press on a control whose preview stands by the widget around it acts on what
+    that preview is about, so the preview stays where it stands, as a dial's pages stay
+    up while the reader picks a depth from them, and the widget saying its preview
+    changed reads it again in place. A press on a control whose preview stands by
+    itself puts the preview away, as the platform's tooltip goes."""
+    page = open_page(request.getfixturevalue(engine), serve(SHARED_ROW))
+    page.evaluate(SHARED_ROW_LOG)
+    tip = page.locator(PREVIEW)
+    word = tip.locator(".lf-preview-word")
+    page.mouse.move(2, 2)
+    page.locator("#two").hover()
+    expect(word).to_have_text("Reads two")
+    _crossed(page)
+
+    page.locator("#two").click()
+    page.evaluate(
+        """() => document.getElementById('row').dispatchEvent(
+          new CustomEvent('lf-preview', {bubbles: true, composed: true, detail: {}}))"""
+    )
+    rendered(page)
+    expect(tip).to_be_visible()
+    expect(word).to_have_text("Reads two")
+    log = _crossed(page)
+    assert "read two" in log
+    assert not [entry for entry in log if entry.startswith("ended")]
+
+    page.locator("#three").hover()
+    expect(word).to_have_text("Reads three")
+    _crossed(page)
+    page.locator("#three").click()
+    expect(tip).to_be_hidden()
+    assert "ended Reads three" in _crossed(page)
+
+
 def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_place(
     browser, serve
 ):

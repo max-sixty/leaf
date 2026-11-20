@@ -81,6 +81,7 @@ import {
   PAGE_INTERFACE,
   phrasing,
   PREVIEW_ENDED,
+  previewChanged,
   readingAt,
   registerRootHeader,
   shownWindow,
@@ -276,28 +277,39 @@ const sizeMap = (sizes, pointed) => {
   </svg>`;
 };
 
-// The page at each depth hanging under its own button, to one scale, each block a bar
-// as long as it takes to read, so the three columns read as how far down each depth's
-// page runs, and under them what the pointed depth shows. `columns` is where each
-// button stands across the dial, which the panel spans edge to edge.
-/** @param {Sizes} sizes @param {string} pointed @param {{left: number, width: number}[]} columns @param {boolean} timed @param {string} title */
-const sizeHang = (sizes, pointed, columns, timed, title) => {
+// The page at each depth hanging under its own button as a sheet of its own, to one
+// scale, each block a bar as long as it takes to read, so the three sheets read as how
+// far down each depth's page runs, with the page showing between them. A frame rings
+// the depth that stands and glides to the next as the reader turns the dial, and under
+// the sheets a caption names the pointed depth and what it shows. `columns` is where
+// each button stands across the dial, which the panel spans edge to edge.
+/** @param {Sizes} sizes @param {string} pointed @param {string} chosen @param {{left: number, width: number}[]} columns @param {boolean} timed */
+const sizeHang = (sizes, pointed, chosen, columns, timed) => {
   const tall = 112;
   const scale = tall / Math.max(sizes.all, 1);
+  const at = DEPTHS.findIndex(({ name }) => name === chosen);
+  const frame = columns[at] ?? { left: 0, width: 0 };
+  const { label, title } = /** @type {(typeof DEPTHS)[number]} */ (
+    DEPTHS.find(({ name }) => name === pointed)
+  );
+  // A sheet's height: its bars, its padding and its border, and its minutes.
+  const sheet = (/** @type {Depth} */ name) => sizes[name] * scale + 10;
   return html`<span
-      class="lf-dial-hang"
-      style=${`--tall: ${tall}px`}
-      ?data-timed=${timed}
-    >
-      ${DEPTHS.map(({ name }, i) => {
-        const { left, width } = columns[i] ?? { left: 0, width: 0 };
-        const time = sizes[/** @type {Depth} */ (name)];
-        return html`<span
-          class="lf-dial-hang-column"
-          ?data-pointed=${name === pointed}
-          style=${`inset-inline-start: ${left}px; inline-size: ${width}px`}
-        >
-          <span class="lf-dial-hang-page" style=${`block-size: ${time * scale + 6}px`}
+    class="lf-dial-hang"
+    style=${`--tall: ${tall}px`}
+    ?data-timed=${timed}
+  >
+    ${DEPTHS.map(({ name }, i) => {
+      const { left, width } = columns[i] ?? { left: 0, width: 0 };
+      const time = sizes[/** @type {Depth} */ (name)];
+      return html`<span
+        class="lf-dial-hang-column"
+        ?data-pointed=${name === pointed}
+        ?data-chosen=${name === chosen}
+        style=${`inset-inline-start: ${left}px; inline-size: ${width}px; --i: ${i}`}
+      >
+        <span class="lf-dial-hang-page"
+          ><span class="lf-dial-hang-bars" style=${`block-size: ${time * scale}px`}
             >${sizes.blocks.map((block) => {
               const seconds = secondsAt(block, name);
               return seconds
@@ -307,12 +319,20 @@ const sizeHang = (sizes, pointed, columns, timed, title) => {
                   ></span>`
                 : null;
             })}</span
-          >
-          ${timed ? html`<span class="lf-dial-hang-time">${minutes(time)}</span>` : null}
-        </span>`;
-      })}
-    </span>
-    <span class="lf-dial-hang-title">${title}</span>`;
+          >${
+            timed ? html`<span class="lf-dial-hang-time">${minutes(time)}</span>` : null
+          }</span
+        >
+      </span>`;
+    })}
+    <span
+      class="lf-dial-hang-frame"
+      style=${`inset-inline-start: ${frame.left}px; inline-size: ${frame.width}px; --sheet: ${sheet(/** @type {Depth} */ (chosen))}px`}
+    ></span>
+    <span class="lf-dial-hang-title"
+      ><span><strong>${label}</strong> ${title}</span></span
+    >
+  </span>`;
 };
 
 /** @typedef {{after: Element | null, blocks: Element[]}} FoldRun */
@@ -460,6 +480,9 @@ customElements.define(
       if (name === this.#depth) return;
       tabStore.set(this.#key, name === "read" ? null : name);
       this.#apply(name, { moving: true });
+      // A press keeps the preview its depths share standing (preview.js), which reads
+      // the depth that now stands.
+      if (this.#pointed) previewChanged(this);
     }
 
     #draw() {
@@ -546,7 +569,7 @@ customElements.define(
             ? { left: box.left - from, width: box.width }
             : { left: 0, width: 0 };
         });
-        render(sizeHang(sizes, name, columns, timed, title), this.#hang);
+        render(sizeHang(sizes, name, this.#depth, columns, timed), this.#hang);
         return {
           name: html`<span class="lf-dial-hang-unseen">${label}: ${title}</span>`,
           at: this,

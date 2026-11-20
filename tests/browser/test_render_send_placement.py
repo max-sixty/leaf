@@ -33,6 +33,7 @@ import base64
 import io
 import json
 import re
+import sys
 from itertools import pairwise
 from pathlib import Path
 
@@ -750,7 +751,7 @@ def test_a_box_whose_start_stands_away_from_its_text_takes_the_card_s_width(
     ],
 )
 def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
-    browser, serve, region, route
+    browser, serve, request, region, route
 ):
     """The first compositor frame showing the returned passage already attaches its box.
 
@@ -758,6 +759,18 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     read Chrome's actual compositor screenshots. The initial passage rectangle, box
     height, side and gap supply the expected attachment independently of the return.
     """
+    # Chrome 159 leaves a box placed by CSS anchoring out of the first frame that shows
+    # its anchor again, on a plain page with no Leaf code too, and the regions it does
+    # so in differ by platform (#6539). The mark is strict, so these cases fail again
+    # once Chrome draws that frame.
+    dropped = {"document", "code"} | ({"pane"} if sys.platform == "darwin" else set())
+    if region in dropped and int(browser.version.split(".")[0]) >= 159:
+        request.applymarker(
+            pytest.mark.xfail(
+                strict=True,
+                reason="#6539: Chrome 159 drops an anchored box from the first returned frame",
+            )
+        )
     marker_style = f"""<style>
       #paint-target {{ background: {SUBJECT_MARK}; }}
       .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}

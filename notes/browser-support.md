@@ -573,6 +573,24 @@ before that navigation commits. Recheck canceled departure and slow navigation
 with `tests/journeys/test_render_sample_delivery.py` and
 `tests/browser/startup/test_readiness.py` when changing document lifetime.
 
+### A sample's page out of view in Chromium
+
+Chromium renders a sample's page, whose origin is opaque, once as it loads and then
+not again while its frame is off screen or in a closed disclosure; its timers keep
+running. Work that waits on a rendering, such as an `lf-chart` sized by its first
+layout and the widget upgrade that waits for it, waits until the frame shows. Over 5 s
+on 2026-11-19, in Chromium 159.0.8154.6 (Playwright 1.65.2, headless), an opaque frame
+on screen ran 300 animation frames, one 300 px below the window 1, one in a closed
+`<details>` 1, and a same-origin frame off screen 300; a ResizeObserver attached after
+the first second delivered nothing in either hidden opaque frame. No Chromium switch
+tried lifted it, `--disable-blink-features=RenderingPipelineThrottling` among them.
+Leaf counts what a sample's page does after loading only while its frame shows
+(`browser/runtime/sample.js`), and `page check --render` scrolls each frame still
+waiting into view (`src/leaf/render_checks.py`, `start_near_work`). Recheck with
+`tests/browser/startup/test_hosting.py`,
+`test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
+whose first assertion fails once Chromium draws the chart out of view.
+
 ### Page cache
 
 Every Leaf server, locally and on leaf.page, sends `no-cache` for a page's

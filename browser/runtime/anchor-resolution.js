@@ -451,14 +451,14 @@ export function anchorForPassage(selected, node) {
   // Chromium, or a drag past an item's last word, ends the range at the next item's
   // start, whose common ancestor is the list. Named by the list, a passage a revision
   // rewrites falls back to the whole list rather than the item that still stands.
-  const first = segments[0]?.node;
-  const last = segments.at(-1)?.node;
-  let holder = first
-    ? upFrom(first)
+  const firstText = segments[0]?.node;
+  const lastText = segments.at(-1)?.node;
+  let holder = firstText
+    ? upFrom(firstText)
     : node.nodeType === Node.ELEMENT_NODE
       ? node
       : upFrom(node);
-  while (holder && last && !under(last, holder)) holder = upFrom(holder);
+  while (holder && lastText && !under(lastText, holder)) holder = upFrom(holder);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm

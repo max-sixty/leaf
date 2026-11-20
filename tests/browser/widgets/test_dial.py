@@ -8,6 +8,7 @@ import pytest
 from playwright.sync_api import expect
 from render_harness import PREVIEW, leaf_page, open_page, preview_parts, resized
 
+from leaf.render_checks import one_frame
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -139,7 +140,7 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     """Each depth says under its word how long it takes to read. Pointing at one hangs
     each depth's page under its own button, Skim's shortest and Everything's longest,
     with Leaf's own preview face unseen, and fades on the page what Skim would fold. A
-    press on another depth keeps them up the whole time it is held, as a hand's is,
+    press on another depth keeps them up the whole time it is held,
     and moves the frame to it; Escape puts them away and leaves focus on the depth."""
     page = open_page(request.getfixturevalue(engine), serve(DIAL_PAGE))
     buttons = page.locator("lf-dial .lf-dial-depth")
@@ -163,7 +164,9 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     everything = buttons.filter(has_text="Everything")
     everything.hover()
     page.mouse.down()
-    page.wait_for_timeout(150)
+    # The sheets would go a frame after the press puts Leaf's preview away.
+    one_frame(page)
+    one_frame(page)
     expect(panel).to_have_attribute("data-lf-open", "")
     page.mouse.up()
     expect(page.locator("details[open]")).to_have_count(len(SECTIONS))

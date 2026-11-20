@@ -218,12 +218,8 @@ Run a heavy renderer that can wait until the user has the page through
 `afterPresentation(() => …)`, or until they come near its element through
 `whenNear(element, () => …)`, which returns the step that stops waiting. Pass work that starts now but need not delay
 presentation, such as a slow load whose result moves nothing visible, to
-`deferredArrival(promise)`. Work in an iframe's document that has an origin of its own,
-whose landing waits for the browser to render that document, goes to
-`frameArrival(frame, promise)` instead: Chrome stops rendering such a frame while it is
-off screen or folded away, so the page counts the work only while the frame shows.
-Checks and tests that wait for the page wait for the work each has started;
-`page check --render` starts what `whenNear` holds and brings each such frame into view.
+`deferredArrival(promise)`. Checks and tests that wait for the page wait for the work
+each has started; `page check --render` starts what `whenNear` holds.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
 now would move what the user sees, pass the work to the widget controller's
 `present(promise)` instead, so it lands before presentation.
@@ -392,11 +388,9 @@ its own state and theme scope. Declare its template in the authored document, fo
 
 The host's `ready` promise belongs to its current child, and changes when loading
 starts again. `on(type, callback)` returns an unsubscribe function. Its notices are
-`loading`, `waiting`, `departed`, `arrived`, `input` (with the event's `{type}`),
-`current-location` (with `{focused}`), and `height` (with `{height}`). `waiting` says
-the server asked the host to wait before placing the child, or the child waits to
-load behind one the server asked; either can last minutes, so stop holding the page's
-presentation on `ready` when it comes. Use `height` to size a block frame, holding
+`loading`, `departed`, `input` (with the event's `{type}`), `current-location` (with
+`{focused}`), and `height` (with `{height}`). The host counts the child's arrival in
+the page's readiness itself. Use `height` to size a block frame, holding
 growth the user did not request as described in `module-scroll-and-motion.md` until a
 `click`, `keydown` or `input` notice says they acted in the child.
 `restoreCurrentLocation()` returns focus to the child's last focused control;

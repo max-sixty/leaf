@@ -539,10 +539,11 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
 def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it(
     browser, serve
 ):
-    """Chrome gives a sample's page off screen one rendering and no more, so a chart in
-    a sample a window below draws only once its frame shows. The page reads as ready
-    without it, and a check that reads every document the page can show brings the
-    frame into view, waits for its chart, and puts the window back."""
+    """A sample's page gets no rendering while its frame is off screen, so a chart in
+    a sample out of view draws only once its frame shows, and the page reads as ready
+    without it. A check that reads every document the page can show brings each such
+    frame into view, a sample's own samples included, waits for its chart, and puts
+    back every box it scrolled, leaving nothing to move after it returns."""
     chart = (
         '<lf-chart id="line" data-height="120"><pre>'
         '{ariaLabel: "A rising line", marks: [Plot.lineY([1, 3, 2, 4])]}'
@@ -556,24 +557,37 @@ def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_i
                 "Charts",
                 "<h1>Charts</h1>"
                 + live_sample("shown", " window", chart)
+                + '<div id="box" style="height: 200px; overflow: auto">'
+                + '<div style="height: 1200px"></div>'
+                + live_sample("boxed", " window", chart)
+                + "</div>"
                 + '<div style="height: 900px"></div>'
-                + live_sample("below", " window", chart),
+                + live_sample(
+                    "outer",
+                    "",
+                    '<div style="height: 1600px"></div>'
+                    + live_sample("inner", " window", chart),
+                ),
             )
         )
     )
 
-    def drawn(sample):
-        return (
-            page.locator(f"#{sample} iframe")
-            .content_frame.locator("lf-chart.lf-rendered")
-            .count()
-        )
+    def drawn(*samples):
+        frame = page
+        for sample in samples:
+            frame = frame.locator(f"#{sample} iframe").content_frame
+        return frame.locator("lf-chart.lf-rendered").count()
 
     wait_until_ready(page)
-    assert (drawn("shown"), drawn("below")) == (1, 0)
+    assert (drawn("shown"), drawn("boxed")) == (1, 0)
     start_near_work(page)
-    assert drawn("below") == 1
-    assert page.evaluate("scrollY") == 0
+    assert (drawn("boxed"), drawn("outer", "inner")) == (1, 1)
+    places = """() => [scrollY, document.querySelector('#box').scrollTop,
+        document.querySelector('#outer iframe').getBoundingClientRect().height]"""
+    after = page.evaluate(places)
+    assert after[:2] == [0, 0]
+    rendered(page)
+    assert page.evaluate(places) == after
 
 
 def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(

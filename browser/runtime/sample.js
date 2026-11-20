@@ -29,7 +29,24 @@
  * capability can be released. Lifecycle records enter the interaction stream at
  * these decisions, with a host/allocation identity and the connected document
  * nonce. Native load is distinct from Leaf upgrade;
- * an opaque destination cannot be classified from its load event. Retirement
+ * an opaque destination cannot be classified from its load event.
+ * The page counts each document the frame loads, on mount, Reset or a reload, as
+ * arriving: its presentation and then whatever it deferred, the samples it started
+ * included. An allocation counts from when it begins until its frame loads, wherever
+ * the frame stands, since loading needs no rendering. What the document does after,
+ * until it reports its arrival, fails or departs, may wait on a rendering, which a
+ * document nobody can see doesn't get (rendering.js): a chart sized by its first
+ * layout waits while its frame is off screen, and so does the upgrade of the widget
+ * layer holding it. So the page counts that part until the browser's first reading of
+ * the frame, and after that only while the user can see the frame (`admitted`), as
+ * rendering readiness reads such a document as settled. Counting it wherever the frame stands
+ * would keep a page with a chart in a sample below the window arriving for as long as
+ * it stays open; a check that reads every document brings each frame still waiting
+ * into view instead (render_checks.py, `start_near_work`). A reload's document counts
+ * once it connects; the parent cannot tell its departure from one to a page outside
+ * Leaf, whose load can land before the departure's notice, so nothing counts between.
+ * Work a child starts after it has arrived, such as one of its own samples' Reset or
+ * the near work a check asks for (`nearWork`), is the child's to count. Retirement
  * records the local realm's destruction, before the allocation release answers.
  * A mounted frame answers for its image: the child draws the requested part of its
  * viewport, which an image of the containing page puts in the frame's place.
@@ -64,7 +81,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
 import { exceptionRecord } from "./exception.js";
 import { aborted } from "./abort.js";
-import { deferredArrival, frameArrival, onAllNear } from "./presentation.js";
+import { deferredArrival, onAllNear } from "./presentation.js";
 
 /** @typedef {import("./sample-protocol.js").SampleReady} SampleReady
  * @typedef {import("./sample-protocol.js").SampleCommands} SampleCommands
@@ -238,7 +255,6 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     height: new Set(),
     input: new Set(),
     "current-location": new Set(),
-    arrived: new Set(),
     loading: new Set(),
     departed: new Set(),
   };
@@ -265,6 +281,34 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   }
   function visibility() {
     channel?.postMessage({ type: "visibility", detail: { visible: admitted() } });
+    arrive();
+  }
+  // Where the frame's document stands in its arrival: `loading` from an allocation
+  // until its frame loads, counted wherever the frame stands, and `drawing` from then
+  // or from a reload's connection until it reports its arrival or departs, counted
+  // until the browser's first reading of the frame and then only while `admitted`.
+  /** @typedef {"loading" | "drawing" | null} Arriving */
+  /** @type {Arriving} */
+  let arriving = null;
+  /** @type {(() => void) | null} */
+  let counted = null;
+  /** @param {Arriving} [stage] */
+  function arrive(stage = arriving) {
+    arriving = stage;
+    const counts =
+      stage === "loading" || (stage === "drawing" && (!seen.read() || admitted()));
+    if (counts && !counted) {
+      const { promise, resolve } = Promise.withResolvers();
+      counted = () => resolve(undefined);
+      deferredArrival(promise);
+    } else if (!counts && counted) {
+      counted();
+      counted = null;
+    }
+  }
+  /** @param {Arriving} from @param {Arriving} to */
+  function moveOn(from, to) {
+    if (arriving === from) arrive(to);
   }
   /** @param {MessagePort} port @param {number} id */
   async function readVisibility(port, id) {
@@ -291,6 +335,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   }
   /** @param {unknown} reason */
   function disconnect(reason) {
+    moveOn("drawing", null);
     channel?.close();
     channel = null;
     lost = reason;
@@ -389,6 +434,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
           connectedNonce = nonce;
           hasConnected = true;
           record("connected", { reloading });
+          if (arriving !== "loading") arrive("drawing");
           if (reloading) {
             awaitNext();
             notify("loading", undefined);
@@ -456,7 +502,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
         } else if (data.type === "height") notify("height", data.detail);
         else if (data.type === "current-location")
           notify("current-location", data.detail);
-        else if (data.type === "arrived") notify("arrived", undefined);
+        else if (data.type === "arrived") moveOn("drawing", null);
       };
     frame.contentWindow?.postMessage(
       {
@@ -470,7 +516,9 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   }
   window.addEventListener("message", connect);
   const loaded = () => {
-    if (current && frame.hasAttribute("src")) record("loaded");
+    if (!current || !frame.hasAttribute("src")) return;
+    record("loaded");
+    moveOn("loading", "drawing");
   };
   frame.addEventListener("load", loaded);
   const room = watchRoom(visibility);
@@ -522,18 +570,10 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     });
   }
   async function replace() {
+    arrive("loading");
     await retire("reset");
     allocation++;
     record("queued");
-    // Allocating the document and loading it, its scripts run, needs no rendering, so
-    // it goes on whether or not anyone can see the frame, and the page counts it until
-    // the frame loads or the allocation fails. What the child does after, which Chrome
-    // holds back while the frame is off screen, the page counts only while the frame
-    // shows (lf-sample.js, `frameArrival`).
-    /** @type {PromiseWithResolvers<void>} */
-    const { promise: loaded, resolve: landLoad } = Promise.withResolvers();
-    const landed = () => landLoad();
-    deferredArrival(loaded);
     const loading = loadWithinLimit(async (release) => {
       if (destroyed) throw new DOMException("sample destroyed", "AbortError");
       record("allocating");
@@ -573,16 +613,18 @@ export function mountSample(frame, { template, source, window: asWindow = false 
         // A loaded module graph frees its slot even while Leaf upgrade waits on
         // widget preparation. Native load needs no access to the opaque child document.
         frame.addEventListener("load", release, { once: true });
-        frame.addEventListener("load", landed, { once: true });
         record("loading");
         frame.src = current;
         return await upgraded;
       } finally {
         frame.removeEventListener("load", release);
-        frame.removeEventListener("load", landed);
       }
     }, lifetimeController.signal);
-    loading.then(landed, landed);
+    // A document that upgrades before its frame's load event draws from then.
+    loading.then(
+      () => moveOn("loading", "drawing"),
+      () => moveOn("loading", null),
+    );
     return settle(loading);
   }
   function reset() {
@@ -606,17 +648,15 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   }
   // A check that asks this page for all the work it holds until the reader comes near
   // (presentation.js, `startNearWork`) asks each upgraded child document the same, once,
-  // and the page counts the child as arriving until it answers, while its frame shows.
+  // and counts the child as arriving until it has started that work. The check waits
+  // for each document itself (render_checks.py, `start_near_work`).
   /** @type {string | null} */
   let askedNear = null;
   function nearWork() {
     if (!near.asked() || !channel || pendingInterface || askedNear === connectedNonce)
       return;
     askedNear = connectedNonce;
-    frameArrival(
-      frame,
-      call("near-work", {}).catch(() => {}),
-    );
+    deferredArrival(call("near-work", {}).catch(() => {}));
   }
   const near = onAllNear(nearWork);
   /** @type {SampleHost} */
@@ -647,6 +687,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     destroy() {
       if (closing) return closing;
       destroyed = true;
+      arrive(null);
       record("destroyed");
       lifetimeController.abort(new DOMException("sample destroyed", "AbortError"));
       mounted.delete(frame);

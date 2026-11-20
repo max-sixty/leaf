@@ -14,6 +14,7 @@
    so a widget that must also run off a Leaf page imports from there and every other
    widget keeps importing from here. */
 import "./element-integration.js";
+import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { iconTemplate } from "./icons.js";
@@ -157,14 +158,12 @@ export {
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
 // `whenNear` for the reader to near a node, then each starts the work;
-// `deferredArrival` counts work the widget has already started, and `frameArrival`
-// work in a frame's document, while the browser renders it.
+// `deferredArrival` counts work the widget has already started.
 export {
   PAGE_INTERFACE,
   PRESENTATION,
   afterPresentation,
   deferredArrival,
-  frameArrival,
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
@@ -196,7 +195,8 @@ export { leafEditorView } from "./editor-view.js";
  * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
  * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
-  const owner = await import("./sample.js");
+  // The page counts the sample's arrival from here; the host counts it once it starts.
+  const owner = await deferredArrival(import("./sample.js"));
   return owner.mountSample(frame, options);
 }
 export { wear } from "./dress.js";

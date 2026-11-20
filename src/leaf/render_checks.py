@@ -474,26 +474,76 @@ def _refuse_unstarted(page) -> None:
         raise PageNotReady("refused", f"the runtime could not start: {reason}")
 
 
+# Every box holding `frame` in its document, across shadow roots, with its scroll
+# offsets; `_PUT_BACK` scrolls each back to them.
+_HOLDERS = """frame => {
+  const held = [];
+  for (let node = frame; node;
+       node = node.assignedSlot ?? node.parentElement ?? node.getRootNode().host)
+    held.push([node, node.scrollLeft, node.scrollTop]);
+  return held;
+}"""
+_PUT_BACK = """held => {
+  for (const [node, left, top] of held) node.scrollTo({left, top, behavior: 'instant'});
+}"""
+_SHOWS = "frame => frame.checkVisibility({visibilityProperty: true})"
+
+
 def start_near_work(page, state: dict | None = None, **ready) -> None:
     """Start the work the page holds back until the reader nears its node, such as
     each live sample's page, and wait until the page has taken it in, as
     `wait_until_ready` waits with `state` and `ready`. A check reads every document the
     page can show, not only those near the window it opened at.
 
-    A sample's page off screen gets no rendering after its first, so the page counts
-    what it still has to draw only while its frame shows (presentation.js,
-    `frameArrival`). Each such frame is brought into view in turn and waited for, then
-    the window goes back to where it stood."""
+    A sample's page gets no rendering while its frame is off screen, and the page
+    counts what it draws only while its frame shows (sample.js). So each sample's
+    frame, at any depth, whose page is still waiting is scrolled into view and waited
+    for, and every box the scroll moved goes back; one in a closed disclosure or a
+    shut tab stays as the page has it."""
     evaluate_probe(page, "startNearWork")
     wait_until_ready(page, state, **ready)
-    place = page.evaluate("() => [scrollX, scrollY]")
-    moved = False
-    while evaluate_probe(page, "showUnshownFrame"):
-        moved = True
+    shown = set()
+    while waiting := [
+        frame for frame in _sample_frames(page) if frame not in shown and _waits(frame)
+    ]:
+        for frame in waiting:
+            shown.add(frame)
+            chain = list(_frame_chain(frame))
+            if not _waits(frame) or not all(
+                each.frame_element().evaluate(_SHOWS) for each in chain
+            ):
+                continue
+            held = [each.frame_element().evaluate_handle(_HOLDERS) for each in chain]
+            # Outermost first: a frame's document renders, as Playwright's wait for a
+            # stable box needs, only once its own frame shows.
+            for each in reversed(chain):
+                each.frame_element().scroll_into_view_if_needed()
+            wait_until_ready(frame, timeout_ms=ready.get("timeout_ms"))
+            for boxes in held:
+                boxes.evaluate(_PUT_BACK)
+    if shown:
+        rendered(page)
         wait_until_ready(page, state, **ready)
-    if moved:
-        page.evaluate("([x, y]) => scrollTo(x, y)", place)
-        wait_until_ready(page, state, **ready)
+
+
+def _sample_frames(page):
+    """Every live sample's frame in `page`, at any depth, each after the one it is in."""
+    for frame in getattr(page, "page", page).frames:
+        if frame.parent_frame is None or frame.is_detached():
+            continue
+        if frame.frame_element().get_attribute("data-lf-contained") is not None:
+            yield frame
+
+
+def _frame_chain(frame):
+    """`frame` and each frame holding it, up to the page's own."""
+    while frame.parent_frame is not None:
+        yield frame
+        frame = frame.parent_frame
+
+
+def _waits(frame) -> bool:
+    return frame.evaluate(OUTSTANDING, {"held": None, "through": None}) != "ready"
 
 
 def install_window_errors(page, heard) -> None:

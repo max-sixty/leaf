@@ -41,7 +41,7 @@
    the page that knows a deferred upgrade exists is whoever remembered to name it, which
    is a reader repeating what the page should settle.
 
-   A widget reaches this through four routes, and each declares what it defers, so no
+   A widget reaches this through three routes, and each declares what it defers, so no
    widget keeps work off the presentation path without the page counting it.
    `afterPresentation` is the wait and the declaration together, for work the widget
    earns the right to start only once the user has the page. `whenNear` is the same for
@@ -52,18 +52,6 @@
    child too. `deferredArrival` is
    the declaration alone, for work already running that presentation need not wait
    for: the work starts now, the page presents without it, and `arrived` waits for it.
-   `frameArrival` is that declaration for work in a frame's document that waits for the
-   browser to render it, such as a live sample's child page drawing a chart. A sample's
-   child has an origin of its own, and Chrome gives such a document one rendering and
-   then no more while its frame is off screen or in a closed disclosure, so that work
-   waits for the reader to show the frame. The page counts it until the browser's first
-   reading of the frame, and after that only while the frame shows, just as rendering
-   readiness reads a document nobody can see as settled (rendering.js). Loading the
-   frame's document needs no rendering, so its owner counts the load with
-   `deferredArrival`. Counted always, one chart in a sample a window below the reader
-   kept the page arriving for as long as it stayed open. A check that reads every
-   document the page can show brings each such frame into view in turn
-   (`unshownFrames`).
    None hands a package the bare `presented` wait. */
 
 import { whileConnected } from "./arrivals.js";
@@ -72,7 +60,6 @@ import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
 import { holdRendering, renderingState } from "./rendering.js";
 import { nearObserver } from "./geometry.js";
-import { frameVisibility, onFrameVisibility, watchFrame } from "./frame-visibility.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
 
@@ -106,62 +93,6 @@ export function deferredArrival(work) {
   work.then(landed, landed);
   return work;
 }
-
-// The frames holding work that waits for them to show (`frameArrival`), each with how
-// many such works it holds.
-/** @type {Map<Element, number>} */
-const unshown = new Map();
-/** @param {Element} frame @param {number} by */
-function holdsUnshown(frame, by) {
-  const count = (unshown.get(frame) ?? 0) + by;
-  if (count) unshown.set(frame, count);
-  else unshown.delete(frame);
-}
-
-/** Declare `work` in `frame`'s document as an arrival, counted until the browser's
-    first reading of the frame and after that only while the frame shows, and hand
-    back its promise.
- * @template {PromiseLike<unknown>} T @param {Element} frame @param {T} work */
-export function frameArrival(frame, work) {
-  let settled = false;
-  /** @type {(() => void) | null} */
-  let counted = null;
-  let waiting = false;
-  const read = () => {
-    if (settled) return;
-    const shows =
-      !watched.read() || (watched.shown() && frameVisibility()?.visible !== false);
-    if (shows && !counted) {
-      /** @type {PromiseWithResolvers<void>} */
-      const { promise, resolve } = Promise.withResolvers();
-      counted = resolve;
-      deferredArrival(promise);
-    } else if (!shows && counted) {
-      counted();
-      counted = null;
-    }
-    if (waiting === shows) {
-      waiting = !shows;
-      holdsUnshown(frame, waiting ? 1 : -1);
-    }
-  };
-  const watched = watchFrame(frame, read);
-  const unwatch = onFrameVisibility(read);
-  const land = () => {
-    settled = true;
-    counted?.();
-    if (waiting) holdsUnshown(frame, -1);
-    watched.stop();
-    unwatch();
-  };
-  work.then(land, land);
-  read();
-  return work;
-}
-
-/** The frames holding work that waits for them to show, for a check that reads every
-    document the page can show and so brings each into view. */
-export const unshownFrames = () => [...unshown.keys()];
 
 /** Wait for declared arrivals, including any they introduce while settling. */
 export async function whenArrived() {

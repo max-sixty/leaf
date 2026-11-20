@@ -182,15 +182,10 @@ const tokens = (reactions) =>
 const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
 
 // A summary as a card draws it: the messages of `drawn`, the ids of the turns the card
-// draws, that it folds, and whether one of them holds it open (`protected`, which the
-// server derives from whose turn it is). A reaction reply it covers draws as a strip.
+// draws, that it folds. A reaction reply it covers draws as a strip.
 /** @param {ThreadReading["summaries"][number]} summary @param {ReadonlySet<string>} drawn */
 const fold = (summary, drawn) =>
-  JSON.stringify([
-    summary.id,
-    summary.covers.filter((id) => drawn.has(id)),
-    Boolean(summary.protected?.length),
-  ]);
+  JSON.stringify([summary.id, summary.covers.filter((id) => drawn.has(id))]);
 
 // The edit a message's words were last rewritten by, or null for words as first said.
 /** @param {Pick<MessageReading, "base" | "id">} message */

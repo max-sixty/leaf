@@ -877,9 +877,9 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
     )
 
 
-def test_summary_protects_the_unanswered_obligation_after_later_agent_messages():
-    """A summary cannot hide the question the user owes merely because a newer
-    agent message is the last turn. Protection selects the canonical prompt."""
+def test_a_summary_leaves_the_question_it_folds_on_the_users_list():
+    """A summary over a question the user owes answers nothing, so the question stays
+    on the user's list under the message that asked it."""
     state = model.reading(
         HUB,
         (
@@ -913,7 +913,6 @@ def test_summary_protects_the_unanswered_obligation_after_later_agent_messages()
     assert owed["message"] == "e1"
     [summary] = thread["summaries"]
     assert summary["covers"] == ["e1", "e2"]
-    assert summary["protected"] == ["e1"]
 
 
 def test_an_answer_sends_a_held_reading_only_what_changed():

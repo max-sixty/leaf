@@ -473,7 +473,7 @@ def test_a_long_thread_is_summarized_by_a_fork_beside_its_line_fork(claimed, lan
     assert summary["prompt"].startswith("<leaf-summary-fork>")
     assert "Follow-up 1?" in summary["prompt"]
     assert "> Fold what compresses most" in summary["prompt"]
-    assert "> A summary gives the range's decisions" in summary["prompt"]
+    assert "> A summary is what the user reads" in summary["prompt"]
 
     outcome = summarized(summary, {**hint, "text": "The TTL went to ten, then five."})
     assert outcome["outcome"] == "summarized"
@@ -523,23 +523,19 @@ def test_the_fork_may_fold_nothing(claimed):
     assert clerk_model.queued("s1") == []
 
 
-@pytest.mark.parametrize("shape", ["the newest message", "backwards", "a gap"])
+@pytest.mark.parametrize("shape", ["the newest message", "backwards"])
 def test_a_range_leaf_cant_take_hands_the_suggestion_to_the_agent(claimed, shape):
     """Leaf takes the fork's range only where it runs forward over the thread's spoken
-    messages, ends before the user's newest messages, which the main session answers,
-    and leaves no message but the opening one in full above a summary. Otherwise it
-    writes nothing and hands the agent the suggested range."""
+    messages and ends before the user's newest messages, which the main session
+    answers. Otherwise it writes nothing and hands the agent the suggested range."""
     opened, later, newest, summary = summary_beside(claimed)
     chosen = {
         "the newest message": {"from": opened["id"], "through": newest["id"]},
         "backwards": {"from": later[4]["id"], "through": later[2]["id"]},
-        "a gap": {"from": later[4]["id"], "through": later[6]["id"]},
     }[shape]
     outcome = summarized(summary, {**chosen, "text": "The fork's."})
     assert outcome["outcome"] == "failed"
-    assert ("summary would leave" if shape == "a gap" else "its range") in outcome[
-        "why"
-    ]
+    assert "its range" in outcome["why"]
     assert summaries_written(claimed) == []
     [handed] = clerk_model.queued("s1")
     basis_ = summary["basis"]

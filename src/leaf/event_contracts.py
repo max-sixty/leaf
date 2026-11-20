@@ -13,10 +13,8 @@ from pathlib import Path
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
-    active_summaries,
     build_threads,
     spoken_turns,
-    summary_range,
     taken_back,
     undo_error,
     unshown,
@@ -687,15 +685,6 @@ def _thread_presentation_error(view, event: dict, events: list) -> Finding | Non
         return Finding("summary-endpoints", values=named)
     if start > end:
         return Finding("summary-order", values=named)
-    # The summaries in force once this one stands: those it overlaps it replaces whole.
-    candidate = {**event, "seq": events[-1]["seq"] + 1}
-    after = active_summaries([*events, candidate], {thread["id"]: thread})
-    asked = (event["from"], event["through"])
-    if (taken := summary_range(thread, after[thread["id"]], *asked)) != asked:
-        return Finding(
-            "summary-gap",
-            values={**named, "take_from": taken[0], "take_through": taken[1]},
-        )
     return None
 
 

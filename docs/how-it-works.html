@@ -3940,21 +3940,17 @@ flowchart TD
             <p id="anatomy-lede">
               This section follows one thread through every message Leaf, Claude Code,
               the forks and the main thread exchanged in a run of the Claude Code agent
-              journey (<code>leaf-dev journey run claude-code</code>) at 19:49 PT on 19
+              journey (<code>leaf-dev journey run claude-code</code>) at 22:07 PT on 19
               November 2026, under Claude Code 2.1.329. The user asked a question about
               the page's source while the session ran a shell command in one of the
               user's turns: a line fork wrote its line, and the main thread started the
               message and spawned a fork that answered it. The user's next question in
               the thread, after that answer and during another such command, went
               through a line fork again, and the main thread passed it on to the same
-              fork. The run predates the main thread routing every message on its own:
-              its line fork also judged the message a fork's work, and Leaf told the
-              main thread so. This section leaves both out; the journey's
-              <code>fork-busy</code> step checks that the main thread still gives such a
-              message to a fork. The times and Claude Code's text are as the run
-              recorded them. Leaf's own messages are written by Leaf's current code from
-              the run's values, so they read as Leaf writes them now. Paths and ids are
-              the journey's scratch page and session.
+              fork. The times and Claude Code's text are as the run recorded them.
+              Leaf's own messages are written by Leaf's current code from the run's
+              values, so they read as Leaf writes them now. Paths and ids are the
+              journey's scratch page and session.
             </p>
             <p id="anatomy-key">
               Who wrote each message: <span class="said from-cc">Claude Code</span>,
@@ -3975,8 +3971,8 @@ flowchart TD
                   ></lf-event>
                   <lf-event
                     id="journey-follow"
-                    at="73115"
-                    label="Asks which comes next"
+                    at="67489"
+                    label="Asks which comes last"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Leaf's Python">
@@ -3987,53 +3983,53 @@ flowchart TD
                   ></lf-event>
                   <lf-event
                     id="journey-line"
-                    at="4319"
+                    at="1734"
                     label="Posts the line, hands the thread over"
                   ></lf-event>
                   <lf-event
                     id="journey-hand"
-                    at="25314"
+                    at="25123"
                     label="Hands it in at the tool call"
                   ></lf-event>
                   <lf-event
                     id="journey-keep-again"
-                    at="73117"
+                    at="67491"
                     label="Keeps the message back"
                   ></lf-event>
                   <lf-event
                     id="journey-line-again"
-                    at="76061"
+                    at="69143"
                     label="Posts the line, hands the thread over"
                   ></lf-event>
                   <lf-event
                     id="journey-hand-again"
-                    at="98422"
+                    at="92836"
                     label="Hands it in at the tool call"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Hooks module">
                   <lf-event
                     id="journey-module-fork"
-                    at="307"
+                    at="320"
                     label="Makes the line fork"
                   ></lf-event>
                   <lf-event
                     id="journey-module-fork-again"
-                    at="73438"
+                    at="67851"
                     label="Makes a line fork"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Line fork">
                   <lf-event
-                    id="journey-judge"
-                    at="307"
-                    end="4319"
+                    id="journey-write-line"
+                    at="320"
+                    end="1734"
                     label="Writes the line"
                   ></lf-event>
                   <lf-event
-                    id="journey-judge-again"
-                    at="73438"
-                    end="76061"
+                    id="journey-write-line-again"
+                    at="67851"
+                    end="69143"
                     label="Writes the line"
                   ></lf-event>
                 </lf-lane>
@@ -4041,75 +4037,75 @@ flowchart TD
                   <lf-event
                     id="journey-command"
                     at="0"
-                    end="25118"
+                    end="24935"
                     label="Runs the user's 25 s command"
                   ></lf-event>
                   <lf-event
                     id="journey-start"
-                    at="29234"
+                    at="29442"
                     label="Starts the message"
                   ></lf-event>
                   <lf-event
                     id="journey-spawn"
-                    at="34924"
+                    at="35579"
                     label="Spawns a fork"
                   ></lf-event>
                   <lf-event
                     id="journey-turn-ends"
-                    at="38547"
+                    at="36565"
                     label="Ends the user's turn"
                   ></lf-event>
                   <lf-event
                     id="journey-notice"
-                    at="47005"
-                    end="58805"
+                    at="46636"
+                    end="53966"
                     label="A turn for Claude Code's notice"
                   ></lf-event>
                   <lf-event
                     id="journey-command-again"
-                    at="73004"
-                    end="98234"
+                    at="67316"
+                    end="92549"
                     label="Runs the user's 25 s command"
                   ></lf-event>
                   <lf-event
                     id="journey-start-again"
-                    at="103914"
+                    at="96392"
                     label="Starts the message"
                   ></lf-event>
                   <lf-event
                     id="journey-pass"
-                    at="109421"
+                    at="102847"
                     label="Passes it on"
                   ></lf-event>
                   <lf-event
                     id="journey-turn-ends-again"
-                    at="114863"
+                    at="104122"
                     label="Ends the user's turn"
                   ></lf-event>
                   <lf-event
                     id="journey-notice-again"
-                    at="119266"
-                    end="127891"
+                    at="118029"
+                    end="122125"
                     label="A turn for Claude Code's notice"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Fork subagent">
                   <lf-event
                     id="journey-run"
-                    at="34924"
-                    end="46971"
+                    at="35579"
+                    end="46609"
                     label="Reads the cards"
                   ></lf-event>
-                  <lf-event id="journey-answer" at="44439" label="Answers"></lf-event>
+                  <lf-event id="journey-answer" at="44166" label="Answers"></lf-event>
                   <lf-event
                     id="journey-resumed"
-                    at="109439"
-                    end="119246"
+                    at="102870"
+                    end="118009"
                     label="Takes the follow-up"
                   ></lf-event>
                   <lf-event
                     id="journey-answer-again"
-                    at="116291"
+                    at="114775"
                     label="Answers"
                   ></lf-event>
                 </lf-lane>
@@ -4150,7 +4146,7 @@ flowchart TD
                 ></lf-text-document>
               </details>
               <p id="anatomy-line-answer">
-                The line fork answered in 4.0 s, and its line stood in the thread 4.3 s
+                The line fork answered in 1.4 s, and its line stood in the thread 1.7 s
                 after the message:
               </p>
               <pre
@@ -4167,7 +4163,7 @@ flowchart TD
               <h3>2. Leaf hands the message to the main thread</h3>
               <p id="anatomy-hand-over-wake">
                 The main thread is in a turn of the user's, running a 25 s shell
-                command, so the message waits for that command's end. 25.3 s after the
+                command, so the message waits for that command's end. 25.1 s after the
                 message, the PostToolBatch hook hands in the message's delivery, which
                 carries the thread with the working line among its messages and the
                 message's <code>answer.ref</code>:
@@ -4189,31 +4185,31 @@ flowchart TD
             <section id="anatomy-take">
               <h3>3. The main thread spawns a fork, which answers</h3>
               <p id="anatomy-take-spawn">
-                At 29.2 s the main thread starts the message with
+                At 29.4 s the main thread starts the message with
                 <code>leaf task start</code> and the line
                 <q class="said from-model"
-                  >A fork is reading the cards to pick the one a release manager asks
-                  about first</q
-                >, and at 34.9 s it spawns the fork in the background with the Agent
-                tool's <code>fork</code> type. It then runs the user's next command and
-                ends the user's turn at 38.5 s.
+                  >A background fork is reading the cards to find which one a release
+                  manager would ask about first</q
+                >. It runs the user's next command, at 35.6 s spawns the fork in the
+                background with the Agent tool's <code>fork</code> type, and ends the
+                user's turn at 36.6 s.
               </p>
               <details id="anatomy-take-call" class="from from-model">
                 <summary>The main thread's Agent call</summary>
                 <pre><code>{
  "description": "Answer release-manager card question",
  "subagent_type": "fork",
- "prompt": "You are the fork handling Leaf thread f9e588b1 on the page /private/var/folders/v3/8k5q0_6j3_q6gl4h8czr66sh0000gn/T/leaf-journey-claude-code-qmg0cf5y/work/page. The user asked: \"read the cards in this page's source and tell me which one a release manager would ask about first, and why.\" Read the page's index.html and decide which card a release manager would ask about first, and why. Ground the answer in the card text and the \"Why only the migration blocks\" panel, and quote the passages your answer rests on. Don't edit the page; the user asked for an answer, not a change. Write a short Markdown reply (a few short paragraphs, link sections as [name](#id)) to a file in the scratchpad directory, then post it with `leaf thread reply 7cff68c5e408b8d1:0:f9e588b1 --done --file &lt;that file&gt;`. Finish by reporting the gist of your answer in one or two sentences.",
+ "prompt": "You are the fork handling the user's Leaf thread b7bec0cd on the page at /private/var/folders/v3/8k5q0_6j3_q6gl4h8czr66sh0000gn/T/leaf-journey-claude-code-vri8qjmk/work/page. Their question: \"read the cards in this page's source and tell me which one a release manager would ask about first, and why.\" Read page/index.html (read only; do NOT edit the page). Decide which lf-card a release manager would ask about first and why, grounded in the card text and the \"Why only the migration blocks\" panel. Quote the card passages your answer rests on. Write a short Markdown reply (short paragraphs, for a narrow card) to a file in your scratchpad, then post it with: `cd /private/var/folders/v3/8k5q0_6j3_q6gl4h8czr66sh0000gn/T/leaf-journey-claude-code-vri8qjmk/work &amp;&amp; leaf thread reply 52c0213000f09c9a:0:b7bec0cd --done --file &lt;reply.md&gt;`. Report back in one or two sentences what you answered.",
  "run_in_background": "true"
 }</code></pre>
               </details>
               <details id="anatomy-take-launched" class="from from-cc">
                 <summary>Claude Code's result to the main thread</summary>
                 <pre><code>Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)
-agentId: ad7ef993682122c27 (internal ID - do not mention to user. Use SendMessage with to: 'ad7ef993682122c27', summary: '&lt;5-10 word recap&gt;' to continue this agent.)
+agentId: ac7e014cece385ee3 (internal ID - do not mention to user. Use SendMessage with to: 'ac7e014cece385ee3', summary: '&lt;5-10 word recap&gt;' to continue this agent.)
 The agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.
 Do not duplicate this agent's work — avoid working with the same files or topics it is using.
-output_file: /private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-qmg0cf5y-work/941d66d0-bb17-48c6-9d45-3c54849f635f/tasks/ad7ef993682122c27.output
+output_file: /private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-vri8qjmk-work/a3289d7e-b477-419b-b14a-740d14fe0df4/tasks/ac7e014cece385ee3.output
 Do NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification.</code></pre>
               </details>
               <p id="anatomy-take-first">
@@ -4251,25 +4247,25 @@ Your directive: </code></pre>
                 none of the session's input. It had the page's source in the
                 conversation it inherited, and answered with
                 <code>leaf thread reply</code> and the <code>answer.ref</code> the main
-                thread gave it, 44.4 s after the message:
+                thread gave it, 44.2 s after the message:
               </p>
               <details id="anatomy-take-reply" class="from from-model">
                 <summary>The fork's reply in the thread</summary>
-                <pre><code>**[Migration reruns on every deploy](#card-migration)** is the one a release manager would ask about first. It's the only card in *Blocking release*, and it's the only one that gets worse when you ship:
+                <pre><code>**Migration reruns on every deploy.** That's the one a release manager asks about first.
+
+It's the only card in **Blocking release**, so it alone decides whether the Thursday cut goes out. The card says:
 
 &gt; The version stamp never lands. The next migration applies credits and is not idempotent.
 
-The [Why only the migration blocks](#triage-why) panel spells out the stakes:
+The cost is money, not cosmetics. The sidebar explains why:
 
-&gt; 0041 only adds a column, so rerunning it is a no-op. 0042 credits every account that was billed twice in March. Run twice, it pays twice.
+&gt; 0042 credits every account that was billed twice in March. Run twice, it pays twice.
 
-So it's real money paid out to customers and hard to undo, with the Thursday cut two days away. The first questions will be whether the fix lands before the cut, or whether 0042 gets held back.
+It's harmless today ("0041 only adds a column, so rerunning it is a no-op"), so the question they'll ask is: *is it fixed before 0042 ships?*
 
-None of the other cards poses that kind of risk:
+The other cards don't compete. The sidebar says "None of the other cards gets worse by waiting a week."
 
-&gt; None of the other cards gets worse by waiting a week. Each is cosmetic for most users, safe to retry, has a manual workaround, or has few reports.
-
-If one comes second, it's probably [Webhook retries ignore Retry-After](#card-retry), because partners notice it. It's still in *Fix in 2.4.1*, though.
+The next card they'd likely ask about is **CSV export quotes numerics**, because it "Breaks one customer's downstream import". A named customer impact tends to draw escalation.
 </code></pre>
               </details>
             </section>
@@ -4279,19 +4275,19 @@ If one comes second, it's probably [Webhook retries ignore Retry-After](#card-re
               <p id="anatomy-main-quiet">
                 None of the fork's messages enters the main thread's conversation until
                 its run ends. The user's turn had ended, so Claude Code's notice, at
-                47.0 s, started a turn of the main thread:
+                46.6 s, started a turn of the main thread:
               </p>
               <details id="anatomy-notification" class="from from-cc">
                 <summary>Claude Code's task notification</summary>
                 <pre><code>&lt;task-notification&gt;
-&lt;task-id&gt;ad7ef993682122c27&lt;/task-id&gt;
-&lt;tool-use-id&gt;toolu_01XByzwKGgyaxiuWmTYDuHtt&lt;/tool-use-id&gt;
-&lt;output-file&gt;/private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-qmg0cf5y-work/941d66d0-bb17-48c6-9d45-3c54849f635f/tasks/ad7ef993682122c27.output&lt;/output-file&gt;
+&lt;task-id&gt;ac7e014cece385ee3&lt;/task-id&gt;
+&lt;tool-use-id&gt;toolu_01NWcuSrLp1kP4vtGYJPb6Cw&lt;/tool-use-id&gt;
+&lt;output-file&gt;/private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-vri8qjmk-work/a3289d7e-b477-419b-b14a-740d14fe0df4/tasks/ac7e014cece385ee3.output&lt;/output-file&gt;
 &lt;status&gt;completed&lt;/status&gt;
 &lt;summary&gt;Agent "Answer release-manager card question" finished&lt;/summary&gt;
 &lt;note&gt;A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.&lt;/note&gt;
-&lt;result&gt;<span class="said from-model">I answered in thread f9e588b1: a release manager would ask about "Migration reruns on every deploy" first. It's the only blocker, and once 0042 ships, every deploy would pay out account credits again, with the cut two days away. Webhook retries would probably come second because partners notice it. I quoted the card and the "Why only the migration blocks" panel and didn't change the page.</span>&lt;/result&gt;
-&lt;usage&gt;&lt;subagent_tokens&gt;61461&lt;/subagent_tokens&gt;&lt;tool_uses&gt;1&lt;/tool_uses&gt;&lt;duration_ms&gt;12062&lt;/duration_ms&gt;&lt;/usage&gt;
+&lt;result&gt;<span class="said from-model">I posted the answer in thread b7bec0cd and marked it done (message 11c9dd5f): a release manager would ask first about **Migration reruns on every deploy**. It's the only card in Blocking release, and once 0042 ships, every rerun would pay account credits twice; the reply quotes the card and the "Why only the migration blocks" panel. It names **CSV export quotes numerics** as the likely next question, because one customer's import breaks. The page itself is unchanged.</span>&lt;/result&gt;
+&lt;usage&gt;&lt;subagent_tokens&gt;70817&lt;/subagent_tokens&gt;&lt;tool_uses&gt;1&lt;/tool_uses&gt;&lt;duration_ms&gt;11042&lt;/duration_ms&gt;&lt;/usage&gt;
 &lt;/task-notification&gt;</code></pre>
               </details>
               <p id="anatomy-main-report">
@@ -4304,50 +4300,52 @@ If one comes second, it's probably [Webhook retries ignore Retry-After](#card-re
             <section id="anatomy-follow-up">
               <h3>5. The main thread passes a follow-up on</h3>
               <p id="anatomy-follow-up-ask">
-                At 73.1 s, while a second turn of the user's runs the same command, the
+                At 67.5 s, while a second turn of the user's runs the same command, the
                 user replies
-                <q class="said from-user">And which would they ask about next?</q>
+                <q class="said from-user"
+                  >Look into this beside your own work too: which card would they ask
+                  about last, and why?</q
+                >
                 From here, times count from this reply. The thread's first message has
                 its answer, so Leaf keeps this one back, a new line fork writes its line
-                in 2.6 s, and at 25.3 s the PostToolBatch hook hands it to the main
-                thread. The main thread starts it at 30.8 s and at 36.3 s sends it to
-                the fork with SendMessage, addressed to the agent id Claude Code's
-                result gave it and carrying the message's <code>answer.ref</code>. The
-                fork's run had ended, so the send resumes it, and Claude Code wraps the
-                main thread's message:
+                in 1.3 s, and at 25.3 s the PostToolBatch hook hands it to the main
+                thread. The main thread starts it at 28.9 s, loads the SendMessage tool
+                with ToolSearch, and at 35.4 s sends the message to the fork with
+                SendMessage, addressed to the agent id Claude Code's result gave it and
+                carrying the message's <code>answer.ref</code>. The fork's run had
+                ended, so the send resumes it, and Claude Code wraps the main thread's
+                message:
               </p>
               <pre
                 id="anatomy-resume-message"
                 class="from from-cc"
               ><code>The coordinator sent a message while you were working:
-<span class="said from-model">The user followed up in thread f9e588b1: "And which would they ask about next?" Answer it the way you answered the first message. Ground the answer in the card text, quote the passages it rests on, and don't edit the page. Write a short Markdown reply to a file in the scratchpad, then post it with `leaf thread reply 04cc86a945179679:0:22b22655 --done --file &lt;that file&gt;`. Report the gist in one or two sentences.</span>
+<span class="said from-model">Follow-up in the same thread: the user asks "which card would they ask about last, and why?" Read page/index.html again (read only; don't edit the page), pick the card a release manager would ask about last and explain why, quoting the card text it rests on. Write a short Markdown reply for a narrow card and post it with: `cd /private/var/folders/v3/8k5q0_6j3_q6gl4h8czr66sh0000gn/T/leaf-journey-claude-code-vri8qjmk/work &amp;&amp; leaf thread reply 659ff662b558c47f:0:186b991c --done --file &lt;reply.md&gt;`. Report back in one or two sentences what you answered.</span>
 
 Address this before completing your current task.</code></pre>
               <p id="anatomy-follow-up-after">
                 Claude Code's wrapper is written for an agent still at work; this one
-                had finished. The fork answered at 43.2 s, and Claude Code's notice of
-                its end, at 46.2 s, again started a turn of the main thread, whose turn
-                for the user had ended at 41.7 s. Its result began
+                had finished. The fork answered at 47.3 s, and Claude Code's notice of
+                its end, at 50.5 s, again started a turn of the main thread, whose turn
+                for the user had ended at 36.6 s. Its result began
                 <q class="said from-model"
-                  >I answered both of your questions in thread f9e588b1 and didn't
-                  change the page.</q
+                  >I posted both answers in the user's thread and marked each done.</q
                 >
               </p>
               <details id="anatomy-follow-up-reply" class="from from-model">
                 <summary>The fork's reply to the follow-up</summary>
-                <pre><code>Next would be **[Webhook retries ignore Retry-After](#card-retry)**. Of the cards in *Fix in 2.4.1*, it reaches the most outside parties and is the one most likely to grow:
+                <pre><code>**Avatar upload rejects HEIC.** That's the one a release manager asks about last.
 
-&gt; Three partners rate limit us during their own deploys; we back off on a fixed schedule.
+It's already in **Defer from 2.4**, so it has no bearing on Thursday's cut. Its card spells out how small it is:
 
-This happens with three partners, every time they deploy. The release manager will want to know that 2.4 doesn't make it worse and that 2.4.1 really fixes it.
+&gt; iPhone photos need a conversion step. Four reports this quarter.
 
-The other two cards in that column affect fewer people:
+There is a known workaround and only a handful of reports. It doesn't affect money, data or partners. Nothing gets worse by waiting.
 
-&gt; Breaks one customer's downstream import.
+Why not the other quiet cards:
 
-&gt; Cosmetic for most, wrong-day for UTC+13.
-
-The CSV export card could move up if that one customer is large or loud. It's a single account, though, against three partners.
+- **Logout fails with an expired session** is also deferred, but it depends on unfinished work: "the shared-session cleanup is not ready for this release." Someone may ask when that cleanup lands.
+- **Search misses renamed projects** sits in **Needs a repro**, which is an open question in itself: "The reindex job ran clean." An unexplained cause invites a "do we know why yet?"
 </code></pre>
               </details>
             </section>

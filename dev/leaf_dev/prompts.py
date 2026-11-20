@@ -25,7 +25,7 @@ from leaf.delivery import DELIVERY, envelope, handled
 from leaf.hook_transport import inline_context
 from leaf.state import kernel_registry
 
-# The values Leaf wrote each of its messages around in the 19:49 PT run of the
+# The values Leaf wrote each of its messages around in the 22:07 PT run of the
 # claude-code agent journey on 19 November 2026 (`leaf-dev journey run claude-code`),
 # under Claude Code 2.1.329: the batch the line fork read and what the session was
 # running (`line`), and the id, time and batch of the delivery that handed the

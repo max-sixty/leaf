@@ -40,9 +40,8 @@ promise to remove any of these later, and leave old state and recovery instructi
 out of the handoff.
 
 Tests should protect behavior a user depends on. Rewriting or deleting a test is
-ordinary: check which behavior its assertion protects, change the test where
-changing that behavior makes a better app, and say in the commit which behavior
-changed.
+ordinary: check which behavior its assertion protects, change the test where doing
+so makes a better app, and say in the commit which behavior changed.
 
 Written contracts describe the current code and promise no compatibility. Every
 consumer of them is in this tree, so when a different contract would make the code

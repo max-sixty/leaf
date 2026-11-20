@@ -9,10 +9,13 @@ the rest of the list, such as actions you ask the user to take, and the agent's 
 ## What a question holds
 
 Make each question self-contained, so the user can decide from it alone, without
-recalling the conversation or reading your notes. Say why the choice arises, what each
-option leads to in a case the user can picture, and what each costs, including the one
-you recommend, so they could reach your recommendation or turn it down for reasons the
-question gives. Where you can't yet say what an option does, find out before you ask.
+recalling the conversation or reading your notes. Name the work it mentions by what it
+is or does, in words the user already uses, rather than by its number or a name coined
+during the work: title its thread “Merging the retry for dropped uploads”, not
+“Merging #431”. Say why the choice arises, what each option leads to in a case the user
+can picture, and what each costs, including the one you recommend, so they could reach
+your recommendation or turn it down for reasons the question gives. Where you can't yet
+say what an option does, find out before you ask.
 
 Each option is a result the user can pick, so its title says what choosing it does to
 the subject, keeping today's behavior included: “Generate shared types” and “Keep

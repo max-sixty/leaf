@@ -70,6 +70,7 @@ Commands:
   check    Check a package as one unit.
   init     Create a package directory.
   install  Install a package for selection by name.
+  list     List the packages a page can select by name.
   run      Run one of a package's scripts.
 
 ## package-init

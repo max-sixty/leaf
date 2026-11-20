@@ -438,7 +438,7 @@ def page() -> None:
     "selected",
     multiple=True,
     metavar="PACKAGE",
-    help="include an installed or bundled name, or an explicit "
+    help="include a name from `leaf package list`, or an explicit "
     "project-relative/~ path; repeat for more",
 )
 @click.option(
@@ -574,6 +574,17 @@ def package_install(package_path: Path) -> dict:
     from leaf.packages import cmd_package_install
 
     return cmd_package_install(package_path)
+
+
+@package.command("list", short_help="List the packages a page can select by name.")
+def package_list() -> dict:
+    """Print each package `page init --package NAME` can select, bundled or
+    installed, with the first paragraph of its author instructions and the
+    description of each entry it declares. Every page already has `default`, and
+    `leaf theme list` offers its theme."""
+    from leaf.packages import cmd_package_list
+
+    return cmd_package_list()
 
 
 @package.command(

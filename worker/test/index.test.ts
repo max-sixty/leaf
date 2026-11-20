@@ -2141,7 +2141,9 @@ function sessionContext(storage: DurableObjectStorage) {
     container,
     id: { toString: () => SESSION_OBJECT },
     exports: {
-      SessionOutbound: vi.fn((options: { props: { session: string } }) => options),
+      SessionOutbound: vi.fn(
+        (options: { props: { session: string; release: string } }) => options,
+      ),
     },
     blockConcurrencyWhile: <T>(operation: () => Promise<T>) => operation(),
   };
@@ -2157,16 +2159,17 @@ async function startedSession(storage: DurableObjectStorage, env = environment()
   return { ctx, session };
 }
 
-// The container's outbound requests as the session object `containerId` names routes
-// them.
+// The container's outbound requests as the session object `containerId`, running
+// `release`'s code, routes them.
 function outbound(
   request: Request,
   env: Env,
-  { containerId }: { containerId: string },
+  { containerId, release = RELEASE }: { containerId: string; release?: string },
 ) {
-  return new SessionOutbound({ props: { session: containerId } } as never, env).fetch(
-    request,
-  );
+  return new SessionOutbound(
+    { props: { session: containerId, release } } as never,
+    env,
+  ).fetch(request);
 }
 
 describe("website page agent", () => {
@@ -2186,7 +2189,7 @@ describe("website page agent", () => {
         },
       });
       expect(ctx.container.setInactivityTimeout).toHaveBeenCalledWith(600_000);
-      const routes = { props: { session: SESSION_OBJECT } };
+      const routes = { props: { session: SESSION_OBJECT, release: RELEASE } };
       expect(ctx.container.interceptOutboundHttps).toHaveBeenCalledWith("*", routes);
       expect(ctx.container.interceptAllOutboundHttp).toHaveBeenCalledWith(routes);
       for (const host of ["example.com", "169.254.169.254"]) {
@@ -2706,6 +2709,29 @@ describe("website page agent", () => {
       expect(JSON.parse(new TextDecoder().decode(held[0].data!)).drafts).toEqual({
         "/examples/triage-board": drafts,
       });
+    } finally {
+      close();
+    }
+  });
+
+  it("holds a container to its session object's release, not the handler's", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      // For some seconds after a deploy the object can still run the previous code, and
+      // so start the previous image, while the handler already runs the deployed code.
+      const env = environment();
+      const session = new LeafSession(sessionContext(storage) as never, env);
+      env.PAGES = { get: () => session, idFromString: (id: string) => id } as never;
+      const restore = (release: string) =>
+        outbound(
+          new Request("https://leaf-state.internal/records", {
+            headers: { "Leaf-Release": release },
+          }),
+          env,
+          { containerId: "trusted-owner", release: "previous-release" },
+        );
+      expect((await restore("previous-release")).status).toBe(200);
+      expect((await restore(RELEASE)).status).toBe(409);
     } finally {
       close();
     }

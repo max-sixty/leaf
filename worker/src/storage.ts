@@ -32,9 +32,9 @@
  * Each request a container makes names the release its image runs (`Leaf-Release`).
  * A container running when a deploy lands keeps the previous image until its session's
  * first request after the deploy stops it (`LeafSession` in `index.ts`). The store
- * answers a release other than the Worker's with 409 before reading or writing
- * anything (`answerPageStore`), so every commit since a deploy was written by the
- * deployed release's image.
+ * answers a release other than its session object's code with 409 before reading or
+ * writing anything (`answerPageStore`), so every commit since the object moved to the
+ * deployed code was written by the deployed release's image.
  * The store itself also outlives deploys, so every later release reads the tables and
  * stored values an earlier one wrote. `STORE_FORMAT` names their shape: the tables
  * (`STORE_TABLES`, which a test pins to the format), the encodings stored in their

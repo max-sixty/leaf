@@ -178,9 +178,13 @@ interface AcceptedEvent {
   needsReply: boolean;
 }
 
-/** The session object's name for itself, which its container's outbound requests carry. */
+/** What the session object tells the handler of its container's outbound requests: its
+ * name for itself, and the release of its own code. Cloudflare can run that handler on a
+ * newer Worker version than the object for some seconds after a deploy, so the handler
+ * holds a container to the object's release rather than to its own. */
 interface OutboundProps {
   session: string;
+  release: string;
 }
 
 declare global {
@@ -219,7 +223,8 @@ export class LeafSession extends DurableObject<Env> {
     const container = ctx.container;
     if (container?.running)
       void ctx.blockConcurrencyWhile(async () => {
-        await this.routeOutbound();
+        const { release } = await siteManifest(new Request("https://leaf.page/"), env);
+        await this.routeOutbound(release);
         await container.setInactivityTimeout(CONTAINER_IDLE_MS);
         this.watch();
       });
@@ -263,10 +268,10 @@ export class LeafSession extends DurableObject<Env> {
   // Every request the container sends goes to `SessionOutbound`, which names this
   // object as its owner, so the container reaches only this session's records and the
   // model API. Its Internet access is otherwise off.
-  private async routeOutbound(): Promise<void> {
+  private async routeOutbound(release: string): Promise<void> {
     const container = this.ctx.container!;
     const outbound = this.ctx.exports.SessionOutbound({
-      props: { session: this.ctx.id.toString() },
+      props: { session: this.ctx.id.toString(), release },
     });
     await container.interceptOutboundHttps("*", outbound);
     await container.interceptAllOutboundHttp(outbound);
@@ -276,7 +281,7 @@ export class LeafSession extends DurableObject<Env> {
     const container = this.ctx.container!;
     const { release } = await siteManifest(new Request("https://leaf.page/"), this.env);
     this.ctx.storage.kv.put(CONTAINER_RELEASE, release);
-    await this.routeOutbound();
+    await this.routeOutbound(release);
     const placing = Date.now() + CONTAINER_PLACING_MS;
     for (let pause = CONTAINER_PLACING_PAUSE_MS; ; pause *= 2) {
       container.start({
@@ -521,11 +526,11 @@ function logHttpError(
  * selects another visitor's records. */
 export class SessionOutbound extends WorkerEntrypoint<Env, OutboundProps> {
   async fetch(request: Request): Promise<Response> {
-    const { session } = this.ctx.props;
+    const { session, release } = this.ctx.props;
     switch (new URL(request.url).hostname) {
       case PAGE_STORE_HOST:
         try {
-          return await answerPageStore(request, this.env, session);
+          return await answerPageStore(request, this.env, session, release);
         } catch (error) {
           // A handler that throws reaches the container as a connection closed without
           // a response, so answer with the store's reason for the container to log.
@@ -545,10 +550,10 @@ async function answerPageStore(
   request: Request,
   env: Env,
   session: string,
+  release: string,
 ): Promise<Response> {
-  // A container still on the previous image after a deploy is refused before it
-  // reads or writes anything, as `storage.ts` says.
-  const { release } = await siteManifest(new Request("https://leaf.page/"), env);
+  // A container on another release than its session object's code is refused before
+  // it reads or writes anything, as `storage.ts` says.
   if (request.headers.get("Leaf-Release") !== release) {
     return new Response(`the page store serves release ${release}`, { status: 409 });
   }

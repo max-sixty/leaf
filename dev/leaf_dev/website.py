@@ -5,10 +5,8 @@ this module. A page loads with its startup and the errors that stop it observed
 (`load_presented`), reads its state through connection resets (`read_state`), and
 leaves the edge for a private container when it activates (`activation_url`,
 `activation_read`); `agent_session` opens a user session whose container serves a
-release, waiting while a rollout reaches the allocations. A container still on the
-previous image fails to start, since the page store refuses its release
-(`worker/src/storage.ts`), so until the rollout reaches an allocation its activation
-answers an error. On this machine,
+release, waiting while the edge still serves another release or activation loses its
+connection. On this machine,
 `local_adapter` builds the site and serves it with the website's Python server,
 sharing the host's login, and `local_worker` serves the site `leaf-dev site build`
 last wrote (`SITE`) through `wrangler dev`: the Worker and its page container. A build
@@ -389,9 +387,8 @@ def agent_session(
     browser, release: str | None, *, origin: str, direct_agent: bool = False
 ) -> AgentSession:
     """Open one user session whose private container is serving `release`, retrying
-    with a fresh context for up to 180 s while the rollout reaches allocations (they
-    fail to activate, or answer as another release) or activation loses its
-    connection. Nothing here writes."""
+    with a fresh context for up to 180 s while the edge serves another release or
+    activation loses its connection. Nothing here writes."""
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     deadline = time.monotonic() + 180

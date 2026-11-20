@@ -230,11 +230,11 @@ def diff_page(serve):
 def dial_page(serve, repeat=1):
     """The incident report example without its chart, with the words of the cause's
     first paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds
-    behind the section's gist. The places below were measured on the report's gists
-    alone: the chart, which Skim keeps, moves where each line stands and which block
+    behind the section's gist. The places below were measured on the report's words
+    alone: the chart, a gist Skim keeps, moves where each line stands and which block
     the browser anchors on."""
     source = named_source("incident-report").read_text()
-    chart = source.index('<figure id="incident-impact-chart">')
+    chart = source.index('<figure class="gist" id="incident-impact-chart">')
     source = (
         source[:chart] + source[source.index("</figure>", chart) + len("</figure>") :]
     )

@@ -1603,7 +1603,7 @@ async function authoredDocument(url) {
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
   return authoredMarkup(doc);
 }
-// Repeated comparisons of the same immutable revision share its document fetch.
+// Preparing an activation of the same immutable revision again shares its document fetch.
 /** @type {Map<number, Promise<Document>>} */
 const revisionDocuments = new Map();
 /** @param {import("../types/contract.js").ServedRevision} revision */

@@ -41,6 +41,6 @@ reply over enough runs to see past that spread.
 To find out what happened to one message, on a real page or in a journey's evidence
 directory, run `leaf-dev logs timeline PAGE --message ID`: it lays the page's log and
 diagnostics beside the Claude Code session's transcript and debug log, so it shows
-whether Leaf kept it back, what the line fork judged, which fork's turn held it, when
+whether Leaf kept it back, what came of the line fork, which line turn held it, when
 Leaf handed it over, and what the session did meanwhile
 (`dev/leaf_dev/commands/logs/timeline.py`).

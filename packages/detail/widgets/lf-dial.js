@@ -71,6 +71,8 @@ import {
   focusDestination,
   foldDuration,
   holdPlace,
+  keeps,
+  keepsText,
   LeafElement,
   motion,
   move,
@@ -174,11 +176,6 @@ const GHOST = "data-lf-dial-ghost";
 /** @typedef {{skim: number, read: number, all: number, blocks: Sized[]}} Sizes */
 /** @typedef {"skim" | "read" | "all"} Depth */
 
-// Set a property only where it changes, so observers of the dial hear no idle write.
-/** @param {HTMLElement} node @param {string} name @param {string} value */
-const restyle = (node, name, value) => {
-  if (node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value);
-};
 /** @param {number} seconds */
 const minutes = (seconds) => `${Math.max(1, Math.round(seconds / 60))} min`;
 /** @param {Sized} block @param {string} depth */
@@ -355,7 +352,7 @@ customElements.define(
         depth.addEventListener(PREVIEW_ENDED, () => {
           this.#unghost?.();
           this.#unghost = null;
-          delete this.dataset.pointed;
+          keeps(this, "data-pointed", null);
         });
         this.#radios.set(name, depth);
         group.append(depth);
@@ -410,10 +407,9 @@ customElements.define(
       if (this.#depths) this.#depths.value = this.#depth;
       // PROTOTYPE: the settings, and each depth's size where they show it.
       const rest = this.#setting("rest", "none");
-      if (this.dataset.rest !== rest) this.dataset.rest = rest;
+      keeps(this, "data-rest", rest);
       const folds = this.#setting("folds", "plain");
-      for (const marker of this.#runs.keys())
-        if (marker.dataset.folds !== folds) marker.dataset.folds = folds;
+      for (const marker of this.#runs.keys()) keeps(marker, "data-folds", folds);
       const sizes = rest === "none" ? null : this.#measure();
       if (!sizes || !this.#gauge) return;
       const share = (/** @type {number} */ seconds) =>
@@ -421,12 +417,14 @@ customElements.define(
       for (const [name, radio] of this.#radios) {
         const time = sizes[/** @type {Depth} */ (name)];
         const words = radio.querySelector(".lf-dial-time");
-        if (words && words.textContent !== ` ${minutes(time)}`)
-          words.textContent = ` ${minutes(time)}`;
+        keepsText(words, ` ${minutes(time)}`);
       }
-      restyle(this.#gauge, "--skim", share(sizes.skim));
-      restyle(this.#gauge, "--read", share(sizes.read));
-      restyle(this.#gauge, "--at", share(sizes[/** @type {Depth} */ (this.#depth)]));
+      this.#gauge.style.setProperty("--skim", share(sizes.skim));
+      this.#gauge.style.setProperty("--read", share(sizes.read));
+      this.#gauge.style.setProperty(
+        "--at",
+        share(sizes[/** @type {Depth} */ (this.#depth)]),
+      );
     }
 
     // PROTOTYPE: one of the dial's settings, from its `--lf-dial-NAME`.
@@ -450,9 +448,9 @@ customElements.define(
         this.#setting("page", "none") === "ghost" ? this.#ghost(name) : null;
       const all = this.#measure()?.all ?? 1;
       const at = this.#measure()?.[/** @type {Depth} */ (name)] ?? 0;
-      if (this.dataset.pointed !== name) this.dataset.pointed = name;
+      keeps(this, "data-pointed", name);
       if (this.#gauge)
-        restyle(this.#gauge, "--pointed", `${(100 * at) / Math.max(all, 1)}%`);
+        this.#gauge.style.setProperty("--pointed", `${(100 * at) / Math.max(all, 1)}%`);
       const point = this.#setting("point", "words");
       const sizes = point === "title" ? null : this.#measure();
       if (!sizes) return { detail: [title] };
@@ -786,7 +784,7 @@ customElements.define(
               : minutes(seconds),
           ),
         );
-        marker.dataset.folds = this.#setting("folds", "plain");
+        keeps(marker, "data-folds", this.#setting("folds", "plain"));
       }
       const [first] = blocks;
       if (first?.parentElement) move(first.parentElement, marker, first);

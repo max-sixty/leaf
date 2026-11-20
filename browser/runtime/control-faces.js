@@ -38,7 +38,9 @@
      quieter words (`data-lf-hint`) wears their face: a passing notice's Undo among a
      box's empty words at the floating panel field's end, as the word and key that
      enter the box do (composing/input.js, `pressAtRest`), and a summary's count at
-     its head, set as a message's time is (thread/transcript.js).
+     its head, set as a message's time is (thread/transcript.js). One that opens the
+     item its words name elsewhere (`data-lf-link`), as a promise's word opens its row
+     in On Claude (thread/messages.js), is underlined at rest as a link is.
    - `row`: one row of a list or menu, whose words are what the reader scans, so they
      stand in the ink; the row under the pointer or the keys is washed, and the row
      the list stands on (`aria-current`) wears the accent's stripe and tint. A step

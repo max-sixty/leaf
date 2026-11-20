@@ -1768,6 +1768,14 @@ wa-copy-button.lf-icon-action {
   font: inherit;
   cursor: pointer;
 }
+/* One that opens the item its words name elsewhere (`data-lf-link`), as a promise's
+   Still to do opens its row in On Claude, is underlined at rest as a link is, at the
+   offset a hovering pointer gives the rest. The user chose that over a chevron after
+   the word and over a symbol in its place. */
+.lf-inline-action[data-lf-link] {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
    which a finger's tap leaves behind too, and so does one among a box's empty words,
    which the user chose to read as those words do. */

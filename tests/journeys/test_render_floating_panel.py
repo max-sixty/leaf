@@ -544,9 +544,9 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
 
 
 def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
-    """With a view open, its Close ends its controls and the field reaches the row's
-    end, at rest and widened alike, so widening the field leaves Close beside the
-    controls."""
+    """With a view open, its Close ends its controls and the field reaches the leaf at
+    the row's end, at rest and widened alike, so widening the field leaves Close beside
+    the controls."""
     page = floating(browser, serve(LONG_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
@@ -557,19 +557,16 @@ def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
     expect(close).to_have_count(1)
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
 
-    def reaches_the_row_s_end():
+    def reaches_the_leaf():
         settled(page)
-        row = page.locator(".lf-fp-row").bounding_box()
+        leaf = page.locator(".lf-fp-leaf").bounding_box()
         words = page.locator(".lf-fp-field").bounding_box()
-        assert row["x"] + row["width"] - (words["x"] + words["width"]) < 12, (
-            row,
-            words,
-        )
+        assert leaf["x"] - (words["x"] + words["width"]) < 12, (leaf, words)
 
-    reaches_the_row_s_end()
+    reaches_the_leaf()
     page.locator(".lf-fp-expand").click()
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
-    reaches_the_row_s_end()
+    reaches_the_leaf()
     page.locator(".lf-fp-expand").click()
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
     close.click()

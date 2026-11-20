@@ -4024,7 +4024,9 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
             page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
         if route == "keyboard" and action == ".":
             field(page).click()
-            page.keyboard.press("Shift+Tab")
+            # Past the field's control in its corner, to the row's end.
+            page.keyboard.press("Tab")
+            page.keyboard.press("Tab")
             expect(leaf).to_be_focused()
             colours["ring"] = mark_colours(leaf)["ring"]
         if route == "keyboard":

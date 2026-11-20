@@ -22,6 +22,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    panel_field,
     panel_settled,
     panel_view,
     put_preview_away,
@@ -80,12 +81,15 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
+def test_tab_from_the_pages_last_control_reaches_the_panel_s_row(
     engine, request, serve
 ):
     """The chrome's foreground is an empty box holding the panel and the overlays, so a
-    Tab never stops on it. Firefox can give the open dialog a Tab stop of its own,
-    which draws nothing between the page's last control and the leaf."""
+    Tab never stops on it: Tabs from the page's last control walk the panel's row as
+    it stands, the field, the control in its corner (Dictate where the browser can
+    dictate, else Send), then the leaf at the row's end. Firefox can give the open
+    dialog a Tab stop of its own, which draws nothing between the page's last control
+    and the panel."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(leaf_page("Tab order", '<p>Words <button id="last">Last</button></p>')),
@@ -93,6 +97,10 @@ def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Tab")
     expect(page.locator("#last")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(panel_field(page)).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-field button:focus")).to_have_count(1)
     page.keyboard.press("Tab")
     expect(page.locator(".lf-fp-leaf")).to_be_focused()
 

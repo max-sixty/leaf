@@ -8,6 +8,8 @@ serializes that reading before adding wrappers, so a missing delimiter cannot pu
 the wrapper or a later sheet inside this sheet's last block, string or comment.
 """
 
+import re
+from collections.abc import Iterable, Iterator
 from functools import lru_cache
 
 from .findings import Finding
@@ -77,3 +79,52 @@ def dropped_css(css: str, sheet: str, *, block=False) -> tuple[Finding, ...]:
 
     walk(css_stylesheet(css))
     return tuple(errors.values())
+
+
+# How a sheet or module sets a custom property by name: a declaration, an `@property`,
+# or the name as a string, as `style.setProperty("--x", …)` writes it. A template
+# literal that builds names from a prefix (`--lf-pane-${side}`) sets every name with
+# that prefix.
+_SETS_PROPERTY = re.compile(
+    r"(--[\w-]+)\s*:|@property\s+(--[\w-]+)|[\"'`](--[\w-]+)[\"'`]"
+)
+_BUILDS_PROPERTY = re.compile(r"`(--[\w-]+)\$\{")
+
+
+def set_properties(texts: Iterable[str]) -> tuple[frozenset[str], tuple[str, ...]]:
+    """The custom properties these sheets and modules set by name, and the prefixes
+    they build names from. A reading of text, not of a parsed sheet, so it over-counts:
+    a name a comment mentions counts as set, and only a read nothing names is missed."""
+    names, prefixes = set(), set()
+    for text in texts:
+        names |= {"".join(match) for match in _SETS_PROPERTY.findall(text)}
+        prefixes |= set(_BUILDS_PROPERTY.findall(text))
+    return frozenset(names), tuple(sorted(prefixes))
+
+
+def unguarded_reads(css: str) -> Iterator[tuple[str, int]]:
+    """Each `var(--name)` with no fallback in a stylesheet, as its name and line. Where
+    nothing sets the name, the declaration that reads it is invalid at computed-value
+    time, so the property falls back to what it inherits or its initial value, and the
+    page shows no sign of it."""
+
+    def walk(nodes):
+        for node in nodes:
+            if node.type == "function" and node.lower_name == "var":
+                arguments = [
+                    item
+                    for item in node.arguments
+                    if item.type not in ("whitespace", "comment")
+                ]
+                if (
+                    len(arguments) == 1
+                    and arguments[0].type == "ident"
+                    and arguments[0].value.startswith("--")
+                ):
+                    yield arguments[0].value, node.source_line
+            for part in ("prelude", "content", "arguments", "value"):
+                inner = getattr(node, part, None)
+                if isinstance(inner, list):
+                    yield from walk(inner)
+
+    yield from walk(css_stylesheet(css))

@@ -39,7 +39,9 @@
    - the thread's messages and the drafts' anchors: application state, which a
      presentation reads (`read`);
    - for a quote in a datum, the datum's source, identity and revision attributes and
-     whether its widget reported a draw: those reach placement only through the
+     whether its widget reported a draw, and for a passage across data its words as
+     well, since the index keeps a quote's copies within one piece of the reading and
+     such a passage stands across several: those reach placement only through the
      presentation that follows a widget's draw.
    A change that wrote or took out the text a placed passage stands in, or put in or
    took out an element whose id an anchor's section names, is settled after its script

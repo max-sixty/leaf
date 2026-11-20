@@ -1074,7 +1074,6 @@ export function createTargetPicker({
     choosing: () => hints.armed() && !pageSearchOpen(),
     paintTargetPickerHints,
     targetPickerOpen,
-    openTargetPicker,
     closeTargetPicker,
     mount,
   };

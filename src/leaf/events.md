@@ -49,8 +49,12 @@ words, and, where the projection names an external input (`inputs`), `source` an
 `source_revision`, the value's revision when selected. The door
 checks that the section binds that source, and admits an older revision as a comment on
 a value since replaced. `identity` names a subject the emitter knows persists across
-source replacements. `visual` names a declared part of a picture, and `part` the control
-or region a design comment landed on. `part` is an accessible name, not an element
+source replacements. A selection that runs from one datum into a later one its widget
+drew from the same value, as a drag across lines of a diff does, names the datum it ends
+in as `datum` and the one it starts in as `from`, with `prefix` taken from the first's
+words and `suffix` from the last's. `visual` names a declared part of a
+picture, and `part` the control or region a design comment landed on. `part` is an
+accessible name, not an element
 identity: an authored id or a quote the file confirms locates the comment exactly, and
 otherwise its section is only a description. A native editing value never becomes a
 `part` or a file-readable quote. A selection whose context can't tell which of several

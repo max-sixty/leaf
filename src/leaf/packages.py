@@ -20,6 +20,7 @@ from .layer import (
     layer_inputs,
     named_package,
     package_files,
+    selectable_packages,
 )
 from .locations import (
     first_overlap,
@@ -31,9 +32,13 @@ from .locations import (
 )
 from .machine import package_store
 from .refusals import Refused
+from .registry.contract import read_registry_declarations
 from .schema import (
     ASSETS,
+    BUNDLED_PACKAGES,
+    DEFAULT_PACKAGE,
     HTML_NAME,
+    INSTRUCTIONS_DIR,
     PACKAGE_DIRS,
     PACKAGE_FILES,
     PAGE_OWNED_DIRS,
@@ -521,6 +526,50 @@ def cmd_package_install(source: Path) -> dict:
         return {"package": str(published)}
 
 
+def cmd_package_list() -> dict:
+    """List the packages `page init --package NAME` can select by name
+    (`selectable_packages`), leaving out `default`, which every page composes, and
+    Leaf's theme, which `leaf theme list` offers.
+
+    A package is described in its own words, so one installed under a name of its own
+    reaches an author as a bundled one does: its `description` is the first paragraph
+    of its author instructions, which says when to select it, and `entries` maps each
+    of its registry keys to that entry's description. `installed` says whether the
+    name resolves to the user's package store rather than to one Leaf ships."""
+    # Reading Markdown pulls in the page parser, which no other package command needs.
+    from .passages import markdown_dialect
+
+    packages = []
+    for name, root in selectable_packages().items():
+        if name in {DEFAULT_PACKAGE.name, DEFAULT_THEME}:
+            continue
+        author = root / INSTRUCTIONS_DIR / "author.md"
+        text = author.read_text(encoding="utf-8") if author.is_file() else ""
+        tokens = markdown_dialect(message=False, html=True).parse(text)
+        opening = next(
+            (
+                tokens[index + 1].content
+                for index, token in enumerate(tokens)
+                if token.type == "paragraph_open" and token.level == 0
+            ),
+            "",
+        )
+        entries = read_registry_declarations(root / "registry.json") or {}
+        packages.append(
+            {
+                "name": name,
+                "installed": not paths_same(root, BUNDLED_PACKAGES / name),
+                "description": " ".join(opening.split()),
+                "entries": {
+                    key: entry["description"]
+                    for key, entry in entries.items()
+                    if not key.startswith("$")
+                },
+            }
+        )
+    return {"packages": packages}
+
+
 def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
     """Run one of a package's `scripts/` in the environment its header declares.
 
@@ -537,8 +586,8 @@ def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
         or (package := named_package(name)) is None
     ):
         raise Refused(
-            f"unknown package {name!r}; name a bundled package or one "
-            "`leaf package install` added"
+            f"unknown package {name!r}; `leaf package list` prints the names "
+            "this machine can select"
         )
     scripts = package / SCRIPTS_DIR
     available = sorted(path.name for path in scripts.glob("*.py") if path.is_file())

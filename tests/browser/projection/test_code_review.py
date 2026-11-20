@@ -668,6 +668,73 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
+def test_a_comment_on_words_across_diff_lines_stays_on_them(browser, serve):
+    """A sentence a diff wraps across two lines is one passage to comment on: its
+    thread stands beside the line it ends on and marks its words on both, and its
+    anchor names both lines, so the agent can tell which lines it is about."""
+    url = serve(
+        leaf_page(
+            "cross-line comment",
+            '<h1 id="title">Wording</h1><lf-diff id="patch" source="patch-data"></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/AGENTS.md b/AGENTS.md\n--- a/AGENTS.md\n+++ b/AGENTS.md\n"
+        "@@ -10,2 +10,3 @@\n Text in the tree says what holds now.\n"
+        "-Old wording.\n+Instructions must reach a reader who has only\n"
+        "+that text and the files it points to.\n",
+    )
+    page = open_page(browser, url)
+    first, last = '["AGENTS.md","new",11]', '["AGENTS.md","new",12]'
+    start, end = page.locator("#patch").evaluate(
+        """(diff, [first, last]) => [[first, "reach", 0], [last, "it points to.", 1]].map(
+          ([key, word, after]) => {
+            const text = diff.shadowRoot.querySelector(`[data-lf-datum='${key}']`);
+            const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+            for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+              const at = node.data.indexOf(word);
+              if (at < 0) continue;
+              const range = document.createRange();
+              range.setStart(node, at + after * word.length);
+              const box = range.getBoundingClientRect();
+              return [box.left + 1 - after * 2, box.top + box.height / 2];
+            }
+          })""",
+        [first, last],
+    )
+    select(page, start, end)
+    page.keyboard.press("c")
+    draft = page.locator(".lf-fab-input")
+    write(draft, "Too obvious?")
+    with sending(page, "the comment across two lines"):
+        draft.press("ControlOrMeta+Enter")
+    comment = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    words = "reach a reader who has only that text and the files it points to."
+    assert {
+        key: comment["anchor"].get(key) for key in ("section", "from", "datum", "quote")
+    } == {"section": "patch", "from": first, "datum": last, "quote": words}
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    assert page.evaluate("() => [...CSS.highlights.get('lf-mark')].map(String)") == [
+        "reach a reader who has only",
+        "that text and the files it points to.",
+    ]
+    outlet = page.locator(
+        f"#patch .lf-diff-thread-outlet[data-lf-thread-datum='{last}']"
+    )
+    expect(outlet).to_be_visible()
+    line = page.locator(f"#patch [data-lf-datum='{last}']").bounding_box()
+    assert outlet.bounding_box()["y"] >= line["y"] + line["height"] - 1
+    status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")
+    expect(status).to_have_count(0)
+
+
 def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(

@@ -1,7 +1,9 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
- * session's pages, the drawing of Leaf's own rows in the conversation, and the
- * carrier of the model calls Leaf asks of the session (`carry`): forks of the
+ * session's pages, the drawing of Leaf's own rows in the conversation, the cap on
+ * how long a foreground Bash call holds the main thread while the session holds a
+ * page (`capped`), and the carrier of the model calls Leaf asks of the session
+ * (`carry`): forks of the
  * conversation, such as the turn-end check's and the one that writes the agent's
  * working line on a thread's waiting messages, and completions on the session's
  * model, such as a thread's title. Leaf's Python decides each one and what its
@@ -18,6 +20,22 @@
  * Claude Code drops from an Escape until the user next types, so every wake after
  * an Escape would become a cross-session nudge (measured at 2.1.307 with the
  * claude-code journey).
+ *
+ * While the session holds a page, a foreground Bash call on the main thread runs
+ * for at most `FOREGROUND_CAP_MS`. Page input reaches the session only between its
+ * steps, so a message sent during a longer command waits for it to end. Claude Code
+ * moves a command still running at its timeout to the background, says so in the
+ * call's result and wakes the session when the command exits (measured at 2.1.329),
+ * so capping the timeout ends the step but not the command, and the result already
+ * tells the agent what happened. The maintainer chose that a session holding a page
+ * keeps each step it waits on to about a minute (the leaf skill's "Stay
+ * responsive"), with a hook as the backstop where agents still miss it, as they do
+ * on foreground test runs. A hook that only flags a long timeout fires mostly on
+ * commands that finish in time, since agents give quick commands long timeouts, and
+ * the agent then waits out the ones that don't. A subagent's calls keep their
+ * timeout: a fork or a reporter whose call moved to the background may end its turn,
+ * which its parent reads as its report. A call the agent runs in the background, or
+ * with a shorter timeout, goes as it came.
  *
  * Starting an idle turn always draws a row, and no hook or exit code wakes the
  * session without one (read in 2.1.307's source). The watch's wake is a task
@@ -528,6 +546,24 @@ const running = new Map<string, { tool: string; input: Record<string, string> }>
 // The arguments of a call a fork's prompt names, each cut to a line's worth.
 const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"];
 
+// The longest a foreground Bash call holds the main thread while the session holds a
+// page: the minute the leaf skill asks of a step, with room for one that runs a
+// little over it.
+const FOREGROUND_CAP_MS = 90_000;
+
+/** `e` with a foreground Bash call's timeout held to `FOREGROUND_CAP_MS` while the
+ * session holds a page, as the follower last listed its pages; any other call as it
+ * came. */
+function capped<E extends { tool: string }>(e: E): E {
+  if (e.tool !== "Bash" || leaves.length === 0) return e;
+  const { timeout, run_in_background } = e as {
+    timeout?: number;
+    run_in_background?: boolean;
+  };
+  if (run_in_background) return e;
+  return { ...e, timeout: Math.min(timeout ?? FOREGROUND_CAP_MS, FOREGROUND_CAP_MS) };
+}
+
 /** Make the completion `request`, as Leaf wrote it, on the session's own model client
  * (`src/leaf/completions.py`, whose header says how the request reaches the module),
  * and what it came to: the text or why there is none, with its usage and time. */
@@ -575,7 +611,8 @@ export const register: Register = (on) => {
     },
   );
 
-  // Every call the main thread runs, for the prompt of a fork made meanwhile.
+  // Every call the main thread runs, for the prompt of a fork made meanwhile, each
+  // foreground Bash call capped while the session holds a page.
   on("tool.call", async ($, e, next) => {
     if (e.agentId !== undefined) return next(e);
     const input: Record<string, string> = {};
@@ -585,7 +622,7 @@ export const register: Register = (on) => {
     }
     running.set(e.tool_use_id, { tool: e.tool, input });
     try {
-      return await next(e);
+      return await next(capped(e));
     } finally {
       running.delete(e.tool_use_id);
     }

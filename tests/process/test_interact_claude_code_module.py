@@ -774,6 +774,41 @@ def test_a_line_fork_whose_step_leaf_could_not_take_posts_nothing(
     driven.quit()
 
 
+def test_a_foreground_bash_call_holds_a_session_with_a_page_for_90_seconds_at_most(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """While the session holds a page, the module caps the timeout of each foreground
+    Bash call the main thread makes at 90 s, so Claude Code moves a command still
+    running then to the background and the page's input reaches the session at its
+    next step. A call in the background, one with a shorter timeout, a subagent's,
+    and every call of a session holding no page reach Claude Code as they came."""
+
+    def reached(driven: ClaudeCode, **call) -> dict:
+        e = {"tool": "Bash", "command": "make test", "tool_use_id": "u1"} | call
+        # The driver's bottom answers with the input it reached: Claude Code's call.
+        return driven.emit("tool.call", e)["result"]
+
+    pageless = ClaudeCode(spawn, "cc-pageless", {})
+    assert reached(pageless, timeout=600_000)["timeout"] == 600_000
+    pageless.quit()
+
+    driven = ClaudeCode(spawn, "cc-capped", {})
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: driven.bands.get(timeout=STATED_TIMEOUT)["terminal"],
+        lambda drawn: band_lines(drawn, "terminal"),
+        failure="the module drew no band",
+    )
+    assert reached(driven, timeout=600_000)["timeout"] == 90_000
+    assert reached(driven)["timeout"] == 90_000
+    assert reached(driven, timeout=30_000)["timeout"] == 30_000
+    assert "timeout" not in reached(driven, run_in_background=True)
+    assert reached(driven, timeout=600_000, agentId="a1")["timeout"] == 600_000
+    driven.quit()
+
+
 def test_leaf_hears_nothing_from_a_subagent_and_hands_it_nothing(
     page_dir, monkeypatch, spawn, sessionless, capsys
 ):

@@ -78,12 +78,9 @@ from .service import (
 from .state import (
     STRING,
     Record,
-    acting_agent_turn,
     described,
     flocked,
-    leaf_invocation,
     object_schema,
-    open_agent_turns,
     open_session_turn,
     retire_if_gone,
     session_lock_path,
@@ -871,7 +868,7 @@ READ_CHARS = 3500
 def pointer_acknowledgement(delivery_id: str) -> str:
     return (
         "After every part of this delivery is in context, confirm complete receipt "
-        f"with `{leaf_invocation()} delivery ack {delivery_id}` before handling its "
+        f"with `leaf delivery ack {delivery_id}` before handling its "
         "input. If any output is missing, reread that part before confirming."
     )
 
@@ -907,7 +904,7 @@ def delivery_reading(payload: dict, *, part: int = 1) -> dict:
         "parts": count,
         "text": serialized[(part - 1) * READ_CHARS : part * READ_CHARS],
         "next": (
-            f"{leaf_invocation()} delivery read {payload['id']} --part {part + 1}"
+            f"leaf delivery read {payload['id']} --part {part + 1}"
             if part < count
             else None
         ),
@@ -957,7 +954,7 @@ def earlier_pickup(payload: dict, session_id: str):
 
     record = session_record(session_id)
     assert record is not None
-    turn = acting_agent_turn(session_id) or record["turn"]
+    turn = record["turn"]
     turns, answers = set(), []
     for batch in payload["batches"]:
         page_dir = Path(batch["page"])
@@ -1078,8 +1075,8 @@ def record_pickup(
 
     An opened or held pickup says which turn holds a thread (`holding.Holding`), so
     this records one only where that turn may take the message
-    (`holding.pickable`): an agent's turn, only what it holds or nobody does,
-    refusing the rest; another turn, nothing an agent's running turn holds. It asks
+    (`holding.pickable`): a line turn, only what it holds or nobody does, refusing
+    the rest; another turn, nothing a running line turn holds. It asks
     the page's reading, or `holding` where the caller has read it in this
     transaction since the log last changed, as admission has as it opens a line turn
     (`forks`), so the page is read once.
@@ -1182,26 +1179,21 @@ def deliverable(
     why (`hook_transport.remedies`).
 
     Both kinds are filtered by who holds each thread (`holding.Holding`, the fold's
-    or `forks.page_holding`). More, too, while the owner's session lives, the waiting
-    messages of each thread a fork whose turn has ended holds by its pickup of them,
-    which it left owed, giving the thread back or ending without answering, and which
-    the main thread now owes (`holding.owed_by`). Less, the waiting messages of each
-    thread the main thread
-    doesn't owe: one an agent's running turn holds, a line turn Leaf opened as the
+    or `forks.page_holding`): less the waiting messages of each thread the main
+    thread doesn't owe, one a running line turn holds, which Leaf opened as the
     message arrived while a line fork of the owner's conversation writes its line
-    (`forks.kept_back`), which keeps the watch from waking the session for it, or a
-    working fork's, whose further messages go to it at its tool boundary.
+    (`forks.kept_back`), which keeps the watch from waking the session for it.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. A tool hook runs after every tool call, so Codex's passes
     `received=False`, as Claude Code's does before it folds its pages
     (`hook_transport.new_input`): what the cursor has not passed, and the waiting
     messages the main thread owes of input the cursor passed that no pickup took in,
-    which a holder kept from it. Every receipt's pickup names what it passes, so
-    a page holds such input only where a fork or a line turn held it, settled
-    since or not, and only there, or where input is pending in a session with
-    forks, does this read who holds each thread; otherwise it reads the log alone,
-    without the page's layer.
+    which a line turn kept from it. Every receipt's pickup names what it passes, so
+    a page holds such input only where a line turn held it, settled since or not,
+    and only there, or where input is pending in a session with line turns, does
+    this read who holds each thread; otherwise it reads the log alone, without the
+    page's layer.
     The adapter, or the Stop hook where no adapter runs, hands over the rest
     (`harness.CodexHarness.offer_at_step`)."""
     cursor = page.cursor
@@ -1210,7 +1202,6 @@ def deliverable(
     if held:
         pending = [event for event in pending if event["id"] not in held]
     from .forks import page_holding
-    from .holding import owed_by
     from .state import agent_turn_stamps
 
     owed = []
@@ -1222,18 +1213,15 @@ def deliverable(
         owed = unreferenced(page, work.obligations)
         holding = work.holding
     elif (claim := page.active_claim) is not None:
-        # The waiting messages of a thread the cursor passed while another held it
-        # (`holding.not_awaited`), which the main thread owes now and no pickup ever
-        # took in, are its input, as the fold's debt with no reference is where it
-        # reads, whether or not the fork that held them is still up: a
-        # thread a turn took any of them in from is that turn's, which the fold hands
-        # on if it ended with the thread owed. Such a message is input the cursor
-        # passed that no pickup took in, a line turn's `held` one aside: one a fork or
-        # a line turn held, which stays so once it settles before any pickup, as when
-        # the user resolves its thread.
+        # The waiting messages of a thread the cursor passed while a line turn held
+        # it (`holding.not_awaited`), which the main thread owes now and no pickup
+        # ever took in, are its input, as the fold's debt with no reference is where
+        # it reads. Such a message is input the cursor passed that no pickup took in,
+        # a line turn's `held` one aside, which stays so once it settles before any
+        # pickup, as when the user resolves its thread.
         # So a tool boundary builds the page's reading, about 50 ms on a page of
         # 41,000 events, only on a page that has held one, or where input is pending
-        # in a session with forks, whose holders keep theirs from it. Telling a
+        # in a session with line turns, which keep theirs from it. Telling a
         # settled one from one that still waits takes the fold's closing rules,
         # which only that reading applies; the fold's own reader of what is owed
         # (`current_responses`) costs more than it.
@@ -1250,13 +1238,13 @@ def deliverable(
             and event["id"] not in taken
             and requires_agent_attention(event)
         ]
-        forks = bool(pending) and bool(agent_turn_stamps(claim, page.events))
-        holding = page_holding(page) if passed or forks else None
+        lines = bool(pending) and bool(agent_turn_stamps(claim))
+        holding = page_holding(page) if passed or lines else None
         if holding is not None and passed:
             pending += [
                 event
                 for thread, said in holding.found.waiting.items()
-                if owed_by(holding.threads[thread].holder)["kind"] == "main"
+                if holding.threads[thread].holder["kind"] == "main"
                 and not any(event["id"] in holding.taken for event in said)
                 for event in said
                 if event["seq"] <= cursor
@@ -1264,29 +1252,12 @@ def deliverable(
     else:
         holding = None
     if holding is not None:
-        if work is not None and holding.live:
-            # What a fork's turn picked up and then left owed, giving its thread back
-            # or ending without answering, is the main thread's input now; a message
-            # already pending or owed goes once.
-            left = {
-                event["id"]
-                for event in holding.waiting(
-                    lambda held: (
-                        held.picked
-                        and held.holder["kind"] == "fork"
-                        and held.holder["state"] != "running"
-                    )
-                )
-            } - {event["id"] for event in [*owed, *pending]}
-            owed += [event for event in page.events if event["id"] in left]
-        # A waiting message a running fork or line turn holds is theirs,
-        # pending where the cursor hasn't passed it and owed and unreferenced where
-        # it has (`holding.not_awaited`).
+        # A waiting message a running line turn holds is its, pending where the
+        # cursor hasn't passed it and owed and unreferenced where it has
+        # (`holding.not_awaited`).
         if elsewhere := {
             event["id"]
-            for event in holding.waiting(
-                lambda held: owed_by(held.holder)["kind"] != "main"
-            )
+            for event in holding.waiting(lambda held: held.holder["kind"] != "main")
         }:
             pending = [event for event in pending if event["id"] not in elsewhere]
             owed = [event for event in owed if event["id"] not in elsewhere]
@@ -1393,8 +1364,8 @@ def receive_passed(page: PageTransaction, passed: set[str]) -> None:
     position it moves to, so it stops at the first input nobody has taken.
 
     Whoever takes input passes what the main thread doesn't await
-    (`holding.not_awaited`): what an agent's turn picked up, and the waiting messages
-    a running fork or a line fork holds, which go to them whatever the cursor says."""
+    (`holding.not_awaited`): the waiting messages a running line turn holds, which
+    go to it whatever the cursor says."""
     through = page.cursor
     for event in unacknowledged(page.events, page.cursor):
         if event["id"] not in passed:
@@ -1495,18 +1466,11 @@ def receive_delivery(delivery_id: str) -> list[Path]:
     consumer is running even if its prompt hook failed. The canonical opener preserves known provider
     lifecycle authority. Pointer receipt also retains its origin's reservation,
     including the exact turn a Codex hook offered it to. Automatic hook and
-    provider receipts observe an already-open turn through `receive` instead. An
-    agent of the session acknowledges a pointer its tool boundary handed it into its
-    own turn (`state.acting_agent_turn`, `hook_transport.carry_agent_turn`).
+    provider receipts observe an already-open turn through `receive` instead.
     """
     payload = read_delivery(delivery_id)
     acting_on_delivery(payload)
     harness = session_harness()
-    if harness and (turn := acting_agent_turn(harness.session)):
-        return [
-            receive_one(batch, harness.session, agent_turn=turn)
-            for batch in payload["batches"]
-        ]
     if harness:
         open_session_turn(harness.session)
         if payload["acknowledge"] is None:
@@ -1533,14 +1497,11 @@ def receive_held(
     *,
     deadline: float | None = None,
     confirm: bool = True,
-    agent_turn: str | None = None,
 ) -> list[dict]:
     """Record each batch of a delivery its hook is handing to `session_id`'s open
     turn, the lifecycle `expected` it planned under, as opened in it, and return
     the batches it recorded. `confirm` also records the receipt, where the harness
     has the context once the hook returns (`Harness.commits_hook_context`).
-    `agent_turn` names a turn of an agent the session runs beside its main thread
-    instead (`receive_one`).
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
@@ -1556,7 +1517,6 @@ def receive_held(
                 deadline=deadline,
                 expected=expected,
                 confirm=confirm,
-                agent_turn=agent_turn,
             )
         except (FileNotFoundError, Refused, TimeoutError):
             continue
@@ -1571,17 +1531,10 @@ def receive_one(
     deadline: float | None = None,
     expected: dict | None = None,
     confirm: bool = True,
-    agent_turn: str | None = None,
 ) -> Path:
     """Confirm one consumer-read batch under its current page ownership, into the
     session lifecycle `expected` where the caller names one; `confirm` as
-    `receive_batch` takes it.
-
-    With `agent_turn`, an open turn of an agent the session runs beside its main
-    thread (`state.AGENT_TURNS`) takes the batch: its pickup names that turn, and the
-    receipt follows at once, since the agent's context has it once its hook returns,
-    through what the session's agents took (`receive_passed`), which never passes
-    input the main thread still awaits."""
+    `receive_batch` takes it."""
     page_dir = Path(batch["page"])
     with (
         PageTransaction(page_dir, deadline=deadline) as page,
@@ -1589,25 +1542,9 @@ def receive_one(
             page,
             batch,
             session_id=session_id,
-            confirm=confirm and agent_turn is None,
+            confirm=confirm,
         ) as events,
     ):
-        if agent_turn is not None:
-            from .forks import page_holding
-            from .holding import not_awaited
-
-            assert session_id is not None
-            if agent_turn not in open_agent_turns(session_id):
-                raise ReceiptRefused("the receiving agent's turn has ended")
-            record_pickup(
-                page,
-                events,
-                session=session_id,
-                turn=agent_turn,
-                refs=batch_refs(batch),
-            )
-            receive_passed(page, not_awaited(page_holding(page)))
-            return page_dir
         turn = None
         if session_id:
             observed = session_record(session_id)

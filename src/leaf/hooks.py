@@ -99,14 +99,6 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if not sid:
         return
     assert isinstance(event, str)
-    if event == "PostToolBatch" and (agent := payload.get("agent_id")):
-        # A boundary of an agent running a turn of the session's own
-        # (`state.worker_tool_batch`), which carries only that turn's input.
-        from .harness import hook_harness
-        from .hook_transport import carry_agent_turn
-
-        carry_agent_turn(hook_harness(harness, sid), sid, agent, started=started)
-        return
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):

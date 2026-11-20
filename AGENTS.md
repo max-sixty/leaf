@@ -170,9 +170,7 @@ and the page's packages into the page's layer.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
   Code, `codex.json` for Codex), the scripts they run, Claude Code's hooks
-  module `claude-code.ts` with the contracts it declares to Claude Code
-  (`leaf-state.d.ts`), such as the values it keeps in `$.state`, and the Pi
-  extension `pi.ts`.
+  module `claude-code.ts`, and the Pi extension `pi.ts`.
 - `evals/`: cases that score the shipped instructions by what a headless agent does
   with them, and experiments with their own Promptfoo configs (`dev/AGENTS.md`,
   "Experiments").

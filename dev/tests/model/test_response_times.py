@@ -176,8 +176,8 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
         "why": "it asks for a measurement",
     }
     assert rows["first"]["fork"] is None
-    assert report["summary"]["fork_hand_over"]["inputs"] == 2
-    assert report["summary"]["fork_hand_over"]["p50_s"] == 5
+    assert report["summary"]["forked"]["inputs"] == 2
+    assert report["summary"]["forked"]["p50_s"] == 5
     assert report["summary"]["delivered"]["p50_s"] == 2
     assert set(rows) == {"first", "second", "edited", "third"}
     assert rows["first"]["superseded_by_edit"] == "quiet-edit"

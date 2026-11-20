@@ -3699,7 +3699,9 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         {"section": "flow", "visual": "node:S"}
     ]
     open_panel_thread(page, posted[0]["id"])
-    expect(page.locator(".lf-quote-label")).to_have_text("§ diagram · Start request")
+    expect(page.locator(PANEL_THREAD).locator(".lf-quote-label")).to_have_text(
+        "§ diagram · Start request"
+    )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)

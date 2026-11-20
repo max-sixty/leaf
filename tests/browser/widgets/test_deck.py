@@ -5,7 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
+from render_cases_interaction import HOLD_MOTION, live_url
 from render_harness import leaf_page, open_page, round_trip
 
 from leaf import event_log as events_model
@@ -346,20 +346,26 @@ def test_by_keyboard_the_forward_control_hands_over_to_the_step_back_in(browser,
 def test_a_card_still_flying_off_takes_no_focus(browser, serve):
     """The card an answer sends off stands before the one that came up until its motion
     ends, so Shift+Tab from the new card goes to the bar's Later rather than into the
-    card leaving, even where the motion outlasts the new card's wait to settle."""
+    card leaving. The motion is held at its first frame through the focus check, so
+    neither a slow runner nor a fast one decides whether the card is still leaving."""
     page = open_page(browser, serve(DECK_PAGE))
-    cdp = page.context.new_cdp_session(page)
-    cdp.send("Animation.enable")
+    page.emulate_media(reduced_motion="no-preference")
     page.keyboard.press("m")
     expect(page.locator("#store-ask")).to_be_focused()
-    cdp.send("Animation.setPlaybackRate", {"playbackRate": 0.1})
+    page.evaluate("() => {" + HOLD_MOTION + "}")
     page.keyboard.press("1")
     expect(page.locator("#beta-ask")).to_be_focused()
-    expect(page.locator("#store-ask")).to_have_attribute(
-        "data-lf-deck-leaving", "right"
-    )
+    leaving = page.locator("#store-ask")
+    expect(leaving).to_have_attribute("data-lf-deck-leaving", "right")
+    assert page.evaluate("() => __lfHeld.some(a => a.playState === 'paused')")
     page.keyboard.press("Shift+Tab")
     expect(page.locator("lf-deck .lf-deck-forward")).to_be_focused()
+    expect(leaving).to_have_attribute("data-lf-deck-leaving", "right")
+    page.evaluate(
+        "() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => a.finish())"
+    )
+    expect(leaving).not_to_have_attribute("data-lf-deck-leaving", "right")
+    expect(leaving).not_to_have_attribute("inert", "")
 
 
 # The height each motion of the deck's own box ends at, recorded as it starts.

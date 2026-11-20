@@ -6,7 +6,7 @@
  * part. A thread travels to its anchor's place, a fragment link to its element or to
  * the part a widget's key names, an obligation to its own arrival region, and a
  * module's `navigateToDatum` to the part its reference names. Every route shares three
- * steps: `revealAddressed` draws the part,
+ * steps: `revealAddressed` draws the part (`revealAnchor` each part an anchor names),
  * `reveal` opens what holds it, and `clearFor` puts away a surface that would stand
  * over it where it lands (floating-panel.js). Each
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
@@ -51,6 +51,7 @@ import {
   fragmentTarget,
   resolveAnchor,
   revealAddressed,
+  revealAnchor,
   sectionOf,
 } from "./anchor-resolution.js";
 import { placeHolder, showsContents } from "./geometry.js";
@@ -222,7 +223,7 @@ export function createAnchorTravel({
       there: (readable) => Boolean(destination && readable(destination.where)),
     });
     if (source && datum) {
-      const hydration = revealAddressed(source, datum);
+      const hydration = revealAnchor(source, anchor);
       if (hydration?.then) await hydration;
       if (!mayArrive() || sectionOf(anchor) !== source) return false;
     }
@@ -596,23 +597,20 @@ export function createAnchorTravel({
     const thread = threadNamed(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
-    const hydrationTarget = anchor?.visual
-      ? { anchor, key: anchor.visual }
-      : anchor?.datum && status !== "outdated"
-        ? { anchor, key: anchor.datum }
-        : null;
+    const hydrationTarget =
+      anchor?.visual || (anchor?.datum && status !== "outdated") ? anchor : null;
     const destination = threadDestination(id);
     // Decided before the navigation step awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const departure = history ? prepareNavigationStep() : null;
     if (destination || hydrationTarget) departure?.plan(destination);
     if (hydrationTarget) {
-      const source = sectionOf(hydrationTarget.anchor);
+      const source = sectionOf(hydrationTarget);
       // A visual settles on its part, including cancelling a pending replacement of
       // an already visible destination; a lazy datum may load.
-      const hydration = source && revealAddressed(source, hydrationTarget.key);
+      const hydration = source && revealAnchor(source, hydrationTarget);
       if (hydration?.then) await hydration;
-      if (!mayArrive() || sectionOf(hydrationTarget.anchor) !== source) return false;
+      if (!mayArrive() || sectionOf(hydrationTarget) !== source) return false;
       await refreshThread();
       if (!mayArrive()) return false;
     }
@@ -629,7 +627,7 @@ export function createAnchorTravel({
     return arrive(
       () => {
         const placement = anchors.placedAt(id);
-        const source = hydrationTarget && sectionOf(hydrationTarget.anchor);
+        const source = hydrationTarget && sectionOf(hydrationTarget);
         const target = !focus
           ? null
           : part

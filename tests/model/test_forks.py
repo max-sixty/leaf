@@ -214,18 +214,22 @@ def test_a_line_hands_the_thread_to_the_session(
     claimed, lane, interactive, capsys, monkeypatch
 ):
     """Leaf posts the line fork's line, closes the line turn and nudges a session no
-    watch follows, and the session's next delivery hands it the message with its
-    answer reference, telling it nothing more, since the session decides who does
-    the work."""
+    watch follows, once: the page's server, waking at its next transition, sends
+    nothing more. The session's next delivery hands it the message with its answer
+    reference, telling it nothing more, since the session decides who does the
+    work."""
     nudged = []
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "nudge",
         lambda harness, page: nudged.append(page) or True,
     )
+    serving(claimed, 1)
+    server = server_rows_model.RowPublisher(claimed, "fixture-server")
     state_model.close_session_turn("s1")
     asked = said(claimed, "Which Python does the project need?")
     listed = basis(claimed, asked["id"], asked["id"])
+    server.refresh()
     routed = forks_model.route(
         "s1", listed, answer=line_answer("checking the Python version"), failed=None
     )
@@ -239,6 +243,9 @@ def test_a_line_hands_the_thread_to_the_session(
         asked["id"],
     )
     assert listed["turn"] not in state_model.open_agent_turns("s1")
+    assert nudged == [claimed.resolve()]
+    grace_passes(server, listed["turn"])
+    server.refresh()
     assert nudged == [claimed.resolve()]
     assert clerk_model.queued("s1") == []
 
@@ -997,6 +1004,13 @@ def opened_long_ago(turn: str, by: timedelta) -> None:
     )
 
 
+def grace_passes(server, turn: str) -> None:
+    """The line turn `turn`'s grace passes, for its stamps and for the page's server
+    `server`, which wakes at the moment its last row named (`server_rows`)."""
+    opened_long_ago(turn, activity_model.STARTING_GRACE)
+    server.transition -= activity_model.STARTING_GRACE.total_seconds()
+
+
 def test_a_line_turn_that_has_ended_holds_nothing(claimed, lane):
     """A line turn that has ended keeps nothing: right after its line fork hands the
     thread over, `leaf page state` says the main thread holds the thread and owes
@@ -1227,16 +1241,34 @@ def test_a_thread_the_session_owes_stays_with_it_and_a_follow_up_is_forked(
     leases_model.release_lease(lane)
 
 
-def test_a_line_fork_answering_after_its_turn_lapsed_writes_nothing(claimed, lane):
-    """A message whose line turn lapsed is the main thread's, so the line fork's late
-    answer posts no line and takes nothing, though the lapsed turn was never
-    closed."""
+def test_a_lapsing_line_turn_wakes_the_session_and_its_late_answer_writes_nothing(
+    claimed, lane, interactive, monkeypatch
+):
+    """A message whose line turn lapsed is the main thread's, however its line fork
+    fares. Nothing writes as a line turn lapses, so the page's server, waking at the
+    moment its fold names, nudges the session for the message where no watch follows
+    it, as once the watch its Stop hook started has failed. The nudge needs no answer
+    from the line fork, and its late answer then posts no line, takes nothing and
+    wakes no one again, though the lapsed turn was never closed."""
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append(page) or True,
+    )
+    serving(claimed, 1)
+    server = server_rows_model.RowPublisher(claimed, "fixture-server")
+    state_model.close_session_turn("s1")
     asked = said(claimed, "Which wins?")
     listed = basis(claimed, asked["id"], asked["id"])
-    opened_long_ago(listed["turn"], activity_model.STARTING_GRACE)
+    server.refresh()
+    assert nudged == []
+    grace_passes(server, listed["turn"])
     assert listed["turn"] in state_model.open_agent_turns("s1")
     assert kept_back(claimed) == []
     assert deliverable(claimed) == [asked["id"]]
+    server.refresh()
+    assert nudged == [claimed.resolve()]
     assert forks_model.route(
         "s1",
         listed,
@@ -1252,6 +1284,7 @@ def test_a_line_fork_answering_after_its_turn_lapsed_writes_nothing(claimed, lan
     )
     assert deliverable(claimed) == [asked["id"]]
     assert clerk_model.queued("s1") == []
+    assert nudged == [claimed.resolve()]
 
 
 def test_a_line_fork_step_repeated_after_its_hand_over_changes_nothing(claimed, lane):

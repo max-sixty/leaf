@@ -91,21 +91,25 @@ back again.
 
 A line turn ends by closing, which writes the session's agent turns that the watch's
 reading stamps (`served_state.reading`) and nudges a session no watch follows
-(`_hand_over`), or by lapsing, a `STARTING_GRACE` after it opened, since nothing
-renews a line turn, which the reading's `next_transition_at` names. A line turn that
-has ended keeps nothing: its `held` pickup leaves the thread's messages to the main
-thread, and the next turn opened drops its entry (`state.open_agent_turn`). The lane
-only says, at admission, that a follower runs to list the line turn for the module;
-its line fork runs in the module, so the follower exiting or being killed ends
-nothing that was listed.
+(`_hand_over`), or by lapsing, a `STARTING_GRACE` after it opened, since nothing renews
+a line turn. A lapse writes nothing, but the reading's `next_transition_at` names its
+moment, when a watch wakes the session, and the page's server nudges a session no watch
+follows (`presence.nudge_left`). So the thread's messages reach the session, and wake
+it, whether its line fork answers in time, late or never, and the line fork's answer
+adds only the line. A nudge from `route` on a late answer would miss a line fork that
+never answers, as one whose module reloaded mid-fork, and a bound of the follower's own
+would be a second clock beside the fold's. A line turn that has ended keeps nothing: its
+`held` pickup leaves the thread's messages to the main thread, and the next turn opened
+drops its entry (`state.open_agent_turn`). The lane only says, at admission, that a
+follower runs to list the line turn for the module; its line fork runs in the module, so
+the follower exiting or being killed ends nothing that was listed.
 
 The user chose to hold a kept-back message this way, by the line turn's pickup in the
 log, over a hold of its own: a line holder the reading gives each thread admitted
 since the lane came up, a record outside the log of the messages each line fork
 handed over, and a bound the follower enforces with a nudge. Such a hold is a second
 answer to which turn holds a thread, kept partly outside the log, so every reader
-that asks the log would have to ask it too. A line turn that lapses nudges no one, so
-an idle session no watch follows finds the message at its next prompt.
+that asks the log would have to ask it too.
 
 The lane is the session's pages follower (`hooks.cmd_pages`) while it holds the
 lease at `lane_path`: the follower lists a report for each kept-back thread (`look`,

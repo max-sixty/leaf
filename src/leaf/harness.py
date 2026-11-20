@@ -84,7 +84,7 @@ class Harness:
       held no page when that turn's prompt came. Then nothing watches, as when a
       watch fails, reaches its hook's timeout or loses a background job's retired
       worker, while the session lives on, which is why this is the harness with a
-      `nudge` (`presence.nudge_interrupted`).
+      `nudge` (`presence.nudge_left`).
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.

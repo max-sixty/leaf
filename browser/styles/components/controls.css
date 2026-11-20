@@ -904,10 +904,18 @@ summary,
   color: var(--lf-accent);
 }
 /* A symbol whose menu, picker or popover is open (`aria-expanded`), such as a
-   message's reaction picker or the panel's leaf menu, keeps the chip while it shows. */
+   message's reaction picker, keeps the chip while it shows. */
 .lf-icon-action[aria-expanded="true"] {
   background: var(--lf-chip);
   color: var(--lf-ink);
+}
+/* A symbol that carries badges (`.lf-badges`, above), as the panel's leaf does, draws
+   no ground: neither the library's fill under a hovering or pressing pointer nor the
+   chip while what it opens shows. Its badges stand over its top edge, where a
+   ground's edge would meet them, and the view it opens shows what it opened. The user
+   chose the bare leaf over its tile. */
+.lf-icon-action:has(> .lf-badges) {
+  background: none;
 }
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
    of words of its own; the button inside fills the face and takes the press. The host

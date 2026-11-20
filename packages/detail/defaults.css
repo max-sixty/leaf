@@ -59,11 +59,15 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   border-block-width: 0 !important;
 }
 
-/* Where a run of blocks is folded: a quiet mark the reader can press to show it. */
+/* Where a run of blocks is folded: a quiet mark the reader can press to show it. It
+   takes a short row of its own, which its press overhangs, and stands into the gaps
+   the blocks around it leave, so Skim's own marks spend little of the room it saves. */
 .lf-dial-more {
   display: flex;
+  align-items: center;
   inline-size: fit-content;
-  margin-block: calc(-1 * var(--lf-sp-1)) var(--lf-sp-2);
+  block-size: var(--lf-sp-3);
+  margin-block: calc(-1 * var(--lf-sp-1)) calc(-1 * var(--lf-sp-2));
 }
 
 /* Each depth's time on a line of its own under its word, a step quieter (lf-dial.js).

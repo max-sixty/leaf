@@ -65,6 +65,10 @@ renamed_classes = [{ from = "LeafExampleSession", to = "LeafWebsiteSession" }]
 tag = "v3"
 new_sqlite_classes = ["LeafSession"]
 
+[[migrations]]
+tag = "v4"
+deleted_classes = ["LeafWebsiteSession"]
+
 [observability]
 enabled = true
 
@@ -132,6 +136,10 @@ routes = []
   [[env.dev.migrations]]
   tag = "v3"
   new_sqlite_classes = ["LeafSession"]
+
+  [[env.dev.migrations]]
+  tag = "v4"
+  deleted_classes = ["LeafWebsiteSession"]
 
   [env.dev.observability]
   enabled = true

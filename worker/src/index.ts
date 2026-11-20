@@ -199,9 +199,12 @@ declare global {
  * version it runs (Durable Object scheduling, `wrangler.toml`), so every container a
  * deploy's object starts runs that deploy's image. The object restarts on the deployed
  * code at the deploy (`code_update_strategy`), and its first request afterwards stops
- * a container still running the previous image: that image's server and the deployed
- * Worker share no version for what they send each other, and a page the deploy added
- * is one the previous image doesn't have. An agent turn running then is cut off.
+ * a container still running the previous image, cutting off an agent turn running
+ * then. The maintainer chose this over letting that container run until it idles. The
+ * previous image's server and the deployed Worker share no version for what they send
+ * each other, so its saves could fail with no reload to rescue the visitor; a page the
+ * deploy added is one the previous image doesn't have; and an open tab keeps its
+ * container busy, so the visitor would never reach the deployed release.
  */
 export class LeafSession extends DurableObject<Env> {
   private pages: PageStore;
@@ -452,12 +455,6 @@ export class LeafSession extends DurableObject<Env> {
     return this.forward(request);
   }
 }
-
-/** The session class `LeafSession` replaced, which nothing routes to. Cloudflare keeps
- * a class's objects until a migration deletes the class, refuses that migration while
- * the class's container application stands, and refuses a version that leaves out a
- * class it keeps. */
-export class LeafWebsiteSession extends DurableObject<Env> {}
 
 type HttpFailure =
   | { source: "adapter" | "unclassified" }

@@ -3770,7 +3770,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     browser, serve, scheme
 ):
     """The mark rides the box into its corner and back, while the row's words come out
-    from behind it; its button receives focus at once. Reversing starts from where it
+    of the box's leading edge clear of it; its button receives focus at once. Reversing starts from where it
     is drawn, and reduced motion takes the endpoint."""
     from io import BytesIO
 
@@ -3825,27 +3825,24 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         assert isinstance(low, (int, float)) and isinstance(high, (int, float))
         assert high - low > 32, (low, high)
 
-    def words_follow_leaf():
-        # The field shows nothing under the leaf: its words come out from behind its
-        # visible trailing edge until that edge has passed the field's start.
-        # The attachment hanging over the field shows meanwhile, cut by no edge of it.
+    def words_follow_box():
+        # The field's words come out of the box's leading edge as it grows from the
+        # leaf's side, and never stand under the leaf. The attachment hanging over the
+        # field's start, across that edge, shows meanwhile, cut by no edge of it.
         edges = field(page).evaluate("""editor => {
           let cut = editor;
           while (getComputedStyle(cut).clipPath === 'none') cut = cut.parentElement;
           const sides = getComputedStyle(cut).clipPath.match(/[-\\d.]+px/g);
-          return {field: cut.getBoundingClientRect().left,
-            words: cut.getBoundingClientRect().left + parseFloat(sides[3]),
-            leaf: document.querySelector('.lf-fp-leaf').getBoundingClientRect().right};
+          const box = cut.getBoundingClientRect();
+          return {words: box.left + parseFloat(sides[3]),
+            end: box.right - parseFloat(sides[1]),
+            leaf: document.querySelector('.lf-fp-leaf').getBoundingClientRect().left};
         }""")
-        assert edges["words"] == pytest.approx(
-            max(edges["field"], edges["leaf"]), abs=0.5
-        ), edges
+        assert edges["end"] <= edges["leaf"] + 0.5, edges
         attachment = shelf.bounding_box()
-        assert attachment["x"] + attachment["width"] > edges["leaf"], (
-            "the fixture must extend past the reveal edge",
-            attachment,
-            edges,
-        )
+        assert (
+            attachment["x"] < edges["words"] < attachment["x"] + attachment["width"]
+        ), ("the fixture must straddle the reveal edge", attachment, edges)
         pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
         # Match the picture itself: subpixel text on the page can also be orange.
         assert any((r, g, b) == (255, 128, 64) for r, g, b in rgb_pixels(pixels))
@@ -3871,7 +3868,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     assert seek(0) == pytest.approx(folded, abs=0.5)
     paints()
     seek(80)
-    words_follow_leaf()
+    words_follow_box()
     assert seek(300) == pytest.approx(row, abs=0.5)
     page.keyboard.press(".")
     expect(panel).to_have_attribute("data-lf-rest", "mark")
@@ -3889,7 +3886,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     expect(leaf).to_be_focused()
     back = seek(80)
     paints()
-    words_follow_leaf()
+    words_follow_box()
     assert row["x"] < back["x"] < middle["x"]
     assert back["opacity"] == 1
     assert seek(300) == pytest.approx(row, abs=0.5)
@@ -3928,7 +3925,11 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
         field(page),
         "A tall draft\nwith several\nlines to keep\nwhile the panel\nfolds away.",
     )
-    page.keyboard.press("Shift+Tab")
+    # Tab walks from the field past its presses to the leaf at the row's end.
+    for _ in range(4):
+        page.keyboard.press("Tab")
+        if leaf.evaluate("node => node === document.activeElement"):
+            break
     expect(leaf).to_be_focused()
     settled(page)
     page.evaluate("() => {" + HOLD_MOTION + "}")
@@ -4704,8 +4705,7 @@ def test_a_double_click_on_the_way_back_goes_back_once(browser, serve):
 
 
 def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
-    """While the menu stands the field is its search, where a mouse's press on the leaf
-    leaves the user. Words narrow the menu to the rows they name, a list's rows
+    """While the menu stands the field is its search. Words narrow the menu to the rows they name, a list's rows
     included, and the threads they name, ending in a press that hands them to the
     command reference, a list ahead of the rows it holds. Enter presses the first row
     found, and `/` among the rows returns to the search; Escape clears the words, then
@@ -4718,10 +4718,13 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     page = floating(browser, url)
     search = page.get_by_role("searchbox", name="Search menu")
     menu = panel_menu(page)
-    expect(search).to_be_focused()
     expect(page.locator(".lf-floating-panel")).to_have_attribute(
         "data-lf-search", "menu"
     )
+    # The agent's comment is news, so the leaf opened Threads and the Menu tab, which
+    # keeps the user on it, turned the view to the menu.
+    search.click()
+    expect(search).to_be_focused()
     annotations = menu.locator('.lf-fp-item[data-lf-row="group:annotate"]')
     expect(annotations).to_be_visible()
     page.keyboard.type("draw")
@@ -4745,6 +4748,7 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     panel_settled(page, open=False)
 
     panel_menu(page)
+    search.click()
     page.keyboard.type("window long")
     expect(menu.locator(".lf-fp-item").first).to_contain_text("Is the window long")
     page.keyboard.press("Enter")

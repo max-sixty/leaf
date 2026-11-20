@@ -5,6 +5,7 @@ A check on a page of millions of elements finds its controls as
 notes/browser-support.md, "Walking every element of a page of millions in Chromium",
 says."""
 
+import re
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -13,7 +14,7 @@ from functools import cache
 from pathlib import Path
 
 import click
-from playwright.sync_api import Browser, FrameLocator, Page, sync_playwright
+from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
@@ -566,13 +567,35 @@ def on_tab(page: Page | FrameLocator, name: str):
     return panel_tab(page, name)
 
 
-def open_menu(page: Page | FrameLocator):
-    """Open the leaf's menu by pointer, as a user reaches it: the leaf, which opens the
-    On view on the menu unless its marks point at a list, then the Menu tab where it
-    opened on one. Return the menu's view."""
-    page.locator(LEAF).click()
-    if page.locator(PANEL).get_attribute("data-lf-open") != "menu":
-        panel_tab(page, "Menu").click()
+def open_menu(page: Page | FrameLocator, press=None):
+    """Open the leaf's menu by pointer, as a user reaches it from whatever the panel
+    shows, and return the menu's view. The leaf unfolds a folded panel; a list over the
+    menu goes back to it; otherwise the leaf opens the On view on the tab its marks
+    point at, unless the view stands already, and the Menu tab turns the view to the
+    menu. A press on the leaf that put away a view the On view led to, as a thread
+    opened from Threads, opens the view with the next. `press` presses a control, a
+    click by default."""
+    press = press or (lambda control: control.click())
+    host = page.locator(PANEL)
+    leaf = page.locator(LEAF)
+    on_view = re.compile("^(menu|queue|threads)$")
+    if host.get_attribute("data-lf-rest") == "mark":
+        press(leaf)
+        expect(host).to_have_attribute("data-lf-rest", "row")
+    if host.get_attribute("data-lf-open") != "menu":
+        back = page.locator(".lf-fp-head").get_by_role(
+            "button", name="Back to Menu", exact=True
+        )
+        if back.count():
+            press(back)
+        else:
+            if not on_view.match(host.get_attribute("data-lf-open") or ""):
+                press(leaf)
+                if host.get_attribute("data-lf-open") is None:
+                    press(leaf)
+                expect(host).to_have_attribute("data-lf-open", on_view)
+            if host.get_attribute("data-lf-open") != "menu":
+                press(panel_tab(page, "Menu"))
     menu = page.locator(panel_view("menu"))
     menu.wait_for()
     return menu

@@ -752,8 +752,10 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
+    # The gallery waits on the user, so the leaf opens On Me, and its name ends in the
+    # status.
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile(r"^Page menu · \S")
+        "aria-label", re.compile(r"^On Me · .+ · \S")
     )
     panel_control(page, "queue").click()
     map_obligation = page.locator(".lf-fp-on-item").filter(

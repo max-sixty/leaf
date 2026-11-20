@@ -1877,7 +1877,7 @@ def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
     page.evaluate(BROWSER_BACK)
 
     page.locator(".lf-fp-leaf").tap()
-    panel_settled(page, view="menu")
+    panel_settled(page)
     back_gesture(page)
     panel_settled(page, open=False)
 

@@ -852,15 +852,14 @@
         calc(-1 * var(--lf-fp-fold-pad-inline));
     }
   }
-  /* The pointer's fold: a corner mark (controls.css) riding the box's top-right corner,
+  /* The pointer's fold: a corner mark (controls.css) riding the box's top-left corner,
      shown while the pointer is near that corner (floating-panel.js, `data-lf-corner`).
      It fades rather than moves, so nothing shifts under the pointer. An open view's
-     Close holds that corner, and a long draft's more-room mark over the leaf, so the
-     mark waits for either to go rather than stand beside ✕ and Resolve, or over the
-     more-room mark's edge. */
+     head line holds that corner, so the mark waits for the view to go rather than
+     stand over its first words. */
   .lf-fp-minimize {
     top: -9px;
-    right: -9px;
+    left: -9px;
     opacity: 0;
     visibility: hidden;
     transition:
@@ -868,10 +867,7 @@
       visibility 0s var(--lf-motion-disclosure);
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-lf-rest="row"][data-lf-corner]:not(
-        [data-lf-open],
-        [data-lf-long]
-      )
+    .lf-floating-panel[data-lf-rest="row"][data-lf-corner]:not([data-lf-open])
       .lf-fp-minimize {
       opacity: 1;
       visibility: visible;

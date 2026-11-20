@@ -242,13 +242,20 @@ Don't copy into prose a list the code already keeps, such as the bundles in
 list them, a test holds the list to the code's copy (`tests/AGENTS.md`, "Put
 each assertion at the boundary that owns it").
 
-In shipped text (the references, `--help`, UI strings, `SKILL.md`) and in agent
-instructions (the `AGENTS.md` files and project skills), these prose defects are
-public surface traps: mechanism written for a reader other than the one the text
-addresses, a second copy of a rule another text owns, a coined term used without its
-definition, and, in maintainer guidance, a sentence that says how the diff's code
-works rather than what other code must rely on, which belongs in the module header,
-or how a rule came to be, which belongs in the commit message.
+Shipped text (the references, `--help`, UI strings, `SKILL.md`) and agent
+instructions (the `AGENTS.md` files and project skills) reach a reader who has only
+that text and the files it points to, never the session or the diff that wrote it. In
+such text, a review reports these defects, which Leaf calls public surface traps:
+
+- text written for a reader other than the one the text addresses, such as an
+  explanation of a mechanism that reader doesn't need. In maintainer guidance, that
+  includes a sentence about how the diff's code works: the module header holds it, and
+  the guidance says what other code must rely on;
+- a second copy of a rule another text owns;
+- a sentence its reader can parse only on a second read, as with a coined term used
+  without its definition, a pronoun whose antecedent sits in another clause or only in
+  the diff, or a rule joined in one sentence to its mechanism and its exceptions;
+- a sentence about how a rule came to be.
 
 ### Use dependencies
 
@@ -394,18 +401,27 @@ the maintainer agrees to.
 
 ### Keep the layer open
 
-No code outside a content widget's module names it, so a new widget family needs
-only a registry entry, its module and theme rules. Everything else reads registry
-declarations, never lists of tag names. Layer-wide facts live under `$` keys;
-each tag's entry is its complete schema.
+A content widget is one a package ships, unlike Leaf's own elements in
+`browser/registry.json`, such as `lf-suggestion`, which core code may name. Leaf's
+runtime, server and stylesheets never branch on a content widget's tag name or keep a
+list of content widgets' tag names. They read each tag's facts, such as `verbs` or
+`reading-role`, from its element declaration in the registry. A package's modules may
+name the widgets they compose, and a test or a `leaf-dev` command the widgets it
+exercises; a test that covers every widget with some property finds them in the
+registry. So a new content widget needs only files in its own package: its element
+declaration, its module and its styles. The registry's `$` keys hold facts
+about the layer as a whole, such as the event kinds in `$events`. Each tag's element
+declaration is that tag's complete schema.
 
-The shipped instructions keep the layer open the same way. Where one tells an author
-what to use, it names the form, such as a before-and-after pair, a chart or a choice,
-or the declared fact the behavior turns on, such as `awaits` or `reading-role`, and a
-package's widget only as an example of it or in a markup example. The page's vocabulary
-says which widget provides the form, and `packages.md`, "A widget", says where a
-widget's own guidance goes. So a widget under a name of its own, in a package the page
-selects, reaches an author as a bundled one does.
+Leaf's shipped instructions don't depend on a widget's name either. Where a shipped
+instruction tells an author what to use, it names the form the author needs, such as a
+before-and-after pair, a chart or a choice. Where a behavior depends on a declared
+fact, such as `awaits` or `reading-role`, it names that fact. It names a package's
+widget only as an example of a form or of a declared fact, or inside a markup example. The page's vocabulary
+(`leaf page vocabulary <page>`) tells the author which widget provides each form, and
+`packages.md`, "A widget", says where a widget's own guidance goes. So an author finds
+a widget the same way whether Leaf bundles it or another package the page selects
+provides it, whatever the widget is called.
 
 ### Wait for the event that ends the work
 
@@ -491,7 +507,7 @@ naming anything they operate or an identifier for one, read
 `.claude/skills/developing-leaf/references/glossary.md`, Leaf's canonical vocabulary
 and guidance for visible text. A control may need no words at all
 (`browser/AGENTS.md`, "Controls are few and quiet"). Before changing anything Leaf
-draws, read that file's "Leaf's interface".
+draws, read "Leaf's interface" in `browser/AGENTS.md`.
 
 The user judges a UI change by using it and by looking at it, so whoever hands one
 over or reviews it does both (`/developing-leaf`, "Review a UI change"), with a

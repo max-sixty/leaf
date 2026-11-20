@@ -1352,12 +1352,12 @@ function decide(reread) {
 }
 
 /** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", from: number, room: number, box: Box}} Placement */
-// The target the standing preview stands for, the side it stands on, the edge across it
+// The element the standing preview stands by, the side it stands on, the edge across it
 // stands by, left or right, and its top corner on that edge as offsets from the box it
-// stands by, which the next decision for that target tries first. What stands around it
-// is tested afresh every time, since the page may have changed there whatever the
-// target did.
-/** @type {{target: Target, side: {y: Placement["y"], x: Placement["x"]}, x: "left" | "right", corner: {x: number, y: number}} | null} */
+// stands by, which the next decision standing by that element tries first, whichever
+// target's reading it draws. What stands around it is tested afresh every time, since
+// the page may have changed there whatever the target did.
+/** @type {{source: HTMLElement, side: {y: Placement["y"], x: Placement["x"]}, x: "left" | "right", corner: {x: number, y: number}} | null} */
 let placed = null;
 
 // Stand the preview by its anchor, and say whether it stands: the one decision of where
@@ -1466,7 +1466,7 @@ function stand(record, reading, standing, aim = false) {
   // keeps its side by the new box instead, standing by the edge that side stands by, its
   // bottom above the box and its top below or beside it, so a longer reading grows away
   // from what it reads.
-  const was = standing && placed?.target === target ? placed : null;
+  const was = standing && placed?.source === source ? placed : null;
   const now = !was
     ? null
     : aim
@@ -1580,7 +1580,7 @@ function stand(record, reading, standing, aim = false) {
     tip.style.setProperty(`--lf-preview-${edge}`, layoutPx(length));
   const right = chosen.x === "right" || chosen.x === "before";
   placed = {
-    target,
+    source,
     side: was && chosen === now && !aim ? was.side : { y: chosen.y, x: chosen.x },
     x: right ? "right" : "left",
     corner: {

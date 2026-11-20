@@ -2805,13 +2805,14 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     expect(tip.locator(".lf-preview-word")).to_have_text("Third item detail")
 
 
-# Two controls that each stand their preview by the row holding them, and a third that
-# stands its own by itself, in a row a finger's slide doesn't scroll; `window.lfLog`
-# records each reading, each ending with what it declared, and each time the preview
-# closes.
+# Two controls that each stand their preview by the row holding them, the second's six
+# lines long, and a third that stands its own by itself, in a row near the window's foot
+# that a finger's slide doesn't scroll; `window.lfLog` records each reading, each ending
+# with what it declared, and each time the preview closes.
 SHARED_ROW = leaf_page(
     "Shared row",
-    '<div id="row" style="display: flex; touch-action: none">'
+    '<div id="row" style="display: flex; touch-action: none; position: fixed;'
+    ' left: 40px; bottom: 60px">'
     '<button id="one">One</button>'
     '<button id="two">Two</button><button id="three">Three</button></div>'
     + "<p>More.</p>"
@@ -2824,7 +2825,8 @@ SHARED_ROW_LOG = """() => {
     const el = document.getElementById(id);
     el.lfPreview = () => {
       window.lfLog.push(`read ${id}`);
-      return {name: `Reads ${id}`, at: id === 'three' ? undefined : row};
+      return {name: `Reads ${id}`, at: id === 'three' ? undefined : row,
+        detail: id === 'two' ? ['Two', 'Three', 'Four', 'Five', 'Six'] : []};
     };
     el.addEventListener('lf-preview-ended', (event) =>
       window.lfLog.push(`ended ${event.detail.declared.name}`));
@@ -2846,15 +2848,18 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
 ):
     """A pointer crossing from one control to the next whose preview stands by the same
     element, as each of a widget's controls may stand its preview by the widget, redraws
-    the preview where it stands without closing it; the control it left hears its
+    the preview where it stands without closing it, on the side it stood, even where
+    the next reading is longer than that side's room; the control it left hears its
     reading end after the next was read. Crossing to a control whose preview stands by
     itself closes the preview and shows the next."""
     page = open_page(request.getfixturevalue(engine), serve(SHARED_ROW))
     page.evaluate(SHARED_ROW_LOG)
-    word = page.locator(PREVIEW).locator(".lf-preview-word")
+    tip = page.locator(PREVIEW)
+    word = tip.locator(".lf-preview-word")
     page.mouse.move(2, 2)
     page.locator("#one").hover()
     expect(word).to_have_text("Reads one")
+    expect(tip).to_have_attribute("data-lf-y", "below")
     _crossed(page)
 
     two = page.locator("#two").bounding_box()
@@ -2862,6 +2867,7 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
     expect(word).to_have_text("Reads two")
     rendered(page)
     assert _crossed(page) == ["read two", "ended Reads one"]
+    expect(tip).to_have_attribute("data-lf-y", "top")
 
     three = page.locator("#three").bounding_box()
     page.mouse.move(

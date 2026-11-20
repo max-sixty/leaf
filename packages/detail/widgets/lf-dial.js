@@ -348,6 +348,15 @@ customElements.define(
     // What the last depth's preview declared, whose ending alone takes back its marks.
     /** @type {object | null} */
     #declared = null;
+    // The depth whose preview stands.
+    /** @type {string | null} */
+    #pointed = null;
+    // The next depth's reading comes before the last one's ending, which then takes back
+    // nothing.
+    #ended = (/** @type {Event} */ event) => {
+      if (/** @type {CustomEvent} */ (event).detail.declared === this.#declared)
+        this.#unpoint();
+    };
     // PROTOTYPE: the panel hanging each depth's page under its button, which the dial
     // draws under itself while its preview stands.
     /** @type {HTMLElement | null} */
@@ -396,12 +405,7 @@ customElements.define(
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () =>
           (this.#declared = this.#preview(name));
-        // The next depth's reading comes before the last one's ending, which then takes
-        // back nothing.
-        depth.addEventListener(PREVIEW_ENDED, (event) => {
-          if (/** @type {CustomEvent} */ (event).detail.declared === this.#declared)
-            this.#unpoint();
-        });
+        depth.addEventListener(PREVIEW_ENDED, this.#ended);
         this.#radios.set(name, depth);
         group.append(depth);
       }
@@ -410,6 +414,14 @@ customElements.define(
       this.#hang = offer("div", "lf-dial-hang-panel");
       this.#hang.setAttribute("aria-hidden", "true");
       this.append(this.#hang);
+      // The hanging pages are the preview's face, so the pointer reaching them, or the
+      // gaps between the buttons, reads the depth last pointed at again, standing by
+      // the dial as each depth's does, and keeps them.
+      /** @type {any} */ (this).lfPreview = () =>
+        this.#pointed && this.#setting("point", "words") === "hang"
+          ? (this.#declared = this.#preview(this.#pointed))
+          : null;
+      this.addEventListener(PREVIEW_ENDED, this.#ended);
       this.#gauge = offer("div", "lf-dial-gauge");
       this.#gauge.setAttribute("aria-hidden", "true");
       this.#gauge.append(
@@ -493,6 +505,7 @@ customElements.define(
     #unpoint() {
       this.#unghost?.();
       this.#unghost = null;
+      this.#pointed = null;
       keeps(this, "data-pointed", null);
       if (this.#hang) keeps(this.#hang, "data-open", null);
     }
@@ -510,6 +523,7 @@ customElements.define(
         this.#setting("page", "none") === "ghost" ? this.#ghost(name) : null;
       const whole = this.#measure()?.all ?? 1;
       const part = this.#measure()?.[/** @type {Depth} */ (name)] ?? 0;
+      this.#pointed = name;
       keeps(this, "data-pointed", name);
       if (this.#gauge)
         this.#gauge.style.setProperty(

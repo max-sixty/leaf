@@ -122,9 +122,10 @@ delegate it while you remain available for the user's next move.
 
 New input from the page reaches you only between your steps, so while you hold a
 page, keep each step you wait on to about a minute. Run a longer command, or a wait
-on CI or on your own background work, in the background, and check on it a minute
-at a time. The same holds for a fork you give a thread message to, since the
-thread's later messages reach it between its own steps.
+on CI or on your own background work, in the background. While it runs, end your
+turn if your harness wakes you when it finishes, and otherwise check on it a minute
+at a time. A fork you give a thread message to keeps each step it waits on to a
+minute too, since the thread's later messages reach it between its own steps.
 
 `references/conversation-loop.md`, "Long-running work", owns worker briefs,
 results and work continuing beyond your turn.

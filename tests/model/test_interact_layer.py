@@ -5497,6 +5497,16 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     assert "reading" not in packages
 
 
+def test_every_bundled_package_says_when_to_select_it():
+    """`package list` is where an author learns what each package is for, so each
+    bundled package's `author.md` opens with that paragraph."""
+    listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
+
+    assert listed.exit_code == 0, listed.output
+    packages = json.loads(listed.output)["packages"]
+    assert [each["name"] for each in packages if not each["description"]] == []
+
+
 def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     tmp_path, monkeypatch
 ):

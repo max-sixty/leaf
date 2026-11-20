@@ -99,58 +99,17 @@ jobs:
       - name: Verify the bundled release locally in a browser
         run: uv run leaf-dev site verify website-worker
 
-      - name: Build and push the exact container image
-        working-directory: worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          local_image="leaf-website:${LEAF_SITE_RELEASE}"
-          repository="registry.cloudflare.com/ece2539b9b32ab59dd74aa6b6285e5db/leaf-website"
-          remote_image="${repository}:${LEAF_SITE_RELEASE}"
-          docker build --file Dockerfile --tag "$local_image" ..
-          pnpm --dir .. exec wrangler --cwd worker containers push "$local_image"
-          image=$(docker image inspect "$remote_image" --format '{{index .RepoDigests 0}}')
-          case "$image" in
-            "$repository"@sha256:*) ;;
-            *) echo "Wrangler did not leave an immutable image digest: $image" >&2; exit 1 ;;
-          esac
-          sed -i 's|image = "Dockerfile"|image = "'"$image"'"|' wrangler.toml
-          grep --fixed-strings "image = \"$image\"" wrangler.toml
-
       - name: Deploy public Leaf pages
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        # After uploading a version, Cloudflare's Worker Versions API sometimes answers
-        # `100146` ("The requested Worker version could not be found") for it, and a
-        # later deploy of the same tree succeeds with no change on our side. Only that
-        # answer is retried, every 5 minutes until 30 minutes after the first one,
-        # since its outages have lasted over 15 minutes; any other failure fails the
-        # step on its first attempt.
-        run: |
-          set -o pipefail
-          log=$(mktemp)
-          deadline=
-          attempt=1
-          while true; do
-            if pnpm --dir .. exec wrangler --cwd worker deploy --containers-rollout=immediate 2>&1 | tee "$log"; then
-              exit 0
-            fi
-            grep --quiet --fixed-strings '[code: 100146]' "$log" || exit 1
-            deadline=${deadline:-$(( $(date +%s) + 1800 ))}
-            [ $(( $(date +%s) + 300 )) -le "$deadline" ] || exit 1
-            echo "::warning::Worker version lookup answered 100146 on attempt $attempt; deploying again in 5 minutes"
-            sleep 300
-            attempt=$(( attempt + 1 ))
-          done
+        run: ./wrangler-deploy.sh
 
-      # Worker activation and container rollout are separate Cloudflare operations. A
-      # real browser must see the requested build in the document, module graph, edge
-      # projection, and a newly allocated container before this deployment is green.
-      # `site verify`'s `--wait` owns that wait — rollout drains one container allocation
-      # at a time, so a coherent sample is what ends it — and the agent journey that
-      # follows runs the deployed turn alone rather than re-sampling readings the wait
-      # settled.
+      # A real browser must see the requested build in the document, module graph, edge
+      # projection, and a newly started container before this deployment is green.
+      # `site verify`'s `--wait` owns the wait for the edge to serve it, and the agent
+      # journey that follows runs the deployed turn alone rather than re-sampling
+      # readings the wait settled.
       - name: Verify the exact public release in a browser
         # Capture APIRequestContext's Node sockets, including failures before a
         # Worker invocation exists. The preload emits only allowlisted metadata.

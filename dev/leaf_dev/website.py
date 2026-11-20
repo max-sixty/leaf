@@ -733,8 +733,9 @@ def local_worker() -> Generator[LocalWorker]:
             config["main"] = str(ROOT / "worker" / "src" / "index.ts")
             config["assets"]["directory"] = str(root / "assets")
             for container in config["containers"]:
-                container["image"] = str(context / "worker" / "Dockerfile")
-                container["image_build_context"] = str(context)
+                for build in container["images"].values():
+                    build["dockerfile"] = str(context / "worker" / "Dockerfile")
+                    build["build_context"] = str(context)
             config_path = root / "wrangler.json"
             config_path.write_text(json.dumps(config))
             with serving(

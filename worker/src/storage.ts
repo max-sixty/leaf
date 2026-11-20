@@ -30,11 +30,11 @@
  * release the request wakes the container, which serves the page on its own runtime;
  * its first read of the page, a transaction like any write, saves the responses again.
  * Each request a container makes names the release its image runs (`Leaf-Release`).
- * Cloudflare activates a Worker before its container image has rolled out, so after a
- * deploy a session's container can still start on the previous image. The store
+ * A container running when a deploy lands keeps the previous image until its session's
+ * first request after the deploy stops it (`LeafSession` in `index.ts`). The store
  * answers a release other than the Worker's with 409 before reading or writing
- * anything (`answerPageStore` in `index.ts`), and that container fails to start. So
- * every commit since a deploy was written by the deployed release's image.
+ * anything (`answerPageStore`), so every commit since a deploy was written by the
+ * deployed release's image.
  * The store itself also outlives deploys, so every later release reads the tables and
  * stored values an earlier one wrote. `STORE_FORMAT` names their shape: the tables
  * (`STORE_TABLES`, which a test pins to the format), the encodings stored in their

@@ -1,5 +1,4 @@
 import type { ServedState } from "../../browser/types/contract.js";
-import type { OutboundHandler } from "@cloudflare/containers";
 import { ReadableStream } from "node:stream/web";
 import { describe, expect, it, vi } from "vitest";
 import { unpackTar } from "modern-tar";
@@ -8,39 +7,25 @@ import { sqliteStorage } from "./sqlite";
 const forwardedContainerFetch = vi.hoisted(() =>
   vi.fn(async (_request: Request) => new Response("container")),
 );
+// The session object an edge request reaches by its name.
+const getByName = vi.hoisted(() => vi.fn());
 
-const containerHandlers = vi.hoisted(
-  () => new Map<string, Record<string, OutboundHandler<Env>>>(),
-);
-
-vi.mock("@cloudflare/containers", () => ({
-  Container: class {
+vi.mock("cloudflare:workers", () => ({
+  DurableObject: class {
     constructor(
       public ctx: unknown,
       public env: unknown,
     ) {}
-
-    fetch(request: Request) {
-      return forwardedContainerFetch(request);
-    }
-
-    async destroy(this: { ctx: { container: { running: boolean } } }) {
-      this.ctx.container.running = false;
-    }
-    static get outboundByHost(): Record<string, OutboundHandler<Env>> | undefined {
-      return containerHandlers.get(this.name);
-    }
-
-    static set outboundByHost(handlers: Record<string, OutboundHandler<Env>>) {
-      containerHandlers.set(this.name, handlers);
-    }
   },
-  ContainerProxy: class {},
-  getContainer: vi.fn(),
+  WorkerEntrypoint: class {
+    constructor(
+      public ctx: unknown,
+      public env: unknown,
+    ) {}
+  },
 }));
 
-import { getContainer } from "@cloudflare/containers";
-import worker, { LeafWebsiteSession, type Env } from "../src/index";
+import worker, { LeafSession, SessionOutbound, type Env } from "../src/index";
 import { activeCookie } from "../src/routing";
 import { STORE_FORMAT } from "../src/storage";
 
@@ -168,6 +153,7 @@ function environment(overrides: Partial<Env> = {}): Env {
   const suppliedAssets = overrides.ASSETS;
   const rest = { ...overrides };
   delete rest.ASSETS;
+  delete rest.PAGES;
   const fetch = vi.fn(async (request: Request) => {
     const pathname = new URL(request.url).pathname;
     if (pathname === "/_leaf/site.json") return Response.json(MANIFEST);
@@ -189,7 +175,7 @@ function environment(overrides: Partial<Env> = {}): Env {
   });
   return {
     ASSETS: { fetch } as unknown as Fetcher,
-    PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
+    PAGES: { getByName, ...overrides.PAGES } as unknown as Env["PAGES"],
     WEBSITE_EVENTS: { writeDataPoint: vi.fn() },
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
@@ -227,7 +213,7 @@ describe("product-site delivery", () => {
     const allocationFetch = vi.fn(async () =>
       Response.json({ url: allocated, page: `/api/samples/${sampleId}` }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: allocationFetch } as never);
+    getByName.mockReturnValue({ fetch: allocationFetch } as never);
     const containerFetch = vi.fn(async (request: Request) => {
       if (
         request.method === "POST" &&
@@ -277,7 +263,8 @@ describe("product-site delivery", () => {
       env,
       ctx,
     );
-    expect(allocation.headers.get("Leaf-Release")).toBe(RELEASE);
+    // The edge passes on the release a container names, which this one leaves out.
+    expect(allocation.headers.get("Leaf-Release")).toBeNull();
     expect(await allocation.json()).toEqual({
       url: `${sample}/`,
       page: `/api/samples/${sampleId}~${objectId}`,
@@ -309,8 +296,8 @@ describe("product-site delivery", () => {
         expect(response.status).toBe(method === "OPTIONS" ? 204 : 200);
         expect(response.headers.get("Set-Cookie")).toBeNull();
         expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
-        // The container names no release; the edge names its own.
-        expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+        // The container names no release, and the edge adds none of its own.
+        expect(response.headers.get("Leaf-Release")).toBeNull();
         if (method === "POST" && path.endsWith("/api/samples"))
           expect(await response.json()).toEqual({
             url: `${sample}/api/samples/${"07".repeat(16)}/`,
@@ -392,7 +379,7 @@ describe("product-site delivery", () => {
       );
 
       expect(assetFetch).toHaveBeenCalledOnce();
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
       expect(response.headers.get("Content-Security-Policy")).toBe(
         MANIFEST.frame_ancestors,
       );
@@ -426,7 +413,7 @@ describe("product-site delivery", () => {
       );
 
       expect(response.status).toBe(204);
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
       expect(logged).toHaveBeenCalledOnce();
       expect(logged.mock.calls[0][0]).toMatchObject({
         component: "leaf-startup",
@@ -555,7 +542,7 @@ describe("product-site delivery", () => {
       expect(emitted).not.toContain("04".repeat(16));
       expect(emitted).not.toContain("06".repeat(32));
       expect(emitted).not.toContain("07".repeat(16));
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
@@ -824,7 +811,7 @@ describe("product-site delivery", () => {
       expect(emitted).not.toContain("secret");
       expect(emitted).not.toContain("04".repeat(16));
       expect(emitted).not.toContain("06".repeat(32));
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
@@ -1000,7 +987,7 @@ describe("product-site delivery", () => {
         ],
       });
       expect(JSON.stringify(logged.mock.calls[0][0])).not.toContain("secret");
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
 
       const invalid = await worker.fetch(
         new Request(url, {
@@ -1042,7 +1029,7 @@ describe("product-site delivery", () => {
       expect(oversized.status).toBe(413);
       expect(tooMany.status).toBe(400);
       expect(logged).toHaveBeenCalledOnce();
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
@@ -1055,9 +1042,7 @@ describe("product-site delivery", () => {
     const fetched = vi.fn(
       async (_request: Request) => new Response(null, { status: 204 }),
     );
-    vi.mocked(getContainer)
-      .mockClear()
-      .mockReturnValue({ fetch: fetched } as never);
+    getByName.mockClear().mockReturnValue({ fetch: fetched } as never);
     const pending: Promise<unknown>[] = [];
     const focused = (control: string, textBox?: true) =>
       worker.fetch(
@@ -1088,10 +1073,7 @@ describe("product-site delivery", () => {
       expect(pending).toHaveLength(0);
       expect((await focused("leaf-text", true)).status).toBe(204);
       await Promise.all(pending);
-      expect(getContainer).toHaveBeenCalledExactlyOnceWith(
-        env.PAGES,
-        containerId(sessionId),
-      );
+      expect(getByName).toHaveBeenCalledExactlyOnceWith(containerId(sessionId));
       expect(fetched).toHaveBeenCalledOnce();
       const [request] = fetched.mock.calls[0]!;
       expect(request.method).toBe("POST");
@@ -1102,7 +1084,7 @@ describe("product-site delivery", () => {
         expect.objectContaining({ event: "container_prewarm_completed" }),
       );
     } finally {
-      vi.mocked(getContainer).mockClear();
+      getByName.mockClear();
       logged.mockRestore();
     }
   });
@@ -1191,7 +1173,7 @@ describe("product-site delivery", () => {
       expect(privateField.status).toBe(400);
       expect(oversized.status).toBe(413);
       expect(logged).not.toHaveBeenCalled();
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
@@ -1215,7 +1197,7 @@ describe("product-site delivery", () => {
         }
       }
       expect(logged).not.toHaveBeenCalled();
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
@@ -1229,7 +1211,7 @@ describe("product-site delivery", () => {
         { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment();
 
     const response = await worker.fetch(
@@ -1244,19 +1226,19 @@ describe("product-site delivery", () => {
       executionContext(),
     );
 
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(await response.json()).toMatchObject({ reading: "private" });
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
-  // Only the edge names a release (`worker/src/index.ts`): whatever a container's
-  // answer carries, the browser reads the release the edge serves, so a foreign one
-  // always means the edge has moved on past the document.
+  // A container names the release its image runs, which a deploy can leave behind the
+  // edge's while the container keeps serving its tab (`LeafSession`), so the edge
+  // passes the container's own release on rather than its own.
   it.each([
     ["a state read", "GET", "api/state"],
     ["a gesture", "POST", "api/event"],
   ])(
-    "names the edge's release on %s a container answers",
+    "keeps the release of the container that answers %s",
     async (_, method, inside) => {
       const sessionId = "0d".repeat(16);
       const containerReleases: Record<string, string>[] = [
@@ -1270,7 +1252,7 @@ describe("product-site delivery", () => {
             { headers: { "Leaf-Layer": LAYER, ...named } },
           ),
         );
-        vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+        getByName.mockReturnValue({ fetch: containerFetch } as never);
 
         const response = await worker.fetch(
           new Request(`https://leaf.page/examples/triage-board/${inside}`, {
@@ -1289,7 +1271,9 @@ describe("product-site delivery", () => {
 
         expect(containerFetch).toHaveBeenCalledOnce();
         expect(response.status).toBe(200);
-        expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+        expect(response.headers.get("Leaf-Release")).toBe(
+          named["Leaf-Release"] ?? null,
+        );
       }
     },
   );
@@ -1312,7 +1296,7 @@ describe("product-site delivery", () => {
     expect(await response.text()).toBe("export {};");
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
@@ -1333,7 +1317,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Set-Cookie")).toMatch(
       /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,
     );
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("maps a release-addressed module graph to immutable edge assets", async () => {
@@ -1382,7 +1366,7 @@ describe("product-site delivery", () => {
     );
     expect(preflight.headers.get("Access-Control-Allow-Headers")).toBe("*");
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("serves a browser navigation without starting a container", async () => {
@@ -1402,7 +1386,7 @@ describe("product-site delivery", () => {
       executionContext(waitUntil),
     );
     expect(response.headers.get("Set-Cookie")).toContain("__Host-leaf-page=");
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
   });
 
@@ -1424,7 +1408,7 @@ describe("product-site delivery", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
   });
 
@@ -1439,7 +1423,7 @@ describe("product-site delivery", () => {
             headers: { "Content-Type": "image/png" },
           }),
       );
-      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      getByName.mockReturnValue({ fetch: containerFetch } as never);
       const env = environment({
         ASSETS: { fetch: assetFetch } as unknown as Fetcher,
       });
@@ -1455,7 +1439,7 @@ describe("product-site delivery", () => {
       );
 
       expect(assetFetch).toHaveBeenCalledOnce();
-      expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+      expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
       expect(containerFetch).toHaveBeenCalledOnce();
       expect(response.headers.get("Content-Type")).toBe("image/png");
       expect(new Uint8Array(await response.arrayBuffer())).toEqual(
@@ -1481,7 +1465,7 @@ describe("product-site delivery", () => {
       new Uint8Array([4, 5, 6]),
     );
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -1500,7 +1484,7 @@ describe("product-site delivery", () => {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment({
       ASSETS: { fetch: assetFetch } as unknown as Fetcher,
     });
@@ -1516,7 +1500,7 @@ describe("product-site delivery", () => {
     );
 
     expect(assetFetch).toHaveBeenCalledTimes(published);
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(await response.text()).toContain("Private revision");
   });
@@ -1535,7 +1519,7 @@ describe("product-site delivery", () => {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment({
       ASSETS: { fetch: assetFetch } as unknown as Fetcher,
     });
@@ -1574,8 +1558,8 @@ describe("product-site delivery", () => {
     expect(await marked.text()).toContain("Published revision");
     expect(await recovered.text()).toContain("Published revision");
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).toHaveBeenCalledTimes(3);
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledTimes(3);
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledTimes(3);
   });
 
@@ -1597,7 +1581,7 @@ describe("product-site delivery", () => {
 
     expect(response.status).toBe(404);
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
@@ -1614,7 +1598,7 @@ describe("product-site delivery", () => {
         executionContext(),
       );
 
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
       expect(response.headers.get("Set-Cookie")).toBeNull();
       expect(response.headers.get("Leaf-Session")).toBe("passive");
       // A stored answer serves only a request naming the same data version.
@@ -1659,7 +1643,7 @@ describe("product-site delivery", () => {
     // The edge names the deployed release whatever a container is running, so a
     // user asking after a release learns nothing about one from this answer.
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("keeps a page made active at an earlier page protocol or store format passive", async () => {
@@ -1694,7 +1678,7 @@ describe("product-site delivery", () => {
       reading: "published",
       release: RELEASE,
     });
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("keeps optional geometry reports passive until their page is active", async () => {
@@ -1703,7 +1687,7 @@ describe("product-site delivery", () => {
     const containerFetch = vi.fn(
       async (_request: Request) => new Response(null, { status: 204 }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const report = (cookie?: string) =>
       worker.fetch(
         new Request("https://leaf.page/examples/triage-board/api/user-view", {
@@ -1728,7 +1712,7 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).not.toBe("active");
       expect(response.headers.get("Set-Cookie")).toBeNull();
     }
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(containerFetch).not.toHaveBeenCalled();
 
     const active = await report(
@@ -1736,7 +1720,7 @@ describe("product-site delivery", () => {
     );
     expect(active.status).toBe(204);
     expect(active.headers.get("Set-Cookie")).toBeNull();
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
   });
 
@@ -1752,7 +1736,7 @@ describe("product-site delivery", () => {
         state: { events: [], activity: { obligations: [] } },
       }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const read = (cookie?: string) =>
       worker.fetch(
         new Request("https://leaf.page/examples/triage-board/api/event", {
@@ -1789,13 +1773,13 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("passive");
       expect(response.headers.get("Set-Cookie")).toBeNull();
     }
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
 
     const active = await read(
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
     );
     expect(active.status).toBe(200);
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
   });
 
@@ -1807,7 +1791,7 @@ describe("product-site delivery", () => {
         { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
 
     const response = await worker.fetch(
       new Request(
@@ -1834,7 +1818,7 @@ describe("product-site delivery", () => {
       async (_request: Request) =>
         new Response("Failed to start container", { status: 500 }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
 
     const response = await worker.fetch(
       new Request(
@@ -1858,7 +1842,7 @@ describe("product-site delivery", () => {
         { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment({
       ASSETS: {
         fetch: async () =>
@@ -1889,8 +1873,8 @@ describe("product-site delivery", () => {
 
     const responses = await Promise.all([upload(), upload()]);
 
-    expect(getContainer).toHaveBeenNthCalledWith(1, env.PAGES, containerId(sessionId));
-    expect(getContainer).toHaveBeenNthCalledWith(2, env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenNthCalledWith(1, containerId(sessionId));
+    expect(getByName).toHaveBeenNthCalledWith(2, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledTimes(2);
     for (const response of responses) {
       expect(response.headers.get("Leaf-Session")).toBe("active");
@@ -1921,7 +1905,7 @@ describe("product-site delivery", () => {
       expect(vi.mocked(env.ASSETS.fetch).mock.calls[1][0]).toMatchObject({
         url: "https://leaf.page/_leaf/state/examples--triage-board--r1.json",
       });
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     },
   );
 
@@ -1936,7 +1920,7 @@ describe("product-site delivery", () => {
 
     expect(response.status).toBe(400);
     expect(await response.text()).toBe("unknown page revision");
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("passes a static non-HTML asset through unchanged", async () => {
@@ -1996,7 +1980,7 @@ describe("website event analytics", () => {
       .mockResolvedValueOnce(
         Response.json({ ok: false, error: "refused", final: true }, { status: 400 }),
       );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment({ WEBSITE_EVENTS: { writeDataPoint } });
     const request = (body: object) =>
       worker.fetch(
@@ -2059,7 +2043,7 @@ describe("page faults", () => {
   it("logs a passive reader's page fault at the edge without activating a container", async () => {
     const sessionId = "13".repeat(16);
     const containerFetch = vi.fn();
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
       const response = await send(`__Host-leaf-page=${sessionId}`, {
@@ -2101,7 +2085,7 @@ describe("page faults", () => {
         state: { events: [], activity: { obligations: [] } },
       }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
 
     await send(
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
@@ -2124,28 +2108,196 @@ describe("page faults", () => {
   });
 });
 
-// The parts of a session object's state the tests below drive: its storage, whether
-// its container runs, and the gate that holds other requests while one claims it.
+const IMAGE = "registry.cloudflare.com/account/leaf-website@sha256:" + "c".repeat(64);
+const SESSION_OBJECT = "0a".repeat(32);
+
+// The parts of a session object's state the tests below drive: its storage, its
+// container, its name for itself and its outbound entrypoint, and the gate that holds
+// other requests while one claims it. The container answers its health route at
+// once, and sends every other request to `forwardedContainerFetch`.
 function sessionContext(storage: DurableObjectStorage) {
+  const container = {
+    running: false,
+    images: { leaf: IMAGE },
+    start: vi.fn((_options: ContainerStartupOptions) => {
+      container.running = true;
+    }),
+    monitor: vi.fn(async () => {}),
+    destroy: vi.fn(async () => {
+      container.running = false;
+    }),
+    setInactivityTimeout: vi.fn(async (_ms: number) => {}),
+    interceptOutboundHttps: vi.fn(async (_host: string, _outbound: unknown) => {}),
+    interceptAllOutboundHttp: vi.fn(async (_outbound: unknown) => {}),
+    getTcpPort: vi.fn((_port: number) => ({
+      fetch: async (url: string, init?: Request) =>
+        url === "http://container/health"
+          ? new Response("ok")
+          : forwardedContainerFetch(init!),
+    })),
+  };
   return {
     storage,
-    container: { running: false },
+    container,
+    id: { toString: () => SESSION_OBJECT },
+    exports: {
+      SessionOutbound: vi.fn((options: { props: { session: string } }) => options),
+    },
     blockConcurrencyWhile: <T>(operation: () => Promise<T>) => operation(),
   };
 }
 
-// A session object whose container this release started, as its first request leaves it.
+// A session object whose container its first request started.
 async function startedSession(storage: DurableObjectStorage, env = environment()) {
   const ctx = sessionContext(storage);
-  const session = new LeafWebsiteSession(ctx as never, env);
+  const session = new LeafSession(ctx as never, env);
   await session.fetch(new Request("https://leaf.page/"));
-  ctx.container.running = true;
+  expect(ctx.container.running).toBe(true);
   forwardedContainerFetch.mockClear();
   return { ctx, session };
 }
 
+// The container's outbound requests as the session object `containerId` names routes
+// them.
+function outbound(
+  request: Request,
+  env: Env,
+  { containerId }: { containerId: string },
+) {
+  return new SessionOutbound({ props: { session: containerId } } as never, env).fetch(
+    request,
+  );
+}
+
 describe("website page agent", () => {
-  it("identifies silent container disconnect responses without logging private data", async () => {
+  it("starts the container on this release's image, sealed but for its own routes", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const { ctx } = await startedSession(storage);
+      expect(ctx.container.start).toHaveBeenCalledExactlyOnceWith({
+        image: IMAGE,
+        instance: { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
+        enableInternet: false,
+        env: {
+          LEAF_AGENT: "Agent",
+          OPENAI_API_KEY: "leaf-outbound-proxy",
+          CODEX_CA_CERTIFICATE: "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
+          LEAF_PAGE_STORE_URL: "https://leaf-state.internal",
+        },
+      });
+      expect(ctx.container.setInactivityTimeout).toHaveBeenCalledWith(600_000);
+      const routes = { props: { session: SESSION_OBJECT } };
+      expect(ctx.container.interceptOutboundHttps).toHaveBeenCalledWith("*", routes);
+      expect(ctx.container.interceptAllOutboundHttp).toHaveBeenCalledWith(routes);
+      for (const host of ["example.com", "169.254.169.254"]) {
+        const refused = await outbound(new Request(`https://${host}/`), environment(), {
+          containerId: SESSION_OBJECT,
+        });
+        expect(refused.status).toBe(520);
+      }
+    } finally {
+      close();
+    }
+  });
+
+  it("starts one container for the requests that arrive while it starts", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const ctx = sessionContext(storage);
+      let listening!: () => void;
+      const ready = new Promise<void>((resolve) => (listening = resolve));
+      let checks = 0;
+      ctx.container.getTcpPort.mockImplementation(() => ({
+        fetch: async (url: string, init?: Request) => {
+          if (url !== "http://container/health") return forwardedContainerFetch(init!);
+          checks += 1;
+          if (checks === 1) throw new Error("the container is not listening");
+          await ready;
+          return new Response("ok");
+        },
+      }));
+      const session = new LeafSession(ctx as never, environment());
+      const reads = [1, 2, 3].map(() =>
+        session.fetch(new Request("https://leaf.page/examples/triage-board/api/news")),
+      );
+      await vi.waitFor(() => expect(checks).toBe(2));
+      listening();
+      for (const read of await Promise.all(reads))
+        expect(await read.text()).toBe("container");
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+    } finally {
+      close();
+    }
+  });
+
+  it("starts again where the platform could not place the container, and answers a crash with its reason", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const ctx = sessionContext(storage);
+      // The first start finds no instance to run on, as just after another stopped.
+      let starts = 0;
+      ctx.container.getTcpPort.mockImplementation(() => ({
+        fetch: async (url: string, init?: Request) => {
+          if (url !== "http://container/health") return forwardedContainerFetch(init!);
+          if (starts === 1) {
+            ctx.container.running = false;
+            throw new Error("the container is not listening");
+          }
+          return new Response("ok");
+        },
+      }));
+      ctx.container.start.mockImplementation(() => {
+        starts += 1;
+        ctx.container.running = true;
+      });
+      ctx.container.monitor.mockRejectedValue(
+        new Error("there is no container instance that can be provided"),
+      );
+      const session = new LeafSession(ctx as never, environment());
+      const news = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/news"),
+      );
+      expect(await news.text()).toBe("container");
+      expect(ctx.container.start).toHaveBeenCalledTimes(2);
+      expect(log).not.toHaveBeenCalled();
+
+      // A server that exits is a fault the tab shows, not a wait.
+      const crashed = Object.assign(new Error("Container exited with code 1"), {
+        exitCode: 1,
+      });
+      const failing = sessionContext(storage);
+      failing.container.getTcpPort.mockImplementation(() => ({
+        fetch: async () => {
+          failing.container.running = false;
+          throw new Error("the container is not listening");
+        },
+      }));
+      failing.container.monitor.mockRejectedValue(crashed);
+      const response = await new LeafSession(failing as never, environment()).fetch(
+        new Request("https://leaf.page/examples/triage-board/api/news"),
+      );
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe(
+        "Failed to start container: Container exited with code 1",
+      );
+      expect(failing.container.start).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenCalledExactlyOnceWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "GET",
+        status: 500,
+        source: "start",
+        detail: "Container exited with code 1",
+        retried: false,
+      });
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
+  it("identifies container failure responses without logging private data", async () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -2192,43 +2344,34 @@ describe("website page agent", () => {
     try {
       const { session } = await startedSession(storage);
       const url = "https://leaf.page/examples/triage-board/api/news?private=secret";
-      for (const body of [
-        "Container suddenly disconnected, try again",
-        "Error proxying request to container: Error: Container port connection closed unexpectedly.",
-      ]) {
-        forwardedContainerFetch.mockClear();
-        log.mockClear();
-        forwardedContainerFetch
-          .mockResolvedValueOnce(new Response(body, { status: 500 }))
-          .mockResolvedValueOnce(new Response("news"));
-        const response = await session.fetch(new Request(url));
-        expect(response.status).toBe(200);
-        expect(await response.text()).toBe("news");
-        expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
-        expect(log).toHaveBeenCalledExactlyOnceWith({
-          component: "leaf-container",
-          event: "http_error",
-          method: "GET",
-          status: 500,
-          source: "disconnected",
-          detail: body,
-          retried: true,
-        });
-      }
+      const lost = "Network connection lost.";
+      forwardedContainerFetch
+        .mockRejectedValueOnce(new Error(lost))
+        .mockResolvedValueOnce(new Response("news"));
+      const response = await session.fetch(new Request(url));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("news");
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+      expect(log).toHaveBeenCalledExactlyOnceWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "GET",
+        status: 500,
+        source: "disconnected",
+        detail: lost,
+        retried: true,
+      });
 
       // A second loss reaches the caller rather than retrying again.
       forwardedContainerFetch.mockClear();
-      const lost = "Container suddenly disconnected, try again";
       forwardedContainerFetch
-        .mockResolvedValueOnce(new Response(lost, { status: 500 }))
-        .mockResolvedValueOnce(new Response(lost, { status: 500 }));
+        .mockRejectedValueOnce(new Error(lost))
+        .mockRejectedValueOnce(new Error(lost));
       expect((await session.fetch(new Request(url))).status).toBe(500);
       expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
 
       forwardedContainerFetch.mockClear();
-      forwardedContainerFetch.mockResolvedValueOnce(
-        new Response(lost, { status: 500 }),
-      );
+      forwardedContainerFetch.mockRejectedValueOnce(new Error(lost));
       const write = await session.fetch(
         new Request("https://leaf.page/examples/triage-board/api/media", {
           method: "POST",
@@ -2251,7 +2394,7 @@ describe("website page agent", () => {
       // copy changes nothing the first one stored.
       forwardedContainerFetch.mockClear();
       forwardedContainerFetch
-        .mockResolvedValueOnce(new Response(lost, { status: 500 }))
+        .mockRejectedValueOnce(new Error(lost))
         .mockResolvedValueOnce(new Response(null, { status: 204 }));
       const view = await session.fetch(
         new Request("https://leaf.page/examples/triage-board/api/user-view", {
@@ -2279,7 +2422,40 @@ describe("website page agent", () => {
     }
   });
 
-  it("stops a container from before a deploy, and none this release starts", async () => {
+  it("waits out a lost connection once for every read that met it", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { ctx, session } = await startedSession(storage);
+      let checks = 0;
+      let lost = 3;
+      ctx.container.getTcpPort.mockImplementation(() => ({
+        fetch: async (url: string, init?: Request) => {
+          if (url === "http://container/health") {
+            checks += 1;
+            return new Response("ok");
+          }
+          if (lost-- > 0) throw new Error("Network connection lost.");
+          return forwardedContainerFetch(init!);
+        },
+      }));
+      const reads = await Promise.all(
+        [1, 2, 3].map(() =>
+          session.fetch(
+            new Request("https://leaf.page/examples/triage-board/api/news"),
+          ),
+        ),
+      );
+      for (const read of reads) expect(await read.text()).toBe("container");
+      expect(checks).toBe(1);
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
+  it("stops a container from before a deploy at the deploy's first request", async () => {
     const { storage, close } = sqliteStorage();
     try {
       const earlier = {
@@ -2289,28 +2465,23 @@ describe("website page agent", () => {
         } as unknown as Fetcher,
       };
       const { ctx } = await startedSession(storage, earlier);
+      ctx.container.start.mockClear();
+      const destroy = vi.fn(async () => {
+        ctx.container.running = false;
+      });
+      Object.assign(ctx.container, { destroy });
       // The deploy restarts the object on the new release's code; its container still
       // runs the earlier image.
-      const session = new LeafWebsiteSession(ctx as never, environment());
+      const session = new LeafSession(ctx as never, environment());
       const state = () =>
         session.fetch(new Request("https://leaf.page/examples/triage-board/api/state"));
-      let answer!: (response: Response) => void;
-      forwardedContainerFetch.mockImplementationOnce(async () => {
-        expect(ctx.container.running).toBe(false);
-        // The container this request starts runs before its server answers.
-        ctx.container.running = true;
-        return new Promise<Response>((resolve) => (answer = resolve));
-      });
-      const first = state();
-      await vi.waitFor(() => expect(forwardedContainerFetch).toHaveBeenCalledOnce());
-      // A request while it starts reaches it rather than stopping it.
-      forwardedContainerFetch.mockImplementationOnce(async () => {
-        expect(ctx.container.running).toBe(true);
-        return new Response("still starting");
-      });
-      expect(await (await state()).text()).toBe("still starting");
-      answer(new Response("restored on this release"));
-      expect(await (await first).text()).toBe("restored on this release");
+      expect(await (await state()).text()).toBe("container");
+      expect(destroy).toHaveBeenCalledOnce();
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+      // The container this release started stays.
+      expect(await (await state()).text()).toBe("container");
+      expect(destroy).toHaveBeenCalledOnce();
+      expect(ctx.container.start).toHaveBeenCalledOnce();
     } finally {
       close();
     }
@@ -2320,7 +2491,7 @@ describe("website page agent", () => {
     const { storage, close } = sqliteStorage();
     try {
       const ctx = sessionContext(storage);
-      const session = new LeafWebsiteSession(ctx as never, environment());
+      const session = new LeafSession(ctx as never, environment());
       const responses: Record<
         string,
         { headers: Record<string, string>; chunks: string[] }
@@ -2395,7 +2566,10 @@ describe("website page agent", () => {
         ).status,
       ).toBe(204);
       expect(forwardedContainerFetch).not.toHaveBeenCalled();
+      expect(ctx.container.start).not.toHaveBeenCalled();
+      // A container this release started.
       ctx.container.running = true;
+      storage.kv.put("container-release", RELEASE);
       expect(
         await (
           await session.fetch(
@@ -2413,17 +2587,14 @@ describe("website page agent", () => {
     const { storage, close } = sqliteStorage();
     try {
       const env = environment();
-      const session = new LeafWebsiteSession({ storage } as never, env);
+      const session = new LeafSession(sessionContext(storage) as never, env);
       const get = vi.fn(() => session);
       const idFromString = vi.fn((id: string) => id);
       env.PAGES = { get, idFromString } as never;
-      const handler =
-        containerHandlers.get("LeafWebsiteSession")!["leaf-state.internal"];
       const bytes = new TextEncoder().encode("private saved bytes");
       const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString(
         "hex",
       );
-      const context = { containerId: "trusted-owner", className: "LeafWebsiteSession" };
       // Each request names the release its container runs, as Python's does
       // (`_request` in `worker/leaf_website/storage.py`).
       const ask = (
@@ -2431,16 +2602,16 @@ describe("website page agent", () => {
         init: RequestInit = {},
         release: string | null = RELEASE,
       ) =>
-        handler(
+        outbound(
           new Request(`https://leaf-state.internal${path}`, {
             ...init,
             headers: {
               ...(init.headers as Record<string, string>),
               ...(release === null ? {} : { "Leaf-Release": release }),
             },
-          }) as never,
-          env as never,
-          context as never,
+          }),
+          env,
+          { containerId: "trusted-owner" },
         );
       const absent = "f".repeat(64);
       const missing = () =>
@@ -2542,35 +2713,16 @@ describe("website page agent", () => {
 
   it("keeps the OpenAI secret in the trusted outbound handler", async () => {
     const env = environment();
-    const { storage, close } = sqliteStorage();
-    const session = new LeafWebsiteSession({ storage } as never, env);
-    close();
-
-    expect(session.enableInternet).toBe(false);
-    expect(session.interceptHttps).toBe(true);
-    expect(session.allowedHosts).toEqual(["api.openai.com", "leaf-state.internal"]);
-    expect(session.envVars).toMatchObject({
-      LEAF_AGENT: "Agent",
-      OPENAI_API_KEY: "leaf-outbound-proxy",
-      CODEX_CA_CERTIFICATE: "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
-    });
-
     const upstream = vi.fn(async (_request: Request) => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    const handler = containerHandlers.get("LeafWebsiteSession")?.["api.openai.com"];
-    expect(handler).toBeDefined();
-    const context = {
-      containerId: "user-container",
-      className: "LeafWebsiteSession",
-    };
-    const response = await handler!(
+    const response = await outbound(
       new Request("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { Authorization: "Bearer leaf-outbound-proxy" },
         body: "{}",
       }),
       env,
-      context,
+      { containerId: "user-container" },
     );
 
     expect(await response.text()).toBe("ok");
@@ -2609,7 +2761,7 @@ describe("website page agent", () => {
     );
     vi.stubGlobal("fetch", upstream);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+    const handler = outbound;
 
     try {
       const response = await handler(
@@ -2626,7 +2778,7 @@ describe("website page agent", () => {
           body: "private prompt",
         }),
         env,
-        { containerId: "user-container", className: "LeafWebsiteSession" },
+        { containerId: "user-container" },
       );
 
       expect(await response.text()).toBe(responseBody);
@@ -2681,7 +2833,7 @@ describe("website page agent", () => {
     );
     vi.stubGlobal("fetch", upstream);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+    const handler = outbound;
 
     try {
       const response = await handler(
@@ -2690,7 +2842,7 @@ describe("website page agent", () => {
           body: "{}",
         }),
         environment(),
-        { containerId: "user-container", className: "LeafWebsiteSession" },
+        { containerId: "user-container" },
       );
       const reader = response.body!.getReader();
       expect((await reader.read()).value).toEqual(keepalive);
@@ -2725,11 +2877,11 @@ describe("website page agent", () => {
   });
 
   it("rejects other uses of the credential-injecting route", async () => {
-    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+    const handler = outbound;
     const response = await handler(
       new Request("https://api.openai.com/v1/files", { method: "POST" }),
       environment(),
-      { containerId: "user-container", className: "LeafWebsiteSession" },
+      { containerId: "user-container" },
     );
 
     expect(response.status).toBe(403);
@@ -2742,7 +2894,7 @@ describe("website page agent", () => {
     const env = environment({ SOURCE_AGENT_RATE_LIMITER: denied });
     const upstream = vi.fn(async (_request: Request) => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+    const handler = outbound;
 
     const response = await handler(
       new Request("https://api.openai.com/v1/responses", {
@@ -2750,7 +2902,7 @@ describe("website page agent", () => {
         body: "{}",
       }),
       env,
-      { containerId: "user-container", className: "LeafWebsiteSession" },
+      { containerId: "user-container" },
     );
 
     expect(response.status).toBe(429);
@@ -2767,7 +2919,7 @@ describe("website page agent", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -2798,7 +2950,7 @@ describe("website page agent", () => {
         }
         return agentStart;
       });
-      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      getByName.mockReturnValue({ fetch: containerFetch } as never);
       const waitUntil = vi.fn();
       const env = environment();
 
@@ -2836,7 +2988,7 @@ describe("website page agent", () => {
   it("does not dispatch work after Leaf says the accepted event is settled", async () => {
     const sessionId = "06".repeat(16);
     const attempt = "settled-attempt-1";
-    vi.mocked(getContainer).mockReturnValue({
+    getByName.mockReturnValue({
       fetch: async () =>
         Response.json({
           ok: true,
@@ -2886,7 +3038,7 @@ describe("website page agent", () => {
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "15".repeat(16) }),
       );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const deny = vi.fn(async () => ({ success: false }));
     const waitUntil = vi.fn();
 
@@ -2936,7 +3088,7 @@ describe("website page agent", () => {
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "10".repeat(16) }),
       );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const waitUntil = vi.fn();
 
     const response = await worker.fetch(

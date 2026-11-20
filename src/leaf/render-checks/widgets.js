@@ -187,7 +187,7 @@ export function undeclaredAttrs(declarations) {
 // pass's `says` already skips a settled holder's slots, so asking it whether the
 // retired words are gone would let the decision answer for the screen. What it keeps
 // of that reading is the boundary — declared shadow roots, the same trees replay's
-// elementById marks across, which is why the holders are found through OPEN_ROOTS
+// elementById marks across, which is why the holders are found through openRoots
 // too — and the chrome test: a declared label is the page's words, so a
 // settled slot still showing one is still showing words. The visibility guards are
 // COVERED_WORDS', for its reasons: [hidden] holds until-found content whose boxes

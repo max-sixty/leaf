@@ -644,6 +644,7 @@ def timeline_step_list(page: Page) -> None:
     """The step list under a timeline that compares two runs, one step past the
     first, so it shows the current row between a past one and the steps ahead."""
     page.locator("#race").get_by_role("button", name="Next").click()
+    page.mouse.move(0, 0)
     page.locator("#race .lf-timeline-steps").scroll_into_view_if_needed()
 
 

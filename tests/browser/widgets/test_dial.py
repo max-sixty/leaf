@@ -159,7 +159,7 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
     video, a canvas, a picture in a tab, a picture marked inside a figure, with the
     figure's caption, and a paragraph or list item holding a gist, whole, words and
     links beside it included. A picture the author didn't mark folds with the words
-    around it. A section or list item of blocks is laid out in place, a button among its
+    around it, headings inside it included. A section or list item of blocks is laid out in place, a button among its
     blocks included, so a gist in one keeps its support folded. A gist or heading inside
     a closed disclosure stays closed, since Skim shows nothing Read doesn't, so a section
     holding only those folds whole."""
@@ -197,6 +197,8 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
                 f'</summary><figure class="gist" id="cause-raw-figure">{SQUARE}'
                 "</figure></details></section>"
                 '<section id="latency"><h2 id="latency-heading">Latency</h2>'
+                f'<figure id="latency-figure"><h4>Before</h4>{SQUARE}<h4>After</h4>'
+                f"{SQUARE}<figcaption>p99 before and after.</figcaption></figure>"
                 f'{chart}<p id="latency-0">p99 doubled.</p></section>'
                 '<section id="demo"><h2 id="demo-heading">Demo</h2>'
                 '<video class="gist" id="demo-video" width="40" height="30"></video>'
@@ -248,6 +250,7 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         "#cause-copy",
         "#unmarked-line",
         "#finding-support",
+        "#latency-figure",
         "#latency-0",
         "#demo-0",
         "#views-0",

@@ -28,10 +28,11 @@
  * `lf-toc`'s outline does) and descends only into plain structure that holds the lede,
  * a gist or a heading that stands. Everything else is folded or kept whole: a line of
  * text, one with words of its own or only inline children, which keeps a gist in its
- * line whole; a table, whose cells stand in its grid; a figure, whose caption labels a
- * marked chart inside it; a disclosure, whose summary is its control; and a Leaf
- * element, whose children are its own. A heading stands at
- * Skim when a lede or gist follows it in document order
+ * line whole; a table, whose cells stand in its grid; a figure, whose caption labels
+ * all it holds, so a gist inside one shows the rest of it too; a disclosure, whose
+ * summary is its control; and a Leaf element, whose children are its own. Such a block
+ * stays only for a gist or lede inside it, since a heading in it can't stand alone. A
+ * heading stands at Skim when a lede or gist follows it in document order
  * before the next heading of its rank or above, so a section with nothing for a
  * skimmer folds whole, heading included. Keeping every heading was rejected: it made
  * Skim a fixed cut of every section, whether or not one had anything for a skimmer.
@@ -301,7 +302,7 @@ customElements.define(
         child === this ||
         child.matches(SUMMARY) ||
         (child.matches(HEADING) && this.#heads(child, scope)) ||
-        (!this.#enters(child) && this.#holds(child, scope))
+        (!this.#enters(child) && this.#summarizes(child))
       );
     }
     // Whether the dial may lay out a child's children in its place: plain structure
@@ -310,21 +311,30 @@ customElements.define(
     #enters(child) {
       return !isLeafElement(child) && !child.matches(WHOLE) && !isLine(child);
     }
-    // Whether a child holds anything Skim shows.
+    // Whether Read shows `node` inside `child`: no closed disclosure between them.
+    /** @param {Element} node @param {Element} child */
+    #open(node, child) {
+      if (this.#closed(child)) return false;
+      for (let at = node.parentElement; at && at !== child; at = at.parentElement)
+        if (this.#closed(at)) return false;
+      return true;
+    }
+    // Whether a child holds the dial, a lede or a gist.
+    /** @param {Element} child */
+    #summarizes(child) {
+      return (
+        (child.contains(this) && !this.#closed(child)) ||
+        [...child.querySelectorAll(SUMMARY)].some((node) => this.#open(node, child))
+      );
+    }
+    // Whether a child holds anything Skim shows: the dial, a lede, a gist or a heading
+    // that stands.
     /** @param {Element} child @param {Element} scope */
     #holds(child, scope) {
-      if (this.#closed(child)) return false;
-      /** @param {Element} node */
-      const inside = (node) => {
-        for (let at = node.parentElement; at && at !== child; at = at.parentElement)
-          if (this.#closed(at)) return false;
-        return true;
-      };
       return (
-        child.contains(this) ||
-        [...child.querySelectorAll(SUMMARY)].some(inside) ||
+        this.#summarizes(child) ||
         [...child.querySelectorAll(HEADING)].some(
-          (heading) => inside(heading) && this.#heads(heading, scope),
+          (heading) => this.#open(heading, child) && this.#heads(heading, scope),
         )
       );
     }

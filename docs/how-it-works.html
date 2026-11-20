@@ -2649,9 +2649,9 @@ flowchart TD
                     The agent started work on the update and named the work in one line,
                     as a progress message in its thread or with
                     <code>leaf task start</code>, or started a to-do on the update's
-                    widget. In Claude Code, a thread message also reads On it while a
-                    fork of the conversation writes the agent's working line, and from
-                    that line until the agent answers (<a href="#path">Forks</a>).
+                    widget. In Claude Code, the working line a fork of the conversation
+                    posts within seconds of a thread message is such a progress message
+                    (<a href="#path">Forks</a>).
                   </td>
                 </tr>
                 <tr id="stages-replying">
@@ -3510,7 +3510,6 @@ EOF</code></pre>
             <nav aria-label="Forks sections">
               <ul>
                 <li><a href="#path">Where a thread message goes</a></li>
-                <li><a href="#holding">Who holds a message</a></li>
                 <li><a href="#beside">The fork subagent</a></li>
                 <li><a href="#follow-ups">Further messages in a thread</a></li>
                 <li><a href="#coordinator">The main thread stays in charge</a></li>
@@ -3523,12 +3522,13 @@ EOF</code></pre>
             In Claude Code, the agent's own conversation, the <dfn>main thread</dfn>,
             takes in a thread message only between its steps: an idle session thinks
             before its first words, and a busy one first finishes the command it is
-            running. So Leaf first hands each thread message to a <dfn>fork</dfn>, a
-            copy of the conversation that runs beside it. The fork posts the agent's
-            first line in the thread within seconds, and Leaf hands the message to the
-            main thread, which decides who does the work. Where the work can run beside
-            its own, the main thread spawns a fork with the session's tools, which
-            answers the message while the main thread carries on.
+            running. So while Leaf delivers each thread message to the main thread, as
+            it delivers any input, it also asks a <dfn>fork</dfn>, a copy of the
+            conversation that runs beside it, for the agent's first line in the thread,
+            which goes in within seconds. The main thread decides who does the work.
+            Where the work can run beside its own, the main thread spawns a fork with
+            the session's tools, which answers the message while the main thread carries
+            on.
           </p>
           <p id="forks-kinds">
             Leaf makes three kinds of fork, set off by two moments: the user writing in
@@ -3545,12 +3545,13 @@ EOF</code></pre>
               <pre>
 flowchart TD
   accTitle: Leaf's forks in Claude Code and what each does
-  accDescr: When the user writes in a thread, a line fork without tools writes the agent's working line, which Leaf posts, and Leaf hands the message to the main thread. Where the work can run beside its own, the main thread starts the message and spawns a fork subagent with the session's tools, which answers in the thread, and can pass the thread's later messages on to it; Claude Code tells the main thread as the fork's run ends. On a long thread, a summary fork without tools starts beside the line fork, and Leaf posts its summary of the earlier messages. When the main thread ends a turn, the turn-end check, without tools, reads the conversation and the page: Leaf posts On Me each question the agent left the user only in chat, swaps a few stale words itself, and passes anything else to the agent in a note that wakes an idle session.
+  accDescr: When the user writes in a thread, Leaf delivers the message to the main thread as it delivers any input, and beside that delivery a line fork without tools writes the agent's working line, which Leaf posts unless the agent has spoken in the thread first. Where the work can run beside its own, the main thread starts the message and spawns a fork subagent with the session's tools, which answers in the thread, and can pass the thread's later messages on to it; Claude Code tells the main thread as the fork's run ends. On a long thread, a summary fork without tools starts beside the line fork, and Leaf posts its summary of the earlier messages. When the main thread ends a turn, the turn-end check, without tools, reads the conversation and the page: Leaf posts On Me each question the agent left the user only in chat, swaps a few stale words itself, and passes anything else to the agent in a note that wakes an idle session.
   msg["The user writes&lt;br/&gt;in a thread"] --&gt; line["Line fork&lt;br/&gt;no tools"]
   msg -. long thread .-&gt; sum["Summary fork&lt;br/&gt;no tools"]
+  msg -- "delivered as any input" --&gt; main["Main thread"]
+  line ~~~ main
   sum --&gt; fold["Leaf posts its summary&lt;br/&gt;of the earlier messages"]
-  line --&gt; wl["Leaf posts its&lt;br/&gt;working line"]
-  line -- "hands the message over" --&gt; main["Main thread"]
+  line --&gt; wl["Leaf posts its working line,&lt;br/&gt;unless the agent spoke first"]
   main -- "work beside its own:&lt;br/&gt;starts it, spawns a fork" --&gt; work["Fork subagent&lt;br/&gt;the session's tools"]
   work --&gt; ans["It answers&lt;br/&gt;in the thread"]
   work -. "Claude Code's notice as its run ends" .-&gt; main
@@ -3588,47 +3589,67 @@ flowchart TD
 
           <section id="path">
             <h2>Where a thread message goes</h2>
-            <p id="path-kept">
-              When the user writes in a thread where nothing else waits on the agent,
-              Leaf
-              <dfn>keeps the message back</dfn> from the main thread and asks a
-              <dfn>line fork</dfn>
-              about it. A line fork resends the main thread's last request with one
+            <p id="path-delivered">
+              A thread message reaches the main thread as any input does: at its next
+              tool call, or, when the session is idle, at the prompt of a turn the watch
+              wakes. Beside that delivery, Leaf asks a <dfn>line fork</dfn> about the
+              message. A line fork resends the main thread's last request with one
               question from Leaf, can't call tools, and returns within a few seconds
-              with the
-              <dfn>working line</dfn>, the agent's message saying what it will do about
-              the user's message, such as “reading the reconnect traces”. Leaf posts the
-              line as the agent's and hands the message to the main thread. From the
-              moment Leaf keeps the message back until the agent answers, it reads
-              <a href="#stages-working">On it</a>. A message that follows quickly in the
-              same thread, such as “and also…”, joins it, and a new line fork reads them
-              both. Leaf keeps a message back only while a background process of Leaf's
-              hooks module is running for the session to list it; otherwise the message
-              goes to the main thread as any input does. The line fork's prompt is in
+              with the <dfn>working line</dfn>, the agent's message saying what it will
+              do about the user's message, such as “reading the reconnect traces”. Leaf
+              posts the line as the agent's progress message, and from then until the
+              agent answers, the message reads <a href="#stages-working">On it</a>. The
+              line fork's prompt is in
               <a href="#anatomy-line">Anatomy of a fork journey</a>, as Leaf wrote it in
               one run.
+            </p>
+            <p id="path-round">
+              A line fork writes for a <dfn>round</dfn>: the user's messages waiting in
+              an open thread with nothing of the agent's after the oldest of them. A
+              message that follows quickly in the same thread, such as “and also…”,
+              joins the round, and a new line fork reads them all. A message sent after
+              the agent has spoken in the thread, by its line or otherwise, starts no
+              line fork, since the agent's words already stand after the round's first
+              message. A background process of Leaf's hooks module asks for each line
+              fork, and only for messages sent after it first read the page; every
+              message reaches the main thread either way.
+            </p>
+            <p id="path-late">
+              The line goes in only while its round still awaits it: while the thread's
+              waiting messages are the ones the line fork read, and the agent has said
+              nothing in the thread since the oldest of them. Leaf checks this as it
+              appends the line, so a line never lands after the main thread's own words
+              in its thread, nor speaks for a round a later message joined. The user
+              chose to deliver the message at once rather than hold it from the main
+              thread until the line goes in. Holding it would keep the line ahead of the
+              main thread's words, but it needs a holder for each thread, a bound for a
+              line fork that never answers and a wake when the bound runs out, and all
+              it buys is the line's order, since the main thread judges every message
+              itself and needs nothing from the line fork. What the user accepted: the
+              main thread sometimes speaks in the thread before the line fork answers,
+              and that line goes in nowhere.
             </p>
             <figure id="states-figure" class="diagram-figure">
               <lf-diagram id="states-diagram" data-height="350" parts="all">
                 <pre>
 flowchart TD
-  accTitle: Where a thread's waiting messages stand
-  accDescr: A new message is kept back while a line fork writes the working line. Once the line is posted, the line fork fails, or no line comes within 30 s, Leaf hands the thread to the main thread. The main thread's reply answers the thread, and so does the reply of a fork subagent it spawned, which acts as the main thread.
-  kept["Kept back: a line fork writes the working line"]
-  main["With the main thread"]
+  accTitle: What a waiting thread message reads until it is answered
+  accDescr: A new message reads as its delivery stands: Queued for Claude, then Delivered once the main thread takes it in. Once the working line, or another progress message of the agent's, stands after it, it reads On it. The reply of the main thread, or of a fork subagent it spawned, answers it from either state.
+  sent["Queued for Claude, then Delivered"]
+  onit["On it"]
   done["Answered"]
-  kept -- "the line posted, a failure&lt;br/&gt;or no line in 30 s" --&gt; main
-  main -- "the main thread or its&lt;br/&gt;fork subagent replies" --&gt; done
+  sent -- "the working line, or another&lt;br/&gt;progress message of the agent's" --&gt; onit
+  sent -- "the main thread or its&lt;br/&gt;fork subagent replies" --&gt; done
+  onit -- "the main thread or its&lt;br/&gt;fork subagent replies" --&gt; done
 </pre>
               </lf-diagram>
               <figcaption id="states-caption">
                 <strong
-                  >A waiting thread is in one of two states until it is
-                  answered.</strong
+                  >A waiting message reads one of two ways until it is answered.</strong
                 >
-                The main thread can answer it in either, which takes the thread over.
-                Leaf reads the state from the page's log and the session's record of its
-                line turns; nothing stores it.
+                The main thread can answer it from either, and a line that comes after
+                that answer goes in nowhere. Leaf reads the state from the page's log;
+                nothing stores it.
               </figcaption>
             </figure>
 
@@ -3637,9 +3658,10 @@ flowchart TD
               it to <a href="#summaries">summarize</a>, the module starts a second fork
               beside the line fork. It folds the thread's earlier discussion into one
               summary, which Leaf writes as the agent's and tells the main thread of. It
-              answers on its own, so neither the line nor the handover waits for it. The
-              message's delivery to the main thread leaves the suggestion out, and if
-              the fork fails, Leaf tells the main thread the range it suggested.
+              answers on its own, so the line doesn't wait for it. The delivery of a
+              message that came to a round awaiting a line, while the hooks module's
+              process asks for line forks, leaves the suggestion out, and if the fork
+              fails, Leaf tells the main thread the range it suggested.
             </p>
             <details id="summary-fork-prompt">
               <summary>The summary fork's prompt</summary>
@@ -3702,29 +3724,28 @@ flowchart TD
             <section id="take">
               <h3>The main thread gives a message to a fork</h3>
               <p id="take-steps">
-                Leaf posts the line and hands the thread to the main thread, which reads
-                the message at its next tool call, or, when idle, as the watch wakes it
-                and its prompt hook hands it over. Where it judges the work can run
-                beside its own, it starts the message with
-                <code>leaf task start</code>, since the working line takes nothing in
-                hand, and spawns a <dfn>fork subagent</dfn> in the background with
-                Claude Code's Agent tool and its <code>fork</code> type: a subagent with
-                the main thread's transcript, model and tools, read from the cache. The
-                fork does the work and answers with its own
-                <code>leaf thread reply</code> and the delivery's
-                <code>answer.ref</code>, while the main thread carries on. The Leaf
-                skill's Claude Code reference,
+                The main thread reads the message at its next tool call, or, when idle,
+                as the watch wakes it and its prompt hook hands it over, whether or not
+                the line has gone in. Where it judges the work can run beside its own,
+                it starts the message with <code>leaf task start</code>, since the
+                working line takes nothing in hand, and spawns a
+                <dfn>fork subagent</dfn> in the background with Claude Code's Agent tool
+                and its <code>fork</code> type: a subagent with the main thread's
+                transcript, model and tools, read from the cache. The fork does the work
+                and answers with its own <code>leaf thread reply</code> and the
+                delivery's <code>answer.ref</code>, while the main thread carries on.
+                The Leaf skill's Claude Code reference,
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-claude-code.md#subagents"
                   >“Subagents”</a
                 >, tells the main thread when to do this.
               </p>
               <figure id="take-figure" class="diagram-figure">
-                <lf-diagram id="take-sequence" data-height="1100" parts="all">
+                <lf-diagram id="take-sequence" data-height="1198" parts="all">
                   <pre>
 sequenceDiagram
   accTitle: The main thread gives a message to a fork, which answers it
-  accDescr: Leaf's Python is the page server and the leaf hook processes; the hooks module, the line fork, the main thread and its fork subagent run in Claude Code. The user writes, and the page server keeps the message back for leaf hook, which asks the hooks module to report the thread, and the module reports it with the tool calls the main thread is running. leaf hook answers with a fork to make and its prompt, and the module makes the line fork with $.model.fork, which answers with the working line. The module hands that answer to leaf hook, which posts the line and hands the thread over. leaf hook gives the main thread the message at its next tool call, or at the prompt of a turn the watch wakes. The main thread starts the message with leaf task start and spawns a fork subagent with the Agent tool, which answers with leaf thread reply. As the fork's run ends, Claude Code tells the main thread. The user's next message is kept back for a line fork again, and leaf hook gives it to the main thread; the main thread starts it and passes it on to the fork with SendMessage. The fork answers, and Claude Code tells the main thread as its run ends.
+  accDescr: Leaf's Python is the page server and the leaf hook processes; the hooks module, the line fork, the main thread and its fork subagent run in Claude Code. The user writes, and two things run side by side. For the line, leaf hook finds a round awaiting a line and asks the hooks module to report the thread, and the module reports it with the tool calls the main thread is running; leaf hook answers with a fork to make and its prompt, the module makes the line fork with $.model.fork, which answers with the working line, and the module hands that answer to leaf hook, which posts the line. For the delivery, leaf hook gives the main thread the message at its next tool call, or at the prompt of a turn the watch wakes. The main thread starts the message with leaf task start and spawns a fork subagent with the Agent tool, which answers with leaf thread reply. As the fork's run ends, Claude Code tells the main thread. The user's next message goes the same way: a new line fork writes a line while leaf hook gives the message to the main thread, which starts it and passes it on to the fork with SendMessage. The fork answers, and Claude Code tells the main thread as its run ends.
   participant U as User
   box Leaf's Python
     participant S as Page server
@@ -3737,23 +3758,28 @@ sequenceDiagram
     participant F as Fork subagent
   end
   U-&gt;&gt;S: message
-  S-&gt;&gt;H: kept back
-  H-&gt;&gt;K: report it
-  K-&gt;&gt;H: report, with running calls
-  H-&gt;&gt;K: a fork, with its prompt
-  K-&gt;&gt;L: $.model.fork
-  L-&gt;&gt;K: the line
-  K-&gt;&gt;H: the answer
-  H-&gt;&gt;U: working line
-  Note over S,H: hands over
-  H-&gt;&gt;M: the message
+  par the line
+    S-&gt;&gt;H: a round awaits a line
+    H-&gt;&gt;K: report it
+    K-&gt;&gt;H: report, with running calls
+    H-&gt;&gt;K: a fork, with its prompt
+    K-&gt;&gt;L: $.model.fork
+    L-&gt;&gt;K: the line
+    K-&gt;&gt;H: the answer
+    H-&gt;&gt;U: working line
+  and the delivery
+    H-&gt;&gt;M: the message
+  end
   M-&gt;&gt;U: a start, by leaf task start
   M-&gt;&gt;F: Agent, fork type
   F-&gt;&gt;U: the answer, by leaf thread reply
   F--&gt;&gt;M: run ended
   U-&gt;&gt;S: another message
-  Note over S,L: kept back, and a line fork writes a line
-  H-&gt;&gt;M: it
+  par the line
+    Note over H,L: a new line fork writes a line
+  and the delivery
+    H-&gt;&gt;M: it
+  end
   M-&gt;&gt;U: a start
   M-&gt;&gt;F: SendMessage, answer.ref
   F-&gt;&gt;U: the answer
@@ -3762,15 +3788,15 @@ sequenceDiagram
                 </lf-diagram>
                 <figcaption id="take-caption">
                   <strong>A message a fork answers, in order.</strong> Leaf's Python
-                  decides each of Leaf's steps: the page server keeps the message back,
-                  and <code>leaf hook</code>, which Claude Code and the hooks module
-                  run, writes the line fork's prompt, posts the line and hands the
-                  message over. The hooks module makes the fork
-                  <code>leaf hook</code> asks for and hands back its answer, adding the
-                  tool calls the main thread is running. The main thread spawns the fork
-                  subagent and passes it later messages itself. Dashed arrows are Claude
-                  Code's notices that the fork's run ended, which start a turn of an
-                  idle main thread or join the one running.
+                  decides each of Leaf's steps: <code>leaf hook</code>, which Claude
+                  Code and the hooks module run, gives the main thread the message,
+                  writes the line fork's prompt and posts the line. The line and the
+                  delivery run side by side, so either can come first. The hooks module
+                  makes the fork <code>leaf hook</code> asks for and hands back its
+                  answer, adding the tool calls the main thread is running. The main
+                  thread spawns the fork subagent and passes it later messages itself.
+                  Dashed arrows are Claude Code's notices that the fork's run ended,
+                  which start a turn of an idle main thread or join the one running.
                   <a href="#anatomy">Anatomy of a fork journey</a> follows one run,
                   message by message.
                 </figcaption>
@@ -3778,67 +3804,15 @@ sequenceDiagram
             </section>
           </section>
 
-          <section id="holding">
-            <h2>Who holds a message</h2>
-            <p id="holding-turns">
-              Leaf ties each hold to a <dfn>turn</dfn>, a span of an agent's work. The
-              main thread works in its own turns, and each line fork gets a turn of its
-              own, a <dfn>line turn</dfn>, which Leaf records beside the session. A fork
-              subagent gets none, and acts in the main thread's. A turn takes messages
-              in with a <dfn>pickup</dfn> in the page's log, and the main thread shows
-              it is at work with a <dfn>start</dfn>. Both name the turn. A line turn's
-              pickup holds the thread without taking its messages in, so delivery counts
-              them as taken in only once the main thread picks them up. A turn holds a
-              thread from the moment it takes it, by a pickup or an answer, until
-              another turn does:
-            </p>
-            <ul id="holding-cases">
-              <li id="holding-waiting">
-                Of the turns that picked up any of a thread's waiting messages, the one
-                with the newest pickup holds all of them.
-              </li>
-              <li id="holding-unpicked">
-                A message no turn has picked up yet is held by the turn that last took
-                its thread while that turn is a running line turn, and is otherwise the
-                main thread's.
-              </li>
-              <li id="holding-answered">
-                An answered message is held by the turn that answered it.
-              </li>
-            </ul>
-            <p id="holding-readers">
-              A line turn keeps the main thread off the messages it holds only while it
-              runs: from admission until Leaf posts the line and hands the thread over,
-              or until it lapses 30 s after it opened, since nothing renews it. Once it
-              ends, the messages it held are the main thread's to answer. Delivery,
-              Leaf's hooks, the page's activity and every command read this one rule.
-            </p>
-            <p id="holding-shown">
-              <code>leaf page state</code> names a <code>holder</code> on each thread
-              and on each answer the agent owes: the main thread, or a running line turn
-              while a line fork writes its line. The holder owes the answer. A main
-              thread recovering what it owes, as after a compaction, reads it there and
-              leaves a message a line fork is writing a line on to it.
-            </p>
-            <p id="takeover-answer">
-              The main thread can still answer a message a line turn holds. Its answer
-              takes the thread over at once, and the line fork's line, which comes
-              after, goes in nowhere. A line turn may act only on the messages it holds
-              or that no turn holds, and Leaf checks each of its writes against that as
-              it is made.
-            </p>
-          </section>
-
           <section id="beside">
             <h2>The fork subagent</h2>
             <p id="beside-acts">
-              Leaf gives the fork subagent no turn of its own. Its shell commands run in
-              the session's environment, so each <code>leaf</code> command it runs acts
-              as the main thread's, which holds the thread the fork works on. Leaf's
-              hooks skip a subagent's tool boundary, which Claude Code names in the
-              hook's input, so no delivery reaches it: the main thread takes the
-              session's input and passes its fork what it needs. Leaf's hooks module
-              leaves a subagent's calls and turns alone too.
+              The fork subagent's shell commands run in the session's environment, so
+              each <code>leaf</code> command it runs acts as the main thread's, in the
+              main thread's turn. Leaf's hooks skip a subagent's tool boundary, which
+              Claude Code names in the hook's input, so no delivery reaches it: the main
+              thread takes the session's input and passes its fork what it needs. Leaf's
+              hooks module leaves a subagent's calls and turns alone too.
             </p>
             <p id="beside-start">
               The start the main thread writes before it spawns the fork names the
@@ -3864,45 +3838,43 @@ sequenceDiagram
             <h2>Further messages in a thread</h2>
             <p id="follow-ups-one-fork">
               Each message the user sends in a thread whose earlier messages are all
-              answered is kept back for a line fork again, like the first. The main
-              thread routes it as it did the first: it can pass a later message in a
-              thread it gave a fork on to that fork with SendMessage, with the message's
-              <code>answer.ref</code>, and a send resumes a fork whose run has ended; or
-              it can give the message to a new fork, or answer it itself. Messages in
-              different threads get a line fork each, side by side.
+              answered starts a round of its own, and a line fork writes its line, like
+              the first. The main thread routes it as it did the first: it can pass a
+              later message in a thread it gave a fork on to that fork with SendMessage,
+              with the message's <code>answer.ref</code>, and a send resumes a fork
+              whose run has ended; or it can give the message to a new fork, or answer
+              it itself. Messages in different threads get a line fork each, side by
+              side.
             </p>
             <figure id="follow-ups-figure" class="diagram-figure">
-              <lf-diagram id="follow-up-flow" data-height="809" parts="all">
+              <lf-diagram id="follow-up-flow" data-height="369" parts="all">
                 <pre>
 flowchart TD
   accTitle: Where a further message in a thread goes
-  accDescr: If a running line turn holds the thread, the message joins it, and a new line fork reads all its waiting messages. Otherwise, if it is the thread's only waiting message, Leaf keeps it back for a line fork, which writes the line, and hands it to the main thread; if an earlier message still waits, it goes to the main thread as any input. The main thread then answers it itself, spawns a new fork for it, or passes it on to the thread's fork with SendMessage, with its answer.ref.
+  accDescr: Every further message goes to the main thread at its next tool call or prompt. Beside that delivery, if the agent has said nothing in the thread since the oldest message still waiting there, a new line fork reads all the waiting messages and writes the line; if it has, no line fork reads the message. The main thread answers the message itself, spawns a new fork for it, or passes it on to the thread's fork with SendMessage, with its answer.ref.
   more["A further message in a thread"]
-  q1("Does a running line turn hold the thread?")
-  join["It joins: a new line fork reads them all"]
-  q2("Is it the thread's only waiting message?")
-  kept["Kept back: a line fork writes the line"]
   main["The main thread, at its next tool call or prompt"]
   route["It answers itself, spawns a fork, or passes the message to the thread's fork with SendMessage"]
+  q1("Has the agent spoken in the thread since its oldest waiting message?")
+  line["A new line fork reads every waiting message and writes the line"]
+  none["No line fork"]
+  more --&gt; main --&gt; route
   more --&gt; q1
-  q1 -- yes --&gt; join
-  q1 -- no --&gt; q2
-  q2 -- yes --&gt; kept --&gt; main
-  q2 -- no --&gt; main
-  main --&gt; route
+  q1 -- no --&gt; line
+  q1 -- yes --&gt; none
 </pre>
               </lf-diagram>
               <figcaption id="follow-ups-caption">
                 <strong>A further message follows its thread.</strong> Leaf answers the
-                two questions from the page's log; the main thread routes the message,
-                as the Leaf skill's Claude Code reference tells it.
+                question from the page's log; the main thread routes the message, as the
+                Leaf skill's Claude Code reference tells it.
               </figcaption>
             </figure>
             <p id="follow-up-running">
               A message the user sends while the fork still works on the thread's last
-              one isn't the thread's only waiting message, so no line fork reads it: it
-              goes to the main thread at its next tool call or prompt, which passes it
-              on.
+              one usually finds the line standing after that one, so no line fork reads
+              it: it goes to the main thread at its next tool call or prompt, which
+              passes it on.
             </p>
           </section>
 
@@ -3920,8 +3892,7 @@ flowchart TD
             </p>
             <p id="coordinator-choice">
               The user chose that the main thread judge every message and spawn the fork
-              itself: each thread has one holder, the main thread or a running line
-              turn, and Leaf keeps no record of a fork. The line fork could also judge
+              itself, so Leaf keeps no record of a fork. The line fork could also judge
               whether a fork could do the work and tell the main thread so, but that
               only adds a line to what the main thread reads, and the main thread
               decides anyway, knowing its own work better than a fork judging from a
@@ -3929,11 +3900,10 @@ flowchart TD
               send it the thread's later messages. Its answer would come sooner, since
               it would wait neither for the main thread's next tool call nor on a main
               thread blocked in a long command. But Leaf would need its own judgment of
-              which messages to give a fork, and it would put a second holder on each
-              thread it gives one, and with it the turns, records and hooks that hold a
-              thread for an agent Leaf spawned and tell the main thread what that agent
-              did, since Claude Code tells a session nothing of an agent a plugin
-              spawns.
+              which messages to give a fork, and for each thread it gives one, the
+              turns, records and hooks that hold a thread for an agent Leaf spawned and
+              tell the main thread what that agent did, since Claude Code tells a
+              session nothing of an agent a plugin spawns.
             </p>
           </section>
 
@@ -3942,17 +3912,17 @@ flowchart TD
             <p id="anatomy-lede">
               This section follows one thread through every message Leaf, Claude Code,
               the forks and the main thread exchanged in a run of the Claude Code agent
-              journey (<code>leaf-dev journey run claude-code</code>) at 22:07 PT on 19
+              journey (<code>leaf-dev journey run claude-code</code>) at 10:55 PT on 20
               November 2026, under Claude Code 2.1.329. The user asked a question about
               the page's source while the session ran a shell command in one of the
-              user's turns: a line fork wrote its line, and the main thread started the
-              message and spawned a fork that answered it. The user's next question in
-              the thread, after that answer and during another such command, went
-              through a line fork again, and the main thread passed it on to the same
-              fork. The times and Claude Code's text are as the run recorded them.
-              Leaf's own messages are written by Leaf's current code from the run's
-              values, so they read as Leaf writes them now. Paths and ids are the
-              journey's scratch page and session.
+              user's turns: a line fork wrote its line while the message waited for the
+              command's end, and the main thread then started the message and spawned a
+              fork that answered it. The user's next question in the thread, after that
+              answer and during another such command, went through a line fork again,
+              and the main thread passed it on to the same fork. The times and Claude
+              Code's text are as the run recorded them. Leaf's own messages are written
+              by Leaf's current code from the run's values, so they read as Leaf writes
+              them now. Paths and ids are the journey's scratch page and session.
             </p>
             <p id="anatomy-key">
               Who wrote each message: <span class="said from-cc">Claude Code</span>,
@@ -3973,65 +3943,65 @@ flowchart TD
                   ></lf-event>
                   <lf-event
                     id="journey-follow"
-                    at="67489"
+                    at="66894"
                     label="Asks which comes last"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Leaf's Python">
                   <lf-event
-                    id="journey-keep"
-                    at="2"
-                    label="Keeps the message back"
+                    id="journey-admit"
+                    at="0"
+                    label="Admits the message, lists it for a line fork"
                   ></lf-event>
                   <lf-event
                     id="journey-line"
-                    at="1734"
-                    label="Posts the line, hands the thread over"
+                    at="1584"
+                    label="Posts the line"
                   ></lf-event>
                   <lf-event
-                    id="journey-hand"
-                    at="25123"
-                    label="Hands it in at the tool call"
+                    id="journey-deliver"
+                    at="25013"
+                    label="Delivers it at the tool call"
                   ></lf-event>
                   <lf-event
-                    id="journey-keep-again"
-                    at="67491"
-                    label="Keeps the message back"
+                    id="journey-admit-again"
+                    at="66894"
+                    label="Admits the message, lists it for a line fork"
                   ></lf-event>
                   <lf-event
                     id="journey-line-again"
-                    at="69143"
-                    label="Posts the line, hands the thread over"
+                    at="68709"
+                    label="Posts the line"
                   ></lf-event>
                   <lf-event
-                    id="journey-hand-again"
-                    at="92836"
-                    label="Hands it in at the tool call"
+                    id="journey-deliver-again"
+                    at="91951"
+                    label="Delivers it at the tool call"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Hooks module">
                   <lf-event
                     id="journey-module-fork"
-                    at="320"
+                    at="161"
                     label="Makes the line fork"
                   ></lf-event>
                   <lf-event
                     id="journey-module-fork-again"
-                    at="67851"
+                    at="67065"
                     label="Makes a line fork"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Line fork">
                   <lf-event
                     id="journey-write-line"
-                    at="320"
-                    end="1734"
+                    at="161"
+                    end="1434"
                     label="Writes the line"
                   ></lf-event>
                   <lf-event
                     id="journey-write-line-again"
-                    at="67851"
-                    end="69143"
+                    at="67065"
+                    end="68562"
                     label="Writes the line"
                   ></lf-event>
                 </lf-lane>
@@ -4039,75 +4009,75 @@ flowchart TD
                   <lf-event
                     id="journey-command"
                     at="0"
-                    end="24935"
+                    end="24824"
                     label="Runs the user's 25 s command"
                   ></lf-event>
                   <lf-event
                     id="journey-start"
-                    at="29442"
+                    at="31135"
                     label="Starts the message"
                   ></lf-event>
                   <lf-event
                     id="journey-spawn"
-                    at="35579"
+                    at="37562"
                     label="Spawns a fork"
                   ></lf-event>
                   <lf-event
                     id="journey-turn-ends"
-                    at="36565"
+                    at="40575"
                     label="Ends the user's turn"
                   ></lf-event>
                   <lf-event
                     id="journey-notice"
-                    at="46636"
-                    end="53966"
+                    at="49513"
+                    end="53296"
                     label="A turn for Claude Code's notice"
                   ></lf-event>
                   <lf-event
                     id="journey-command-again"
-                    at="67316"
-                    end="92549"
+                    at="66509"
+                    end="91727"
                     label="Runs the user's 25 s command"
                   ></lf-event>
                   <lf-event
                     id="journey-start-again"
-                    at="96392"
+                    at="95469"
                     label="Starts the message"
                   ></lf-event>
                   <lf-event
                     id="journey-pass"
-                    at="102847"
+                    at="99749"
                     label="Passes it on"
                   ></lf-event>
                   <lf-event
                     id="journey-turn-ends-again"
-                    at="104122"
+                    at="103101"
                     label="Ends the user's turn"
                   ></lf-event>
                   <lf-event
                     id="journey-notice-again"
-                    at="118029"
-                    end="122125"
+                    at="110938"
+                    end="113802"
                     label="A turn for Claude Code's notice"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Fork subagent">
                   <lf-event
                     id="journey-run"
-                    at="35579"
-                    end="46609"
+                    at="37571"
+                    end="49484"
                     label="Reads the cards"
                   ></lf-event>
-                  <lf-event id="journey-answer" at="44166" label="Answers"></lf-event>
+                  <lf-event id="journey-answer" at="47122" label="Answers"></lf-event>
                   <lf-event
                     id="journey-resumed"
-                    at="102870"
-                    end="118009"
+                    at="99790"
+                    end="110918"
                     label="Takes the follow-up"
                   ></lf-event>
                   <lf-event
                     id="journey-answer-again"
-                    at="114775"
+                    at="107505"
                     label="Answers"
                   ></lf-event>
                 </lf-lane>
@@ -4115,9 +4085,10 @@ flowchart TD
               <figcaption id="anatomy-caption">
                 <strong>The run, in seconds from the user's first message.</strong>
                 Each message arrives while the main thread runs a 25 s command in a turn
-                of the user's, so Leaf hands it in at that command's end. Each time the
-                fork's run ends after the user's turn has, Claude Code's notice starts a
-                turn of its own.
+                of the user's, so Leaf delivers it at that command's end, by when its
+                line has stood in the thread for over 20 s. Each time the fork's run
+                ends after the user's turn has, Claude Code's notice starts a turn of
+                its own.
               </figcaption>
             </figure>
 
@@ -4130,9 +4101,10 @@ flowchart TD
                   page's source and tell me which one a release manager would ask about
                   first, and why.</q
                 >
-                Leaf keeps the message back from the main thread, and its hooks module
+                Leaf admits the message and lists it for a line fork: its hooks module
                 resends the main thread's last request through
-                <code>$.model.fork</code>, with Leaf's message added at its end.
+                <code>$.model.fork</code>, with Leaf's message added at its end, while
+                the main thread's command runs.
               </p>
               <details id="line-fork-prompt" class="from from-leaf">
                 <summary>Leaf's message to the line fork</summary>
@@ -4148,38 +4120,41 @@ flowchart TD
                 ></lf-text-document>
               </details>
               <p id="anatomy-line-answer">
-                The line fork answered in 1.4 s, and its line stood in the thread 1.7 s
+                The line fork answered in 1.3 s, and its line stood in the thread 1.6 s
                 after the message:
               </p>
               <pre
                 id="anatomy-line-json"
                 class="from from-model"
-              ><code>{"line": "reading the cards in the page source to find which one a release manager would ask about first"}</code></pre>
+              ><code>{"line": "Reading the cards in the page source to find which one a release manager would ask about first"}</code></pre>
               <p id="anatomy-line-posted">
-                Leaf posts the line as the agent's and hands the thread over by closing
-                the line turn.
+                The agent had said nothing in the thread since the message, so Leaf
+                posts the line as the agent's progress message, and the message reads On
+                it from then on.
               </p>
             </section>
 
-            <section id="anatomy-hand-over">
-              <h3>2. Leaf hands the message to the main thread</h3>
-              <p id="anatomy-hand-over-wake">
-                The main thread is in a turn of the user's, running a 25 s shell
-                command, so the message waits for that command's end. 25.1 s after the
-                message, the PostToolBatch hook hands in the message's delivery, which
-                carries the thread with the working line among its messages and the
-                message's <code>answer.ref</code>:
+            <section id="anatomy-delivery">
+              <h3>2. Leaf delivers the message to the main thread</h3>
+              <p id="anatomy-delivery-wake">
+                Leaf delivers the message as it delivers any input, at the main thread's
+                next tool call. The main thread is in a turn of the user's, running a 25
+                s shell command, so the message waits for that command's end, and by
+                then the line is in the thread. 25.0 s after the message, the
+                PostToolBatch hook hands in the message's delivery, which carries the
+                thread with the working line among its messages and the message's
+                <code>answer.ref</code>:
               </p>
-              <details id="anatomy-hand-over-context" class="from from-leaf">
+              <details id="anatomy-delivery-context" class="from from-leaf">
                 <summary>The delivery in the PostToolBatch hook's context</summary>
-                <p id="hand-over-values">
+                <p id="delivery-values">
                   Leaf fills in the delivery of the thread, with the handling clauses
                   Leaf's kernel registry gives this case.
                 </p>
                 <lf-text-document
-                  id="prompt-hand-over"
+                  id="prompt-delivery"
                   label="inline_context, src/leaf/hook_transport.py"
-                  data-prompt="hand-over"
+                  data-prompt="delivery"
                 ></lf-text-document>
               </details>
             </section>
@@ -4187,31 +4162,31 @@ flowchart TD
             <section id="anatomy-take">
               <h3>3. The main thread spawns a fork, which answers</h3>
               <p id="anatomy-take-spawn">
-                At 29.4 s the main thread starts the message with
+                At 31.1 s the main thread starts the message with
                 <code>leaf task start</code> and the line
                 <q class="said from-model"
-                  >A background fork is reading the cards to find which one a release
+                  >A background fork is reading the cards to pick the one a release
                   manager would ask about first</q
-                >. It runs the user's next command, at 35.6 s spawns the fork in the
-                background with the Agent tool's <code>fork</code> type, and ends the
-                user's turn at 36.6 s.
+                >. At 37.6 s it spawns the fork in the background with the Agent tool's
+                <code>fork</code> type, then runs the user's next command and ends the
+                user's turn at 40.6 s.
               </p>
               <details id="anatomy-take-call" class="from from-model">
                 <summary>The main thread's Agent call</summary>
                 <pre><code>{
- "description": "Answer release-manager card question",
  "subagent_type": "fork",
- "prompt": "You are the fork handling the user's Leaf thread b7bec0cd on the page at /private/var/folders/v3/8k5q0_6j3_q6gl4h8czr66sh0000gn/T/leaf-journey-claude-code-vri8qjmk/work/page. Their question: \"read the cards in this page's source and tell me which one a release manager would ask about first, and why.\" Read page/index.html (read only; do NOT edit the page). Decide which lf-card a release manager would ask about first and why, grounded in the card text and the \"Why only the migration blocks\" panel. Quote the card passages your answer rests on. Write a short Markdown reply (short paragraphs, for a narrow card) to a file in your scratchpad, then post it with: `cd /private/var/folders/v3/8k5q0_6j3_q6gl4h8czr66sh0000gn/T/leaf-journey-claude-code-vri8qjmk/work &amp;&amp; leaf thread reply 52c0213000f09c9a:0:b7bec0cd --done --file &lt;reply.md&gt;`. Report back in one or two sentences what you answered.",
+ "description": "Answer release-manager card question",
+ "prompt": "You are a fork handling one Leaf thread message. Do not edit the page's index.html. Task: read the cards in /private/var/folders/v3/8k5q0_6j3_q6gl4h8czr66sh0000gn/T/leaf-journey-claude-code-po1hfi3m/work/page/index.html (re-read it, it may have changed) and decide which card a release manager would ask about first, and why. Ground the answer in the card text, quoting the passages it turns on. Then answer in the thread: write a short Markdown reply (a few short paragraphs, link sections like [Why only the migration blocks](#triage-why)) to a file in the scratchpad /private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-po1hfi3m-work/58a2554c-f371-4cec-aae6-3a77bf103f63/scratchpad/rm-reply.md, and post it from the work directory with: `leaf thread reply e890a2f2edd416bf:0:d50f2807 --done --file &lt;that file&gt;`. Report back the posted reply text in one or two sentences.",
  "run_in_background": "true"
 }</code></pre>
               </details>
               <details id="anatomy-take-launched" class="from from-cc">
                 <summary>Claude Code's result to the main thread</summary>
                 <pre><code>Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)
-agentId: ac7e014cece385ee3 (internal ID - do not mention to user. Use SendMessage with to: 'ac7e014cece385ee3', summary: '&lt;5-10 word recap&gt;' to continue this agent.)
+agentId: ac253a8d00ee9c80a (internal ID - do not mention to user. Use SendMessage with to: 'ac253a8d00ee9c80a', summary: '&lt;5-10 word recap&gt;' to continue this agent.)
 The agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.
 Do not duplicate this agent's work — avoid working with the same files or topics it is using.
-output_file: /private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-vri8qjmk-work/a3289d7e-b477-419b-b14a-740d14fe0df4/tasks/ac7e014cece385ee3.output
+output_file: /private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-po1hfi3m-work/58a2554c-f371-4cec-aae6-3a77bf103f63/tasks/ac253a8d00ee9c80a.output
 Do NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification.</code></pre>
               </details>
               <p id="anatomy-take-first">
@@ -4246,28 +4221,20 @@ Your directive: </code></pre>
               </details>
               <p id="anatomy-take-answer">
                 No Leaf hook hands the fork anything, since its tool boundaries carry
-                none of the session's input. It had the page's source in the
-                conversation it inherited, and answered with
-                <code>leaf thread reply</code> and the <code>answer.ref</code> the main
-                thread gave it, 44.2 s after the message:
+                none of the session's input. It read the page's source with the Read
+                tool, and answered with <code>leaf thread reply</code> and the
+                <code>answer.ref</code> the main thread gave it, 47.1 s after the
+                message:
               </p>
               <details id="anatomy-take-reply" class="from from-model">
                 <summary>The fork's reply in the thread</summary>
-                <pre><code>**Migration reruns on every deploy.** That's the one a release manager asks about first.
-
-It's the only card in **Blocking release**, so it alone decides whether the Thursday cut goes out. The card says:
+                <pre><code>A release manager would ask about **Migration reruns on every deploy** first. It is the only card in *Blocking release*, and it is the only one that would cost money:
 
 &gt; The version stamp never lands. The next migration applies credits and is not idempotent.
 
-The cost is money, not cosmetics. The sidebar explains why:
+[Why only the migration blocks](#triage-why) explains how that turns into money: "0042 credits every account that was billed twice in March. Run twice, it pays twice." The cut is in two days, so they'll want to know whether the deploy script gets fixed before then or 0042 is held back.
 
-&gt; 0042 credits every account that was billed twice in March. Run twice, it pays twice.
-
-It's harmless today ("0041 only adds a column, so rerunning it is a no-op"), so the question they'll ask is: *is it fixed before 0042 ships?*
-
-The other cards don't compete. The sidebar says "None of the other cards gets worse by waiting a week."
-
-The next card they'd likely ask about is **CSV export quotes numerics**, because it "Breaks one customer's downstream import". A named customer impact tends to draw escalation.
+Their second question would probably be **Webhook retries ignore Retry-After**. It is the only other card that affects outside parties: "Three partners rate limit us during their own deploys." It isn't a blocker, but partners will notice it.
 </code></pre>
               </details>
             </section>
@@ -4277,77 +4244,73 @@ The next card they'd likely ask about is **CSV export quotes numerics**, because
               <p id="anatomy-main-quiet">
                 None of the fork's messages enters the main thread's conversation until
                 its run ends. The user's turn had ended, so Claude Code's notice, at
-                46.6 s, started a turn of the main thread:
+                49.5 s, started a turn of the main thread:
               </p>
               <details id="anatomy-notification" class="from from-cc">
                 <summary>Claude Code's task notification</summary>
                 <pre><code>&lt;task-notification&gt;
-&lt;task-id&gt;ac7e014cece385ee3&lt;/task-id&gt;
-&lt;tool-use-id&gt;toolu_01NWcuSrLp1kP4vtGYJPb6Cw&lt;/tool-use-id&gt;
-&lt;output-file&gt;/private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-vri8qjmk-work/a3289d7e-b477-419b-b14a-740d14fe0df4/tasks/ac7e014cece385ee3.output&lt;/output-file&gt;
+&lt;task-id&gt;ac253a8d00ee9c80a&lt;/task-id&gt;
+&lt;tool-use-id&gt;toolu_01Wnp4X2dFjfsFLG39aHJeeq&lt;/tool-use-id&gt;
+&lt;output-file&gt;/private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-po1hfi3m-work/58a2554c-f371-4cec-aae6-3a77bf103f63/tasks/ac253a8d00ee9c80a.output&lt;/output-file&gt;
 &lt;status&gt;completed&lt;/status&gt;
 &lt;summary&gt;Agent "Answer release-manager card question" finished&lt;/summary&gt;
 &lt;note&gt;A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.&lt;/note&gt;
-&lt;result&gt;<span class="said from-model">I posted the answer in thread b7bec0cd and marked it done (message 11c9dd5f): a release manager would ask first about **Migration reruns on every deploy**. It's the only card in Blocking release, and once 0042 ships, every rerun would pay account credits twice; the reply quotes the card and the "Why only the migration blocks" panel. It names **CSV export quotes numerics** as the likely next question, because one customer's import breaks. The page itself is unchanged.</span>&lt;/result&gt;
-&lt;usage&gt;&lt;subagent_tokens&gt;70817&lt;/subagent_tokens&gt;&lt;tool_uses&gt;1&lt;/tool_uses&gt;&lt;duration_ms&gt;11042&lt;/duration_ms&gt;&lt;/usage&gt;
+&lt;result&gt;<span class="said from-model">Posted the answer in thread d50f2807 (seq 18) as `--done`. It names "Migration reruns on every deploy" as the card a release manager would ask about first. It's the only blocker, and 0042 would pay account credits twice. The reply names "Webhook retries ignore Retry-After" as the likely second question because it affects partners. index.html is unchanged.</span>&lt;/result&gt;
+&lt;usage&gt;&lt;subagent_tokens&gt;63274&lt;/subagent_tokens&gt;&lt;tool_uses&gt;2&lt;/tool_uses&gt;&lt;duration_ms&gt;11933&lt;/duration_ms&gt;&lt;/usage&gt;
 &lt;/task-notification&gt;</code></pre>
               </details>
               <p id="anatomy-main-report">
-                The main thread checked that the reply was in the page's log, told the
-                user the gist in chat, and left the message, which the fork had
-                answered, alone. Leaf queued nothing about the fork.
+                The main thread told the user the gist in chat, without a tool call, and
+                left the message, which the fork had answered, alone. No Leaf hook added
+                anything to that turn.
               </p>
             </section>
 
             <section id="anatomy-follow-up">
               <h3>5. The main thread passes a follow-up on</h3>
               <p id="anatomy-follow-up-ask">
-                At 67.5 s, while a second turn of the user's runs the same command, the
+                At 66.9 s, while a second turn of the user's runs the same command, the
                 user replies
                 <q class="said from-user"
                   >Look into this beside your own work too: which card would they ask
                   about last, and why?</q
                 >
                 From here, times count from this reply. The thread's first message has
-                its answer, so Leaf keeps this one back, a new line fork writes its line
-                in 1.3 s, and at 25.3 s the PostToolBatch hook hands it to the main
-                thread. The main thread starts it at 28.9 s, loads the SendMessage tool
-                with ToolSearch, and at 35.4 s sends the message to the fork with
-                SendMessage, addressed to the agent id Claude Code's result gave it and
-                carrying the message's <code>answer.ref</code>. The fork's run had
-                ended, so the send resumes it, and Claude Code wraps the main thread's
-                message:
+                its answer, so the reply starts a round of its own: a new line fork's
+                line stands in the thread at 1.8 s, and at 25.1 s the PostToolBatch hook
+                delivers the reply to the main thread. The main thread starts it at 28.6
+                s, loads the SendMessage tool with ToolSearch, and at 32.9 s sends the
+                message to the fork with SendMessage, addressed to the agent id Claude
+                Code's result gave it and carrying the message's
+                <code>answer.ref</code>. The fork's run had ended, so the send resumes
+                it, and Claude Code wraps the main thread's message:
               </p>
               <pre
                 id="anatomy-resume-message"
                 class="from from-cc"
               ><code>The coordinator sent a message while you were working:
-<span class="said from-model">Follow-up in the same thread: the user asks "which card would they ask about last, and why?" Read page/index.html again (read only; don't edit the page), pick the card a release manager would ask about last and explain why, quoting the card text it rests on. Write a short Markdown reply for a narrow card and post it with: `cd /private/var/folders/v3/8k5q0_6j3_q6gl4h8czr66sh0000gn/T/leaf-journey-claude-code-vri8qjmk/work &amp;&amp; leaf thread reply 659ff662b558c47f:0:186b991c --done --file &lt;reply.md&gt;`. Report back in one or two sentences what you answered.</span>
+<span class="said from-model">The user followed up in the same thread: which card would a release manager ask about last, and why? Same rules as before: don't edit index.html, base the answer on the card text and quote the passages it turns on, and keep it a short Markdown reply. Write it to /private/tmp/claude-501/-private-var-folders-v3-8k5q0-6j3-q6gl4h8czr66sh0000gn-T-leaf-journey-claude-code-po1hfi3m-work/58a2554c-f371-4cec-aae6-3a77bf103f63/scratchpad/rm-reply-last.md and post it from the work directory with: `leaf thread reply e3b6b57739b6e411:0:1d895a7b --done --file &lt;that file&gt;`. Report back in one or two sentences.</span>
 
 Address this before completing your current task.</code></pre>
               <p id="anatomy-follow-up-after">
                 Claude Code's wrapper is written for an agent still at work; this one
-                had finished. The fork answered at 47.3 s, and Claude Code's notice of
-                its end, at 50.5 s, again started a turn of the main thread, whose turn
-                for the user had ended at 36.6 s. Its result began
+                had finished. The fork answered at 40.6 s, and Claude Code's notice of
+                its end, at 44.0 s, again started a turn of the main thread, whose turn
+                for the user had ended at 36.2 s. Its result began
                 <q class="said from-model"
-                  >I posted both answers in the user's thread and marked each done.</q
+                  >Posted both answers on the "Release manager's first question on
+                  cards" thread, each as <code>--done</code>.</q
                 >
               </p>
               <details id="anatomy-follow-up-reply" class="from from-model">
                 <summary>The fork's reply to the follow-up</summary>
-                <pre><code>**Avatar upload rejects HEIC.** That's the one a release manager asks about last.
-
-It's already in **Defer from 2.4**, so it has no bearing on Thursday's cut. Its card spells out how small it is:
+                <pre><code>A release manager would ask about **Avatar upload rejects HEIC** last. It is already in *Defer from 2.4*, and its card names both a workaround and a low report count:
 
 &gt; iPhone photos need a conversion step. Four reports this quarter.
 
-There is a known workaround and only a handful of reports. It doesn't affect money, data or partners. Nothing gets worse by waiting.
+It loses no data, costs no money, affects no partner, and nothing else depends on it. Each of the other cards has one of those concerns, or an open question.
 
-Why not the other quiet cards:
-
-- **Logout fails with an expired session** is also deferred, but it depends on unfinished work: "the shared-session cleanup is not ready for this release." Someone may ask when that cleanup lands.
-- **Search misses renamed projects** sits in **Needs a repro**, which is an open question in itself: "The reindex job ran clean." An unexplained cause invites a "do we know why yet?"
+**Logout fails with an expired session** is also deferred, but it would come up earlier. The card says "the shared-session cleanup is not ready for this release," and that dependency could slip again. **Search misses renamed projects** has a single report, but "The reindex job ran clean," so nobody knows its cause yet, and that makes it a question rather than a settled deferral.
 </code></pre>
               </details>
             </section>
@@ -4359,9 +4322,10 @@ Why not the other quiet cards:
               <li id="source-forks">
                 <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/forks.py"
                   ><code>src/leaf/forks.py</code></a
-                >: its header holds the two states a waiting thread is in, the decisions
-                behind the line fork, and the user's choice that the main thread judge
-                every message and spawn the fork that does its work, with the
+                >: its header holds when a thread awaits a line and when the line goes
+                in, the decisions behind the line fork, and the user's choices that the
+                main thread judge every message and spawn the fork that does its work,
+                and that the line fork run beside the message's delivery, each with the
                 alternative and what it would cost; <code>line_prompt</code> writes the
                 line fork's prompt.
               </li>
@@ -4378,34 +4342,35 @@ Why not the other quiet cards:
                   ><code>src/leaf/summary_fork.py</code></a
                 >: the fork beside the line fork that summarizes a long thread.
               </li>
-              <li id="source-holding">
+              <li id="source-work">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/holding.py"
-                  ><code>src/leaf/holding.py</code></a
-                >: which turn holds each thread message, the main thread's or a line
-                turn, and what a turn may do about one another turn holds
-                (<code>refuse_unheld</code>, <code>authorize</code>,
-                <code>pickable</code>).
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/served_state/work.py"
+                  ><code>src/leaf/served_state/work.py</code></a
+                >: the waiting messages a progress message of the agent's, such as the
+                working line, came after, which read On it (<code>lined</code>).
               </li>
               <li id="source-lifetime">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/session-lifetime.md#turns-and-generations"
-                  >Session lifetime, “Turns and generations”</a
-                >: the main thread's turns and generations, the line turns beside them,
-                and who holds a message, as the contract other modules rely on.
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/session-lifetime.md#watchers"
+                  >Session lifetime, “Watchers”</a
+                >: how a thread message reaches the main thread as any input does, at
+                its next tool call or at the prompt of a turn the watch wakes, as the
+                contract other modules rely on.
               </li>
               <li id="source-state">
                 <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"
                   ><code>src/leaf/state.py</code></a
-                >: the record of line turns (<code>AGENT_TURNS</code>), the turn the
-                line goes in as (<code>acting_agent_turn</code>), and the subagent's
-                tool boundary Leaf's hooks skip (<code>worker_tool_batch</code>).
+                >: the turn a <code>leaf</code> command acts in, the session's whoever
+                ran it, a fork subagent included (<code>acting_turn</code>), and the
+                subagent's tool boundary Leaf's hooks skip
+                (<code>worker_tool_batch</code>).
               </li>
               <li id="source-clerk">
                 <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/clerk.py"
                   ><code>src/leaf/clerk.py</code></a
-                >: Leaf's clerk, which queues the line for the main thread and decides
-                which queued lines wake an idle session.
+                >: Leaf's clerk, which queues lines for the main thread, such as the
+                summary fork's news, and decides which queued lines wake an idle
+                session.
               </li>
               <li id="source-carrier">
                 <a

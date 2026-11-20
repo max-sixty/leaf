@@ -6,16 +6,16 @@ stay in the thread, whether the agent's session is idle or busy. Today the media
 first reply takes 17 s when the session is idle and 21 s when it is busy, and the real
 answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-pages)).
 
-On main, `src/leaf/forks.py` holds the states a thread moves through, keeping a
-message back and the working line a fork posts, and `hooks/claude-code.ts`
+On main, `src/leaf/forks.py` holds the rules of the working line a fork posts beside
+the session's delivery of a thread message, and `hooks/claude-code.ts`
 makes the fork Leaf's Python asks for (`src/leaf/carrier.py`). How it works' Forks tab (`docs/how-it-works.html`)
 explains what is built. This note holds the research behind it: what Claude Code lets
 a hooks module fork, measured, and how well the fork judges what to answer. The main thread is the session's own
 conversation, as against the forks and subagents made from it.
 
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
-call tools, so it now posts only the agent's working line and hands each message to
-the session, and the message reads On it from the moment Leaf keeps it back. The
+call tools, so it now posts only the agent's working line, while the session gets each
+message as it gets any input, and the message reads On it once the line stands. The
 session decides who does the work, and spawns a subagent that answers in the thread
 where the work can run beside its own (`src/leaf/forks.py`'s header says why the
 session, not Leaf, decides). The measurements below are of the fork that answered.
@@ -183,9 +183,8 @@ bound ran out with no line ("no answer within 30 s"). One came while the session
 foreground poll, and the user saw the agent's first words after 64 s. Nothing recorded
 why the other 6 had no fork. The follower now ends once the session's hooks would run
 another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
-page now notes whether admission kept each message back, or a fork turn held it, and
-whether its lane was up (`fork_admission`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev logs timeline`
-reads.
+page now notes where a follower runs (`follower`) and each fork Leaf asks for
+(`fork_asked`), which `leaf-dev logs timeline` reads.
 
 A message no fork answered reads Delivered until the session's first model call ends, a
 median 14 s and 41 s at p90. In 12 of 14 idle sessions that call posted the one-line

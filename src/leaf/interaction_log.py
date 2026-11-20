@@ -23,7 +23,7 @@ time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; one 
 sandbox bridge runs for Claude Code is timed from the bridge's start of it.
 
 Claude Code's pages follower records in each page the session holds that it runs
-there, keeping threads back for line forks (`record_follower`).
+there, listing line forks for the page's rounds (`record_follower`).
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,

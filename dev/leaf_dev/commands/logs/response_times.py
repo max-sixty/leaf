@@ -118,7 +118,7 @@ def response_times(
         ],
     )
     summary["forked"] = distribution(
-        [row for row in rows if row["fork"] and row["fork"]["outcome"] == "hand_over"],
+        [row for row in rows if row["fork"] and row["fork"]["outcome"] == "posted"],
         "first_reply",
     )
     # What came of the line forks, over the inputs they decided.
@@ -177,7 +177,7 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "delivered runs from opened to the session's start or answer; forked is first_reply over the inputs a line fork handed to the session, its working line included."
+        "delivered runs from opened to the session's start or answer; forked is first_reply over the inputs whose line fork posted its working line."
     )
     click.echo(f"Line forks: {dict(fork_counts) or 'none'}")
     click.echo(

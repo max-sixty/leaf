@@ -91,7 +91,7 @@ have reached the model, so it is input again (`delivery.deliverable`): Claude Co
 submits a wake Escape interrupted again at once as a new prompt, and the watch
 its turn's prompt started wakes for it (`hooks.cmd_watch`), or where none runs, as
 after the turn that first claimed the page, the page's server nudges the session
-(`presence.nudge_left`). The hook of the prompt that opens confirms what the
+(`presence.nudge_interrupted`). The hook of the prompt that opens confirms what the
 transcript shows before it reads the page, so it hands over again only what never
 reached the model, and names an update the model did read and left unanswered as
 owed.
@@ -452,11 +452,10 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
-    Debt the main thread doesn't owe, which a running line turn holds, is its, so
-    the pickup leaves it out (`holding.pickable`). So is debt a start holds
-    (`activity.in_hand`), such as a message a background agent is answering: the
-    prompt doesn't name it, and a pickup in this turn would put the update past its
-    start's reach and count as the reminder it never got (`delivery.reminded`).
+    The pickup leaves out debt a start holds (`activity.in_hand`), such as a message
+    a background agent is answering: the prompt doesn't name it, and a pickup in this
+    turn would put the update past its start's reach and count as the reminder it
+    never got (`delivery.reminded`).
     """
     from .activity import acknowledged_obligations, in_hand
     from .served_state.context import read_page

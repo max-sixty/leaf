@@ -32,7 +32,7 @@ The table lists each fact the fold reads, and when it stops being believed.
 | the turn ending this page last nudged its session after                | `messaged_ending` in the claim                                                                  | `PageTransaction.note_messaged`, once a nudge lands or a watch wakes the session                                                                                                                                                 | a later ending differs from it                                                                                                                                                                                                        |
 | wait lease                                                             | `waiter.lock`, or `sessions/<session>.wait` for a harness session                               | `leaf wait`, or a harness's watch between turns; the kernel lock proves it live, never the file (`leases.py`)                                                                                                                    | process exit, a crash included, or a later watch superseding it; and by a Leaf at a later page protocol than the one the file names, which that watch can't read (`leases.wait_is_live`)                                              |
 | the harness runs Leaf's hooks for this session                         | `sessions/<session>.hooks`                                                                      | every Leaf hook                                                                                                                                                                                                                  | SessionEnd                                                                                                                                                                                                                            |
-| acknowledgement cursor                                                 | the greatest `through` among `receipt` events (`service.acknowledged`)                          | `delivery.receive_batch`, called by whatever confirms a delivery reached its consumer, and `delivery.receive_passed`, which also passes the waiting messages a line fork holds (`holding.not_awaited`)                           | never; it only advances within its log                                                                                                                                                                                                |
+| acknowledgement cursor                                                 | the greatest `through` among `receipt` events (`service.acknowledged`)                          | `delivery.receive_batch` or `delivery.receive_passed`, called by whatever confirms a delivery reached its consumer                                                                                                               | never; it only advances within its log                                                                                                                                                                                                |
 | pickup transition                                                      | a `pickup` event                                                                                | `queued`: Codex's adapter, when Codex accepts a batch it can't observe; `opened`, with session and turn: whatever puts the batch into a turn                                                                                     | never; each transition is idempotent                                                                                                                                                                                                  |
 | page claim: acquisition, session generation, display name, harness     | `<state-home>/claims/<page-key>.json`, located from the session's partition (`page-storage.md`) | `server start` from an agent harness, or its prompt hook serving the page again                                                                                                                                                  | its generation ended or was replaced, or the harness lifetime is gone: the pid, the background job's record, the Claude desktop app's record of the session, or a desktop Codex chat's native transcript (`service.lifetime_is_live`) |
 | service lifetime                                                       | `service.json`                                                                                  | `server start`: session or persistent                                                                                                                                                                                            | `leaf server stop`; a session server also retires when no live claim holds it                                                                                                                                                         |
@@ -81,8 +81,9 @@ disconnected client proves that a job failed.
 unsettled update's workflow, whose `stage` reports its delivery, and each owed update's
 obligation record, which says who owes it a move. Its header says when each settles.
 The served list names each workflow's `thread` and whether the agent is `at_work` on
-it, which a fork of its conversation taking the update on sets before the stage moves
-(`holding.Holding.forked`), strongest first (`served_state.work.served_workflows`).
+it, which a progress message of the agent's after the update, such as a line fork's
+working line, sets before the stage moves (`served_state.work.lined`), strongest first
+(`served_state.work.served_workflows`).
 
 `activity` adds a `condition` where evidence shows a stage has stopped, and keeps the
 durable stage:
@@ -104,8 +105,8 @@ through the failure answer `thread.fail_answer` writes.
 
 Each consumer selects its own obligations. `leaf page close` refuses over
 `activity.blocking_obligations`, and the Stop hook holds the turn over
-`activity.turn_obligations`, the blocking ones no start holds and no agent turn
-holds (below). A start is the agent's answer for now. It holds its update while the
+`activity.turn_obligations`, the blocking ones no start holds. A start is the agent's
+answer for now. It holds its update while the
 turn that wrote it runs, and after that turn while the harness says the session has
 worked without a break since the start, in the background (`activity.start_holds`).
 A harness that says nothing of the session (`Harness.live_turn`) never does, so
@@ -126,38 +127,8 @@ other reader, of the record or of a claim's view of it, asks `state.turn_open`,
 `state.turn_closed` or `state.session_live`, and every opening refuses a turn id the
 record holds closed. `state.end_harness_instance` says
 which generations SessionEnd ends and which, such as a desktop Codex chat's or a
-background job's, outlive the harness instance.
-
-Leaf runs a line fork of a Claude Code session's conversation beside its main
-thread, which writes the agent's working line on a thread message admission keeps
-from the main thread (`forks.py`), and each runs in a turn of its own, a line turn,
-in the session's agent-turns record (`state.AGENT_TURNS`). Nothing renews a line
-turn, so it lapses `activity.STARTING_GRACE` after it opened unless it closes first,
-and it ends with the session's generation or instance; a line turn that has ended
-keeps nothing. The line goes in acting in its line turn (`state.acting_in`), and is
-refused once that turn isn't open (`state.acting_agent_turn`). Every command acts as
-the main thread, a subagent's included. A pickup or a reply names the line turn as it
-names the main thread's turn: the page's served reading carries the claimant's line
-turns that are open and not yet lapsed (`agent_turns`), the only ones the fold believes
-running (`activity.running_agent_turns`).
-
-Which turn holds each thread, the main thread's or a line turn, with its waiting
-messages, is one reading every reader asks (`holding.py`, whose header states the
-rule; `forks.page_holding`), and `leaf page state`'s `holder` names it: the main
-thread, or a running line turn. The newest pickup of a thread's
-waiting messages holds them, and an answer takes its thread as a pickup does. A
-thread Leaf keeps back while a line fork writes its line is its line turn's, by that turn's
-`held` pickup, which takes nothing in: no reader of delivery counts it, so the
-message reads as sent to the session until a turn opens it. The main thread doesn't
-owe a message a running line turn holds (`holding.holder`): its hooks neither hold
-its turn over it, remind it of it, nor take it in again (`activity.agent_holds`), and
-its deliveries leave it out (`delivery.deliverable`). Once the line turn ends or
-lapses, a message still owed is the main thread's input, which its next delivery
-hands over with a reference of its own, and the main thread's pickup of it takes the
-thread over; the main thread's answer takes the thread over at once, even while the
-line turn runs. A line turn may pick up or answer only the messages it holds or no
-turn holds, so a line fork writes nothing on a thread another turn took
-(`holding.refuse_unheld`).
+background job's, outlive the harness instance. A command acts in its session's turn
+whoever ran it, a subagent the session spawned included (`state.acting_turn`).
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page
 with a persistent service spends most of its life unheld, and picks up again when a
@@ -209,12 +180,7 @@ comparing the name. A watcher is one of:
 Every watcher watches every page the session holds, and every transport hands over the
 same envelope (`../../skills/leaf/references/event-batches.md`, "One envelope on every
 transport"). What a watcher delivers is `delivery.deliverable`, which includes the
-updates a page's previous owner received and left unanswered. It leaves out the
-waiting messages a running line turn holds, which admission opens while a line
-fork of a Claude Code session's conversation writes its line, and only while that
-session's pages follower holds its forks lane
-(`sessions/<session>.fork-lane`). Once that turn ends or lapses with the messages
-still owed, they are the main thread's input (`forks.py`).
+updates a page's previous owner received and left unanswered.
 
 ### The hook
 
@@ -265,15 +231,12 @@ page and is interrupted. Input that reaches the page after that has no watcher, 
 the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
-input, once per ending of its turn (`presence.nudge_unwatched`). For a message a line
-turn holds, the line turn's end nudges in admission's place: its hand-over where the
-line fork answers in time (`forks.py`), and otherwise the page's server at the
-activity fold's transition its lapse is. An interrupted turn runs no hook, so Claude
-Code also starts the watch as each prompt starts, which waits while that turn runs and
-wakes for what an interrupt leaves (`hooks.cmd_watch`). Where no watch holds the
-lease, the page's server sends for the input an interrupted turn left once its
-presence look reads the turn ended by the harness's record (`presence.nudge_left`).
-Claude Code's nudge is a user message through the session's messaging socket
+input, once per ending of its turn (`presence.nudge_unwatched`). An interrupted turn
+runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
+while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
+no watch holds the lease, the page's server sends for the input an interrupted turn
+left once its presence look reads the turn ended by the harness's record
+(`presence.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
 (`harness.message_claude_code_session`), whose docstring says when the recipient holds
 it; a background job whose worker has retired is resumed with the message as its next
 prompt instead (`harness.resume_claude_code_job`). The adapter and the host declare no

@@ -90,7 +90,6 @@ from .state import (
 )
 
 if TYPE_CHECKING:
-    from .holding import Holding
     from .served_state.work import WorkState
 
 _INTEGER = {"type": "integer"}
@@ -548,6 +547,7 @@ def batch_data(
     for its transport: the address of a thread reply, and the `handling` that follows
     from it. `whole` carries each thread whole (`thread_context.batch_threads`)."""
     from .event_facts import EventFacts
+    from .forks import lane_up
     from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
     from .thread_context import batch_threads, thread_names, thread_structure
@@ -624,7 +624,14 @@ def batch_data(
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": batch_threads(events, batch, reader.within, whole=whole),
+        "threads": batch_threads(
+            events,
+            batch,
+            reader.within,
+            whole=whole,
+            beside_line=(claim := transaction.claim) is not None
+            and lane_up(claim["id"]),
+        ),
         "events": captured,
     }
 
@@ -991,7 +998,7 @@ def earlier_pickup(payload: dict, session_id: str):
 def pickup_receipts(
     events: list[dict],
     *,
-    phase: Literal["queued", "opened", "held", "failed"] | None,
+    phase: Literal["queued", "opened", "failed"] | None,
     input_id: str | None = None,
 ) -> list[dict]:
     """Select admitted receipts for an explicit transport reading, in log order.
@@ -1044,7 +1051,6 @@ def record_pickup(
     turn: str | None = None,
     failure: str | None = None,
     refs: dict[str, dict] | None = None,
-    holding: "Holding | None" = None,
 ) -> dict | None:
     """Durably record one delivery transition for exact attention-bearing inputs.
 
@@ -1058,11 +1064,7 @@ def record_pickup(
     a queue or a steer waiting behind a running tool, is not opened until it is
     added. ``failed`` means the harness
     gave up on the updates with the named ``failure`` and no answer is coming.
-    ``held`` means a line turn took the updates while a line fork of the session's
-    conversation judges them (`forks.py`): it holds their thread as an opened
-    pickup does, but hands nothing into a context an answer comes from, so no
-    reader of delivery counts it, and the updates read as sent until a turn opens
-    them. Queued and opened are transport evidence, not authored work claims. A
+    Queued and opened are transport evidence, not authored work claims. A
     queued transition may therefore be followed by an opened transition for the
     same events, while a retry of the same transition appends nothing.
 
@@ -1072,14 +1074,6 @@ def record_pickup(
     owed input's ref to the owner who can use it (`activity._receipt_bindings`). A
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
-
-    An opened or held pickup says which turn holds a thread (`holding.Holding`), so
-    this records one only where that turn may take the message
-    (`holding.pickable`): a line turn, only what it holds or nobody does, refusing
-    the rest; another turn, nothing a running line turn holds. It asks
-    the page's reading, or `holding` where the caller has read it in this
-    transaction since the log last changed, as admission has as it opens a line turn
-    (`forks`), so the page is read once.
     """
     claim = page.claim
     if session is None and claim:
@@ -1118,13 +1112,6 @@ def record_pickup(
             or (event_id in refs and not usable(event_id))
         )
     )
-    if phase in ("opened", "held") and session is not None:
-        from .forks import page_holding
-        from .holding import pickable
-
-        fresh = pickable(
-            page_holding(page) if holding is None else holding, fresh, session, turn
-        )
     if not fresh:
         return None
     carried = {event_id: refs[event_id] for event_id in fresh if event_id in refs}
@@ -1178,32 +1165,18 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
-    Both kinds are filtered by who holds each thread (`holding.Holding`, the fold's
-    or `forks.page_holding`): less the waiting messages of each thread the main
-    thread doesn't owe, one a running line turn holds, which Leaf opened as the
-    message arrived while a line fork of the owner's conversation writes its line
-    (`forks.kept_back`), which keeps the watch from waking the session for it.
-
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. A tool hook runs after every tool call, so Codex's passes
     `received=False`, as Claude Code's does before it folds its pages
-    (`hook_transport.new_input`): what the cursor has not passed, and the waiting
-    messages the main thread owes of input the cursor passed that no pickup took in,
-    which a line turn kept from it. Every receipt's pickup names what it passes, so
-    a page holds such input only where a line turn held it, settled since or not,
-    and only there, or where input is pending in a session with line turns, does
-    this read who holds each thread; otherwise it reads the log alone, without the
-    page's layer.
-    The adapter, or the Stop hook where no adapter runs, hands over the rest
+    (`hook_transport.new_input`), and hands over only what the cursor has not
+    passed, read from the log alone, without the page's layer. The adapter, or the
+    Stop hook where no adapter runs, hands over the rest
     (`harness.CodexHarness.offer_at_step`)."""
     cursor = page.cursor
     pending = unacknowledged(page.events, cursor)
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
-    from .forks import page_holding
-    from .state import agent_turn_stamps
-
     owed = []
     if received:
         if work is None:
@@ -1211,56 +1184,6 @@ def deliverable(
 
             work = read_page(page.page_dir, page.events).work
         owed = unreferenced(page, work.obligations)
-        holding = work.holding
-    elif (claim := page.active_claim) is not None:
-        # The waiting messages of a thread the cursor passed while a line turn held
-        # it (`holding.not_awaited`), which the main thread owes now and no pickup
-        # ever took in, are its input, as the fold's debt with no reference is where
-        # it reads. Such a message is input the cursor passed that no pickup took in,
-        # a line turn's `held` one aside, which stays so once it settles before any
-        # pickup, as when the user resolves its thread.
-        # So a tool boundary builds the page's reading, about 50 ms on a page of
-        # 41,000 events, only on a page that has held one, or where input is pending
-        # in a session with line turns, which keep theirs from it. Telling a
-        # settled one from one that still waits takes the fold's closing rules,
-        # which only that reading applies; the fold's own reader of what is owed
-        # (`current_responses`) costs more than it.
-        taken = {
-            input_id
-            for event in page.events
-            if event["kind"] == "pickup" and event["phase"] != "held"
-            for input_id in event["events"]
-        }
-        passed = [
-            event
-            for event in page.events
-            if event["seq"] <= cursor
-            and event["id"] not in taken
-            and requires_agent_attention(event)
-        ]
-        lines = bool(pending) and bool(agent_turn_stamps(claim))
-        holding = page_holding(page) if passed or lines else None
-        if holding is not None and passed:
-            pending += [
-                event
-                for thread, said in holding.found.waiting.items()
-                if holding.threads[thread].holder["kind"] == "main"
-                and not any(event["id"] in holding.taken for event in said)
-                for event in said
-                if event["seq"] <= cursor
-            ]
-    else:
-        holding = None
-    if holding is not None:
-        # A waiting message a running line turn holds is its, pending where the
-        # cursor hasn't passed it and owed and unreferenced where it has
-        # (`holding.not_awaited`).
-        if elsewhere := {
-            event["id"]
-            for event in holding.waiting(lambda held: held.holder["kind"] != "main")
-        }:
-            pending = [event for event in pending if event["id"] not in elsewhere]
-            owed = [event for event in owed if event["id"] not in elsewhere]
     if not pending and not owed:
         return []
     from .event_contracts import write_refusal
@@ -1328,8 +1251,6 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
-    from .forks import page_holding
-    from .holding import not_awaited
     from .service import owned_pages
 
     entered = harness.entered_context(payload)
@@ -1352,7 +1273,7 @@ def confirm_entered(harness, payload: dict) -> None:
                 }
                 # A receipt moves only past input the cursor hasn't passed.
                 if unacknowledged(page.events, page.cursor):
-                    receive_passed(page, shown | not_awaited(page_holding(page)))
+                    receive_passed(page, shown)
         except FileNotFoundError:
             continue
 
@@ -1361,11 +1282,7 @@ def receive_passed(page: PageTransaction, passed: set[str]) -> None:
     """Record the receipt of the page's pending input through the last of the
     unbroken run, from the cursor, of inputs in `passed`, under the caller's page
     transaction (`record_receipt`): the cursor passes every input before the
-    position it moves to, so it stops at the first input nobody has taken.
-
-    Whoever takes input passes what the main thread doesn't await
-    (`holding.not_awaited`): the waiting messages a running line turn holds, which
-    go to it whatever the cursor says."""
+    position it moves to, so it stops at the first input nobody has taken."""
     through = page.cursor
     for event in unacknowledged(page.events, page.cursor):
         if event["id"] not in passed:

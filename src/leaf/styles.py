@@ -103,12 +103,14 @@ def set_properties(texts: Iterable[str]) -> tuple[frozenset[str], tuple[str, ...
 
 
 def unguarded_reads(css: str) -> Iterator[tuple[str, int]]:
-    """Each `var(--name)` with no fallback in a stylesheet, as its name and line. Where
-    nothing sets the name, the declaration that reads it is invalid at computed-value
-    time, so the property falls back to what it inherits or its initial value, and the
-    page shows no sign of it."""
+    """Each `var(--name)` with no fallback in a declaration's value, as its name and
+    line. Where nothing sets the name, the declaration that reads it is invalid at
+    computed-value time, so the property falls back to what it inherits or its initial
+    value, and the page shows no sign of it. A rule's prelude, such as
+    `@supports (color: var(--probe))`, tests syntax rather than reading the property,
+    so only declarations, at any depth of nested rules, are read."""
 
-    def walk(nodes):
+    def values(nodes):
         for node in nodes:
             if node.type == "function" and node.lower_name == "var":
                 arguments = [
@@ -122,9 +124,18 @@ def unguarded_reads(css: str) -> Iterator[tuple[str, int]]:
                     and arguments[0].value.startswith("--")
                 ):
                     yield arguments[0].value, node.source_line
-            for part in ("prelude", "content", "arguments", "value"):
+            for part in ("content", "arguments"):
                 inner = getattr(node, part, None)
                 if isinstance(inner, list):
-                    yield from walk(inner)
+                    yield from values(inner)
 
-    yield from walk(css_stylesheet(css))
+    def rules(nodes):
+        for node in nodes:
+            if node.type == "declaration":
+                yield from values(node.value)
+            elif (
+                node.type in ("qualified-rule", "at-rule") and node.content is not None
+            ):
+                yield from rules(css_block(node.content))
+
+    yield from rules(css_stylesheet(css))

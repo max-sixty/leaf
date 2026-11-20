@@ -354,7 +354,9 @@ export function threadReading(thread, surface, commands) {
   const attention = threadAttention(thread, agentName());
   // An answer says what it leaves (a question, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
-  // thread, in the word every other surface gives that to-do (`todoWord`).
+  // thread, in the word every other surface gives that to-do (`todoWord`). The to-do
+  // keeps the reply's id (`todos.todo_reading`), and its word opens the to-do's row in
+  // On <agent> (messages.js).
   const asking = new Set(
     thread.obligations
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
@@ -363,9 +365,9 @@ export function threadReading(thread, surface, commands) {
   const openTodos = new Map(thread.todos.map((todo) => [todo.id, todo]));
   /** @param {ThreadRecord["msgs"][number]} message */
   const leaves = (message) => {
-    if (asking.has(message.id)) return leafSays("Waiting on me");
+    if (asking.has(message.id)) return { word: leafSays("Waiting on me"), todo: null };
     const todo = message.todo ? openTodos.get(message.id) : undefined;
-    return todo ? todoWord(todo.running) : null;
+    return todo ? { word: todoWord(todo.running), todo: todo.id } : null;
   };
   // What ended a step comes from the server (`completed_by`), a provisional answer
   // included. A held reading keeps a step until the message that ended it is among the

@@ -887,6 +887,23 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         head = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-msg-head')
         expect(head.locator(".lf-msg-leaves")).to_have_text(words)
 
+    # The promise's word opens On Codex at its to-do with the card open: the keys land
+    # on the to-do's line, and a pointer opens the same card.
+    word = page.locator(card_of(promised)).locator(
+        f'.lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-leaves'
+    )
+    expect(word).to_have_accessible_name("Still to do, Open in On Codex")
+    key = json.dumps(["todo", promise["id"]], separators=(",", ":"))
+    item = page.locator(f".lf-fp-view .lf-fp-on-item[data-lf-key='{key}']")
+    word.focus()
+    page.keyboard.press("Enter")
+    expect(item).to_have_attribute("data-lf-open", "")
+    expect(item.locator(".lf-fp-on-line")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(item).not_to_have_attribute("data-lf-open", "")
+    word.click()
+    expect(item).to_have_attribute("data-lf-open", "")
+
     todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
     told(page)
     head = page.locator(

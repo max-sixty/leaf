@@ -24,6 +24,7 @@ import {
   render,
 } from "/runtime/framework.js";
 import { setRenderedChildren } from "../dom-children.js";
+import { iconTemplate } from "../icons.js";
 import { generatedElement, offeredAction, worksInside } from "../widget-elements.js";
 import {
   loadMarkdown,
@@ -650,7 +651,7 @@ export function authoredHolder(id) {
 /** @param {MessageRecord} message
  * @param {{authoredRank?: number,
  * workflows: readonly import("../framework/application.js").Workflow[],
- * leaves?: import("../voice.js").Said | null}} options */
+ * leaves?: {word: import("../voice.js").Said, todo: string | null} | null}} options */
 export function messageReading(
   message,
   { authoredRank = 0, workflows, leaves = null },
@@ -678,7 +679,7 @@ export function messageReading(
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
     // question the user owes words to, the agent's Still to do (`todoWord`) for work it
-    // promised and has not ended (thread-card.js).
+    // promised and has not ended (thread-card.js), with that to-do's id.
     leaves,
     version: message.content_version,
     // Original log order: edits move the words without moving where they were said.
@@ -730,7 +731,8 @@ export function messageReading(
  * reply: {wireInput: ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "edit">},
  * reaction: ConstructorParameters<typeof ReactionStripView>[0],
- * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"]}} MessageCommands */
+ * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"],
+ * showTodo: (todo: string) => unknown}} MessageCommands */
 
 // The tint a turn arrives in, a message or a step's face (transcript.js):
 // one phase drives its ground and its sticky head (surfaces.css, `--lf-msg-arrival`).
@@ -936,12 +938,7 @@ export class MessageView {
                 >`
               : nothing
           }
-          ${receipt}
-          ${
-            model.leaves
-              ? html`<span class="lf-msg-leaves">${voiced(model.leaves)}</span>`
-              : nothing
-          }
+          ${receipt} ${this.#leavesWord(model.leaves)}
           ${
             model.failure
               ? html`<span class="lf-msg-failure">${voiced(NOT_ANSWERED)}</span>`
@@ -1055,6 +1052,32 @@ export class MessageView {
   // Whether this view draws an open rewrite.
   get editing() {
     return this.#editor !== null;
+  }
+
+  // What an answer leaves standing, beside its time. A to-do's word opens On <agent> at
+  // the to-do's row, its card open (floating-panel.js, `showTodo`), since the row says
+  // what the agent is doing about it and where it stands among the rest; its Discuss
+  // leads back here. A chevron after the word says it leads there, as one ends each
+  // row of the leaf's menu that opens a list. It is a Tab stop, since only a promise
+  // still open draws one. The user chose a press on the word over keeping it plain.
+  // Rejected: underlining the word, and a symbol in its place, which hides the word
+  // until hovered and means nothing readers already know.
+  /** @param {ReturnType<typeof messageReading>["leaves"]} leaves */
+  #leavesWord(leaves) {
+    if (!leaves) return nothing;
+    const { word, todo } = leaves;
+    if (!todo) return html`<span class="lf-msg-leaves">${voiced(word)}</span>`;
+    const opens = `Open in On ${agentName()}`;
+    return html`<button
+      type="button"
+      ${offeredAction("inline", "lf-msg-leaves")}
+      data-lf-hint=""
+      aria-label=${`${word.text}, ${opens}`}
+      .lfPreview=${() => ({ name: opens })}
+      @click=${() => this.#commands.showTodo(todo)}
+    >
+      ${voiced(word)}${iconTemplate("next", "lf-msg-leaves-chevron")}
+    </button>`;
   }
 
   // Copy stands at the head's end, after the message's own control (controls.css), and

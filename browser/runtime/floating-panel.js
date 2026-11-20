@@ -5623,6 +5623,26 @@ export function createFloatingPanel({
     open({ view: "thread", thread: thread.key }, { reopen: true });
   }
 
+  // A promise's word in a message's head hands its to-do here (thread/messages.js):
+  // On <agent> opens at the to-do's row with its card open, which says what the agent
+  // is doing about it and where it stands among the rest. The keys land on the row's
+  // line, as `g M` lands on a list's first row; a pointer leaves focus on the view
+  // (`focusView`), and the card stands in view either way (`fitOpened`).
+  /** @param {string} todo */
+  function showTodo(todo) {
+    const key = queueItemKey({ kind: "todo", id: todo });
+    chooseQueueTab("agent");
+    if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
+    opening.openItem = key;
+    fitting = true;
+    paint();
+    const view = shownView();
+    const line = view?.querySelector(
+      `.lf-fp-on-item[data-lf-key="${CSS.escape(key)}"] .lf-fp-on-line`,
+    );
+    if (view) focusDestination(pressLed() || !line ? view : line, "move");
+  }
+
   // A live revision carries the thread open here, and where its view was read to,
   // across it (version.js, `captureRetainedCurrentLocation`): the reader is still at it, so
   // the view comes back as they left it, without taking focus, which the reply's own
@@ -5789,6 +5809,7 @@ export function createFloatingPanel({
     doors,
     showForSample,
     openThread,
+    showTodo,
     captureCurrentLocation,
     restoreCurrentLocation,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for

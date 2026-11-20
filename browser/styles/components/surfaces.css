@@ -1369,9 +1369,23 @@ button.lf-thread-news {
 .lf-msg-head .lf-msg-failure {
   color: var(--lf-warn-ink);
 }
-/* What an answer leaves standing reads beside its time like a receipt. */
+/* What an answer leaves standing reads beside its time like a receipt. A to-do's word
+   is a press in the head's own face (thread/messages.js, `#leavesWord`), and the
+   chevron after it, at the size and in the ink the leaf's menu gives its own, says it
+   opens a list. The press clips its words rather than hiding their overflow, since a
+   box that hides it scrolls, and focus scrolled its words up out of the head's line. */
 .lf-msg-head .lf-msg-leaves {
   color: var(--lf-ink-2);
+}
+.lf-msg-head button.lf-msg-leaves {
+  overflow: clip;
+}
+.lf-msg-leaves-chevron {
+  width: 12px;
+  height: 12px;
+  margin-inline-start: 2px;
+  vertical-align: -1px;
+  color: var(--lf-muted);
 }
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the

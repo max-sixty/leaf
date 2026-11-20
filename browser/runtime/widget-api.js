@@ -140,7 +140,7 @@ export {
 export { raiseError } from "./errors.js";
 export { MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { named, phrasing, says } from "./passages.js";
-export { ago, agePreview } from "./presence.js";
+export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";

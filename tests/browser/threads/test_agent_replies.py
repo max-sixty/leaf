@@ -581,14 +581,13 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         for text in ("Reading the banner's styles.", "Trying a lighter weight.")
     ]
     page = open_page(browser, url)
-    # The comment's card on the agent's list says the agent's last step on it, as the
+    # The comment's line on the agent's list says the agent's last step on it, as the
     # page's status does, rather than only that it is working.
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     card = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
-    card.locator(".lf-fp-on-line").click()
-    expect(card.locator(".lf-fp-answers .lf-fp-said")).to_have_text(
+    expect(card.locator(".lf-fp-on-line .lf-fp-running")).to_have_text(
         "Trying a lighter weight."
     )
     # Nothing counts unread.
@@ -858,7 +857,8 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
     """An answer that asks back or promises work says so in its head, beside its time,
-    for as long as the obligation is the user's or the to-do stays open."""
+    for as long as the obligation is the user's or the to-do stays open, and a promise
+    reads On it while its work runs, as the to-do does everywhere else."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
     promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
@@ -888,11 +888,21 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         head = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-msg-head')
         expect(head.locator(".lf-msg-leaves")).to_have_text(words)
 
-    todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": promised, "responds": promised},
+        "rebuilding the banner",
+        ephemeral=True,
+        identity=codex,
+    )
     told(page)
     head = page.locator(
         f'.lf-margin-preview .lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-head'
     )
+    expect(head.locator(".lf-msg-leaves")).to_have_text("On it")
+
+    todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
+    told(page)
     expect(head.locator(".lf-msg-leaves")).to_have_count(0)
 
 

@@ -677,8 +677,8 @@ export function messageReading(
     // thread shows as a face, not a message, until something ends it (transcript.js).
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
-    // question the user owes words to, the agent's Still to do (`todoWord`) for work it
-    // promised and has not ended (thread-card.js).
+    // question the user owes words to, the agent's On it or Still to do (`todoWord`) for
+    // work it promised and has not ended (thread-card.js).
     leaves,
     version: message.content_version,
     // Original log order: edits move the words without moving where they were said.

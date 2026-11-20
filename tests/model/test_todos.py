@@ -729,28 +729,44 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
     assert state["activity"]["kind"] != "working"
 
 
-def test_a_thread_todo_runs_under_its_start_line(page_dir):
+@pytest.mark.parametrize(
+    "start", ["task start", "progress on the reference", "progress on the to-do"]
+)
+def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
     """A thread waits on a started to-do by its id, and the to-do's record carries the
-    line its start runs under."""
+    line its start runs under. Progress posted where the work was promised starts it as
+    `leaf task start` does: on the reference whose answer opened the to-do, as a
+    worker briefed with that reference posts it, or on the to-do's own message."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Rebuild it."},
     )
+    reference = response_reference(page_dir, comment["id"])
     todo = written(
         leaf(
             "thread",
             "reply",
-            response_reference(page_dir, comment["id"]),
+            reference,
             "--text",
             "On it.",
             "--todo",
             "Rebuild the chart",
         )
     )
-    written(
-        leaf("task", "start", page_dir, todo["id"], "--text", "Waiting on the build")
-    )
+    line = ("--text", "Waiting on the build")
+    if start == "task start":
+        written(leaf("task", "start", page_dir, todo["id"], *line))
+    else:
+        address = (
+            (reference,)
+            if start == "progress on the reference"
+            else (page_dir, todo["id"])
+        )
+        capsys.readouterr()
+        progress = written(leaf("thread", "reply", *address, "--ephemeral", *line))
+        assert progress["start"] == {"item": todo["id"]}
+        assert "superseded-progress" not in capsys.readouterr().err
     state = state_json(page_dir)
     [thread] = state["threads"]
     assert thread["attention"]["todo"] == todo["id"]

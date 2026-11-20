@@ -155,8 +155,8 @@ def restore(site_root: Path) -> bool:
     """Restore before serving, from the snapshot contract in worker/src/storage.ts, and
     say whether a page store backs the site, as the container then declares its
     commits are published there (`PUBLISHER`). A store serving another release
-    refuses this container, as it does a previous image during a rollout, and the
-    refusal ends its start."""
+    refuses this container, as it does one still running a previous image after a
+    deploy, and the refusal ends its start."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
         return False
     from leaf_website import SITE_MANIFEST, elapsed_ms, log_agent

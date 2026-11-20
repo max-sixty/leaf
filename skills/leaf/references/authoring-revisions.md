@@ -46,9 +46,9 @@ the page got a number, a source or a unit wrong, or when work has landed, a deci
 has been made or a finding no longer holds, write the correct text directly and name
 the change in the version note.
 
-Use `lf-draft` for a passage whose wording belongs to the user. Their saved words stay
-in effect across revisions. Follow the `lf-draft` registry entry
-for its HTML.
+Put a passage whose wording belongs to the user in a draft they edit, such as
+`lf-draft`. Their saved words stay in effect across revisions. Follow its registry
+entry for its HTML.
 
 ## Honor user state
 

@@ -85,9 +85,9 @@ Fix it and post again. Where Leaf has no browser, the failure reaches you instea
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
 wall there. The user should take in at a glance what a message tells them and what it
 asks of them. A message is generally a sentence or two; where it has several points,
-such as the options a question weighs, give each a short paragraph or item, and a
-question a paragraph of its own. The page carries the work. Record a decision, result,
-or deferred work on the page and link it from the reply with a fragment link such as
+give each a short paragraph or item, and a question a paragraph of its own. The page
+carries the work. Record a decision, result, or deferred work on the page and link it
+from the reply with a fragment link such as
 `[the decision](#decision)`, which previews its target while the user points at it and
 opens any tab or group hiding it. The thread already reaches the passage or section it
 is on, as a card beside it or by Show on page in the panel, so a link to it takes the
@@ -200,14 +200,16 @@ finished work.
 
 When a message asks the user to choose among answers you can list, such as which of two
 ways to proceed, whether to take an action or whether a step they took worked, you can
-send the answers in the message as an `<lf-options id="…">` holding an
-`<lf-option id="…">` for each. Picking an option is generally quicker and easier for
-the user than typing a reply, so a choice usually serves them better than answers
-listed in words. The user answers with a press in the thread, and the `lf-options`
+send the answers in the message in a widget that asks, such as an `<lf-options id="…">`
+holding an `<lf-option id="…">` for each. Picking an option is generally quicker and
+easier for the user than typing a reply, so a choice usually serves them better than
+answers listed in words. The user answers with a press in the thread, and the choice
 waits on them until they do, so the message takes no `--obligation`, which the command
-refuses beside it. The message's text asks the question and gives your reason, so the
-`lf-options` needs no heading or group round it. Title each option by what choosing it
-does and mark the one you advise (`authoring-on-me.md`, "What a question holds").
+refuses beside it. The text holds the question, what is true of every option and your
+reason; each card holds what is true of its option alone, such as what choosing it
+does and costs. The choice needs no heading or group round it. Title each option by
+what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
+question holds").
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'
@@ -236,8 +238,9 @@ leaf thread reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
 It does not answer the update, so a turn whose final message is the answer still
-posts that message. On an update you owe it starts the update, and
-its text becomes your line in Leaf's panel status, so keep it to one line
+posts that message. On an update you owe it starts the update. Posted on the same
+reference after an answer that opened a to-do, or on the to-do's own message, it
+starts that to-do. Its text becomes your line in Leaf's panel status, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply <page> <message> --ephemeral`.
 

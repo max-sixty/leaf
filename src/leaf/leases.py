@@ -46,10 +46,12 @@ def lock_is_held(path: Path) -> bool:
     name no longer reaches answers nothing either way: `supersede_lease` may have
     displaced it, its holder still running or gone, while the lease at the name
     began or ended. So the question is asked again of the file the name reaches.
+    The probe only reads, so a process that may not write the file, as a command
+    in Claude Code's sandbox may not, can ask too (`bridge.run`).
     """
     while True:
         try:
-            with open(path, "r+b") as probe:
+            with open(path, "rb") as probe:
                 try:
                     fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
                 except OSError:

@@ -150,21 +150,20 @@ The workflow:
 
 - builds the site with a release id unique to the commit and run attempt;
 - runs `pnpm run check:worker` and `leaf-dev site verify website-worker`;
-- builds and pushes the container image, and pins it in `wrangler.toml` by its registry
-  digest;
-- deploys the Worker with `--containers-rollout=immediate`;
+- deploys the Worker (`worker/wrangler-deploy.sh`), which builds the container image
+  and names it by its registry digest in that Worker version's image map;
 - runs `leaf-dev site verify --release <id> --wait 900` against <https://leaf.page/>,
   which passes only once Chrome sees that release in the edge document, its module
   URLs, and a newly started private container, with no browser errors;
 - runs `leaf-dev journey run https://leaf.page --release <id>`, which needs a hosted agent
   to answer a real turn with a reply and a published revision.
 
-Cloudflare activates the Worker before the new container image has rolled out. Until
-it has, a session's container can still start on the previous image. The session's
-page store refuses that container (`worker/src/storage.ts`), so it exits before
-serving and the `--wait` reruns the check. A visitor who acts on the page meanwhile
-sees it as not through yet, and the page sends it again until the rollout reaches
-their container.
+A session object starts its container from the image map of the Worker version it
+runs (`LeafSession` in `worker/src/index.ts`), so every container started after the
+deploy runs the new image. The deploy's first request to a session stops a container
+still on the previous image, ending any agent turn it was running, and starts one on
+the new image; the visitor's open tab reloads onto the new release at that answer.
+Until then the page store refuses the older container (`worker/src/storage.ts`).
 
 ### One-time setup
 
@@ -207,7 +206,9 @@ token.
 
 ## Check a deployed release
 
-A page's response names the release the edge serves in its `Leaf-Release` header:
+A page's response names the release that answered it in its `Leaf-Release` header:
+the edge's for a published page, and for a page a visitor has acted on, the release
+their container's image runs.
 
 ```sh
 curl -sI https://leaf.page/ | grep -i leaf-release
@@ -232,12 +233,9 @@ its push runs `publish-site`, which deploys it as a new release through the same
 As on any deploy, visitors keep their private pages unless the revert moves the page
 protocol or the session store's format (`STORE_FORMAT`).
 
-Do not use `wrangler rollback`. It reactivates an earlier Worker version, whose assets
-name the earlier release. Cloudflare's rollback documentation says resources connected
-to the Worker are not changed and does not mention containers, so expect the container
-image to stay on the newer release. Every container would then run a release other
-than the Worker's, which the page store refuses (`worker/src/storage.ts`), so no
-container would start and no visitor could comment or act until the next deploy.
+Do not use `wrangler rollback`. It reactivates an earlier Worker version without its
+Durable Object migrations, so a version from before a migration names a session class
+the migration removed.
 
 ## Diagnostics
 
@@ -530,18 +528,17 @@ The records to read first:
 
 The session's `component=leaf-container`, `event=http_error` records identify
 forwarded HTTP 5xx responses by status, method, `source` and `retried`:
-`adapter` means the response carried Python's `Leaf-Session` stamp;
-`disconnected` means it matched one of the Containers SDK's proxy-failure
-responses; `unclassified` means neither was established. A `disconnected`
-record's `detail` is the SDK's sentence, which names the failure:
-`Container suddenly disconnected, try again` for a connection lost mid-request,
-`…taking too long to accept the connection…` for a container that answered
-nothing, and `…client disconnected.` for a visitor who left while their
-container started. A `disconnected` `GET`, `HEAD` or `POST` to `api/user-view`
-is sent once more (`retried: true`), and the visitor sees the second answer; no
-other write is resent. Apart from `detail`, which carries the runtime's error
-message as the SDK's own log line does, these records retain no URL or response
-body. Use their native trace ID to join the request's invocation
+`adapter` means the response carried Python's `Leaf-Session` stamp; `start` means
+the container failed to start or never answered its health route; `disconnected`
+means the connection to a started container failed; `unclassified` means a 5xx
+answer without Python's stamp. A `start` or `disconnected` record's `detail` is
+the runtime's error message, such as `Network connection lost.` for a connection
+lost mid-request. A `disconnected` `GET`, `HEAD` or `POST` to `api/user-view` is
+sent once more (`retried: true`), and the visitor sees the second answer; no other
+write is resent. Apart from `detail`, these records retain no URL or response
+body. A `component=leaf-container`, `event=container_stopped` record notes each
+container's exit, with the runtime's reason, such as an exit code, as `detail` where
+it gives one. Use their native trace ID to join the request's invocation
 records, and the container's `container_stalled` and `container_unresponsive`
 records (below) to tell a container the host stopped running from one whose
 server stopped answering.
@@ -628,13 +625,10 @@ snapshot uses.
 An interrupted upload therefore retains at most one successor until that page
 retries; other pages' concurrent uploads and readers remain protected.
 
-Each container is a custom instance of one vCPU and 3 GiB (`wrangler.toml` gives the
-reason). `max_instances` caps them at 1,470 for production and 20 for `dev`, under the
-account's default limit of 1,500 concurrent vCPU. A container with no requests stops
-after ten minutes (`sleepAfter` in `worker/src/index.ts`). A rollout replaces a
-container as soon as it reaches it, however recently the container started. The
-adapter exits on the `SIGTERM` that replacement sends, ending any agent turn it was
-running.
+Each container is a custom instance of one vCPU and 3 GiB (`CONTAINER_INSTANCE` in
+`worker/src/index.ts` gives the reason). The account's default limit of 1,500
+concurrent vCPU bounds how many run at once, production's and `dev`'s together. A
+container with no requests stops after ten minutes (`CONTAINER_IDLE_MS`).
 
 ### Sandbox and rate limits
 

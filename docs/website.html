@@ -175,37 +175,36 @@ sequenceDiagram
           deploy attempt gets its own. Published runtime files are served under
           <code>/_leaf-release/&lt;release&gt;/</code> with immutable cache headers. The
           document names its release, the browser sends it with every API request, and
-          the Worker names the release it serves on every API response, a container's
-          included.
+          every API response names the release that gave it: the Worker's own, or the
+          one a visitor's container runs.
         </p>
         <p id="releases-refusal">
           The runtime refuses a response from another release. The page's state is read
           by the scripts and widgets the document has loaded, and a document cannot
           replace those in place, so state from another build would be read by code not
-          built for it. Only the Worker names a release, so a response from another
-          release means the site was deployed after the page loaded: the page says Leaf
-          has been updated and reloads onto the new release's document, which for a page
-          the visitor has acted on is their own copy.
+          built for it. A response from another release means the server answering has
+          moved past the page's release, as after a deploy: the page says Leaf has been
+          updated and reloads onto that server's document, which for a page the visitor
+          has acted on is their own copy.
         </p>
         <p id="releases-rollout">
-          Cloudflare activates a new Worker and its assets before the new container
-          image has rolled out, so for some minutes a session's container can still
-          start on the previous image. The session's Durable Object refuses that
-          container before it reads or writes anything, and the container exits, so
-          nothing the previous image runs changes a record after the deploy. A container
-          the previous release started before the deploy is stopped at its session's
-          next request. Until the rollout reaches a visitor's container, what they do on
-          the page shows as not through yet and is sent again until it lands, and a live
-          sample opened then fails until Reset.
+          A visitor's session Durable Object picks the container image each time it
+          starts one, from the Worker it runs, so every container started after a deploy
+          runs the new release, with no minutes in between when starts fail. The
+          deploy's first request to the session stops a container still running the
+          previous release, ending any agent turn in progress, and starts one on the new
+          release; the open page reloads onto it at that answer. Until then the
+          session's Durable Object refuses the older container before it reads or writes
+          anything, so nothing the previous image runs changes a record after the
+          deploy.
         </p>
         <p id="releases-deploy">
           A push to <code>main</code> that changes the site runs the
           <code>publish-site</code> workflow. It builds the site, checks the bundle
-          locally through the Worker and a container, pushes the container image, and
-          deploys the Worker with that image pinned by its digest and an immediate
-          container rollout. The deploy passes only once Chrome sees the new release in
-          the edge document, its modules, and a newly started container, and a hosted
-          agent on leaf.page has answered a real turn.
+          locally through the Worker and a container, and deploys the Worker with its
+          container image pinned by digest. The deploy passes only once Chrome sees the
+          new release in the edge document, its modules, and a newly started container,
+          and a hosted agent on leaf.page has answered a real turn.
         </p>
       </section>
 

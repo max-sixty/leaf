@@ -186,10 +186,9 @@ the agent, so their lines wait for its next step.
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
 the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
-why it wrote no records, with the fork's tokens and time, and the main thread's
-request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
-cuts the conversation; a turn-end fork reads it to `row`), whose `effort` the fork
-thinks at. A fork that failed, or
+why it wrote no records, with the fork's tokens and time, and what it resent of the
+main thread's conversation (`resends` in `hooks/claude-code.ts`, which says where a
+replay cuts it), whose `effort` the fork thinks at. A fork that failed, or
 gave an answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
 `$.model.fork` exchange, only its token counts in the debug log, so this record is
 what a later replay or audit scores against what the agent did next.
@@ -595,10 +594,10 @@ def turn_ended(session_id: str) -> dict | None:
 def checked(session_id: str, payload: dict) -> dict:
     """What Leaf wrote and told from the turn-end check's fork as the module reports
     it (`carrier.step`): its `answer`, or why there is none (`failed`), with its
-    `usage`, `elapsed_ms` and the main thread's request it resent (`resent`, noted as
-    `request`) where the harness gives them (`take_answer`), and a line for the
-    module's debug log saying what came of it. An
-    answer `ANSWER` refuses writes nothing, and says why (`refused`)."""
+    `usage`, `elapsed_ms` and what it resent of the main thread's conversation
+    (`resent`, noted as `request`) where the harness gives them (`take_answer`), and a
+    line for the module's debug log saying what came of it. An answer `ANSWER` refuses
+    writes nothing, and says why (`refused`)."""
     from .refusals import Refused
 
     basis = payload["basis"]

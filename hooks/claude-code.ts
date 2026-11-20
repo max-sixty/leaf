@@ -9,7 +9,7 @@
  * means, as instructions the module runs and reports on (`src/leaf/carrier.py`,
  * whose header holds that contract), so a change to Leaf's forks needs no change
  * here. The module adds what only it sees: the tool calls the main thread is
- * running (`running`), the main thread's last request (`request`), a main-loop
+ * running (`running`), the main thread's last request (`lastStep`), a main-loop
  * turn's end (`turnEnded`) and each spawned fork's run ending (`endFork`). Claude
  * Code runs none of this module's hooks for a working fork's tool calls, as a
  * plugin's hooks never see the calls of an agent it spawned (measured at
@@ -446,41 +446,78 @@ async function turnEnded($: EngineInterface, session: string) {
   }
 }
 
-// The main thread's last request, which `$.model.fork` resends: the model and
-// effort the main thread named, how many messages it carried and the newest row
-// stored as it went out (`turn.step`, `sent`), with the newest row stored by the time
-// of the fork (`row`), each the transcript's id from `session.append` on the doors
-// `register` names. The fork reads the conversation as it would next go out: with a
-// tool call running, to `sent`, since the call's tool_use can't go out before its
-// result; otherwise to `row`, a turn's final reply included (`notes/fork-replies.md`,
-// under the fork probes). Each fork hands this to Leaf, so a fork's diagnostics say
-// where a replay cuts the conversation.
+// The main thread's last request (`turn.step`): the model and effort it named, how
+// many messages it carried, and the newest row of the conversation as it went out
+// (`sent`), by the transcript's id as `$.session.messages` gives it. Each fork hands
+// Leaf that request with the newest row by the time of the fork (`row`), so a fork's
+// diagnostics say where a replay cuts the transcript (`resends`). The fork reads the
+// conversation as it would next go out: with a tool call running, to `sent`, since
+// the call's tool_use can't go out before its result; otherwise to `row`, a turn's
+// final reply included (`notes/fork-replies.md`, under the fork probes).
+//
+// A compaction or a rewind rewrites the conversation, and a fork after it resends the
+// rewritten one. Each read of the newest row goes on from the row read before
+// (`newestRow`), and Claude Code denies the read where a rewrite dropped that row. A
+// compaction almost always keeps at most the last turn's final reply, which comes
+// after that row; the odd one that keeps the turn's last tool calls, that row among
+// them, goes unseen. No row then marks where the rewritten conversation ends: a
+// compaction's summary comes by a door the module has no hook on, and a row the
+// compaction kept keeps its id and its place before the compaction in the
+// transcript. So the forks from a rewrite until the second request after it name no
+// row and say only that the conversation was rewritten (`rewritten`), and a replay
+// takes the transcript as it stood when the fork ran: the first request's newest row
+// may be one the compaction kept, and the second's is one added since. A hook on
+// `session.compact` or on the compaction's door would hear each compaction, but on a
+// machine with managed settings `cc-plugin-sec-default` sends both past a person's
+// plugins, and Claude Code then tells the user that the plugin's hook was skipped
+// (read in 2.1.329's source).
 let lastStep:
-  | { model: string; effort?: string | number; messages: number; sent?: string }
+  | {
+      model: string;
+      effort?: string | number;
+      messages: number;
+      sent: string | undefined;
+    }
   | undefined;
-let lastRow: string | undefined;
 
-function request() {
-  return (
-    lastStep && { ...lastStep, ...(lastRow === undefined ? {} : { row: lastRow }) }
-  );
+/** The newest row of the main conversation, read on from `after`, the newest read
+ * before: `after` itself where none has come since, or undefined where the
+ * conversation no longer holds `after`, rewritten since. With no row read before, the
+ * newest row. Claude Code before 2.1.326 refuses both reads, so there the step's hook
+ * fails, in the debug log alone, and a fork hands Leaf no request (measured at
+ * 2.1.325). */
+async function newestRow($: EngineInterface, after: string | undefined) {
+  const rows = await $.session.messages(after === undefined ? { last: 1 } : { after });
+  return Array.isArray(rows) ? (rows.at(-1)?.uuid ?? after) : undefined;
+}
+
+/** What a fork made now resends of the main thread's conversation: its last request
+ * with the newest row by now (`row`), or, where the conversation has been rewritten
+ * since, that request's model and effort and that it was rewritten (`rewritten`). */
+async function resends($: EngineInterface) {
+  if (lastStep === undefined) return undefined;
+  const { sent, messages, ...named } = lastStep;
+  const row = sent === undefined ? undefined : await newestRow($, sent);
+  return row === undefined
+    ? { ...named, rewritten: true }
+    : { ...named, messages, sent, row };
 }
 
 /** Fork the conversation with Leaf's `request`, as Leaf wrote it (`carrier.fork`), and
  * what Leaf notes of the fork: its `answer`, or why it gave none (`failed`, a thrown
- * error included), with its time, its usage, and the main thread's request it resent
- * (`resent`). `$.model.fork` resends the main thread's own last request, its model,
- * system prompt and tools, so the cache serves the conversation, and denies the fork
- * every tool call; it takes no answer schema, so Leaf checks the answer against its
- * own. Claude Code's debug log has its own line for the fork's tokens (`Forked agent
- * [plugin_model_fork] finished`), and redacts a `*_tokens` field, so the module logs
- * no usage of its own and hands it to Leaf, which notes it with the answer in each
- * page's diagnostics. */
+ * error included), with its time, its usage, and what it resent of the main thread's
+ * conversation (`resent`, `resends`). `$.model.fork` resends it with the main thread's
+ * model, system prompt and tools, so the cache serves the conversation, and denies the
+ * fork every tool call; it takes no answer schema, so Leaf checks the answer against
+ * its own. Claude Code's debug log has its own line for the fork's tokens (`Forked
+ * agent [plugin_model_fork] finished`), and redacts a `*_tokens` field, so the module
+ * logs no usage of its own and hands it to Leaf, which notes it with the answer in
+ * each page's diagnostics. */
 async function forkConversation(
   $: EngineInterface,
   forked: ForkRequest,
 ): Promise<Record<string, unknown>> {
-  const resent = request();
+  const resent = await resends($);
   const started = await $.clock.now();
   let ran: Record<string, unknown>;
   try {
@@ -720,39 +757,17 @@ export const register: Register = (on) => {
   });
 
   on("turn.step", async function* ($, e, next) {
-    if (e.agentId === undefined)
+    if (e.agentId === undefined) {
+      const sent = await newestRow($, lastStep?.sent);
       lastStep = {
         model: e.model,
         messages: e.messageCount,
         ...(e.effort === undefined ? {} : { effort: e.effort }),
-        ...(lastRow === undefined ? {} : { sent: lastRow }),
+        sent,
       };
+    }
     return yield* next(e);
   });
-
-  // Only the doors of the rows the model reads in the transcript: attachments, hook
-  // context, compaction summaries and notices are left to the plugins that rewrite
-  // them, and Claude Code tells the user when one of those sends a row past a
-  // handler beneath it; a queue record is no row of the conversation (read at
-  // 2.1.322, whose doors `tsc -p tsconfig.json` checks this list against). The
-  // model reads `tool-message` rows too, but on a machine with managed settings
-  // `cc-plugin-sec-default` sends the body a Skill call loads on that door past a
-  // person's plugins, so a handler there drew that notice at each session's first
-  // Skill call (read and measured at 2.1.327). `row` stays on a tool's result until
-  // the model next answers.
-  for (const door of [
-    "prompt",
-    "command",
-    "response",
-    "tool-result",
-    "delivery",
-    "note",
-  ] as const)
-    on("session.append", { door }, async ($, e, next) => {
-      const stored = await next(e);
-      if (e.agentId === undefined && stored.deny === undefined) lastRow = stored.uuid;
-      return stored;
-    });
 
   // A resumed or cleared session raises no session.start, so its first turn follows.
   on("turn.start", ($, e, next) => {

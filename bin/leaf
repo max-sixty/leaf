@@ -34,9 +34,8 @@
 # record names, unless that is this one, so the session's hooks and commands run the
 # installed Leaf, which reads the pages a newer Leaf wrote, and still reach it once
 # this copy's project is gone. The marker only spares the installed copy a read of
-# the record; the record decides, by the rule `session_runtime.replaced` follows for
-# the pages follower. The installed Leaf hands a session's hooks and commands on to
-# a checkout the session selected (`src/leaf/session_runtime.py`).
+# the record; the record decides. The installed Leaf hands a session's hooks and
+# commands on to a checkout the session selected (`src/leaf/session_runtime.py`).
 #
 # uv opens its cache even with nothing to sync, and Codex's workspace-write sandbox
 # writes only to the workspace and the temporary directories, so inside that

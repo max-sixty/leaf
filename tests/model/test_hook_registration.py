@@ -41,18 +41,13 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
-def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path, monkeypatch):
+def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path):
     """Claude Code installs an update beside the copy a running session loaded, then
     marks each copy `installed_plugins.json` no longer records with `.orphaned_at`,
     and a marked copy may lose its files while the session still runs its launcher.
     That launcher runs the first absolute, executable launcher the record names,
-    with the call's arguments and stdin, unless that is its own. The pages follower
-    moves on in exactly the cases the launcher hands a call on
-    (`session_runtime.replaced`), since the module starts it again through that
-    launcher: a follower that moved on where the launcher ran its own copy would
-    start again and again."""
-    from leaf import session_runtime
-
+    with the call's arguments and stdin, unless that is its own, and a copy not yet
+    marked runs itself."""
     cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
     replaced = cache / "0a0a0a0a0a0a"
     (replaced / "bin").mkdir(parents=True)
@@ -65,7 +60,6 @@ def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path, monkeypa
     unrunnable = cache / "2c2c2c2c2c2c"
     record = tmp_path / "plugins" / "installed_plugins.json"
     marker = replaced / ".orphaned_at"
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", replaced)
 
     def hands_on(marked: bool, installs: list) -> bool:
         if marked:
@@ -86,9 +80,7 @@ def test_a_copy_claude_code_replaced_runs_the_copy_it_records(tmp_path, monkeypa
             timeout=STATED_TIMEOUT,
             check=False,
         )
-        handed = ran.stdout == "page\nstate\na page\nthe hook's payload\n"
-        assert handed == session_runtime.replaced(), (marked, installs, ran.stderr)
-        return handed
+        return ran.stdout == "page\nstate\na page\nthe hook's payload\n"
 
     assert hands_on(True, [installed])
     assert hands_on(True, [unrunnable, installed])

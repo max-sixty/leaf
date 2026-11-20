@@ -2866,6 +2866,18 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     assert listed["do"] == []
 
 
+def test_a_follower_started_in_a_copy_already_marked_replaced_stays(
+    claimed, monkeypatch
+):
+    """A copy Claude Code had marked replaced before the follower started is one
+    its launcher ran all the same, as where Claude Code's record still names it.
+    The follower stays there, where ending would have the module start it in the
+    same copy again and again."""
+    monkeypatch.setattr(session_runtime_model, "replaced", lambda: True)
+    assert not hooks_model._moved_on("s1", True)
+    assert hooks_model._moved_on("s1", False)
+
+
 def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
     claimed, initialized_page, tmp_path, monkeypatch
 ):

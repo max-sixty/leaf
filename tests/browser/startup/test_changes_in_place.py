@@ -887,3 +887,52 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
     _start(d, todo["id"], "Rewriting Gamma")
     expect(bars).to_have_count(1)
     expect(bars).to_have_attribute("data-lf-for", "c")
+
+
+def test_the_bar_beside_a_list_item_stands_clear_of_its_marker(browser, serve):
+    """The browser draws a list item's marker outside the item's box, in its list's
+    inset, so the bar beside an item, or beside a block in one, stands beyond that
+    inset rather than across the marker. An item in a list laid out as a grid of cards
+    keeps its bar beside its own card."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "List",
+                """
+<ul id="l">
+  <li id="i">An item.</li>
+  <li><p id="p">A paragraph in an item.</p></li>
+</ul>
+<ul id="g" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    list-style: none; padding: 0">
+  <li id="g1">First card.</li>
+  <li id="g2">Second card.</li>
+</ul>
+""",
+            )
+        )
+    )
+    d = serve.page_dir
+    page = open_page(browser, url)
+    for section, words in (
+        ("i", "An item."),
+        ("p", "A paragraph in an item."),
+        ("g2", "Second card."),
+    ):
+        _start(d, _comment_on(d, section, words)["id"], "Rewording it")
+    expect(page.locator(".lf-at-work-bar")).to_have_count(3)
+    placed = page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const bar = (id) => box(`.lf-at-work-bar[data-lf-for="${id}"]`);
+          const [list, first, second] = [box('#l'), box('#g1'), box('#g2')];
+          return {
+            clear: ['i', 'p'].every((id) => bar(id).right <= list.left),
+            beside: bar('g2').right <= second.left && bar('g2').left > first.right,
+          };
+        }"""
+    )
+    assert placed["clear"], (
+        "a list item's bar stands inside its list, across the marker"
+    )
+    assert placed["beside"], "a grid card's bar stands away from its own card"

@@ -834,6 +834,8 @@ def test_quote_preservation_reads_restated_body_at_the_candidate_revision(page_d
         if thread["id"] == root["id"]
     )
     assert thread["anchor"] == {"section": "note"}
+    # The words the thread is about stay readable once the page no longer shows them.
+    assert thread["rewritten_from"]["quote"] == "Alpha"
 
 
 def test_a_stamp_detaches_a_reopened_quote_without_a_surviving_section(page_dir):

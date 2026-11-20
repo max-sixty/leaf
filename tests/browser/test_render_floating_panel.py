@@ -2907,8 +2907,8 @@ def test_a_package_s_places_for_a_thread_s_parts_take_them_as_its_outlet_does(
     one outside the widget refuses the update, and one in the widget's shadow tree takes
     the part through a slot, so the document's styles reach Resolve, the notice and the
     reply box as they reach the messages. The quote the package asks for reads as the
-    panel's does, in three lines with Full quote over them. Reopen there lands in the
-    reply box, wherever the package stands it, as a card's does."""
+    panel's does, in three lines under the label that opens them whole. Reopen there
+    lands in the reply box, wherever the package stands it, as a card's does."""
     url = serve(LONG_PAGE)
     words = "The earlier plan required a manual review before every rollout. " * 6
     panel_comment(
@@ -2939,7 +2939,7 @@ def test_a_package_s_places_for_a_thread_s_parts_take_them_as_its_outlet_does(
     expect(quote).to_contain_text("FINAL WORDS")
     assert quote.evaluate("el => getComputedStyle(el).webkitLineClamp") == "3"
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
-    full = reader.get_by_role("button", name="Full quote", exact=True)
+    full = reader.locator(".lf-quote-label").get_by_role("button")
     expect(full).to_be_visible()
     full.click()
     expect(full).to_have_attribute("aria-expanded", "true")
@@ -5371,7 +5371,7 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     status = view.locator(".lf-quote-label .lf-anchor-status")
     expect(status).to_have_text("Not found")
     expect(status).to_be_visible()
-    disclosure = view.get_by_role("button", name="Full quote", exact=True)
+    disclosure = view.locator(".lf-quote-label").get_by_role("button")
     expect(disclosure).to_be_visible()
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")

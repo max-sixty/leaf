@@ -26,6 +26,7 @@ test("a thread card's output updates its commands without invalidating its prese
     working: null,
     news: null,
     settlement: { kind: "resolve", label: "Resolve", word: "Resolve" },
+    source: { id: "card-presentation", anchor: null, root: {} },
   };
   const view = new ThreadView({ reply: { wireInput }, reaction: {} }, model);
   let paints = 0;

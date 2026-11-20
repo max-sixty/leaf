@@ -35,7 +35,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/51",
+     "format": "leaf-delivery/52",
      "id": "c31f7a52",
      "created_at": 1795050000.0,
      "acknowledge": null,
@@ -52,6 +52,7 @@ vars:
           "section": "poll-interval"
          },
          "detached_from": null,
+         "rewritten_from": null,
          "resolved": null,
          "elided": {
           "messages": 0,
@@ -161,7 +162,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/51",
+         "format": "leaf-delivery/52",
          "id": "5d08e6b1",
          "created_at": 1795050000.0,
          "acknowledge": null,
@@ -178,6 +179,7 @@ variants:
               "section": "poll-interval"
              },
              "detached_from": null,
+             "rewritten_from": null,
              "resolved": null,
              "elided": {
               "messages": 0,

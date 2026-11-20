@@ -440,9 +440,11 @@ customElements.define(
         );
         // A plain press on the dial puts Leaf's preview away as it goes down, and its
         // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
-        // until the press is over.
+        // until the press is over. A finger's tap reads no preview again, so its sheets
+        // go at once.
         const stopPress = onPress((down, path) => {
-          if (!path.includes(this) || !plainPress(down)) return null;
+          if (!path.includes(this) || !plainPress(down) || down.pointerType === "touch")
+            return null;
           this.#pressing = true;
           return () => () => {
             this.#pressing = false;

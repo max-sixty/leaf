@@ -60,194 +60,28 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   margin-block: calc(-1 * var(--lf-sp-1)) var(--lf-sp-2);
 }
 
-/* PROTOTYPE: each depth's size, as the dial's settings show it (lf-dial.js). */
-
-/* At rest, minutes: each depth's time after its word, a step quieter. */
-.lf-dial-time {
-  display: none;
+/* Each depth's time on a line of its own under its word, a step quieter (lf-dial.js).
+   The two lines set solid fill a one-line control's height, so the dial stands no
+   taller than a row of words and its first paint holds its room. */
+.lf-dial-depth {
+  block-size: var(--lf-line);
+  padding-block: 0;
 }
-lf-dial[data-rest="minutes"] .lf-dial-time {
-  display: inline;
-  white-space: pre;
-  font-weight: 400;
-  color: color-mix(in srgb, currentColor 72%, transparent);
-  font-variant-numeric: tabular-nums;
-}
-
-/* At rest, stacked: each depth's time on a line of its own under its word. */
-lf-dial[data-rest="stacked"] .lf-dial-depth::part(label) {
+.lf-dial-depth::part(label) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  line-height: 1.15;
+  line-height: 1.1;
 }
-lf-dial[data-rest="stacked"] .lf-dial-time {
+.lf-dial-time {
   display: block;
   font: var(--lf-font-fine);
+  line-height: 1.1;
   color: color-mix(in srgb, currentColor 72%, transparent);
   font-variant-numeric: tabular-nums;
 }
 
-/* At rest, the gauge: a track under the depths as long as Everything takes to read,
-   filled as far as the chosen depth's share, with a tick at Skim's and Read's. */
-.lf-dial-gauge {
-  display: none;
-}
-lf-dial[data-rest="gauge"] .lf-dial-gauge {
-  display: block;
-  position: relative;
-  block-size: 4px;
-  margin-block-start: 3px;
-  margin-inline: var(--lf-sp-1);
-  border-radius: 2px;
-  background: var(--lf-rule);
-}
-.lf-dial-gauge-fill {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  inline-size: var(--at, 100%);
-  border-radius: inherit;
-  background: var(--lf-accent);
-  transition: inline-size 200ms ease;
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-}
-/* Pointing at a depth draws its share over the fill, so the reader sees how far
-   turning to it would take the gauge. */
-.lf-dial-gauge-pointed {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  inline-size: var(--pointed, 0%);
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--lf-accent) 45%, transparent);
-  outline: 1px solid var(--lf-accent);
-  display: none;
-}
-lf-dial[data-pointed] .lf-dial-gauge-pointed {
-  display: block;
-}
-lf-dial[data-pointed] .lf-dial-gauge-fill {
-  opacity: 0.35;
-}
-.lf-dial-gauge-mark {
-  position: absolute;
-  inset-block: -2px;
-  inline-size: 1px;
-  background: var(--lf-ink);
-}
-.lf-dial-gauge-skim {
-  inset-inline-start: var(--skim);
-}
-.lf-dial-gauge-read {
-  inset-inline-start: var(--read);
-}
-.lf-dial-gauge-all {
-  display: none;
-}
-
-/* Pointing, bars: each depth a bar on one baseline, the pointed one in full ink. */
-.lf-dial-bars {
-  display: grid;
-  grid-template-columns: auto 10rem;
-  align-items: center;
-  gap: 3px 8px;
-  margin-block: 6px 2px;
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-}
-.lf-dial-bars[data-timed] {
-  grid-template-columns: auto 8rem auto;
-}
-.lf-dial-bars-row {
-  display: contents;
-  color: color-mix(in srgb, currentColor 55%, transparent);
-}
-.lf-dial-bars-row[data-pointed] {
-  color: var(--lf-tip-ink);
-  font-weight: 600;
-}
-.lf-dial-bars-track {
-  display: block;
-  block-size: 6px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--lf-tip-ink) 14%, transparent);
-}
-.lf-dial-bars-fill {
-  display: block;
-  block-size: 100%;
-  inline-size: var(--share);
-  min-inline-size: 3px;
-  border-radius: inherit;
-  background: currentColor;
-}
-.lf-dial-bars-time {
-  text-align: end;
-}
-
-/* Pointing, strips: the bars, each a run of its depth's blocks, parted by a hair of
-   the face's ground. */
-.lf-dial-strips .lf-dial-bars-track {
-  display: flex;
-  overflow: clip;
-  block-size: 8px;
-  border-radius: 2px;
-  background: none;
-}
-.lf-dial-strips .lf-dial-bars-track > span {
-  flex: none;
-  box-sizing: border-box;
-  border-inline-end: 1px solid var(--lf-tip-bg);
-}
-.lf-dial-strip-text {
-  background: color-mix(in srgb, currentColor 42%, transparent);
-}
-.lf-dial-strip-heading {
-  background: currentColor;
-}
-.lf-dial-strip-picture {
-  background: var(--lf-series-1);
-}
-.lf-dial-strips .lf-dial-bars-row:not([data-pointed]) .lf-dial-bars-track {
-  opacity: 0.55;
-}
-
-/* Pointing, the map: the page at each depth to one scale. */
-.lf-dial-map {
-  display: block;
-  margin-block: 8px 2px;
-  overflow: visible;
-}
-.lf-dial-map rect {
-  fill: currentColor;
-}
-.lf-dial-map .lf-dial-map-page {
-  fill-opacity: 0.08;
-}
-.lf-dial-map .lf-dial-map-text {
-  fill-opacity: 0.32;
-}
-.lf-dial-map .lf-dial-map-heading {
-  fill-opacity: 0.9;
-}
-.lf-dial-map .lf-dial-map-picture {
-  fill: var(--lf-series-1);
-}
-.lf-dial-map .lf-dial-map-other {
-  opacity: 0.45;
-}
-.lf-dial-map text {
-  font: var(--lf-font-fine);
-  fill: currentColor;
-  text-anchor: middle;
-}
-.lf-dial-map .lf-dial-map-pointed text {
-  font-weight: 600;
-}
-
-/* Pointing, on the page: what turning to the depth would hide fades, and where it
+/* Pointing at a depth, on the page: what turning to it would hide fades, and where it
    would open more wears a dashed ring, the mark of a state not yet taken. */
 [data-lf-dial-ghost="goes"] {
   opacity: 0.22;
@@ -260,67 +94,39 @@ details[data-lf-dial-ghost="comes"] > summary,
   border-radius: var(--lf-r-s);
 }
 
-/* At Skim, each ⋯ with how long its gap takes. */
-.lf-dial-more-time {
-  display: none;
-}
-.lf-dial-more[data-folds="minutes"] {
-  align-items: center;
-  gap: var(--lf-sp-1);
-}
-.lf-dial-more[data-folds="minutes"] .lf-dial-more-time {
-  display: inline;
-  font: var(--lf-font-fine);
-  color: var(--lf-quiet);
-}
-
-/* Pointing, the pages hanging under their buttons: each depth's page a sheet of its
-   own under its button, to one scale, so how far down each runs is how long it takes,
-   with the page showing between them. The dial draws them under itself, and Leaf's own
-   preview, which opens and closes them, stays unseen. The pointed sheet stands in full
-   ink and the others step back; a pointer crossing the buttons moves that emphasis
-   while the sheets hold still. A frame in the accent rings the depth that stands and
-   glides to the one a press or an arrow key turns to, which keeps the sheets up; a
-   sheet takes the press its button does. Each sheet
-   drops from its button as they open, one after another. The panel takes the pointer
-   across the gaps between the sheets, so the pointer crossing them keeps them up. */
-.lf-preview:has(.lf-dial-hang-unseen) {
-  visibility: hidden;
-}
-/* The panel meets the dial's edge, its gap above the sheets its own, so the pointer
-   moving down onto them never leaves the dial. */
+/* Pointing at a depth hangs each depth's page under its button as a sheet of its own,
+   to one scale, so how far down each runs is how long it takes, with the page showing
+   between them. The pointed sheet stands in full ink and the others step back; a
+   pointer crossing the buttons moves that emphasis while the sheets hold still. A frame
+   in the accent rings the depth that stands and glides to the one a press or an arrow
+   key turns to. The panel meets the dial's edge, its gap above the sheets its own, and
+   takes the pointer across the gaps between the sheets, so the pointer moving down onto
+   them or across them never leaves the dial. */
 .lf-dial-hang-panel {
   position: absolute;
   inset-block-start: 100%;
   inset-inline: 0;
   padding-block-start: 5px;
   color: var(--lf-ink);
-  font: var(--lf-font-compact);
 }
 .lf-dial-hang-panel:not([data-open]) {
   display: none;
 }
 .lf-dial-hang {
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
   display: block;
-  /* The tallest sheet, its padding and border, and the caption under it. */
-  block-size: calc(var(--tall) + 12px + 2.4em);
-  font: var(--lf-font-fine);
-  font-variant-numeric: tabular-nums;
-}
-.lf-dial-hang[data-timed] {
-  block-size: calc(var(--tall) + 12px + 1.3em + 2.4em);
+  /* The tallest sheet with its padding and border, and the frame around it. */
+  block-size: calc(var(--tall) + 13px);
 }
 .lf-dial-hang-column {
   position: absolute;
   inset-block-start: 0;
   box-sizing: border-box;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
   padding-inline: 3px;
 }
+/* The sheets drop from their buttons together as they open. */
 .lf-dial-hang-page {
   --lf-ground: var(--lf-card);
   box-sizing: border-box;
@@ -333,12 +139,11 @@ details[data-lf-dial-ghost="comes"] > summary,
   box-shadow: var(--lf-raise-1);
   transform-origin: top;
   transition:
-    transform 260ms var(--ease) calc(var(--i) * 35ms),
-    opacity 160ms ease calc(var(--i) * 35ms),
-    box-shadow 160ms ease,
-    border-color 160ms ease;
+    transform var(--lf-motion-mark) ease-out,
+    opacity var(--lf-motion-disclosure) ease-out,
+    box-shadow var(--lf-motion-disclosure) ease;
   @starting-style {
-    transform: translateY(-6px) scaleY(0.2);
+    transform: translateY(-4px) scaleY(0.6);
     opacity: 0;
   }
 }
@@ -351,7 +156,7 @@ details[data-lf-dial-ghost="comes"] > summary,
   flex: none;
   overflow: clip;
   opacity: 0.45;
-  transition: opacity 140ms ease;
+  transition: opacity var(--lf-motion-disclosure) ease;
 }
 .lf-dial-hang-column[data-pointed] .lf-dial-hang-bars {
   opacity: 1;
@@ -378,14 +183,6 @@ details[data-lf-dial-ghost="comes"] > summary,
 .lf-dial-hang-picture {
   background: color-mix(in srgb, var(--lf-series-1) 55%, var(--lf-ground));
 }
-.lf-dial-hang-time {
-  margin-block-start: 3px;
-  text-align: center;
-  color: var(--lf-muted);
-}
-.lf-dial-hang-column[data-pointed] .lf-dial-hang-time {
-  color: var(--lf-ink);
-}
 .lf-dial-hang-frame {
   position: absolute;
   inset-block-start: -3px;
@@ -396,49 +193,18 @@ details[data-lf-dial-ghost="comes"] > summary,
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-accent) 14%, transparent);
   pointer-events: none;
   transition:
-    inset-inline-start 320ms var(--ease),
-    inline-size 320ms var(--ease),
-    block-size 320ms var(--ease);
-  animation: lf-dial-hang-after 160ms ease 240ms backwards;
-}
-.lf-dial-hang[data-timed] .lf-dial-hang-frame {
-  block-size: calc(var(--sheet) + 1.3em + 6px);
-}
-/* The pointed depth and what it shows, on a chip centred under the sheets. */
-.lf-dial-hang-title {
-  position: absolute;
-  inset-block-end: 0;
-  inset-inline: -40px;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-  animation: lf-dial-hang-after 160ms ease 240ms backwards;
-}
-.lf-dial-hang-title > span {
-  padding: 2px 9px 3px;
-  border: 1px solid var(--lf-border);
-  border-radius: 999px;
-  background: var(--lf-card);
-  box-shadow: var(--lf-raise-1);
-  color: var(--lf-ink-2);
-  white-space: nowrap;
-}
-.lf-dial-hang-title strong {
-  color: var(--lf-ink);
-  font-weight: 600;
-}
-/* The frame and the caption come once the sheets they stand by have dropped. */
-@keyframes lf-dial-hang-after {
-  from {
+    inset-inline-start var(--lf-motion-fold) ease-out,
+    inline-size var(--lf-motion-fold) ease-out,
+    block-size var(--lf-motion-fold) ease-out,
+    opacity var(--lf-motion-disclosure) ease-out;
+  @starting-style {
     opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .lf-dial-hang-page,
   .lf-dial-hang-bars,
-  .lf-dial-hang-frame,
-  .lf-dial-hang-title {
+  .lf-dial-hang-frame {
     transition: none;
-    animation: none;
   }
 }

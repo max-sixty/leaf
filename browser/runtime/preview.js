@@ -24,14 +24,15 @@
      for each new presentation of the document while the preview stands, so the words
      follow the page, a thread's turn or a link's place, redrawn in place with no fade
      and left as they are where they come back the same: `{name, keys, detail, list,
-     at, about, excerpt}`, every field optional (module-input.md, "Previews"). On a control its
+     at, about, excerpt, unseen}`, every field optional (module-input.md, "Previews"). On a control its
      lines stand under the control's own name and keys, and its name replaces the
      accessible name where that says more than the face should; `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
      inside it, as a chart's point, which the preview stands above; `about` is what it
      is about, which it leaves in view as it does the box it stands by, as a margin
      entry's passage or a time's message; `excerpt` asks
-     for the face's room for a block of the page; and `list` is items under the lines,
+     for the face's room for a block of the page; `unseen` keeps the face from sight
+     for an element that draws what it shows itself; and `list` is items under the lines,
      `{items, more}`, as the threads standing at one place, of which the face shows as
      many as the room it is held to holds, and under them the words `more(count)` gives
      for the rest, as "and 26 more threads" (`fit`), where another preview's last line
@@ -85,6 +86,10 @@
    words Leaf itself says keep their italic (voice.js), as they do on every seat. A
    preview that quotes a block of the page, as a link's place does, takes the face's
    excerpt room (`data-lf-face="excerpt"`): the same type, colours and spacing, wider.
+   An element that draws its preview itself, as the dial hangs each depth's page under
+   its button, declares it `unseen` (`data-lf-face="unseen"`): the face stands and ends
+   as any other, Escape's first step and a screen reader's words on focus, and nobody
+   sees it.
 
    One preview stands at a time, in one element: a hint popover (`popover="hint"`), in
    the top layer, so it stands over an open popover around its target, and a hint
@@ -335,11 +340,11 @@ import { linkPreview } from "./place-preview.js";
  * @typedef {readonly (readonly string[])[]} Presses
  * @typedef {Words | null | undefined | false} Line
  * @typedef {{items: readonly Words[], more: (count: number) => Words}} List
- * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean}} Preview
+ * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean}} Preview
  * @typedef {Preview | null | undefined | false} Declared
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {(route: Route) => Declared} Read
- * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, about: Element | null, excerpt: boolean, restates: boolean, declared: Preview | null}} Reading
+ * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, about: Element | null, excerpt: boolean, unseen: boolean, restates: boolean, declared: Preview | null}} Reading
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
  * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, away?: boolean, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
@@ -834,6 +839,7 @@ function lines(declared, own) {
     at: declared?.at ?? null,
     about: declared?.about ?? null,
     excerpt: Boolean(declared?.excerpt),
+    unseen: Boolean(declared?.unseen),
     list,
     restates: false,
     declared,
@@ -1098,7 +1104,11 @@ function show(from, route, read = null, at, again = false, aim = false) {
   record.stop = watchOwner(holder, { disconnect: () => shown === record && hide() });
   shown = record;
   keeps(tip, "data-lf-route", route);
-  keeps(tip, "data-lf-face", reading.excerpt ? "excerpt" : null);
+  keeps(
+    tip,
+    "data-lf-face",
+    reading.unseen ? "unseen" : reading.excerpt ? "excerpt" : null,
+  );
   keeps(tip, "data-lf-list", reading.list ? "" : null);
   if (route === "hold" && !(target instanceof Range)) keeps(holder, "data-lf-held", "");
   if (standing) record.described = standing.described;

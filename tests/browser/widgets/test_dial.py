@@ -2,9 +2,11 @@
 and keeps the reader's place, ⋯ unfolds one section, Everything opens every
 closed detail, and Read takes back exactly what the dial changed."""
 
+import re
+
 import pytest
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page, preview_parts, resized
+from render_harness import PREVIEW, leaf_page, open_page, preview_parts, resized
 
 from leaf_dev.example_data import named_source
 
@@ -87,8 +89,8 @@ def test_depths_fold_keep_the_place_and_restore(browser, serve):
     expect(page.locator("main [hidden]")).to_have_count(0)
 
     # The depths are one radio group: an arrow from Read chooses the depth beside it.
-    read = page.get_by_role("radio", name="Read", exact=True)
-    skim = page.get_by_role("radio", name="Skim", exact=True)
+    read = page.get_by_role("radio", name=re.compile(r"^Read \d+ min$"))
+    skim = page.get_by_role("radio", name=re.compile(r"^Skim \d+ min$"))
     read.focus()
     page.keyboard.press("ArrowLeft")
     expect(skim).to_be_focused()
@@ -123,6 +125,48 @@ def test_a_turn_that_glides_keeps_the_place_in_every_engine(request, serve, engi
     depth(page, "Read")
     expect(page.locator("#incident-cause-1")).to_be_visible()
     assert top(page, "#incident-cause-gist") == pytest.approx(gist, abs=1)
+
+
+def centre_x(locator):
+    box = locator.bounding_box()
+    return box["x"] + box["width"] / 2
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
+    request, serve, engine
+):
+    """Each depth says under its word how long it takes to read. Pointing at one hangs
+    each depth's page under its own button, Skim's shortest and Everything's longest,
+    with Leaf's own preview face unseen. A press on another depth keeps them up and
+    moves the frame to it; Escape puts them away and leaves focus on the depth."""
+    page = open_page(request.getfixturevalue(engine), serve(DIAL_PAGE))
+    buttons = page.locator("lf-dial .lf-dial-depth")
+    expect(buttons.locator(".lf-dial-time")).to_have_text([re.compile(r"\d+ min")] * 3)
+    panel = page.locator(".lf-dial-hang-panel")
+    sheets = panel.locator(".lf-dial-hang-page")
+    frame = panel.locator(".lf-dial-hang-frame")
+    read = buttons.filter(has_text="Read")
+    read.hover()
+    expect(panel).to_have_attribute("data-open", "")
+    expect(page.locator(PREVIEW)).to_have_attribute("data-lf-face", "unseen")
+    expect(page.locator(PREVIEW)).to_be_hidden()
+    for i in range(3):
+        assert centre_x(sheets.nth(i)) == pytest.approx(centre_x(buttons.nth(i)), abs=1)
+    heights = [sheets.nth(i).bounding_box()["height"] for i in range(3)]
+    assert heights[0] < heights[1] <= heights[2]
+    assert centre_x(frame) == pytest.approx(centre_x(read), abs=1)
+
+    everything = buttons.filter(has_text="Everything")
+    everything.click()
+    expect(page.locator("details[open]")).to_have_count(len(SECTIONS))
+    expect(panel).to_have_attribute("data-open", "")
+    page.wait_for_function("() => document.getAnimations().length === 0")
+    assert centre_x(frame) == pytest.approx(centre_x(everything), abs=1)
+
+    page.keyboard.press("Escape")
+    expect(panel).not_to_have_attribute("data-open", "")
+    expect(page.get_by_role("radio", name=re.compile("^Everything"))).to_be_focused()
 
 
 def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):

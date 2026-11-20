@@ -328,7 +328,7 @@ once each time the preview shows, with the route that asked: `"pointer"`, `"focu
 stands, so what it says follows the page without tracking its own inputs; words that
 come back the same leave the preview as it is. It returns:
 
-- `{name, keys, detail, list, at, about, excerpt}`, every field optional. `name`
+- `{name, keys, detail, list, at, about, excerpt, unseen}`, every field optional. `name`
   replaces the control's accessible name in the preview, or names an element that has
   none. `keys`
   lists presses the register can't see, each as the steps its chips draw, as a control's
@@ -352,7 +352,11 @@ come back the same leave the preview as it is. It returns:
   words or a template, as the threads standing at one place: Leaf shows as many as the
   room holds, through every resize, and under them `more(count)`'s words for the rest,
   such as "and 26 more threads", so the items need no measuring of their own; the rest
-  are hidden from sight and from a screen reader alike.
+  are hidden from sight and from a screen reader alike. `unseen: true` is for an
+  element that draws what pointing at it shows itself, as the Skim control hangs each
+  depth's page under its button: Leaf keeps the preview from sight but shows and ends
+  it on every route as any other, so `PREVIEW_ENDED` says when to take the drawing
+  away, Escape puts it away, and a screen reader hears its words on focus.
 - `null` where the element adds nothing now, including where the words it would say
   already show on it or beside it: a control keeps its own preview, and the search goes
   on to what holds the element.

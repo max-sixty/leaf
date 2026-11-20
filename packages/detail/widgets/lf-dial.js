@@ -500,8 +500,8 @@ customElements.define(
         // press turns the dial and the pages show the depth moving to it, as an arrow
         // key in its depths does. Leaf's preview puts its reading away at the press or
         // the key, which it hears first, and reads again where the pointer goes next.
-        // Kept pages go at Escape (the dial's command), as the pointer leaves the dial,
-        // as focus leaves it, or at a press elsewhere.
+        // Kept pages go at Escape (the dial's command) or any other key, as the pointer
+        // leaves the dial, as focus leaves it, or at a press elsewhere.
         this.addEventListener(
           "pointerdown",
           (event) => {
@@ -532,11 +532,16 @@ customElements.define(
           },
           { capture: true, signal },
         );
+        // Any other key puts kept pages away while it does its own work, as it does
+        // Leaf's preview, but a modifier alone, which is half a press, and Escape, the
+        // dial's own step.
         this.ownerDocument.addEventListener(
           "keydown",
           (event) => {
             if (event.key.startsWith("Arrow") && event.composedPath().includes(this))
               this.#keep(true);
+            else if (event.key !== "Escape" && !event.getModifierState(event.key))
+              this.#keep(false);
           },
           { capture: true, signal },
         );
@@ -600,7 +605,8 @@ customElements.define(
     // PROTOTYPE: keep the hanging pages up past Leaf's preview, or put them away.
     /** @param {boolean} kept */
     #keep(kept) {
-      if (!this.#hang?.hasAttribute("data-open")) return;
+      if (!this.#hang?.hasAttribute("data-open") || kept === this.#staying.value)
+        return;
       this.#staying.value = kept;
       if (!kept) this.#unpoint();
     }
@@ -671,7 +677,13 @@ customElements.define(
             columns,
             timed,
             (depth) => this.#pointed && this.#preview(depth),
-            (depth) => this.turn(depth),
+            (depth) => {
+              // A sheet takes its button's press, focus included, so Escape reaches
+              // the dial's step from there.
+              const radio = this.#radios.get(depth);
+              if (radio) focusDestination(radio, "press");
+              this.turn(depth);
+            },
           ),
           this.#hang,
         );

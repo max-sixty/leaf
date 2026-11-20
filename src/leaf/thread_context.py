@@ -13,7 +13,6 @@ from leaf.events import (
     event_coordinate,
     retractions,
     spoken_turns,
-    summary_range,
     taken_back,
 )
 from leaf.passages import enclosing_ids, holds_html, message_markup
@@ -484,18 +483,16 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
 
     It keeps the newest exchange verbatim, and is offered for the earliest run of
     uncovered messages before it that is long enough to suggest. A run passes over
-    progress, which the thread never draws as a message (`events.summary_range`).
+    progress, which the thread never draws as a message (`_gapless`).
     The hint spans that run and every summary in force among the older
     messages, so a summary that follows it replaces them and the thread keeps one
     summary of its earlier discussion, rather than gaining one more beside the last
     each time a run grows long enough. A fold of progress alone counts too. Its ends
     are messages the thread still says, which a summary's own `from` may no longer
-    be once the user took that message back. The hint is the range admission takes
-    (`events.summary_range`), read as admission reads it, against the summaries that
-    stand once it replaces those it overlaps whole: widened over any message it
-    would leave in full above a summary. So following it is never refused, and a
-    short stretch a retired summary left above a later one doesn't stop every later
-    hint."""
+    be once the user took that message back. It is widened over any message it would
+    leave in full above a summary (`_gapless`), so a short stretch a retired summary
+    left above a later one doesn't stop every later hint. The agent chooses the range,
+    and may keep such a message in full where the user still needs its words."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
     prefix = {message["id"] for message in conversation_turns(thread)[:-2]}
     ids = [message["id"] for message in thread["msgs"]]
@@ -539,8 +536,35 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
         for summary in summaries
         if not set(summary["covers"]).intersection(folded["covers"])
     ]
-    start, end = summary_range(thread, [*standing, folded], start, end)
+    start, end = _gapless(thread, [*standing, folded], start, end)
     return {"from": start, "through": end}
+
+
+def _gapless(thread: dict, summaries: list, start: str, end: str) -> tuple[str, str]:
+    """The range from `start` through `end`, where `summaries` are those in force once
+    it stands, widened over every message they leave in full above the last drawn
+    summary, apart from the opening message, which says what the thread is about.
+
+    A message counts where the panel draws it whole: a turn of the conversation no
+    summary covers (`conversation_turns`). Progress doesn't, since the panel draws at
+    most a thread's newest step, as its working message rather than a message a
+    summary folds (`events.progress_completions`), and a reaction is a mark on another
+    message. Only `covers` is read of each summary."""
+    covered = {identity for summary in summaries for identity in summary["covers"]}
+    spoken = spoken_turns(thread)
+    drawn = conversation_turns(thread)
+    last = max(
+        (at for at, message in enumerate(drawn) if message["id"] in covered),
+        default=0,
+    )
+    left = [
+        message["id"]
+        for message in drawn[:last]
+        if message["id"] != thread["id"] and message["id"] not in covered
+    ]
+    position = {message["id"]: at for at, message in enumerate(spoken)}
+    reach = [position[identity] for identity in (start, end, *left)]
+    return spoken[min(reach)]["id"], spoken[max(reach)]["id"]
 
 
 def batch_threads(

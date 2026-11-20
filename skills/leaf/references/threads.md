@@ -276,8 +276,7 @@ answering a delivered update, which an edit does not answer. Where you already
 posted such a correction as a new reply, fold it and the reply it corrects under one
 summary that gives the answer as it now stands, as short as any summary ("Summarize a
 long discussion"): `leaf thread summarize <page> --from <earlier-reply> --through
-<correction> --text "<the current answer>"`, widening the range where Leaf names a
-wider one.
+<correction> --text "<the current answer>"`.
 
 An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
 answer; the user usually resolves it. Resolve it yourself only when the user asks,
@@ -315,12 +314,8 @@ message whose words still frame the thread. A folded message that still asks
 something of the user stays on their On Me list, and going to it there opens the
 fold; where they need its words or its widget to answer, keep it in full or say in
 the summary what it asks. A range may take in summaries already in the thread, and
-the new summary replaces them. Take them in, as the hint does, so the user reads one
+the new summary replaces every one it overlaps, whole. Take them in, as the hint does, so the user reads one
 account of the earlier discussion rather than a row of summaries.
-
-No message but the thread's first may stay unsummarized above any summary. Leaf
-refuses a range that would leave one there, a fold without prose included, and names
-a wider range it accepts; write that summary to cover the added messages too.
 
 A summary is what the user reads in place of the messages it folds, and they open
 those only for detail, so a summary helps only when it is much shorter than they are:

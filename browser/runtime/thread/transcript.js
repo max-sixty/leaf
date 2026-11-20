@@ -573,25 +573,24 @@ export class Transcript {
       aria-owns=${covered.map(({ id }) => id).join(" ")}
       style=${`--lf-fold-head: ${anchor}; --lf-fold-foot: ${anchor}-foot;`}
     >
-      <div class="lf-summary-checkpoint">
+      <div
+        class="lf-summary-checkpoint"
+        ${ref((node) => {
+          // The agent folded these messages for the user to read the fold instead, so
+          // the fold seen whole reads them, whatever it says of them (read.js).
+          if (node)
+            this.#commands.read.observeSummary(
+              node,
+              range.messages.map(({ id, version }) => ({ message: id, version })),
+            );
+        })}
+      >
         <div class="lf-summary-header">${this.#summaryToggle(range)}</div>
         ${
           range.summary.text || range.summary.label
             ? html`<div
                 class="lf-summary-text"
                 .innerHTML=${summaryWords(range.summary)}
-                ${ref((node) => {
-                  // A label alone says nothing of what the messages say, and stays
-                  // through an edit to one of them, so only prose reads them.
-                  if (node && range.summary.text)
-                    this.#commands.read.observeSummary(
-                      node,
-                      range.messages.map(({ id, version }) => ({
-                        message: id,
-                        version,
-                      })),
-                    );
-                })}
               ></div>`
             : nothing
         }

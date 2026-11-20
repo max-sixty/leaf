@@ -2579,15 +2579,17 @@ def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve)
     """Next unread reaching a reply a closed fold holds opens the fold in the view and
     lands on the reply inside it. The press stands on the view's head line, which the
     view's growth would carry, so the view holds its height, and the press and the head
-    stay where they were while what opened goes on inside the view. The fold has no
-    prose, since words a summary shows would read the replies it folds."""
+    stay where they were while what opened goes on inside the view. The fold is taller
+    than the view, since a fold seen whole reads the replies it folds."""
     from browser.threads import summarize_thread
 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which jobs come first?")
     first = agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
     then = agent_said(serve.page_dir, root, "Then the beds, once the frost lifts.")
-    summarize_thread(serve.page_dir, first, then, "")
+    summarize_thread(
+        serve.page_dir, first, then, "\n\n".join(["The mounts, then the beds."] * 40)
+    )
     agent_said(serve.page_dir, root, "That is the order.")
     page = floating(browser, url)
     page.locator("body").focus()

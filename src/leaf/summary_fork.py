@@ -31,8 +31,7 @@ Leaf's suggestion, and the fork follows the agent's guidance for what to fold
 (`RANGE`), weighing which messages compress and which the current exchange still turns
 on, the opening message among them, and may fold nothing. The user chose this, as root
 `AGENTS.md`'s "Leaf's role" has it. Leaf takes a range of the thread's spoken messages
-that ends before the user's newest messages, which the main session answers, and
-admission holds it to the rule every summary keeps (`events.summary_range`). A range
+that ends before the user's newest messages, which the main session answers. A range
 Leaf can't take goes to the agent as a failed fork does; a fork that folds nothing
 leaves the thread as it is, and the agent hears nothing of it. Taking the hint as the
 range, the fork writing only the prose, is the alternative a later change might reach

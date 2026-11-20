@@ -4,9 +4,9 @@
    published as each Thread's `unread`; replying, answering and resolving already count
    there. This owner adds the one kind of evidence only the page has, exposure: a
    visible body is marked read once its complete vertical extent has been shown
-   without gaps in one rendered surface and one content version. A summary's prose
-   stands in the thread for the messages it folds, so its body shown whole reads each
-   of them in the version it folds (transcript.js). What the body holds
+   without gaps in one rendered surface and one content version. A summary stands
+   in the thread for the messages it folds, so the fold shown whole, its head and any
+   words, reads each of them in the version it folds (transcript.js). What the body holds
    inside that extent — a wide code block, a scroller of its own, or an interactive
    widget's hidden states — is not evidence the page can observe; unread tracks
    encounter with the message's visible surface, not exhaustive inspection.

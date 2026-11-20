@@ -375,15 +375,11 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   (`registry.kernel.title_limit`). An unnamed thread has a null title.
 - `summary` covers an inclusive `from`–`through` range of one or more spoken turns in
   one thread; a reaction may lie inside it but not at an endpoint. It replaces the
-  summaries it overlaps whole, and every spoken turn older than the last drawn
-  summary then in force must lie in a summary, apart from the thread's opening
-  message and progress, which no summary counts (`events.summary_range`). This holds
-  for a fold without prose too. The refusal names the range admission would take:
-  the requested one widened over every message it would leave. A delivery's
-  `summary_hint` spans the run of messages it suggests and every summary in force
-  among the messages older than the newest exchange, widened as admission would
-  widen it, so a summary that follows it replaces those summaries with one and is
-  never refused. A delivery leaves it out for a thread whose newest delivered
+  summaries it overlaps whole. A delivery's `summary_hint` spans the run of messages
+  it suggests and every summary in force among the messages older than the newest
+  exchange, widened over any message other than the opening one that it would leave
+  in full above a summary, so a summary that follows it replaces those summaries
+  with one (`thread_context.summary_hint`). A delivery leaves it out for a thread whose newest delivered
   message Leaf kept back for a line fork, since a fork beside that line fork
   summarizes the thread (`summary_fork`). `text` may be empty, and an optional `label` names the range.
   `events.active_summaries` says which summaries stand. A summary answers, resolves,

@@ -1869,7 +1869,7 @@
     padding: 3px 0;
     font: var(--lf-font-compact);
   }
-  .lf-fp-plan-step > .lf-fp-plan-line,
+  .lf-fp-plan-step > .lf-fp-running,
   .lf-fp-plan-step > .lf-fp-plan-steps {
     grid-column: 2 / -1;
   }
@@ -1909,15 +1909,25 @@
     font-weight: 600;
   }
   .lf-fp-plan-time,
-  .lf-fp-plan-line {
+  .lf-fp-running {
     font: var(--lf-font-small);
     color: var(--lf-muted);
     font-variant-numeric: tabular-nums;
   }
-  .lf-fp-plan-line {
+  /* The line the agent's running step wrote, under what it is about: a plan's step, or
+     an item On <agent> lists. It keeps to one line, cut short at its end, and an item's
+     card opened shows it whole. */
+  .lf-fp-running {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .lf-fp-on-line > .lf-fp-running {
+    grid-column: main;
+  }
+  .lf-fp-on-item[data-lf-open] .lf-fp-running {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   /* The plan's head at On <agent>'s foot, a word (controls.css) with its progress as
      a short bar after its words, which discloses the plan over the list. A step on the

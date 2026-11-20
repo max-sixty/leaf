@@ -28,10 +28,10 @@ A page script is ordinary JavaScript over the page's DOM: it queries elements, l
 draws with the DOM, lit-html or a canvas, animates with CSS or the Web Animations API,
 and builds plain elements that page CSS styles. Leaf asks four things of it:
 
-- Send whatever the agent must hear through a widget: a playground's contributor or
-  actions (the playground package's author instructions), `lf-options`, `lf-draft`, or
-  a page widget whose controller records it (`module-state.md`, "The widget
-  controller"). State the script keeps itself, in memory or `localStorage`, never
+- Send whatever the agent must hear through a widget, such as a playground's
+  contributor or actions (the playground package's author instructions),
+  `lf-options`, `lf-draft`, or a page widget whose controller records it
+  (`module-state.md`, "The widget controller"). State the script keeps itself, in memory or `localStorage`, never
   reaches the log.
 - Leaf takes printed letter keys before the page's listeners, for its own walks and
   commands, and, while its Go-to or reaction keys are armed, every key they answer. It

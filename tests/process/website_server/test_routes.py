@@ -595,10 +595,10 @@ def test_an_answer_to_a_held_reading_addresses_a_new_revision_at_the_page_root(
 def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     page_dir, tmp_path
 ):
-    """What a user posting into a draining rollout gets back.
+    """What a user posting under another layer than their container's gets back.
 
-    A container carries the layer of the image it runs, so a session allocated on a
-    previous image answers a newer generation with its own rather than with state.
+    A container carries the layer of the image it runs, so it answers another
+    generation with its own rather than with state.
     The website deploy gate reads that answer, so it has to be the shape it names.
     """
     site = tmp_path / "site"

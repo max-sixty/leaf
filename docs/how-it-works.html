@@ -157,6 +157,13 @@
       #forks-map-diagram .pele-node.tools :is(rect, polygon, path) {
         stroke-width: 2.5px;
       }
+
+      /* In the fork sequences, a grey ground groups Leaf's Python apart from what
+         runs in Claude Code, with no outline that could read as a lifeline. */
+      :is(#take-sequence, #turn-end-sequence) .pele-box rect {
+        fill: var(--lf-rule);
+        stroke: none;
+      }
     </style>
   </head>
   <body class="site-page">
@@ -1268,6 +1275,43 @@ flowchart TD
                   no page shows
                 </li>
               </ul>
+              <figure id="turn-end-figure" class="diagram-figure">
+                <lf-diagram id="turn-end-sequence" data-height="522" parts="all">
+                  <pre>
+sequenceDiagram
+  accTitle: The turn-end check, from the turn's end to the main thread
+  accDescr: leaf hook is Leaf's Python; the hooks module, the turn-end fork and the main thread run in Claude Code. The main thread ends a turn with a reply, and the hooks module tells leaf hook. leaf hook answers with a fork to make and the check's prompt, and the module makes the turn-end fork with $.model.fork, which answers with asks and findings in JSON. The module hands that answer to leaf hook, which posts each ask On Me as the agent's message and swaps in any fix of a few stale words. It queues a line for the main thread for each record it wrote and each change it made, which waits for the main thread's next step, and a line for each finding the agent owes, which wakes an idle session.
+  participant U as User
+  box Leaf's Python
+    participant H as leaf hook
+  end
+  box In Claude Code
+    participant K as Hooks module
+    participant C as Turn-end fork
+    participant M as Main thread
+  end
+  M-&gt;&gt;K: ends a turn with a reply
+  K-&gt;&gt;H: the turn's end
+  H-&gt;&gt;K: a fork, with its prompt
+  K-&gt;&gt;C: $.model.fork
+  C-&gt;&gt;K: asks, findings
+  K-&gt;&gt;H: the answer
+  H-&gt;&gt;U: each ask, On Me
+  H-&gt;&gt;U: stale words swapped
+  H--&gt;&gt;M: what Leaf did
+  H--&gt;&gt;M: what it owes, waking it
+</pre>
+                </lf-diagram>
+                <figcaption id="turn-end-caption">
+                  <strong>The turn-end check, in order.</strong>
+                  <code>leaf hook</code>, Leaf's Python, writes the check's prompt and
+                  acts on the fork's answer; the hooks module makes the fork and hands
+                  back its answer, as it does for a thread's <a href="#forks">forks</a>.
+                  Dashed arrows are lines Leaf queues for the main thread, read at its
+                  next prompt or tool call; a line telling it of work it owes also wakes
+                  an idle session.
+                </figcaption>
+              </figure>
               <details id="turn-end-fork-prompt">
                 <summary>The turn-end check's prompt</summary>
                 <p id="turn-end-fork-prompt-values">
@@ -3531,6 +3575,21 @@ flowchart TD
               section, below or on the Workflow tab, gives the prompt Leaf sends it.
             </figcaption>
           </figure>
+          <p id="forks-carrier">
+            Leaf's Python decides every fork: when to make one, what to ask it, and what
+            to do with its answer. Leaf's hooks module, TypeScript that Claude Code
+            loads from Leaf's plugin, makes each fork with Claude Code's calls, such as
+            <code>$.model.fork</code> and <code>$.agent.spawn</code>, and hands back
+            what came of it. It adds only what it alone sees, such as the tool calls the
+            main thread is running and the end of a fork's run. Claude Code keeps the
+            module it loaded until <code>/reload-plugins</code>, while each hook runs
+            the newest Leaf, so a session's module is often older than its Python. That
+            is why the module only carries out Python's instructions: a change to what
+            Leaf forks for, what it asks a fork or what it does with the answer changes
+            only the Python, and an older module carries it out as it does any
+            instruction. The module changes only for a Claude Code call or event Leaf
+            starts to use.
+          </p>
 
           <section id="path">
             <h2>Where a thread message goes</h2>
@@ -3668,33 +3727,55 @@ flowchart TD
                 <a href="#anatomy-take">Anatomy of a fork journey</a>.
               </p>
               <figure id="take-figure" class="diagram-figure">
-                <lf-diagram id="take-sequence" data-height="520" parts="all">
+                <lf-diagram id="take-sequence" data-height="1018" parts="all">
                   <pre>
 sequenceDiagram
   accTitle: A working fork takes a message and answers it
-  accDescr: The user writes. A line fork writes the working line and judges take. Leaf posts the line, gives the thread to a working fork's turn and spawns the fork, and tells the main thread a fork has the thread. A further message reaches the fork at its next tool boundary. The fork replies in the thread. When its run ends, Leaf tells the main thread what it did.
+  accDescr: Leaf's Python is the page server and the leaf hook processes; the hooks module, the forks and the main thread run in Claude Code. The user writes, and the page server keeps the message back for leaf hook, which asks the hooks module to report the thread, and the module reports it with the tool calls the main thread is running. leaf hook answers with a fork to make and its prompt, and the module makes the line fork with $.model.fork, which answers with the working line and take. The module hands that answer to leaf hook, which posts the line, gives the thread to a turn for a working fork, and asks the module to spawn the fork with its task. The module spawns it with $.agent.spawn and hands back its agent id, and leaf hook queues a line telling the main thread a fork has the thread. A further message, which the page server holds for the fork, reaches it from leaf hook at its next tool boundary. The fork answers with leaf thread reply. When its run ends, the module tells leaf hook, which queues a line telling the main thread what the fork did.
   participant U as User
-  participant L as Leaf
-  participant W as Working fork
-  participant M as Main thread
-  U-&gt;&gt;L: message
-  Note over L: line fork: the line, take
-  L-&gt;&gt;U: working line
-  L-&gt;&gt;W: turn, spawn
-  L--&gt;&gt;M: a fork has it
-  U-&gt;&gt;L: another message
-  L-&gt;&gt;W: at a tool boundary
-  W-&gt;&gt;L: leaf thread reply
-  L-&gt;&gt;U: the answer
-  W-&gt;&gt;L: run ends
-  L--&gt;&gt;M: what it did
+  box Leaf's Python
+    participant S as Page server
+    participant H as leaf hook
+  end
+  box In Claude Code
+    participant K as Hooks module
+    participant L as Line fork
+    participant W as Working fork
+    participant M as Main thread
+  end
+  U-&gt;&gt;S: message
+  S-&gt;&gt;H: kept back
+  H-&gt;&gt;K: report it
+  K-&gt;&gt;H: report, with running calls
+  H-&gt;&gt;K: a fork, with its prompt
+  K-&gt;&gt;L: $.model.fork
+  L-&gt;&gt;K: the line, take
+  K-&gt;&gt;H: the answer
+  H-&gt;&gt;U: working line
+  Note over H: opens a fork's turn
+  H-&gt;&gt;K: a spawn, with its task
+  K-&gt;&gt;W: $.agent.spawn
+  K-&gt;&gt;H: the agent id
+  H--&gt;&gt;M: a fork has it
+  U-&gt;&gt;S: another message
+  S-&gt;&gt;H: held for the fork
+  H-&gt;&gt;W: it, at a tool boundary
+  W-&gt;&gt;U: the answer, by leaf thread reply
+  W-&gt;&gt;K: run ends
+  K-&gt;&gt;H: the run's end
+  H--&gt;&gt;M: what it did
 </pre>
                 </lf-diagram>
                 <figcaption id="take-caption">
-                  <strong>A take, in order.</strong> Leaf here is its Python and its
-                  hooks module together. Dashed arrows are lines Leaf queues for the
-                  main thread, which wait for its next tool boundary or prompt (<a
-                    href="#telling"
+                  <strong>A take, in order.</strong> Leaf's Python decides each step.
+                  The page server keeps the message back, and <code>leaf hook</code>,
+                  which Claude Code and the hooks module run, writes each fork's prompt,
+                  posts the line, opens the working fork's turn and queues the lines for
+                  the main thread. The hooks module makes the calls
+                  <code>leaf hook</code> asks for and hands back what came of them,
+                  adding the tool calls the main thread is running. Dashed arrows are
+                  lines Leaf queues for the main thread, which wait for its next tool
+                  boundary or prompt (<a href="#telling"
                     >How a fork tells the main thread</a
                   >). <a href="#anatomy">Anatomy of a fork journey</a> follows one run,
                   message by message.
@@ -4051,7 +4132,7 @@ flowchart TD
                     label="Asks which card's text is longest"
                   ></lf-event>
                 </lf-lane>
-                <lf-lane label="Leaf">
+                <lf-lane label="Leaf's Python">
                   <lf-event
                     id="journey-keep"
                     at="2"
@@ -4080,7 +4161,7 @@ flowchart TD
                   <lf-event
                     id="journey-resume"
                     at="28320"
-                    label="Posts the line, resumes the fork"
+                    label="Posts the line, opens the fork's new turn"
                   ></lf-event>
                   <lf-event
                     id="journey-closed-again"
@@ -4088,25 +4169,57 @@ flowchart TD
                     label="Hears the run end, closes the turn"
                   ></lf-event>
                 </lf-lane>
+                <lf-lane label="Hooks module">
+                  <lf-event
+                    id="journey-module-fork"
+                    at="203"
+                    label="Makes the line fork"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-module-spawn"
+                    at="2331"
+                    label="Spawns the working fork"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-module-end"
+                    at="15616"
+                    label="Reports the run's end"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-module-fork-again"
+                    at="26653"
+                    label="Makes a line fork"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-module-send"
+                    at="28350"
+                    label="Resumes the fork"
+                  ></lf-event>
+                  <lf-event
+                    id="journey-module-end-again"
+                    at="45308"
+                    label="Reports the run's end"
+                  ></lf-event>
+                </lf-lane>
                 <lf-lane label="Line fork">
                   <lf-event
                     id="journey-judge"
-                    at="181"
-                    end="2300"
+                    at="203"
+                    end="2116"
                     label="Writes the line, judges take"
                   ></lf-event>
                   <lf-event
                     id="journey-judge-again"
-                    at="26635"
-                    end="28327"
+                    at="26653"
+                    end="28132"
                     label="Writes the line, judges take"
                   ></lf-event>
                 </lf-lane>
                 <lf-lane label="Working fork">
                   <lf-event
                     id="journey-run"
-                    at="2429"
-                    end="15752"
+                    at="2331"
+                    end="15608"
                     label="Counts the cards"
                   ></lf-event>
                   <lf-event
@@ -4116,8 +4229,8 @@ flowchart TD
                   ></lf-event>
                   <lf-event
                     id="journey-resumed"
-                    at="28465"
-                    end="45444"
+                    at="28362"
+                    end="45289"
                     label="Compares the cards' text"
                   ></lf-event>
                   <lf-event
@@ -4284,10 +4397,10 @@ Your directive: </code></pre>
             <section id="anatomy-resume">
               <h3>4. A later message resumes the fork</h3>
               <p id="anatomy-resume-ask">
-                The fork's run ended at 15.8 s, and Leaf closed its turn. At 26.5 s the
+                The fork's run ended at 15.6 s, and Leaf closed its turn. At 26.5 s the
                 user asks
                 <q class="said from-user">Which of those cards has the longest text?</q>
-                A new line fork judges <code>take</code> in 1.7 s. The fork that
+                A new line fork judges <code>take</code> in 1.5 s. The fork that
                 answered the thread last has ended, so Leaf resumes it in a new turn
                 rather than starting another: the hooks module sends it Leaf's message
                 with <code>$.session.send</code>, and Claude Code wraps it.
@@ -4408,6 +4521,13 @@ I didn't change any files or the page.</span>&lt;/result&gt;
                   ><code>src/leaf/clerk.py</code></a
                 >: Leaf's clerk, which queues those lines and decides which of them wake
                 an idle session.
+              </li>
+              <li id="source-carrier">
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/carrier.py"
+                  ><code>src/leaf/carrier.py</code></a
+                >: the instructions Leaf's Python gives the hooks module, what the
+                module reports back for each, and the step that takes each report.
               </li>
               <li id="source-module">
                 <a

@@ -79,6 +79,7 @@ import { raiseError } from "./errors.js";
  * registerReactSurface: ReturnType<typeof import("./reactions.js").createReactionController>["registerReactSurface"],
  * compositionSurface: ThreadPresentationOptions["surfaceView"]["composition"],
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
+ * showTodo: import("./thread/messages.js").MessageCommands["showTodo"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
@@ -296,6 +297,8 @@ function createApplication(dependencies) {
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
+    // Where a promise's word in a message's head leads: its to-do's row in On <agent>.
+    showTodo: dependencies.showTodo,
   };
   const surfaceView = {
     ...inlineView,

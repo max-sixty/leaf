@@ -12,8 +12,8 @@ interface DeploymentConfig {
   containers: Array<{
     name: string;
     class_name: string;
-    max_instances: number;
-    instance_type: { vcpu: number; memory_mib: number; disk_mb: number };
+    scheduling_policy: string;
+    images: Record<string, { dockerfile: string; build_context: string }>;
   }>;
   durable_objects: {
     bindings: Array<{ name: string; class_name: string }>;
@@ -22,6 +22,7 @@ interface DeploymentConfig {
     tag: string;
     new_sqlite_classes?: string[];
     renamed_classes?: Array<{ from: string; to: string }>;
+    deleted_classes?: string[];
   }>;
   analytics_engine_datasets: Array<{ binding: string; dataset: string }>;
   ratelimits: Array<{
@@ -47,13 +48,23 @@ const packageManifest = JSON.parse(
 ) as { dependencies: Record<string, string> };
 
 describe("deployment configuration", () => {
-  it("keeps addressing the existing Cloudflare container application", () => {
+  it("lets each session object start its container from the image its code names", () => {
     const [binding] = config.durable_objects.bindings;
-    const [createdClass] = config.migrations[0].new_sqlite_classes ?? [];
-    const deployedName = `${config.name}-${createdClass.toLowerCase()}`;
+    const live = config.migrations.reduce((classes, migration) => {
+      for (const created of migration.new_sqlite_classes ?? []) classes.add(created);
+      for (const renamed of migration.renamed_classes ?? []) {
+        classes.delete(renamed.from);
+        classes.add(renamed.to);
+      }
+      for (const deleted of migration.deleted_classes ?? []) classes.delete(deleted);
+      return classes;
+    }, new Set<string>());
 
-    expect(container.name).toBe(deployedName);
+    expect(live.has(container.class_name)).toBe(true);
     expect(binding.class_name).toBe(container.class_name);
+    expect(container.scheduling_policy).toBe("durable_object");
+    expect(Object.keys(container.images)).toEqual(["leaf"]);
+    expect(workerSource).toContain("image: container.images.leaf,");
   });
 
   it("keeps one bounded remote development environment away from leaf.page", () => {
@@ -63,13 +74,8 @@ describe("deployment configuration", () => {
     expect(dev.name).toBe("leaf-website-dev");
     expect(dev.workers_dev).toBe(true);
     expect(dev.routes).toEqual([]);
-    expect(devContainer.name).toBe("leaf-website-dev-leafexamplesession");
-    expect(devContainer.max_instances).toBe(20);
-    expect({
-      ...devContainer,
-      name: container.name,
-      max_instances: container.max_instances,
-    }).toEqual(container);
+    expect(devContainer.name).toBe("leaf-website-dev-session");
+    expect({ ...devContainer, name: container.name }).toEqual(container);
     expect(dev.assets).toEqual(config.assets);
     expect(dev.secrets).toEqual(config.secrets);
     expect(dev.durable_objects).toEqual(config.durable_objects);
@@ -79,15 +85,6 @@ describe("deployment configuration", () => {
     expect(dev.analytics_engine_datasets).toEqual([
       { binding: "WEBSITE_EVENTS", dataset: "leaf_website_events_dev" },
     ]);
-  });
-
-  it("fits production and development containers in the account's vCPU", () => {
-    const [devContainer] = config.env.dev.containers;
-    const oneCpu = { vcpu: 1, memory_mib: 3072, disk_mb: 4000 };
-
-    expect(container.instance_type).toEqual(oneCpu);
-    expect(devContainer.instance_type).toEqual(oneCpu);
-    expect(container.max_instances + devContainer.max_instances).toBe(1_490);
   });
 
   it("bounds users’ task starts and model calls", () => {
@@ -141,10 +138,5 @@ describe("deployment configuration", () => {
         exclude: ["OPENAI_API_KEY"],
       },
     });
-  });
-
-  it("registers the outbound handler through Cloudflare's inherited setter", () => {
-    expect(workerSource).toContain("LeafWebsiteSession.outboundByHost = {");
-    expect(workerSource).not.toContain("static outboundByHost = {");
   });
 });

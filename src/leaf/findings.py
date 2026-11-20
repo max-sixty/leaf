@@ -917,6 +917,13 @@ _TEXT = {
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}, a declaration or"
         f" rule a browser drops without a word: {v['message']}"
     ),
+    "unset-property": lambda at, v: (
+        f"{v['sheet']} reads {v['property']} with no fallback on line"
+        f"{'s' if len(v['rows']) > 1 else ''} {', '.join(map(str, v['rows']))}, and"
+        " no sheet or module in Leaf, the package or its layer sets it, so each"
+        " declaration reading it computes to nothing; read a theme token"
+        ' (package-themes.md, "Theme tokens"), set the property, or give a fallback'
+    ),
     "unserved-media": lambda at, v: (
         f"{v['ref']} isn't a name `leaf page media` gives, so the page never serves it"
     ),

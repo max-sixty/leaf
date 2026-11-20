@@ -5,19 +5,23 @@
    does:
 
    - A control previews its name and its keys without declaring either: its accessible
-     name where its face shows a symbol or a mark or doesn't say that name, and each
-     press that reaches it from where the user is (control-keys.js, `controlKeys`) as
-     key chips beside its name, which a coarse pointer leaves out with every other
-     advertised key. Its face is its own words, a select's chosen option rather than
-     every option, and the words of the labels beside it, and it says the name where
-     either holds the other's words, as a key chip or a count beside a name leaves it
-     said. A control
+     name where its face doesn't say it, as where the face shows a symbol or a mark its
+     markup names, and each press that reaches it from where the user is
+     (control-keys.js, `controlKeys`) as key chips beside its name, which a coarse
+     pointer leaves out with every other advertised key. Its face is its own words, a
+     select's chosen option rather than every option, and the words of the labels beside
+     it. It says a name the control's markup gives where either holds the other's words,
+     as a key chip or a count beside a name leaves it said, and a name its content gives
+     unless it cuts a word of it short. A face that cuts none leaves unsaid only the
+     control's quiet words (`.lf-quiet`, declared-words.js), which the screen doesn't
+     show, as a check's verdict beside a case's title. The preview reads those words
+     alone; where key chips stand in it, the control's whole name heads them. A control
      whose face says its name and that no key reaches previews nothing. A field the user
-     types in previews nothing: its words are what they read. A control is any native
-     or ARIA press, a range and a select among them (control-selectors.js, `PRESSES`),
-     or a custom control whose `data-lf-offer` names its press (widget-elements.js,
-     `PRESSABLE`). The rest of Leaf's chrome, such as a thread card a walk lands on or
-     a pointer rests in, previews no name of its own, since its words are what the user
+     types in previews nothing: its words are what they read. A control is any native or
+     ARIA press, a range and a select among them (control-selectors.js, `PRESSES`), or a
+     custom control whose `data-lf-offer` names its press (widget-elements.js,
+     `PRESSABLE`). The rest of Leaf's chrome, such as a thread card a walk lands on or a
+     pointer rests in, previews no name of its own, since its words are what the user
      reads.
    - An element declares what pointing at it adds as its `lfPreview(route)`, called once
      as its preview shows on that route (`"pointer"`, `"focus"` or `"hold"`), and again
@@ -311,6 +315,7 @@ import { plainPress } from "./pointer.js";
 import {
   isElement,
   isHTML,
+  overIn,
   renderedParent,
   renderedUnder,
   under,
@@ -628,15 +633,23 @@ const faceWalker = (root, skip) =>
           ? NodeFilter.FILTER_REJECT
           : NodeFilter.FILTER_SKIP,
   });
-/** @typedef {{words: string, joined: string, partial: boolean, chips: string[]}} Face */
+// Whether a listener hears the text `parent` holds as part of `root`'s name: the browser
+// draws it, and nothing inside `root` hides it with `aria-hidden`, as a menu row's key
+// chip is hidden.
+/** @param {Element | null} parent @param {Element} root */
+const heardIn = (parent, root) =>
+  Boolean(parent && drawsText(parent) && !overIn(parent, '[aria-hidden="true"]', root));
+/** @typedef {{words: string, joined: string, partial: boolean, cut: boolean, quiet: string, chips: string[]}} Face */
 // What `root` shows the user whole, less any part inside `skip`, or null where it holds
 // more than a face. A run of its text counts where the browser draws it (`drawsText`) and
 // every box that clips it leaves it whole (`clippedContents`), so words an ellipsis, a
 // clamp to a few lines, a visually hidden label or a panel scrolled past them cut short
 // don't count. `words` reads the runs apart, as a row's words and its key chip stand, and
 // `joined` together, as a word split by its markup reads; `partial` says some of its words
-// or numbers don't show, so the face can't stand for a name it only begins; `chips` are
-// the key chips it shows, in order.
+// or numbers don't show, so the face can't stand for a name it only begins, and `cut`
+// that some of those are words a listener hears (`heardIn`). `quiet` is the quiet words
+// a listener hears in `root` (`.lf-quiet`, declared-words.js), which the screen never
+// shows, so they aren't cut. `chips` are the key chips it shows, in order.
 /** @param {Element} root @param {Element | null} [skip] @returns {Face | null} */
 function faceOf(root, skip = null) {
   const walker = faceWalker(root, skip);
@@ -644,8 +657,10 @@ function faceOf(root, skip = null) {
   /** @type {import("./geometry.js").ClipCache} */
   const clips = new Map();
   const runs = [];
+  const quiet = [];
   const chips = [];
   let partial = false;
+  let cut = false;
   let room = FACE;
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = /** @type {Text} */ (node);
@@ -655,10 +670,15 @@ function faceOf(root, skip = null) {
     const parent =
       text.parentElement ??
       (text.parentNode instanceof ShadowRoot ? text.parentNode.host : null);
+    const heard = heardIn(parent, root);
+    if (parent && overIn(parent, ".lf-quiet", root)) {
+      if (heard) quiet.push(text.data);
+      continue;
+    }
     range.selectNodeContents(text);
     const at = range.getBoundingClientRect();
     const left =
-      parent && drawsText(parent) && hasArea(at)
+      parent && hasArea(at) && (heard || drawsText(parent))
         ? clippedContents(at, parent, clips)
         : null;
     if (
@@ -668,23 +688,28 @@ function faceOf(root, skip = null) {
       left.right < at.right - 0.5 ||
       left.bottom < at.bottom - 0.5
     ) {
-      partial ||= /[\p{L}\p{N}]/u.test(text.data);
+      const says = /[\p{L}\p{N}]/u.test(text.data);
+      partial ||= says;
+      cut ||= says && heard;
       continue;
     }
     runs.push(text.data);
-    const chip = parent?.closest("kbd.lf-key-badge");
-    if (chip && root.contains(chip)) chips.push(text.data.trim());
+    if (parent && overIn(parent, "kbd.lf-key-badge", root))
+      chips.push(text.data.trim());
   }
   return {
     words: wordsOf(runs.join(" ")),
     joined: wordsOf(runs.join("")),
     partial,
+    cut,
+    quiet: quiet.join(" ").replace(/\s+/g, " ").trim(),
     chips,
   };
 }
 // What a control and its labels show, or null where it holds more than a face. A select
 // shows the option chosen, not the rest. Its chips are its own and the keys the command
-// hints label it with, as Done's digit or a playground's commit's `1`.
+// hints label it with, as Done's digit or a playground's commit's `1`. The words it cuts
+// and its quiet words are its own, the words a name from its content holds.
 /** @param {Element} control @returns {Face | null} */
 function controlFace(control) {
   const chosen =
@@ -694,7 +719,14 @@ function controlFace(control) {
   const own =
     chosen === null
       ? faceOf(control)
-      : { words: chosen, joined: chosen, partial: false, chips: [] };
+      : {
+          words: chosen,
+          joined: chosen,
+          partial: false,
+          cut: false,
+          quiet: "",
+          chips: [],
+        };
   if (!own) return null;
   const faces = [
     ...labelsOf(control).flatMap((label) => faceOf(label, control) ?? []),
@@ -710,6 +742,8 @@ function controlFace(control) {
     words: all("words"),
     joined: all("joined"),
     partial: faces.some((face) => face.partial),
+    cut: own.cut,
+    quiet: own.quiet,
     chips: [...own.chips, ...drawnKeys(control)],
   };
 }
@@ -757,8 +791,7 @@ function contentName(control) {
   let last = null;
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const parent = node.parentElement;
-    const hidden = parent?.closest('[aria-hidden="true"]');
-    if (!parent || (hidden && control.contains(hidden)) || !drawsText(parent)) continue;
+    if (!parent || !heardIn(parent, control)) continue;
     if (last && apart(last, parent, control)) name += " ";
     name += /** @type {Text} */ (node).data;
     last = parent;
@@ -848,10 +881,10 @@ function lines(declared, own) {
 
 // What `node` previews of its own as it shows on `route`: false where it says nothing
 // and nothing around it may, null where it says nothing of its own. A control says its
-// accessible name where its face shows a symbol or doesn't say that name, and the keys
-// that press it; a declaration and a `title` add their lines under them. Its
-// `aria-description` is a screen reader's, which often names what its face shows, as a
-// diff row's names its path, so a preview leaves it out.
+// accessible name where its face doesn't say it, or its quiet words alone where they are
+// all its face leaves unsaid, and the keys that press it; a declaration and a `title`
+// add their lines under them. Its `aria-description` is a screen reader's, which often
+// names what its face shows, as a diff row's names its path, so a preview leaves it out.
 /** @param {Element} node @param {Route} route @returns {Reading | null | false} */
 function readingOf(node, route) {
   if (node.getAttribute("aria-expanded") === "true" || node.matches(PROXY)) return null;
@@ -864,9 +897,15 @@ function readingOf(node, route) {
   // A control holding more than a face, as a card a link wraps, is content that says
   // what it holds, so only a name its markup gives can preview over it.
   const face = controlFace(node);
-  const name = markupName(node) || (face ? contentName(node) : "");
+  const markup = markupName(node);
   const keys = controlKeys(node);
-  const unsaid = Boolean(name) && !(face && faceSays(face, name));
+  // The module header's rule: a face that cuts none of a content name leaves unsaid only
+  // its quiet words, which are the reading's name.
+  const quiet = !markup && face && !face.cut ? face.quiet : "";
+  const name = markup || quiet || (face ? contentName(node) : "");
+  const unsaid = markup
+    ? !(face && faceSays(face, markup))
+    : Boolean(face && (face.cut || face.quiet));
   // A title the name already says, as a symbol's short word under its longer label,
   // adds no line.
   const titled =
@@ -876,7 +915,11 @@ function readingOf(node, route) {
   // Made of the control's own name and keys alone, it says what a screen reader already
   // hears from them.
   if (reading) reading.restates = !declared && !titled;
-  return beyondFace(reading, () => face);
+  const read = beyondFace(reading, () => face);
+  // Key chips the face doesn't draw press the control, so its whole name heads them.
+  return quiet && read?.keys.length && read.name === quiet
+    ? { ...read, name: contentName(node) }
+    : read;
 }
 // What `reading` says beyond what its target shows (`faceOf`): a line the face shows
 // goes, as a menu row's own words or a search count's, and so does a press whose chips it

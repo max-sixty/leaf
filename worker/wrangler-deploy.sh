@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Deploy the Worker: `wrangler deploy` with the given arguments, from this directory.
 #
-# Wrangler uploads the Worker version, then applies that version's image to the
-# session class's container application, which reads back the version just uploaded.
-# Cloudflare can answer that read 404 for a moment, and wrangler then fails with the
-# Worker live and the image not applied, asking for the same command again. So that
-# failure alone runs the command once more; any other failure ends the deploy.
+# Wrangler uploads the Worker version, then applies the container application's
+# settings, which first reads back the version just uploaded. Wrangler gives that read
+# 2.5 s, Cloudflare often takes longer, and wrangler then fails with the Worker live.
+# Where the application already exists with those settings, as on every deploy after
+# the first, the live version works anyway; where it doesn't, the session class has no
+# container. Wrangler asks for the same command again, which uploads a new version and
+# reads that one back, so that failure alone runs the command again, up to four times
+# in all; any other failure ends the deploy.
 
 set -euo pipefail
 
@@ -14,7 +17,7 @@ wrangler="$worker_root/../node_modules/.bin/wrangler"
 output=$(mktemp "${TMPDIR:-/tmp}/leaf-deploy.XXXXXX")
 trap 'rm -f -- "$output"' EXIT
 
-for attempt in 1 2; do
+for attempt in 1 2 3 4; do
   if (cd "$worker_root" && "$wrangler" deploy "$@") 2>&1 | tee "$output"; then
     exit 0
   fi

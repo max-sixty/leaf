@@ -153,7 +153,7 @@ const stepOf = (message) =>
 /** @typedef {{node: HTMLDivElement, names: [string, string | null][], played: ReturnType<typeof foldBlock>}} LeavingFold */
 /** @typedef {MessageReading & {reading: MessageReading, view: MessageView}} DrawnMessage */
 /** @typedef {import("./summary-ranges.js").MessageRange<DrawnMessage>} RangeReading */
-/** @typedef {Extract<RangeReading, {kind: "summary"}> & {expanded: boolean, forced: boolean, requiredText: string}} SummaryReading */
+/** @typedef {Extract<RangeReading, {kind: "summary"}> & {expanded: boolean}} SummaryReading */
 /** @typedef {{key: string, body: Node | ReturnType<typeof html> | ((tail: boolean) => ReturnType<typeof html>), tail?: boolean}} Row */
 let nextTranscriptId = 0;
 export class Transcript {
@@ -365,16 +365,11 @@ export class Transcript {
     );
     for (const id of this.#expandedSummaries)
       if (!summaries.has(id)) this.#expandedSummaries.delete(id);
-    const rangeState = ranges.map((range) => {
-      if (range.kind === "message") return range;
-      const forced = Boolean(range.summary.protected.length);
-      return {
-        ...range,
-        expanded: forced || this.#expandedSummaries.has(range.summary.id),
-        forced,
-        requiredText: "Messages kept open · current work",
-      };
-    });
+    const rangeState = ranges.map((range) =>
+      range.kind === "message"
+        ? range
+        : { ...range, expanded: this.#expandedSummaries.has(range.summary.id) },
+    );
     // Each step's face, and the working message, stands after the range holding the
     // last message said before its words. The working message speaks through the face
     // of the newest step standing there, else through a face of its own.
@@ -579,20 +574,13 @@ export class Transcript {
       style=${`--lf-fold-head: ${anchor}; --lf-fold-foot: ${anchor}-foot;`}
     >
       <div class="lf-summary-checkpoint">
-        <div class="lf-summary-header">
-          ${range.forced ? nothing : this.#summaryToggle(range)}
-        </div>
+        <div class="lf-summary-header">${this.#summaryToggle(range)}</div>
         ${
           range.summary.text || range.summary.label
             ? html`<div
                 class="lf-summary-text"
                 .innerHTML=${summaryWords(range.summary)}
               ></div>`
-            : nothing
-        }
-        ${
-          range.forced
-            ? html`<div class="lf-summary-required">${range.requiredText}</div>`
             : nothing
         }
       </div>

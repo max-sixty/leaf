@@ -1558,7 +1558,7 @@
           "type": ["string", "null"]
         },
         "summaries": {
-          "description": "The thread's current summaries (`events.active_summaries`); `protected` lists the covered messages a summary must not hide.",
+          "description": "The thread's current summaries (`events.active_summaries`).",
           "type": "array",
           "items": {
             "type": "object",
@@ -1569,10 +1569,9 @@
               "through": { "type": "string" },
               "covers": { "type": "array", "items": { "type": "string" } },
               "text": { "type": "string" },
-              "label": { "type": "string" },
-              "protected": { "type": "array", "items": { "type": "string" } }
+              "label": { "type": "string" }
             },
-            "required": ["id", "seq", "from", "through", "covers", "text", "protected"],
+            "required": ["id", "seq", "from", "through", "covers", "text"],
             "additionalProperties": false
           }
         },

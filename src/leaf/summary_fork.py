@@ -70,7 +70,7 @@ OPENING = "<leaf-summary-fork>"
 # The agent's guidance for what a summary folds and what it holds, which the fork
 # follows.
 RANGE = ("threads.md", "Fold what compresses most")
-GUIDANCE = ("threads.md", "A summary gives the range's")
+GUIDANCE = ("threads.md", "A summary is what the user reads")
 
 # What the fork answers: the range it folds and the summary's Markdown, or that it
 # folds nothing.

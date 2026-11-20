@@ -115,7 +115,9 @@ rubrics:
       which fails. Pass only if the summary is Markdown prose that gives the range's
       decisions, their reasons where the thread gives them, and its open questions,
       correctly and from the original messages, including those an earlier summary
-      in the range folded; holds every decision the range made; and answers nothing
+      in the range folded; holds every decision the range made; is much shorter than
+      the messages it folds, saying where they landed rather than retelling each
+      one; and answers nothing
       the thread's newest message asks, which is the agent's to answer. The range
       must fold the settled earlier discussion, and each message the thread keeps
       after it must read on from the summary: where a kept message answers a
@@ -1623,3 +1625,107 @@ cases:
         text: Walk through those two claims against my counterexample.
     # The `declined` check is the whole score: there is no summary to judge.
     assert: []
+  # A long thread of the agent's long Markdown replies, one of them a correction
+  # posted as a new reply, whose earlier discussion settled on one fix. A summary
+  # that retells each reply is as long as the replies; one that says where they
+  # landed takes a few sentences.
+  summary-long:
+    fork: summary
+    page: line-fork/pages/flaky-test.html
+    log:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Which fix do you recommend? And does either change what production sees at startup?
+        anchor:
+          section: ft-fixes
+          quote: Two fixes
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: w1
+        id: m2
+        text: |-
+          I'd **await the warmup in `start()`**. It's three lines, the race can't happen by construction, and nothing else changes.
+
+          - **Startup.** The warmup fills 10,000 queries from yesterday's log. On the staging pod it takes 180–220 ms, so a pod reaches `start()`'s return about 200 ms later than today.
+          - **Requests during that time.** None reach the cache before it's warm, so the first requests after a deploy hit the cache instead of the search backend. Today about 4% of the first minute's requests after a rollout miss and fall through.
+          - **The lock** would avoid the startup delay, but every cache read would take the lock until the fill finishes, and the fill path gets its own error handling: about forty lines, and a second place for the race to come back.
+
+          Production startup changes only by those 200 ms. I'd still check the readiness probe before shipping it, since a rollout waits on it.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m3
+        text: 200 ms is fine. But will the readiness probe fail during those 200 ms?
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m3
+        id: m4
+        text: |-
+          No. The readiness probe has `initialDelaySeconds: 5` and checks every 10 s, and a pod's whole startup, warmup included, measured 1.4 s on staging (1.6 s with the await). So the first probe arrives well after `start()` returns.
+
+          - `deploy/search.yaml` sets the probe to `GET /healthz` on port 8080.
+          - The rollout's `maxUnavailable: 0` keeps the old pods serving until the new ones pass.
+          - I ran the rollout on staging three times with the await in place: every pod passed its first probe.
+
+          So the await fix ships without a probe change.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        id: m5
+        text: |-
+          A correction to my last reply: the probe doesn't wait for `start()` at all. `/healthz` is served by the HTTP server, which `main.py` starts before it calls `cache.start()`, so a pod reports ready as soon as it listens, warm or not.
+
+          My staging runs passed only because the first probe came after the 5 s delay, by which time the warmup had finished. Under load, a slow `top_queries` call could take longer than that, and the pod would take traffic cold.
+
+          So the await fix needs `/healthz` to return 503 until the warmup finishes. That's one more line in the handler, reading the cache's `warm` flag.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m6
+        text: OK, do the await fix with the healthz check.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m6
+        id: m7
+        text: |-
+          Done, on the branch `await-warmup`:
+
+          - `start()` awaits `_warm()` before returning, and sets `self.warm = True` when it finishes.
+          - `/healthz` returns 503 with `{"warming": true}` until `cache.warm` is set, then 200.
+          - `test_cache_warmup` passed 300 of 300 runs under eight workers, and a new test checks that `/healthz` says 503 while the warmup runs.
+          - CI is green on the branch, and the [Two fixes](#ft-fixes) section now says which one shipped and why.
+
+          A staging rollout with the change took 1.6 s per pod, and no pod took traffic before its cache was warm.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m8
+        text: Good. Now the other flaky one, test_rate_limit_window, fails on Mondays. Any idea?
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m8
+        id: m9
+        text: |-
+          The window is computed from `date.isocalendar()` week numbers, and the test builds its fixture with `datetime.now()` in UTC. On a Monday before 08:00 UTC, the runner's local date is still Sunday in the fixture's timezone, so the week number differs by one and the window looks empty.
+    conversation:
+      - from: flaky
+      - *flaky-reply
+    waiting:
+      - kind: reply
+        author: user
+        parent: w1
+        id: m10
+        text: Could it be the timezone the CI runners are set to?
+    assert:
+      - *summary

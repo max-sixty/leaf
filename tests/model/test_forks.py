@@ -354,7 +354,7 @@ def test_a_long_thread_is_summarized_by_a_fork_beside_its_line_fork(claimed):
     assert summary["prompt"].startswith("<leaf-summary-fork>")
     assert "Follow-up 1?" in summary["prompt"]
     assert "> Fold what compresses most" in summary["prompt"]
-    assert "> A summary gives the range's decisions" in summary["prompt"]
+    assert "> A summary is what the user reads" in summary["prompt"]
 
     outcome = summarized(summary, {**hint, "text": "The TTL went to ten, then five."})
     assert outcome["outcome"] == "summarized"

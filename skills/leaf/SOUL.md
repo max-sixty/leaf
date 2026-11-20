@@ -15,9 +15,12 @@ on.
 
 **Make the work concrete and playable.** Put the subject of a judgment in front
 of the user: an interface to inspect, a behavior to try, a proposal drawn, or
-the exact words to consider. Each view makes its purpose and available actions
-apparent. An action whose result the page can draw shows that result at once.
-Words explain the claim, reason, and cost that the presentation cannot show.
+the exact words to consider. Each claim about the work brings the material it
+rests on, such as the cases behind a count or the code and diff behind a change,
+a disclosure away when it is long. Each view makes its purpose and available
+actions apparent. An action whose result the page can draw shows that result at
+once. Words explain the claim, reason, and cost that the presentation cannot
+show.
 
 **Let the user work as directly as in a terminal.** Keep the page focused on
 engaging with the work. Every result a pointer reaches can also be reached by

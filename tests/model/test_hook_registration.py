@@ -41,55 +41,20 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
-def test_an_older_installed_copy_delivers_through_the_copy_installed_since(
-    tmp_path, monkeypatch
-):
-    """Claude Code installs an update beside the copy a running session loaded and
-    records it in `installed_plugins.json`; the older copy's delivery runs the newer
-    one, and a checkout, which someone chose to run, runs itself."""
-    from leaf import session_runtime
-
+def test_a_copy_claude_code_replaced_runs_the_copy_installed_since(tmp_path):
+    """Claude Code installs an update beside the copy a running session loaded,
+    marks the older copy orphaned and may delete its files while the session still
+    runs its launcher. That launcher runs the copy `installed_plugins.json` records,
+    with the call's arguments and stdin, and refuses, naming the way out, where it
+    records no other copy, rather than run a copy whose files may be gone or hand
+    the call back to itself."""
     cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
-    launchers = {}
-    for version in ("0a0a0a0a0a0a", "1b1b1b1b1b1b"):
-        launcher = cache / version / "bin" / "leaf"
-        launcher.parent.mkdir(parents=True)
-        launcher.write_text("#!/bin/sh\n")
-        launcher.chmod(0o755)
-        launchers[version] = launcher.resolve()
-    (tmp_path / "plugins" / "installed_plugins.json").write_text(
-        json.dumps(
-            {"plugins": {"leaf@leaf": [{"installPath": str(cache / "1b1b1b1b1b1b")}]}}
-        )
-    )
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", cache / "0a0a0a0a0a0a")
-    assert session_runtime.delivering_launcher("") == launchers["1b1b1b1b1b1b"]
-    # A bare command from the older copy runs the newer one, a hook its own way.
-    ran = []
-    monkeypatch.setattr(
-        session_runtime.os, "execve", lambda path, argv, env: ran.append(argv)
-    )
-    session_runtime.hand_off_command(["page", "state", "p"])
-    session_runtime.hand_off_command(["hook", "--harness", "claude-code"])
-    assert ran == [[str(launchers["1b1b1b1b1b1b"]), "page", "state", "p"]]
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", cache / "1b1b1b1b1b1b")
-    assert session_runtime.delivering_launcher("") == launchers["1b1b1b1b1b1b"]
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", tmp_path / "checkout")
-    assert session_runtime.installed_launcher() is None
-
-
-def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
-    tmp_path,
-):
-    """Claude Code may delete an orphaned copy's files while a session still runs
-    its launcher; that launcher runs the copy `installed_plugins.json` records at an
-    absolute path, and refuses, naming the cause, where none is recorded, rather
-    than leaving uv to run the caller's `python` or a copy found relative to the
-    caller's working directory."""
-    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
-    orphan = cache / "0a0a0a0a0a0a" / "bin" / "leaf"
-    orphan.parent.mkdir(parents=True)
-    shutil.copy(PLUGIN_ROOT / "bin/leaf", orphan)
+    replaced = cache / "0a0a0a0a0a0a"
+    (replaced / "bin").mkdir(parents=True)
+    shutil.copy(PLUGIN_ROOT / "bin/leaf", replaced / "bin/leaf")
+    # Its project still there, as until Claude Code deletes its files.
+    (replaced / "pyproject.toml").write_text("")
+    (replaced / ".orphaned_at").write_text("1795146911571")
     installed = cache / "1b1b1b1b1b1b" / "bin" / "leaf"
     installed.parent.mkdir(parents=True)
     installed.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\ncat\n")
@@ -98,7 +63,7 @@ def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
 
     def run():
         return subprocess.run(
-            [str(orphan), "page", "state", "a page"],
+            [str(replaced / "bin/leaf"), "page", "state", "a page"],
             cwd=cache,
             input="the hook's payload\n",
             capture_output=True,
@@ -116,12 +81,16 @@ def test_an_installed_copy_that_lost_its_project_runs_the_copy_installed_since(
     assert (handed.returncode, handed.stdout) == (
         0,
         "page\nstate\na page\nthe hook's payload\n",
-    )
-    for plugins in ({}, {"leaf@leaf": [{"installPath": installed.parent.parent.name}]}):
-        record.write_text(json.dumps({"plugins": plugins}))
+    ), handed.stderr
+    for installs in ([], [installed.parent.parent.name], [str(replaced)]):
+        record.write_text(
+            json.dumps(
+                {"plugins": {"leaf@leaf": [{"installPath": p} for p in installs]}}
+            )
+        )
         refused = run()
         assert (refused.returncode, refused.stdout) == (1, "")
-        assert "has lost its files" in refused.stderr
+        assert "run /reload-plugins" in refused.stderr
 
 
 def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):
@@ -437,7 +406,6 @@ def test_the_registered_hook_leaves_library_execution_to_uv(harness, event, tmp_
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
-    (project / "pyproject.toml").touch()
     tools = tmp_path / "tools"
     tools.mkdir()
     uv = tools / "uv"
@@ -498,7 +466,6 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
-    (project / "pyproject.toml").touch()
     program = project / "src/leaf/state.py"
     program.parent.mkdir(parents=True)
     program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())

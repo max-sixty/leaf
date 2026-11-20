@@ -394,18 +394,20 @@ def cmd_pages(payload: dict) -> None:
 
 
 def _moved_on(sid: str) -> bool:
-    """Whether the session's delivery now runs another Leaf than this process: one
-    selected or installed since it started, which its hooks hand themselves to as
-    `main` does (`session_runtime.delivering_launcher`), or its own install moved
-    under it to another page protocol (`registry.kernel.installed_protocol`), or
-    removed, as a selected checkout's is when its worktree goes: the module starts
-    the follower again from its own launcher, which hands it to the Leaf delivering
-    now. A registry read mid-write reads as unmoved until it settles."""
+    """Whether the session's delivery now runs another Leaf than this process: a
+    copy Claude Code installed in place of this one, which this copy's launcher
+    runs instead (`session_runtime.replaced`), a checkout selected since it started,
+    which its hooks hand themselves to as `main` does
+    (`session_runtime.delivering_launcher`), or its own install moved under it to
+    another page protocol (`registry.kernel.installed_protocol`), or removed, as a
+    selected checkout's is when its worktree goes: the module starts the follower
+    again from its own launcher, which hands it to the Leaf delivering now. A
+    registry read mid-write reads as unmoved until it settles."""
     from .registry.kernel import installed_protocol, kernel_protocol
-    from .session_runtime import delivering_launcher, own_launcher
+    from .session_runtime import delivering_launcher, own_launcher, replaced
 
     own = own_launcher()
-    if not os.access(own, os.X_OK):
+    if replaced() or not os.access(own, os.X_OK):
         return True
     try:
         return (
@@ -460,8 +462,8 @@ def main(
         # Hooks run outside the harness's sandbox and shell commands inside it.
         # Claude Code's registration runs this only before a command naming
         # `leaf`, so a session that never runs one opens no road out. Each Leaf
-        # the hook passes through opens it before handing the hook on, the copy
-        # the harness loaded among them (`bridge.py`).
+        # the hook passes through opens it before handing the hook on, the
+        # installed copy among them (`bridge.py`).
         from .harness import hook_harness
 
         hook_harness(harness, sid).escape_sandbox()

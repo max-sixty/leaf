@@ -2816,13 +2816,14 @@ def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
     assert nudged == []
 
 
-@pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])
+@pytest.mark.parametrize("moved", ["replaced", "selected", "protocol", "removed"])
 def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     claimed, monkeypatch, capsys, moved
 ):
-    """A follower runs as long as its session, while the session's hooks hand
-    themselves to whichever Leaf delivers for it now: another copy or checkout, its
-    own checkout moved past a protocol bump, or another Leaf once its own is removed. The newer Leaf takes the old
+    """A follower runs as long as its session, while the session's hooks run
+    whichever Leaf delivers for it now: the copy Claude Code installed in place of
+    its own, a checkout it selected, its own checkout moved past a protocol bump, or
+    another Leaf once its own is removed. The newer Leaf takes the old
     follower's lane for no one's, so the follower then ends, giving up the lane, with
     EX_TEMPFAIL for the module to start it again under that Leaf."""
     serving(claimed, 1)
@@ -2835,7 +2836,9 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
         return True
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
-    if moved == "selected":
+    if moved == "replaced":
+        monkeypatch.setattr(session_runtime_model, "replaced", lambda: bool(waited))
+    elif moved == "selected":
         own = session_runtime_model.own_launcher()
         monkeypatch.setattr(
             session_runtime_model,

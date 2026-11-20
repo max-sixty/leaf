@@ -110,7 +110,7 @@ def run(page):
         for route, action in ROUTES:
             if action == ".lf-fp-minimize":
                 card = page.locator(".lf-fp-card").bounding_box()
-                page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
+                page.mouse.move(card["x"] + 20, card["y"] + 6)
             if route == "keyboard" and action == ".":
                 page.locator(".lf-fp-field leaf-text").click()
                 # Past the field's control in its corner, to the row's end.

@@ -1120,11 +1120,6 @@ summary {
   flex-shrink: 0;
   padding: 4px 0;
 }
-.lf-summary-required {
-  margin-top: 6px;
-  color: var(--lf-turn-ink);
-  font: var(--lf-font-heading);
-}
 /* A step's face, the working message among them: the step, where it was said
    (thread/transcript.js). It takes a message's head and body faces, but its
    words stay dim, and while the work runs a sheen passes over them, as over a title

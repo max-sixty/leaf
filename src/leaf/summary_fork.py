@@ -35,8 +35,7 @@ Leaf's suggestion, and the fork follows the agent's guidance for what to fold
 (`RANGE`), weighing which messages compress and which the current exchange still turns
 on, the opening message among them, and may fold nothing. The user chose this, as root
 `AGENTS.md`'s "Leaf's role" has it. Leaf takes a range of the thread's spoken messages
-that ends before the user's newest messages, which the main session answers, and
-admission holds it to the rule every summary keeps (`events.summary_range`). A range
+that ends before the user's newest messages, which the main session answers. A range
 Leaf can't take goes to the agent as a failed fork does; a fork that folds nothing
 leaves the thread as it is, and the agent hears nothing of it. Taking the hint as the
 range, the fork writing only the prose, is the alternative a later change might reach
@@ -74,7 +73,7 @@ OPENING = "<leaf-summary-fork>"
 # The agent's guidance for what a summary folds and what it holds, which the fork
 # follows.
 RANGE = ("threads.md", "Fold what compresses most")
-GUIDANCE = ("threads.md", "A summary gives the range's")
+GUIDANCE = ("threads.md", "A summary is what the user reads")
 
 # What the fork answers: the range it folds and the summary's Markdown, or that it
 # folds nothing.
@@ -157,7 +156,7 @@ The whole thread, as Leaf delivers it but with every message; "events" are the u
 Leaf suggests folding the messages from {hint["from"]} through {hint["through"]}, a range that takes in every summary in force among them, which yours replaces. Choose the range yourself, as the session's guidance has it:
 {folds}
 
-The range runs forward from one spoken message of the thread through another, ends before the user's newest messages in "events", and leaves no message but the thread's opening one in full above any summary; Leaf takes no other. Leaf posts your summary as the session's own: the thread shows it in place of the range, and the originals stay available to unfold. It answers nothing; the main session answers the newest messages. Write it as the session's guidance has it:
+The range runs forward from one spoken message of the thread through another and ends before the user's newest messages in "events"; Leaf takes no other. Leaf posts your summary as the session's own: the thread shows it in place of the range, and the originals stay available to unfold. It answers nothing; the main session answers the newest messages. Write it as the session's guidance has it:
 {holds}
 
 Reply with this JSON alone: {{"from": "<the range's first message id>", "through": "<its last message id>", "text": "<the summary's Markdown>"}}, or {{"fold": false}} where nothing in the thread compresses without losing wording the current exchange still turns on.

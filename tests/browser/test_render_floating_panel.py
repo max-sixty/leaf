@@ -2556,7 +2556,7 @@ def test_a_thread_s_view_opens_on_the_summary_holding_its_first_unread_reply(
 ):
     """A first unread reply a closed summary folds away is reached through the
     summary, so the view opens on that summary rather than past it, at the long reply
-    after it, and Next unread is offered to open it."""
+    after it."""
     from browser.threads import summarize_thread
 
     url = serve(LONG_PAGE)
@@ -2572,21 +2572,23 @@ def test_a_thread_s_view_opens_on_the_summary_holding_its_first_unread_reply(
     page.keyboard.press("t")
     summary = page.locator(".lf-fp-view .lf-summary-checkpoint .lf-summary-header")
     expect(summary).to_be_in_viewport(ratio=1)
-    expect(page.locator(".lf-fp-head .lf-next-unread")).to_have_text("Next unread")
 
 
 def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve):
-    """Next unread reaching a reply a closed summary holds opens the summary in the
-    view and lands on the reply inside it. The press stands on the view's head line,
-    which the view's growth would carry, so the view holds its height, and the press
-    and the head stay where they were while what opened goes on inside the view."""
+    """Next unread reaching a reply a closed fold holds opens the fold in the view and
+    lands on the reply inside it. The press stands on the view's head line, which the
+    view's growth would carry, so the view holds its height, and the press and the head
+    stay where they were while what opened goes on inside the view. The fold is taller
+    than the view, since a fold seen whole reads the replies it folds."""
     from browser.threads import summarize_thread
 
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which jobs come first?")
     first = agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
     then = agent_said(serve.page_dir, root, "Then the beds, once the frost lifts.")
-    summarize_thread(serve.page_dir, first, then, "Mounts, then beds.")
+    summarize_thread(
+        serve.page_dir, first, then, "\n\n".join(["The mounts, then the beds."] * 40)
+    )
     agent_said(serve.page_dir, root, "That is the order.")
     page = floating(browser, url)
     page.locator("body").focus()
@@ -4021,7 +4023,7 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
     for route, action in ROUTES:
         if action == ".lf-fp-minimize":
             card = page.locator(".lf-fp-card").bounding_box()
-            page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
+            page.mouse.move(card["x"] + 20, card["y"] + 6)
         if route == "keyboard" and action == ".":
             field(page).click()
             # Past the field's control in its corner, to the row's end.
@@ -4083,7 +4085,7 @@ def test_a_new_line_past_the_field_s_height_scrolls_into_view(browser, serve):
 
 
 def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
-    """A round button on the box's top-right corner folds the panel, shown only while
+    """A round button on the box's top-left corner folds the panel, shown only while
     the pointer is near that corner, so the resting row, and the row under a pointer
     passing over the field, is the row alone; it takes no Tab stop, since the menu's
     row and `.` fold from the keyboard."""
@@ -4093,13 +4095,16 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
     expect(minimize).to_be_hidden()
     expect(minimize).to_have_attribute("tabindex", "-1")
     card = page.locator(".lf-fp-card").bounding_box()
-    page.mouse.move(card["x"] + 40, card["y"] + card["height"] / 2)
+    page.mouse.move(card["x"] + card["width"] / 2, card["y"] + card["height"] / 2)
     expect(minimize).to_be_hidden()
-    page.mouse.move(card["x"] + card["width"] - 20, card["y"] + 6)
+    # Nor on the leaf, whose count badge holds the box's other top corner.
+    page.locator(".lf-fp-leaf").hover()
+    expect(minimize).to_be_hidden()
+    page.mouse.move(card["x"] + 20, card["y"] + 6)
     expect(page.get_by_role("button", name="Fold to the leaf")).to_be_visible()
     button = minimize.bounding_box()
-    # It rides the corner: its centre sits on the box's top-right edge.
-    assert abs(button["x"] + button["width"] / 2 - (card["x"] + card["width"])) <= 2
+    # It rides the corner: its centre sits on the box's top-left edge.
+    assert abs(button["x"] + button["width"] / 2 - card["x"]) <= 2
     assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2
     # A view opening carries the corner up, away from the still pointer, and the
     # button with it goes; putting the view away brings the corner back to it.

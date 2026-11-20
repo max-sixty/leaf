@@ -566,48 +566,6 @@ def progress_completions(thread: dict) -> dict[str, dict]:
     return completed
 
 
-def summary_range(
-    thread: dict, summaries: list, start: str, end: str
-) -> tuple[str, str]:
-    """The range a summary asked from `start` through `end` must cover, where
-    `summaries` are those in force once it stands: the asked range, widened over every
-    message they leave in full above the last drawn summary.
-
-    The one rule a thread's summaries keep, so a reader sees the opening message, the
-    summaries, then only what is newer than all of them. Admission
-    (`event_contracts._thread_presentation_error`) refuses a range this widens and
-    names the wider one. It reads the summaries that stand once the asked one replaces
-    those it overlaps, so a summary that ends inside an earlier one cannot uncover that
-    one's tail above a later summary. Whatever the wider range replaces lies inside it,
-    so admission takes it as named. A delivery's `summary_hint`
-    (`thread_context.summary_hint`) is the range this gives for a run of messages and
-    the summaries in force beside it, so following a hint is never refused.
-
-    The opening message may stay outside, since it says what the thread is about. A
-    message counts where the panel draws it whole: a turn of the conversation no
-    summary covers (`conversation_turns`). Progress doesn't, since the panel draws at
-    most a thread's newest step, as its working message rather than a message a
-    summary folds (`progress_completions`), and a reaction is a mark on another
-    message. A summary of progress alone is drawn nowhere, so no message stands above
-    it. Only `covers` is read of each summary, so a caller can weigh a range it has
-    not written."""
-    covered = {identity for summary in summaries for identity in summary["covers"]}
-    spoken = spoken_turns(thread)
-    drawn = conversation_turns(thread)
-    last = max(
-        (at for at, message in enumerate(drawn) if message["id"] in covered),
-        default=0,
-    )
-    left = [
-        message["id"]
-        for message in drawn[:last]
-        if message["id"] != thread["id"] and message["id"] not in covered
-    ]
-    position = {message["id"]: at for at, message in enumerate(spoken)}
-    reach = [position[identity] for identity in (start, end, *left)]
-    return spoken[min(reach)]["id"], spoken[max(reach)]["id"]
-
-
 def _thread_summaries(
     thread: dict, summaries: list, edits: dict, taken: list
 ) -> list[dict]:

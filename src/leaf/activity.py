@@ -315,7 +315,13 @@ def start_holds(start: dict, present: dict, *, ended: datetime | None) -> bool:
     next turn, of a message its fork is still answering, and the session then starts
     it again or does the work itself. `busy` alone, undated, holds through every
     turn the session runs, so a start from an earlier turn would never lapse while
-    any turn runs, not even in the turn a reminder opens for it."""
+    any turn runs, not even in the turn a reminder opens for it.
+
+    The record dates `busy` by its last change of status, so a dialog after the
+    start, `waiting` and then `busy` again, ends the hold as a break does, and the
+    update is reminded as it would be without this rule. Telling the two apart would
+    take a mark of the session's unbroken work that Leaf keeps itself, set as each
+    turn opens by comparing the record's date with the previous turn's close."""
     if start.get("turn") in (None, present["turn"]) and not _dropped(
         start["ts"], ended
     ):

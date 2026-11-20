@@ -12,6 +12,7 @@
             "section": "triage-lede"
           },
           "detached_from": null,
+          "rewritten_from": null,
           "resolved": null,
           "elided": {
             "messages": 0,
@@ -73,6 +74,7 @@
             "section": "triage-lede"
           },
           "detached_from": null,
+          "rewritten_from": null,
           "resolved": null,
           "elided": {
             "messages": 0,

@@ -102,6 +102,7 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
     read,
     reply: { wireInput },
     reaction: {},
+    placedAt: () => null,
     invalidate() {},
     reveal() {},
   };

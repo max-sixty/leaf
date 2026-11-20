@@ -334,11 +334,14 @@ def cmd_pages(payload: dict) -> None:
     renamed = FileChanges({named.parent: False}, lambda path: path == named)
     looked: dict = {}
     shown = None
-    # A copy already marked as this follower starts is one its launcher ran anyway.
-    replaced_before = replaced()
+    # A copy already marked as this follower starts is one its launcher ran anyway,
+    # until Claude Code's sweep clears that mark (`_moved_on`).
+    marked_at_start = replaced()
     try:
         while True:
-            if _moved_on(sid, replaced_before):
+            marked = replaced()
+            marked_at_start = marked_at_start and marked
+            if _moved_on(sid, marked and not marked_at_start):
                 # EX_TEMPFAIL: the module starts it again, under that Leaf.
                 raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
@@ -396,24 +399,27 @@ def cmd_pages(payload: dict) -> None:
             renamed.close()
 
 
-def _moved_on(sid: str, replaced_before: bool) -> bool:
+def _moved_on(sid: str, replaced: bool) -> bool:
     """Whether the session's delivery now runs another Leaf than this process: a
-    copy Claude Code installed in place of this one since the follower started,
-    which this copy's launcher runs instead (`session_runtime.replaced`), a checkout
-    selected since then, which its hooks hand themselves to as `main` does
+    copy Claude Code installed in place of this one, which this copy's launcher
+    runs instead (`replaced`), a checkout selected since the follower started,
+    which its hooks hand themselves to as `main` does
     (`session_runtime.delivering_launcher`), or its own install moved under it to
     another page protocol (`registry.kernel.installed_protocol`), or removed, as a
     selected checkout's is when its worktree goes: the module starts the follower
-    again from its own launcher, which hands it to the Leaf delivering now. A copy
-    marked before the follower started (`replaced_before`) is one its launcher ran
-    all the same, as where Claude Code's record still names it, so the follower stays
-    rather than end to be started there again. A registry read mid-write reads as
-    unmoved until it settles."""
+    again from its own launcher, which hands it to the Leaf delivering now. A registry
+    read mid-write reads as unmoved until it settles.
+
+    `replaced` counts a mark Claude Code made on this copy (`session_runtime.replaced`)
+    only once the follower has seen the copy unmarked: a copy marked as the follower
+    starts is one its launcher ran all the same, as where Claude Code's record still
+    names it, and ending there would have the module start the follower in it again
+    and again. The sweep that clears such a mark lets a later one count."""
     from .registry.kernel import installed_protocol, kernel_protocol
-    from .session_runtime import delivering_launcher, own_launcher, replaced
+    from .session_runtime import delivering_launcher, own_launcher
 
     own = own_launcher()
-    if (replaced() and not replaced_before) or not os.access(own, os.X_OK):
+    if replaced or not os.access(own, os.X_OK):
         return True
     try:
         return (

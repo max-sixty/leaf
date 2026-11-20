@@ -2866,16 +2866,25 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     assert listed["do"] == []
 
 
-def test_a_follower_started_in_a_copy_already_marked_replaced_stays(
+def test_a_follower_stays_in_a_copy_marked_before_it_started_until_the_mark_clears(
     claimed, monkeypatch
 ):
-    """A copy Claude Code had marked replaced before the follower started is one
-    its launcher ran all the same, as where Claude Code's record still names it.
-    The follower stays there, where ending would have the module start it in the
-    same copy again and again."""
-    monkeypatch.setattr(session_runtime_model, "replaced", lambda: True)
-    assert not hooks_model._moved_on("s1", True)
-    assert hooks_model._moved_on("s1", False)
+    """A copy Claude Code had marked replaced as the follower started is one its
+    launcher ran all the same, as where Claude Code's record still names it, so the
+    follower stays: ending would have the module start it in that copy again and
+    again. Once the sweep clears that mark, a later one is a real replacement, and
+    the follower ends to be started under the copy installed since."""
+    serving(claimed, 1)
+    server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0.0)
+    monkeypatch.setattr(file_changes_model, "wait", lambda _marks, _timeout: True)
+    # The mark as the follower starts, then at each of its passes.
+    marks = iter([True, True, False, True])
+    monkeypatch.setattr(session_runtime_model, "replaced", lambda: next(marks))
+    with pytest.raises(SystemExit) as ended:
+        hooks_model.cmd_pages(FOLLOWER)
+    assert ended.value.code == os.EX_TEMPFAIL
+    assert next(marks, None) is None
 
 
 def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(

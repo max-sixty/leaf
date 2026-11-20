@@ -68,8 +68,8 @@ def selected_launcher(session_id: str) -> Path | None:
 
 def replaced() -> bool:
     """Whether Claude Code has marked this copy as one it no longer records
-    (`.orphaned_at`), after which this copy's launcher runs the copy it records
-    instead (`bin/leaf`)."""
+    (`.orphaned_at`). This copy's launcher then runs the copy the record names,
+    where it names another (`bin/leaf`)."""
     return (PLUGIN_ROOT / ".orphaned_at").exists()
 
 

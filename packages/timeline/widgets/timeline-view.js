@@ -15,9 +15,9 @@ import {
   AXIS_LABEL_CHROME as LABEL_CHROME,
 } from "/runtime/portable-api.js";
 
-/** @typedef {{label: string, row: number}} TimelineRun */
+/** @typedef {{label: string, abbr: string | null, row: number}} TimelineRun */
 /** @typedef {{id: string, label: string, lane: TimelineLane, at: number, end: number | null, step: number}} TimelineEvent */
-/** @typedef {{index: number, label: string, run: TimelineRun | null, name: string, row: number, events: TimelineEvent[]}} TimelineLane */
+/** @typedef {{index: number, label: string, abbr: string | null, run: TimelineRun | null, name: string, row: number, events: TimelineEvent[]}} TimelineLane */
 /** @typedef {{time: number, events: TimelineEvent[]}} TimelineStep */
 /** @param {string | null} value */
 const time = (value) => (value == null || value === "" ? null : Number(value));
@@ -51,6 +51,7 @@ export function timelineModel(host) {
     const reading = {
       index,
       label,
+      abbr: lane.getAttribute("abbr"),
       run,
       name: run ? `${run.label} · ${label}` : label,
       row: ++row,
@@ -83,7 +84,11 @@ export function timelineModel(host) {
       bare ??= child;
     }
     if (child.localName !== "lf-run") continue;
-    const run = { label: child.getAttribute("label") ?? "", row: ++row };
+    const run = {
+      label: child.getAttribute("label") ?? "",
+      abbr: child.getAttribute("abbr"),
+      row: ++row,
+    };
     runs.push(run);
     for (const lane of child.children)
       if (lane.localName === "lf-lane") readLane(lane, run);
@@ -166,6 +171,16 @@ const stepButton = (action, available) =>
     aria-disabled=${available ? nothing : "true"}
   ></button>`;
 
+/** A step's lane name. A short form is hidden from listeners, who hear the label as
+ * its quiet word.
+ * @param {TimelineLane} lane */
+const laneName = (lane) =>
+  html`<span
+    class="lf-timeline-step-lane"
+    data-lf-quiet=${lane.abbr ? lane.label : nothing}
+    >${lane.abbr ? html`<span aria-hidden="true">${lane.abbr}</span>` : lane.label}${": "}</span
+  >`;
+
 /** One retained template for connection, revision, resizing and stepping. */
 /** @param {HTMLElement} host @param {number} current
  * @param {ReturnType<typeof timelineModel>} model @param {ReturnType<typeof timelineLayout> | null | undefined} layout */
@@ -177,7 +192,9 @@ export function render(host, current, model, layout) {
   // so a row shows every run at its moment without repeating a run's name. A run
   // number on each row would keep one column at any width, but the reader would look
   // each number up in the chart. A timeline of bare lanes has one column. The head is
-  // hidden from listeners, who hear each cell's run as its quiet word.
+  // hidden from listeners, who hear each cell's run as its quiet word. The list names a
+  // run or lane by its short form (`abbr`) where the author gives one, since the chart
+  // above names it in full; listeners hear the full name.
   /** @type {(TimelineRun | null)[]} */
   const columns = model.runs.length ? model.runs : [null];
   const position = model.steps.length
@@ -300,7 +317,7 @@ export function render(host, current, model, layout) {
                   html`<span
                     class="lf-timeline-steps-run lf-label"
                     style="grid-column: ${column + 2}"
-                    >${run.label}</span
+                    >${run.abbr ?? run.label}</span
                   >`,
               )}
             </li>`
@@ -332,9 +349,7 @@ export function render(host, current, model, layout) {
                       >${events.map(
                         (event) =>
                           html`<span class="lf-timeline-step-event"
-                            ><span class="lf-timeline-step-lane"
-                              >${event.lane.label}: </span
-                            >${event.label}</span
+                            >${laneName(event.lane)}${event.label}</span
                           >`,
                       )}</span
                     >`

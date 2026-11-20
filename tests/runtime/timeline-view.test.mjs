@@ -227,6 +227,30 @@ test("Compared runs share one axis and one playhead, each headed by its name", (
   assert.deepEqual(cells(drawing.rows[2]), [["3", "After", ["B: after-done"]]]);
 });
 
+test("The step list names a run or lane by its short form, and the chart by its label", () => {
+  const drawing = timeline(
+    `<lf-run label="Before the fix" abbr="Before">` +
+      `<lf-lane label="Main thread" abbr="M"><lf-event id="short-busy" label="Busy" at="0"></lf-event></lf-lane>` +
+      `<lf-lane label="Fork"><lf-event id="short-work" label="Works" at="0"></lf-event></lf-lane>` +
+      `</lf-run>`,
+  );
+  const view = drawing.chart.parentElement;
+  assert.deepEqual(
+    [...drawing.chart.querySelectorAll(".lf-timeline-run, .lf-timeline-name")].map(
+      (name) => name.textContent,
+    ),
+    ["Before the fix", "Main thread", "Fork"],
+  );
+  assert.equal(view.querySelector(".lf-timeline-steps-run").textContent, "Before");
+  // Listeners hear a short form's label instead.
+  const [short, full] = drawing.rows[0].querySelectorAll(".lf-timeline-step-lane");
+  assert.equal(short.dataset.lfQuiet, "Main thread");
+  assert.equal(short.querySelector('[aria-hidden="true"]').textContent, "M");
+  assert.equal(short.textContent, "M: ");
+  assert.equal(full.dataset.lfQuiet, undefined);
+  assert.equal(full.textContent, "Fork: ");
+});
+
 test("A run with no lanes keeps its heading, and a lane beside runs is reported", () => {
   const drawing = timeline(
     run("Before", [["A", [["solo-write", 0]]]]) +

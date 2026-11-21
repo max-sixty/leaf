@@ -630,10 +630,6 @@ summary,
 .lf-disclosure-marker {
   list-style: none;
 }
-:where(summary):is(summary, .lf-disclosure-marker)::-webkit-details-marker,
-.lf-disclosure-marker::-webkit-details-marker {
-  display: none;
-}
 :where(summary):is(summary, .lf-disclosure-marker)::before,
 .lf-disclosure-marker::before {
   content: "";

@@ -550,10 +550,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // takes presses only once the pointer has rested on it (response.css), so a quick
     // press at the words' end places the caret. Typing, or a press on the words, puts
     // Send away until the pointer next moves, so a second press of a double-click
-    // selects rather than sends. Where the pointer is decides, read from each move and
-    // leave alike: the user's Firefox follows nearly every move with a `pointerleave`
-    // out to the document at the same point, and a leave taken as the pointer going put
-    // Send away on every move.
+    // selects rather than sends. Where the pointer is decides, read from the
+    // coordinates of each move and leave alike rather than from which element it
+    // entered or left: a leave can come with the pointer still over Send, as a Firefox
+    // process whose mouse tracking has gone wrong sends one after every move until it
+    // restarts, and a leave taken as the pointer going would put Send away while it
+    // rests there.
     let dwell = 0;
     const unpoint = () => {
       clearTimeout(dwell);

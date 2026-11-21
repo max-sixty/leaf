@@ -468,10 +468,12 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
         counts = restyle_counts(page, resolve)
         expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
         page.close()
-        return sum(counts)
+        return counts
 
+    # Each recalc's count, so a failure tells a recalc the larger page adds from
+    # one that restyles more of it.
     short, long = restyled(4), restyled(24)
-    assert long - short < 10, {"4 sections": short, "24 sections": long}
+    assert sum(long) - sum(short) < 10, f"4 sections: {short}\n24 sections: {long}"
 
 
 @pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.

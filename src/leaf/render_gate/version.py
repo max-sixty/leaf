@@ -71,9 +71,8 @@ def _render_version_attempt(
     also reads, as advice naming the widths it spans, the page scrolling sideways,
     content set past the column and out into the margin, a horizontal scrollbar with no
     room below what it scrolls, whether a drawing's fit to its box shrinks its labels
-    past reading, whether a table scrolls sideways with a cell in it wrapped, and
-    whether a code block scrolls its lines in too little width to read them. That pass
-    reports each native flex/grid arrangement change. Console warnings and the issues Chrome's DevTools raises
+    past reading, and whether a table scrolls sideways with a cell in it wrapped. That
+    pass reports each native flex/grid arrangement change. Console warnings and the issues Chrome's DevTools raises
     are advice wherever they are read. No failures is a pass.
 
     The geometry has one reading (`readings.swept_faults`), reported by the runs of

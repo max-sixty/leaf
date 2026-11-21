@@ -1037,10 +1037,8 @@ def thread_summarize(
 ) -> dict:
     """Replace --from through --through in the panel with a Markdown summary.
 
-    Both name messages in one thread, which is the thread summarized. No message but
-    the thread's first may stay unsummarized above any summary; a refusal names a
-    wider range that keeps this. An empty summary, such as `--text ''`, folds them
-    without prose. The original messages remain in the append-only transcript and can
+    Both name messages in one thread, which is the thread summarized. An empty
+    summary, such as `--text ''`, folds them without prose. The original messages remain in the append-only transcript and can
     always be revealed. A later overlapping summary replaces this one.
     """
     from leaf.thread import cmd_summarize
@@ -1624,13 +1622,15 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     "--text", "line", required=True, help="what you are doing, in one sentence"
 )
 def task_start(page_dir: Path, item: str, line: str) -> dict:
-    """Mark ID Working for this turn, with --text saying what you are doing.
+    """Mark ID Working, with --text saying what you are doing.
 
     ID is the event id of a user update you owe, as its delivery names it, or an
     open to-do's id. --text names the work and its subject in one sentence; it shows
     beside the update or to-do and in Leaf's panel. Your answer to the update, or the
-    to-do's end, ends the start. If your turn ends first, the update or to-do reads stalled
-    until you answer it or start it again."""
+    to-do's end, ends the start. The start lasts through your turn, and after it while
+    your harness reports agents you started working in the background, as Claude Code
+    does. Once nothing holds it, the update or to-do reads stalled until you answer it
+    or start it again."""
     from leaf.todos import cmd_start
 
     return cmd_start(page_dir, item, line)

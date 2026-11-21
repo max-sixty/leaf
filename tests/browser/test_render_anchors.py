@@ -114,7 +114,7 @@ def thread_head(page, thread_id):
         arg=thread_id,
     )
     open_panel_thread(page, thread_id)
-    return page.locator(".lf-thread-quote-head")
+    return page.locator(PANEL_THREAD).locator(".lf-thread-quote-head")
 
 
 def show_on_page(page, *, key=False):
@@ -1515,7 +1515,7 @@ def test_resizing_closed_code_sections_does_not_lay_out_each_hidden_section(
 
 def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     source = "wide-source-" * 30
-    markup = f'<pre id="source"><code>{source}</code></pre>'
+    markup = f'<pre id="source" style="white-space: pre"><code>{source}</code></pre>'
     page = open_page(
         browser,
         live_url(serve(leaf_page("Code stop", markup))),

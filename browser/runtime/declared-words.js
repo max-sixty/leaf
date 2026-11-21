@@ -124,12 +124,6 @@ export const opensElsewhere = (href) => window.lfLinks.opensElsewhere(href);
 /** @param {Element} link */
 export const isExternalPageLink = (link) =>
   link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
-export function externalMark() {
-  return Object.assign(document.createElement("span"), {
-    className: "lf-ui lf-external-mark",
-    ariaHidden: "true",
-  });
-}
 /** @param {HTMLAnchorElement} link */
 function externalDescription(link) {
   const root = link.getRootNode();

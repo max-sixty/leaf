@@ -494,8 +494,7 @@ function scrollSources(node) {
 // A row takes a carrier only where the root lane can't carry it. Layout moves the root
 // lane in the task that scrolls the document, but a carrier only as the next frame
 // renders, so until then a script reading the row's box or hit-testing it finds it where
-// it stood (`paintedBox`; notes/browser-support.md, "A cached `elementFromPoint` answer
-// in Chromium"). Painting and the user's presses are right either way, so what the root
+// it stood (`paintedBox`). Painting and the user's presses are right either way, so what the root
 // lane buys is a row scripts, Playwright's actions and probes find where it is drawn.
 // Rejected: a carrier anchored to every passage's words, which in
 // Chromium and WebKit also carried a row through a transform moving its words while the

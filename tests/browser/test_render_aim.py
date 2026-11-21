@@ -251,7 +251,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
-    page.locator(".lf-fp-on-user").evaluate("node => node.click()")
+    page.locator(".lf-fp-leaf").evaluate("node => node.click()")
     panel_settled(page, view="queue")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     aligned = page.evaluate(
@@ -2015,12 +2015,12 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
     # nothing there to aim at anyway, since an anchor names an element of the page. Last,
     # since it leaves the panel open.
     with subtests.test(case="the chrome keeps its presses"):
-        on_me = page.locator(".lf-fp-on-user")
-        on_me.hover()
+        leaf = page.locator(".lf-fp-leaf")
+        leaf.hover()
         page.keyboard.down("Alt")
-        on_me.click()
+        leaf.click()
         page.keyboard.up("Alt")
-        panel_settled(page, view="queue")
+        panel_settled(page)
         expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -3699,7 +3699,9 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         {"section": "flow", "visual": "node:S"}
     ]
     open_panel_thread(page, posted[0]["id"])
-    expect(page.locator(".lf-quote-label")).to_have_text("§ diagram · Start request")
+    expect(page.locator(PANEL_THREAD).locator(".lf-quote-label")).to_have_text(
+        "§ diagram · Start request"
+    )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)

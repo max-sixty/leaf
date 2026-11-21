@@ -290,11 +290,12 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled `title` on what `subject` names: a page widget, thread,
     any other element of the page by its id, or `page` for the page as a whole; the
     record. A thread attachment supplies discussion context without making a reply
-    complete the task."""
+    complete the task. A long title is fitted (`thread.agent_title`)."""
     from .event_contracts import append_admitted
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
+    from .thread import agent_title
     from .work import page_element, page_subject
 
     @contract_writer
@@ -318,7 +319,12 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
                 )
             record, _ = append_admitted(
                 page,
-                {"kind": "todo", "author": "agent", "subject": named, "title": title},
+                {
+                    "kind": "todo",
+                    "author": "agent",
+                    "subject": named,
+                    "title": agent_title(title),
+                },
             )
             return record
 
@@ -331,34 +337,17 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
 
     The start names the turn the command acts in when the posting session holds the
     page (`state.acting_turn`): the claimant's. That is what lets the turn end over the
-    update it started (`activity.started_in_turn`) and what ends the start's hold with
-    the turn. Another session's start names none. A Claude Code subagent runs as its
+    update it started, and what ends the start's hold once that turn has ended and no
+    background work of the session carries it on (`activity.start_holds`). Another
+    session's start names none. A Claude Code subagent runs as its
     parent's session, so a worker's start is the main thread's.
     `leaf task start` writes this explicit event. Addressed ephemeral replies
     carry their start on the message itself (`thread.post_reply`), and every
     start consumer reads either form through `start_reading`. A start on a page
-    declared `idle` reopens it (`activity.declaration`). A start any other writer
-    makes on a message, or a to-do, in a thread a line fork holds says so beside the record
-    (`holding.authorize`)."""
+    declared `idle` reopens it (`activity.declaration`)."""
     from .event_contracts import append_admitted
-    from .findings import note
-    from .forks import page_holding
-    from .holding import authorize
     from .state import acting_turn
 
-    # A fork shows itself at work only on what its turn holds; the thread a to-do
-    # stands on is the to-do's subject.
-    on = next(
-        (
-            todo["subject"]["id"]
-            for todo in TodoReading(page.events).todos
-            if todo["id"] == item and todo["subject"]["kind"] == "thread"
-        ),
-        None,
-    )
-    beside = authorize(
-        page, page_holding(page), identity.get("session"), [item], thread=on
-    )
     turn = acting_turn(page.claim, identity.get("session"))
     record, _ = append_admitted(
         page,
@@ -371,14 +360,12 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
             **({"turn": turn} if turn else {}),
         },
     )
-    if beside is not None:
-        note(beside)
     return record
 
 
 def cmd_start(page_dir: Path, item: str, text: str) -> dict:
-    """Take `item`, an update's event id or an open to-do's id, in hand for this turn with
-    `text` as its line (`take_in_hand`); the record."""
+    """Take `item`, an update's event id or an open to-do's id, in hand with `text` as
+    its line (`take_in_hand`); the record."""
     from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source

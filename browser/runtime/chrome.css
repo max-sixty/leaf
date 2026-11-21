@@ -1265,6 +1265,11 @@ html[data-lf-draw-mode] {
   .lf-preview[data-lf-face="excerpt"] {
     max-width: min(26rem, var(--lf-preview-span));
   }
+  /* A preview whose element draws what it shows stands unseen, so it still ends and
+     describes as any other (preview.js, `unseen`). */
+  .lf-preview[data-lf-face="unseen"] {
+    visibility: hidden;
+  }
   .lf-preview-name {
     display: flex;
     flex-wrap: wrap;

@@ -12,7 +12,8 @@
 // payload whose step then fails without running, as Leaf's process can, each equal
 // to the payload's, or `true` for a field it has and `null` for one it lacks; and
 // `env`, Claude Code's environment, all that `$.env` reads and what the module's
-// processes inherit over the driver's own. Each
+// processes inherit over the driver's own, which each `$.env.set` changes and prints
+// as `{"environ": {<name>: <value or null>}}`. Each
 // `leaf hook --fork` the module runs prints its payload as `{"report"}`. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
@@ -43,6 +44,8 @@ let band = { terminal: null, desktop: null };
 let refused = 0;
 // The ids of the main conversation's rows, oldest first.
 let conversation = [];
+// Claude Code's environment as the module has set it.
+const environ = { ...options.env };
 
 /** Whether `options.stepFails` picks out the `leaf hook --fork` payload `payload`. */
 const fails = (payload) =>
@@ -57,7 +60,7 @@ const fails = (payload) =>
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
-    env: { ...process.env, ...options.env, ...env },
+    env: { ...process.env, ...environ, ...env },
     stdio: ["pipe", "pipe", "pipe"],
   });
   child.stdin.on("error", () => {});
@@ -147,7 +150,13 @@ const $ = {
     },
   },
   env: {
-    get: async (name) => options.env?.[name],
+    get: async (name) => environ[name],
+    set: async (name, value) => {
+      if (value === undefined) delete environ[name];
+      else environ[name] = value;
+      print({ environ: { [name]: value ?? null } });
+      return {};
+    },
   },
   clock: {
     now: async () => Date.now(),

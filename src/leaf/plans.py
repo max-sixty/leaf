@@ -171,11 +171,13 @@ def _working_since(plans: list[dict], title: str) -> str:
 
 
 def cmd_plan(page_dir: Path, steps: list) -> dict:
-    """Write `steps` as the page's plan; the record."""
+    """Write `steps` as the page's plan; the record. A long step title is fitted
+    (`thread.agent_title`)."""
     from .event_contracts import append_admitted
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
+    from .thread import agent_title
 
     @contract_writer
     def write(page_dir: Path) -> dict:
@@ -186,7 +188,12 @@ def cmd_plan(page_dir: Path, steps: list) -> dict:
                 {
                     "kind": "plan",
                     "author": "agent",
-                    "steps": steps,
+                    "steps": [
+                        {**step, "title": agent_title(step["title"])}
+                        if isinstance(step, dict) and isinstance(step.get("title"), str)
+                        else step
+                        for step in steps
+                    ],
                 },
             )
             return record

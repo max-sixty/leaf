@@ -417,13 +417,13 @@ def test_a_draft_stays_with_its_subject_where_threads_lists_it(browser, serve):
     )
 
 
-def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
-    """Where no thread has news, a draft the user put away dots the On Me mark grey,
-    and a press on the mark opens Threads, where Drafts lists it."""
+def test_a_put_away_draft_dots_the_leaf_grey(browser, serve):
+    """Where no thread has news, a draft the user put away dots the leaf grey, and a
+    press on the leaf opens Threads, where Drafts lists it."""
     page = open_page(browser, serve(LONG_PAGE))
     field = page.locator(".lf-fab-input")
-    mark = page.locator(".lf-fp-on-user")
-    dot = mark.locator(".lf-fp-news")
+    mark = page.locator(".lf-fp-leaf")
+    dot = mark.locator(".lf-fp-news-dot")
     expect(dot).to_be_hidden()
     choose_comment_target(page, "#p9")
     write(field, "About the ninth paragraph.")

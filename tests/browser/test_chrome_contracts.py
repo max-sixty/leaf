@@ -468,10 +468,12 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
         counts = restyle_counts(page, resolve)
         expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
         page.close()
-        return sum(counts)
+        return counts
 
+    # Each recalc's count, so a failure tells a recalc the larger page adds from
+    # one that restyles more of it.
     short, long = restyled(4), restyled(24)
-    assert long - short < 10, {"4 sections": short, "24 sections": long}
+    assert sum(long) - sum(short) < 10, f"4 sections: {short}\n24 sections: {long}"
 
 
 @pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
@@ -1568,7 +1570,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.hover()
     rendered(page)
     # Read before dispatch: an earlier pointerdown capture listener may already have
@@ -1591,7 +1593,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator(panel_view("queue"))).to_be_visible()
+    expect(page.locator(panel_view("menu"))).to_be_visible()
 
 
 # The words of the field's draft, row by row as the field draws them.
@@ -1787,11 +1789,11 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the On Me mark keeps its seat; the leaf's menu stays shut.
+    # and the leaf keeps its place; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()

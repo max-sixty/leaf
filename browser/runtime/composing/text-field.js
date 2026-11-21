@@ -262,11 +262,12 @@ sheet.replaceSync(`
      here as it does in the message; the rest read the theme's tokens, since its element
      rules stop at this root. A heading is bold, as the platform draws one, at the size
      of the words around it. A block is drawn line by line, so a code block's frame is
-     each line's sides, closed above its first line and below its last. Syntax that holds
-     its room while the caret is away, as a rule's or a code fence's line does, is there
-     unseen and unspoken. Its glyphs go unfilled while its colour stays the words',
-     because the caret can stand at the end of unseen text, as just past a new item's
-     marker, and the browser draws it in that text's colour. */
+     each line's sides, closed above its first line and below its last, and each code
+     line hangs the rows it wraps onto as the sent block does (reading.css, \`pre\`).
+     Syntax that holds its room while the caret is away, as a rule's or a code fence's
+     line does, is there unseen and unspoken. Its glyphs go unfilled while its colour
+     stays the words', because the caret can stand at the end of unseen text, as just
+     past a new item's marker, and the browser draws it in that text's colour. */
   .lf-md-mark { color: var(--lf-muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--lf-mono); font-size: var(--lf-code-inline-size);
@@ -303,7 +304,7 @@ sheet.replaceSync(`
     font-size: var(--lf-code-size);
     line-height: var(--lf-code-line); color: var(--lf-code-ink); background: var(--lf-pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--lf-code-border);
-    padding-inline: var(--lf-pre-inset); }
+    padding-inline: var(--lf-pre-inset); text-indent: 2ch hanging; }
   .lf-md-code-first { border-block-start: 1px solid var(--lf-code-border);
     border-start-start-radius: var(--lf-r); border-start-end-radius: var(--lf-r); }
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--lf-code-border);
@@ -322,11 +323,9 @@ sheet.replaceSync(`
      press on any drawn source does; Chromium's disabled box would take it and do
      nothing. */
   .task-list-item-checkbox { pointer-events: none; }
-  .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
-    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--lf-accent);
-    background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
-    user-select: none;
-    -webkit-user-select: none; }
+  /* The mark after a link stands beside the link's words, not in them, so it takes
+     their colour here. */
+  .lf-external-mark { color: var(--lf-accent); }
   /* A fence's line is a line of the code box, the sent pre's padding of one code line
      (reading.css, \`.lf-msg-body pre\`), and an end where no fence line stands, as
      where a fence's container or the draft ends it, where code shares its opening line
@@ -401,7 +400,10 @@ class LeafText extends HTMLElement {
   #composing = false;
   #nativeInput = false;
   #root;
-  #internals = this.attachInternals();
+  // The field's custom states, held: WebKit lets the set go, and `states` then reads as
+  // a new, empty set while the host still matches the old one's states
+  // (notes/browser-support.md, "A custom state set's own contents in WebKit").
+  #states = this.attachInternals().states;
   /** The element whose blocks a field editing words where they are shown shows them
    * as, such as a draft's prose; unset, the field draws a sent message's faces.
    * @type {HTMLElement | null} */
@@ -479,7 +481,7 @@ class LeafText extends HTMLElement {
     return travel < 0 ? Math.floor(travel) : Math.ceil(travel);
   }
 
-  // Whether the host's words overflow it (`data-lf-overflows`), and which edges they run
+  // Whether the host's words overflow it (`overflows`), and which edges they run
   // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
   // show there is more without a scrollbar. The host stops at the page's height limit
   // while words grow inside it, so the reading watches the editor's content too, in the
@@ -506,21 +508,18 @@ class LeafText extends HTMLElement {
         };
       },
       write: (reading) => {
-        // WebKit can retain style from a removed custom state after the words shrink.
-        // An attribute invalidates the field's CSS at the same layout boundary.
-        if (this.hasAttribute("data-lf-overflows") !== reading.scrolls)
-          this.toggleAttribute("data-lf-overflows", reading.scrolls);
         /** @type {readonly (readonly [string, boolean])[]} */
         const states = [
+          ["overflows", reading.scrolls],
           ["more-above", reading.scrolls && reading.above],
           ["more-below", reading.scrolls && reading.below],
           ["corner-taken", reading.corner],
         ];
         for (const [state, on] of states) {
           // Adding a state already set restyles all the same, on every scrolled frame.
-          if (this.#internals.states.has(state) === on) continue;
-          if (on) this.#internals.states.add(state);
-          else this.#internals.states.delete(state);
+          if (this.#states.has(state) === on) continue;
+          if (on) this.#states.add(state);
+          else this.#states.delete(state);
         }
       },
     });
@@ -619,15 +618,16 @@ class LeafText extends HTMLElement {
     this.#end.name = "end";
     this.#end.className = "lf-field-end";
     this.#end.addEventListener("slotchange", () => {
-      if (this.#end.assignedElements().length) this.#internals.states.add("end-held");
-      else this.#internals.states.delete("end-held");
+      if (this.#end.assignedElements().length) this.#states.add("end-held");
+      else this.#states.delete("end-held");
     });
     this.#placeholderLayer.append(words, this.#end);
     this.#rest.className = "lf-field-rest";
     this.#rest.rows = 1;
-    // In `focusin`, never `focus`: Chrome and Firefox send no `focusin` for a node that
-    // passes focus on in its own `focus` handler, and the move inside the closed root
-    // reaches nothing outside it, so the page would never hear the field take focus.
+    // In `focusin`, never `focus`: Chromium, Firefox and WebKit send no `focusin` for
+    // a node that passes focus on in its own `focus` handler, and the move inside the
+    // closed root reaches nothing outside it, so the page would never hear the field
+    // take focus.
     this.#rest.addEventListener("focusin", () => this.#build());
     for (const type of ["beforeinput", "input", "compositionstart", "compositionend"])
       this.#rest.addEventListener(type, (event) => this.#typeAtRest(event));
@@ -809,7 +809,7 @@ class LeafText extends HTMLElement {
     if (this.#length) this.#build();
     else this.#describe();
     this.#paintEmpty();
-    this.#internals.states.add("ready");
+    this.#states.add("ready");
   }
 
   // Until the field has an editor, its empty line's place stands in for the editor's
@@ -919,8 +919,8 @@ class LeafText extends HTMLElement {
   disconnectedCallback() {
     queueMicrotask(() => {
       if (this.isConnected) return;
-      this.#internals.states.delete("ready");
-      this.#internals.states.delete("corner-taken");
+      this.#states.delete("ready");
+      this.#states.delete("corner-taken");
       const content = this.#content;
       if (content.kind !== "view") return;
       this.#content = {
@@ -1016,8 +1016,8 @@ class LeafText extends HTMLElement {
   }
 
   #paintEmpty() {
-    if (this.#length) this.#internals.states.delete("placeholder-shown");
-    else this.#internals.states.add("placeholder-shown");
+    if (this.#length) this.#states.delete("placeholder-shown");
+    else this.#states.add("placeholder-shown");
   }
 
   get value() {

@@ -782,7 +782,7 @@ def put_pane(page, built):
 def put_on_me_row(page, built):
     """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     rows = page.locator(".lf-fp-on-item")
     expect(rows).to_have_count(ASKS)
     rows.first.evaluate(
@@ -807,7 +807,7 @@ def put_on_me_turned_back(page, built):
     scrolled with the wheel past its first cards, the pointer resting on one in sight.
     Nothing the user does after the tab press repaints the panel, and no card holds a
     message for Leaf's reader to draw, so the list's next paint is the news's."""
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     cards = page.locator(".lf-fp-on-item")
     expect(cards).to_have_count(ASKS)
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")

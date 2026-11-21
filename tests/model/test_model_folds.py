@@ -62,12 +62,7 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
                 "through": "e3",
                 "text": "Extended exchange.",
             },
-            {
-                "kind": "edit",
-                **identity,
-                "message": "e3",
-                "text": "three, revised",
-            },
+            {"kind": "edit", "author": "user", "message": "e2", "text": "two, revised"},
         ),
     )
 
@@ -75,8 +70,8 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
     assert thread["summaries"] == []
     assert [message["text"] for message in thread["msgs"]] == [
         "one",
-        "two",
-        "three, revised",
+        "two, revised",
+        "three",
         "four",
     ]
 
@@ -357,7 +352,10 @@ def test_summary_leaves_messages_after_its_range_visible():
     assert thread["msgs"][-1]["text"] == "new message"
 
 
-def test_folds_without_summary_prose_keep_corrected_originals():
+def test_the_users_rewrite_retires_any_fold_and_the_agents_leaves_it():
+    """A summary the agent wrote can't account for the user's rewrite, whether it
+    reports the range in words or names it with a label, so the rewrite retires it;
+    the agent's own edit leaves its summary standing."""
     identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     state = model.reading(
         HUB,
@@ -383,21 +381,17 @@ def test_folds_without_summary_prose_keep_corrected_originals():
                 "through": "e4",
                 "text": "The later exchange.",
             },
-            {"kind": "edit", **identity, "message": "e2", "text": "two, revised"},
+            {"kind": "edit", "author": "user", "message": "e1", "text": "one, revised"},
             {"kind": "edit", **identity, "message": "e4", "text": "four, revised"},
         ),
     )
 
     thread = model.threads(state)["e1"]
-    [fold] = thread["summaries"]
-    assert (fold["covers"], fold["label"], fold["text"]) == (
-        ["e1", "e2"],
-        "Previous progress messages",
-        "",
-    )
+    [summary] = thread["summaries"]
+    assert (summary["covers"], summary["text"]) == (["e3", "e4"], "The later exchange.")
     assert [message["text"] for message in thread["msgs"]] == [
-        "one",
-        "two, revised",
+        "one, revised",
+        "two",
         "three",
         "four, revised",
     ]
@@ -877,9 +871,9 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
     )
 
 
-def test_summary_protects_the_unanswered_obligation_after_later_agent_messages():
-    """A summary cannot hide the question the user owes merely because a newer
-    agent message is the last turn. Protection selects the canonical prompt."""
+def test_a_summary_leaves_the_question_it_folds_on_the_users_list():
+    """A summary over a question the user owes answers nothing, so the question stays
+    on the user's list under the message that asked it."""
     state = model.reading(
         HUB,
         (
@@ -913,7 +907,6 @@ def test_summary_protects_the_unanswered_obligation_after_later_agent_messages()
     assert owed["message"] == "e1"
     [summary] = thread["summaries"]
     assert summary["covers"] == ["e1", "e2"]
-    assert summary["protected"] == ["e1"]
 
 
 def test_an_answer_sends_a_held_reading_only_what_changed():

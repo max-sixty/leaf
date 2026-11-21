@@ -25,10 +25,8 @@ in its own form:
   grouped or sorted by the fact they scan first. Values the user looks up, and
   measures in units that can't share an axis, go in a table too.
 - Wording the user judges, such as code, a command or a message, is shown as the text
-  itself, and so is a source a claim rests on, such as a rule in a doc. Quote that
-  passage whole, conditions included, so the reader can check the claim on the page.
-  When the point is what code does, such as what it draws or which rule wins, show
-  that effect in one of the forms above, with the code beside it.
+  itself. When the point is what code does, such as what it draws or which rule wins,
+  show that effect in one of the forms above, with the code beside it.
 
 The page's vocabulary provides most of these forms as widgets whose entries say what
 each shows ("Read the registry"). Use the one it offers rather than building the form
@@ -46,6 +44,25 @@ and cost, leave the case in words and draw nothing.
 
 `authoring-evidence.md` says how to present each kind of evidence, and how to draw a
 figure of your own.
+
+## Show what a claim rests on
+
+A claim the page makes about the work, such as a count, a cause, what code does or
+what a change changes, rests on material you read: the cases behind the count, the
+records of what happened, the code, the diff. Put that material on the page with the
+claim, quoted rather than retold, so the user can see what the claim means and check it
+without asking you or leaving the page. They often see in it what your summary left
+out. Quote a rule or other passage the claim turns on whole, conditions included, and
+excerpt a log or a diff to the lines that show the claim.
+
+How long the material is decides where it goes, not whether it goes on the page. The
+case or the few lines that show the claim most plainly stand beside it, and the rest,
+such as every case behind a count or a whole diff, stays on the page; "Reading cost"
+says when to collapse it. A link to where the material lives goes beside the material
+rather than in its place, except where the reader has no reason to check the claim,
+as with a fact they already hold or a status they take on trust, such as a passing CI
+run. Where the cases are too many, too large or private to show, show those the claim
+turns on and say how to reach the rest.
 
 ## Develop the work
 
@@ -77,10 +94,10 @@ interaction operable when trying it reveals more than seeing its states together
 
 Use real material where available. Fill gaps needed to demonstrate a proposal with
 plausible fictional content, clearly labeled as illustrative. This lets the reader
-judge a design before it is implemented or tested; claims about real behavior
-still require evidence. Keep the distinction visible beside the demonstration.
-`authoring-evidence.md` owns evidence and its presentation; `live-samples.md` owns
-operable Leaf examples.
+judge a design before it is implemented or tested, while a claim about real behavior
+rests on real material ("Show what a claim rests on"). Keep the distinction visible
+beside the demonstration. `authoring-evidence.md` says how to present each kind of
+evidence; `live-samples.md` owns operable Leaf examples.
 
 Compose the page from that material. Explain the conclusion, reasons, costs and
 limits beside the result they concern, and remove descriptions the result makes
@@ -336,16 +353,16 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
-also scrolls a `<pre>` wider than its container, and a table's columns size to their
-content. A `<pre>` asks its
-container for no width, so a box that takes its width from its content can leave it
-too narrow to read, which `page check --render` reports. A table scrolls inside a box
-that sets its own width, such as the column, a panel or any
-other block. A box that takes its width from its content, such as a flex item or a
-grid `auto` track, widens to the table's columns instead, past a phone's window if
-they need it, so give that box `min-width: 0` to keep the table scrolling inside it.
-A page without the face keeps the browser's tables and code blocks, so it puts one
-that can outgrow a narrow window in a box of its own that scrolls sideways, as above. Text that can't break, such as a bare identifier or a cell kept on
+also wraps a `<pre>`'s long lines, and a table's columns size to their content. A
+block whose columns must line up past its container's width, such as a diagram drawn
+in characters, keeps its lines with `white-space: pre` and scrolls them sideways. Such
+a block or a table scrolls inside a box that sets its own width, such as the column, a
+panel or any other block. A box that takes its width from its content, such as a flex
+item or a grid `auto` track, widens to its lines or the table's columns instead, past
+a phone's window if they need it, so give that box `min-width: 0` to keep it scrolling
+inside. A page without the face keeps the browser's tables and code blocks, so it puts
+one that can outgrow a narrow window in a box of its own that scrolls sideways, as
+above. Text that can't break, such as a bare identifier or a cell kept on
 one line, holds its column at its full length, and once the table scrolls sideways,
 prose in the other columns wraps a word per line. Under the face, put identifiers in
 `<code>`, which can break inside a cell, and write each row's name as its first cell,

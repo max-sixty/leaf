@@ -405,14 +405,14 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   color: var(--lf-muted);
 }
 /* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
-   the On Me mark, the folded leaf and a margin entry. */
+   the leaf and a margin entry. */
 .lf-unread-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--lf-news);
 }
-/* Where nothing has news, the On Me mark and the folded leaf wear it in a faint grey for
+/* Where nothing has news, the leaf wears it in a faint grey for
    a draft the user put away (floating-panel.js, `keptDrafts`; tokens.css,
    `--lf-draft`). */
 .lf-unread-dot[data-lf-drafts] {
@@ -420,11 +420,12 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 }
 /* A control's badges: a count, and dots for news and for an error, on the top edge of
    the folded leaf and of a margin entry. They stand in one row, so no badge covers
-   another whichever show. The count holds a corner, the dots stand side by side at the
-   other corner, and where no count shows the dots take the count's corner. The user
-   chose that arrangement for the folded leaf. Rejected: a rule per badge seating it on
-   a corner of its own, which let one badge cover another wherever two rules chose the
-   same corner, as the unread dot covered a margin entry's count.
+   another whichever show. The count holds one corner and the dots stand side by side
+   at the other, with room between them (`::after`), so a dot stays where it is as a
+   count comes and goes. The user chose that over dots that took the count's corner
+   where no count showed. Rejected: a rule per badge seating it on a corner of its own,
+   which let one badge cover another wherever two rules chose the same corner, as the
+   unread dot covered a margin entry's count.
 
    The row runs left to right whatever the page's direction, since its carriers stand
    at the window's right and a pin keeps its count off the window's edge. A carrier
@@ -447,13 +448,19 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   align-items: start;
   gap: 2px;
 }
+.lf-badges::after {
+  content: "";
+  flex: 1 0 0;
+  order: 1;
+}
 .lf-badges > * {
   flex: none;
   box-shadow: 0 0 0 2px var(--lf-paper);
 }
 .lf-badges > .lf-badge-count {
+  order: 2;
   margin: calc(-1 * var(--lf-badge-reach, 0px)) calc(-1 * var(--lf-badge-reach, 0px)) 0
-    auto;
+    0;
   min-width: 17px;
   height: 17px;
   padding: 0 5px;
@@ -622,10 +629,6 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 summary,
 .lf-disclosure-marker {
   list-style: none;
-}
-:where(summary):is(summary, .lf-disclosure-marker)::-webkit-details-marker,
-.lf-disclosure-marker::-webkit-details-marker {
-  display: none;
 }
 :where(summary):is(summary, .lf-disclosure-marker)::before,
 .lf-disclosure-marker::before {
@@ -904,10 +907,18 @@ summary,
   color: var(--lf-accent);
 }
 /* A symbol whose menu, picker or popover is open (`aria-expanded`), such as a
-   message's reaction picker or the panel's leaf menu, keeps the chip while it shows. */
+   message's reaction picker, keeps the chip while it shows. */
 .lf-icon-action[aria-expanded="true"] {
   background: var(--lf-chip);
   color: var(--lf-ink);
+}
+/* A symbol that carries badges (`.lf-badges`, above), as the panel's leaf does, draws
+   no ground: neither the library's fill under a hovering or pressing pointer nor the
+   chip while what it opens shows. Its badges stand over its top edge, where a
+   ground's edge would meet them, and the view it opens shows what it opened. The user
+   chose the bare leaf over its tile. */
+.lf-icon-action:has(> .lf-badges) {
+  background: none;
 }
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
    of words of its own; the button inside fills the face and takes the press. The host
@@ -939,6 +950,12 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-accent);
   color: var(--lf-accent);
   background: var(--lf-chip);
+}
+/* A selection the page shows only in part (`data-lf-partial`), as Skim once the reader
+   opens a gap it folded: the border steps back while the words keep the accent, since
+   fainter words read as a disabled control. */
+.lf-btn:is([aria-pressed="true"], [aria-checked="true"])[data-lf-partial] {
+  border-color: rgb(from var(--lf-accent) r g b / 40%);
 }
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
    is marked settled, as a chosen answer is (below). */
@@ -1729,7 +1746,7 @@ wa-copy-button.lf-icon-action {
 
 /* The inline face, for a press read as part of the line of words it stands in, such
    as a thread's held news, the activity feed's notice, the floating panel's Next
-   unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
+   unread. Its words take the accent ink at weight 600 and the
    line's own size, with no chip, fill or border, and an underline under a hovering
    pointer. One announcing news waiting (`data-lf-news`) keeps the accent the
    unread dot wears, as the user chose over the danger ink, which read
@@ -1761,8 +1778,9 @@ wa-copy-button.lf-icon-action {
    notice's Undo among a box's empty words at the floating panel field's end, as the
    word and key that enter the box do, saying by its pointer alone that it takes a
    press, since the user chose that the right side of a box holds its shortcut in one
-   format; and a summary's count at its head (surfaces.css), which a hovering pointer
-   underlines as it does any inline press. */
+   format; a summary's count at its head; and a quote's label where it opens the
+   whole quote (surfaces.css), which a hovering pointer underlines as it does any
+   inline press. */
 .lf-inline-action[data-lf-hint] {
   color: inherit;
   font: inherit;

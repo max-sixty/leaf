@@ -278,4 +278,8 @@ but the screen doesn't show: Leaf writes them there while the attribute stands, 
 takes them away with it. Set the whole quiet word each time. Leaf writes
 quiet words for elements it marks as rewritten, changed or reported, so declare them only
 on parts the module builds or owns, such as a code line or a suggestion's slot. A page
-without Leaf, whose theme would leave them on screen, writes none.
+without Leaf, whose theme would leave them on screen, writes none. Where a control's
+quiet words are all its face leaves unsaid, its preview reads them alone, as a check's
+verdict; a widget whose quiet words the page shows another way, as a column's head
+shows each cell's run, declares the control's `lfPreview` returning `false`
+(`module-input.md`, "Previews").

@@ -13,6 +13,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     resized,
+    root_overflow,
     write,
 )
 
@@ -284,6 +285,68 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     )
 
 
+def test_a_code_block_wraps_its_lines_whatever_holds_it(browser, serve, subtests):
+    """A code block shows each line whole without scrolling sideways (reading.css,
+    `pre`): a line longer than the block wraps, and its later rows hang two characters
+    in, so they read as the rest of the line. A box that takes its width from its
+    content gives the block its line's width, so a command shows on one row in a flex
+    row beside another, in an `auto` track beside an `fr` track, under a heading in a
+    flex item and in a box sized to fit, and a block in a table cell keeps room for its
+    words. A block whose author keeps its lines (`white-space: pre`) scrolls them
+    sideways inside the column."""
+    long = "const result = await fetchEverything({ retries: 3, timeout: 5000 });"
+    source = leaf_page(
+        "Code blocks and their holders",
+        f"""<h1>Code blocks and their holders</h1>
+<pre id="long"><code>{long} {long}</code></pre>
+<div class="row"><pre id="start"><code>npm start</code></pre><pre id="serve"><code>uv run serve</code></pre></div>
+<div class="tracks"><pre id="tracked"><code>make release</code></pre><p>From the root.</p></div>
+<div class="row"><div><h2>Run</h2><pre id="labelled"><code>retry(times=5, backoff=2)</code></pre></div></div>
+<div class="fitted"><h2>Run</h2><pre id="fitted"><code>uv run leaf-dev probe --state reading</code></pre></div>
+<table><thead><tr><th>Run</th><th>What it does</th></tr></thead><tbody>
+<tr><td><pre id="celled"><code>uv run pytest -k squeeze</code></pre></td><td>Runs the squeeze tests.</td></tr>
+</tbody></table>
+<pre id="kept" style="white-space: pre"><code>{long} {long}</code></pre>""",
+        head="<style>.row { display: flex; gap: 16px; }"
+        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }"
+        " .fitted { width: fit-content; }</style>",
+    )
+    page = open_page(browser, serve(source))
+    read = """(pre) => {
+        const style = getComputedStyle(pre);
+        const range = document.createRange();
+        range.selectNodeContents(pre.querySelector('code'));
+        const rows = [...range.getClientRects()].filter((r) => r.width > 1);
+        const tops = [...new Set(rows.map((r) => Math.round(r.top)))];
+        const second = rows.find((r) => Math.round(r.top) === tops[1]);
+        return {
+          scrolls: pre.scrollWidth - pre.clientWidth,
+          rows: tops.length,
+          hang: second ? second.left - rows[0].left : 0,
+          inside: pre.clientWidth - parseFloat(style.paddingLeft)
+            - parseFloat(style.paddingRight),
+          size: parseFloat(style.fontSize),
+        };
+    }"""
+    for width in (1280, 390):
+        with subtests.test(width=width):
+            resized(page, width, 844)
+            blocks = {
+                id: page.locator(f"#{id}").evaluate(read)
+                for id in ("long", "start", "serve", "tracked", "labelled", "fitted")
+            }
+            celled = page.locator("#celled").evaluate(read)
+            kept = page.locator("#kept").evaluate(read)
+            assert all(b["scrolls"] <= 1 for b in [*blocks.values(), celled]), blocks
+            assert blocks["long"]["rows"] > 1, blocks["long"]
+            assert blocks["long"]["hang"] > blocks["long"]["size"], blocks["long"]
+            for id in ("start", "serve", "tracked", "labelled", "fitted"):
+                assert blocks[id]["rows"] == 1, (id, blocks[id])
+            assert celled["inside"] > 6 * celled["size"], celled
+            assert kept["scrolls"] > 1 and kept["rows"] == 1, kept
+            assert root_overflow(page) <= 0
+
+
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
     """The panel keeps the inset tokens stated by the stylesheet: it stands clear of the
     window's foot by the bottom inset, and inside the side insets, with a view open as
@@ -307,7 +370,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
         resized(page, width, 700)
         for opened in (False, True):
             if opened:
-                page.locator(".lf-fp-on-user").click()
+                page.locator(".lf-fp-leaf").click()
             panel_settled(page, open=opened)
             box = page.evaluate(reading)
             assert box["bottom"] <= box["height"] - insets["bottom"], (width, box)

@@ -564,6 +564,7 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(page_dir
             "title": "Workshop venue",
             "anchor": None,
             "detached_from": None,
+            "rewritten_from": None,
             "resolved": None,
             "elided": {"messages": 0, "actions": 0},
             "messages": [],
@@ -656,6 +657,52 @@ def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
     _, closed_batch, _ = delivered(capsys)
     [closed] = closed_batch["threads"]
     assert (closed["id"], closed["resolved"]) == (opened["id"], "user")
+
+
+def test_a_delivered_message_carries_the_words_a_revision_rewrote_under_its_thread(
+    page_dir, capsys
+):
+    """A revision that rewrites the words a thread quotes moves the thread onto their
+    section, and the page no longer shows them. The user's next message there reaches
+    the agent with the anchor the thread was moved off, whose quote says what the
+    thread is about, as `page state` tells a later session."""
+    original = PAGE.replace("<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>')
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    opened = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this word.",
+            "anchor": {"section": "wording", "quote": "Alpha"},
+        },
+    )
+    (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
+    revised = stamp(page_dir, "Reworded the plan")
+    assert revised.exit_code == 0, revised.output
+    serving(page_dir, 1)
+    receive_through(page_dir, last_deliverable_seq(page_dir))
+    followed = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": opened["id"],
+            "text": "Why did this change?",
+        },
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    _, header, shown = delivered(capsys)
+    assert [e["id"] for e in shown] == [followed["id"]]
+    [thread] = header["threads"]
+    assert thread["anchor"] == {"section": "wording"}
+    assert thread["rewritten_from"]["quote"] == "Alpha"
+    assert thread["detached_from"] is None
+    [later] = [t for t in state_json(page_dir)["threads"] if t["id"] == opened["id"]]
+    assert later["rewritten_from"] == thread["rewritten_from"]
 
 
 def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsys):

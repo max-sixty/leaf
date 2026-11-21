@@ -13,26 +13,29 @@ answer, and drop once they reply. They also chose that summarizing comes second 
 answering. So the summary is a fork of its own, started
 beside the line fork (`forks.ask`'s `beside`), rather than a part of the line fork's
 answer: a fork's answer arrives whole, and a summary's few hundred words would hold
-back the working line and the thread's handover to the session by seconds.
+back the working line by seconds.
 
-The hint is the fork's for a thread whose newest delivered message Leaf kept back for
-a line fork, since `forks.ask` asked this fork then: the session's delivery leaves it
-out (`thread_context.batch_threads`), so the session spends no step on it. A delivery
-whose newest message in the thread wasn't kept back, as one arriving while the
-session still owed the thread its answer, carries the hint to the session when a
-range is suggested.
+The hint is the fork's for a thread whose newest delivered message came to a round
+that awaited a line (`forks.unlined`) while a follower listed the session's line forks
+(`forks.lane_up`), since `forks.ask` asks this fork beside that round's line fork:
+the session's delivery leaves it out (`thread_context.batch_threads`), so the session
+spends no step on it. A delivery whose newest message in the thread joined a round
+the agent had spoken in, as one arriving while the session still owed the thread its
+answer, carries the hint to the session when a range is suggested.
 Where the fork fails, Leaf tells the session the range it suggested (`_handed`), so
-the summary has an owner either way. One path leaves it without one until the
-thread's next message Leaf keeps back: a line turn that lapses, or whose step fails,
-before the module asks its forks, since nothing runs then to hand the range over.
+the summary has an owner either way. `forks.ask` asks this fork whether or not the
+round still awaits its line, so the agent's own progress in the thread leaves the
+summary the fork's. Some paths leave it without one until the thread's next round: a
+line fork's report that fails, or finds the round already answered, before the module
+asks its forks, and a round older than the follower's first look at the page, since
+nothing then asks the fork or hands the range over.
 
 The fork chooses the range, as the agent would from a delivery's hint: the hint is
 Leaf's suggestion, and the fork follows the agent's guidance for what to fold
 (`RANGE`), weighing which messages compress and which the current exchange still turns
 on, the opening message among them, and may fold nothing. The user chose this, as root
 `AGENTS.md`'s "Leaf's role" has it. Leaf takes a range of the thread's spoken messages
-that ends before the user's newest messages, which the main session answers, and
-admission holds it to the rule every summary keeps (`events.summary_range`). A range
+that ends before the user's newest messages, which the main session answers. A range
 Leaf can't take goes to the agent as a failed fork does; a fork that folds nothing
 leaves the thread as it is, and the agent hears nothing of it. Taking the hint as the
 range, the fork writing only the prose, is the alternative a later change might reach
@@ -70,7 +73,7 @@ OPENING = "<leaf-summary-fork>"
 # The agent's guidance for what a summary folds and what it holds, which the fork
 # follows.
 RANGE = ("threads.md", "Fold what compresses most")
-GUIDANCE = ("threads.md", "A summary gives the range's")
+GUIDANCE = ("threads.md", "A summary is what the user reads")
 
 # What the fork answers: the range it folds and the summary's Markdown, or that it
 # folds nothing.
@@ -97,13 +100,12 @@ ANSWER = {
 
 # The id the summary takes while `_fence` asks whether it would still be in force.
 # The page readings this module takes are imported where they're read: `forks`,
-# which a tool hook with nothing to deliver imports, imports this module, and such a
-# hook runs at every turn, so it loads no runtime dependency but `click`.
+# which every delivery imports (`delivery.batch_data`), imports this module.
 _WEIGHED = "summary-fork"
 
 
 def ask(page: PageTransaction, data: dict, basis: dict) -> dict | None:
-    """The fork to make beside the line fork for the kept-back thread `basis` names,
+    """The fork to make beside the line fork for the round `basis` names,
     as `{"prompt", "basis"}`, where Leaf suggests a range of it to summarize; else
     None. `data` is the thread whole, as `forks._thread_data` reads it from `page`."""
     from .events import active_summaries, build_threads
@@ -154,7 +156,7 @@ The whole thread, as Leaf delivers it but with every message; "events" are the u
 Leaf suggests folding the messages from {hint["from"]} through {hint["through"]}, a range that takes in every summary in force among them, which yours replaces. Choose the range yourself, as the session's guidance has it:
 {folds}
 
-The range runs forward from one spoken message of the thread through another, ends before the user's newest messages in "events", and leaves no message but the thread's opening one in full above any summary; Leaf takes no other. Leaf posts your summary as the session's own: the thread shows it in place of the range, and the originals stay available to unfold. It answers nothing; the main session answers the newest messages. Write it as the session's guidance has it:
+The range runs forward from one spoken message of the thread through another and ends before the user's newest messages in "events"; Leaf takes no other. Leaf posts your summary as the session's own: the thread shows it in place of the range, and the originals stay available to unfold. It answers nothing; the main session answers the newest messages. Write it as the session's guidance has it:
 {holds}
 
 Reply with this JSON alone: {{"from": "<the range's first message id>", "through": "<its last message id>", "text": "<the summary's Markdown>"}}, or {{"fold": false}} where nothing in the thread compresses without losing wording the current exchange still turns on.

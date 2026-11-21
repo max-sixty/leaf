@@ -169,7 +169,11 @@ import { closestAcross } from "../passages.js";
 import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
 import { threadKey } from "../thread/model.js";
-import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
+import {
+  anchorLabel,
+  releaseAuthoredUnder,
+  threadPassage,
+} from "../thread/messages.js";
 import { coarsePointer } from "../pointer.js";
 import {
   attachedEdge,
@@ -1112,12 +1116,12 @@ export function createThreadPreview({
     };
     const present = () => {
       // The card is headed by the passage the selected thread quotes, as the panel
-      // heads it, else by its margin entry's title: a card headed "aside · The fallback
-      // cookie is read-only…" over a comment on the aside's last sentence was a third
-      // name for one thread, and the least exact.
-      const quoted = selected.thread?.anchor
-        ? anchorLabel(selected.thread.anchor, selected.thread.root.about)
-        : null;
+      // heads it, words a revision rewrote included (`threadPassage`), else by its
+      // margin entry's title: a card headed "aside · The fallback cookie is
+      // read-only…" over a comment on the aside's last sentence was a third name for
+      // one thread, and the least exact.
+      const passage = selected.thread && threadPassage(selected.thread);
+      const quoted = passage ? anchorLabel(passage, selected.thread?.root.about) : null;
       const title = labelWords(quoted || entry.title);
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);

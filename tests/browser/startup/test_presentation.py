@@ -35,7 +35,7 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
 ):
     """The page and the floating panel's row both stand from the first paint, before
     the runtime loads, and the runtime moves neither: the panel takes the row over
-    with its leaf, field and On Me mark where the row's stood."""
+    with its field and leaf where the row's stood."""
     boot = []
     context = browser.new_context(
         viewport={"width": width, "height": 900}, has_touch=has_touch
@@ -48,9 +48,7 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
         document.querySelector('.lf-floating-panel[data-lf-served]'));
     })""")
     page.route("**/leaf.js", lambda route: boot.append(route))
-    row = {
-        part: f"{PANEL} .lf-fp-{part}" for part in ("card", "leaf", "field", "on-user")
-    }
+    row = {part: f"{PANEL} .lf-fp-{part}" for part in ("card", "field", "leaf")}
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(
@@ -461,10 +459,30 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
         expect(link).to_have_accessible_name(name)
         expect(link).to_have_accessible_description("opens in a new tab")
         expect(link).to_have_attribute("data-lf-external", "")
-    assert (
-        shadow_link.evaluate("link => getComputedStyle(link, '::after').display")
-        == "inline-block"
-    )
+    # The mark reaches the shadow stage, where it is drawn the em wide its gap and icon
+    # take, and at every width that holds the link's last word and the mark, it stays
+    # on that word's line.
+    assert shadow_link.evaluate(
+        """link => {
+          const host = link.getRootNode().host;
+          const text = link.firstChild;
+          const last = document.createRange();
+          last.setStart(text, text.length - 1);
+          last.setEnd(text, text.length);
+          host.style.display = 'block';
+          const apart = [];
+          for (let width = 120; width <= 300; width++) {
+            host.style.width = `${width}px`;
+            const word = last.getBoundingClientRect();
+            const mark = [...link.getClientRects()].at(-1);
+            if (Math.abs(mark.top - word.top) > word.height / 2) apart.push(width);
+          }
+          const em = parseFloat(getComputedStyle(link).fontSize);
+          const width = [...link.getClientRects()].at(-1).right - last.getBoundingClientRect().right;
+          const drawn = getComputedStyle(link, '::after').maskImage !== 'none';
+          return {drawn, em: Math.round(width / em * 10) / 10, apart};
+        }"""
+    ) == {"drawn": True, "em": 1.0, "apart": []}
 
     stamp_page(serve.page_dir, authored.replace("Late links", "Later links"), "later")
     wait_for_revision(page, 2)

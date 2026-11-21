@@ -40,16 +40,18 @@ Personal themes and their author instructions are discoverable with `leaf theme 
 `references/package-themes.md`, "Personal themes", covers choosing one and how the
 page captures it.
 
-Read the applicable references under **Author a version** below. For substantial
-new material, including a new section on an existing page, start an author without
+Read the applicable references under **Author a version** below. For substantial new
+material, including a new section on an existing page, start an author without
 inherited conversation (`fork_turns: "none"` where available). Give it the reader's
-question, task, relevant facts and constraints, initial content and state, the page
-registry, `references/page-authoring.md` and a fresh output directory (`mktemp -d`).
-Ask it to construct the subject the page discusses, following "Show the subject" and
-"Develop the work", and return finished files and captions. Keep the research
-history and existing page with you. Integrate the returned material following
-"Composing a page" and `references/authoring-on-me.md` for decisions left to the
-user. When subagents are unavailable, build the material directly.
+question, the task, the relevant facts with the material they rest on (the cases,
+records or code, or the files that hold them), the constraints, the initial content
+and state, the page registry, `references/page-authoring.md` and a fresh output
+directory (`mktemp -d`). Ask it to construct the subject the page discusses,
+following "Show the subject", "Show what a claim rests on" and "Develop the work",
+and return finished files and captions. Keep the research history and existing page
+with you. Integrate the returned material following "Composing a page" and
+`references/authoring-on-me.md` for decisions left to the user. When subagents are
+unavailable, build the material directly.
 
 Follow `references/authoring-revisions.md` when changing an existing page, then
 write `<page>/index.html`. Each valid save becomes a live immutable revision. An invalid save leaves the last valid one live
@@ -118,10 +120,15 @@ testing. Keep direct answers, small edits, and review and integration of worker
 results with you. Having more work to do is a reason to
 delegate it while you remain available for the user's next move.
 
+New input from the page reaches you only between your steps, so while you hold a
+page, keep each step you wait on to about a minute. Run a longer command, or a wait
+on CI or on your own background work, in the background. While it runs, end your
+turn if your harness wakes you when it finishes, and otherwise check on it a minute
+at a time. A fork you give a thread message to keeps each step it waits on to a
+minute too, since the thread's later messages reach it between its own steps.
+
 `references/conversation-loop.md`, "Long-running work", owns worker briefs,
-results and work continuing beyond your turn. If subagents are unavailable, run
-long operations in the background and follow the harness delivery loop between
-bounded steps.
+results and work continuing beyond your turn.
 
 ## Commands
 

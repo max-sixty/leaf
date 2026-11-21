@@ -33,7 +33,6 @@ from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import state as state_model
 from leaf import thread as thread_model
 from leaf import thread_titles as thread_titles_model
 from leaf.harness import NUDGE_WORDS
@@ -64,6 +63,7 @@ class ClaudeCode:
         self.forks = queue.Queue()
         self.steps = queue.Queue()
         self.completions = queue.Queue()
+        self.environ = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -82,6 +82,8 @@ class ClaudeCode:
                 self.steps.put(record["report"])
             elif "completed" in record:
                 self.completions.put(record["completed"])
+            elif "environ" in record:
+                self.environ.put(record["environ"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -192,15 +194,8 @@ def band_lines(band, surface) -> list[tuple[str, ...]]:
 
 
 def admitted(page_dir, event: dict) -> dict:
-    """The user's message, admitted as the event endpoint admits it, which opens a
-    line turn for a message it keeps back (`forks.kept_from_main_at_admission`)."""
-    from leaf.forks import kept_from_main_at_admission
-    from leaf.service import PageTransaction
-
-    record = append_carried_log_record(page_dir, event)
-    with PageTransaction(page_dir) as page:
-        kept_from_main_at_admission(page, record)
-    return record
+    """The user's message, admitted to the page's log."""
+    return append_carried_log_record(page_dir, event)
 
 
 def test_leaves_own_rows_in_the_conversation_stay_quiet(spawn, sessionless):
@@ -553,13 +548,12 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     driven.quit()
 
 
-def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
+def test_a_thread_message_gets_the_agents_working_line_from_a_fork(
     page_dir, monkeypatch, spawn, sessionless
 ):
-    """The pages follower holds the session's forks lane, so the user's message in a
-    new thread is kept back from the session, and the module forks the conversation with
-    Leaf's prompt for it as it arrives and hands the line back: it goes in as the
-    agent's working line, and the thread goes to the session."""
+    """The pages follower lists the user's message in a new thread as it arrives,
+    and the module forks the conversation with Leaf's prompt for it and hands the
+    line back: it goes in as the agent's working line."""
     said = "Checking why the poll is 2 s"
     driven = ClaudeCode(
         spawn,
@@ -591,7 +585,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
         lambda line: line.startswith("Leaf: the line fork for thread"),
         failure=lambda: f"the fork never reported: {list(driven.diagnostics.queue)}",
     )
-    assert told == f"Leaf: the line fork for thread {asked['id']}: hand_over", told
+    assert told == f"Leaf: the line fork for thread {asked['id']}: posted", told
     [line] = [
         event
         for event in events_model.read_events(page_dir)
@@ -670,8 +664,8 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
             }
         },
     )
-    # The thread's history, written before the follower takes the lane, keeps
-    # nothing back.
+    # The thread's history, written before the follower first reads the page, gets
+    # no line fork.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
@@ -734,13 +728,13 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
     driven.quit()
 
 
-def test_a_line_fork_whose_step_leaf_could_not_take_still_hands_its_thread_over(
+def test_a_line_fork_whose_step_leaf_could_not_take_posts_nothing(
     page_dir, monkeypatch, spawn, sessionless
 ):
     """Where Leaf's step for the line fork's answer fails, as when Leaf's process
-    does, the module reports the instruction once more as failed, and Leaf hands the
-    thread to the session bare at once, rather than the line turn holding it until
-    it lapses."""
+    does, the module reports the instruction once more as failed, and Leaf records
+    that the line fork failed and posts nothing, while the message stays the
+    session's input."""
     driven = ClaudeCode(
         spawn,
         "cc-unrouted",
@@ -769,9 +763,8 @@ def test_a_line_fork_whose_step_leaf_could_not_take_still_hands_its_thread_over(
         bool,
         failure=lambda: f"Leaf never routed the thread: {list(driven.debug.queue)}",
     )
-    assert routed["outcome"] == "hand_over", routed
+    assert routed["outcome"] == "failed", routed
     assert routed["why"].startswith("the fork failed: Leaf's step failed"), routed
-    assert state_model.open_agent_turns("cc-unrouted") == {}
     assert not [
         event
         for event in events_model.read_events(page_dir)
@@ -782,6 +775,48 @@ def test_a_line_fork_whose_step_leaf_could_not_take_still_hands_its_thread_over(
             asked["id"]
         ]
     driven.quit()
+
+
+LIMIT = "CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS"
+
+
+def test_a_session_holding_a_page_has_its_long_commands_moved_to_the_background(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """While the session holds a page, the module sets Claude Code's own limit on how
+    long a main-agent foreground command holds the turn to 90 s, after which Claude
+    Code moves it to the background and the page's input reaches the session. A
+    `leaf` command may take a page on, however its launcher is spelled, so the limit
+    is set before that command's result returns, ahead of the session's next call,
+    and taken back once the follower finds the session holds no page. A limit the
+    user set stays as it was, Leaf's own value included."""
+    quoted = '"/opt/leaf/bin/leaf" server start p'
+
+    pageless = ClaudeCode(spawn, "cc-pageless", {})
+    pageless.emit("tool.call", {"tool": "Bash", "command": quoted, "tool_use_id": "u1"})
+    assert pageless.environ.get_nowait() == {LIMIT: "90000"}
+    assert pageless.environ.get(timeout=STATED_TIMEOUT) == {LIMIT: None}
+    pageless.quit()
+
+    driven = ClaudeCode(spawn, "cc-limited", {})
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    # The follower's listing of the live page sets it, as in a session resumed
+    # holding one.
+    assert driven.environ.get(timeout=STATED_TIMEOUT) == {LIMIT: "90000"}
+    driven.quit()
+
+    own = ClaudeCode(spawn, "cc-own-limit", {"env": {LIMIT: "90000"}})
+    own.emit(
+        "tool.call",
+        {"tool": "Bash", "command": "leaf page state p", "tool_use_id": "u2"},
+    )
+    # The follower finds no page and ends, and the band is drawn empty.
+    own.bands.get(timeout=STATED_TIMEOUT)
+    own.settle()
+    assert own.environ.empty()
+    own.quit()
 
 
 def test_leaf_hears_nothing_from_a_subagent_and_hands_it_nothing(

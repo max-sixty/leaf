@@ -664,7 +664,7 @@ def test_an_armed_go_to_is_named_beside_the_way_out_that_closes_it_from_any_step
     )
     field = page.locator(".lf-fp-field leaf-text")
     name = page.locator(".lf-fp-mode")
-    leave = page.locator('.lf-fp-quick .lf-fp-exit[aria-label="Close Go to"]')
+    leave = page.locator('.lf-fp-row > .lf-fp-exit[aria-label="Close Go to"]')
     page.locator("body").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()

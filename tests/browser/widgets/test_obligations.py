@@ -1424,7 +1424,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     would anyone who had just selected a paragraph to comment on.
 
     Reading an obligation is being at it without being on it, so the walk arrives
-    there. The panel's On Me mark is no place: pressing it opens On Me and leaves the
+    there. The panel's On Me tab is no place: pressing it opens On Me and leaves the
     focus in the panel, which holds the user's place on the page, so the walk after it
     steps on from the obligation they stood on rather than restarting. A selected
     passage enters its comment field immediately; while that field stands, letters
@@ -1442,7 +1442,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On Me and takes the focus into the panel, which holds the
+    # The tab's press opens On Me and takes the focus into the panel, which holds the
     # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")

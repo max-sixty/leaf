@@ -96,12 +96,17 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
     seat: () => false,
     restore() {},
   };
-  const read = { observeMessage: () => () => {}, observeFeedback: () => () => {} };
+  const read = {
+    observeMessage: () => () => {},
+    observeFeedback: () => () => {},
+    observeSummary: () => () => {},
+  };
   const commands = {
     composition,
     read,
     reply: { wireInput },
     reaction: {},
+    placedAt: () => null,
     invalidate() {},
     reveal() {},
   };

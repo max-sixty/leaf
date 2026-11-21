@@ -11,6 +11,7 @@ from render_harness import (
     LONG_PAGE,
     open_page,
     panel_control,
+    panel_menu,
     panel_view,
     resized,
     round_trip,
@@ -308,7 +309,7 @@ def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
     """A command chosen in the reference enters its destination from the panel leaf."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
     leaf = page.locator(".lf-fp-leaf")
-    leaf.click()
+    panel_menu(page)
     page.keyboard.press("Escape")
     expect(leaf).to_be_focused()
     page.keyboard.press("?")

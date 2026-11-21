@@ -21,8 +21,10 @@ from browser.threads import (
     open_panel_thread,
     summarize_thread,
 )
+from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -184,6 +186,96 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(
         view = open_panel_thread(page, root)
         expect(view.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')).to_be_hidden()
         expect(note).to_be_attached()
+
+
+def test_on_me_opens_the_fold_over_a_message_it_lists(browser, serve):
+    """A summary folds messages that still ask something of the user as it folds any
+    others, so the thread shows the summary alone. On Me still lists what they ask, and
+    its Show lands on the asking message, opening the fold around it."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Is forty megabytes enough?", {"section": "s-how"}
+    )
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "obligation": True,
+            "text": "It holds a week of edits. Try a week offline and tell me.",
+        },
+    )
+    corrected = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "obligation": True,
+            "text": "A correction: it holds three days, not a week.",
+        },
+    )
+    summarize_thread(
+        serve.page_dir,
+        asked["id"],
+        corrected["id"],
+        "Forty megabytes holds three days of edits; try three days offline.",
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="s-how"] .lf-margin-marker').click()
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    toggle = card.locator(".lf-summary-expand")
+    message = card.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')
+    expect(toggle).to_have_attribute("aria-expanded", "false")
+    expect(message).to_be_hidden()
+
+    open_on_me(page).locator(".lf-fp-on-item").first.get_by_role(
+        "button", name="Show", exact=True
+    ).click()
+    expect(message).to_be_focused()
+    expect(message).to_be_visible()
+    expect(toggle).to_have_attribute("aria-expanded", "true")
+
+
+@pytest.mark.parametrize(
+    "text", ["It holds three days of edits.", ""], ids=["prose", "bare-fold"]
+)
+def test_reading_a_summary_reads_the_messages_it_folds(browser, serve, text):
+    """The agent folded the messages for the user to read the fold instead, so once
+    the fold has been on screen whole, whatever it says of them, they count as read in
+    the versions it folds, and nothing offers to open the fold as unread."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Is forty megabytes enough?", {"section": "s-how"}
+    )
+    answer = append_agent_reply(serve.page_dir, root, "It holds a week of edits.")
+    correction = append_agent_reply(serve.page_dir, root, "A correction: three days.")
+    summarize_thread(serve.page_dir, answer["id"], correction["id"], text)
+    page = open_page(browser, url)
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    with sending(page, "the summary read"):
+        page.locator('[data-lf-margin-for="s-how"] .lf-margin-marker').click()
+        expect(card.locator(".lf-summary-expand")).to_be_visible()
+    marked = {
+        (item["message"], item["version"])
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "read"
+        for item in event["messages"]
+    }
+    assert marked == {
+        (answer["id"], answer["id"]),
+        (correction["id"], correction["id"]),
+    }
+    expect(card.locator(".lf-summary-expand")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    expect(page.locator(".lf-next-unread:visible")).to_have_count(0)
 
 
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):
@@ -396,8 +488,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     would reload its frame in WebKit, which lacks `moveBefore`, and lose the selection
     in every engine. The checkpoint groups its messages for assistive technology by
     `aria-owns`, since it doesn't contain them. Its toggle takes a press while those
-    words stay selected. Standing on that toggle, the user is in the thread, so the
-    edit that retracts the summary draws at once."""
+    words stay selected. Standing on that toggle, the user is in the thread, so their
+    rewrite of a folded message, which retracts the summary, draws at once."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -407,7 +499,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
     )
     worded = append_agent_reply(serve.page_dir, root, "The mounts take an hour.")
-    edited = append_agent_reply(serve.page_dir, root, "The camera takes two.")
+    edited = append_user_reply(serve.page_dir, root, "The camera takes two.")
     append_user_reply(serve.page_dir, root, "Keep the latest visible.")
 
     page = open_page(request.getfixturevalue(engine), url)
@@ -477,9 +569,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
+            "author": "user",
             "message": edited["id"],
             "text": "The camera takes three.",
         },
@@ -628,13 +718,14 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     expect(card).to_be_hidden()
 
 
-def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
+def test_a_later_summary_replaces_its_overlap_and_a_rewrite_restores_originals(
     browser, serve
 ):
     """The browser follows the canonical summary fold as the transcript changes.
 
     Each change to the fold of a card the user is reading waits behind its notice, with
-    the words it would change; shown, a summary opens around the messages being read."""
+    the words it would change; shown, a summary opens around the messages being read.
+    The user's rewrite of a folded message retires the summary, so the originals show."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
@@ -642,7 +733,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     first = thread_model.post_reply(
         serve.page_dir, {"responds": root}, "The first constraint."
     )
-    second = append_agent_reply(serve.page_dir, root, "The second constraint.")
+    second = append_user_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")
     old = summarize_thread(
         serve.page_dir,
@@ -686,9 +777,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
+            "author": "user",
             "message": second["id"],
             "text": "The corrected second constraint.",
         },

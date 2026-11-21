@@ -37,6 +37,7 @@ from leaf_dev.browser import (
     Window,
     go_to_threads,
     load,
+    open_menu,
     panel_view,
     scroll_settled,
     settle,
@@ -297,10 +298,10 @@ def page_comment_photo_hover(page: Page) -> None:
 
 
 def panel_corner_hover(page: Page) -> None:
-    """The pointer at the panel's top-right corner, which shows its fold."""
+    """The pointer at the panel's top-left corner, which shows its fold."""
     box = page.locator(".lf-fp-card").bounding_box()
     assert box is not None
-    page.mouse.move(box["x"] + box["width"] - 24, box["y"] + 8)
+    page.mouse.move(box["x"] + 24, box["y"] + 8)
     expect(page.locator(".lf-fp-minimize")).to_be_visible()
     settle(page)
 
@@ -312,7 +313,7 @@ def share_link(page: Page) -> None:
         "() => { Clipboard.prototype.writeText ="
         " () => Promise.reject(new Error('refused')); }"
     )
-    page.locator(".lf-fp-leaf").click()
+    open_menu(page)
     page.locator('.lf-fp-item[data-lf-row="share"]').click()
     about = page.get_by_role("dialog", name="About this page", exact=True)
     expect(about).to_contain_text(re.compile(r"Source captured for r\d+"))
@@ -378,7 +379,7 @@ def playground_text(page: Page) -> None:
 
 def page_about(page: Page) -> None:
     """The page's identity and captured diagnostics in the menu's inspection dialog."""
-    page.locator(".lf-fp-leaf").click()
+    open_menu(page)
     page.locator('.lf-fp-item[data-lf-row="inspection"]').click()
     expect(page.locator(".lf-inspection-dialog")).to_contain_text(
         re.compile(r"Source captured for r\d+")
@@ -386,7 +387,7 @@ def page_about(page: Page) -> None:
 
 
 def panel_leaf(page: Page) -> None:
-    """The floating panel's leaf, which opens the page's menu, with its keyboard focus
+    """The floating panel's leaf, which opens the On view, with its keyboard focus
     paint."""
     page.keyboard.press("Tab")
     page.locator(".lf-fp-leaf").focus()
@@ -640,6 +641,14 @@ def timeline_steps(page: Page) -> None:
     page.locator("#race .lf-timeline-controls").scroll_into_view_if_needed()
 
 
+def timeline_step_list(page: Page) -> None:
+    """The step list under a timeline that compares two runs, one step past the
+    first, so it shows the current row between a past one and the steps ahead."""
+    page.locator("#race").get_by_role("button", name="Next").click()
+    page.mouse.move(0, 0)
+    page.locator("#race .lf-timeline-steps").scroll_into_view_if_needed()
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     open_card(page, page.locator(".lf-margin-marker").first)
@@ -802,6 +811,25 @@ def summary_card_opened(page: Page) -> None:
     summary_card(page)
     page.locator(".lf-margin-preview .lf-summary-expand").click()
     settle(page)
+    page.mouse.move(0, 0)
+
+
+def rewritten_quote_card(page: Page) -> None:
+    """The plan's stop thread once a version rewrote the words its comment quoted, which
+    leaves the thread on their item: its margin card quotes the words the bracket no
+    longer marks, under its actions, marked as changed."""
+    source = served_page.get().directory / "index.html"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "The trusted supervisor owns shutdown.",
+            "Shutdown belongs to the supervisor.",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    as_agent("page", "stamp", "--text", "Reworded who owns shutdown")
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
     page.mouse.move(0, 0)
 
 
@@ -1336,7 +1364,7 @@ def option_answered(page: Page) -> None:
     """The panel's row once the server has read a pick that leaves more On Me, where the
     field's end offers the next item On Me lists."""
     page.locator("#off-release-hold").click()
-    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
+    expect(page.locator(".lf-fp-row .lf-fp-badge")).to_have_text("2")
 
 
 def panel_resolved(page: Page) -> None:
@@ -1353,14 +1381,18 @@ def panel_resolved(page: Page) -> None:
 
 def panel_draft_kept(page: Page) -> None:
     """The panel's row while a comment the user put away waits unsent and no thread
-    has news, so the On Me mark wears the dot for a kept draft."""
+    has news, so the row's end wears the dot for a kept draft."""
     field = page.locator(".lf-fab-input")
     page.locator("#race-lede").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     page.keyboard.type("Say which write wins before the timeline.")
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement?.blur()")
-    expect(page.locator(".lf-fp-on-user .lf-fp-news[data-lf-drafts]")).to_be_visible()
+    expect(
+        page.locator(
+            ".lf-fp-row [data-lf-drafts]:is(.lf-fp-news, .lf-fp-news-dot):visible"
+        )
+    ).to_be_visible()
     settle(page)
 
 
@@ -1378,12 +1410,9 @@ def leaf_draft_kept(page: Page) -> None:
 
 
 def panel_draw_mode(page: Page) -> None:
-    """The panel's row in Draw mode, the field naming the mode before the status, with
-    its way out."""
+    """The panel's row in Draw mode, its mode chip naming the mode beside its way out."""
     page.keyboard.press("w")
-    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "placeholder", re.compile("^In Draw mode")
-    )
+    expect(page.locator(".lf-fp-mode")).to_have_text("Draw")
 
 
 def panel_selection(page: Page) -> None:
@@ -1418,10 +1447,18 @@ def option_reference_hovered(page: Page) -> None:
     page.locator("#off-workaround-approve").hover()
 
 
-def on_me(page: Page) -> None:
-    """On Me, opened from the floating panel's On Me mark."""
-    page.locator(".lf-fp-on-user").click()
+def go_to_on_me(page: Page) -> None:
+    """Open On Me by Go to On Me (`g` then `M`), the route every runtime shares, as
+    `go_to_threads` opens Threads."""
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     expect(page.locator(panel_view("queue"))).to_be_visible()
+
+
+def on_me(page: Page) -> None:
+    """On Me, opened from the floating panel."""
+    go_to_on_me(page)
 
 
 def on_me_question(page: Page) -> None:
@@ -1681,14 +1718,14 @@ def retained_quote(page: Page) -> None:
 
 
 def retained_quote_full(page: Page) -> None:
-    """The same original words opened locally. Full quote stands with the quote's first
-    paint, before the view has finished arriving; the click waits until the reply has
-    been read where it stood, as a reader's would, since opening the quote at once
+    """The same original words opened locally. The label opens them from the quote's
+    first paint, before the view has finished arriving; the click waits until the reply
+    has been read where it stood, as a reader's would, since opening the quote at once
     pushes the reply out of view unread and offers Next unread."""
     retained_quote(page)
     child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
     expect(child.locator(f"{panel_view('thread')} .lf-msg-new")).to_have_count(0)
-    full = child.get_by_role("button", name="Full quote", exact=True)
+    full = child.locator(".lf-quote-label").get_by_role("button")
     full.click()
     expect(full).to_have_attribute("aria-expanded", "true")
 
@@ -2458,8 +2495,7 @@ def ship_answered(page: Page) -> None:
     page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
     page.keyboard.press("Escape")
     page.locator("#off-release-ship").click()
-    page.locator(".lf-fp-on-user").click()
-    expect(page.locator(".lf-fp-opened")).to_be_visible()
+    go_to_on_me(page)
 
 
 def card_message_by_keyboard(page: Page) -> None:
@@ -2541,7 +2577,7 @@ def option_thread_open(page: Page) -> None:
 def more_menu(page: Page) -> None:
     """The leaf's menu, the On view's first tab, opened: the agent's state at its head
     over the page's controls, the field its search and the tabs at its foot."""
-    page.locator(".lf-fp-leaf").click()
+    open_menu(page)
     page.locator(".lf-fp-menu").wait_for()
 
 
@@ -3336,6 +3372,12 @@ STATES = (
         region="#race .lf-timeline-controls",
     ),
     State(
+        "timeline-step-list",
+        "lost-update",
+        timeline_step_list,
+        region="#race .lf-timeline-steps",
+    ),
+    State(
         "trace-timeline-keyboard",
         "playwright-trace-gallery",
         trace_timeline_by_keyboard,
@@ -3485,6 +3527,12 @@ STATES = (
         "summary-card-opened",
         "review-a-plan",
         summary_card_opened,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "rewritten-quote-card",
+        "review-a-plan",
+        rewritten_quote_card,
         region=".lf-margin-preview",
     ),
     State(

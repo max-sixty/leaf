@@ -189,14 +189,14 @@
   // size the reader left the panel (`lfChrome.rest`, prepaint.js). The chrome's sheet is
   // adopted with it so it paints styled: the instance the runtime adopts, which an
   // adoption puts after every sheet the page holds, as the runtime's does (leaf.js). It
-  // says what the panel says before it has a reading, the status's words beside an On
-  // Me mark with no count, since nothing the server reads is known yet, and the keys
-  // held below in place of the status.
+  // says what the panel says before it has a reading, the status's words beside a leaf
+  // with no count, since nothing the server reads is known yet, and the keys held below
+  // in place of the status.
   //
-  // Until the panel mounts, a press on the leaf or On Me lands on the row and does
-  // nothing. What it does turns on the panel's state, which only the runtime reads, so
-  // a press held until then would act on a panel the user never saw take it; a key
-  // means the same wherever it lands, which is why keys are held. The press still never
+  // Until the panel mounts, a press on the leaf lands on the row and does nothing. What
+  // it does turns on the panel's state, which only the runtime reads, so a press held
+  // until then would act on a panel the user never saw take it; a key means the same
+  // wherever it lands, which is why keys are held. The press still never
   // reaches the page beneath the row, and ends a run of held keys as any press does.
   // Those controls take no focus (`inert`), so Tab passes them by.
   //
@@ -205,10 +205,9 @@
   // selection, input methods and a phone's keyboard, and which the hold leaves to it,
   // as it leaves any field's (`takesLetters`). The words the field says stand under
   // the textarea while it is empty. Return makes a line, since nothing can send yet.
-  // While the user is in the field or it holds words, the row stands as the panel's
-  // does while the user writes, as far as the row draws it: the field's ring
-  // (`data-lf-control-focus-visible`, focus.js), and the field in the On Me mark's
-  // room (`quickHidden`, floating-panel.js).
+  // While the user is in the field, the row stands as the panel's does while the user
+  // writes, as far as the row draws it: the field's ring
+  // (`data-lf-control-focus-visible`, focus.js).
   // Rejected: dropping the keys typed there, which loses every word typed before the
   // runtime loads; drawing them in the field's words as typed, which needs a caret,
   // endings, wrapping and a phone's keyboard of its own; a `contenteditable`, which
@@ -277,15 +276,10 @@
       let composing = false;
       for (const type of ["compositionstart", "compositionend"])
         box.addEventListener(type, () => (composing = type === "compositionstart"));
-      const quick = panel.querySelector(".lf-fp-quick");
       for (const type of ["focus", "blur"])
-        box.addEventListener(type, () => {
-          const writing = type === "focus";
-          panelRow.toggleAttribute("data-lf-control-focus-visible", writing);
-          const aside = writing || box.value !== "";
-          if (quick instanceof HTMLElement && quick.hidden !== aside)
-            quick.hidden = aside;
-        });
+        box.addEventListener(type, () =>
+          panelRow.toggleAttribute("data-lf-control-focus-visible", type === "focus"),
+        );
       const sheet = window.lfSheets().chrome;
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
       document.body.after(chrome);

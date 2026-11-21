@@ -641,7 +641,8 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert repr(fitted["title"]) in cut["text"]
 
     # A reply's --title names only a thread nothing has named, so a name the harness
-    # gave the thread while the agent worked stands; edit renames one.
+    # gave the thread while the agent worked stands, and the reply says which name
+    # stands and that edit renames it.
     followed = runner.invoke(
         cli_model.cli,
         [
@@ -657,6 +658,9 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     )
     assert followed.exit_code == 0, followed.output
     [followed] = [json.loads(line) for line in followed.stdout.splitlines()]
+    [kept] = followed.pop("findings")
+    assert (kept["code"], kept["severity"]) == ("title-kept", "advice")
+    assert "'Storage'" in kept["text"] and "leaf thread edit" in kept["text"]
     assert followed == logged(followed)
     assert followed["parent"] == root
     assert [

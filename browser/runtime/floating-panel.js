@@ -4678,33 +4678,35 @@ export function createFloatingPanel({
   // no tab beside it and no tab stands with a blank where its count would go.
   // Rejected: a blank at zero, which reads as a gap after the word, and the word
   // centred in a room wider on both sides, which stood it off centre once it had a
-  // count, as On Me nearly always does.
+  // count, as On Me nearly always does. An empty gap stands between two tabs, for the
+  // strip's gutter track (floating-panel.css, `.lf-fp-filters`).
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
    * @param {(name: T) => number | null} count */
   const tabs = (names, current, label, choose, count) =>
     html`<div class="lf-fp-filters" data-lf-scroll role="group" aria-label="Show">
-      ${names.map((name) => {
+      ${names.map((name, at) => {
         const counted = count(name);
-        return html`<button
-          type="button"
-          ${offeredAction("word", "lf-fp-tab")}
-          aria-pressed=${String(current === name)}
-          @click=${() => {
-            refit();
-            choose(name);
-          }}
-        >
-          <span class="lf-fp-tab-words"
-            >${label(name)}${
-              counted === null
-                ? nothing
-                : html` <span class="lf-fp-count" ?data-lf-zero=${!counted}
-                    >${counted}</span
-                  >`
-            }</span
+        const gap = at ? html`<span class="lf-fp-tab-gap"></span>` : nothing;
+        return html`${gap}<button
+            type="button"
+            ${offeredAction("word", "lf-fp-tab")}
+            aria-pressed=${String(current === name)}
+            @click=${() => {
+              refit();
+              choose(name);
+            }}
           >
-        </button>`;
+            <span class="lf-fp-tab-words"
+              >${label(name)}${
+                counted === null
+                  ? nothing
+                  : html` <span class="lf-fp-count" ?data-lf-zero=${!counted}
+                      >${counted}</span
+                    >`
+              }</span
+            >
+          </button>`;
       })}
     </div>`;
   // Threads' own search, which its search button and `/` in Threads open: a fresh

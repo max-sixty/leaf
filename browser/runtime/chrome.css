@@ -749,6 +749,11 @@ html[data-lf-draw-mode] {
     flex: 1;
     font: var(--lf-font-title);
   }
+  /* Close's ✕, rather than its box, ends where the dialog's words end, as in the
+     floating panel's head (controls.css, `--lf-symbol-inset`). */
+  .lf-dialog-head > .lf-icon-action:last-child {
+    margin-inline-end: calc(-1 * var(--lf-symbol-inset));
+  }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
      as one (`.lf-row-plain`), so their words share one edge. A row on the user's turn
      stands on the turn's wash, as its margin entry does (controls.css). */
@@ -784,7 +789,8 @@ html[data-lf-draw-mode] {
       calc(100dvh - var(--lf-page-map-top) - var(--lf-safe-bottom) - 12px)
     );
     margin: 0 auto;
-    padding: 14px;
+    --lf-sheet-inset: 14px;
+    padding: var(--lf-sheet-inset);
     border: 1px solid var(--lf-border);
     border-radius: var(--lf-r-l);
     --lf-ground: var(--lf-paper);
@@ -805,12 +811,17 @@ html[data-lf-draw-mode] {
   .lf-inspection-dialog::backdrop {
     background: color-mix(in srgb, var(--lf-ink) 26%, transparent);
   }
+  /* The report scrolls out to the sheet's padding edge and keeps the sheet's padding as
+     its own, as the Page Map's list does, so its words start and end where the title
+     and Close's ✕ do, and Copy's box and focus ring, hung past its words' end
+     (controls.css, `--lf-symbol-inset`), stay inside what it clips. */
   .lf-inspection-body {
     overflow: auto;
     min-height: 0;
     overflow-wrap: anywhere;
     overscroll-behavior: contain;
-    padding: var(--lf-focus-ring-room);
+    margin-inline: calc(-1 * var(--lf-sheet-inset));
+    padding: var(--lf-focus-ring-room) var(--lf-sheet-inset);
     scroll-padding: var(--lf-focus-ring-room);
   }
   /* Each section of the report is a region of the dialog, named in the label font
@@ -837,11 +848,6 @@ html[data-lf-draw-mode] {
   .lf-inspection-body h3 {
     margin-block: 10px 2px;
   }
-  /* The title starts where the report's words do, inside the room the report keeps
-     for a focus ring. */
-  .lf-inspection-dialog > .lf-dialog-head {
-    padding-inline-start: var(--lf-focus-ring-room);
-  }
   .lf-inspection-body details {
     margin-block: 10px;
   }
@@ -854,6 +860,10 @@ html[data-lf-draw-mode] {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+  }
+  /* Copy's glyph ends on the report's edge, under Close's. */
+  .lf-copyable-head > .lf-icon-action {
+    margin-inline-end: calc(-1 * var(--lf-symbol-inset));
   }
   /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
      wraps rather than scrolling sideways, so it keeps no room under its last line for a
@@ -884,7 +894,7 @@ html[data-lf-draw-mode] {
      the rows' place stands on the same edge. */
   .lf-page-map-list {
     --lf-rows-bleed: 6px;
-    margin-inline: -14px;
+    margin-inline: calc(-1 * var(--lf-sheet-inset));
     padding-inline: var(--lf-rows-bleed);
     margin-top: 10px;
     overflow: auto;
@@ -1148,7 +1158,7 @@ html[data-lf-draw-mode] {
       inset-inline: 8px;
       width: calc(100vw - 16px);
       margin-inline: 0;
-      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      padding-bottom: max(var(--lf-sheet-inset), env(safe-area-inset-bottom));
     }
     /* The sheet is the rail's replacement where there is no margin to draw one in, so
        its rows are touch-sized because of what the sheet is, not because of what is

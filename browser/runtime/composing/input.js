@@ -81,7 +81,7 @@ import { focusDestination, focused, focusRevision } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
 import { applicationState } from "../semantic-state.js";
 import { errorOver, passErrorsAt, raiseError } from "../errors.js";
-import { sizeObserver } from "../rendering.js";
+import { holdRendering, sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
@@ -1016,7 +1016,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // whole draft's history, and refuses a second upload while the first owns the field.
     // The arrival generation prevents an image reaching another draft when the floating
     // composer moves to another passage before its bytes reach the server.
-    // Attaching is the user coming back to the box, as an edit is.
+    // Attaching is the user coming back to the box, as an edit is. The upload and the
+    // thumbnail it ends in belong to the rendering of the gesture that attached them
+    // (rendering.js, `holdRendering`), so the box moves for the thumbnail as for the
+    // user's own change rather than for news (box-motion.js, "Whose change it is").
     sync.addMedia = /** @param {readonly Blob[]} images */ async (images) => {
       if (images.length) passErrorsAt(ta);
       if (!images.length || sending || uploading || held()) return false;
@@ -1036,6 +1039,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
       );
       const attachedAt = arrivals;
+      const attached = holdRendering();
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia(image)));
         if (!paths.every((path) => path !== null)) return false;
@@ -1081,6 +1085,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         uploading = false;
         ta.removeAttribute("aria-busy");
         refresh();
+        attached();
       }
     };
     // The composer owns picture admission. Capture declines the field's ordinary text

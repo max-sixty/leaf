@@ -867,8 +867,8 @@ export function frameView(frame, within) {
 // scroll, a shadow stage's included (`watchScrolls`); a resize; the visual viewport,
 // which a soft keyboard or a pinch-pan moves without either; a native layer opening or
 // closing, which changes what a modal admits (`watchLayerChanges`); and chrome the room
-// is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
-// that stops watching.
+// is measured against changing the box it covers, which its owner announces
+// (`ROOM_MOVED`). Returns the call that stops watching.
 const ROOM_MOVED = "lf-room-moved";
 /** @param {EventTarget} [target] */
 export const announceRoom = (target = document) =>

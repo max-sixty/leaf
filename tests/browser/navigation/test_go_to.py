@@ -629,15 +629,21 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
         )
     ).to_be_focused()
     # The one close control every surface wears: the cross, named for what it closes,
-    # at the header's end.
+    # its drawn ✕ ending where the header does, on the edge the sheet's words share.
     header = sheet.locator(".lf-dialog-head")
     close = header.get_by_role("button", name="Close Page Map", exact=True)
-    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
-    header_box, close_box = header.bounding_box(), close.bounding_box()
-    assert header_box and close_box
-    assert close_box["x"] + close_box["width"] == pytest.approx(
-        header_box["x"] + header_box["width"], abs=0.5
-    ), (header_box, close_box)
+    cross = close.locator('svg[data-lf-icon="cross"]')
+    expect(cross).to_have_count(1)
+    header_box = header.bounding_box()
+    assert header_box
+    ink_end = cross.evaluate("""svg => {
+      const box = svg.getBBox(), at = svg.getScreenCTM();
+      return at.a * (box.x + box.width + parseFloat(getComputedStyle(svg).strokeWidth) / 2) + at.e;
+    }""")
+    assert ink_end == pytest.approx(header_box["x"] + header_box["width"], abs=1), (
+        header_box,
+        ink_end,
+    )
     expect(sheet).to_contain_text(
         "No margin controls, status indicators or locations yet"
     )

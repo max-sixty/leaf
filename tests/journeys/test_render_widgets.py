@@ -408,8 +408,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     pointer. Outside the narrowed sidebar, the same links open through a native
     disclosure.
 
-    The track sticks, so once the reader scrolls the map stands still through the
-    document's end."""
+    The track sticks, so once the reader scrolls the map stands still, filling its
+    track, until its sidebar ends or a footer below the sidebar comes in."""
     source = leaf_page(
         "contents map",
         """
@@ -764,10 +764,9 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     ), f"hovering the contents map moved a marker: {marker_alignment}"
 
     # Once its track sticks, the map stays put through the rest of its sidebar, its
-    # start in view where the sidebar ends and its foot above the sidebar's end padding,
-    # which leaves it clear of the panel's row.
-    panel_box = page.locator(".lf-fp-card").bounding_box()
-    assert panel_box is not None
+    # start in view where the sidebar ends, and fills its track less the track's focus
+    # room.
+    track = page.locator("#route > .layout-track")
     sidebar_end = page.locator("#route").evaluate(
         "node => node.parentElement.getBoundingClientRect().bottom "
         "+ document.scrollingElement.scrollTop - innerHeight"
@@ -782,9 +781,29 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         box = nav.bounding_box()
         assert box is not None
         assert box["y"] >= 0, box
-        assert box["y"] + box["height"] <= panel_box["y"] + 1, (box, panel_box)
+        foot = box["y"] + box["height"]
+        track_box = track.bounding_box()
+        assert track_box is not None
+        assert foot == pytest.approx(track_box["y"] + track_box["height"] - 8, abs=1)
         stuck.append([box[key] for key in ("x", "y", "height")])
     assert stuck[0] == stuck[1], stuck
+
+    # A footer below the sidebar ends the room its track sticks in, so at the page's end
+    # the map stands above the footer rather than over it.
+    page.locator(".layout-sidebar").evaluate(
+        "sidebar => sidebar.insertAdjacentHTML('beforeend', "
+        "'<footer id=\"route-end\"><p>Last revised in March.</p></footer>')"
+    )
+    page.evaluate(
+        "document.scrollingElement.scrollTo({"
+        "top: document.scrollingElement.scrollHeight, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    footer_box = page.locator("#route-end").bounding_box()
+    box = nav.bounding_box()
+    assert footer_box is not None and box is not None
+    assert box["y"] + box["height"] <= footer_box["y"], (box, footer_box)
+    page.locator("#route-end").evaluate("node => node.remove()")
 
     # A wheel over the map stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")

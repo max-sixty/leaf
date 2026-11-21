@@ -62,12 +62,7 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
                 "through": "e3",
                 "text": "Extended exchange.",
             },
-            {
-                "kind": "edit",
-                **identity,
-                "message": "e3",
-                "text": "three, revised",
-            },
+            {"kind": "edit", "author": "user", "message": "e2", "text": "two, revised"},
         ),
     )
 
@@ -75,8 +70,8 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
     assert thread["summaries"] == []
     assert [message["text"] for message in thread["msgs"]] == [
         "one",
-        "two",
-        "three, revised",
+        "two, revised",
+        "three",
         "four",
     ]
 
@@ -357,7 +352,10 @@ def test_summary_leaves_messages_after_its_range_visible():
     assert thread["msgs"][-1]["text"] == "new message"
 
 
-def test_folds_without_summary_prose_keep_corrected_originals():
+def test_the_users_rewrite_retires_any_fold_and_the_agents_leaves_it():
+    """A summary the agent wrote can't account for the user's rewrite, whether it
+    reports the range in words or names it with a label, so the rewrite retires it;
+    the agent's own edit leaves its summary standing."""
     identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     state = model.reading(
         HUB,
@@ -383,21 +381,17 @@ def test_folds_without_summary_prose_keep_corrected_originals():
                 "through": "e4",
                 "text": "The later exchange.",
             },
-            {"kind": "edit", **identity, "message": "e2", "text": "two, revised"},
+            {"kind": "edit", "author": "user", "message": "e1", "text": "one, revised"},
             {"kind": "edit", **identity, "message": "e4", "text": "four, revised"},
         ),
     )
 
     thread = model.threads(state)["e1"]
-    [fold] = thread["summaries"]
-    assert (fold["covers"], fold["label"], fold["text"]) == (
-        ["e1", "e2"],
-        "Previous progress messages",
-        "",
-    )
+    [summary] = thread["summaries"]
+    assert (summary["covers"], summary["text"]) == (["e3", "e4"], "The later exchange.")
     assert [message["text"] for message in thread["msgs"]] == [
-        "one",
-        "two, revised",
+        "one, revised",
+        "two",
         "three",
         "four, revised",
     ]

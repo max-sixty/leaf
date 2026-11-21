@@ -72,9 +72,9 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
     """Each ask the fork names opens a thread of its own on the page, the agent's
     message asking the whole question with nothing marking the fork, and lands On Me
     until the user answers; the next tool boundary tells the agent each one and its
-    words, once. A question the agent already asked isn't asked again, and a question
-    the agent withdrew stays withdrawn: the next fork is shown it as settled, and Leaf
-    doesn't ask it again."""
+    words, once. A question the agent withdrew is shown to the next fork as settled,
+    with its id, which is how the fork knows not to word it anew; an ask the fork
+    makes under the same title is still asked, as a new question."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     question = asked()
@@ -131,11 +131,6 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
     assert f"leaf thread resolve {page} {wrote[1]['id']}" in context
     assert hook(capsys, "PostToolBatch") == ""
 
-    again = clerk_model.take_answer(
-        "s1", reply(page, "The retry limit"), question["basis"]
-    )
-    assert again["wrote"] == []
-
     # The agent, keeping its say over the record, withdraws one as not the user's.
     append_carried_log_record(
         claimed,
@@ -152,10 +147,10 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
         f'- message:{wrote[1]["id"]}, in "A PR for this branch", closed by the agent: '
         "A PR for this branch: which would you like?" in question["prompt"]
     )
-    reasked = clerk_model.take_answer(
+    [asked_anew] = clerk_model.take_answer(
         "s1", reply(page, "A PR for this branch"), question["basis"]
-    )
-    assert reasked["wrote"] == []
+    )["wrote"]
+    assert asked_anew["title"] == "A PR for this branch"
 
 
 def test_a_question_asked_again_reopens_its_thread_under_its_id(claimed, capsys):
@@ -243,8 +238,8 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
     offered, as `threads.md` has the agent ask ("Ask for a pick"), Leaf posts it as
     the agent's command would, so the choice draws and asks in place of an
     obligation: it waits on the user On Me until they pick, and a reply in words
-    doesn't answer it. The agent hears the choice it now owns, the next fork sees it
-    On Me, and an ask under its title isn't asked again."""
+    doesn't answer it. The agent hears the choice it now owns, and the next fork sees
+    it On Me."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     basis = asked()["basis"]
@@ -281,9 +276,6 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
     assert (
         '\n- decision in the agent\'s message in "LRU or TTL": LRU or TTL: which '
         'would you like? <lf-options id="cache">' in asked()["prompt"]
-    )
-    assert (
-        clerk_model.take_answer("s1", reply(page, "LRU or TTL"), basis)["wrote"] == []
     )
 
     append_carried_log_record(

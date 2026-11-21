@@ -720,13 +720,14 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     expect(card).to_be_hidden()
 
 
-def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
+def test_a_later_summary_replaces_its_overlap_and_a_rewrite_restores_originals(
     browser, serve
 ):
     """The browser follows the canonical summary fold as the transcript changes.
 
     Each change to the fold of a card the user is reading waits behind its notice, with
-    the words it would change; shown, a summary opens around the messages being read."""
+    the words it would change; shown, a summary opens around the messages being read.
+    The user's rewrite of a folded message retires the summary, so the originals show."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
@@ -734,7 +735,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     first = thread_model.post_reply(
         serve.page_dir, {"responds": root}, "The first constraint."
     )
-    second = append_agent_reply(serve.page_dir, root, "The second constraint.")
+    second = append_user_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")
     old = summarize_thread(
         serve.page_dir,
@@ -778,9 +779,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
+            "author": "user",
             "message": second["id"],
             "text": "The corrected second constraint.",
         },

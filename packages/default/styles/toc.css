@@ -275,7 +275,9 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
      * its spine and markers, and the page's words past it. Once the labels show, the
      * whole measure takes the pointer, so it stays on the map while it crosses between
      * them, and the moment the map hides, the words past the track are the page's again,
-     * while the labels still fade out. Rejected: a clip path holding the resting map to
+     * while the labels still fade out. A scrolling outline's scrollbar (below) stands at
+     * the measure's far edge, over the page's words, so it is clear at rest and takes
+     * its colour as the labels show. Rejected: a clip path holding the resting map to
      * its track. Returning at once, it cut every label at the track while the part
      * inside faded; held until the fade ended, it kept the page's words from the
      * pointer through the fade. */
@@ -286,15 +288,18 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       box-sizing: border-box;
       padding: var(--lf-sp-4) 0;
       pointer-events: none;
+      scrollbar-color: transparent transparent;
     }
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
       pointer-events: auto;
       background: color-mix(in srgb, var(--lf-paper) 92%, transparent);
+      scrollbar-color: var(--lf-border) transparent;
     }
     @scope (body[data-lf-go-to-active] lf-toc) {
       :scope:is(lf-toc) .lf-toc-nav {
         pointer-events: auto;
         background: color-mix(in srgb, var(--lf-paper) 92%, transparent);
+        scrollbar-color: var(--lf-border) transparent;
       }
     }
     lf-toc .lf-toc-toggle {
@@ -421,13 +426,14 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     lf-toc :is(.lf-toc-link, .lf-toc-heading) {
       opacity: 0;
     }
-    /* The words and the paper behind them fade in and out together, the part over the
-     * page with the part in the track. */
+    /* The words, the paper behind them and the outline's scrollbar fade in and out
+     * together, the part over the page with the part in the track. */
     lf-toc :is(.lf-toc-nav, .lf-toc-link, .lf-toc-heading) {
       transition:
         color 0.12s ease-out,
         opacity 0.24s ease-out,
-        background-color 0.24s ease-out;
+        background-color 0.24s ease-out,
+        scrollbar-color 0.24s ease-out;
     }
     lf-toc:is(:hover, [data-lf-focus-within]) :is(.lf-toc-link, .lf-toc-heading) {
       opacity: 1;
@@ -487,12 +493,9 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
        * column's rule, where the marks stand as they do in the column, and at rest the
        * rule stands for the spine. The scrolling box clips what
        * crosses its edge, so the rule stands inside it, a mark's halo clear of the edge,
-       * rather than as its border. It shows no scrollbar: a classic one stands at the
-       * labels' far edge, over the page's words even at rest, and the fade at the
-       * outline's foot already says it goes on (`reachScrollers`, reach.js). */
+       * rather than as its border. */
     lf-toc[data-lf-outline] .lf-toc-nav {
       overflow-y: auto;
-      scrollbar-width: none;
       padding-inline-start: calc(var(--lf-sp-3) + 8px);
     }
     lf-toc[data-lf-outline] .lf-toc-rows::before {

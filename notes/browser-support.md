@@ -913,30 +913,6 @@ recheck with the `scrollend` listener removed, which left the row 24.1px off in
 Firefox 157 and 24.0px off in WebKit 27.2, or by reading the row in the frame
 after the scroll, before `scrollend`.
 
-### A cached `elementFromPoint` answer in Chromium
-
-A `position: fixed` box anchored to scrolled content takes up a script's scroll
-as the next frame renders, since css-anchor-position-1 updates anchor positions
-once a frame, so a script reading the box in between finds it at its old place.
-Chromium also keeps the hit test it answers then. On 2026-11-03, after an
-instant `scrollBy` brought a margin row in a carrier to a third of a 390 × 844
-phone window, Playwright's Chromium headless shell 156.0.8078.4 returned the
-heading beneath, not the row, from `elementFromPoint` at one point where the row
-was drawn for 23 to 28 frames when that point was first tested in the scrolling
-task; a point not tested before found the row as soon as the frame rendered.
-Firefox 157 answered from the new place once the frame rendered, and WebKit
-27.2 already in the scrolling task. A real tap or click at that point three
-frames after the scroll reached the row in 12 of 12 runs, so only scripts are
-misled, such as a Playwright tap aimed from the box in that window, which
-scrolled to the old place and missed.
-
-Rows the document's scroll alone moves stand in the root lane, where layout
-moves them in the scrolling task (`carrierAnchor` in
-`browser/runtime/annotation-overlay/margin-layout.js`). Rows a pane, an inner
-scroller, a sticky or fixed box, or a sticky header carries keep this. Recheck
-by testing one point under a carried row in the task that scrolls it into
-place, then the same point at each frame after.
-
 ### A `left`-inset anchored control after a resize in Firefox
 
 `.lf-heading-link` in `browser/styles/components/integration.css` carries its

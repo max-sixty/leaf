@@ -85,32 +85,26 @@ test("a pixel moved 48 levels is outlined, and none moved less is", async () => 
   assert.deepEqual(outlines(strong, "after"), outlines(strong, "before"));
 });
 
-test("pixel highlights retain slight edits with softer opacity than strong edits", async () => {
+test("pixel highlights retain slight edits with softer opacity than strong edits", () => {
   const before = blank(20, 12);
   const after = painted(before, [2, 2, 1, 1, 0, 0], [5, 5, 1, 1, 0, 230]);
-  const { width, height, data } = await changedPixels(before, after);
+  const { width, height, data } = changedPixels(before, after);
   const alpha = (x, y) => data[(y * width + x) * 4 + 3];
   assert.deepEqual([width, height], [20, 12]);
   assert.equal(alpha(2, 2), 255);
-  assert.equal(alpha(5, 5), Math.round(40 + (215 * 25) / 96));
+  assert.equal(alpha(5, 5), Math.round((255 * 25) / 96));
   assert.equal(alpha(9, 9), 0);
-  assert.ok((await changedPixels(before, before)).data.every((value) => value === 0));
+  assert.ok(changedPixels(before, before).data.every((value) => value === 0));
   for (const channel of [0, 1, 2, 3]) {
-    const mask = await changedPixels(
-      before,
-      painted(before, [5, 6, 1, 1, channel, 254]),
-    );
+    const mask = changedPixels(before, painted(before, [5, 6, 1, 1, channel, 254]));
     const opacity = mask.data[(6 * width + 5) * 4 + 3];
     assert.ok(opacity > 0 && opacity < alpha(5, 5));
   }
 });
 
-test("pixel highlights ignore invisible RGB but detect changes to translucent pixels", async () => {
+test("pixel highlights ignore invisible RGB but detect changes to translucent pixels", () => {
   const pixel = (rgba) => ({ width: 1, height: 1, data: new Uint8ClampedArray(rgba) });
-  assert.equal(
-    (await changedPixels(pixel([255, 0, 0, 0]), pixel([0, 255, 0, 0]))).data[3],
-    0,
-  );
+  assert.equal(changedPixels(pixel([255, 0, 0, 0]), pixel([0, 255, 0, 0])).data[3], 0);
   for (const [before, after] of [
     [
       [0, 0, 0, 0],
@@ -120,18 +114,13 @@ test("pixel highlights ignore invisible RGB but detect changes to translucent pi
       [0, 0, 0, 128],
       [1, 0, 0, 128],
     ],
-    // Equal to BlazeDiff's synthetic background: compositing hides this alpha edit.
-    [
-      [48, 48, 48, 128],
-      [48, 48, 48, 129],
-    ],
   ]) {
-    const { data } = await changedPixels(pixel(before), pixel(after));
+    const { data } = changedPixels(pixel(before), pixel(after));
     assert.ok(data[3] > 0 && data[3] < 255);
   }
 });
 
-test("pixel highlights preserve unequal image extents including transparent edges", async () => {
+test("pixel highlights preserve unequal image extents including transparent edges", () => {
   const transparent = (width, height) => ({
     width,
     height,
@@ -144,15 +133,15 @@ test("pixel highlights preserve unequal image extents including transparent edge
     [wide, tall],
     [tall, wide],
   ]) {
-    const { width, height, data } = await changedPixels(before, after);
+    const { width, height, data } = changedPixels(before, after);
     assert.deepEqual([width, height], [3, 3]);
     assert.deepEqual(
       Array.from(data.filter((_, i) => i % 4 === 3)),
       [0, 255, 255, 255, 0, 0, 255, 0, 0],
     );
   }
-  // Padding must preserve row coordinates when source widths differ.
-  const { data } = await changedPixels(blank(2, 2), painted(blank(3, 2), [1, 1, 1, 1]));
+  // Each image's rows keep their coordinates when the widths differ.
+  const { data } = changedPixels(blank(2, 2), painted(blank(3, 2), [1, 1, 1, 1]));
   assert.deepEqual(
     Array.from(data.filter((_, i) => i % 4 === 3)),
     [0, 0, 255, 0, 255, 255],
@@ -220,7 +209,7 @@ test("content moved across the page marks nothing at the place it left", async (
 
 test("rounded frames do not join neighbouring text into a changed container", async () => {
   // The curve has non-line edge pixels, but the border is not a paragraph. A frame
-  // near static text used to join it, then fragment the moving frame into changes.
+  // near static text that joined it would then fragment the moving frame into changes.
   const framed = (x) => {
     const image = painted(
       blank(360, 180),
@@ -291,7 +280,7 @@ test("a rule drawn in the image's commonest colour still changes where it is dra
 });
 
 test("crowded changes consolidate nearby fragments while a distant edit stays separate", async () => {
-  // Adjacent fragments of the same hunk once kept separate outlines around line
+  // Kept separate, adjacent fragments of the same hunk would draw outlines around line
   // numbers and individual words. The same two fragments merit separate attention
   // in a sparse comparison, but less ink when there are many places to inspect.
   for (const scale of [1, 2, 3]) {

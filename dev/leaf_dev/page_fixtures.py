@@ -26,26 +26,34 @@ from leaf.cli import cli
 from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
+from leaf.registry.storage import layer_record
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
     DEVELOPER_GALLERIES,
+    bound_files,
     data_operations,
     example_versions,
+    file_bindings,
     page_files,
     seed_log,
 )
-from leaf_dev.leaf_assets import assets_lock, pinned_assets, pinned_copy
+from leaf_dev.leaf_assets import assets_checkout, pinned_assets, pinned_copy
 
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
+# Where a page directory built from an example holds the files its editors edit.
+PAGE_FILES_DIR = "files"
 
 
 @dataclass(frozen=True, slots=True)
 class PageFixture:
     source: Path
     page_files: Path | None
+    # The `.files/` companion and the binding naming each file in it.
+    bound_files: Path | None
+    bindings: dict[str, str]
     packages: tuple[str, ...]
     media: Path
     data: tuple[dict, ...]
@@ -111,6 +119,9 @@ def source_manifest(source: Path) -> Path | None:
 
 
 def source_packages(source: Path) -> list[str]:
+    # A page directory's `index.html` takes the selection its layer record keeps.
+    if (record := layer_record(source.parent)) is not None:
+        return list(record["packages"])
     manifest = source_manifest(source) or DEFAULT_PACKAGES
     return json.loads(manifest.read_text(encoding="utf-8"))
 
@@ -156,7 +167,7 @@ def authored_markup(path: Path, assets: Path | None = None) -> str:
 
 def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
     """Composition inputs besides `path` and the asset pin, including discovery trees."""
-    from leaf_dev.commands import corpus
+    from leaf_dev import corpus
 
     if root := corpus.source_root(path):
         return corpus.composition_inputs(root)
@@ -165,7 +176,7 @@ def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
 
 def refresh_composition(source: Path) -> None:
     """Materialize a generated fixture before reading its markup and companions."""
-    from leaf_dev.commands import corpus
+    from leaf_dev import corpus
 
     if root := corpus.source_root(source):
         corpus.generate(root)
@@ -182,9 +193,12 @@ def read_fixture(
     """
     seed = seed_log(source)
     files = page_files(source)
+    bound = bound_files(source)
     return PageFixture(
         source=source,
         page_files=files if files.is_dir() else None,
+        bound_files=bound if bound.is_dir() else None,
+        bindings=file_bindings(source),
         packages=tuple(source_packages(source)),
         media=media_source(source),
         data=tuple(data_operations(source, runtime=runtime, env=env)),
@@ -256,8 +270,8 @@ def import_referenced_media(
     explicitly, so draft markup is validated against its own bytes rather than the
     ordinary pin. Unresolved references keep capture's ordinary refusal.
     """
-    lock = assets_lock(source)
-    if assets is None and lock is None:
+    checkout = assets_checkout(source)
+    if assets is None and checkout is None:
         return
 
     @functools.cache
@@ -266,8 +280,8 @@ def import_referenced_media(
         if assets is not None:
             directory = assets
         else:
-            assert lock is not None
-            directory = pinned_assets(lock.parent)
+            assert checkout is not None
+            directory = pinned_assets(checkout)
         return {
             media_name(candidate.read_bytes(), candidate.suffix): candidate
             for candidate in sorted(directory.rglob("*"))
@@ -441,7 +455,7 @@ def prepare_page(
 ) -> PreparedPage:
     """Build one page directory from an authored fixture.
 
-    `leaf-dev preview`, `leaf-dev site`, and the render harness's `serve` all build through
+    `leaf-dev preview`, `leaf-dev site build`, and the render harness's `serve` all build through
     here. The current source is written before the data operations, because
     `leaf data set` validates a source against the page's markup and the current
     version is the one that has to bind it. Versions are then stamped oldest first,
@@ -450,6 +464,10 @@ def prepare_page(
     about it, then the version that answered and the reply that says so. A receipt
     acknowledges the seed, since a seed is history: an unacknowledged one would hand
     the next agent session questions the log already answers.
+
+    The `.files/` companion is copied into the page directory's `files/` and each of
+    its bindings granted there, so the grant travels with the page directory to a
+    preview, the site's container or a test, and each copy edits its own files.
 
     `each_version` is called with each version's source once it is stamped and the
     seed events it holds are in the log, so it reads the page as a builder leaves it
@@ -460,6 +478,10 @@ def prepare_page(
         run_leaf("page", "init", *selection, str(page))
     if fixture.page_files is not None:
         shutil.copytree(fixture.page_files, page / "page", dirs_exist_ok=True)
+    if fixture.bound_files is not None:
+        shutil.copytree(fixture.bound_files, page / PAGE_FILES_DIR, dirs_exist_ok=True)
+    for binding, path in fixture.bindings.items():
+        run_leaf("file", "bind", str(page), binding, str(page / PAGE_FILES_DIR / path))
     markup = {version: authored_markup(version, assets) for version in fixture.versions}
     (page / "index.html").write_text(markup[fixture.source], encoding="utf-8")
     if fixture.media.is_dir():

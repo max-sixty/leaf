@@ -8,11 +8,12 @@ import json
 import time
 from collections.abc import Generator
 from contextlib import contextmanager, nullcontext
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from .data import read_data
 from .data_contracts import resource_urls
+from .drafts import no_drafts
 from .files import (
     document_descriptor,
     list_revisions,
@@ -20,7 +21,7 @@ from .files import (
     version_descriptors,
 )
 from .passages import SourceReading
-from .presence import neighbor_reading, presence_fingerprint, presence_with_activity
+from .presence import presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry, served_layer
 from .revision_artifact import (
     Resource,
@@ -52,9 +53,12 @@ class PageSnapshot:
     artifacts: dict[int, RevisionArtifact]
     data_resources: dict[str, Resource]
     revision_names: dict[int, str]
-    others: tuple[dict, ...]
     reading: str
     source_error: str | None = None
+    # The drafts its taker froze with it. A browser check or an export is no reading
+    # of what the user is writing, so it holds none; leaf.page's saved answers hold
+    # those its replacement container restores (`leaf_website.storage`).
+    frozen_drafts: dict = field(default_factory=no_drafts)
 
     # A capture answers what a page server asks of its page
     # (`served_state.service.PageSource`), from what it froze, and takes no writes.
@@ -75,13 +79,6 @@ class PageSnapshot:
     def revision(self, revision: int) -> SourceReading:
         return self.context.revision(revision)
 
-    def active_registry(self) -> dict:
-        assert self.context.registry is not None
-        return self.context.registry
-
-    def data_source(self, source: str, registry: dict) -> dict | None:
-        return self.context.data["sources"].get(source)
-
     def events(self) -> list[dict]:
         return list(self.context.events)
 
@@ -99,8 +96,12 @@ class PageSnapshot:
     def news(self) -> str:
         return self.reading
 
+    def drafts(self) -> dict:
+        return self.frozen_drafts
+
     def other_pages(self) -> list[dict]:
-        return list(self.others)
+        # A capture shows its page alone: what it reads is the page's, frozen.
+        return []
 
     @contextmanager
     def state_read(self) -> Generator[tuple[PageRead, str, str | None]]:
@@ -122,11 +123,15 @@ def capture_page_snapshot(
     artifact: RevisionArtifact | None = None,
     transaction: PageTransaction | None = None,
     process: bool = True,
+    log: list[dict] | None = None,
+    data: dict | None = None,
 ) -> PageSnapshot:
     """Freeze a candidate and every page authority it is projected against.
 
     A host publishing from an existing transition lends its held transaction;
-    other callers take the page's append lease for the complete capture.
+    other callers take the page's append lease for the complete capture. `log` and
+    `data` are the part of the page's log and stored data to freeze in place of all of
+    them, which every reading of the capture folds from (`exporting`).
     """
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
@@ -135,7 +140,7 @@ def capture_page_snapshot(
         if transaction is not None
         else PageTransaction(page_dir) as page
     ):
-        events = tuple(copy.deepcopy(page.events))
+        events = tuple(copy.deepcopy(page.events if log is None else log))
         revisions = list_revisions(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(list(events), revisions)))
         artifacts: dict[int, RevisionArtifact] = {
@@ -162,7 +167,7 @@ def capture_page_snapshot(
         artifacts = {number: executing(value) for number, value in artifacts.items()}
         selected = artifacts[revision]
         registry = copy.deepcopy(selected.registry)
-        data = read_data(page_dir, registry)
+        data = read_data(page_dir, registry) if data is None else data
         # External data remains current even in a historical document. Its media
         # belongs to this frozen reading, not the immutable authored revision.
         data_urls = {
@@ -208,7 +213,6 @@ def capture_page_snapshot(
         present, live_stream = presence_with_activity(
             page_dir, list(events), process=process
         )
-        others = tuple(copy.deepcopy(neighbor_reading(page_dir))) if process else ()
         observed_at = now_iso()
         snapshot_active = document_descriptor(
             revision,
@@ -233,7 +237,7 @@ def capture_page_snapshot(
             )
         ).encode()
     ).hexdigest()[:16]
-    reading = join_reading(files_reading, presence_fingerprint(present, list(others)))
+    reading = join_reading(files_reading, presence_fingerprint(present))
     return PageSnapshot(
         context=PageRead(
             active=snapshot_active,
@@ -254,7 +258,6 @@ def capture_page_snapshot(
         artifacts=artifacts,
         data_resources=data_resources,
         revision_names=revision_names,
-        others=others,
         reading=reading,
     )
 

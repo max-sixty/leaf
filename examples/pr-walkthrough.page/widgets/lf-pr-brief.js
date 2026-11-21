@@ -1,18 +1,14 @@
 /* This review packet owns its forge facts and composition. Leaf supplies typed
  * source delivery, safe Markdown, the shared clock and identity-aware comments. */
+import { html, keyed, noChange, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   ago,
-  highlightBlocks,
-  html,
+  dressCode,
   keeps,
-  keyed,
   LeafElement,
   loadMarkdown,
   markdownReady,
-  noChange,
   renderMarkdown,
-  repeat,
-  unsafeHTML,
 } from "/runtime/widget-api.js";
 
 // A check's state is a status, drawn as the page's other statuses are (`.tag`), toned
@@ -26,7 +22,8 @@ customElements.define(
   "lf-pr-brief",
   class extends LeafElement {
     // The pull request, set by whoever hosts the widget: Leaf from the bound source
-    // (the registry's `x-data.request.property`), or null while that source has none.
+    // (the registry's `inputs.request.property`), or null while that source has
+    // none.
     static properties = { value: { attribute: false } };
 
     // The request whose Markdown load the brief last waited on, the request it drew,
@@ -140,7 +137,7 @@ customElements.define(
       keeps(node, "data-lf-datum", identity);
       keeps(node, "data-lf-identity", record ? identity : null);
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value: record } }));
-      if (record) this.#work = highlightBlocks(this);
+      if (record) this.#work = dressCode(this);
     }
   },
 );

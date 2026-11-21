@@ -9,12 +9,10 @@ import turbohtml
 from jmespath.exceptions import JMESPathError
 from jsonschema.exceptions import SchemaError
 
+from leaf.findings import Finding
 from leaf.schema import (
-    AWAITS_SCHEMA,
-    EXTENSION_SCHEMA,
     IDIOM_SCHEMA,
     LAYER_FACTS,
-    VERB_SCHEMA,
 )
 
 from .contract import (
@@ -36,14 +34,6 @@ from .widgets import (
     validate_widget_relations,
     validate_widget_schemas,
 )
-
-# The facts that document a declaration's keys, each beside the schema that admits
-# those keys (`validate_layer_declarations`).
-DOCUMENTED_KEYS: dict[str, dict] = {
-    "$keys": EXTENSION_SCHEMA,
-    "$state": VERB_SCHEMA,
-    "$awaits": AWAITS_SCHEMA,
-}
 
 # The vocabularies this process has validated, by a digest of their content, oldest
 # first. Validation is a pure function of the vocabulary, `source` naming it only in a
@@ -103,23 +93,17 @@ def check_layer_facts(registry: dict, path) -> None:
 def validate_layer_declarations(registry: dict, path) -> None:
     """What `LAYER_FACTS` cannot say, in a vocabulary whose facts hold it
     (`check_layer_facts`): each name one fact gives another, each `when` and contract
-    `schema` a JSON Schema, each `resources` entry JMESPath, the documented keys, and
-    the idioms. Each event kind's clauses, documenting fact, idiom, the languages and
-    each data contract is checked independently, and the refusal names the first
-    problem in each (`contract.gathering`)."""
+    `schema` a JSON Schema, each `resources` entry JMESPath, and the idioms. Each
+    event kind's clauses, idiom, the languages and each data contract is checked
+    independently, and the refusal names the first problem in each
+    (`contract.gathering`)."""
     events = registry["$events"]
-    # A layer instructs only the kinds there are: events of a declared kind, and the
-    # answers the kernel's own `answering` instructs.
-    declared = {"handling": sorted(events["kinds"]), "answering": answer_kinds()}
     probe = turbohtml.parse("<p></p>").find("p")
     with gathering() as unit:
         for key in ("handling", "answering"):
             for kind, clauses in events[key].items():
                 with unit():
-                    _validate_event_clauses(key, kind, clauses, declared[key], path)
-        for fact, schema in DOCUMENTED_KEYS.items():
-            with unit():
-                _validate_documented_keys(fact, registry.get(fact), schema, path)
+                    _validate_event_clauses(key, kind, clauses, path)
         # Validate every selector, because it remains an authored vocabulary identity.
         for selector, entry in registry.items():
             if selector.startswith("$") or is_element_name(selector):
@@ -133,11 +117,33 @@ def validate_layer_declarations(registry: dict, path) -> None:
                 _validate_data_contract(contract, declaration, path)
 
 
-def _validate_event_clauses(key: str, kind: str, clauses, declared, path) -> None:
-    if kind not in declared:
-        raise registry_error(
-            "undeclared-event-kind", path, key=key, kind=kind, declared=declared
+def event_clause_advice(declarations: dict, registry: dict, path) -> list[Finding]:
+    """Each `$events` clause one layer's `declarations` give for a kind of event, or
+    an answer, that the composed `registry` doesn't have: no delivery carries it, and
+    a package may be written for a newer Leaf's kind, so it advises the layer's
+    author, naming the file `path`."""
+    declared = _instructed_kinds(registry)
+    events = declarations.get("$events") or {}
+    return [
+        registry_finding(
+            "undeclared-event-kind", path, key=key, kind=kind, declared=declared[key]
         )
+        for key in ("handling", "answering")
+        for kind in events.get(key) or {}
+        if kind not in declared[key]
+    ]
+
+
+def _instructed_kinds(registry: dict) -> dict[str, list[str]]:
+    """The kinds a layer may instruct: events of a declared kind, and the answers the
+    kernel's own `answering` instructs."""
+    return {
+        "handling": sorted(registry["$events"]["kinds"]),
+        "answering": answer_kinds(),
+    }
+
+
+def _validate_event_clauses(key: str, kind: str, clauses, path) -> None:
     for clause in clauses:
         if "when" not in clause:
             continue
@@ -147,30 +153,6 @@ def _validate_event_clauses(key: str, kind: str, clauses, declared, path) -> Non
             raise registry_error(
                 "invalid-when", path, key=key, kind=kind, **schema_reading(error)
             ) from error
-
-
-def _validate_documented_keys(fact: str, members, schema: dict, path) -> None:
-    """Each documenting fact holds exactly the keys its schema admits, one string per
-    key, beside its description: the keys are closed by that schema, so a member for
-    a key that cannot be declared is documentation of nothing, and a key with no
-    member is one an author reads the registry for and finds unsaid. Agents query
-    them and the site's table is generated from $keys, which is what makes the pin
-    worth keeping."""
-    admitted = set(schema["properties"])
-    documented = set(members or {}) - {"description"}
-    if (
-        not isinstance(members, dict)
-        or not isinstance(members.get("description"), str)
-        or not all(isinstance(text, str) and text for text in members.values())
-        or documented != admitted
-    ):
-        raise registry_error(
-            "keys-documentation",
-            path,
-            fact=fact,
-            missing=sorted(admitted - documented),
-            unadmitted=sorted(documented - admitted),
-        )
 
 
 def _validate_idiom(probe, selector: str, entry: dict, path) -> None:
@@ -207,9 +189,6 @@ def _validate_data_contract(contract: str, declaration: dict, path) -> None:
                 expression=expression,
                 error=str(error),
             ) from error
-    records = declaration.get("records") or {}
-    if len(set(records.values())) != len(records):
-        raise registry_error("contract-records", path, contract=contract)
     try:
         check_schema(declaration["schema"])
     except SchemaError as error:

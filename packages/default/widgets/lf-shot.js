@@ -46,6 +46,7 @@ import { ShotView } from "./shot-view.js";
  * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
 // A containing widget can create a pair absent from the authored document.
+import { render } from "/vendor/lit.js";
 import {
   setScroll,
   canvas2D,
@@ -58,7 +59,6 @@ import {
   placesFailure,
   focusDestination,
   closeNativeLayer,
-  render,
   nextFrame,
   isCanonicalMediaUrl,
   layoutChanged,
@@ -391,6 +391,7 @@ export class Shot extends HTMLElement {
       });
       comparison.addEventListener("click", (event) => {
         if (dragged || handleOf(event) || !plainPress(event)) return;
+        event.preventDefault();
         comparison.position = comparison.position > 50 ? 0 : 100;
       });
       comparison.lfCommands = {
@@ -420,6 +421,9 @@ export class Shot extends HTMLElement {
     const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
     if (!handle) return;
     keeps(handle, "aria-label", `Before and after — ${this.getAttribute("alt")}`);
+    // The alt describes the picture the user is looking at, so the divider's preview
+    // names only the divider.
+    Object.assign(handle, { lfPreview: () => ({ name: "Before and after" }) });
     keeps(
       handle,
       "aria-valuetext",
@@ -480,7 +484,7 @@ export class Shot extends HTMLElement {
 
   /** @param {[HTMLImageElement, HTMLImageElement]} images */
   async #pixelMask(images) {
-    const { width, height, data } = await compareImagePixels(...images);
+    const { width, height, data } = compareImagePixels(...images);
     const canvas = new OffscreenCanvas(width, height);
     canvas2D(canvas).putImageData(new ImageData(data, width, height), 0, 0);
     const url = URL.createObjectURL(await canvas.convertToBlob({ type: "image/png" }));

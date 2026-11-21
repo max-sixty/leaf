@@ -7,7 +7,7 @@ import "/runtime/stage-integration.js";
    what makes one answer serve both trees, and it is the reading `inChrome` and
    `pageWords` are built on.
 
-   `pageText` is the whole of that reading. Every caller shares one answer for as long as
+   `pageText()` is the whole of that reading. Every caller shares one answer for as long as
    the page holds still, and something the reading is built out of moving is what makes the
    next caller pay for a walk. The document reports most of that movement itself; the two
    inputs it reports nothing about have a door apiece, and the cases after those are why.
@@ -18,33 +18,87 @@ import "/runtime/stage-integration.js";
 import { programmaticSelection, selectEnds } from "/runtime/native-selection.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import v8 from "node:v8";
+import vm from "node:vm";
 
 import { registry } from "/runtime/registry.js";
+import { kept } from "/runtime/kept.js";
 import {
   blockAt,
   closestAcross,
   contextAround,
+  documentOutline,
+  elementById,
   elementReading,
-  fencedAt,
   fencePassageParts,
+  findEach,
   findQuote,
   inChrome,
   neighbourhood,
+  pageReadingVersion,
   pageText,
-  pageBlocks,
+  pageRuns,
   pageWords,
   pointAt,
   quoteFrom,
+  quotesChanged,
+  readsDocument,
   refuseBareText,
   says,
   segmentsIn,
+  trackQuotes,
 } from "/runtime/passages.js";
-import { declaredRoot, upFrom } from "/runtime/shadow.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { declaredRoot } from "/runtime/shadow.js";
+import { upFrom } from "/runtime/shadow-tree.js";
+import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
+
+// The elements the page reading treats as blocks, each once, in reading order.
+const blocksRead = () => [
+  ...new Set(pageRuns(() => true).flatMap(({ block }) => (block ? [block] : []))),
+];
 
 test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(null, "main"), null);
   assert.equal(closestAcross(undefined, "main"), null);
+});
+
+test("a quote across a title's end reads by the phrasing rule", () => {
+  // Where a title meets the next words inside an element a line runs through, a quote
+  // across the edge reads with a space or without (`scan`); where the next words stand
+  // in an element outside phrasing, the edge is a gap a quote must keep.
+  document.body.innerHTML =
+    '<main><p id="inline"><strong>Title</strong><span>words follow</span></p>' +
+    '<div id="block"><strong>Heading</strong><div>words below</div></div></main>';
+  const inline = /** @type {Element} */ (document.getElementById("inline"));
+  const block = /** @type {Element} */ (document.getElementById("block"));
+  const reading = pageText();
+  for (const quote of ["Title words", "Titlewords"])
+    assert.equal(quoteFrom(findQuote(reading, quote, {}, inline)), "Titlewords", quote);
+  assert.equal(
+    quoteFrom(findQuote(reading, "Heading words", {}, block)),
+    "Heading words",
+  );
+  assert.deepEqual(findQuote(reading, "Headingwords", {}, block), []);
+});
+
+// Outside a text block, two elements' words that meet show a space, as a chip beside its
+// title or a title above its description is drawn, but none before a closing mark or
+// after an opening one, so an inline title's sentence reads as its author punctuated it
+// in a thread's name. A straight quote opening a title is no closing mark, so the chip
+// before it still reads apart. passages.py's `_write` shows the same words.
+test("an edge outside prose shows a space, but none before closing or after opening punctuation", () => {
+  document.body.innerHTML =
+    '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps ' +
+    "<code>Foo</code>'s place (<code>beta</code>).</lf-option>" +
+    '<lf-option id="chipped"><small class="tag">recommended</small><strong>Apply</strong>' +
+    "Ship it.</lf-option>" +
+    '<lf-option id="quoted"><small class="tag">recommended</small>' +
+    '<strong>"Update" for mixed input</strong></lf-option></main>';
+  assert.equal(
+    says(document.querySelector("main")),
+    "Leave it; the send keeps Foo's place (beta). recommended Apply Ship it. " +
+      'recommended "Update" for mixed input',
+  );
 });
 
 test("a text node answers from the element holding it", () => {
@@ -109,6 +163,14 @@ test("a node in a declared tree stands where its host stands", () => {
   assert.equal(pageWords(document.querySelector("main p")), true);
 });
 
+test("a root handed in reads as it would inside the walk: a slot its assignment", () => {
+  document.body.innerHTML = '<main><div id="host"><p>Assigned words</p></div></main>';
+  const host = document.querySelector("#host");
+  host.attachShadow({ mode: "open" }).innerHTML =
+    "<h2>Title</h2><slot>Fallback words</slot>";
+  assert.equal(says(host.shadowRoot.querySelector("slot")), "Assigned words");
+});
+
 test("header and footer passages belong to the page while runtime surfaces do not", () => {
   document.body.innerHTML = `<header><p>Opening</p></header><main><p>Content</p></main>
     <footer><p>Closing</p></footer>
@@ -144,18 +206,18 @@ test("projected rows have separate passages inside one text block", () => {
   const pre = document.querySelector("pre");
   const first = document.querySelector("#first");
   const second = document.querySelector("#second");
-  assert.deepEqual(pageBlocks(), [pre]);
+  assert.deepEqual(blocksRead(), [pre]);
   for (const row of [first, second]) {
     row.dataset.lfProjection = "source";
     row.dataset.lfDatum = row.id;
   }
-  assert.deepEqual(pageBlocks(), [first, second]);
+  assert.deepEqual(blocksRead(), [first, second]);
   assert.equal(blockAt(first.querySelector("b").firstChild), first);
   assert.equal(says(pre), "First rowSecond row");
   first.removeAttribute("data-lf-datum");
-  assert.deepEqual(pageBlocks(), [pre, second]);
+  assert.deepEqual(blocksRead(), [pre, second]);
   second.removeAttribute("data-lf-projection");
-  assert.deepEqual(pageBlocks(), [pre]);
+  assert.deepEqual(blocksRead(), [pre]);
 });
 
 test("projecting an inline value preserves its typography and resolved quote", () => {
@@ -166,7 +228,7 @@ test("projecting an inline value preserves its typography and resolved quote", (
   value.dataset.lfGen = "1";
   value.dataset.lfProjection = "source";
   value.dataset.lfDatum = "rate";
-  assert.deepEqual(pageBlocks(), [paragraph, value]);
+  assert.deepEqual(blocksRead(), [paragraph, value]);
   assert.equal(says(paragraph), "The rate is 42%.");
   assert.equal(quoteFrom(findQuote(pageText(), "42%", {}, value)), "42%");
 });
@@ -222,7 +284,9 @@ test("a label declared inside the chrome is the page's, arriving and leaving", (
     '<main><p>Alpha</p></main><div class="lf-ui" id="panel"></div>';
   pageText();
   const panel = document.querySelector("#panel");
-  panel.insertAdjacentHTML("beforeend", '<span data-lf-said="label">Tab</span>');
+  // The marker carries a value because happy-dom reports an empty attribute's old value
+  // as null (its MutationRecord takes `oldValue || null`), where a browser reports "".
+  panel.insertAdjacentHTML("beforeend", '<span data-lf-said="1">Tab</span>');
   assert.match(pageText().raw, /Tab/, "a label is read wherever it stands");
   panel.querySelector("span").removeAttribute("data-lf-said");
   assert.doesNotMatch(
@@ -249,7 +313,9 @@ test("a widget fenced after a reading was taken is in the next one", () => {
 
 test("a declared shadow tree's words are read, and its changes are seen", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-doors" },
   });
   document.body.innerHTML = "<main><p>Alpha</p><lf-staged></lf-staged></main>";
@@ -263,11 +329,107 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   assert.match(pageText().raw, /Alpha.*Gamma/s);
 });
 
+test("each document's reading is forgotten alone: the page's and a reply's", () => {
+  Object.assign(registry, {
+    "lf-staged": {
+      shadow: true,
+    },
+    $layer: { generation: "passage-documents" },
+  });
+  document.body.innerHTML = "<main><p>Alpha</p></main>";
+  const chrome = document.createElement("div");
+  chrome.className = "lf-chrome";
+  chrome.innerHTML = `<div class="lf-msg lf-ui" data-lf-gen="1"><div class="lf-msg-body">
+    <lf-staged></lf-staged></div></div>`;
+  document.documentElement.append(chrome);
+  try {
+    const root = shadowStage(chrome.querySelector("lf-staged"), [
+      Object.assign(document.createElement("p"), { textContent: "Reply words." }),
+    ]);
+    const page = pageText();
+    // A reply is a document of its own, so its widget redrawing is no change to the page.
+    root.querySelector("p").textContent = "Reply changed.";
+    assert.equal(pageText(), page);
+    // A root the watcher already sees reports its own changes, as a reply's diff is
+    // adopted again when its module loads.
+    adoptShadowStage(root);
+    assert.equal(pageText(), page);
+    // And the page changing is no change to the reply, whose own change is.
+    const body = chrome.querySelector(".lf-msg-body");
+    const outline = documentOutline(body);
+    document.querySelector("main p").textContent = "Beta";
+    assert.equal(documentOutline(body), outline);
+    root.querySelector("p").textContent = "Reply changed again.";
+    assert.notEqual(documentOutline(body), outline);
+  } finally {
+    chrome.remove();
+  }
+});
+
+// A key naming a reading, and what a reader kept about an element still on the page,
+// outlive the reading they were taken under, so they hold nothing of it: a session that
+// reads its page again and again would otherwise keep every reading it forgot.
+test("a forgotten reading is held by no key or kept answer that outlives it", async () => {
+  v8.setFlagsFromString("--expose-gc");
+  const collect = vm.runInNewContext("gc");
+  document.body.innerHTML = '<main><p id="kept">Alpha</p><p id="other">Beta</p></main>';
+  const forgotten = new WeakRef(pageText());
+  const version = pageReadingVersion();
+  assert.equal(elementReading(document.getElementById("kept")), "Alpha");
+  /** @type {HTMLElement} */ (document.getElementById("other")).textContent = "Gamma";
+  assert.notEqual(pageReadingVersion(), version);
+  await new Promise((done) => setTimeout(done));
+  collect();
+  assert.equal(forgotten.deref(), undefined);
+});
+
+// A reading of the page's nodes finds an element by its id and names a part by its
+// label, though neither changes the page's words, so a reading kept from the page
+// (kept.js) is made again at either, in the task that made it. What is kept with the
+// words, as their layout on screen is, stays. A class that isn't Leaf's moves neither.
+test("a reading kept from the page is made again when an id or a part's name changes", () => {
+  document.body.innerHTML =
+    '<main><section id="part"><p id="words">Alpha</p></section></main>';
+  const withWords = kept(() => {
+    readsDocument(document.body);
+    return {};
+  });
+  let made = 0;
+  const reading = kept(() => {
+    made += 1;
+    return elementById("words")?.textContent;
+  });
+  reading();
+  const answer = withWords();
+  const part = /** @type {HTMLElement} */ (document.getElementById("part"));
+  for (const change of [
+    () => part.setAttribute("aria-label", "Pricing"),
+    () => part.setAttribute("label", "Terms"),
+    () => (part.id = "renamed"),
+  ]) {
+    const before = made;
+    change();
+    reading();
+    assert.equal(made, before + 1, String(change));
+    assert.equal(withWords(), answer, String(change));
+  }
+  const before = made;
+  part.classList.add("plain");
+  reading();
+  assert.equal(made, before);
+  /** @type {HTMLElement} */ (document.getElementById("words")).textContent = "Beta";
+  assert.equal(reading(), "Beta");
+  assert.notEqual(withWords(), answer);
+  document.body.replaceChildren();
+});
+
 // Startup refuses a module's bare text before anything reads the page, so it has to
 // reach every root the reading would cross into, a stage inside another stage included.
 test("startup refuses bare text staged inside another widget's root", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-nested-bare" },
   });
   document.body.innerHTML = "<main><lf-staged id=outer></lf-staged></main>";
@@ -295,7 +457,9 @@ test("startup refuses bare text staged inside another widget's root", () => {
 // sibling widgets.
 test("startup's refusal sweep asks each of many sibling stages once", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-flat-sweep" },
   });
   const count = 200;
@@ -336,7 +500,9 @@ test("an undeclared shadow tree is opaque, and its host reads by its children", 
 // stands, not where its slot does.
 test("chrome over a declared tree stops at its root, and not for what it slots", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-contexts" },
   });
   document.body.innerHTML =
@@ -359,7 +525,9 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
 
 test("a line break assigned to a shadow slot separates its words", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-slotted-break" },
   });
   document.body.innerHTML = "<main><lf-staged></lf-staged></main>";
@@ -373,9 +541,30 @@ test("a line break assigned to a shadow slot separates its words", () => {
   assert.equal(pageText().raw, "Alpha Beta");
 });
 
+// What a slot takes is drawn among the words around the slot, so it runs into them as the
+// words of a span would; a widget's own words stand apart from those beside it.
+test("words a slot draws run into the words around the slot", () => {
+  Object.assign(registry, {
+    "lf-staged": {
+      shadow: true,
+    },
+    $layer: { generation: "passage-slotted-words" },
+  });
+  document.body.innerHTML = "<main><p>Before<lf-staged></lf-staged>after</p></main>";
+  const host = document.querySelector("lf-staged");
+  const staged = document.createElement("template");
+  staged.innerHTML = "<span>alpha<slot></slot>gamma</span>";
+  shadowStage(host, [...staged.content.childNodes]);
+  host.innerHTML = "<em>beta</em>";
+  assert.equal(says(host.shadowRoot), "alphabetagamma");
+  assert.equal(pageText().raw.replaceAll("\u0000", ""), "Before alphabetagamma after");
+});
+
 test("a selection in nested slots keeps exactly the rendered words it covers", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-nested-slots" },
   });
   document.body.innerHTML =
@@ -469,17 +658,12 @@ test("a selection in an undeclared host that reorders its children keeps its wor
   range.setStart(text("title"), 0);
   range.setEnd(text("after"), 5);
   assert.equal(quoteFrom(segmentsIn(range)), "Title After");
-  const reading = pageText();
-  const title = reading.raw.indexOf("Title");
-  const fences = fencedAt(reading, document.querySelector("#title")).fences;
-  assert.ok(fences.includes(title) && fences.includes(title + 5), `fences ${fences}`);
   // Firefox keeps both ends of a selection of the root's own words inside the root, even
   // around a slot, and comments can't quote those words.
   range.selectNodeContents(root.querySelector("#own"));
   assert.deepEqual(segmentsIn(range), []);
   range.selectNodeContents(root.querySelector("#holder"));
   assert.deepEqual(segmentsIn(range), []);
-  assert.equal(fencedAt(reading, root.querySelector("#holder")), reading);
 });
 
 // `segmentsIn` searches the reading, so every way the walk reaches a word has to agree
@@ -488,7 +672,9 @@ test("a selection in an undeclared host that reorders its children keeps its wor
 // A range from any word to any later one covers exactly the reading's words between them.
 test("the reading's words stand in the order a selection is compared in", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      shadow: true,
+    },
     $layer: { generation: "passage-reading-order" },
   });
   const nodes = (html) => {
@@ -539,16 +725,16 @@ test("the reading's words stand in the order a selection is compared in", () => 
   });
 });
 
-// A selection covers one run of the page reading's segments, as do the words one element
-// holds, so each is found by searching for where its two ends fall rather than by testing
-// every segment. Every comparison starts by asking a text node for its slot, so counting
-// those asks counts the comparisons.
+// A selection covers one run of the page reading's segments, so it is found by searching
+// for where its two ends fall rather than by testing every segment. Every comparison
+// starts by asking a text node for its slot, so counting those asks counts the
+// comparisons.
 test("a selection's words are found from its ends, not by asking every word", () => {
   document.body.innerHTML = `<main>${Array.from(
     { length: 4096 },
     (_, i) => `<p id="row${i}">Row ${i}</p>`,
   ).join("")}</main>`;
-  const reading = pageText();
+  pageText();
   const row = document.querySelector("#row2000");
   const range = document.createRange();
   range.selectNodeContents(row);
@@ -563,9 +749,6 @@ test("a selection's words are found from its ends, not by asking every word", ()
   });
   try {
     assert.equal(quoteFrom(segmentsIn(range)), "Row 2000");
-    const at = reading.raw.indexOf("Row 2000");
-    const fences = fencedAt(reading, row).fences;
-    assert.ok(fences.includes(at) && fences.includes(at + "Row 2000".length));
   } finally {
     Object.defineProperty(Text.prototype, "assignedSlot", slot);
   }
@@ -574,7 +757,7 @@ test("a selection's words are found from its ends, not by asking every word", ()
 
 test("a declared label inside chrome is read down to its last word", () => {
   document.body.innerHTML =
-    '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said="tab"><b>Tab</b> label</span></div>';
+    '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said><b>Tab</b> label</span></div>';
   assert.match(pageText().raw, /Tab.*label/s);
 });
 
@@ -588,16 +771,17 @@ test("a reading rooted at a shadow tree reads in its host's block", () => {
   assert.equal(says(root), "12%");
 });
 
-// Every position in the reading leads back to the character it came from, and the edges
-// between text nodes, which hold none, lead nowhere.
+// Every position in the reading leads back to the character it came from, and what
+// stands between text nodes, which holds none of theirs, leads nowhere: an edge between
+// inline elements, or the space a block's end reads as.
 test("a reading's positions lead back to their nodes", () => {
   document.body.innerHTML = "<main><p>Al<em></em><b>pha</b></p><p>beta</p></main>";
   document.querySelector("em").append(document.createTextNode(""));
   const reading = pageText();
-  assert.equal(reading.raw, "Al\u0000\u0000pha\u0000beta");
+  assert.equal(reading.raw, "Al\u0000\u0000pha beta");
   for (let i = 0; i < reading.raw.length; i++) {
     const at = pointAt(reading, i);
-    const edge = reading.raw[i] === "\u0000";
+    const edge = reading.raw[i] === "\u0000" || i === "Al\u0000\u0000pha".length;
     assert.equal(at === null, edge, `${edge ? "edge" : "character"} at ${i}`);
     if (!edge)
       assert.equal(at.node.data[at.offset], reading.raw[i], `character at ${i}`);
@@ -640,8 +824,234 @@ test("telling a quote's copies apart reads only around them", () => {
   assert.ok(read < 10_000, `${read} characters read to tell two copies apart`);
 });
 
+// The index of quotes carries each quote's copies from one reading to the next through
+// the span the two differ in, and searches only there. Whatever a change does — writes
+// words into a copy or puts them back, writes a second copy, makes or removes a fence
+// inside one, replaces a node with the same words, or writes into a shadow stage a
+// passage runs into — a carried quote answers as a pass over the page afresh does, which
+// a quote the index doesn't keep is found by (a key with a space before it names the
+// same words). And the quotes it says changed are those whose answer did, and only
+// those a change came near.
+test("a kept quote answers each change as a fresh pass over the page does", () => {
+  Object.assign(registry, {
+    "lf-staged": {
+      shadow: true,
+    },
+    $layer: { generation: "quote-index" },
+  });
+  document.body.innerHTML =
+    '<main><p id="a">Alpha beta gamma.</p><p id="b">Delta <span id="s">epsilon ' +
+    'zeta</span> eta theta.</p><p id="c">Iota kappa.</p><div id="d"><p>Lambda mu' +
+    "</p><lf-staged><p>nu xi omicron.</p></lf-staged></div><p>Pi rho.</p></main>";
+  const stage = shadowStage(document.querySelector("lf-staged"), [
+    ...document.querySelector("lf-staged").childNodes,
+  ]);
+  const [a, b, c, s] = ["#a", "#b", "#c", "#s"].map((at) => document.querySelector(at));
+  const quotes = [
+    "beta gamma",
+    "epsilon zeta eta",
+    "Delta epsilon",
+    "kappa",
+    "gamma. Delta",
+    "mu nu xi",
+    "Pi rho.",
+  ];
+  trackQuotes(quotes);
+  let seen = quotesChanged(0).version;
+  // Each answer as the text nodes it stands in, by name, and its offsets in them.
+  const names = new Map();
+  const answer = (/** @type {string} */ quote) =>
+    findQuote(pageText(), quote, {})
+      .map(({ node, start, end }) => {
+        if (!names.has(node)) names.set(node, names.size);
+        return `${names.get(node)}:${start}-${end}`;
+      })
+      .join(" ");
+  /** @type {[string, () => void, string[]][]} */
+  const steps = [
+    [
+      "words written into a copy",
+      () => (a.firstChild.data = "Alpha beta"),
+      ["beta gamma", "gamma. Delta"],
+    ],
+    [
+      "the words put back",
+      () => (a.firstChild.data = "Alpha beta gamma."),
+      ["beta gamma", "gamma. Delta"],
+    ],
+    ["a second copy", () => c.append(" beta gamma"), ["beta gamma"]],
+    ["the second copy taken out", () => c.lastChild.remove(), ["beta gamma"]],
+    [
+      "a fence inside a copy",
+      () => (s.contentEditable = "true"),
+      ["epsilon zeta eta", "Delta epsilon"],
+    ],
+    [
+      "the fence taken out",
+      () => s.removeAttribute("contenteditable"),
+      ["epsilon zeta eta", "Delta epsilon"],
+    ],
+    [
+      "a node replaced by the same words",
+      () => b.replaceChild(document.createTextNode("Delta "), b.firstChild),
+      ["Delta epsilon", "gamma. Delta"],
+    ],
+    [
+      "a word inside a stage",
+      () => stage.querySelector("p").prepend("Inserted "),
+      ["mu nu xi"],
+    ],
+    [
+      "the word taken out",
+      () => stage.querySelector("p").firstChild.remove(),
+      ["mu nu xi"],
+    ],
+  ];
+  for (const [change, step, near] of steps) {
+    const before = quotes.map(answer);
+    step();
+    const after = quotes.map(answer);
+    assert.deepEqual(
+      after,
+      quotes.map((quote) => answer(` ${quote}`)),
+      change,
+    );
+    const { version, quotes: changed } = quotesChanged(seen);
+    seen = version;
+    for (const [at, quote] of quotes.entries())
+      if (before[at] !== after[at])
+        assert.ok(changed.includes(quote), `${change}: ${quote} changed`);
+    for (const quote of changed) assert.ok(near.includes(quote), `${change}: ${quote}`);
+  }
+  assert.ok(answer("beta gamma") && answer("mu nu xi"));
+  trackQuotes([]);
+});
+
+// The margin keys each passage by how many copies of its words stand before it, and finds
+// every copy of every passage's words in a block by one pass over it: overlapping copies
+// included, and strings that start alike for longer than their first hash told apart.
+test("one pass over a text finds every place each string starts", () => {
+  const long = "Row of the table that starts alike: ";
+  const text = `aaaa ab aab ${long}one; ${long}two; 😀a😀a`;
+  const found = findEach(text, [
+    "aa",
+    "ab",
+    `${long}two`,
+    `${long}one`,
+    "😀a",
+    "zz",
+    "",
+  ]);
+  const expected = (/** @type {string} */ string) => {
+    const places = [];
+    for (
+      let at = string ? text.indexOf(string) : -1;
+      at !== -1;
+      at = text.indexOf(string, at + 1)
+    )
+      places.push(at);
+    return places;
+  };
+  for (const [string, places] of found)
+    assert.deepEqual(places, expected(string), string);
+  assert.deepEqual(found.get("aa"), [0, 1, 2, 8]);
+});
+
+// Strings that share a long start, as quotes of a list's rows do, whether they share a
+// length or come in as many lengths as there are strings, are found by one pass over the
+// text whose work grows with the text and the strings' total length, not with how many
+// strings start alike: each step of the pass is a lookup or two of the automaton's
+// transitions, counted here.
+test("strings sharing a long start cost the text and their own length", () => {
+  const shared = "Row of a long list that every quote here starts with alike, ".repeat(
+    5,
+  );
+  const shapes = {
+    "one length": Array.from(
+      { length: 400 },
+      (_, n) => `${shared}${String(n).padStart(3, "0")}`,
+    ),
+    "a length each": Array.from(
+      { length: 400 },
+      (_, n) => `${"x".repeat(16 + n)}${String(n).padStart(4, "0")}!`,
+    ),
+  };
+  const get = Map.prototype.get;
+  for (const [shape, strings] of Object.entries(shapes)) {
+    const text = strings.join(" ");
+    let lookups = 0;
+    Map.prototype.get = function (key) {
+      lookups += 1;
+      return get.call(this, key);
+    };
+    /** @type {Map<string, number[]>} */
+    let found;
+    try {
+      found = findEach(text, strings);
+    } finally {
+      Map.prototype.get = get;
+    }
+    assert.deepEqual(
+      strings.map((string) => found.get(string)),
+      strings.map((string) => [text.indexOf(string)]),
+      shape,
+    );
+    const letters = strings.reduce((sum, string) => sum + string.length, 0);
+    assert.ok(lookups <= 4 * (text.length + letters), `${shape}: ${lookups} lookups`);
+  }
+});
+
+// A repeated quote's copies are told apart by the words beside them, so a change there is
+// a change to the quote even where no copy moved: the words its resolution read are kept
+// with the copy, and a change among them says the quote changed.
+test("a change beside a kept quote's copy, where it was told apart, changes the quote", () => {
+  document.body.innerHTML =
+    '<main><p id="x">one MARK two</p><p id="y">three MARK four</p></main>';
+  const anchor = { prefix: "one", suffix: "two" };
+  trackQuotes(["MARK"]);
+  const { version } = quotesChanged(0);
+  assert.equal(findQuote(pageText(), "MARK", anchor)[0]?.node.parentElement?.id, "x");
+  document.querySelector("#x").firstChild.data = "uno MARK two";
+  assert.ok(quotesChanged(version).quotes.includes("MARK"));
+  assert.deepEqual(findQuote(pageText(), "MARK", anchor), []);
+  trackQuotes([]);
+});
+
+// A selection's capture asks for its quote before anchor placement keeps it, as the
+// draft's. The quote joins the index the first time it is asked after, however its
+// answer was kept, so a paragraph drawn again with the same words is heard as a change
+// to the quote, whose copy now stands in other text nodes.
+test("a quote first answered before the index kept it is heard when its words are redrawn", () => {
+  document.body.innerHTML = '<main><p id="x">alpha beta gamma</p><p>delta</p></main>';
+  assert.equal(findQuote(pageText(), "beta", {}).length, 1);
+  trackQuotes(["beta"]);
+  assert.equal(findQuote(pageText(), "beta", {}).length, 1);
+  const { version } = quotesChanged(0);
+  /** @type {Element} */ (document.querySelector("#x")).innerHTML = "alpha beta gamma";
+  assert.deepEqual(quotesChanged(version).quotes, ["beta"]);
+  trackQuotes([]);
+});
+
 // `says` and `wrote` are two answers for one element, and a kept reading must not hand
 // back the other one's.
+test("a message's body reads as its own document: the markup and the text alike", () => {
+  // The panel draws a reply in generated chrome; the markup its author sent stands in
+  // its body beside the text the runtime renders from its words, and both are its
+  // writer's.
+  document.body.innerHTML = `<main><div class="lf-msg lf-ui" data-lf-gen="1">
+    <div class="lf-msg-body"><div class="lf-msg-text"><p id="text">Rendered words.</p></div>
+    <section id="markup"><h2>Sent heading</h2><p>Sent words.</p></section>
+    </div></div></main>`;
+  const markup = document.getElementById("markup");
+  assert.equal(elementReading(markup, "wrote"), "Sent heading Sent words.");
+  assert.equal(elementReading(markup), "Sent heading Sent words.");
+  assert.equal(
+    elementReading(document.getElementById("text"), "wrote"),
+    "Rendered words.",
+  );
+  assert.equal(elementReading(document.getElementById("text")), "Rendered words.");
+});
+
 test("one element's two readings are kept apart", () => {
   document.body.innerHTML =
     '<main><p id="line">Words <span data-lf-gen="">generated</span></p></main>';
@@ -649,6 +1059,28 @@ test("one element's two readings are kept apart", () => {
   assert.equal(elementReading(line, "says"), "Words generated");
   assert.equal(elementReading(line, "wrote"), "Words");
   assert.equal(elementReading(line), "Words generated");
+});
+
+// A part of the page's reading, read alone, holds what the whole holds under its element:
+// chrome inside it is skipped, and an element under chrome or in a runtime surface holds
+// none of the page's words, though a reading of its own frame (`says`) would find some.
+test("a part of the page's reading says what the whole says there", () => {
+  document.body.innerHTML =
+    '<main><p>Before</p><lf-w id="w"><div id="row"><p>Row <b>words</b>' +
+    '<button class="lf-ui">Chrome</button></p></div></lf-w>' +
+    '<div class="lf-ui"><lf-w id="v"><div id="covered"><p>Covered row</p></div></lf-w>' +
+    '</div></main><div class="lf-chrome"><lf-w id="m"><div id="message">' +
+    "<p>Message row</p></div></lf-w></div>";
+  const part = (id) => pageText(document.querySelector(`#${id}`));
+  assert.equal(quoteFrom(part("row").segments), "Row words");
+  assert.ok(pageText().raw.includes(part("row").raw));
+  for (const [id, words] of [
+    ["covered", "Covered row"],
+    ["message", "Message row"],
+  ]) {
+    assert.equal(says(document.querySelector(`#${id}`)), words);
+    assert.equal(part(id).raw, "", `#${id} holds none of the page's words`);
+  }
 });
 
 // A display window may be shorter than a word, while stored quote context remains exact.

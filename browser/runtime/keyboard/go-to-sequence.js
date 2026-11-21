@@ -1,21 +1,24 @@
 /* The Go-to sequence: `g` opens one prefix grammar, and this owner holds its vocabulary.
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
-   tabs, folds, the presses a widget built, and visible margin targets are read together
+   tabs, folds, the presses a widget built, and visible margin entries are read together
    in screen order and receive short prefix-free labels. `hints.js` owns that map — the
    codes, the typed prefix, the audible walk, the scroll freeze, the revalidation before
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
-   that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin targets, `g t`
-   Thread controls. A filtered map keeps each member's code from
-   the complete map, which is why codes are assigned here rather than by the session.
+   that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin entries, `g t`
+   threads. A filter narrows the complete map, as a typed letter does
+   (hints.js, `kept`), so each member keeps its code and its chip's seat; codes are
+   assigned here, over the complete map, rather than by the session.
 
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `f`, `h`, `m`,
-   and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the current item at the top; these are excluded from the generated alphabet. `g g` and
-   `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
-   an edge of the list; `g p` returns focus to the page while leaving open surfaces
-   in place. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g M` On me, `g L` All pages, `g P` the
+   and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the
+   current item at the top; these are excluded from the generated alphabet. `g g` and
+   `g G` glide what `u` and `d` move, a workspace's pane as well as the page, to its
+   edges (navigation.js, `stepReading`); from a focused thread, `g k` and `g j` place
+   its card at an edge of the list; `g p` returns focus to the page while leaving open
+   surfaces in place. Uppercase mnemonics remain named
+   global destinations: `g T` Threads, `g M` On Me, `g L` All pages, `g P` the
    searchable Page Map and `g V` Versions. `g T`, `g M` and `g L` open the floating
    panel's view of that name, and `g V` its Versions, through the panel's own doors
    (`doors`, floating-panel.js), as its marks and menu rows open them. Completing one that
@@ -36,7 +39,10 @@
    visible page target. Generated targets show only their suffix; the reference retains
    that shared prefix. A moving page target cannot carry a readable opaque route, so the generated
    part of the map is withheld until the scene settles. Escape removes one typed letter,
-   then a filter, then closes the sequence. A letter from the hint alphabet is consumed
+   then a filter, then closes the sequence. Armed, the sequence is a stance
+   (touch-controls.js): the panel's row names it Go to beside the ✕ that takes the
+   sequence off from any step, so the next key's owner is named where the user reads.
+   A letter from the hint alphabet is consumed
    even when a scene refresh made it invalid, with explicit feedback instead of an
    unrelated page action; another unrelated key closes the sequence and is redispatched with
    its ordinary meaning.
@@ -62,20 +68,21 @@ import {
   progressSteps,
 } from "./key-sequence.js";
 import { html, nothing } from "/runtime/framework.js";
-import { isExternalPageLink } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
+import { actionClass } from "../control-faces.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
-import { announce, notice } from "../notifications.js";
+import { announce } from "../notifications.js";
 import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
-import { glideTo, pageScroller, stopGlide } from "../scrolling.js";
+import { landGlides } from "../scrolling.js";
+import { counted } from "../words.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -88,7 +95,8 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @typedef {{kind: string, member: Element, go: () => unknown, exposure: "self" | "across"}} TargetMember
  * @typedef {{key: number, className: string, hintCode: string, kind: string, marginEntryKey: string | null,
  * targetId: string | null, commandId: null, address: null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
- * @typedef {{id: string, key: string, word: string, matches: (target: TargetMember) => boolean}} TargetFilter
+ * @typedef {{id: string, key: string, words: [string, string], matches: (target: TargetMember) => boolean}} TargetFilter
+ * `words` names one target it keeps and many, as `counted` takes them (words.js).
  * @typedef {Object} GoToOptions
  * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "leaves">} doors
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
@@ -98,6 +106,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @property {() => boolean} leavesOffered
  * @property {{visibleMarginEntries: () => HTMLElement[], activateMarginEntry: (element: HTMLElement) => unknown, marginEntryKind: (element: Element) => string | null} | null} marginEntries
  * @property {typeof import("../navigation.js").placeThreadEdge} placeThreadEdge
+ * @property {ReturnType<typeof import("../navigation.js").createNavigation>["stepReading"]} stepReading
  */
 /** @param {GoToOptions} options */
 export function createGoToSequence({
@@ -109,6 +118,7 @@ export function createGoToSequence({
   leavesOffered,
   marginEntries,
   placeThreadEdge,
+  stepReading,
 }) {
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
@@ -149,13 +159,16 @@ export function createGoToSequence({
   // the values the theme's hand already reads. A widget joins by building its control rather
   // than by an entry here. The register stays about capabilities; a press is
   // a route to one, and this is how a route that spends no key of its own is reached. The
-  // reading stops where the hand stops, because it is the same reading.
+  // reading stops where the hand stops, because it is the same reading. A gutter's press
+  // is left out: it stands for its line, which the target picker addresses, and a chip
+  // on each of a diff's lines buried the map's other routes (control-faces.js).
   /** @returns {HTMLElement[]} */
-  const pageControls = () => pageParts(PRESSABLE);
+  const pageControls = () => pageParts(`${PRESSABLE}:not(.${actionClass("gutter")})`);
 
   // A link keeps the platform activation that its author wrote. Fragment travel owns
-  // arrival for every activation route; the sequence only names an external new tab.
-  // A cancelled click has replaced that navigation step with one of its own.
+  // arrival for every activation route; the sequence only names the new tab a link's
+  // `target` opens. A cancelled click has replaced that navigation step with one of its
+  // own.
   /** @param {HTMLAnchorElement} link */
   function followLink(link) {
     const activation = { prevented: false };
@@ -169,7 +182,7 @@ export function createGoToSequence({
     );
     link.click();
     if (activation.prevented) return;
-    if (isExternalPageLink(link) && link.target === "_blank") {
+    if (link.target === "_blank") {
       const name =
         link.getAttribute("aria-label")?.trim() || addressableSays(link) || "Link";
       announce(`Opened ${name} in a new tab`);
@@ -194,9 +207,9 @@ export function createGoToSequence({
     {
       id: "navigation.panel.queue",
       keys: ["Shift+m"],
-      // Its door is On me's, so where the On view shows the agent's list it turns to
+      // Its door is On Me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
-      title: () => (doors.queue.shows() ? "close On me" : "On me"),
+      title: () => (doors.queue.shows() ? "close On Me" : "On Me"),
       run: () => doors.queue.press(),
       when: () => true,
     },
@@ -264,13 +277,13 @@ export function createGoToSequence({
     {
       id: "margin-entries",
       key: "m",
-      word: "margin targets",
+      words: ["margin entry", "margin entries"],
       matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
     },
     {
       id: "threads",
       key: "t",
-      word: "Thread controls",
+      words: ["thread", "threads"],
       matches: ({ kind, member }) =>
         kind === MARGIN_TARGET_KIND &&
         marginEntries?.marginEntryKind(member) === "comment",
@@ -278,13 +291,13 @@ export function createGoToSequence({
     {
       id: "hyperlinks",
       key: "h",
-      word: "hyperlinks",
+      words: ["hyperlink", "hyperlinks"],
       matches: ({ kind }) => kind === "Link",
     },
     {
       id: "folds",
       key: "f",
-      word: "folds",
+      words: ["fold", "folds"],
       matches: ({ kind }) => kind === "Fold",
     },
   ];
@@ -316,8 +329,7 @@ export function createGoToSequence({
           .join(" ")
       : "";
 
-  /** @param {TargetFilter | null} [filter] */
-  function visibleCandidates(filter = null) {
+  function visibleCandidates() {
     const placement = keyBadgePlacement();
     /** @type {Set<Element>} */
     const seen = new Set();
@@ -352,8 +364,7 @@ export function createGoToSequence({
         left.rect.left - right.rect.left ||
         left.order - right.order,
     );
-    const coded = codedHints(found, GO_TO_HINT_KEYS.join(""));
-    return filter ? coded.filter(filter.matches) : coded;
+    return codedHints(found, GO_TO_HINT_KEYS.join(""));
   }
 
   // Every complete route starts with the same stable prefix. A partial generated hint is
@@ -412,31 +423,21 @@ export function createGoToSequence({
 
   // A generated label over an inline link must not become a span the passage walk then
   // has to understand, so the chips are chrome and the scene is read rather than marked.
-  /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], ReturnType<typeof keyBadgePlacement>, GoToHintModel>} */
+  /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], GoToHintModel>} */
   const hintOptions = {
     layer: goToHintLayer,
-    walk: "go-to-target",
-    read: () => visibleCandidates(targetFilter),
+    read: visibleCandidates,
+    kept: (candidate) => !targetFilter || targetFilter.matches(candidate),
     identity: (candidate) => candidate.member,
-    scene: keyBadgePlacement,
-    layout: (candidates, { current, reading }) =>
-      candidates.flatMap((candidate) => {
-        const rect = reading.badgeBox(candidate.member);
-        if (
-          !candidate.member.checkVisibility() ||
-          !rect ||
-          !reading.exposes(candidate.member, rect, candidate.exposure)
-        )
-          return [];
-        return {
-          candidate,
-          model: goToHintModel(candidate, candidate === current),
-          target: rect,
-          placement: "corner",
-          left: rect.left,
-          top: rect.top,
-        };
-      }),
+    layout: (candidates, { current }) =>
+      candidates.map((candidate) => ({
+        candidate,
+        model: goToHintModel(candidate, candidate === current),
+        target: candidate.rect,
+        placement: "corner",
+        left: candidate.rect.left,
+        top: candidate.rect.top,
+      })),
     template: goToHintTemplate,
     take: (candidate) => {
       setGoToSequence(false);
@@ -456,49 +457,61 @@ export function createGoToSequence({
     // Armed over a control that has claimed Escape, one press would have two owners — the
     // control's rung and the sequence's cancel — so the sequence refuses to arm there at all.
     if (on && !goToActive && claimsEsc(focused())) return;
-    if (on) stopGlide(pageScroller);
+    // The map waits for a still scene, so the glides under way land at once, where the
+    // map typed after them would read the page (scrolling.js, `landGlides`); stopped
+    // where they stood, `g` pressed as `t` set off left the page short of the thread.
+    if (on) landGlides();
     goToActive = on;
-    // The sequence itself reveals page navigation such as a roomy contents map. Publish that
-    // state before taking the visible-scene reading so those routes enter the same map as
-    // links that were already standing in the document.
     document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     targetFilter = null;
     if (!on) {
       hints.disarm();
       return repaint();
     }
-    const found = hints.arm();
     // The chips are the eye's copy; the sequence itself is spoken, or the context change is silent
     // to exactly the user who cannot see them.
-    announce(
-      `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+    hints.arm((found) =>
+      announce(
+        `Go to — ${found.length ? `${counted(found.length, "visible target")}; ${hearThem(found.length)}. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+      ),
     );
     repaint();
   }
 
   const targetCapability = () => TARGET_KINDS.some((entry) => entry.list().length > 0);
   const atGoToTargets = () => !targetFilter && !hints.prefix();
+  // Whether Escape has a letter or a filter to take back before it closes the sequence.
+  const stepsBack = () => !atGoToTargets();
 
   /** @param {string} binding */
   function filterTargets(binding) {
     const chosen = TARGET_FILTERS.find(({ key }) => key === binding);
     if (!chosen) return;
     targetFilter = chosen;
-    const found = hints.refresh();
-    const message = found.length
-      ? `${found.length} visible ${chosen.word}; type a hint or press Tab to hear them.`
-      : `No visible ${chosen.word}.`;
-    if (found.length) notice(message);
-    else announce(message);
-    repaint();
+    // The narrowed hints show the eye what the filter found, so a listener alone is
+    // told; with none, the field says so while the filter stands (`goToStatus`).
+    const found = hints.narrow();
+    announce(
+      found.length
+        ? `${counted(found.length, ...visible(chosen))}; ${hearThem(found.length)}.`
+        : `No visible ${chosen.words[1]}`,
+    );
   }
+  /** @param {TargetFilter} filter @returns {[string, string]} */
+  const visible = ({ words: [one, many] }) => [`visible ${one}`, `visible ${many}`];
+  /** @param {number} count */
+  const hearThem = (count) =>
+    `type a hint or press Tab to hear ${count === 1 ? "it" : "them"}`;
 
-  // An empty active filter is useful state, not a four-second event. The candidate map is
+  // Hint chips show the eye that the sequence waits for a key. Where none shows, the
+  // page's targets or a filter's being out of view, the field says so for as long as
+  // the sequence waits, which is useful state, not a four-second event; without it the
+  // next key would go to Go-to with nothing on screen saying so. The candidate map is
   // the reading the hint session already holds; using it here keeps the shortcut repaint
   // out of the expensive visibility and hit-test pass.
   function goToStatus() {
-    if (!goToActive || !targetFilter || hints.candidates().length) return null;
-    return `No visible ${targetFilter.word}.`;
+    if (!goToActive || hints.candidates().length) return null;
+    return `No visible ${targetFilter ? targetFilter.words[1] : "targets"}`;
   }
 
   // The sequence is one scope: generated visible targets, named global destinations, structural
@@ -510,6 +523,7 @@ export function createGoToSequence({
   /** @type {import("./bindings.js").Scope} */
   const GO_TO_SCOPE = {
     title: "Go to",
+    says: "Go to",
     escape: "inner",
     root: () => document,
     reach: "with g armed",
@@ -606,10 +620,10 @@ export function createGoToSequence({
         id: "navigation.target.filter",
         touch: false,
         keys: FILTER_KEYS,
-        routes: TARGET_FILTERS.map(({ id, key, word }) => ({
+        routes: TARGET_FILTERS.map(({ id, key, words }) => ({
           id: `navigation.target.filter.${id}`,
           binding: key,
-          title: `Show only visible ${word}`,
+          title: `Show only visible ${words[1]}`,
         })),
         label: FILTER_KEYS.join(" / "),
         sequenceSteps: ["kind"],
@@ -652,12 +666,12 @@ export function createGoToSequence({
           {
             id: "navigation.page.top",
             binding: "g",
-            title: "Go to the top of the page",
+            title: "Go to the top",
           },
           {
             id: "navigation.page.bottom",
             binding: "Shift+g",
-            title: "Go to the bottom of the page",
+            title: "Go to the bottom",
           },
         ],
         title: "top / bottom",
@@ -665,8 +679,9 @@ export function createGoToSequence({
         when: atGoToTargets,
         runKey: (binding) => {
           setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
-          const box = pageScroller;
-          glideTo(box, binding === "g" ? 0 : box.scrollHeight);
+          // A step no box can outrun stops at the edge of the box that takes it, so an
+          // edge moves what `u` and `d` move, chosen and chained the same way.
+          stepReading(binding === "g" ? -Infinity : Infinity, "page");
         },
       },
       {
@@ -674,16 +689,24 @@ export function createGoToSequence({
         touch: false,
         keys: ["Escape"],
         sequenceControl: true,
-        title: () =>
-          hints.prefix() ? "back one letter" : targetFilter ? "all targets" : "cancel",
+        title: () => (hints.prefix() ? "back one letter" : "all targets"),
+        when: stepsBack,
         run: () => {
           if (hints.backOneLetter()) return;
-          if (targetFilter) {
-            targetFilter = null;
-            hints.invalidate();
-            announce("All go-to targets.");
-            return;
-          }
+          targetFilter = null;
+          hints.narrow();
+          announce("All go-to targets.");
+        },
+      },
+      // The stance's way out, live at every step so the panel's Close takes the
+      // sequence off from any of them; Escape reaches it once nothing is left to back.
+      {
+        id: "navigation.go-to.close",
+        keys: () => (stepsBack() ? [] : ["Escape"]),
+        sequenceControl: true,
+        title: "close Go to",
+        exit: true,
+        run: () => {
           setGoToSequence(false);
           announce("Go to cancelled");
         },

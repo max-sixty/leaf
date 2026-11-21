@@ -33,6 +33,7 @@ from render_harness import (
 from browser.navigation import (
     READING_REGIONS_PAGE,
 )
+from browser.startup import _hold_startup
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
@@ -195,10 +196,12 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     browser, serve
 ):
     """A click on words focuses nothing, and Chrome then starts Space, PageDown and the
-    arrows from the node last pressed. A permanent `tabindex` on body made the body the
-    focusable ancestor of every word, so the click focused it and those keys scrolled the
-    root, which a full-height workspace keeps still: both panes stayed at 0. Leaf's own `d` and
-    `j` read only focus and did the same."""
+    arrows from the node last pressed. A permanent `tabindex` on body would make the
+    body the focusable ancestor of every word, so the click would focus it and those
+    keys would scroll the root, which a full-height workspace keeps still, leaving both
+    panes at 0.
+    Leaf's own `d` and `j`, reading only focus, would do the same, and Go-to's `g g` and
+    `g G` could glide only the root even with `d` and `u` following the pane."""
     left_body = "#left-reading > :not(header, footer)"
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     tops = """() => ['left-reading', 'right-reading'].map((id) =>
@@ -231,6 +234,18 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     assert page.evaluate(reading) == "left-reading"
     page.keyboard.press("u")
     page.wait_for_function(f"() => ({tops})()[0] < {left}")
+    # The edges move the pane `u` moved, and leave the other where `d` left it.
+    right = page.evaluate(tops)[1]
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+g")
+    page.wait_for_function(f"""() => {{
+      const body = document.querySelector('{left_body}');
+      return body.scrollHeight - body.clientHeight - body.scrollTop <= 2;
+    }}""")
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    page.wait_for_function(f"() => ({tops})()[0] === 0")
+    assert page.evaluate(tops)[1] == right
 
 
 @pytest.mark.parametrize("commented", [False, True], ids=["empty", "commented"])
@@ -253,13 +268,53 @@ def test_the_box_waits_for_the_press_beside_a_pane_the_rail_does_not_stand_by(
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
+def test_a_walk_from_a_pane_reaches_a_question_in_view_ahead_of_its_words(
+    browser, serve
+):
+    """A question of options alone at the top of the pane the user reads is where a walk
+    from that pane starts, as it is on the page, though the first words the pane shows
+    stand below it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a pane opening with options",
+                '<header><h1 id="top">Queue</h1></header><div id="regions">'
+                '<lf-pane id="rail" label="Rail"><div><p>The words of the rail.</p>'
+                '</div></lf-pane><lf-pane id="detail" label="Detail"><div>'
+                '<lf-group id="first" label="First"><lf-options id="first-o">'
+                '<lf-option id="first-a">Take the first way</lf-option>'
+                '<lf-option id="first-b">Take the other way</lf-option></lf-options></lf-group>'
+                '<p id="after">The words after the first question run on for a line.</p>'
+                '<lf-group id="second" label="Second"><h3>Second</h3><lf-options id="second-o">'
+                '<lf-option id="second-a">Yes</lf-option>'
+                '<lf-option id="second-b">No</lf-option></lf-options></lf-group>'
+                "<div style='height: 1400px'></div></div></lf-pane></div>",
+                head=regions_side_by_side("regions", "1fr 3fr"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    detail = "#detail > :not(header, footer)"
+    pane_scroll_behavior(page, page.locator("#detail"), "bounded")
+    box = page.locator(detail).bounding_box()
+    page.mouse.move(box["x"] + 300, box["y"] + 200)
+    page.mouse.wheel(0, 20)
+    page.wait_for_function(f"() => document.querySelector('{detail}').scrollTop > 0")
+    scroll_settled(page, detail)
+    expect(page.locator("#first-o")).to_be_in_viewport()
+    page.keyboard.press("m")
+    expect(page.locator("#first")).to_be_focused()
+
+
 def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
     browser, serve
 ):
     """A wheel in a pane, or a click on its words, leaves focus on the body, which
     stands on nothing, so the pane the user acted in answers for the reading keys and
-    for where a walk starts. Focus on the body once read as standing in the page, and
-    then `j` scrolled a page a workspace keeps still and `m` walked from the page's top.
+    for where a walk starts. Focus on the body read as standing in the page would have
+    `j` scroll a page a workspace keeps still and `m` walk from the page's top.
 
     Each body holds a control, so neither is a tab stop a click would focus (reach.js),
     which would answer through focus and leave the body's route unread. The rail holds
@@ -270,9 +325,9 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
 
     def ask(name):
         return (
-            f'<lf-ask id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o" choose>'
+            f'<lf-group id="{name}" label="Decide {name}"><h3 id="{name}-h">Decide {name}</h3><lf-options id="{name}-o">'
             f'<lf-option id="{name}-a">Yes</lf-option>'
-            f'<lf-option id="{name}-b">No</lf-option></lf-options></lf-ask>'
+            f'<lf-option id="{name}-b">No</lf-option></lf-options></lf-group>'
         )
 
     words = "".join(
@@ -330,13 +385,223 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
     assert top(detail) == at
 
 
+def test_the_page_hands_a_step_it_cannot_take_to_its_largest_pane_and_takes_it_back(
+    browser, serve
+):
+    """With no pane named, a workspace's reading keys ran out on the page: it has nothing
+    to scroll, or here only a footer's height beside `main`. A step the page can't take
+    goes to the largest pane, and of two the same size to the one with the most to scroll,
+    neither the first nor the narrow rail with the most of all. The page stays ahead of
+    the pane it chose, so `u` gives the page back its footer's height before the pane, and
+    the step names the pane, so a walk goes on from where the steps reached."""
+    rail = "#rail > :not(header, footer)"
+    short = "#short > :not(header, footer)"
+    long = "#long > :not(header, footer)"
+
+    def ask(name):
+        return (
+            f'<lf-group id="{name}" label="Decide {name}"><h3 id="{name}-h">Decide {name}</h3><lf-options id="{name}-o">'
+            f'<lf-option id="{name}-a">Yes</lf-option>'
+            f'<lf-option id="{name}-b">No</lf-option></lf-options></lf-group>'
+        )
+
+    words = "".join(
+        f'<p style="min-height: 200px">Paragraph {n} between the decisions.</p>'
+        for n in range(7)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a rail, two panes and a footer",
+                '<header><h1>Queue</h1></header><div id="regions">'
+                '<lf-pane id="rail" label="Rail"><div><a href="#long">Long</a>'
+                '<p style="min-height: 8000px">The words of the rail.</p></div></lf-pane>'
+                '<lf-pane id="short" label="Short"><div><a href="#long">Long</a>'
+                '<p style="min-height: 1200px">The words of the short pane.</p></div>'
+                '</lf-pane><lf-pane id="long" label="Long"><div>'
+                f"{ask('first')}{words}{ask('second')}"
+                "<div style='height: 1400px'></div></div></lf-pane></div>",
+                head=regions_side_by_side("regions", "1fr 2fr 2fr"),
+                layout="workspace",
+            ).replace("</main>", "</main><footer><p>A site footer.</p></footer>")
+        ),
+    )
+    resized(page, 1440, 900)
+    pane_scroll_behavior(page, page.locator("#long"), "bounded")
+
+    def top(selector):
+        return page.locator(selector).evaluate("el => el.scrollTop")
+
+    def stepped(key, selector, moved=">"):
+        before = top(selector)
+        page.keyboard.press(key)
+        page.wait_for_function(
+            f"() => document.querySelector('{selector}').scrollTop {moved} {before}"
+        )
+        scroll_settled(page, selector)
+
+    def still():
+        assert (top(rail), top(short)) == (0, 0)
+
+    assert page.locator(short).bounding_box()["width"] == pytest.approx(
+        page.locator(long).bounding_box()["width"], abs=1
+    )
+    assert top("html") == 0
+    stepped("d", "html")
+    at_end = top("html")
+    assert page.evaluate(f"""() => {{
+      const root = document.scrollingElement;
+      return root.scrollHeight - root.clientHeight - {at_end} <= 2;
+    }}""")
+    assert top(long) == 0
+
+    stepped("d", long)
+    still()
+    read = top(long)
+    stepped("u", "html", "<")
+    assert top("html") == 0
+    assert top(long) == read
+    stepped("u", long, "<")
+    still()
+
+    stepped("d", "html")
+    stepped("d", long)
+    stepped("d", long)
+    still()
+    first = page.locator("#first").bounding_box()
+    assert first["y"] + first["height"] <= page.locator(long).bounding_box()["y"]
+    page.keyboard.press("m")
+    expect(page.locator("#second")).to_be_focused()
+
+
+@pytest.mark.parametrize("pressed", ["loaded", "held"])
+def test_of_two_panes_the_same_size_on_screen_the_one_with_more_to_scroll_takes_the_step(
+    browser, serve, pressed
+):
+    """The step ranks the panes by their boxes within the window and stops at a box
+    smaller than the most a pane has shown. With nothing beside `main`, the page never
+    scrolls, so both panes show their whole boxes and tie at that edge: the second must
+    still be read, or the first, the shorter, takes every step. A footer clips both panes
+    as the page scrolls, which hides the tie from the test above. A `j` held while the
+    runtime loads takes the same step once the page upgrades."""
+    url = serve(
+        leaf_page(
+            "a rail and two panes",
+            '<header><h1>Queue</h1></header><div id="regions">'
+            '<lf-pane id="rail" label="Rail"><div>'
+            '<p style="min-height: 8000px">The words of the rail.</p></div></lf-pane>'
+            '<lf-pane id="short" label="Short"><div>'
+            '<p style="min-height: 1200px">The words of the short pane.</p></div>'
+            '</lf-pane><lf-pane id="long" label="Long"><div>'
+            '<p style="min-height: 3000px">The words of the long pane.</p></div>'
+            "</lf-pane></div>",
+            head=regions_side_by_side("regions", "1fr 2fr 2fr"),
+            layout="workspace",
+        )
+    )
+    if pressed == "held":
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        held, release = _hold_startup(page, "module")
+        page.goto(url, wait_until="commit")
+        holding(page, held, 1, "the runtime module")
+        expect(page.locator("#long")).to_be_attached()
+        page.keyboard.press("j")
+        release()
+    else:
+        page = open_page(browser, url)
+        resized(page, 1440, 900)
+        pane_scroll_behavior(page, page.locator("#long"), "bounded")
+        page.keyboard.press("j")
+    long = "#long > :not(header, footer)"
+    page.wait_for_function(f"() => document.querySelector('{long}').scrollTop > 0")
+    scroll_settled(page, long)
+    assert page.evaluate("""() => [
+      document.scrollingElement,
+      ...['#rail', '#short'].map((id) => document.querySelector(`${id} > div`)),
+    ].map((box) => box.scrollTop)""") == [0, 0, 0]
+
+
+@pytest.mark.parametrize(
+    "shape", ["long-page", "site-header", "workspace", "workspace-footer"]
+)
+def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
+    browser, serve, shape
+):
+    """A log that follows its newest entry stands at its end. On a long page, a `k` at
+    the top that moved the log with no region named would stop it following; the page
+    keeps that step, as it keeps every step it can take, and so does a short `main` that
+    a site header pushes past the window's foot. The window holds all of a workspace's
+    `main`, so there `k` moves the log back from its newest entry, even with a site
+    footer after `main`, which gives the page a little scroll and could leave `k` moving
+    nothing."""
+    entries = "".join(f"<p>Entry {n}: a line of the deploy.</p>" for n in range(60))
+    log_markup = f'<div id="log" data-bound="end">{entries}</div>'
+    workspace = shape.startswith("workspace")
+    if workspace:
+        source = leaf_page(
+            "a log in a workspace",
+            '<header><h1>Deploy</h1></header><lf-pane id="pane" label="Log"><div>'
+            f"{log_markup}</div></lf-pane>",
+            layout="workspace",
+        )
+    elif shape == "long-page":
+        source = leaf_page(
+            "a log atop a long page",
+            f"<h1>Deploy</h1>{log_markup}{BOUNDED_LOG_FILLER}",
+        )
+    else:
+        source = leaf_page(
+            "a log below a site header",
+            f"<h1>Deploy</h1>{log_markup}<p>The deploy's last notes.</p>",
+        ).replace(
+            "<main",
+            '<header><p>A site header.</p><p style="height: 300px">Banner.</p>'
+            "</header><main",
+            1,
+        )
+    if shape == "workspace-footer":
+        source = source.replace(
+            "</main>", "</main><footer><p>A site footer.</p></footer>"
+        )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    log = page.locator("#log")
+    expect(log).to_be_in_viewport()
+    if shape == "site-header":
+        assert page.evaluate("""() => {
+          const { height, bottom } = document.querySelector('body > main')
+            .getBoundingClientRect();
+          return height < innerHeight && bottom > innerHeight;
+        }""")
+    end = log.evaluate("log => log.scrollHeight - log.clientHeight")
+    assert end > 0
+    page.wait_for_function(
+        f"() => document.getElementById('log').scrollTop >= {end} - 2"
+    )
+
+    page.keyboard.press("k")
+    if workspace:
+        page.wait_for_function(
+            f"() => document.getElementById('log').scrollTop < {end} - 2"
+        )
+        scroll_settled(page, "#log")
+        assert page.evaluate("document.scrollingElement.scrollTop") == 0
+        return
+    page.keyboard.press("j")
+    page.wait_for_function("document.scrollingElement.scrollTop > 0")
+    scroll_settled(page)
+    scroll_settled(page, "#log")
+    assert log.evaluate("log => log.scrollTop") == pytest.approx(end, abs=2)
+
+
 def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
     browser, serve
 ):
-    """The Threads list is a reading region of its own, and it used to stand in for the
-    page's after the panel closed or while the user left it: `d` after a pointer closed
-    the panel scrolled a list no one could see, and `g p` from the open panel landed at
-    the top of the document rather than on the paragraph in view."""
+    """The Threads list is a reading region of its own, and it doesn't stand in for the
+    page's after the panel closes or while the user leaves it, where `d` after a pointer
+    closed the panel would scroll a list no one could see, and `g p` from the open panel
+    would land at the top of the document rather than on the paragraph in view."""
     paragraphs = "".join(
         f'<p id="p{n}" style="min-height: 12rem">Paragraph {n} has '
         f'<a href="#p{n}">a link</a>.</p>'
@@ -371,9 +636,10 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
 
 def test_a_let_go_never_lands_in_a_closed_fold(browser, serve):
     """A closed `<details>` keeps its contents' boxes where they would stand open, as an
-    inactive tab's panel does, so where the fold sat just above the window the let-go
-    took a paragraph inside it for what the user was reading. Focus cannot land in a
-    closed fold, so closing Threads left the user on its toggle instead of the page."""
+    inactive tab's panel does, so where the fold sat just above the window a let-go
+    reading those boxes would take a paragraph inside it for what the user was reading.
+    Focus cannot land in a closed fold, so closing Threads would leave the user on its
+    toggle instead of the page."""
     page = open_page(
         browser,
         serve(
@@ -769,7 +1035,7 @@ def test_a_tall_local_comment_survives_its_panes_scroll_behavior_and_return(
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator(".lf-live")).to_contain_text("Draft kept — g i resumes writing")
+    expect(page.locator(".lf-live")).to_contain_text("Draft kept")
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(field).to_be_focused()
@@ -780,10 +1046,10 @@ def test_a_tall_local_comment_survives_its_panes_scroll_behavior_and_return(
 def test_a_key_pressed_with_nothing_focused_keeps_the_place_read_in_a_pane(
     browser, serve
 ):
-    """Focus on the body stands on nothing, so a key pressed there records no place. A
-    place recorded for the page outranked the one the reader made in the pane, and a
-    narrower window, which hands the pane to the page, left them at the top of the page
-    rather than on the passage they had read."""
+    """Focus on the body stands on nothing, so a key pressed there records no place.
+    Were a place recorded for the page to outrank the one the reader made in the pane, a
+    narrower window, which hands the pane to the page, would leave them at the top of the
+    page rather than on the passage they had read."""
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     resized(page, 1200, 900)
     pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
@@ -984,12 +1250,12 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
         .replace(
             '<main class="layout-workspace">',
-            '<main class="layout-column"><lf-tabs id="reading-tabs" class="layout-flow">'
-            '<lf-tab id="first-tab" label="First" class="layout-flow">',
+            '<main class="layout-column"><lf-tabs id="reading-tabs" flow="page">'
+            '<lf-tab id="first-tab" label="First">',
         )
         .replace(
             "</main>",
-            '</lf-tab><lf-tab id="second-tab" label="Second" class="layout-flow">'
+            '</lf-tab><lf-tab id="second-tab" label="Second">'
             '<lf-pane id="other-reading" label="Other reading">'
             '<div><p id="other-start">Another reading with enough words to preserve its landmark.</p>'
             '<div style="height: 1000px"></div></div></lf-pane></lf-tab></lf-tabs></main>',
@@ -1342,8 +1608,8 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
     browser, serve
 ):
     """An obligation inside a block that bounds its height arrives at the top of that block,
-    which is the box scrolling it. The walk measured its run-up against the window and
-    moved the page to put it at the window's top, sliding a log the user could
+    which is the box scrolling it. A walk that measured its run-up against the window
+    would move the page to put it at the window's top, sliding a log the user could
     already see."""
     early = "".join(f"<p>Early {n}: a line before the question.</p>" for n in range(8))
     entries = "".join(
@@ -1356,9 +1622,9 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
             leaf_page(
                 "bounded ask",
                 f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<div id="log" '
-                f'data-bound="end">{early}<lf-ask id="q"><h3>Which shard next?</h3>'
-                '<lf-options id="o" choose><lf-option id="o1">The first</lf-option>'
-                '<lf-option id="o2">The second</lf-option></lf-options></lf-ask>'
+                f'data-bound="end">{early}<lf-group id="q" label="Which shard next?"><h3 id="q-h">Which shard next?</h3>'
+                '<lf-options id="o"><lf-option id="o1">The first</lf-option>'
+                '<lf-option id="o2">The second</lf-option></lf-options></lf-group>'
                 f"{entries}</div>{BOUNDED_LOG_FILLER}",
             )
         ),
@@ -1388,7 +1654,7 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
             - parseFloat(getComputedStyle(q).scrollMarginTop); }"""
     )
     assert landed == pytest.approx(0, abs=2), (
-        f"the lf-ask landed {landed}px down the log"
+        f"the question landed {landed}px down the log"
     )
 
 
@@ -1410,8 +1676,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
         proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
     ]
     assert boxes[0]["right"] <= boxes[1]["x"] + 1, boxes
-    assert page.locator("lf-ask").count() == 1
-    assert page.locator("lf-options[choose]").count() == 1
+    assert page.locator("lf-options").count() == 1
 
     resized(page, 420, 900)
     pane_scroll_behavior(page, current, "flow")
@@ -1478,14 +1743,14 @@ def test_a_choice_inside_a_proposal_survives_its_undo(browser, serve):
         "data-lf-state", "accept"
     )
     expect(page.locator("#nested-change > lf-old")).to_be_visible()
-    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
+    expect(page.locator("#route lf-option[selected]")).to_have_attribute(
         "id", "route-river"
     )
     page.close()
 
     page = open_page(browser, url)
     expect(page.locator("#nested-change > lf-old")).to_be_visible()
-    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
+    expect(page.locator("#route lf-option[selected]")).to_have_attribute(
         "id", "route-river"
     )
 

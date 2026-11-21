@@ -1,14 +1,14 @@
 # Live samples
 
-Use `<lf-sample interactive>` to show working widgets inline, with a sample label
-and gutter. Its contents belong to the surrounding page: choices and edits use that
-page's event log and Undo, and comments reach the same agent. Its widgets demonstrate
-rather than ask, so none of them goes on On me. Give every widget its own page-wide
+Show working widgets inline, beside a gutter, in a live sample, such as
+`<lf-sample interactive>`. Its contents belong to the surrounding page: choices and
+edits use that page's event log and Undo, and comments reach the same agent. Its widgets demonstrate
+rather than ask, so none of them goes on On Me. Give every widget its own page-wide
 id. This mode has no inner page, panel, Reset or Full view controls:
 
 ```html
 <lf-sample id="delivery-sample" interactive label="Delivery choices">
-  <lf-options id="delivery-choice" choose>
+  <lf-options id="delivery-choice">
     <lf-option id="delivery-standard">Standard delivery</lf-option>
     <lf-option id="delivery-express">Express delivery</lf-option>
   </lf-options>
@@ -35,7 +35,10 @@ Put only the demonstrated page inside the template; labels, your own controls an
 instructions for using the sample go outside it.
 
 The sample uses the parent's layer and has its own event log, so its decisions and
-comments never reach the parent's log or On me. When the sample is
+comments never reach the parent's log or On Me. Its page starts as the sample nears
+the window, so a page can hold many samples and load only those the user reaches; one
+in a shut tab or a closed disclosure starts as it opens. Until then its frame stands
+empty, and the browser's Find can't reach its text. When the sample is
 about the window itself, such as Leaf's panel and its views, add the boolean `window`
 attribute to show a whole Leaf window at a fixed height. The user can click or Tab into
 the sample and use it fully; Escape returns to the parent, and Reset starts it fresh
@@ -46,13 +49,14 @@ with a live sample can't be exported (`serving-pages.md`, "Exported files").
 To give the sample a page-wide setting such as `data-annotations="page"`, put it on the
 template.
 
-A thread message's `--markup` can carry a live sample too. It uses the layer of the
+A thread message can carry a live sample too. It uses the layer of the
 version showing the message and can load only that version's saved files, so keep its
 code inline in the template. Its `data-sample-threads` can't name the thread the
 message is in.
 
 To start the sample with made-up conversations or decisions, write an inline JSON
-script in the same markup as the template and name its id in `data-sample-events`:
+script beside the template, in the same page or message, and name its id in
+`data-sample-events`:
 
 ```html
 <script id="service-history" type="application/json">
@@ -96,9 +100,10 @@ and neither page can read the other's DOM, storage or functions. A page module d
 sample through the element's API:
 
 - `await sample.ready` resolves once the sample is usable, and rejects if it can't load.
-  The parent doesn't wait for samples off screen, so await `ready` rather than the
-  page's presentation.
-- `await sample.reset()` replaces the sample with a fresh copy.
+  It waits while the sample hasn't started, and the parent doesn't wait for samples
+  off screen, so await `ready` rather than the page's presentation.
+- `await sample.reset()` replaces the sample with a fresh copy, or starts one that
+  hasn't started.
 - The bubbling `lf-sample-ready` event, with `detail.sample`, fires after every load,
   including Reset and reloads; reapply any view your controls chose there.
 - `await sample.showThread(id)` shows a thread by its root event id, as its marker

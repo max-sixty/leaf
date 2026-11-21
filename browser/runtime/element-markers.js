@@ -8,6 +8,13 @@ import { actionClass } from "./control-faces.js";
 import { actionOffers } from "./icon-paths.js";
 import "./role-button-press.js";
 
+// Whether this document runs without Leaf's runtime, where a symbol's `title` is the only
+// reading of its name a pointer gets: on Leaf the preview reads its accessible name on
+// every route, and the browser shows a title's tooltip in place of it (preview.js), so a
+// writer writes none there (prepaint.js marks a page the runtime upgrades).
+export const titlesName = () =>
+  !document.documentElement.hasAttribute("data-lf-interactive");
+
 // Native controls are the ordinary case. A widget gets their activation, disabled state,
 // focus behavior, and platform accessibility contract without Leaf recreating any of it:
 // ordinary buttons and links need no Leaf activation binding, nor does a
@@ -46,7 +53,7 @@ export const offerElement = (node, cls, pressable = false) => {
 // leaves them out, and they are a passage cell of their own. `says` is whether they
 // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
 // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
-// over `relabel`, says why each answer matters and why none is assumed.
+// control-labels.js says why each answer matters and why none is assumed.
 /**
  * @template {Element} T
  * @param {T} node
@@ -60,7 +67,6 @@ export const generatedElement = (node, { says } = {}) => {
         `true, false, or "echo" for a copy of words it says elsewhere`,
     );
   keeps(node, "data-lf-gen", "1");
-  // Toggling keeps an x-says span's attribute name (declared-words.js) where it stands.
   node.toggleAttribute("data-lf-said", says === true);
   node.toggleAttribute("data-lf-echo", says === "echo");
   return node;
@@ -85,21 +91,22 @@ export function offer(tag, cls, label, inputType, pressable = false) {
 }
 // `label` names the press. A worded role shows it, and `offerAction` writes it as the
 // words; the element writer leaves the words to whoever owns the element's content,
-// such as a template. A symbol or mark says it as the accessible name and the
-// tooltip, `title` where the tooltip says more, such as the key that does the same.
+// such as a template. A symbol or mark says it as the accessible name, which the preview
+// shows with the keys that press it on Leaf (preview.js), and off Leaf as the `title`
+// the browser's tooltip shows (`titlesName`).
 /** @template {Element} T @param {T} node @param {LeafActionRole} role
- * @param {string} [cls] @param {string} [label] @param {{title?: string}} [options] @returns {T} */
-const roleElement = (node, role, cls, label, { title = label } = {}) => {
+ * @param {string} [cls] @param {string} [label] @returns {T} */
+const roleElement = (node, role, cls, label) => {
   offerElement(node, actionClass(role, cls));
   if (label !== undefined && (role === "symbol" || role === "mark")) {
     keeps(node, "aria-label", label);
-    keeps(node, "title", title);
+    keeps(node, "title", titlesName() ? label : null);
   }
   return node;
 };
-/** @param {LeafActionRole} role @param {string} [cls] @param {string} [label] @param {{title?: string}} [options] */
-const buildAction = (role, cls, label, options) => {
-  const node = roleElement(document.createElement("button"), role, cls, label, options);
+/** @param {LeafActionRole} role @param {string} [cls] @param {string} [label] */
+const buildAction = (role, cls, label) => {
+  const node = roleElement(document.createElement("button"), role, cls, label);
   if (label !== undefined && role !== "symbol" && role !== "mark")
     node.textContent = label;
   return node;
@@ -173,12 +180,12 @@ export function elementDirective(name, write) {
 export const offered = elementDirective("offered", offerElement);
 
 // A press that wears one of Leaf's control faces is built by its role, never by naming
-// the face's classes: `offerAction(role, className, label, {title, action})` and, in a
+// the face's classes: `offerAction(role, className, label, {action})` and, in a
 // template, `<button ${offeredAction(role, className, label, {action})}></button>`.
 // `control-faces.js` lists the roles; `className`
 // places the control and never restyles its face. A symbol or mark names its `action`
 // (icon-paths.js, `ACTIONS`), whose symbol it shows and whose name it says as its
-// tooltip and accessible name unless `label` says more.
+// accessible name and preview unless `label` says more.
 const { offerAction, offerActionElement: offeredActionElement } = actionOffers({
   offerAction: buildAction,
   offerActionElement: roleElement,

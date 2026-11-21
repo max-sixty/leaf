@@ -15,18 +15,25 @@
    read it here. */
 import kernel from "./kernel-registry.json" with { type: "json" };
 
-const { collapse, blocks, context } = kernel.$passages;
+const { collapse, blocks, context, phrasing, closing, opening } = kernel.$passages;
 // How a page turns into text (`leaf/passages.py`): a run of these characters is one
 // space, each of these tags is one block, and an anchor starts with this much context
 // on each side of its quote. Escaped, since a character class gives `]`, `\`, `^` and
 // `-` meanings of their own.
-const escaped = collapse
+// `COLLAPSE_CHARS` is that class's body, for a pattern that adds to the set.
+export const COLLAPSE_CHARS = collapse
   .split("")
   .map((ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`)
   .join("");
-export const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
+export const COLLAPSE = new RegExp(`[${COLLAPSE_CHARS}]+`, "g");
 export const TEXT_BLOCK = blocks.join(",");
+// The elements a line of words runs through (`$passages.phrasing`).
+export const PHRASING = new Set(phrasing);
 export const CONTEXT = context;
+// The marks no shown space stands before (`CLOSING`) or after (`OPENING`) at an edge
+// (`$passages.why-closing-and-opening`).
+export const CLOSING = new Set(closing);
+export const OPENING = new Set(opening);
 
 // A widget's tag, which tells a widget declaration from an idiom selector.
 export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
@@ -34,13 +41,13 @@ export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
 // The declared marks and the attribute each is painted as, which the runtime paints on
 // a message it renders and reads by name.
 const { description: _description, ...declaredMarks } = kernel.$marks;
-/** @typedef {{paint: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
+/** @typedef {{attribute: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
 /** @type {Record<keyof typeof declaredMarks, Mark> & Record<string, Mark>} */
 export const marks = declaredMarks;
 
 const kinds = Object.entries(kernel.$events.kinds);
 // The kinds said in a thread, and each widget kind with the side that writes the
-// x-state verb it carries. `contract-types.mjs` derives the matching types.
+// verb (`verbs`) it carries. `contract-types.mjs` derives the matching types.
 export const MESSAGE_KINDS = new Set(
   kinds.filter(([, kind]) => "message" in kind && kind.message).map(([name]) => name),
 );

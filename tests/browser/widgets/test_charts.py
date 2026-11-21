@@ -1,10 +1,11 @@
 """Charts and drawn figures: axis labels, theme colors, drawing for the room a chart
 has, failed redraws, and inspecting a merge film by touch and keyboard."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
 from render_cases_widgets import (
     CHART_IN_A_MESSAGE_PAGE,
     CHART_MARKS,
@@ -13,108 +14,25 @@ from render_cases_widgets import (
     chart_markup,
 )
 from render_harness import (
+    PREVIEW,
+    clocked,
     consume_browser_errors,
+    dwelt,
+    holding,
     leaf_page,
+    long_press,
     names,
     open_page,
     plant_quiet_word,
     resized,
+    sending,
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
-from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-@pytest.mark.watch_shifts
-def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
-    """Readable part details survive a tap, including a move across commit branches."""
-    example = named_source("wt-merge")
-    context = browser.new_context(
-        viewport={"width": 320, "height": 844}, has_touch=True
-    )
-    page = open_page(browser, live_url(serve(example)), context=context)
-    film = page.locator("lf-merge-film")
-    inspector = film.locator(".film-inspect")
-    inspect_next = film.get_by_role("button", name="Inspect next element")
-    graph = film.locator("svg:visible")
-    commits = graph.locator('g[data-label^="commit "]')
-    first, last = commits.first, commits.last
-    labels = [first.get_attribute("data-label"), last.get_attribute("data-label")]
-    assert labels[0] != labels[1]
-    # Read at the end of the actual click, before later provider work can turn an
-    # initially empty response into an eventual success.
-    inspect_next.evaluate("""button => button.addEventListener('click', () => {
-      const inspector = button.closest('lf-merge-film').querySelector('.film-inspect');
-      window.firstInspection = {
-        hidden: inspector.hidden,
-        title: inspector.querySelector('strong').textContent,
-      };
-    }, {once: true})""")
-    inspect_next.scroll_into_view_if_needed()
-    inspection_top = inspect_next.bounding_box()["y"]
-    inspect_next.tap()
-    assert inspect_next.bounding_box()["y"] == pytest.approx(inspection_top, abs=1)
-    assert page.evaluate("firstInspection") == {"hidden": False, "title": labels[0]}
-    inspect_next.press("Escape")
-    expect(inspector).to_be_hidden()
-    for part, label in zip([first, last], labels, strict=True):
-        part.locator("circle").tap()
-        expect(inspector).to_be_visible()
-        expect(inspector.locator("strong")).to_have_text(label)
-        expect(inspector.locator("span")).to_have_text(part.get_attribute("data-info"))
-        expect(film.locator(".film-play")).to_have_text("Play")
-    graph.tap(position={"x": 3, "y": 3})
-    expect(inspector).to_be_hidden()
-    inspect_next.tap()
-    expect(inspector).to_be_visible()
-    expect(inspector.locator("strong")).to_have_text(labels[0])
-    assert inspect_next.bounding_box()["height"] >= 44
-    # Cycling to worktree details keeps both the reader and the cycle control in view.
-    for _ in range(9):
-        inspect_next.tap()
-    expect(inspector.locator("strong")).to_have_text("worktree ~/repo.feature")
-    details = inspector.bounding_box()
-    assert details["y"] >= 0
-    reading_bottom = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).shownWindow().bottom"
-    )
-    assert details["y"] + details["height"] <= reading_bottom
-    assert inspect_next.bounding_box()["y"] >= 0
-    play = film.locator(".film-play")
-    play.focus()
-    play_top = play.bounding_box()["y"]
-    play.press("i")
-    assert play.bounding_box()["y"] == pytest.approx(play_top, abs=1)
-    expect(inspector).to_be_visible()
-    play.press("Escape")
-    expect(inspector).to_be_hidden()
-    play.press("i")
-    expect(inspector).to_be_visible()
-    scrub = film.get_by_role("slider", name="Film position")
-    scrub.focus()
-    scrub.press("End")
-    expect(inspector).to_be_hidden()
-    expect(play).to_have_text("Replay")
-    assert float(scrub.input_value()) == pytest.approx(
-        float(scrub.get_attribute("max"))
-    )
-    scrub.press("Home")
-    expect(scrub).to_have_value("0")
-    expect(play).to_have_text("Play")
-    play.focus()
-    play.press("ArrowRight")
-    play.press("i")
-    expect(inspector).to_be_visible()
-    play.press("ArrowRight")
-    expect(inspector).to_be_hidden()
-    play.press("i")
-    expect(inspector).to_be_visible()
-    film.locator(".film-settings summary").tap()
-    film.get_by_label("--no-squash", exact=True).check()
-    expect(inspector).to_be_hidden()
 
 
 # Charts. Every reading here is of the composed drawing rather than of the body it was
@@ -165,8 +83,8 @@ def test_the_covered_words_gate_reads_a_chart_s_labels_and_what_is_shown(
         # tick for the first week of June reads 1 over Jun. Those two lines are two
         # tspans of one <text>, offset by the dy the drawing asked for, and each reports
         # a line box carrying the font's own leading, a couple of pixels taller than
-        # the step between them. So the pass read every such tick as a collision, and
-        # the corpus's own heat-loss page failed the gate for an ordinary axis.
+        # the step between them. So a pass reading those boxes would read every such
+        # tick as a collision, and fail the gate for an ordinary axis.
         #
         # The reading is taken as the gate runs it, where the label's lines are held out,
         # and with that hold defeated, where it has to report; otherwise a pass here
@@ -239,7 +157,7 @@ def test_the_covered_words_gate_reads_a_chart_s_labels_and_what_is_shown(
 
 
 def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):
-    """A series takes the theme's token, `var(--series-N)`, which Plot writes into the
+    """A series takes the theme's token, `var(--lf-series-N)`, which Plot writes into the
     drawing as it was given. Resolved to a value in JavaScript it would freeze the scheme
     the browser was in when the chart was drawn: a copy exported from a light window
     opens as a light slab for a dark user, and a scheme flipped mid-read leaves the
@@ -295,7 +213,7 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
         return drew["tokens"], fills
 
     # Provider legend defaults yield to the page face without a JS inline repair.
-    page.add_style_tag(content=":root { --sans: Georgia; }")
+    page.add_style_tag(content=":root { --lf-sans: Georgia; }")
     legend = page.locator('#c-bars [class*="-swatches"]').first
     expect(legend).to_have_count(1)
     assert legend.evaluate("node => getComputedStyle(node).fontFamily") == "Georgia"
@@ -351,7 +269,7 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     browser, serve
 ):
     """A drawing that scales takes its labels with it. That is what a diagram does, and
-    at 63% of its natural size a five-node flowchart's labels went under legibility; a
+    scaled well below its natural size a flowchart's labels can go under legibility; a
     chart has no natural size to keep, so it is drawn again for the width it now has and
     its text stays the size the theme set. The room changes for reasons a user never
     asked about — a window narrower than the column, the thread panel taking its strip
@@ -430,13 +348,13 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
 
 
 def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
-    """The page lays a chart's box out before Plot draws (x-height), so the drawing fills
+    """The page lays a chart's box out before Plot draws (`height`), so the drawing fills
     that box rather than sizing it: with a legend Plot sets above it, the legend and the
     drawing together end at the box's foot, and the box keeps the height it had at first
     paint. Drawn at the options' own height instead, the legend overhangs the box."""
     body = """{
   ariaLabel: "Merged by team: backend 12, frontend 19",
-  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  color: {legend: true, range: ["var(--lf-series-1)", "var(--lf-series-2)"]},
   marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],
                     {x: "team", y: "n", fill: "team"})],
 }"""
@@ -474,11 +392,59 @@ def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
     assert narrowed == 240, narrowed
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_gives_its_legend_the_room_a_late_font_takes(engine, request, serve):
+    """A legend's height comes from its type as well as its width: a font that arrives
+    after the chart has drawn, as the wider spacing set here does, wraps the swatches
+    onto more lines at the same width. The drawing gives the legend that room and still
+    ends at the box's foot. Measured once per width, the legend would run past the box
+    onto the paragraph below."""
+    body = """{
+  ariaLabel: "Merged by team",
+  color: {legend: true},
+  marks: [Plot.barY(Array.from({length: 14}, (_, n) => ({team: `team ${n + 1}`, n})),
+                    {x: "team", y: "n", fill: "team"})],
+}"""
+    source = leaf_page(
+        "legend chart",
+        '<h1 id="t">Merged</h1>\n'
+        + chart_markup("c-legend", body).replace(
+            '<lf-chart id="c-legend">', '<lf-chart id="c-legend" data-height="300">'
+        )
+        + "<p>After the chart.</p>",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    measured = """() => {
+        const el = document.getElementById('c-legend');
+        const svg = el.querySelector('svg[role=img]').getBoundingClientRect();
+        const legend = el.querySelector('div[class*="-swatches"]').getBoundingClientRect();
+        return {legend: legend.height, overhang: svg.bottom - el.getBoundingClientRect().bottom};
+    }"""
+    before = page.evaluate(measured)
+    assert abs(before["overhang"]) <= 0.5, before
+    page.locator("#c-legend").evaluate("el => el.style.letterSpacing = '0.5em'")
+    page.wait_for_function(
+        f"(before) => ({measured})().legend > before + 4", arg=before["legend"]
+    )
+    page.evaluate(
+        "() => new Promise((done) => requestAnimationFrame(() =>"
+        " requestAnimationFrame(done)))"
+    )
+    after = page.evaluate(measured)
+    assert abs(after["overhang"]) <= 0.5, (before, after)
+
+
 def test_a_chart_keeps_its_stated_height_beside_a_taller_one(browser, serve):
     """A row of tiles stretches each cell to the row's tallest, and once a chart is drawn
     its box is the drawing's, so a short chart's box stands as tall as its neighbour.
     Drawn again for a new width, it keeps the height it states. Drawn to the stretched
-    box, it took the neighbour's height, and each width change after kept it there."""
+    box, it would take the neighbour's height, and each width change after would keep it
+    there.
+
+    Plot loads here before the charts' module does, so their room is delivered after
+    the bundle is in, the order a CPU-starved machine can give them. A first drawing run
+    inside that ResizeObserver delivery would have the browser report a ResizeObserver
+    loop."""
     body = """{
   ariaLabel: "Merged by team: backend 12, frontend 19",
   marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],
@@ -495,7 +461,15 @@ def test_a_chart_keeps_its_stated_height_beside_a_taller_one(browser, serve):
         "tiled charts",
         f'<h1 id="t">Merged</h1><div class="layout-tiles">{tiles}</div>',
     )
-    page = open_page(browser, serve(source))
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.route("**/widgets/lf-chart.js", lambda route: held.append(route))
+    page.goto(serve(source), wait_until="commit")
+    holding(page, held, 1, "the chart module")
+    page.evaluate("() => import('/vendor/plot.esm.js').then(() => true)")
+    held.pop().continue_()
+    page.unroute("**/widgets/lf-chart.js")
+    render_checks_model.wait_until_ready(page)
     heights = """() => Object.fromEntries(['c-short', 'c-tall'].map(id => [id,
         Number(document.querySelector(`#${id} svg[role=img]`).getAttribute('height'))]))"""
     drawn_for_room = """() => ['c-short', 'c-tall'].every(id => {
@@ -573,8 +547,8 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
             "author": "agent",
             "parent": "c-chart",
             "revision": 1,
-            "text": "Like this:",
-            "markup": chart_markup("msg-chart", MESSAGE_CHART),
+            "text": "Like this:\n\n"
+            + chart_markup("msg-chart", MESSAGE_CHART).replace("><pre>", ">\n<pre>"),
         },
     )
     page = open_page(browser, url)
@@ -632,3 +606,1789 @@ def test_a_chart_in_a_shut_tab_draws_when_the_tab_opens(browser, serve):
 
     page.get_by_role("tab", name="Numbers").click()
     expect(page.locator("#tab-chart svg[role=img]")).to_be_visible()
+
+
+def test_a_chart_first_laid_out_on_paper_draws_at_its_stated_height(browser, serve):
+    """Paper prints a shut tab's panel open, where the theme holds no undrawn box at its
+    stated height and the box is its source's. A chart there still waits for the user to
+    open the tab (`measure`), so it takes the stated height once they do. Drawn for the
+    box paper gave it, it would keep the source's height, and a source shorter than
+    Plot's margins would draw bars of negative height."""
+    url = serve(
+        leaf_page(
+            "chart printed from a shut tab",
+            '<h1 id="t">Views</h1><lf-tabs id="views">'
+            '<lf-tab id="words" label="Words"><p id="p">Some words.</p></lf-tab>'
+            '<lf-tab id="numbers" label="Numbers">'
+            + chart_markup("tab-chart", MESSAGE_CHART).replace(
+                '<lf-chart id="tab-chart">',
+                '<lf-chart id="tab-chart" data-height="200">',
+            )
+            + "</lf-tab></lf-tabs>",
+        )
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#views.lf-rendered")).to_be_attached()
+    page.emulate_media(media="print")
+    # Two frames: the layout paper gives the open panel, and its delivery.
+    page.evaluate(
+        "() => new Promise((done) => requestAnimationFrame(() =>"
+        " requestAnimationFrame(done)))"
+    )
+    page.emulate_media(media="screen")
+    page.get_by_role("tab", name="Numbers").click()
+    expect(page.locator("#tab-chart svg[role=img]")).to_have_attribute("height", "200")
+
+
+# A chart's values, which a chart says to the pointer, the keyboard and a finger
+# (lf-chart.js, chart-points.js). Two series stacked in two weeks, so a step runs along
+# a series and across to the other, and a stack's share is what a segment measures.
+HOURS = chart_markup(
+    "hours",
+    """{
+  ariaLabel: "Hours by week: features 21 and 18, fixes 9 and 14",
+  y: {label: "hours"},
+  color: {range: ["var(--lf-series-1)", "var(--lf-series-2)"]},
+  marks: [
+    Plot.barY(
+      [
+        {week: "w1", kind: "features", hours: 21},
+        {week: "w2", kind: "features", hours: 18},
+        {week: "w1", kind: "fixes", hours: 9},
+        {week: "w2", kind: "fixes", hours: 14},
+      ],
+      {x: "week", y: "hours", fill: "kind"},
+    ),
+  ],
+}""",
+)
+VALUES_PAGE = leaf_page(
+    "chart values", f'<h1 id="t">Hours</h1><button id="before">Before</button>{HOURS}'
+)
+
+
+def said(page):
+    """What the preview says, its name line and its detail lines, or None while it is
+    put away."""
+    preview = page.locator(PREVIEW)
+    if not preview.evaluate("tip => tip.matches(':popover-open')"):
+        return None
+    return [
+        preview.locator(".lf-preview-word").inner_text(),
+        *preview.locator(".lf-preview-detail").all_inner_texts(),
+    ]
+
+
+def waited_out(page):
+    """Wait until each preview decision the input so far set going has been made and
+    drawn: the page's clock run past both waits a chart's preview decides after, a
+    pointer's rest or leaving (`DWELL`) and a finger's hold (`HOLD`)."""
+    dwelt(page, "DWELL", "HOLD")
+
+
+def column(page, chart, week, height=0.15):
+    """A point over `week`'s column of `chart`, `height` of the way down its drawing."""
+    ticks = page.locator(f"#{chart} [data-lf-part='x-axis tick label'] text")
+    box = ticks.get_by_text(week, exact=True).bounding_box()
+    drawing = page.locator(f"#{chart} svg[role=img]").bounding_box()
+    return box["x"] + box["width"] / 2, drawing["y"] + drawing["height"] * height
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
+    engine, request, serve
+):
+    """A resting pointer reads the point nearest it, standing above the ring on that
+    point, and moving along the drawing reads each point it comes to at once; leaving
+    the drawing puts both away, and so does leaving the window from it. The preview
+    takes no pointer, so the pointer under it goes on reading the drawing. After
+    Escape puts them away, the pointer reads nothing on that point and reads the next
+    point it reaches. Focus
+    the browser shows lands on the first point, the arrows step along a series and
+    across to the other, and Home and End reach a series' ends. Escape puts the preview
+    and the ring away, a redraw brings back neither, and an arrow steps on from where
+    Escape left it and shows both again. With the preview put away, Escape leaves the
+    chart. Each line the preview says is one of Plot's rows."""
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(VALUES_PAGE))
+    chart = page.locator("#hours")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview).to_be_visible()
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
+    expect(preview).to_have_attribute("data-lf-route", "pointer")
+    tip, at = preview.bounding_box(), ring.bounding_box()
+    assert tip["y"] + tip["height"] <= at["y"], (tip, at)
+    expect(preview).to_have_css("pointer-events", "none")
+    page.mouse.move(*column(page, "hours", "w1", 0.85))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind features", "hours 21"]
+    )
+    # Redrawn where it stands, never put away between the points.
+    assert said(page) == ["week w1", "kind features", "hours 21"]
+    # Escape puts the preview and the ring away; the pointer still on that point reads
+    # nothing, and the next point it reaches reads at once.
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    page.mouse.move(*column(page, "hours", "w1", 0.8))
+    waited_out(page)
+    expect(preview).to_be_hidden()
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind fixes", "hours 14"]
+    )
+    expect(ring).to_be_visible()
+    page.mouse.move(2, 2)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    expect(preview).to_have_attribute("data-lf-route", "focus")
+    assert said(page) == ["week w1", "kind features", "hours 21"]
+    for key, words in (
+        ("ArrowRight", ["week w2", "kind features", "hours 18"]),
+        ("ArrowDown", ["week w2", "kind fixes", "hours 14"]),
+        ("Home", ["week w1", "kind fixes", "hours 9"]),
+        ("ArrowUp", ["week w1", "kind features", "hours 21"]),
+        ("End", ["week w2", "kind features", "hours 18"]),
+    ):
+        page.keyboard.press(key)
+        expect(preview.locator(".lf-preview-detail")).to_have_text(words[1:])
+        assert said(page) == words, key
+
+    # Focus arriving on a point the pointer reads takes it over: the pointer leaving
+    # leaves it, and the arrows step on from it.
+    page.keyboard.press("Shift+Tab")
+    expect(preview).to_be_hidden()
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind fixes", "hours 14"]
+    )
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.mouse.move(2, 2)
+    expect(preview).to_have_attribute("data-lf-route", "focus")
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
+    page.keyboard.press("ArrowLeft")
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind fixes", "hours 9"]
+    )
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    expect(chart).to_be_focused()
+    # A redraw for a new width brings back neither.
+    drawn = chart.evaluate("el => el.drawn")
+    chart.evaluate("el => { el.style.width = `${el.clientWidth - 80}px`; }")
+    page.wait_for_function(
+        "([drawn]) => document.getElementById('hours').drawn !== drawn", arg=[drawn]
+    )
+    render_checks_model.rendered(page)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    # A key's step is the user aiming again: it steps on from the point Escape put
+    # away and shows the preview again.
+    page.keyboard.press("ArrowRight")
+    expect(preview).to_be_visible()
+    expect(ring).to_be_visible()
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(chart).not_to_be_focused()
+
+    # Leaving the window from the drawing puts it away, and its point with it.
+    at = column(page, "hours", "w2", 0.15)
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*at)
+    expect(preview).to_be_visible()
+    page.evaluate(
+        "([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent("
+        "'pointerout', {bubbles: true, composed: true, pointerType: 'mouse',"
+        " relatedTarget: null}))",
+        list(at),
+    )
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    assert chart.evaluate("el => el.lfPreview()") is None
+    page.mouse.move(2, 2)
+
+
+def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
+    """A finger held on the drawing reads the point under it at the platform's long
+    press, above the finger, and reads each point it slides across to. Lifting presses
+    nothing and leaves the preview and its ring standing, until the next touch puts
+    them away. Chromium alone: Playwright holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    context.clock.install()
+    page = open_page(browser, serve(VALUES_PAGE), context=context)
+    preview = page.locator(PREVIEW)
+    ring = page.locator("#hours .lf-chart-at circle")
+    expect(page.locator("#hours svg[role=img]")).to_be_visible()
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    start = column(page, "hours", "w2")
+    touch("touchStart", start)
+    waited_out(page)
+    expect(preview).to_be_hidden()
+    assert long_press(page, {"x": start[0], "y": start[1]}) is False
+    expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-route", "hold")
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
+    assert preview.bounding_box()["y"] < start[1]
+    # The slide crosses the gap between the columns, where no point is near enough to
+    # read, which keeps the reading until the next column takes its place.
+    end = column(page, "hours", "w1")
+    for step in range(1, 7):
+        touch("touchMove", (start[0] + (end[0] - start[0]) * step / 6, start[1]))
+        if step == 3:
+            expect(preview).to_be_visible()
+    expect(preview.locator(".lf-preview-word")).to_have_text("week w1")
+    assert said(page) == ["week w1", "kind fixes", "hours 9"]
+    touch("touchEnd")
+    render_checks_model.rendered(page)
+    expect(preview).to_be_visible()
+    assert said(page) == ["week w1", "kind fixes", "hours 9"]
+    expect(ring).to_be_visible()
+    heading = page.locator("#t").bounding_box()
+    touch("touchStart", (heading["x"] + 10, heading["y"] + heading["height"] / 2))
+    touch("touchEnd")
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_s_preview_keeps_its_side_from_point_to_point(engine, request, serve):
+    """A pointer sweeping a chart at the window's top reads each point with the preview
+    on one side of it, never over it: above while there is room, and below from the
+    first point too high for that, staying there for the points after."""
+    swings = chart_markup(
+        "swings",
+        """{
+  ariaLabel: "A value rising and falling over twelve steps",
+  marks: [Plot.lineY(
+    Array.from({length: 12}, (_, n) => ({step: n, value: n % 3 ? 80 - n * 3 : 5})),
+    {x: "step", y: "value", marker: "dot"},
+  )],
+}""",
+    ).replace('<lf-chart id="swings">', '<lf-chart id="swings" data-height="320">')
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(
+            leaf_page(
+                "swings",
+                f'<h1 id="t">Swings</h1>{swings}<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#swings")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    chart.evaluate("el => { el.scrollIntoView({block: 'start'}); scrollBy(0, -6); }")
+    drawing = chart.locator("svg[role=img]").bounding_box()
+    sides = []
+    for k in range(48):
+        x = drawing["x"] + drawing["width"] * (0.04 + 0.92 * k / 47)
+        page.mouse.move(x, drawing["y"] + drawing["height"] / 2)
+        # The first point waits out the pointer's rest; each after it reads at once.
+        if k == 0:
+            dwelt(page)
+        else:
+            render_checks_model.rendered(page)
+        side = page.evaluate(
+            """() => {
+              const tip = document.getElementById('lf-preview');
+              const ring = document.querySelector('#swings .lf-chart-at circle');
+              if (!tip.matches(':popover-open') || !ring) return null;
+              const t = tip.getBoundingClientRect(), r = ring.getBoundingClientRect();
+              return t.bottom <= r.top + 0.5 ? 'above' : t.top >= r.bottom - 0.5
+                ? 'below' : 'over';
+            }"""
+        )
+        if side and (not sides or sides[-1] != side):
+            sides.append(side)
+    assert sides in (["above"], ["above", "below"], ["below"]), sides
+
+
+# Two dots at one height, the second titled with two lines more than the first, in the
+# window's middle.
+TITLED = chart_markup(
+    "titled",
+    """{
+  ariaLabel: "Two tasks at one height",
+  marks: [Plot.dot(
+    [{x: 1, y: 5, t: "First"}, {x: 2, y: 5, t: "Second\\n20 hours\\n3 tasks"}],
+    {x: "x", y: "y", title: "t"},
+  )],
+}""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_longer_reading_at_the_next_point_grows_away_from_it(engine, request, serve):
+    """The pointer moving from a point that says one line to one that says three keeps
+    the preview above the points, and the longer reading grows up from the new point
+    whole, where there is room for it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("titled", f'<h1 id="t">Tasks</h1>{TITLED}')),
+    )
+    chart = page.locator("#titled")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+
+    def at(n):
+        box = dots.nth(n).bounding_box()
+        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+    first = at(0)
+    page.mouse.move(first[0] - 4, first[1])
+    page.mouse.move(*first)
+    expect(preview).to_be_visible()
+    assert said(page) == ["First"]
+    page.mouse.move(*at(1))
+    expect(preview.locator(".lf-preview-word")).to_have_text("Second")
+    assert said(page) == ["Second", "20 hours", "3 tasks"]
+    assert preview.evaluate(
+        "tip => !tip.querySelector('[data-lf-clamp], [data-lf-cut]')"
+    ), "the longer reading was cut short"
+    tip, point = preview.bounding_box(), ring.bounding_box()
+    assert tip["y"] + tip["height"] <= point["y"] + 0.5, (tip, point)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_stays_as_the_pointer_crosses_empty_drawing_toward_it(
+    engine, request, serve
+):
+    """The pointer leaves a point for its reading's far corner across drawing where no
+    point is within reach: the reading and its ring stay, to be read. The next point
+    the pointer reaches takes their place."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(leaf_page("titled", f'<h1 id="t">Tasks</h1>{TITLED}')),
+    )
+    chart = page.locator("#titled")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+
+    def at(n):
+        box = dots.nth(n).bounding_box()
+        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+    second = at(1)
+    page.mouse.move(second[0] - 4, second[1])
+    page.mouse.move(*second)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Second")
+    tip = preview.bounding_box()
+    drawing = chart.locator("svg[role=img]").bounding_box()
+    corner = (
+        max(tip["x"] + 2, drawing["x"] + 2),
+        max(tip["y"] + 2, drawing["y"] + 2),
+    )
+    for step in range(1, 9):
+        page.mouse.move(
+            second[0] + (corner[0] - second[0]) * step / 8,
+            second[1] + (corner[1] - second[1]) * step / 8,
+        )
+    waited_out(page)
+    assert said(page) == ["Second", "20 hours", "3 tasks"]
+    expect(ring).to_be_visible()
+    page.mouse.move(*at(0))
+    expect(preview.locator(".lf-preview-word")).to_have_text("First")
+    assert said(page) == ["First"]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_escape_takes_the_ring_off_whichever_route_read_the_point(
+    engine, request, serve
+):
+    """Focus lands on a chart's first point, the pointer then reads another, and Escape
+    puts the preview away: the ring comes off the point it read, and the chart reads
+    nothing there, whichever route first showed the preview."""
+    page = open_page(request.getfixturevalue(engine), serve(VALUES_PAGE))
+    chart = page.locator("#hours")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    assert said(page) == ["week w1", "kind features", "hours 21"]
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind fixes", "hours 14"]
+    )
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    assert chart.evaluate("el => el.lfPreview()") is None
+
+
+def test_a_finger_that_slides_onto_a_point_after_the_long_press_presses_nothing(
+    browser, serve
+):
+    """A finger held where no point is near enough to read reads nothing at the long
+    press; sliding onto a point then reads it, and lifting presses nothing and leaves
+    the preview standing, as a hold that read at once does. Chromium alone:
+    Playwright holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, serve(leaf_page("titled", TITLED)), context=context)
+    preview = page.locator(PREVIEW)
+    dots = page.locator("#titled [data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    page.evaluate(
+        "() => { window.lfClicks = 0;"
+        " document.addEventListener('click', () => { window.lfClicks += 1; }, true); }"
+    )
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    box = dots.nth(0).bounding_box()
+    point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    # Plot's pointer reads a point within 40 px of the finger.
+    away = (point[0] + 42, point[1])
+    touch("touchStart", away)
+    page.wait_for_timeout(600)
+    long_press(page, {"x": away[0], "y": away[1]})
+    # Whatever the press drew has drawn before the preview is read as absent.
+    render_checks_model.rendered(page)
+    expect(preview).to_be_hidden()
+    touch("touchMove", (point[0] + 38, point[1]))
+    expect(preview).to_be_visible()
+    assert said(page) == ["First"]
+    touch("touchEnd")
+    render_checks_model.rendered(page)
+    expect(preview).to_be_visible()
+    assert page.evaluate("window.lfClicks") == 0, "the release pressed"
+
+
+# A low dot that says one line and a high one that says six, on a fixed scale, so the
+# high dot stands a short way under the chart's top.
+TALL = chart_markup(
+    "tall",
+    """{
+  ariaLabel: "A low task and a high one",
+  y: {domain: [0, 10]},
+  marks: [Plot.dot(
+    [{x: 1, y: 1, t: "Low"},
+     {x: 2, y: 8.5, t: "Higher\\nline 2\\nline 3\\nline 4\\nline 5\\nline 6"}],
+    {x: "x", y: "y", title: "t"},
+  )],
+}""",
+).replace('<lf-chart id="tall">', '<lf-chart id="tall" data-height="320">')
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_the_kept_side_cannot_hold_whole_stands_afresh(
+    engine, request, serve
+):
+    """A chart at the window's top: the pointer moves from a low point that says one
+    line, read above it, to a high point that says six, which the room above it can't
+    hold but the room below can. The six lines show whole, below."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                f'<h1 id="t">Tasks</h1>{TALL}<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => { el.scrollIntoView({block: 'start'}); scrollBy(0, -6); }")
+
+    def at(n):
+        box = dots.nth(n).bounding_box()
+        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+    low = at(0)
+    page.mouse.move(low[0] - 4, low[1])
+    page.mouse.move(*low)
+    expect(preview).to_be_visible()
+    assert said(page) == ["Low"]
+    tip, point = preview.bounding_box(), ring.bounding_box()
+    assert tip["y"] + tip["height"] <= point["y"] + 0.5, (tip, point)
+    page.mouse.move(*at(1))
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+    assert preview.evaluate(
+        "tip => !tip.querySelector('[data-lf-clamp], [data-lf-cut]')"
+    ), "the reading was cut short"
+    tip, point = preview.bounding_box(), ring.bounding_box()
+    assert tip["y"] >= point["y"] + point["height"] - 0.5, (tip, point)
+
+
+# Points close enough that the preview standing above the middle one covers the next.
+CLOSE = chart_markup(
+    "close",
+    """{
+  ariaLabel: "Four runs, the second and third close together",
+  x: {domain: [0, 10]},
+  y: {domain: [0, 10]},
+  marks: [Plot.dot(
+    [{x: 0.5, y: 1, t: "run 1"}, {x: 5, y: 5, t: "run 2"},
+     {x: 5.3, y: 5.9, t: "run 3"}, {x: 9.5, y: 9, t: "run 4"}],
+    {x: "x", y: "y", title: "t"},
+  )],
+}""",
+).replace('<lf-chart id="close">', '<lf-chart id="close" data-height="320">')
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_pointer_reads_the_point_its_preview_stands_over(engine, request, serve):
+    """A point's preview takes no pointer, so the pointer moving from a point onto the
+    next one, under that point's preview, reads the next one."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("close", f'<h1 id="t">Runs</h1>{CLOSE}')),
+    )
+    chart = page.locator("#close")
+    preview = page.locator(PREVIEW)
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(4)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+
+    def at(n):
+        box = dots.nth(n).bounding_box()
+        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+    second, third = at(1), at(2)
+    page.mouse.move(second[0] - 4, second[1])
+    page.mouse.move(*second)
+    expect(preview.locator(".lf-preview-word")).to_have_text("run 2")
+    tip = preview.bounding_box()
+    assert (
+        tip["x"] < third[0] < tip["x"] + tip["width"]
+        and tip["y"] < third[1] < tip["y"] + tip["height"]
+    ), ("the preview doesn't stand over the next point", tip, third)
+    page.mouse.move(*third)
+    expect(preview.locator(".lf-preview-word")).to_have_text("run 3")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("where", ["page", "tab panel"])
+def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
+    engine, where, request, serve
+):
+    """A high point's six lines stand above the chart's top. The pointer moving from
+    the point up onto them crosses the chart's edge and keeps them and the ring; moving
+    off them puts both away. In an open tab, the panel the chart and the words above it
+    stand in takes a tab stop, which lets the reader reach and scroll it and takes no
+    pointer, so the reading keeps the pointer over the panel's words as over the
+    page's."""
+    chart_in = (
+        TALL
+        if where == "page"
+        else '<lf-tabs id="views"><lf-tab id="tasks" label="Tasks"><p id="words"'
+        ' style="height: 200px">The panel\'s words above its chart.</p>'
+        f'{TALL}</lf-tab><lf-tab id="other" label="Other"><p>Other words.</p>'
+        "</lf-tab></lf-tabs>"
+    )
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(
+            leaf_page(
+                "tall",
+                f'<h1 id="t">Tasks</h1>{chart_in}<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    drawing = chart.locator("svg[role=img]").bounding_box()
+    assert tip["y"] < drawing["y"] - 20, (
+        "the reading doesn't reach past the chart",
+        tip,
+    )
+    lines = (tip["x"] + 12, tip["y"] + 12)
+    if where == "tab panel":
+        assert (
+            page.evaluate(
+                """([x, y]) => {
+              const panel = document.elementFromPoint(x, y).closest('[role=tabpanel]');
+              return panel?.tabIndex;
+            }""",
+                list(lines),
+            )
+            == 0
+        ), "the reading stands over no tab stop's words"
+    for step in range(1, 11):
+        page.mouse.move(
+            high[0] + (lines[0] - high[0]) * step / 10,
+            high[1] + (lines[1] - high[1]) * step / 10,
+        )
+    waited_out(page)
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+    expect(ring).to_be_visible()
+    page.mouse.move(2, 2)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    "box",
+    ['tabindex="0"', 'style="height: 600px; overflow: auto"'],
+    ids=["focusable", "scrolling"],
+)
+def test_a_reading_stays_over_words_its_chart_shares_a_box_with(
+    engine, box, request, serve
+):
+    """The chart and the words above it stand in one focusable or scrolling box. The
+    pointer moving from a high point up onto its reading, where it stands over those
+    words, reaches only inert text inside the box the chart shares, so the reading and
+    its ring stay."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(
+            leaf_page(
+                "tall",
+                f'<h1 id="t">Tasks</h1><div id="box" {box}><p id="words" style="height:'
+                f' 200px">Words beside the chart, in the box it stands in.</p>{TALL}'
+                '<p style="height: 1200px">After.</p></div>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box_ = dots.nth(1).bounding_box()
+    high = (box_["x"] + box_["width"] / 2, box_["y"] + box_["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    on = (tip["x"] + 12, tip["y"] + 12)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", on) == (
+        "words"
+    )
+    for step in range(1, 11):
+        page.mouse.move(
+            high[0] + (on[0] - high[0]) * step / 10,
+            high[1] + (on[1] - high[1]) * step / 10,
+        )
+    waited_out(page)
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+    expect(ring).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_holds_a_pointer_that_slides_onto_it_over_one_paragraph(
+    engine, request, serve
+):
+    """The pointer leaves the chart for the paragraph above it, beside the high point's
+    reading, then slides sideways into the reading over the same paragraph. No element
+    boundary marks the entry, and the reading and its ring stay."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(
+            leaf_page(
+                "tall",
+                '<h1 id="t">Tasks</h1><p id="words" style="height: 220px">Words above'
+                f" the chart, across the column.</p>{TALL}"
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    drawing = chart.locator("svg[role=img]").bounding_box()
+    y = tip["y"] + 12
+    assert y < drawing["y"], (tip, drawing)
+    # Left along the drawing, where no point is in reach, then up out of it beside the
+    # reading, then sideways into it.
+    page.mouse.move(tip["x"] - 40, high[1])
+    beside, inside = (tip["x"] - 40, y), (tip["x"] + 12, y)
+    page.mouse.move(*beside)
+    page.mouse.move(*inside)
+    for at in (beside, inside):
+        assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", at) == (
+            "words"
+        )
+    waited_out(page)
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+    expect(ring).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_s_words_beneath_a_reading_reach_the_card(engine, request, serve):
+    """A chart stands in a card the user presses, which says its own preview, and the
+    high point's reading stands over the card's words above the chart. The pointer
+    moving from the point onto those words reaches the card, whose preview shows, as a
+    press there would open it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<h1 id="t">Tasks</h1><div id="box"><p id="words" style="height: 200px">'
+                f"The task's words, around its chart.</p>{TALL}</div>"
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    on = (tip["x"] + 12, tip["y"] + 12)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", on) == (
+        "words"
+    )
+    # The box becomes the card once its words stand under the reading, so where the
+    # reading stands is decided before the card is there to keep clear of.
+    page.evaluate(
+        """() => {
+          const card = document.getElementById('box');
+          card.setAttribute('role', 'button');
+          card.tabIndex = 0;
+          card.lfPreview = () => ({name: 'Open task details'});
+        }"""
+    )
+    for step in range(1, 11):
+        page.mouse.move(
+            high[0] + (on[0] - high[0]) * step / 10,
+            high[1] + (on[1] - high[1]) * step / 10,
+        )
+    expect(preview.locator(".lf-preview-word")).to_have_text("Open task details")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_keeps_clear_of_the_card_its_chart_stands_in(engine, request, serve):
+    """A chart stands in a card the user presses, with the card's words above it. The
+    high point's reading would stand above the point, over those words, where the
+    pointer would take the card; it stands below the point inside the chart instead,
+    since the card is a control the reading must leave reachable, though the chart
+    stands inside it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<h1 id="t">Tasks</h1><div id="card" role="button" tabindex="0">'
+                '<p id="words" style="height: 200px">The task\'s words, around its'
+                f" chart.</p>{TALL}</div>"
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    render_checks_model.rendered(page)
+    tip = preview.bounding_box()
+    drawing = chart.bounding_box()
+    assert tip["y"] >= box["y"] + box["height"], (tip, box, drawing)
+    assert tip["y"] + tip["height"] <= drawing["y"] + drawing["height"], (tip, drawing)
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in(
+    engine, request, serve
+):
+    """A chart stands in a scrolling box. The box scrolls the high point out over its
+    top while the rest of the chart still shows, the pointer left over empty drawing,
+    and the point's reading goes with the point rather than standing over whatever lies
+    above the box."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<h1 id="t">Tasks</h1><div id="box" style="height: 360px;'
+                f' overflow: auto">{TALL}<p style="height: 900px">After.</p></div>'
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    page.locator("#box").evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    shown = page.evaluate(
+        """() => {
+          const box = document.getElementById('box');
+          const dot = document.querySelectorAll('#tall [data-lf-part=dot] > *')[1];
+          box.scrollTop += dot.getBoundingClientRect().bottom
+            - box.getBoundingClientRect().top + 20;
+          const chart = document.getElementById('tall').getBoundingClientRect();
+          return chart.bottom - box.getBoundingClientRect().top;
+        }"""
+    )
+    assert shown > 100, shown
+    expect(preview).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_focused_point_s_reading_returns_as_its_box_scrolls_it_back(
+    engine, request, serve
+):
+    """The keyboard reads a chart's high point in a scrolling box. The box scrolls the
+    point out over its top while the rest of the chart shows, and the reading goes with
+    it; scrolled back, the point shows with focus still on the chart, and its reading
+    and ring come back without another key."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<button id="before">Before</button><div id="box" tabindex="-1"'
+                f' style="height: 360px; overflow: auto">{TALL}'
+                '<p style="height: 900px">After.</p></div>'
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    expect(chart.locator("[data-lf-part=dot] > *")).to_have_count(2)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.keyboard.press("End")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    page.wait_for_timeout(300)
+    page.evaluate(
+        """() => {
+          const box = document.getElementById('box');
+          const dot = document.querySelectorAll('#tall [data-lf-part=dot] > *')[1];
+          box.scrollTop += dot.getBoundingClientRect().bottom
+            - box.getBoundingClientRect().top + 20;
+        }"""
+    )
+    expect(preview).to_be_hidden()
+    page.locator("#box").evaluate("el => { el.scrollTop = 0; }")
+    expect(chart).to_be_focused()
+    expect(preview).to_be_visible()
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+    expect(ring).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
+    engine, request, serve
+):
+    """A high point's six lines stand above the chart, over a narrow titled link that
+    falls between the places the preview's room is tested at, a target that previews
+    nothing of Leaf's. The pointer crossing from the point onto the link under the
+    words reaches the link, and the reading and its ring go."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                f'<h1 id="t">Tasks</h1>{TALL}<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+
+    def aim(n):
+        box = dots.nth(n).bounding_box()
+        at = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.move(at[0] - 3, at[1])
+        page.mouse.move(*at)
+        return at
+
+    aim(1)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    corner = (tip["x"] + 5, tip["y"] + 10)
+    page.evaluate(
+        """([x, y]) => {
+          const link = Object.assign(document.createElement('a'),
+            {id: 'titled', href: '#t', title: 'Information', textContent: 'i'});
+          link.style.cssText = `position: fixed; left: ${x}px; top: ${y}px; width: 10px;`
+            + ' height: 18px; padding: 0; margin: 0; z-index: 2; font-size: 12px';
+          document.querySelector('main').append(link);
+        }""",
+        list(corner),
+    )
+    page.mouse.move(2, 2)
+    expect(preview).to_be_hidden()
+    aim(0)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Low")
+    high = aim(1)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    on = (corner[0] + 5, corner[1] + 9)
+    assert tip["x"] < on[0] < tip["x"] + tip["width"], (tip, on)
+    assert tip["y"] < on[1] < tip["y"] + tip["height"], (tip, on)
+    for step in range(1, 16):
+        page.mouse.move(
+            high[0] + (on[0] - high[0]) * step / 15,
+            high[1] + (on[1] - high[1]) * step / 15,
+        )
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", on) == (
+        "titled"
+    )
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_after_a_click_on_the_chart_the_next_point_shows_its_preview(
+    engine, request, serve
+):
+    """A press on the chart puts its preview away and gives it focus the browser doesn't
+    show; the pointer moving on to another point reads that point."""
+    page = open_page(request.getfixturevalue(engine), serve(VALUES_PAGE))
+    chart = page.locator("#hours")
+    preview = page.locator(PREVIEW)
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind fixes", "hours 14"]
+    )
+    page.mouse.down()
+    page.mouse.up()
+    expect(preview).to_be_hidden()
+    expect(chart).to_be_focused()
+    page.mouse.move(*column(page, "hours", "w1", 0.85))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind features", "hours 21"]
+    )
+    expect(preview).to_have_attribute("data-lf-route", "pointer")
+
+
+def test_a_held_reading_kept_in_a_gap_stays_as_the_window_resizes(browser, serve):
+    """A finger holds a point and slides into the drawing where no point is within
+    reach, which keeps the reading; the window changing size reads the preview again and
+    keeps the same point. Chromium alone: Playwright holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    context.clock.install()
+    page = open_page(browser, serve(VALUES_PAGE), context=context)
+    preview = page.locator(PREVIEW)
+    ring = page.locator("#hours .lf-chart-at circle")
+    expect(page.locator("#hours svg[role=img]")).to_be_visible()
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    start = column(page, "hours", "w2")
+    touch("touchStart", start)
+    page.wait_for_timeout(600)
+    long_press(page, {"x": start[0], "y": start[1]})
+    expect(preview).to_be_visible()
+    for step in range(1, 5):
+        touch("touchMove", (start[0] - 20 * step, start[1]))
+    waited_out(page)
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
+    size = page.viewport_size
+    resized(page, size["width"], size["height"] + 1)
+    waited_out(page)
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
+    expect(ring).to_be_visible()
+    touch("touchEnd")
+
+
+def test_a_tap_after_a_hold_takes_the_reading_and_its_ring_away(browser, serve):
+    """A finger holds a point and lifts, leaving its preview; a short tap on the same
+    point puts the preview away, and its ring goes with it. Chromium alone: Playwright
+    holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, serve(VALUES_PAGE), context=context)
+    preview = page.locator(PREVIEW)
+    ring = page.locator("#hours .lf-chart-at circle")
+    expect(page.locator("#hours svg[role=img]")).to_be_visible()
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    start = column(page, "hours", "w2")
+    touch("touchStart", start)
+    page.wait_for_timeout(600)
+    long_press(page, {"x": start[0], "y": start[1]})
+    expect(preview).to_be_visible()
+    touch("touchEnd")
+    render_checks_model.rendered(page)
+    expect(preview).to_be_visible()
+    touch("touchStart", start)
+    touch("touchEnd")
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    assert page.evaluate("document.getElementById('hours').lfPreview()") is None
+
+
+def test_a_second_hold_on_the_same_point_reads_it_again(browser, serve):
+    """A finger holds a point and lifts, leaving its preview standing; holding the same
+    point again puts that preview away and reads the point again at the long press.
+    Chromium alone: Playwright holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, serve(VALUES_PAGE), context=context)
+    preview = page.locator(PREVIEW)
+    ring = page.locator("#hours .lf-chart-at circle")
+    expect(page.locator("#hours svg[role=img]")).to_be_visible()
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    start = column(page, "hours", "w2")
+    for _ in range(2):
+        touch("touchStart", start)
+        page.wait_for_timeout(600)
+        long_press(page, {"x": start[0], "y": start[1]})
+        expect(preview).to_be_visible()
+        assert said(page) == ["week w2", "kind fixes", "hours 14"]
+        touch("touchEnd")
+        render_checks_model.rendered(page)
+        expect(preview).to_be_visible()
+        expect(ring).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
+    engine, request, serve
+):
+    """Where an author gives some marks Plot's `tip`, only those say their values, and
+    a mark's `title` channel says its own words, its first line as the name and the rest
+    beneath, with no platform tooltip beside them."""
+    picked = chart_markup(
+        "picked",
+        """{
+  ariaLabel: "Hours by week: 21, 18 and 30, the third the release",
+  marks: [
+    Plot.lineY(
+      [{week: "w1", hours: 21}, {week: "w2", hours: 18}, {week: "w3", hours: 30}],
+      {x: "week", y: "hours"},
+    ),
+    Plot.dot([{week: "w3", hours: 30}], {
+      x: "week",
+      y: "hours",
+      tip: true,
+      title: (d) => `Release ${d.week}\\nshipped on time`,
+    }),
+  ],
+}""",
+    )
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(leaf_page("picked", f'<h1 id="t">Hours</h1>{picked}')),
+    )
+    preview = page.locator(PREVIEW)
+    expect(page.locator("#picked svg[role=img]")).to_be_visible()
+    expect(page.locator("#picked title")).to_have_count(0)
+    # `tip: true` is Plot's nearest point in both axes, so the pointer comes to the dot.
+    dot = page.locator("#picked [data-lf-part=dot] circle").bounding_box()
+    page.mouse.move(dot["x"] + 12, dot["y"] + 12)
+    page.mouse.move(dot["x"] + dot["width"] / 2, dot["y"] + dot["height"] / 2)
+    expect(preview).to_be_visible()
+    assert said(page) == ["Release w3", "shipped on time"]
+    # The line's points say nothing, so over w1 the dot's reading stays.
+    page.mouse.move(*column(page, "picked", "w1", 0.25))
+    waited_out(page)
+    assert said(page) == ["Release w3", "shipped on time"]
+    page.mouse.move(2, 2)
+    expect(preview).to_be_hidden()
+    expect(page.locator("#picked .lf-chart-at")).to_be_hidden()
+
+
+# Each chart drawn twice, by lf-chart and by Plot alone with Plot's tip on each mark set
+# to read as lf-chart reads it: the axis the author named or the mark's points stand
+# along, and the mark's frame anchor, which Plot's own tip leaves at the frame's middle.
+# Each datum's title names it, so the chart's reading and Plot's `input` name one datum.
+FACETED_ROWS = (
+    "[0, 2, 4, 6, 8].map((x) => ({id: `a${x}`, k: 'a', x, y: x % 4}))"
+    ".concat([1, 3, 5, 7, 9].map((x) => ({id: `b${x}`, k: 'b', x: x + 0.1, y: 9 - x})))"
+)
+LINE_ROWS = "[0, 1, 2, 3, 4, 5].map((x) => ({id: `l${x}`, x, y: (x * 7) % 5}))"
+DOT_ROWS = "[0.5, 2.5, 4.5].map((x) => ({id: `d${x}`, x, y: x}))"
+ANCHORED_ROWS = "[1, 2, 4, 7].map((x) => ({id: `n${x}`, x}))"
+BAR_ROWS = "[3, 9, 4, 12, 7].map((v, i) => ({id: `b${i}`, i, v}))"
+TWICE_ROWS = "[1, 4, 6, 9].map((x) => ({id: `t${x}`, x, y: (x * 3) % 10}))"
+PICK_ROWS = '[{id: "left", x: 2, y: 5, pickX: 8}, {id: "right", x: 8, y: 5, pickX: 2}]'
+SHARE_ROWS = (
+    '[{id: "low", x: 0.2, y: 1, pick: 0.8}, {id: "high", x: 0.8, y: 2, pick: 0.2}]'
+)
+# Stacks of different heights, so that no aim below stands near halfway between two
+# segments' middles.
+STACK_ROWS = (
+    '["a", "b", "c"].flatMap((k, n) => [{id: `${k}1`, k, s: "one", v: 2 + 2 * n},'
+    ' {id: `${k}2`, k, s: "two", v: 6 - n}])'
+)
+LINKED_ROWS = (
+    '[{x: 2, y: 3, c: "red", u: "https://a.example/one"},'
+    ' {x: 7, y: 8, c: "blue", u: "https://a.example/two"}]'
+)
+POINTER_CASES = {
+    "faceted": (
+        f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "x"}})',
+        f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "x"}})',
+    ),
+    "anchored": (
+        f'Plot.dotX({ANCHORED_ROWS}, {{x: "x", frameAnchor: "bottom", title: "id"}})',
+        f'Plot.dotX({ANCHORED_ROWS}, {{x: "x", frameAnchor: "bottom", title: "id",'
+        ' tip: {frameAnchor: "bottom"}})',
+    ),
+    "along-y": (
+        'Plot.dot([{id: "low", x: 0, y: 0}, {id: "high", x: 10, y: 10}],'
+        ' {x: "x", y: "y", title: "id", tip: "y"})',
+        'Plot.dot([{id: "low", x: 0, y: 0}, {id: "high", x: 10, y: 10}],'
+        ' {x: "x", y: "y", title: "id", tip: "y"})',
+    ),
+    "bars": (
+        f'Plot.barY({BAR_ROWS}, {{x: "i", y: "v", title: "id"}})',
+        f'Plot.barY({BAR_ROWS}, {{x: "i", y: "v", title: "id", tip: "x"}})',
+    ),
+    # Two marks, each of whose tips Plot shows: the chart reads the nearer.
+    "two-marks": (
+        f'Plot.lineY({LINE_ROWS}, {{x: "x", y: "y", title: "id", tip: "x"}}),'
+        f' Plot.dot({DOT_ROWS}, {{x: "x", y: "y", title: "id", tip: "xy"}})',
+        f'Plot.lineY({LINE_ROWS}, {{x: "x", y: "y", title: "id", tip: "x"}}),'
+        f' Plot.dot({DOT_ROWS}, {{x: "x", y: "y", title: "id", tip: "xy"}})',
+    ),
+    # One data drawn twice, each mark picking by its own tip: along x where the first
+    # reads both axes, and within a reach the first's doesn't have, one no aim below
+    # comes within 3px of, since the two drawings stand at different fractions of a
+    # pixel.
+    **{
+        name: (marks, marks)
+        for name, marks in {
+            "twice-along": (
+                f'Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id", tip: true}}),'
+                f' Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id", tip: "x"}})'
+            ),
+            "twice-reach": (
+                f'Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id",'
+                " tip: {maxRadius: 1}}),"
+                f' Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id",'
+                " tip: {maxRadius: 75}})"
+            ),
+            # Picked by values of its own, wherever each datum stands, on a scale
+            # that transforms them as it does the data.
+            "picked": (
+                f'Plot.dot({PICK_ROWS}, {{x: "x", y: "y", title: "id",'
+                ' tip: {px: "pickX"}})'
+            ),
+            "picked-share": (
+                f'Plot.dot({SHARE_ROWS}, {{x: "x", y: "y", title: "id",'
+                ' tip: {px: "pick"}})'
+            ),
+            # Stacked segments, each read at the middle of its extent.
+            "stacked": (
+                f'Plot.barY({STACK_ROWS}, {{x: "k", y: "v", fill: "s", title: "id",'
+                ' tip: "x"})'
+            ),
+            # Words chosen by the tip's format: a colour written as a colour and a
+            # link, which Plot's tip leaves out unless named, and a channel left out.
+            "formatted": (
+                f'Plot.dot({LINKED_ROWS}, {{x: "x", y: "y", fill: "c", href: "u",'
+                ' tip: {format: {fill: true, href: true, y: ".1f", x: false}}})'
+            ),
+            # Two channels under one label, which Plot's tip says once.
+            "one-label": (
+                "Plot.dot([{a: 1, b: 2}, {a: 6, b: 8}],"
+                ' {x: "a", y: "b", fill: "a", tip: true})'
+            ),
+            # A format that gives a value nothing, which Plot's tip leaves at its label.
+            "blank-value": (
+                "Plot.dot([{x: 1, y: 2}, {x: 6, y: 8}],"
+                ' {x: "x", y: "y", tip: {format: {y: () => null}}})'
+            ),
+            # Two rows whose values read the same, each still its own line.
+            "same-values": (
+                'Plot.dot([{district: "A", team: "A", sales: 2},'
+                ' {district: "B", team: "C", sales: 5}],'
+                ' {x: "district", y: "sales", fill: "team", tip: true})'
+            ),
+        }.items()
+    },
+}
+# Scale options a case's chart and Plot's beside it are drawn with.
+CASE_SCALES = {"picked-share": "x: {percent: true, domain: [0, 100]}, "}
+# A mark moved by its offsets, which Plot's pointer leaves out: the chart reads the
+# datum Plot draws under the pointer.
+MOVED = (
+    'Plot.dot([{id: "p", x: 2, y: 2}, {id: "q", x: 5, y: 3}, {id: "r", x: 7, y: 6}],'
+    ' {x: "x", y: "y", dx: 40, dy: -24, r: 6, title: "id"})'
+)
+POINTER_PAGE = leaf_page(
+    "pointer cases",
+    '<h1 id="t">Pointer cases</h1>'
+    + "".join(
+        chart_markup(
+            name,
+            f'{{ariaLabel: "{name}", x: {{domain: [0, 10]}}, y: {{domain: [0, 10]}},'
+            f" marks: [{marks}]}}"
+            if name == "moved"
+            else f'{{ariaLabel: "{name}", {CASE_SCALES.get(name, "")}marks: [{marks}]}}',
+        ).replace("<lf-chart ", '<lf-chart data-height="200" ')
+        for name, marks in [
+            *((name, ours) for name, (ours, _) in POINTER_CASES.items()),
+            ("moved", MOVED),
+        ]
+    ),
+)
+# What a drawing shows picked, in the svg's coordinates: lf-chart's ring and the lines
+# its preview says, or each tip Plot's own pointer shows, where it points from and the
+# row each of its lines says: the label Plot sets in bold, and the value after it, the
+# whole value where Plot cuts a line short, less the zero-width space it starts each
+# line with.
+PICKED = """(svg) => {
+    const box = svg.getBoundingClientRect();
+    const where = (node) => {
+      const at = node.getScreenCTM();
+      return [at.e - box.left, at.f - box.top];
+    };
+    const ring = svg.querySelector('.lf-chart-at:not([display=none])');
+    const chart = svg.closest('lf-chart');
+    if (chart) {
+      const said = chart.lfPreview();
+      return ring ? [{at: where(ring), lines: [said?.name ?? '', ...(said?.detail ?? [])]}] : [];
+    }
+    const clean = (text) => text.replaceAll('\\u200b', '').trim();
+    return [...svg.querySelectorAll('[aria-label=tip] path')].map((path) => ({
+      at: where(path.parentElement),
+      rows: [...path.parentElement.querySelectorAll('text > tspan')].map((line) => [
+        clean(line.querySelector('tspan[font-weight=bold]')?.textContent ?? ''),
+        clean(line.querySelector('title')?.textContent ??
+          [...line.childNodes].filter((node) => node.nodeType === 3)
+            .map((node) => node.textContent).join('')),
+      ]),
+    }));
+}"""
+
+
+def _says_plot_s_rows(lines, rows):
+    """Whether a reading's lines are Plot's rows, one line for each, as Plot's tip
+    draws it: its label, then its value, either alone where the other is empty. A line
+    pairing a value with another row's label, a row left unsaid, or a line Plot has no
+    row for, fails."""
+    unsaid = list(lines)
+    for row in rows:
+        line = " ".join(part for part in row if part)
+        if line not in unsaid:
+            return False
+        unsaid.remove(line)
+    return not unsaid
+
+
+def _picked(page, svg, box, fx, fy):
+    page.mouse.move(box["x"] + box["width"] * fx, box["y"] + box["height"] * fy)
+    page.evaluate(
+        "() => new Promise((done) => requestAnimationFrame(() =>"
+        " requestAnimationFrame(done)))"
+    )
+    return page.locator(svg).evaluate(PICKED)
+
+
+# A comment on one of a chart's points (lf-chart.js, chart-points.js `datumOf`): a line
+# through two series, which draws no element for a datum, a dot chart, and a binned
+# bar chart, whose point is a bin.
+POINT_CHARTS = {
+    "p-line": """{
+  ariaLabel: "Hours to first review by week: backend fell from 31 to 12, frontend rose to 21 then fell",
+  x: {type: "utc", label: null},
+  y: {label: "hours"},
+  marks: [
+    Plot.lineY(
+      [
+        {week: "2026-05-04", team: "backend", hours: 31},
+        {week: "2026-05-11", team: "backend", hours: 26},
+        {week: "2026-05-18", team: "backend", hours: 12},
+        {week: "2026-05-04", team: "frontend", hours: 18},
+        {week: "2026-05-11", team: "frontend", hours: 21},
+        {week: "2026-05-18", team: "frontend", hours: 11},
+      ],
+      {x: "week", y: "hours", stroke: "team"},
+    ),
+  ],
+}""",
+    "p-dots": """{
+  ariaLabel: "Sessions by week, rising from 4,100 to 9,300",
+  x: {label: "week"},
+  y: {label: "sessions"},
+  marks: [
+    Plot.dot(
+      [4100, 5200, 8412, 9300].map((sessions, i) => ({week: i + 1, sessions})),
+      {x: "week", y: "sessions"},
+    ),
+  ],
+}""",
+    "p-bins": """{
+  ariaLabel: "Requests by response time, most between 10 and 20 ms",
+  x: {label: "ms"},
+  y: {label: "requests"},
+  marks: [
+    Plot.rectY(
+      [1, 2, 12, 13, 14, 25].map((ms) => ({ms})),
+      Plot.binX({y: "count"}, {x: "ms", thresholds: [0, 10, 20, 30]}),
+    ),
+  ],
+}""",
+}
+POINTS_PAGE = leaf_page(
+    "chart points",
+    '<h1 id="t">Points</h1><button id="before">Before</button>'
+    + "".join(
+        chart_markup(chart, body).replace("<lf-chart ", '<lf-chart data-height="200" ')
+        for chart, body in POINT_CHARTS.items()
+    ),
+)
+# Each chart's point a comment takes, by its id, and the shape Plot draws for it where it
+# draws one: the reader reaches the line's by keyboard and the others' by pointer.
+POINT_IDS = {
+    "p-line": "point:0;stroke=frontend;x=2026-05-11;y=21;z=frontend",
+    "p-dots": "point:0;x=3;y=8412",
+    "p-bins": "point:0;x1=10;y1=0;x2=20;y2=3",
+}
+POINT_SHAPES = {
+    "p-dots": "[data-lf-part=dot] circle",
+    "p-bins": "[data-lf-part=rect] rect",
+}
+# Where a chart's point stands in its drawing, from what Plot drew for it: the dot's or
+# bin's middle and box, or the frontend line's second vertex; and the box of the mark
+# round the point a comment names, its middle and its size.
+DATUM_AT = """([chart, shapes, index]) => {
+  const el = document.getElementById(chart);
+  const svg = el.querySelector('svg[role=img]');
+  const middle = (box) => [box.x + box.width / 2, box.y + box.height / 2];
+  let at, size = null;
+  if (shapes) {
+    const box = [...svg.querySelectorAll(shapes)][index].getBBox();
+    [at, size] = [middle(box), [box.width, box.height]];
+  } else {
+    const [, frontend] = svg.querySelectorAll('[data-lf-part=line] path');
+    at = frontend.getAttribute('d').match(/-?[\\d.]+,-?[\\d.]+/g)[1].split(',').map(Number);
+  }
+  const marks = [...el.querySelectorAll('.lf-chart-marks > :not(.lf-chart-aim)')];
+  return {at, size, marks: marks.map((mark) => {
+    const box = mark.getBBox();
+    return {at: middle(box), size: [box.width, box.height]};
+  })};
+}"""
+
+
+def _shape_middle(page, chart, index):
+    box = page.locator(f"#{chart} svg[role=img] {POINT_SHAPES[chart]}").nth(index)
+    box = box.bounding_box()
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_comment_takes_the_point_a_chart_s_ring_is_on(engine, request, serve):
+    """Alt over a chart aims at the point the pointer reads, a mark round its ring wearing
+    the aim, while its reading stays up, or after Escape put the reading away, and Alt
+    and a click comment on that point, named in the box by what its preview says. With
+    the chart focused, the point the arrow keys reach is where `c` comments, on a line
+    that draws no shape for it. Each comment names its point by its datum."""
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(POINTS_PAGE))
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    quote = page.locator("#lf-composer-quote")
+
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#p-line")).to_be_focused()
+    for key in ("ArrowRight", "ArrowDown"):
+        page.keyboard.press(key)
+    assert said(page) == ["week May 11, 2026", "team frontend", "hours 21"]
+    # The points the keys reached join no list a reader picks from: each chart offers a
+    # screen reader one response, to the whole chart.
+    render_checks_model.rendered(page)
+    expect(page.locator(".lf-visual-action")).to_have_text(["Respond to chart"] * 3)
+    page.keyboard.press("c")
+    expect(quote).to_have_text(
+        "\u00a7 chart \u00b7 week May 11, 2026, team frontend, hours 21"
+    )
+    page.keyboard.type("Why did frontend rise?")
+    with sending(page, "the line's comment"):
+        page.keyboard.press("Enter")
+
+    # The reader reads the dot's value, which stays up under Alt, and puts the bin's
+    # reading and its ring away with Escape before pressing Alt.
+    preview = page.locator(PREVIEW)
+    for chart, index, words, escaped in (
+        ("p-dots", 2, "week 3, sessions 8,412", False),
+        ("p-bins", 1, "ms 10\u201320, requests 3", True),
+    ):
+        x, y = _shape_middle(page, chart, index)
+        page.mouse.move(x - 2, y - 2)
+        page.mouse.move(x, y)
+        waited_out(page)
+        expect(preview).to_be_visible()
+        if escaped:
+            page.keyboard.press("Escape")
+            expect(preview).to_be_hidden()
+        page.keyboard.down("Alt")
+        if not escaped:
+            render_checks_model.rendered(page)
+            assert said(page) == words.split(", "), chart
+        # The aim stands on the ring round a dot, and on the bar Plot drew for a bin.
+        aimed = page.locator("[data-lf-aimed]")
+        expect(aimed).to_have_count(1)
+        expected = (
+            page.locator(f"#{chart} svg[role=img] {POINT_SHAPES[chart]}").nth(index)
+            if chart == "p-bins"
+            else page.locator(f"#{chart} .lf-chart-aim")
+        )
+        assert aimed.evaluate(
+            "(node, other) => node === other", expected.element_handle()
+        ), chart
+        page.mouse.click(x, y)
+        page.keyboard.up("Alt")
+        expect(quote).to_have_text(f"\u00a7 chart \u00b7 {words}")
+        page.keyboard.type("Why here?")
+        with sending(page, f"{chart}'s comment"):
+            page.keyboard.press("Enter")
+
+    anchors = [
+        event["anchor"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert anchors == [
+        {"section": chart, "visual": visual} for chart, visual in POINT_IDS.items()
+    ]
+
+
+def test_a_comment_on_a_chart_s_point_stays_on_its_datum(browser, serve):
+    """A comment on a point is marked on its datum when the page opens, though Leaf
+    lists no other point, and again when a narrower window draws the chart afresh, and
+    opening the comment from the margin takes the reader to its point, which its mark
+    then stands for. A comment whose datum the chart doesn't draw marks no point."""
+    url = serve(POINTS_PAGE)
+    for n, (chart, visual) in enumerate(
+        [*POINT_IDS.items(), ("p-dots", "point:0;x=9;y=1")]
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": f"on-{n}",
+                "author": "user",
+                "revision": 1,
+                "text": "Why here?",
+                "anchor": {"section": chart, "visual": visual},
+            },
+        )
+    page = open_page(browser, url)
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    index = {"p-line": None, "p-dots": 2, "p-bins": 1}
+
+    # A dot's and a vertex's comment wears a ring round its datum; a bin's is marked on
+    # the bar Plot drew, and takes no ring.
+    def stands_on_its_datum():
+        render_checks_model.rendered(page)
+        for chart in POINT_IDS:
+            drawn = page.evaluate(
+                DATUM_AT, [chart, POINT_SHAPES.get(chart), index[chart]]
+            )
+            if chart == "p-bins":
+                assert drawn["marks"] == [], drawn
+                continue
+            assert len(drawn["marks"]) == 1, (chart, drawn)
+            [mark] = drawn["marks"]
+            assert mark["at"] == pytest.approx(drawn["at"], abs=0.5), (chart, drawn)
+            assert mark["size"] == pytest.approx([14, 14], abs=1.5), (chart, drawn)
+            ringed = drawn
+        return ringed
+
+    before = stands_on_its_datum()
+    drawn = page.locator("#p-bins").evaluate("el => el.drawn")
+    resized(page, 700, 900)
+    page.wait_for_function(
+        "(drawn) => document.getElementById('p-bins').drawn !== drawn", arg=drawn
+    )
+    assert stands_on_its_datum()["at"] != before["at"], "the chart drew afresh"
+
+    # Each point's comment has a margin entry of its own, named by its point.
+    page.locator(
+        '[data-lf-margin-for="p-dots"] .lf-margin-marker[aria-label$="week 3, sessions 8,412"]'
+    ).click()
+    expect(
+        page.locator("#p-dots .lf-chart-marks > :not(.lf-chart-aim)")
+    ).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    page.locator('[data-lf-margin-for="p-bins"] .lf-margin-marker').click()
+    expect(
+        page.locator(f"#p-bins svg[role=img] {POINT_SHAPES['p-bins']}").nth(1)
+    ).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+
+
+def test_a_comment_on_a_point_in_a_shut_tab_stands_on_its_chart_until_it_draws(
+    browser, serve
+):
+    """A chart in a shut tab has drawn no point, so a comment on one stands on the
+    chart, and going to it opens the tab, where the chart draws and the comment's mark
+    stands on its point."""
+    dots = chart_markup("p-dots", POINT_CHARTS["p-dots"])
+    url = serve(
+        leaf_page(
+            "a chart in a tab",
+            '<h1 id="t">Tabs</h1><lf-tabs id="views">'
+            '<lf-tab id="words" label="Words"><p id="w">Words first.</p></lf-tab>'
+            f'<lf-tab id="numbers" label="Numbers">{dots}</lf-tab></lf-tabs>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "on-dot",
+            "author": "user",
+            "revision": 1,
+            "text": "Why week 3?",
+            "anchor": {"section": "p-dots", "visual": POINT_IDS["p-dots"]},
+        },
+    )
+    page = open_page(browser, url)
+    expect(page.locator('[data-lf-margin-for="p-dots"]')).to_be_attached()
+    expect(page.locator("#p-dots svg[role=img]")).to_have_count(0)
+    page.keyboard.press("t")
+    mark = page.locator("#p-dots .lf-chart-marks > :not(.lf-chart-aim)")
+    expect(mark).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    drawn = page.evaluate(DATUM_AT, ["p-dots", POINT_SHAPES["p-dots"], 2])
+    assert [mark["at"] for mark in drawn["marks"]] == [
+        pytest.approx(drawn["at"], abs=0.5)
+    ]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_c_on_a_chart_takes_the_keys_point_and_hands_focus_back_to_it(
+    engine, request, serve
+):
+    """With the chart focused, `c` comments on the point the keys stand on, though the
+    chart holds a comment on another point, and on the whole chart once Escape has put
+    the point away; leaving the comment box hands focus back to the chart, on the point
+    it was about. Where the keys stand on the commented point, `c` continues its
+    thread."""
+    url = serve(POINTS_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "on-week-3",
+            "author": "user",
+            "revision": 1,
+            "text": "Why week 3?",
+            "anchor": {"section": "p-dots", "visual": POINT_IDS["p-dots"]},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    composer = page.locator(".lf-composer")
+    quote = page.locator("#lf-composer-quote")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 2", "sessions 5,200"]
+    page.keyboard.press("c")
+    expect(composer).to_be_visible()
+    expect(quote).to_have_text("\u00a7 chart \u00b7 week 2, sessions 5,200")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    expect(chart).to_be_focused()
+    # A focus handed back previews nothing (preview.js), and the ring stands on the point.
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 2"
+    expect(chart.locator(".lf-chart-at")).to_be_visible()
+
+    page.keyboard.press("ArrowLeft")
+    assert said(page) == ["week 1", "sessions 4,100"]
+    page.keyboard.press("Escape")
+    expect(page.locator(PREVIEW)).to_be_hidden()
+    expect(chart.locator(".lf-chart-at")).to_be_hidden()
+    page.keyboard.press("c")
+    expect(composer).to_be_visible()
+    expect(quote).not_to_have_text(re.compile("week"))
+    page.keyboard.press("Escape")
+    expect(chart).to_be_focused()
+
+    for _ in range(2):
+        page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 3", "sessions 8,412"]
+    page.keyboard.press("c")
+    expect(page.locator(".lf-page-thread .lf-thread-reply leaf-text")).to_be_focused()
+    expect(composer).to_be_hidden()
+
+
+def _seeded(serve, *anchors):
+    """A served points page whose log holds a user's comment on each anchor."""
+    url = serve(POINTS_PAGE)
+    for n, anchor in enumerate(anchors):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": f"seeded-{n}",
+                "author": "user",
+                "revision": 1,
+                "text": f"Seeded {n}",
+                "anchor": anchor,
+            },
+        )
+    return url
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_leaving_a_pointed_comment_hands_focus_to_its_point(engine, request, serve):
+    """A comment box opened with Alt on a point hands focus back to the chart on that
+    point, though the pointer has left the chart since."""
+    page = open_page(request.getfixturevalue(engine), serve(POINTS_PAGE))
+    expect(page.locator("#p-dots svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    x, y = _shape_middle(page, "p-dots", 2)
+    page.mouse.move(x - 2, y - 2)
+    page.mouse.move(x, y)
+    page.keyboard.down("Alt")
+    page.mouse.click(x, y)
+    page.keyboard.up("Alt")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.mouse.move(2, 2)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(chart).to_be_focused()
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 3"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_link_to_a_chart_s_point_puts_the_reader_on_it(engine, request, serve):
+    """A link naming a point by the chart's id and the point's own lands focus on the
+    chart, standing on that point."""
+    url = serve(
+        POINTS_PAGE.replace(
+            '<button id="before">Before</button>',
+            f'<a id="to-point" href="#p-dots:{POINT_IDS["p-dots"]}">Week 3</a>',
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#p-dots svg[role=img]")).to_be_visible()
+    page.locator("#to-point").focus()
+    page.keyboard.press("Enter")
+    chart = page.locator("#p-dots")
+    expect(chart).to_be_focused()
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 3"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_link_to_another_point_moves_a_focused_chart_s_reading_to_it(
+    engine, request, serve
+):
+    """A chart the keys hold on one point, followed to another of its points by a
+    link, reads the point the link names, though focus arrives as no new focus."""
+    page = open_page(request.getfixturevalue(engine), serve(POINTS_PAGE))
+    expect(page.locator("#p-dots svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 2", "sessions 5,200"]
+    page.evaluate("hash => { location.hash = hash; }", f"#p-dots:{POINT_IDS['p-dots']}")
+    expect(page).to_have_url(re.compile("#p-dots:"))
+    expect(chart).to_be_focused()
+    page.wait_for_function(
+        "() => document.getElementById('p-dots').lfPreview()?.name === 'week 3'"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_c_on_a_commented_point_continues_its_thread_beside_one_on_the_chart(
+    engine, request, serve
+):
+    """A thread on the point the keys stand on is the thread there, ahead of one on the
+    whole chart, so `c` continues it rather than starting a second on the point."""
+    url = _seeded(
+        serve,
+        {"section": "p-dots"},
+        {"section": "p-dots", "visual": POINT_IDS["p-dots"]},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    for _ in range(2):
+        page.keyboard.press("ArrowRight")
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 3"
+    page.keyboard.press("c")
+    reply = page.locator(".lf-page-thread", has_text="Seeded 1").locator(
+        ".lf-thread-reply leaf-text"
+    )
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()

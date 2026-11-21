@@ -20,18 +20,22 @@ from render_cases_widgets import (
     PANE_DIFF_PAGE,
 )
 from render_harness import (
+    PREVIEW,
     RELEASE_FOCUS,
     consume_browser_errors,
     displayed,
-    holding,
+    expect_preview_words,
     leaf_page,
+    long_press,
     open_page,
+    page_declarations,
     resized,
     said,
     scroll_settled,
     select,
     selection_field,
     sending,
+    tab_onto,
     told,
     write,
 )
@@ -43,6 +47,7 @@ from browser.widgets import (
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
@@ -203,7 +208,7 @@ FIRST_PAINT_PAGE = leaf_page(
     + '<lf-diff id="file-view" view="file" collapsed><pre>'
     + _patch_file("docs/first.md", 1, ["The first file remains readable. " * 12])
     + "diff --git a/later.txt b/later.txt\nold mode 100644\nnew mode 100755\n"
-    + '</pre></lf-diff><lf-diff id="relative-font" style="--code-size:1em" overflow="wrap"><pre>'
+    + '</pre></lf-diff><lf-diff id="relative-font" style="--lf-code-size:1em" overflow="wrap"><pre>'
     + _patch_file(
         "docs/font.md", 1, ["A wrapped row uses its inherited code font. " * 12]
     )
@@ -391,10 +396,10 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
             leaf_page(
                 "Scrolling boxes",
                 f'<aside><div class="layout-track" id="side">{long_diff("in-side")}</div></aside>'
-                f'<div class="layout-column"><h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
-                '<div id="inline" class="scroll" style="max-height: 320px; overflow: auto">'
+                f'<div class="layout-column"><h1>Scrolling boxes</h1><div id="box" class="lf-scroll">{long_diff("in-box")}</div>'
+                '<div id="inline" class="lf-scroll" style="max-height: 320px; overflow: auto">'
                 f"{long_diff('in-inline')}</div>"
-                '<div id="hidden" class="scroll" style="max-height: 320px; overflow: hidden">'
+                '<div id="hidden" class="lf-scroll" style="max-height: 320px; overflow: hidden">'
                 f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>" * 60
@@ -441,18 +446,19 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         serve(
             leaf_page(
                 "Panel and option",
-                '<lf-tabs id="tabs" class="layout-flow"><lf-tab id="tab" label="Diff">'
+                '<lf-tabs id="tabs" flow="page"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
-                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
-                f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
-                '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
-                "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
+                '<lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2><lf-options id="opts">'
+                f'<lf-option id="opt-a" label="A"><strong>A</strong> {long_diff("in-option")}'
+                '</lf-option><lf-option id="opt-b" label="B"><strong>B</strong></lf-option>'
+                "</lf-options></lf-group>" + "<p>Filler.</p>" * 60,
                 head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
             )
         ),
     )
     resized(page, 1280, 900)
-    expect(page.locator("lf-tabs")).to_have_css("--lf-views-flow", "page")
+    # The page's own face: a set in its flow draws no frame.
+    expect(page.locator("lf-tabs")).to_have_css("border-left-width", "0px")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )
@@ -711,13 +717,15 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
-    page.locator("lf-diff summary").first.click()
-    page.keyboard.press("Tab")
     page.locator("lf-diff summary").first.focus()
-    page.keyboard.press("ArrowRight")
-    page.keyboard.press("]")
-    page.keyboard.press("]")
-    page.keyboard.press("]")
+    # Each step walks from the row the last one landed on, so each waits for its landing.
+    for line in (1, 40, 80):
+        page.keyboard.press("]")
+        expect(
+            page.locator(
+                f'lf-diff [data-lf-datum=\'["app/handlers.py","both",{line},{line}]\']'
+            )
+        ).to_be_focused()
     reading = """() => {
       const diff = document.querySelector('lf-diff');
       const row = diff.lfDataDatum('[\"app/handlers.py\",\"new\",81]');
@@ -977,7 +985,7 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
 
 def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     """A file that a revision turns from a rename into a changed file gets a new row,
-    and that row, too, says whether it cuts its path short."""
+    and that row, too, previews its whole path while it cuts the path short."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/handlers.py"
     rename = (
         f"diff --git a/old.py b/{path}\n"
@@ -993,10 +1001,9 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
-    expect(head).to_have_attribute("data-lf-path-cut", "")
-    expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
+    expect_preview_words(head, path)
 
-    # A changed source path can retain exactly the old clipped width. Its title
+    # A changed source path can retain exactly the old clipped width. Its preview
     # must follow the new identity even when no size changes and the disclosure stays.
     head.evaluate("node => window.retainedDiffHead = node")
     for source in ("legacy/original.py", "legacy/previous.py"):
@@ -1011,9 +1018,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
         )
         told(page)
         rendered(page)
-        expect(head.locator(".lf-diff-path")).to_have_attribute(
-            "title", f"{source} → {path}"
-        )
+        expect_preview_words(head, f"{source} → {path}")
         assert head.evaluate("node => node === window.retainedDiffHead")
 
 
@@ -1022,7 +1027,7 @@ def test_a_diff_revision_leaves_a_line_thread_where_it_stands(request, serve, en
     """A revision that redraws a thread's own line, and puts another file before its
     file, leaves the thread's outlet where it stands, so a frame in a reply keeps the
     document it loaded. Clearing the host's light DOM with `replaceChildren()` on each
-    revision unloaded it in WebKit, which lacks `moveBefore` too."""
+    revision would unload it in WebKit, which lacks `moveBefore` too."""
 
     def patch(path, body):
         return f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n{body}"
@@ -1064,6 +1069,45 @@ def test_a_diff_revision_leaves_a_line_thread_where_it_stands(request, serve, en
         """frame => [frame.closest('.lf-diff-thread-outlet') === window.lfOutlet,
           frame.contentWindow?.lfKept, window.lfFrameLoads]"""
     ) == [True, True, 0]
+
+
+def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve):
+    """Message markup in a thread a diff seats in its shadow tree wears the rules its
+    packages' defaults.css gives it in the document, so a choice there draws as option
+    cards rather than run-together text, and the part the runtime gives it to anchor
+    from the document is no attribute the render check refuses."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        patch_manifest(
+            "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+            "@@ -1,3 +1,3 @@\n one\n-old\n+new\n three\n"
+        ),
+    )
+    root = panel_comment(
+        serve.page_dir, "Why?", {"section": "patch", "datum": '["a.py","new",2]'}
+    )
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "Which should it be?",
+        '<lf-options id="mount"><lf-option id="mount-steel" label="Keep steel" '
+        "recommended><strong>Keep steel</strong></lf-option>"
+        '<lf-option id="mount-plastic" label="Go back to plastic">'
+        "<strong>Go back to plastic</strong> Lighter.</lf-option></lf-options>",
+    )
+    page = open_page(browser, url)
+    rendered(page)
+    group = page.locator("lf-diff .lf-diff-thread-outlet lf-options")
+    expect(group).to_have_css("display", "grid")
+    expect(group.locator("lf-option").first).to_have_css("display", "flow-root")
+    assert (
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", page_declarations(page)
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize("manifest, changes_kind", [(False, True), (True, False)])
@@ -1109,10 +1153,13 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     assert current.evaluate(reading) == before
 
 
-def test_a_diff_disclosure_waits_for_the_source_render_that_owns_its_evidence(
-    browser, serve
-):
-    """Opening a retained closed file joins a pending revision without a false error."""
+def test_a_file_opened_while_a_newer_source_draws_shows_the_newer_lines(browser, serve):
+    """A closed file opened while a newer revision prepares shows that revision.
+
+    Opening it waits for that revision's drawing. A rendering of the file's older
+    lines started at once would carry the same rendering number as the newer
+    revision, and would put the older lines back if it landed after it.
+    """
 
     def patch(path, word):
         return (
@@ -1121,51 +1168,51 @@ def test_a_diff_disclosure_waits_for_the_source_render_that_owns_its_evidence(
         )
 
     def value(word):
-        return patch_manifest(patch("a.py", word) + patch("b.py", "second"))
+        return patch_manifest(patch("a.py", word) + patch("b.py", word))
 
     url = serve(MANIFEST_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", value("first"))
     page = open_page(browser, url)
-    a = page.locator("lf-diff summary").nth(0)
-    b = page.locator("lf-diff summary").nth(1)
+    a, b = (page.locator("lf-diff summary").nth(index) for index in (0, 1))
     a.click()
     expect(page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')).to_have_text(
         "first"
     )
-    b.click()
-    line = page.locator('lf-diff [data-lf-datum=\'["b.py","new",1]\']')
-    expect(line).to_have_text("second")
-    b.click()
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value("middle"))
-    told(page)
-    rendered(page)
-    held = []
-
-    def hold(route):
-        if "key=a.py" in route.request.url:
-            held.append((route, route.fetch()))
-        else:
-            route.continue_()
-
-    page.route("**/api/deferred*", hold)
+    # Hold the newer revision's preparation of the open file, and any preparation of
+    # the closed file's older lines until that revision has committed. The second
+    # toggle listener runs after the widget's own has started the file's load.
+    page.evaluate("""() => {
+      const diff = document.getElementById('patch');
+      const prepare = diff.prepareEntry;
+      const older = new Set(diff.fileEntries.map(({source}) => source));
+      window.__leafHeld = {};
+      diff.fileEntries[1].details.addEventListener('toggle', () => {
+        window.__leafHeld.opened = true;
+      });
+      diff.prepareEntry = async function(source, renderKey) {
+        if (!older.has(source) && source.path === 'a.py')
+          await new Promise(resolve => { window.__leafHeld.newer = resolve; });
+        if (older.has(source) && source.path === 'b.py')
+          await new Promise(resolve => { window.__leafHeld.older = resolve; });
+        return prepare.call(this, source, renderKey);
+      };
+    }""")
     data_model.cmd_data_set(serve.page_dir, "review-patch", value("latest"))
-    holding(page, held, 1, "the new open-file evidence")
+    page.wait_for_function("Boolean(window.__leafHeld.newer)")
     b.click()
-    # Let the native toggle and its lazy load answer while the source revision is held.
-    page.evaluate(
-        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    )
-    try:
-        assert page.locator("lf-diff .lf-error").count() == 0
-    finally:
-        for route, response in held:
-            route.fulfill(response=response)
-    rendered(page)
-    expect(line).to_have_text("second")
-    expect(page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')).to_have_text(
+    page.wait_for_function("window.__leafHeld.opened === true")
+    page.evaluate("""async () => {
+      const diff = document.getElementById('patch');
+      const b = diff.fileEntries.find(({record}) => record.path === 'b.py');
+      const older = b.loading?.promise;
+      window.__leafHeld.newer();
+      await diff.updateComplete;
+      window.__leafHeld.older?.();
+      await older;
+    }""")
+    expect(page.locator('lf-diff [data-lf-datum=\'["b.py","new",1]\']')).to_have_text(
         "latest"
     )
-    expect(page.locator("lf-diff .lf-error")).to_have_count(0)
 
 
 # The line is one row split across syntax spans inside a shadow root, so the range is built
@@ -1208,9 +1255,9 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     """A changed row says it changed by the colour behind it, and that colour is the row's
     own background, so it stops where the row's box stops. The renderer sizes the code
     column to the box that scrolls, which is the width the user could already see: on
-    this patch the fill ran out 2,563px short of the line's end, so scrolling right left
-    every addition and deletion sitting on the file's plain paper with nothing to say
-    which it was.
+    this patch the fill would run out far short of the line's end, so scrolling right
+    would leave every addition and deletion sitting on the file's plain paper with
+    nothing to say which it was.
 
     Every direction in one reading, because they are one track. The floor that carries the
     fill past the scrollport would, left alone, shrink a short file's rows to its own
@@ -1232,7 +1279,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     # wider than any of them, so the floor would take it for a line and size the file by
     # the longest remark. `app/routes.py` is what makes that reading sharp: its rows fit
     # their box, so a comment that reached the measure starts a file the user could see
-    # whole scrolling sideways — 671px of rows in a 718px box became 796px in 843px.
+    # whole scrolling sideways.
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
     )
@@ -1272,7 +1319,7 @@ def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
     assert cut["cut"] > 0 and cut["worst"] > 300, (
         f"no line runs past its box, so a wrapped result would prove nothing: {cut}"
     )
-    # Which line, not just how many. The rows are all one width now — each is sized to the
+    # Which line, not just how many. The rows are all one width — each is sized to the
     # longest line in its file so its fill reaches the end of it — so a reading taken off
     # the row's box rather than its text reports the file's overhang for every row alike
     # and still satisfies the count above. Naming the line is what tells the two apart.
@@ -1314,9 +1361,9 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     browser, serve
 ):
     """Two halves of one question — which file am I reading, and where did that press put
-    me. The shipped review is 46 files and 32,000px: opening one and reading down it left
-    nothing on screen saying whose lines these were, because the file's header stood in
-    flow and scrolled away with its own first rows.
+    me. In the shipped review, a long one, a file's header that stood in flow and
+    scrolled away with its own first rows would leave nothing on screen saying whose
+    lines these were, as soon as the user read down a file.
 
     Pinned, the header stands exactly at the root's sticky slot (`--lf-top`), the
     window's head where no chrome stands over it. A press then has to land past it:
@@ -1362,9 +1409,9 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
         f"a pointer on the press reaches something else: {press}"
     )
     # And it leaves with the file. A sticky box is held inside its containing block by
-    # its margin box, so a negative margin on the press lent it that much travel past
-    # the file's end: with the header unpinned and gone, the press stood on for 32px of
-    # scroll over the next file's header and that file's own press. Scrolled to where
+    # its margin box, so a negative margin on the press would lend it that much travel
+    # past the file's end: with the header unpinned and gone, the press would stand on
+    # over the next file's header and that file's own press. Scrolled to where
     # the file's foot is 15px under the slot, the press's foot is no lower than
     # the file's.
     page.evaluate(
@@ -1414,7 +1461,7 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
     the sticky-header slot again for whatever sticks inside it but lands nothing down,
     so the browser's own focus scroll still reads the file name pinned over the seat.
     Tab from the seat's reply field onto the control beside it, both under the pinned
-    name, brings the control out from under it, where it had stayed hidden."""
+    name, brings the control out from under it, where it would otherwise stay hidden."""
     datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
     page = open_page(
         browser,
@@ -1436,25 +1483,45 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
     resized(page, 1280, 720)
     reply = page.locator("lf-diff .lf-diff-thread-outlet .lf-thread-reply leaf-text")
     expect(reply).to_be_visible()
-    # The field just below the window's top, where the pinned name stands over it.
+    head = page.locator("#patch .lf-diff-file > details > summary")
+    # Focus opens the field, which grows, so it is placed once open and the name is
+    # pinned: its foot just below the name, which stands over the rest of it and over
+    # the control beside it. The user still sees the field, so Tab moves on from it
+    # rather than letting go of it.
     reply.evaluate(
-        "el => scrollBy({top: el.getBoundingClientRect().top - 4, behavior: 'instant'})"
+        "el => scrollBy({top: el.getBoundingClientRect().top, behavior: 'instant'})"
     )
     scroll_settled(page)
     reply.evaluate("el => el.focus({preventScroll: true})")
+    scroll_settled(page)
+    reply.evaluate(
+        """(el, head) => scrollBy({
+            top: el.getBoundingClientRect().bottom - head.getBoundingClientRect().bottom
+                - 6,
+            behavior: 'instant'})""",
+        head.element_handle(),
+    )
+    scroll_settled(page)
+    beside = page.locator("lf-diff .lf-diff-thread-outlet .lf-compose-dictate")
+    under = beside.evaluate(
+        "(el, head) => el.getBoundingClientRect().top"
+        " < head.getBoundingClientRect().bottom",
+        head.element_handle(),
+    )
+    assert under, "the control beside the field starts under the pinned name"
     page.keyboard.press("Tab")
     rendered(page)
     read = page.evaluate(
         """() => {
         const root = document.getElementById('patch').shadowRoot;
         const head = root.querySelector('.lf-diff-file > details > summary');
-        const seat = root.querySelector('.lf-diff-thread-outlet');
         const focused = root.activeElement;
-        return {inSeat: seat.contains(focused), top: focused.getBoundingClientRect().top,
+        return {beside: focused?.matches('.lf-diff-thread-outlet .lf-compose-dictate'),
+                top: focused?.getBoundingClientRect().top,
                 head: head.getBoundingClientRect().bottom};
     }"""
     )
-    assert read["inSeat"], read
+    assert read["beside"], read
     assert read["top"] >= read["head"], read
 
 
@@ -1516,10 +1583,10 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     browser, serve
 ):
     """The same two halves inside a full-height workspace pane, whose body is the box that
-    scrolls the rows. The header used to stop the window's slot below the pane's top,
-    because the offset it pinned at was the window's: rows scrolled past in the 42px
-    above the name that headed them, and a `]` landing, which aligns to the pane's own
-    top, put the row above its header. Where a sticking box stops is `--lf-top`, and a
+    scrolls the rows. A header pinned at the window's offset would stop the window's
+    slot below the pane's top: rows would scroll past in the room above the name that
+    headed them, and a `]` landing, which aligns to the pane's own top, would put the
+    row above its header. Where a sticking box stops is `--lf-top`, and a
     scrolling pane body declares it as its own top edge.
 
     Short enough a window that the patch overflows the pane, and still tall enough that
@@ -1562,8 +1629,9 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     )
     assert page.evaluate(scrollport)["window"] == 0, "the window scrolled, not the pane"
     # The landed row wears the band where it can be seen: inside the code box that clips
-    # it and below the header pinned over the row above. Drawn outset, its sides fell
-    # outside that box and its upper run under the header, and the row showed no ring.
+    # it and below the header pinned over the row above. Drawn outset, its sides would
+    # fall outside that box and its upper run under the header, and the row would show
+    # no ring.
     row_ring = page.evaluate(f"""() => {{
         const at = document.querySelector('lf-diff').shadowRoot.activeElement;
         return ({_RING_WITHIN})(at, at.closest('code'));
@@ -1573,7 +1641,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     inside = row_ring["inside"]
     assert row_ring["drawn"] and inside["top"] and inside["bottom"], row_ring
     # And the code box has not moved sideways. The row runs past the box, so a landing
-    # that let the browser bring it "nearest" scrolled the box to the row's start, the
+    # that let the browser bring it "nearest" would scroll the box to the row's start, the
     # width of the line numbers over it, hiding every line's marker and first characters.
     assert row_ring["sideways"] == 0 and inside["left"], (
         f"the landing scrolled the file's lines sideways under their numbers: {row_ring}"
@@ -1715,11 +1783,12 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     `focusDestination` focuses the host, and the diff's keys answer there because the
     scope climb starts at the focused node itself.
 
-    Going forward, nothing-focused meant every hunk lay ahead and the walk stopped at the
-    first. Going back it meant every hunk lay ahead too, so none lay behind: the walk ran
-    through the whole list, opened each file and landed nowhere. A collapsed manifest
+    Going forward, nothing-focused means every hunk lies ahead and the walk stops at the
+    first. Read the same way going back, every hunk would lie ahead too, so none behind:
+    the walk would run through the whole list, open each file and land nowhere. A
+    collapsed manifest
     already holds each parsed file's evidence, so this step must open only the last
-    file and make no further request for it."""
+    file."""
     url = serve(MANIFEST_DIFF_PAGE)
     data_model.cmd_data_set(
         serve.page_dir,
@@ -1729,13 +1798,6 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
-    )
-    fetched = []
-    page.on(
-        "request",
-        lambda request: (
-            fetched.append(request.url) if "/api/deferred" in request.url else None
-        ),
     )
     # Focused as `focusDestination` leaves a host that an in-page link named.
     page.evaluate(
@@ -1768,7 +1830,6 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
         ".querySelectorAll('details[open]').length"
     )
     assert opened == 1, f"the step opened files it never reached: {opened} open"
-    assert not fetched, f"opening parsed evidence fetched it again: {fetched}"
 
 
 @pytest.mark.parametrize("renamed", [False, True])
@@ -1813,7 +1874,6 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
             reserved: parseFloat(getComputedStyle(
                 head.parentElement.querySelector('[data-line]')
             ).scrollMarginTop),
-            title: path.title,
             bases: bases.map(base => ({text: base.textContent,
                 cut: base.scrollWidth > base.clientWidth,
                 width: base.getBoundingClientRect().width})),
@@ -1823,14 +1883,9 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
         return reading;
     }"""
     )
-    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
-    page.locator("lf-diff .lf-diff-head").focus()
-    said = page.locator("lf-diff .lf-diff-path").evaluate(
-        """path => {
-        const word = getComputedStyle(path, '::after');
-        return [word.content.replace(/\\u200b/g, ''), parseFloat(word.width)];
-    }"""
-    )
+    tab_onto(page.locator("lf-diff .lf-diff-head"))
+    expect(page.locator(PREVIEW)).to_be_visible()
+    said = page.locator(PREVIEW).inner_text()
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
     assert [base["text"] for base in head["bases"]] == (
         ["original.md", "config.md"] if renamed else ["config.md"]
@@ -1844,19 +1899,17 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
         assert head["arrow"]["right"] < head["path"]["right"], head
     else:
         assert not head["bases"][0]["cut"], head
-    assert head["title"] == (f"{previous} → {path}" if renamed else path), head
-    assert path in said[0] and said[1] > 0, said
+    assert said == (f"{previous} → {path}" if renamed else path), said
 
 
 def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     browser, serve
 ):
-    """A file's row gives way from its folders, and its title reaches only a pointer
-    resting on it. The keyboard location on the row, and a finger held on it, read the
-    whole path in a box under the row, a folded file's too, over the next file's row.
-    Releasing the hold folds the file, as a tap does. Touch focus keeps the path
-    visible until it leaves. A row that shows its whole path at the width it has
-    now shows no box and has no title."""
+    """A file's row gives way from its folders, and says its whole path as its preview:
+    to the keyboard's location on the row, under it, and to a finger held on it, above
+    it, a folded file's too. Releasing the hold leaves the file as it was and the path
+    standing until the next touch, and a tap folds it and reads nothing. A row that shows its whole path at the width it has now
+    previews nothing."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
@@ -1878,50 +1931,40 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     )
     page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
     head = page.locator("lf-diff .lf-diff-head").first
-    # The box is generated content, which takes no hit unless a rule lets it: this
-    # test's own rule does, so a hit-test at the box's corner says what stands on top.
-    head.evaluate("""head => {
-        const sheet = new CSSStyleSheet();
-        sheet.replaceSync('.lf-diff-path::after { pointer-events: auto !important; }');
-        const root = head.getRootNode();
-        root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-    }""")
+    preview = page.locator(PREVIEW)
     read = """head => {
-        const path = head.querySelector('.lf-diff-path');
-        const word = getComputedStyle(path, '::after');
+        const tip = document.getElementById('lf-preview');
+        const shown = tip.matches(':popover-open');
         const at = head.getBoundingClientRect();
-        const hit = word.content === 'none' ? null : head.getRootNode().elementFromPoint(
-            at.left + head.clientLeft + parseFloat(word.left) + 6,
-            at.top + head.clientTop + parseFloat(word.top) + 6,
-        );
+        const box = tip.getBoundingClientRect();
         return {
             open: head.parentElement.open,
-            word: word.content === 'none' ? null
-                : word.content.replace(/\\u200b/g, ''),
-            shown: word.visibility === 'visible',
-            below: parseFloat(word.top) >= at.height,
-            fits: parseFloat(word.left) + parseFloat(word.width) <= at.width + 0.5,
-            onTop: hit === path,
+            word: shown ? tip.innerText : null,
+            below: shown && box.top >= at.bottom,
+            above: shown && box.bottom <= at.top,
+            inside: shown && box.left >= 0 && box.right <= innerWidth,
         };
     }"""
-    whole = f'"{path}" / ""'
     assert head.evaluate(read)["word"] is None
 
-    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
-    head.focus()
+    # The keyboard steps onto it, the user's own move, so the focus is visible and
+    # reads.
+    tab_onto(head)
+    expect(preview).to_be_visible()
     focused = head.evaluate(read)
     assert focused == {
         "open": True,
-        "word": whole,
-        "shown": True,
+        "word": path,
         "below": True,
-        "fits": True,
-        "onTop": True,
+        "above": False,
+        "inside": True,
     }, focused
     page.keyboard.press("Enter")
+    rendered(page)
     assert head.evaluate(read) == {**focused, "open": False}
     page.keyboard.press("Enter")
     head.evaluate("head => head.blur()")
+    expect(preview).to_be_hidden()
 
     cdp = context.new_cdp_session(page)
     box = head.bounding_box()
@@ -1934,53 +1977,42 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
         )
 
     touch("touchStart")
-    rendered(page)
-    expect(head).to_have_attribute("data-lf-held-word", "")
-    page.wait_for_function(
-        """() => getComputedStyle(document.querySelector('lf-diff').shadowRoot
-            .querySelector('.lf-diff-path'), '::after').visibility === 'visible'"""
-    )
+    long_press(page, point)
+    expect(preview).to_be_visible()
+    expect(head).to_have_attribute("data-lf-held", "")
     held = head.evaluate(read)
-    assert held["word"] == whole and held["open"], held
+    assert (held["word"], held["open"], held["above"]) == (path, True, True), held
     touch("touchEnd")
     rendered(page)
-    assert head.evaluate(read)["open"] is False, "the release folds the file"
-    expect(head).to_be_focused()
-    expect(head).to_have_attribute("data-lf-focus", "")
-    assert head.evaluate(read)["word"] == whole
+    assert head.evaluate(read) == held, "the release presses nothing"
     page.evaluate(RELEASE_FOCUS)
-    assert head.evaluate(read)["word"] is None
 
     page.touchscreen.tap(point["x"], point["y"])
     rendered(page)
-    assert head.evaluate(read)["open"] is True, "a tap unfolds it"
-    expect(head).to_be_focused()
-    expect(head).to_have_attribute("data-lf-focus", "")
-    assert head.evaluate(read)["word"] == whole
+    assert head.evaluate(read)["open"] is False, "a tap folds it"
+    assert head.evaluate(read)["word"] is None, "a tap reads the path"
     page.evaluate(RELEASE_FOCUS)
-    assert head.evaluate(read)["word"] is None
 
-    # A row that shows its whole path shows no box and has no title, and a row's box
-    # and title follow the width the row is given while the keyboard stays on it.
+    # A row that shows its whole path previews nothing, and what a row previews
+    # follows the width it is given.
     page.keyboard.press("Shift")
-    titled = "head => head.querySelector('.lf-diff-path').getAttribute('title')"
     short = page.locator("lf-diff .lf-diff-head").nth(1)
     short.focus()
+    rendered(page)
     assert short.evaluate(read)["word"] is None, "a short path is said twice"
-    assert short.evaluate(titled) is None, "a short path's title repeats it"
-    head.focus()
-    assert head.evaluate(read)["word"] == whole and head.evaluate(titled) == path
     page.set_viewport_size({"width": 1400, "height": 844})
     rendered(page)
+    head.focus()
+    rendered(page)
     assert head.evaluate(read)["word"] is None, "a path the row shows whole is said"
-    assert head.evaluate(titled) is None
+    short.focus()
     page.set_viewport_size({"width": 390, "height": 844})
     rendered(page)
-    assert head.evaluate(read)["word"] == whole, "a narrowed row hides its path"
-    assert head.evaluate(titled) == path
+    head.focus()
+    expect(preview).to_have_text(path)
 
 
-def test_author_notes_follow_source_lines_and_survive_deferred_refresh(browser, serve):
+def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, serve):
     """Author prose is independent of patch data, including when its line disappears."""
     from leaf import anchor_capture, passages, structure
     from leaf.registry.storage import read_page_registry

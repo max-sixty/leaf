@@ -18,24 +18,42 @@ import {
 } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
+import { afterOwedFrame } from "./rendering.js";
+import { countTraffic } from "./traffic.js";
 import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
-import { settleAcceptedDrafts } from "./drafts.js";
-import { announce, notice } from "./notifications.js";
+import { announce, gesture, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
   loadMessageMarkdown,
+  islandChange,
   prepareAuthoredMessage,
   messageText,
 } from "./thread/messages.js";
-import { commitWidgetDescriptors } from "./widget-descriptors.js";
+import { keptEach } from "./kept.js";
 import {
   combineSemanticNews,
   currentSemanticNews,
+  newsMoment,
   observeSemanticNews,
   semanticNewsNotice,
   semanticNewsReading,
 } from "./semantic-news.js";
+
+/** @typedef {import("./thread/model.js").CapturedBody} CapturedBody */
+// Each message's captured words, kept while they read the same (kept.js): an authored
+// message's are its island's, and any other's its words as a label reads them. A
+// thread's are kept together while its messages' are, so its record stands while its
+// messages do (thread/model.js, `readThreadRecords`).
+const plainBody = keptEach(
+  /** @param {object} _message @param {string} text @returns {CapturedBody} */
+  (_message, text) => ({ text }),
+);
+const threadBodies = keptEach(
+  /** @param {{msgs: readonly {id: string}[]}} thread @param {CapturedBody[]} bodies */
+  (thread, ...bodies) =>
+    new Map(thread.msgs.map((message, at) => [message.id, bodies[at]])),
+);
 
 /** @param {{
  * prepareActivation: ReturnType<typeof import("./version.js").createVersionController>["prepareActivation"],
@@ -49,8 +67,18 @@ export function createStateApplication({
   notifyDataSubscribers,
   accountPending,
 }) {
-  /** @type {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews} | null} */
+  /** @typedef {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews}} PresentedNews */
+  /** @type {PresentedNews | null} */
   let presentedNews = null;
+  // What a queued news notice says when it shows, against the latest presented reading.
+  // Made here, not in `receiveState`, whose scope holds the activation and the document
+  // it replaced: a notice waiting its turn would keep both alive.
+  /** @param {PresentedNews} current */
+  const newsFormat =
+    (current) =>
+    /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
+    (value) =>
+      semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
   let stateApplying = false;
   let admission = Promise.resolve();
   // Every answer handed in through any door, a state read or a gesture's POST, while
@@ -77,10 +105,12 @@ export function createStateApplication({
   /** @param {import("./layer-client.js").CompletedState} state */
   async function receiveState(state) {
     inHand.add(state);
+    countTraffic("received");
     try {
       return await applyState(state);
     } finally {
       inHand.delete(state);
+      countTraffic("applied");
     }
   }
 
@@ -110,38 +140,49 @@ export function createStateApplication({
     if (!activeView)
       throw new Error(`State has no view for active revision ${state.active.revision}`);
     const threads = activeView.thread.threads;
+    // An agent's message holding HTML renders once, from the loaded renderer.
+    const markdown = threads.length ? loadMessageMarkdown() : null;
     const messages = threads.flatMap((thread) =>
       thread.msgs.map((message) => ({
         message,
         preparation:
-          "markup" in message && message.markup
-            ? prepareAuthoredMessage(message, thread.id)
+          "html" in message && message.html
+            ? markdown?.then(() => prepareAuthoredMessage(message, thread.id))
             : null,
       })),
     );
-    const [activation, , frozenDocuments] = await Promise.all([
+    const [activation, , preparedMessages] = await Promise.all([
       prepareActivation(state),
-      threads.length ? loadMessageMarkdown() : null,
+      markdown,
       Promise.all(
         messages.map(async ({ message, preparation }) => ({
           message,
-          frozen: await preparation,
+          prepared: await preparation,
         })),
       ),
     ]);
+    const preparedFor = new Map(
+      preparedMessages.map(({ message, prepared }) => [message, prepared]),
+    );
     const bodies = new Map(
-      frozenDocuments.map(({ message, frozen }) => [
-        message.id,
-        frozen
-          ? {
-              ...frozen.body,
-              text: [messageText(message), frozen.body.text].filter(Boolean).join("\n"),
-            }
-          : { text: messageText(message) },
+      threads.map((thread) => [
+        thread.id,
+        threadBodies(
+          thread,
+          ...thread.msgs.map((message) => {
+            const prepared = preparedFor.get(message);
+            return prepared ? prepared.body : plainBody(message, messageText(message));
+          }),
+        ),
       ]),
     );
 
     return runSerialized(async () => {
+      // A reading that arrives while a gesture of the user's is unresolved, before the
+      // frame painting what the gesture drew, waits for that frame, so the gesture's own
+      // result paints before the reading's work (rendering.js, `afterOwedFrame`). With no
+      // gesture in flight, as while the page loads, nothing on screen is owed first.
+      if (readApplication().unresolved.length) await afterOwedFrame();
       // Pending deferral is rechecked by activates. An installation edits the user's
       // document and there is no putting it back, so the answer that would follow it is
       // judged first, against the revision the install would leave showing. A candidate
@@ -158,17 +199,28 @@ export function createStateApplication({
       const installed =
         following !== null && activation ? await activation.install() : null;
       const prior = installed?.document ?? readApplication().document;
+      // Each message's widgets as this reading's wording authors them: an edit's
+      // island replaces what the wording before it captured, and the ids that wording
+      // held and this one doesn't leave (messages.js, `islandChange`).
+      const islands = islandChange(preparedMessages);
       let authored = prior.authored;
       let descriptors = prior.descriptors;
-      for (const { frozen } of frozenDocuments) {
-        if (!frozen) continue;
-        for (const [id, baseline] of frozen.authored) {
-          if (authored.has(id)) continue;
+      for (const id of islands.retired) {
+        if (!authored.has(id) && !descriptors.has(id)) continue;
+        if (authored === prior.authored) authored = new Map(authored);
+        if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
+        authored.delete(id);
+        descriptors.delete(id);
+      }
+      for (const { prepared } of preparedMessages) {
+        if (!prepared) continue;
+        for (const [id, baseline] of prepared.authored) {
+          if (authored.get(id) === baseline) continue;
           if (authored === prior.authored) authored = new Map(authored);
           authored.set(id, baseline);
         }
-        for (const [id, descriptor] of frozen.descriptors.descriptors) {
-          if (descriptors.has(id)) continue;
+        for (const [id, descriptor] of prepared.descriptors.descriptors) {
+          if (descriptors.get(id) === descriptor) continue;
           if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
           descriptors.set(id, descriptor);
         }
@@ -179,8 +231,6 @@ export function createStateApplication({
         descriptors,
         messageBodies: bodies,
       };
-      for (const { frozen } of frozenDocuments)
-        if (frozen) commitWidgetDescriptors(frozen.descriptors);
       // The user's place across the change this reading brings, kept once the page
       // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
       // own landing instead (version.js).
@@ -189,22 +239,26 @@ export function createStateApplication({
         await notifyChangedData();
         return;
       }
+      islands.commit();
       observeServerNow(state.now);
       observeWorkingGrace(state.working_grace_ms);
       stateApplying = true;
       try {
-        settleAcceptedDrafts();
         // Optional interface preparation joins imports and installation, without
         // pretending to be a semantic renderer. Adoption already claimed every document
-        // region for this epoch, and frozen
-        // thread widgets joining the document reopen the ones they change. Waiting for
-        // that proof is what replaces naming the renderers and the order they run in.
+        // region for this epoch, and thread widgets joining the document reopen the
+        // ones they change. Waiting for that proof is what replaces naming the renderers
+        // and the order they run in.
         if (installed) await settlePageInterface();
         await whenDocumentPresented();
         // Version-owned mechanical landing follows proof and reports its own failures;
         // it cannot turn accepted truth into a refusal or strand proved receipts.
         if (installed) await installed.land();
         await notifyDataSubscribers();
+        // A widget's paint from its new data can claim other regions, as a diff that
+        // drops a commented line sends its thread to a margin card, and the place is
+        // kept only once those have drawn too.
+        await whenDocumentPresented();
         keepPlace?.();
         markStateApplied(state);
         accountPending(state.events);
@@ -220,19 +274,17 @@ export function createStateApplication({
           presentedNews.reading = newsReading;
           presentedNews.observed = reading.observed;
         } else presentedNews = { reading: newsReading, observed: reading.observed };
-        // The agent's new words are heard, not shown: the On me mark's dot and each
+        // The agent's new words are heard, not shown: the leaf's dot and each
         // margin marker's already show unread news, so the seat keeps the agent's status.
-        // The user chose this on 25 October over a line counting the messages.
+        // The user chose this over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
+        // The leaf answers news as it arrives, with the badge and dots, rather than when
+        // a notice held behind the user's own command shows it.
+        const moment = newsMoment(reading.news);
+        if (moment) gesture(moment);
         const shown = reading.news.filter((item) => item.kind !== "agent_content");
         if (shown.length) {
-          const current = presentedNews;
-          /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
-          const format = (value) => {
-            return semanticNewsNotice(
-              currentSemanticNews(value, current.reading, current.observed),
-            );
-          };
+          const format = newsFormat(presentedNews);
           notice(format(shown), {
             background: true,
             announce: false,

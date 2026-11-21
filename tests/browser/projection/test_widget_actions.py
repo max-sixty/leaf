@@ -25,7 +25,6 @@ from render_cases_layout import unfolded_button
 from render_cases_navigation import composer_quote, painted
 from render_harness import (
     EXAMPLE_PACKAGES,
-    REPLY_HOST_PAGE,
     consume_browser_errors,
     expect_obligations_answered,
     leaf_page,
@@ -48,6 +47,7 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -71,17 +71,18 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
     """Predicate operands survive upgrade even when the obligation starts closed."""
     entry = {
         "description": "A test-owned conditional Ask.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "phase": {"enum": ["closed", "open"]},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "phase": {"enum": ["closed", "open"]},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id", "phase"],
+            "additionalProperties": False,
         },
-        "required": ["id", "phase"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": True,
-        "x-state": {
+        "content": "markup",
+        "verbs": {
             "phase": {
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "phase"},
@@ -95,12 +96,12 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
                 "unit": "widget",
             },
         },
-        "x-awaits": {
+        "awaits": {
             "when": {"phase": ["open"]},
             "value": "answer",
             "answered": {"answer": {}},
         },
-        "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
+        "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
 import { keeps, LeafElement } from "/runtime/widget-api.js";
@@ -119,7 +120,9 @@ customElements.define("lf-conditional", class extends LeafElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
     view = page.locator(panel_view("queue"))
     items = ".lf-fp-on-item[data-lf-key^='[\"widget\"']"
 
@@ -144,7 +147,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         if view.count():
             page.locator(".lf-fp-close").click()
             panel_settled(page, open=False)
-        page.locator(".lf-fp-on-user").click()
+        open_on_me(page)
         panel_settled(page, view="queue")
         expect(view.locator(f'{items}[data-lf-list="you"]')).to_have_count(count)
         if not count:
@@ -166,21 +169,25 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-tally"]["properties"]["count"] = {
+    declarations["lf-tally"]["attributes"]["properties"]["count"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    declarations["lf-tally"]["x-example"] = (
+    declarations["lf-tally"]["example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
-    declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
-    declarations["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
-    declarations["lf-tally"]["properties"]["seen"] = {
+    declarations["lf-tally"]["attributes"]["properties"]["restated"] = {
+        "type": "boolean"
+    }
+    declarations["lf-tally"]["attributes"]["properties"]["overruled"] = {
+        "type": "boolean"
+    }
+    declarations["lf-tally"]["attributes"]["properties"]["seen"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
     record = {"kind": "value", "attr": "count"}
-    declarations["lf-tally"]["x-state"] = {
+    declarations["lf-tally"]["verbs"] = {
         "set": {
             "unit": "widget",
             "record": record,
@@ -239,14 +246,15 @@ customElements.define("lf-tally", class extends LeafElement {
     assert kept == ["7", "9"]
 
     original = page.locator("#tally-seen").element_handle()
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     assert page.locator("#tally-seen").get_attribute("count") == "0"
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
 
 
 LEAF_OWNER = """\
-import { LeafElement, nothing } from "/runtime/widget-api.js";
+import { nothing } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
@@ -263,7 +271,8 @@ customElements.define("lf-owner", class extends LeafElement {
 
 
 LEAF_PIECE = """\
-import { keeps, LeafElement, nothing } from "/runtime/widget-api.js";
+import { nothing } from "/vendor/lit.js";
+import { keeps, LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends LeafElement {
   render() {
     keeps(this, "pinned", this.state.move.value);
@@ -290,30 +299,35 @@ def test_lit_parent_moves_before_controller_members_render_selection(
     )
     declarations["lf-owner"].update(
         {
-            "x-content": "members",
-            "x-example": markup,
-            "x-state": {
+            "content": "members",
+            "verbs": {
                 "move": {
                     "unit": "unit",
                     "record": {"kind": "position", "within": "lf-zone"},
                 }
             },
+            "example": markup,
         }
     )
     zone = declarations["lf-zone"]
-    zone.update({"x-content": "members", "x-owners": ["lf-owner"]})
-    zone["properties"]["restated"] = {"type": "boolean"}
-    zone["x-state"] = {
+    zone.update(
+        {
+            "content": "members",
+            "owners": ["lf-owner"],
+        }
+    )
+    zone["attributes"]["properties"]["restated"] = {"type": "boolean"}
+    zone["verbs"] = {
         "choose": {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "selected"},
         }
     }
     piece = declarations["lf-piece"]
-    piece["x-owners"] = ["lf-zone"]
-    piece["properties"]["selected"] = {"type": "boolean"}
+    piece["owners"] = ["lf-zone"]
+    piece["attributes"]["properties"]["selected"] = {"type": "boolean"}
     for declaration in (zone, piece):
-        declaration.pop("x-example", None)
+        declaration.pop("example", None)
     path.write_text(json.dumps(declarations))
     (package / "widgets/lf-owner.js").write_text(
         'await customElements.whenDefined("lf-zone");\n' + LEAF_OWNER
@@ -364,8 +378,8 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     owner = declarations["lf-owner"]
-    owner["x-content"] = "members"
-    owner["x-state"] = {
+    owner["content"] = "members"
+    owner["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -374,29 +388,29 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
             },
         }
     }
-    owner["x-example"] = (
+    owner["example"] = (
         '<lf-owner id="sample-owner"><lf-zone id="sample-zone">'
         '<lf-piece id="sample-piece" pinned="no">Piece</lf-piece>'
         "</lf-zone></lf-owner>"
     )
     zone = declarations["lf-zone"]
-    zone["x-owners"] = ["lf-owner"]
-    zone["x-content"] = "members"
-    zone.pop("x-example", None)
+    zone["owners"] = ["lf-owner"]
+    zone["content"] = "members"
+    zone.pop("example", None)
     piece = declarations["lf-piece"]
-    piece["x-owners"] = ["lf-zone"]
-    piece["properties"] |= {
+    piece["owners"] = ["lf-zone"]
+    piece["attributes"]["properties"] |= {
         "pinned": {"type": "string"},
         "restated": {"type": "boolean"},
     }
-    piece.setdefault("required", []).append("pinned")
-    piece["x-state"] = {
+    piece["attributes"].setdefault("required", []).append("pinned")
+    piece["verbs"] = {
         "move": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "pinned"},
         }
     }
-    piece.pop("x-example", None)
+    piece.pop("example", None)
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(LEAF_OWNER)
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(LEAF_PIECE)
@@ -511,14 +525,13 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     `parentElement` is null there, so those words have no block to sit in, no cell to be
     fenced by and nothing for a mark to hang on, and admitting them would split the
     page's reading from the file's. The page refuses to present at all, which is the
-    loud direction — but the refusal used to arrive as `Cannot read properties of null
-    (reading 'closest')` over a blank page, naming neither the widget nor the mistake,
+    loud direction — but a refusal arriving as `Cannot read properties of null
+    (reading 'closest')` over a blank page names neither the widget nor the mistake,
     which is a bug report against leaf rather than against the module that caused it.
 
-    The refusal is also final. It used to be raised again by every later reader of the
-    page's words: each repaint frame, key and selection threw it, so a wheel, a resize
-    and three presses took one page from 6 errors to 25, while the notice waited for a
-    server update that cannot fix a module's mistake. Now the first refusal declares
+    The refusal is also final. Raised again by every later reader of the page's words,
+    it would be thrown by each repaint frame, key and selection, while the notice waited
+    for a server update that cannot fix a module's mistake. The first refusal declares
     the page failed: its widgets fall back at once, the notice says the page itself has
     a problem, and later readers read past the refused words, so the agent and the
     console hear it once."""
@@ -673,7 +686,7 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
 
     An element anchor asks whether its section is still on the user's page, and for a
     suggestion that settles to nothing — an insertion refused — the markup's presence is
-    the wrong answer: the thread read as attached while its outline drew nothing.
+    the wrong answer: the thread would read as attached while its outline drew nothing.
     Pending, the wrapper is a thing to point at; refused, the thread detaches like any
     passage the decision removed.
 
@@ -702,10 +715,10 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     # Pending, the outline hangs on a box the user can see, and it is read as a box
-    # rather than as a class: the class sat on the wrapper while the wrapper was
-    # display: contents and painted no outline, so the half of this docstring about
-    # drawing nothing was true of the attached case too. The wrapper draws its own box
-    # now, so the mark is the wrapper itself rather than the slot it showed through.
+    # rather than as a class: a class on a wrapper that was display: contents would
+    # paint no outline, so the half of this docstring about drawing nothing would be
+    # true of the attached case too. The wrapper draws its own box, so the mark is the
+    # wrapper itself rather than the slot.
     shown = page.locator("#sug-thistle.lf-mark-el")
     expect(shown).to_have_count(1)
     box = shown.evaluate("el => el.getBoundingClientRect().toJSON()")
@@ -762,7 +775,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     """The test above takes its decisions in front of the user, on a page that has
     been up long enough for everything to have arrived. Here the log holds it before
     the page opens, which is what puts the anchor pass's skip list on the clock: the
-    registry names the slot a decision retires (x-retired-when), and the registry
+    registry names the slot a decision retires (`retired-when`), and the registry
     arrives over the network, after the module that reads it has evaluated. Replay
     settles the suggestion on the first poll, so the pass that runs with it has to be
     skipping lf-old already — or the page opens with a live mark on words the user
@@ -787,157 +800,6 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     assert painted(page, "lf-mark") == "", (
         "the first pass anchored inside a slot the user's decision had retired"
     )
-
-
-def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
-    browser, serve, tmp_path, monkeypatch
-):
-    """`x-owners` is a list, and the retired-slot selector is built from it. Written
-    `${entry["x-owners"]}` the list interpolates comma-joined, so a slot naming two
-    owners wrote a selector *list* whose first member was the bare owner tag: every
-    instance of it read as a retired slot however the log stood, its words silenced
-    from the anchor pass, while the pair that was meant matched nothing at all.
-
-    Unreachable until this layer's licensing opened `x-retired-when` past the
-    suggestion family, which is why the shipped vocabulary — every slot of it naming
-    one holder — could never have said so. The page holds an undecided trial, so
-    nothing here is retired and a quote inside it must anchor like any other."""
-    monkeypatch.chdir(tmp_path)
-    trial_family(tmp_path)
-
-    url = serve(
-        TWO_HOLDER_PAGE,
-        anchored=[("th-now", "warmed on every deploy")],
-        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
-    )
-    page = open_page(browser, url)
-    expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(thread_head(page, serve.page_dir)).not_to_have_attribute(
-        "data-lf-detached", ""
-    )
-    assert painted(page, "lf-mark") != "", (
-        "the quote found nothing to paint: an undecided holder read as a retired slot, "
-        "so the anchor pass skipped every word inside it"
-    )
-
-
-def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
-    browser, serve, tmp_path, monkeypatch
-):
-    """The same mark on a holder an agent sent in a reply. Its markup is frozen and
-    the thread mounts it after the projection has painted the page, so a paint that
-    looks the holder up in the document finds nothing and the reply opens with both
-    slots showing. The holder's node exists before either pass, so the mark is on it
-    when the thread places it."""
-    monkeypatch.chdir(tmp_path)
-    trial_family(tmp_path)
-    url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-trial",
-            "author": "agent",
-            "revision": 1,
-            "text": "Should the cache warm lazily?",
-            "markup": (
-                '<lf-trial id="rq-cache">'
-                '<lf-current><p id="rq-now">Warm on deploy.</p></lf-current>'
-                '<lf-proposed><p id="rq-next">Warm on first request.</p></lf-proposed>'
-                "</lf-trial>"
-            ),
-        },
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "rq-cache",
-            "action": "decide",
-            "detail": {"outcome": "shelve"},
-        },
-    )
-    page = open_page(browser, url)
-    open_panel_thread(page, "c-trial")
-    expect(page.locator("#rq-now")).to_be_visible()
-    expect(page.locator("#rq-cache")).to_have_attribute("data-lf-state", "shelve")
-    expect(page.locator("#rq-next")).to_be_hidden()
-
-
-@pytest.mark.parametrize("shadow", [False, True])
-def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
-    browser, serve, tmp_path, monkeypatch, shadow
-):
-    """A custom deciding payload can drive a widget's presentation alongside the
-    layer's retirement. Undo clears both its presentation and the retired slot."""
-    monkeypatch.chdir(tmp_path)
-    trial_family(tmp_path)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    holder = declarations["lf-trial"]
-    if shadow:
-        holder["x-shadow"] = True
-    holder["properties"]["decision"] = {"enum": ["open", "shelved"]}
-    holder.setdefault("required", []).append("decision")
-    holder["x-example"] = holder["x-example"].replace(
-        'id="trial-cache"', 'id="trial-cache" decision="open"'
-    )
-    decide = holder["x-state"]["decide"]
-    decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
-    decide["detail"]["required"].append("decision")
-    registry_path.write_text(json.dumps(declarations))
-    stage = "shadowStage(this, [...this.children]);" if shadow else ""
-    if shadow:
-        (tmp_path / ".leaf" / "widget-shadow.css").write_text(
-            "lf-current, lf-proposed { display: block; }"
-        )
-    (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { keeps, LeafElement, shadowStage } from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends LeafElement {
-  setup() { STAGE }
-  render() { keeps(this, "decision", this.state.decide.detail.decision ?? "open"); }
-});
-""".replace("STAGE", stage)
-    )
-    page_html = TWO_HOLDER_PAGE.replace(
-        '<lf-trial id="th-cache">', '<lf-trial id="th-cache" decision="open">'
-    )
-    url = serve(page_html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    decision = append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "th-cache",
-            "action": "decide",
-            "detail": {"outcome": "shelve", "decision": "shelved"},
-        },
-    )
-    page = open_page(browser, url)
-    assert page.locator("#th-cache").evaluate("el => Boolean(el.shadowRoot)") is shadow
-    expect(page.locator("#th-cache")).to_have_attribute("decision", "shelved")
-    expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
-    expect(page.locator("#th-cache lf-proposed")).to_have_attribute(
-        "data-lf-retired", ""
-    )
-    expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
-
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": decision["id"]},
-    )
-    told(page)
-    expect(page.locator("#th-cache")).to_have_attribute("decision", "open")
-    expect(page.locator("#th-cache")).not_to_have_attribute(
-        "data-lf-state", re.compile(r".+")
-    )
-    expect(page.locator("#th-cache lf-proposed")).not_to_have_attribute(
-        "data-lf-retired", ""
-    )
-    expect(page.locator("#th-cache lf-proposed")).to_be_visible()
 
 
 def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
@@ -1010,23 +872,23 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
     )
 
 
-def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
+def test_undo_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
     """A decision the next revision keeps in force is still the user's newest gesture
-    there, so `z` takes it back as the widget's own Undo would."""
+    there, so ⌘Z takes it back as the widget's own Undo would."""
     first = leaf_page(
         "Carried decision",
         """<h1>Plan</h1>
-<lf-ask id="cz-ask"><h2>Which comes first?</h2>
-  <lf-options id="cz-options" choose>
+<lf-group id="cz-ask" label="Which comes first?"><h2 id="cz-ask-h">Which comes first?</h2>
+  <lf-options id="cz-options">
     <lf-option id="cz-flag">Flag</lf-option>
     <lf-option id="cz-backfill">Backfill</lf-option>
   </lf-options>
-</lf-ask>""",
+</lf-group>""",
     )
     page = open_page(browser, live_url(serve(first)))
     page.locator("#cz-flag .lf-pick").click()
     round_trip(page)
-    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+    expect(page.locator("#cz-flag")).to_have_attribute("selected", "")
 
     stamp_page(
         serve.page_dir,
@@ -1034,8 +896,8 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
         "add context",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+    expect(page.locator("#cz-flag")).to_have_attribute("selected", "")
 
     undo(page)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    expect(page.locator("#cz-options lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#cz-options lf-option[selected]")).to_have_count(0)

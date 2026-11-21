@@ -6,7 +6,7 @@ import { keeps, keepsText, offer, setChildren } from "/runtime/widget-api.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const color = (role) =>
-  `var(${{ main: "--accent", feat: "--warn-ink", squash: "--mark-ink", ghost: "--border-2", ok: "--ok-ink", bad: "--danger-ink", warn: "--warn-ink", muted: "--muted" }[role] ?? "--ink"})`;
+  `var(${{ main: "--lf-accent", feat: "--lf-warn-ink", squash: "--lf-series-4", ghost: "--lf-border", ok: "--lf-ok-ink", bad: "--lf-danger-ink", warn: "--lf-warn-ink", muted: "--lf-muted" }[role] ?? "--lf-ink"})`;
 const el = (tag, attrs, parent) => {
   const node = document.createElementNS(SVG, tag);
   for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
@@ -24,7 +24,7 @@ export class PhonePainter {
       "aria-label",
       "Commit history, older to newer, in main and feature lanes",
     );
-    this.svg.setAttribute("font-family", "var(--mono)");
+    this.svg.setAttribute("font-family", "var(--lf-mono)");
     this.svg.setAttribute("font-size", "14");
     this.root.append(this.svg);
     this.edges = el("g", { fill: "none", "stroke-width": 2 }, this.svg);
@@ -42,7 +42,7 @@ export class PhonePainter {
     );
     this.fork = el(
       "text",
-      { "font-family": "var(--sans)", "font-size": 12, fill: color("muted") },
+      { "font-family": "var(--lf-sans)", "font-size": 12, fill: color("muted") },
       this.svg,
     );
     this.context = document.createElement("div");
@@ -136,12 +136,12 @@ export class PhonePainter {
         // The hit area stays finger sized without changing the commit symbol.
         el("rect", { x: -18, y: -22, width: 110, height: 44, fill: "transparent" }, g);
         el("circle", { r: 8 }, g);
-        el("text", { x: 17, y: 5, fill: "var(--ink)" }, g);
+        el("text", { x: 17, y: 5, fill: "var(--lf-ink)" }, g);
         return g;
       });
       keeps(g, "transform", `translate(${p.x} ${p.y})`);
       keeps(g, "opacity", n.o);
-      keeps(g.children[1], "fill", n.wip > 0.5 ? "var(--card)" : color(n.tone));
+      keeps(g.children[1], "fill", n.wip > 0.5 ? "var(--lf-card)" : color(n.tone));
       keeps(g.children[1], "stroke", color(n.tone));
       keeps(g.children[1], "stroke-width", n.merge ? 3 : 2);
       keeps(g.children[1], "stroke-dasharray", n.wip > 0.5 ? "3 3" : "none");
@@ -160,7 +160,7 @@ export class PhonePainter {
       const p = point(r);
       const g = this.keyed(`ref:${id}`, () => {
         const g = el("g", {}, this.refs);
-        el("rect", { height: 20, rx: 3, fill: "var(--card)" }, g);
+        el("rect", { height: 20, rx: 3, fill: "var(--lf-card)" }, g);
         el("text", { y: 15 }, g);
         return g;
       });
@@ -188,7 +188,7 @@ export class PhonePainter {
       keeps(g.children[0], "width", w);
       keeps(g.children[0], "stroke", color(r.tone));
       keeps(g.children[1], "x", 5);
-      keeps(g.children[1], "fill", "var(--ink)");
+      keeps(g.children[1], "fill", "var(--lf-ink)");
       keepsText(g.children[1], label);
       this.part(`ref:${id}`, g, `ref ${r.label}`, r.info, r.o);
     }

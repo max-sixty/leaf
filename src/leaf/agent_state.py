@@ -1,8 +1,8 @@
-"""Agent-facing page state: the On me and On <agent> lists, and the obligations and to-dos
+"""Agent-facing page state: the On Me and On <agent> lists, and the obligations and to-dos
 they select from.
 
 The reading uses one transaction and holds the two lists the active view serves
-(`served_state.queues`): On me (`on_user`) holds the open obligations on the user, the
+(`served_state.queues`): On Me (`on_user`) holds the open obligations on the user, the
 updates handed back to them among them; On <agent>
 (`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
 inventory (`obligations`) also retains finished records, whatever their `status`.
@@ -28,9 +28,10 @@ from .delivery import current_responses
 from .document_reading import DocumentReading
 from .event_facts import EventFacts
 from .events import bare_reaction, is_reaction
+from .file_bindings import granted_files
 from .files import revision_path
 from .passages import page_passages
-from .projection import FrozenThreadReading, retirement_outcomes
+from .projection import ThreadMarkupReading, retirement_outcomes
 from .publishing import authored_digest, authored_files
 from .refusals import Refused
 from .registry.storage import layer_metadata
@@ -54,8 +55,8 @@ def state_entry(coordinate, e: dict, facts: dict, thread: str | None = None) -> 
     with the facts its delivery carried about it (`event_facts`).
 
     `revision` is the exact document the action was taken on, which for a widget an agent
-    sent is a fact about the gesture and none about the widget: thread markup is
-    frozen in the log, so no page version bounds one of these.
+    sent is a fact about the gesture and none about the widget: no page version
+    bounds thread markup.
     """
     widget, unit, _verb = coordinate
     return {
@@ -141,7 +142,9 @@ def _base_state(
             else {}
         ),
         "measurement_lag": [],
-        # What is on the user (On me) and what is on the agent (On <agent>), each item
+        # The files the page's editors edit, each by its binding (`granted_files`).
+        "files": granted_files(page_dir),
+        # What is on the user (On Me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; the agent's plan, which arranges them (`plans`); and the complete
         # canonical obligation inventory those lists select from, whose records an obligation's
@@ -161,6 +164,9 @@ def _base_state(
                 "title": thread["title"],
                 "anchor": thread["anchor"],
                 "detached_from": thread["detached_from"],
+                # The passage a version rewrote, which left the thread on its section:
+                # the words the thread is about once the page no longer shows them.
+                "rewritten_from": thread["rewritten_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for thread_id, thread in threads.items()
@@ -219,7 +225,7 @@ def _apply_document_state(
 
 
 def _apply_thread_state(
-    state: dict, thread: FrozenThreadReading, facts: EventFacts
+    state: dict, thread: ThreadMarkupReading, facts: EventFacts
 ) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the user
@@ -304,12 +310,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             for item in state["obligations"]
             if item["thread"] is None
             and (
-                (
-                    item["source"]["kind"] == "widget"
-                    and (
-                        inside(item["source"]["id"]) or inside(item["prompt"]["target"])
-                    )
-                )
+                (item["source"]["kind"] == "widget" and inside(item["source"]["id"]))
                 or (
                     item["source"]["kind"] == "update"
                     and item["source"]["subject"]["kind"] == "widget"
@@ -332,7 +333,7 @@ def page_state(
     source_error: str | None = None,
     *,
     target: str | None = None,
-    after: int | None = 0,
+    after: int | None = None,
     limit: int | None = None,
 ) -> dict:
     """Where the page stands, as one JSON object — the agent-facing projection
@@ -343,7 +344,7 @@ def page_state(
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open to-do on either side,
-    the obligations, the two lists, On me and On <agent>, that they and the workflows add up
+    the obligations, the two lists, On Me and On <agent>, that they and the workflows add up
     to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
@@ -398,11 +399,12 @@ def page_state(
         stored_data,
         registry,
     )
+    folded = context.work.activity
     state["activity"] = {
         **activity,
         "obligations": [
             {"id": item["obligation"], "answer": item["answer"]}
-            for item in context.work.activity["obligations"]
+            for item in folded["obligations"]
         ],
     }
     # Each answer owed names its update's record, in `obligations`; the workflows that
@@ -529,6 +531,7 @@ def page_state(
             }
             for key in (
                 "kind",
+                "ts",
                 "author",
                 "agent",
                 "session",

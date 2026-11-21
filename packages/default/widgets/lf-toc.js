@@ -1,29 +1,30 @@
 import { drawToc } from "./toc-view.js";
+import { sectionMarks } from "./toc-marks.js";
 /* lf-toc: navigation derived from the headings the page already says.
  *
  * The outline, the destination of each of its links and the frame that holds them are
  * `toc-view.js`'s. The module redraws the outline in those same nodes
  * whenever the document's headings change, and measures and moves the map.
  *
- * In the roomy margin the outline becomes a reading map. Each row receives the length
- * of the section it leads as its flex share, so the quiet spine describes the document
- * before its labels appear. Crowded destinations are fitted together just enough for
+ * In a track beside the body too narrow for words, a document's sidebar narrowed to
+ * the map's spine, the
+ * outline becomes a reading map. Each row receives the length of the section it leads
+ * as its flex share, so the quiet spine describes the document before its labels
+ * appear over the page. Crowded destinations are fitted together just enough for
  * their labels to remain distinct; destination marker, label, and viewport lens all
  * use that one fitted scale. A marker's center is its coordinate; its label's first line
  * is centered there too, and the viewport lens reads those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
- * the document's origin to make room for type. The map ends inside main's trailing
- * padding. Revealing the outline neither moves it nor withholds
- * its words.
+ * the document's origin to make room for type. The map fills its stuck track
+ * (toc.css). The labels keep their measure while faded out, so revealing them neither
+ * moves the map nor refits it.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport. The scroll moves it, as
  * a scroll-driven animation: its keyframes are the lens at each scroll position where
  * the map bends, and the browser interpolates between them as the scroller moves, so a
  * scroll writes nothing to the page. New keyframes are set only when the map or the
- * landing band changes. Where the browser has no scroll timeline (Firefox), the same
- * keyframes run as a paused animation whose time each scroll's paint sets, so the lens
- * follows a frame behind the scroll, still writing nothing to the page.
+ * landing band changes.
  * The lens and the current entry follow the scroller of the document the outline
  * covers, not the scroller of the box the widget stands in. A sidebar's sticking track
  * scrolls only its own contents and usually stands at its scroll end, so an outline
@@ -41,56 +42,61 @@ import { drawToc } from "./toc-view.js";
  * Fitting the map into a scrollable outline preserves its reading position, except
  * when a viewport change would put the focused link outside the outline's window.
  *
+ * Each row also marks where the page's open threads, its On Me items and, while the
+ * changes view is on, its changes stand (toc-marks.js), and its link previews how many
+ * of each its section holds. The element is a `LeafElement` for this alone: its
+ * `render()` reads those readings, so it draws again exactly when they change, in the
+ * nodes the outline already has; the frame, the outline and the map's geometry stay
+ * this module's own work, which no reading starts. The marks move nothing: a row's
+ * mark stands out of flow on the outline's rule or is the map's marker for the row,
+ * and a changed section is drawn as its stretch of that rule or spine (toc.css).
+ *
  * Every link is a real fragment link. The
  * browser owns its navigation, history, :target state, wheel input, and scroll
  * restoration; hidden-until-found reveals a disclosure or tab containing the target.
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
+import { render } from "/vendor/lit.js";
 import {
   atLayoutPrecision,
   atScrollEnd,
+  comparisonChanges,
   frameFor,
   holdFocus,
   inChrome,
-  render,
   keeps,
   landingInsets,
   LAYOUT,
   layoutPx,
-  once,
+  LeafElement,
+  obligationsIn,
   PAGE_INTERFACE,
   PRESENTATION,
+  readObligations,
+  readThreads,
   scrollerFor,
   scrollIntoView,
   scrollLimit,
   sizeObserver,
   whileConnected,
-  wrote,
+  named,
   focused,
   currentLocationIn,
 } from "/runtime/widget-api.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
-// Firefox lacks ScrollTimeline.
-const SCROLL_TIMELINE = "ScrollTimeline" in globalThis;
-// Without a scroll timeline the lens's animation lasts this many milliseconds over the
-// whole scroll, long enough that no browser's clamped timer precision steps it.
-const LENS_DURATION = 1_000_000;
 
 customElements.define(
   "lf-toc",
-  class extends HTMLElement {
+  class extends LeafElement {
     /** @type {Element | null} */
     #main = null;
+    #connectedBefore = false;
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, {
-        label: wrote,
-        chrome: inChrome,
-        lends: true,
-      }));
+      return (this.#drawingOwner ??= drawToc(this, { label: named, chrome: inChrome }));
     }
     get #nav() {
       return this.#drawing.nav;
@@ -139,10 +145,12 @@ customElements.define(
     };
 
     connectedCallback() {
+      super.connectedCallback();
       render(this.#drawing.render(), this, { host: this });
       const main = this.#drawing.scope();
-      if (!once(this) && main === this.#main && scrollerFor(main) === this.#scroller)
-        return;
+      const again = this.#connectedBefore;
+      this.#connectedBefore = true;
+      if (again && main === this.#main && scrollerFor(main) === this.#scroller) return;
       // Moving to another reading region changes the resources, even if the
       // arrival batch keeps this element connected throughout the move.
       this.#stopWatching?.();
@@ -160,15 +168,7 @@ customElements.define(
       const previous = this.#sections.map(({ destination }) => destination);
       const held = this.#sections.find(({ link }) => link === focused());
       const restore = held && holdFocus(this.#nav);
-      render(
-        this.#drawing.render({
-          label: wrote,
-          chrome: inChrome,
-          lends: true,
-        }),
-        this,
-        { host: this },
-      );
+      render(this.#drawing.render(), this, { host: this });
       this.#sections = this.#drawing.sections();
       // A new key still represents the user's place when its heading or destination
       // survives. Restore focus if Lit moved a retained row through the DOM.
@@ -181,6 +181,26 @@ customElements.define(
         restore(continuation?.link);
       }
       this.#observeDestinations(previous);
+      // Rows for new headings take their marks from the next render.
+      this.requestUpdate();
+    }
+
+    // The drawing as it stands with each section's marks, read again whenever the page's
+    // threads, the obligations waiting on the user or the version comparison change
+    // (toc-marks.js), and not for a scroll, a resize or a pointer. It draws the outline
+    // `#reconcile` last read, in the same nodes.
+    render() {
+      const main = this.#main;
+      this.#drawing.mark(
+        main
+          ? sectionMarks(main, this.#sections, {
+              threads: readThreads().threads,
+              onMe: obligationsIn(main, readObligations().user),
+              changes: comparisonChanges(main),
+            })
+          : new Map(),
+      );
+      return this.#drawing.render(null);
     }
 
     /** @param {Element[]} [previous] */
@@ -313,6 +333,19 @@ customElements.define(
         if (shift !== undefined)
           measured.section.row.style.setProperty("--lf-toc-row-shift", `${shift}px`);
         else measured.section.row.style.removeProperty("--lf-toc-row-shift");
+      }
+      // Each fitted row's stretch of the spine, from its marker to the next one's or the
+      // map's end, on the scale its marker and the lens share, where a changed section
+      // is drawn (toc.css).
+      let next = this.#mapHeight;
+      for (const measured of this.#measured.toReversed()) {
+        const { row } = measured.section;
+        const at = measured.mapPosition;
+        if (at === undefined) row.style.removeProperty("--lf-toc-reach");
+        else {
+          row.style.setProperty("--lf-toc-reach", `${Math.max(0, next - at)}px`);
+          next = at;
+        }
       }
     }
 
@@ -510,9 +543,6 @@ customElements.define(
       const visibleEnd =
         this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
       this.#standLens(clear, this.#scroller);
-      if (!SCROLL_TIMELINE && this.#lensMotion)
-        this.#lensMotion.animation.currentTime =
-          (LENS_DURATION * this.#scroller.scrollTop) / scrollLimit(this.#scroller);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
       const end = atScrollEnd(this.#scroller);
@@ -580,22 +610,13 @@ customElements.define(
       this.#lens.removeAttribute("style");
       if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
       else {
-        const effect = new KeyframeEffect(
-          this.#lens,
-          frames,
-          SCROLL_TIMELINE
-            ? { fill: "both" }
-            : { duration: LENS_DURATION, fill: "both" },
-        );
+        const effect = new KeyframeEffect(this.#lens, frames, { fill: "both" });
         const animation = new Animation(
           effect,
-          SCROLL_TIMELINE
-            ? new globalThis.ScrollTimeline({ source: scroller, axis: "block" })
-            : document.timeline,
+          new ScrollTimeline({ source: scroller, axis: "block" }),
         );
         this.#lensMotion = { effect, animation };
         animation.play();
-        if (!SCROLL_TIMELINE) animation.pause();
       }
     }
   },

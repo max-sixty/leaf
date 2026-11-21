@@ -109,7 +109,6 @@ export function compile(spec) {
         return element(
           "lf-options",
           node.items.map((value) => element("lf-option", escape(value))).join(""),
-          { choose: true },
         );
       case "tabs":
         return element(
@@ -131,10 +130,9 @@ export function compile(spec) {
                 "lf-column",
                 column.cards
                   .map((card) =>
-                    element(
-                      "lf-card",
-                      `<strong>${escape(card.title)}</strong><p>${escape(card.text)}</p>`,
-                    ),
+                    element("lf-card", `<p>${escape(card.text)}</p>`, {
+                      label: card.title,
+                    }),
                   )
                   .join(""),
                 { label: column.label },
@@ -146,7 +144,7 @@ export function compile(spec) {
         return element("lf-draft", `<pre>\n${escape(node.text)}</pre>`);
       case "chart": {
         const rows = JSON.stringify(node.rows);
-        const options = `{ariaLabel:${JSON.stringify(node.label)},x:{label:${JSON.stringify(node.xLabel)}},y:{grid:true,label:${JSON.stringify(node.yLabel)}},marks:[Plot.barY(${rows},{x:"category",y:"value",fill:"var(--series-1)"}),Plot.text(${rows},{x:"category",y:"value",text:"value",dy:-10})]}`;
+        const options = `{ariaLabel:${JSON.stringify(node.label)},x:{label:${JSON.stringify(node.xLabel)}},y:{grid:true,label:${JSON.stringify(node.yLabel)}},marks:[Plot.barY(${rows},{x:"category",y:"value",fill:"var(--lf-series-1)"}),Plot.text(${rows},{x:"category",y:"value",text:"value",dy:-10})]}`;
         return element("lf-chart", `<pre>\n${escape(options)}</pre>`);
       }
       default:

@@ -1,3 +1,6 @@
+Select this package to show a patch with commentable lines, the call-tree diff of a
+change, or a set of worktree snapshots.
+
 ## A patch review
 
 `lf-diff` has its own file listing. When directory hierarchy helps the reader navigate
@@ -23,8 +26,9 @@ Set the source to one JSON string:
 wt step diff | jq -Rs . | leaf data set <page> review-patch
 ```
 
-Run the pipeline again to refresh the open page. For a large patch, use the manifest
-producer described by the contract:
+Run the pipeline again to refresh the open page. The contract's producer splits the
+patch into one record per file, so `lf-diff` refuses only a file it can't draw rather
+than the whole patch:
 
 ```bash
 leaf page instructions <page> --contract unified-diff | jq -er '.producer'

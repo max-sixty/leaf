@@ -2,7 +2,7 @@
  * presentation belongs to shadow.css, alongside the registered shadow stage.
  * Public host input: --lf-file-editor-height chooses the editing region height; set
  * it on lf-file-editor to override the responsive default. The source takes the
- * theme's code size (--code-size), and colors and focus the shared inherited theme
+ * theme's code size (--lf-code-size), and colors and focus the shared inherited theme
  * inputs, which a page may set on lf-file-editor too. */
 lf-file-editor {
   display: grid;
@@ -10,9 +10,9 @@ lf-file-editor {
   grid-template-rows: auto minmax(0, 1fr) auto;
   block-size: calc(var(--lf-file-editor-height) + 2.5rem);
   margin-block: 1rem;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  --lf-ground: var(--card);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  --lf-ground: var(--lf-card);
   background: var(--lf-ground);
   overflow: clip;
   --lf-file-editor-height: clamp(24rem, 60vh, 42rem);
@@ -24,5 +24,28 @@ lf-file-editor:state(comparing) {
 @media (max-width: 36rem) {
   lf-file-editor {
     --lf-file-editor-height: max(22rem, 60vh);
+  }
+}
+/* As a pane's body, the editor wears the pane's frame rather than a second one inside
+ * it, with no inset or margin of its own. The room the pane keeps below its body for
+ * Leaf's panel (`--lf-end-room`) goes under the file's last line instead, inside the
+ * editor's scroller, so that line can still scroll clear of the panel. */
+[data-lf-reading-role="pane"] > lf-file-editor {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  --lf-pane-top: 0px;
+  --lf-file-editor-end-room: var(--lf-end-room);
+}
+/* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+ * workspace pane's body is, the editor fills that height. */
+@media screen {
+  @container style(--lf-full-height: 1) {
+    lf-file-editor {
+      block-size: auto;
+      min-block-size: 0;
+      margin-block: 0;
+    }
   }
 }

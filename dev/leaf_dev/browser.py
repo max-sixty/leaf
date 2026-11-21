@@ -1,7 +1,11 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
-browser check or command that reads or screenshots one."""
+browser check or command that reads or screenshots one.
 
-import os
+A check on a page of millions of elements finds its controls as
+notes/browser-support.md, "Walking every element of a page of millions in Chromium",
+says."""
+
+import re
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -10,7 +14,7 @@ from functools import cache
 from pathlib import Path
 
 import click
-from playwright.sync_api import Browser, FrameLocator, Page, sync_playwright
+from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
@@ -28,7 +32,7 @@ class Window:
     description: str = ""
 
 
-# The windows a tool opens a page in by name, as `eval --viewport large` or
+# The windows a tool opens a page in by name, as `eval run --viewport large` or
 # `stills --viewport phone` does. `tab`, and stills and probe for a state that names
 # no window of its own (`states.State`), open `macbook` unless told another. An eval
 # author's request and a judge's instructions give a window's description, which
@@ -52,7 +56,8 @@ WINDOWS = {
     ),
 }
 
-# The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
+# The fixed fontconfig that lays text out in DejaVu faces on Linux
+# (`linux_font_environment`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
 LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
 
@@ -76,14 +81,16 @@ def require_linux_fonts():
                 )
 
 
-def use_linux_fonts():
-    """On Linux, lay text out in the DejaVu faces the fixed fontconfig names, in every
-    browser and leaf this process starts from here on; elsewhere the host's faces
-    serve. The suite does this for its whole run, and so does a command whose readings
-    the suite asserts (`leaf-dev pins`), so the two measure the same text."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
+def linux_font_environment() -> dict[str, str]:
+    """The environment that lays text out in the DejaVu faces the fixed fontconfig
+    names, in every browser and leaf a process holding it starts; empty off Linux,
+    where the host's faces serve. The suite runs under it, and so does a command whose
+    readings the suite asserts (`leaf-dev placement pins`), so the two measure the same
+    text."""
+    if sys.platform != "linux":
+        return {}
+    require_linux_fonts()
+    return {"FONTCONFIG_FILE": str(LINUX_FONTCONFIG)}
 
 
 @contextmanager
@@ -103,6 +110,23 @@ def headless_shell(**options):
 
 
 ENGINES = ("chromium", "firefox", "webkit", "ios")
+
+# Firefox's own smooth scroll reads the host's reduced-motion setting, which a
+# context's `reduced_motion` emulates only for the page's media queries. On a host
+# that asks for reduced motion, every smooth scroll lands in one step while the page
+# reads no preference, and a test that needs a scroll under way never has one. So
+# Firefox answers no preference, as the page's context does.
+#
+# Bounce-tracking protection classifies a host the tab passed through without user
+# activation, after the host stored state, as a tracker, and logs a console warning on
+# the page then showing. Tests serve every page from 127.0.0.1 and navigate by script,
+# so any test can trip it, and the browser fixtures fail a test on that warning as on
+# one the page raised. Mode 0 (`nsIBounceTrackingProtection.MODE_DISABLED`) leaves the
+# feature off.
+FIREFOX_PREFS = {
+    "ui.prefersReducedMotion": 0,
+    "privacy.bounceTrackingProtection.mode": 0,
+}
 
 
 def engine_option(command):
@@ -155,7 +179,9 @@ def launch(engine: str, scheme: str = "light"):
     else:
         with (
             sync_playwright() as playwright,
-            getattr(playwright, engine).launch() as browser,
+            getattr(playwright, engine).launch(
+                **({"firefox_user_prefs": FIREFOX_PREFS} if engine == "firefox" else {})
+            ) as browser,
         ):
             yield browser
 
@@ -282,11 +308,11 @@ def screenshot(page) -> bytes:
     the host:
 
     - A caret is drawn steadily where the engine can stop its blink, as Chromium can
-      (`caret-animation: manual`), and hidden where it can't: on 2026-11-03
-      Playwright's WebKit (build 2370) faded it in and out, and its Firefox (build
-      1555) drew none. Both declarations are inherited, so they reach the caret
-      inside Leaf's text field, whose closed shadow root takes the caret's colour
-      from its host (`runtime/composing/text-field.js`).
+      (`caret-animation: manual`), and hidden where it can't: Playwright's WebKit
+      (build 2370) fades it in and out, and its Firefox (build 1555) draws none.
+      Both declarations are inherited, so they reach the caret inside Leaf's text
+      field, whose closed shadow root takes the caret's colour from its host
+      (`runtime/composing/text-field.js`).
     - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
       box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
       passes over it and leaves, as a reader sees it while scrolling; Playwright's
@@ -349,10 +375,33 @@ def settle(page: Page) -> None:
         settle(page)
 
 
+# The range of the first run of `words` in the text under `root`, across text nodes
+# as a passage may run, or null where the text holds none: a JavaScript function's
+# source, which a page script embeds as `({QUOTE_RANGE})(root, words)`.
+QUOTE_RANGE = """(root, words) => {
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let text = "";
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    nodes.push([node, text.length]);
+    text += node.data;
+  }
+  const start = text.indexOf(words);
+  if (start < 0) return null;
+  const at = (offset) => {
+    const [node, base] = nodes.findLast(([, base]) => base <= offset);
+    return [node, offset - base];
+  };
+  const range = document.createRange();
+  range.setStart(...at(start));
+  range.setEnd(...at(start + words.length));
+  return range;
+}"""
+
 # Where a mouse was last over a `tab`'s document, in its viewport, and which of its
 # buttons it held. A native drag sends no `pointerup`; it ends in `dragend` where it
-# drops, with no button held. On 2026-11-04 its `pointercancel` read (0, 0) in Chromium
-# and the button still held in Firefox, and WebKit sent none.
+# drops, with no button held. Its `pointercancel` can read (0, 0) in Chromium and the
+# button still held in Firefox, and WebKit can send none.
 POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dragend"])
   addEventListener(type, (event) => {
     if ((event.pointerType ?? "mouse") === "mouse")
@@ -363,14 +412,19 @@ POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dra
 
 # Whether the document's hover ends at the element under a resting mouse, or no mouse
 # rests here. Both are read in the document's own tree, where a shadow host stands for
-# everything its shadow root draws. Read inside a shadow root they can disagree: on
-# 2026-11-04 Firefox hovered a radio button's host but not the slot under the pointer.
+# everything its shadow root draws. Read inside a shadow root they can disagree:
+# Firefox can hover a radio button's host but not the slot under the pointer.
 # A held button keeps the hover where the press began, and a mouse over a child frame
-# moves where this document can't follow it.
+# moves where this document can't follow it. A subtree hidden under the pointer keeps
+# its hover after the hover moves on, so only drawn elements count: Chromium can
+# leave `.lf-fp-opened` hovered once the panel's view closes under a press, through
+# every later move.
 HOVER_CAUGHT_UP = """() => {
   const at = globalThis.__lfPointer;
   if (!at || at.buttons) return true;
-  const hovered = [...document.querySelectorAll(":hover")].at(-1);
+  const hovered = [...document.querySelectorAll(":hover")]
+    .filter((node) => node.checkVisibility())
+    .at(-1);
   if (hovered instanceof HTMLIFrameElement) return true;
   const under = document.elementFromPoint(at.x, at.y);
   // A hovered label also hovers the control it labels, which is no hover still to move.
@@ -384,10 +438,10 @@ def catch_up_hover(page: Page) -> bool:
 
     Content that scrolls under a resting pointer keeps the old element hovered until
     the engine hit-tests again on a timer of its own, dispatching `pointerover` as the
-    hover moves. On 2026-11-04 Playwright's Firefox (build 1555) took about 100 ms,
-    its WebKit (build 2370) 20 to 120 ms, and its Chromium about a frame, though on a
-    loaded host sometimes longer than the rest of `settle`, so a capture taken first
-    drew the button a state's driver had pressed still hovered. The page may answer
+    hover moves. In Playwright's Firefox (build 1555) and WebKit (build 2370) that
+    can take around 100 ms, and in its Chromium about a frame, though on a loaded host
+    sometimes longer than the rest of `settle`, so a capture taken first can draw the
+    button a state's driver pressed still hovered. The page may answer
     `pointerover`, so `settle` settles again after a hover moved.
 
     Moving the pointer to where it already is would move the hover at once, but every
@@ -423,7 +477,7 @@ SCROLL_STILL = """([selector, axis, frames]) => {
 }"""
 
 
-def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
+def scroll_settled(page, scroller=None, axis="y"):
     """Wait for stable scroll position after the caller observes scroll initiation.
 
     The helper cannot distinguish a finished scroll from one not yet issued.
@@ -437,29 +491,43 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
     owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:
-        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
+        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, SCROLL_STILL_FRAMES])
     except PlaywrightTimeout:
         where = scroller or "the document"
         held = page.evaluate(
             "() => globalThis.__lfScrollStill ?? null",
         )
         raise AssertionError(
-            f"{where} never held one position for {frames} frames: gave up on {held}"
+            f"{where} never held one position for {SCROLL_STILL_FRAMES} frames: gave up on {held}"
         ) from None
 
 
-# The floating panel's row ends in one seat: at rest the On me mark, which counts what
-# waits on the user and dots a thread with news; while a stance or search stands, its
-# way out (`.lf-fp-exit`) in the same place. A view's Close (`.lf-fp-exit.lf-fp-close`)
-# ends a list's tabs or another view's head line instead.
-ON_ME_MARK = ".lf-fp-on-user"
+# The floating panel's row ends in the leaf, which counts what waits on the user
+# on a badge over its corner (`.lf-fp-badge`) and dots a thread with news, and opens the On view on the tab those
+# marks point at (floating-panel.js, `leafOpens`). While a stance or search stands, its
+# way out (`.lf-fp-row > .lf-fp-exit`) stands before it. A view's Close
+# (`.lf-fp-exit.lf-fp-close`) ends a list's tabs or another view's head line instead.
+LEAF = ".lf-fp-leaf"
 
-# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
-# the field and the On me and Threads marks, with a view opened above it, the leaf's
-# menu among them. Its state stands on its host as attributes: `data-lf-open` names the
-# open view (menu, versions, group, errors, threads, thread, queue, leaves) and
-# `data-lf-rest="mark"` the panel folded to the leaf.
+# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the
+# field and the leaf, with a view opened above it, the leaf's menu among them. Its state
+# stands on its host as attributes: `data-lf-open` names the open view (menu, versions,
+# group, errors, threads, thread, queue, leaves) and `data-lf-rest="mark"` the panel
+# folded to the leaf.
 PANEL = ".lf-floating-panel"
+
+# The words in the panel's one seat for what passes, such as a notice or a walk's
+# position (floating-panel.js, `passing`): the leaf's peek while it shows one over an
+# open view, else an error standing over the field's words (composing/input.js), else
+# the empty field's placeholder.
+PANEL_SAYS = """() => {
+  const peek = document.querySelector('.lf-fp-peek');
+  if (peek?.hasAttribute('data-lf-shown')) return peek.textContent.trim();
+  const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
+  if (cover) return cover.textContent.trim();
+  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
+    ?? '';
+}"""
 
 
 def panel_view(name: str) -> str:
@@ -476,40 +544,86 @@ PANEL_THREAD = panel_view("thread")
 
 def panel_tab(page: Page | FrameLocator, name: str):
     """The On view's tab `name` at the foot of the menu, On and Threads, each one of
-    its tabs: `Menu`, `On me`, `On <agent>`, `Threads` and, while a plan exists,
+    its tabs: `Menu`, `On Me`, `On <agent>`, `Threads` and, while a plan exists,
     `Plan`. Each but Menu and Plan says its count after its name, in `.lf-fp-count`."""
     return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
 
 
-def threads_tab(page: Page | FrameLocator):
-    """Stand On or Threads open and return the Threads tab at its foot. From the row the
-    On me mark opens On, or Threads itself while nothing waits on the user but a reply
-    they have not read; another view, stance or search is closed first by its exit.
-    Leave an empty comment field by pressing the page first where writing hides the
-    mark. `page` may be a live sample's frame."""
-    # A stance's exit becomes the mark in the repaint frame. Read the controls only
-    # after the previous input has rendered, before choosing a pointer route.
+def on_tab(page: Page | FrameLocator, name: str):
+    """Stand the On view open and return its tab `name` (`panel_tab`). From the row the
+    leaf opens the view on the tab its marks point at; another view, stance or search is
+    closed first by its exit. `page` may be a live sample's frame."""
+    # A stance's exit goes in the repaint frame. Read the controls only after the
+    # previous input has rendered, before choosing a pointer route.
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
     host = page.locator(PANEL)
-    if host.get_attribute("data-lf-open") not in ("queue", "threads"):
+    if host.get_attribute("data-lf-open") not in ("menu", "queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
             exit_control.click()
-        mark = page.locator(ON_ME_MARK)
-        if not mark.is_visible():
-            # Writing hides the quick seat. Leave the field by pressing the page,
-            # as a pointer user does before reaching On me.
-            page.locator("html").click(position={"x": 0, "y": 0})
-        mark.click()
-    return panel_tab(page, "Threads")
+        page.locator(LEAF).click()
+    return panel_tab(page, name)
+
+
+def open_menu(page: Page | FrameLocator, press=None):
+    """Open the leaf's menu by pointer, as a user reaches it from whatever the panel
+    shows, and return the menu's view. The leaf unfolds a folded panel; a list over the
+    menu goes back to it; otherwise the leaf opens the On view on the tab its marks
+    point at, unless the view stands already, and the Menu tab turns the view to the
+    menu. A press on the leaf that put away a view the On view led to, as a thread
+    opened from Threads, opens the view with the next. `press` presses a control, a
+    click by default."""
+    press = press or (lambda control: control.click())
+    host = page.locator(PANEL)
+    leaf = page.locator(LEAF)
+    on_view = re.compile("^(menu|queue|threads)$")
+    if host.get_attribute("data-lf-rest") == "mark":
+        press(leaf)
+        expect(host).to_have_attribute("data-lf-rest", "row")
+    if host.get_attribute("data-lf-open") != "menu":
+        back = page.locator(".lf-fp-head").get_by_role(
+            "button", name="Back to Menu", exact=True
+        )
+        if back.count():
+            press(back)
+        else:
+            if not on_view.match(host.get_attribute("data-lf-open") or ""):
+                press(leaf)
+                if host.get_attribute("data-lf-open") is None:
+                    press(leaf)
+                expect(host).to_have_attribute("data-lf-open", on_view)
+            if host.get_attribute("data-lf-open") != "menu":
+                press(panel_tab(page, "Menu"))
+    menu = page.locator(panel_view("menu"))
+    menu.wait_for()
+    return menu
+
+
+def threads_tab(page: Page | FrameLocator):
+    """Stand the On view open and return the Threads tab at its foot (`on_tab`)."""
+    return on_tab(page, "Threads")
+
+
+def open_on_me(page: Page | FrameLocator):
+    """Open On Me by pointer, as a user reaches it: the leaf, which opens the On view on
+    On Me while anything waits on the user, then On Me's tab where it opened on another,
+    and return the view."""
+    tab = on_tab(page, "On Me")
+    if page.locator(PANEL).get_attribute("data-lf-open") != "queue" or (
+        tab.get_attribute("aria-pressed") != "true"
+    ):
+        tab.click()
+    view = page.locator(panel_view("queue"))
+    view.wait_for()
+    return view
 
 
 def open_threads(page: Page | FrameLocator) -> None:
     """Open the floating panel's Threads view by pointer, as a user reaches it: from a
     thread opened over Threads by its way back, else by the Threads tab (`threads_tab`)
-    unless the mark opened Threads itself. The view lists the open threads, then the
+    unless the leaf opened Threads itself. The view lists the open threads, then the
     resolved ones folded under a Resolved heading (`show_resolved`)."""
     host = page.locator(PANEL)
     if host.get_attribute("data-lf-open") == "threads":
@@ -536,7 +650,7 @@ def show_resolved(page: Page | FrameLocator):
 
 
 def show_done(page: Page | FrameLocator):
-    """Unfold what left the open On list, On me's or the agent's, which stands folded
+    """Unfold what left the open On list, On Me's or the agent's, which stands folded
     under its Done band (`.lf-fp-settled`) until the user presses it, and return its
     items."""
     view = page.locator('.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving])')
@@ -552,7 +666,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has
     changed between runtimes, so a driver one checkout runs against another's runtime,
-    as `stills`, `bench`, thread snapshots and `verify-site` do, takes this
+    as `stills`, `bench` and `site verify` do, takes this
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).

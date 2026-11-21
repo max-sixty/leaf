@@ -4,6 +4,7 @@ re-vendor."""
 
 import json
 import os
+import socket
 import subprocess
 import urllib.parse
 import urllib.request
@@ -31,6 +32,7 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import presence as presence_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -53,12 +55,8 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     page_dir, tmp_path, spawn, changed
 ):
     """`page init` on a served page restarts its server itself, so the session's
-    `leaf wait` carries on watching it.
-
-    Re-vendoring a served page used to be three commands, and the first,
-    `server stop`, disabled the service: a wait watching the page read that as a
-    page it had lost, and ended. The comment after the re-vendor is the proof: only
-    a wait still watching delivers it.
+    `leaf wait` carries on watching it. The comment after the re-vendor is the
+    proof: only a wait still watching delivers it.
     """
     publish(page_dir)
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
@@ -220,7 +218,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
 
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()
-    (project_layer / "overrides.css").write_text(":root { --accent: red; }\n")
+    (project_layer / "overrides.css").write_text(":root { --lf-accent: red; }\n")
     revendored = CliRunner().invoke(
         cli_model.cli,
         [
@@ -246,9 +244,12 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
 
     status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)
     assert status == 200, body
+    # The replacement's first read activated the re-vendored revision, which
+    # names its place in the log; the retried comment was the one already taken.
     events = events_model.read_events(page_dir)
-    assert [event["kind"] for event in events] == ["note", "comment"]
-    assert events[-1]["attempt"] == comment["attempt"]
+    assert [event["kind"] for event in events] == ["note", "comment", "activation"]
+    assert events[1]["attempt"] == comment["attempt"]
+    assert events[2]["revision"] == 2
 
 
 from interact_support import (
@@ -437,10 +438,11 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
 
     refused = start_server_command(page_dir, "--host", "devbox.corp.example")
     assert refused.returncode != 0
-    assert "already serving at" in refused.stderr
-    assert "server stop" in refused.stderr
-    # Nothing on stdout, so a caller reading the URL there reads no URL.
-    assert not refused.stdout.strip()
+    said = json.loads(refused.stdout)
+    assert "already serving at" in said["error"]
+    assert "server stop" in said["error"]
+    # A refusal, so a caller reading the URL there reads no URL.
+    assert "url" not in said
     assert service_model.page_claim(page_dir) is None
 
 
@@ -492,3 +494,92 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     # Explicit stop crosses that server's release barrier before returning.
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=STATED_TIMEOUT)
+
+
+def test_a_background_jobs_server_lives_as_long_as_the_job(
+    page_dir, tmp_path, monkeypatch, dead_pid
+):
+    """A background job runs each sitting on a worker its daemon retires between
+    them, so a claim naming that worker's pid takes the page down an hour after
+    every turn. The job's record is the lifetime instead: the page stays held
+    and served whatever became of the process that claimed it, including the
+    SessionEnd Claude Code runs as the worker retires, and retires when the job
+    is deleted — which takes the record and may leave the directory."""
+    job = tmp_path / "job"
+    job.mkdir()
+    cleanup_model.write_json(job / "state.json", {"sessionId": "bg-job"})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    assert service_model.claim_page(page_dir)
+    assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
+    assert read_record(page_dir / "service.json")["lifetime"] == "session"
+    cleanup_model.end_harness_instance("bg-job")
+    turn_record = cleanup_model.session_record("bg-job")
+    assert turn_record is not None
+    assert turn_record["turn_closed"] is not None
+    assert not reaper_retires(page_dir, monkeypatch)
+    assert server_model.running_server(page_dir)
+    assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
+    assert presence_model.presence(page_dir, [])["session_alive"] is True
+
+    (job / "state.json").unlink()
+    assert reaper_retires(page_dir, monkeypatch)
+    wait_for(
+        lambda: server_model.running_server(page_dir),
+        lambda running: not running,
+        failure="the background-job server stayed up after its job was deleted",
+    )
+    assert service_model.owned_pages("bg-job") == []
+    assert presence_model.presence(page_dir, [])["session_alive"] is False
+
+
+def test_a_server_exits_when_its_session_is_hard_killed(
+    page_dir, session_process, managed_server
+):
+    owner = session_process()
+    server = managed_server(page_dir, "abandoned", owner.pid)
+    owner.terminate()
+    owner.wait(timeout=STATED_TIMEOUT)
+
+    server.wait(timeout=STATED_TIMEOUT)
+    assert server.returncode == 0, server.stderr.read()
+    assert read_record(page_dir / "service.json")["enabled"] is True
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+
+
+def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
+    codex_claimed_page, spawn, codex_env
+):
+    """Dropping a reused server's real handshake withdraws no existing service."""
+    page = codex_claimed_page
+    before = server_model.running_server(page)
+    assert before is not None
+    caller, child = socket.socketpair()
+    task = spawn(
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(page),
+            "--harness",
+            json.dumps({"name": "codex", "session": "codex-thread", "agent": "Codex"}),
+            "--handshake",
+            str(child.fileno()),
+        ],
+        env=codex_env | {"CODEX_THREAD_ID": "codex-thread"},
+        pass_fds=(child.fileno(),),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    child.close()
+    caller.settimeout(STATED_TIMEOUT)
+    try:
+        with caller.makefile("rb") as announced:
+            assert json.loads(announced.readline())["url"] == before["url"]
+    finally:
+        caller.close()
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode == 0, f"{output}{errors}"
+    assert server_model.running_server(page) == before

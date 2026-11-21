@@ -2,13 +2,12 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import { renderedUnder } from "./shadow-tree.js";
-import { html, render } from "/runtime/framework.js";
+import { closestAcross, renderedUnder } from "./shadow-tree.js";
+import { html, render, untracked } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
-import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
-import { agentSays, saidBy, voiced } from "./voice.js";
-import { agentName } from "./semantic-state.js";
+import { agentSays, linesOf, saidBy, voiced } from "./voice.js";
+import { agentName, readPart } from "./semantic-state.js";
 import { elementDirective, offerActionElement } from "./widget-elements.js";
 import { keeps, inlineStyle } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
@@ -196,12 +195,31 @@ export function contributionEntrySource(control) {
 
 // Agent workflow is projection state. One claim gets one shared arrival window so the
 // independently rendered Margin and Page Map carriers join rather than replay its pulse.
+// The window lasts while a published workflow holds the claim: the first paint after
+// the workflows change drops each claim none of them holds, so the page keeps arrivals
+// only for unsettled updates, and a claim that comes back arrives anew.
 /** @type {WeakMap<Element, AgentDescription>} */
 const agentWorkflowDescriptions = new WeakMap();
 /** @type {Map<string, number>} */
 const claimArrivals = new Map();
 /** @type {WeakMap<Element, string>} */
 const controlArrivals = new WeakMap();
+const publishedWorkflows = readPart((root) => root.effective.workflows);
+// The published workflows the kept claims were last checked against.
+/** @type {ReturnType<typeof publishedWorkflows> | null} */
+let claimsChecked = null;
+/** @param {import("./framework/application.js").Workflow} receipt */
+const claimOf = (receipt) =>
+  JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]);
+function dropSettledClaims() {
+  // A control's paint follows its own receipt, not every workflow's.
+  const workflows = untracked(publishedWorkflows);
+  if (workflows === claimsChecked) return;
+  claimsChecked = workflows;
+  const held = new Set(workflows.map(claimOf));
+  for (const claim of claimArrivals.keys())
+    if (!held.has(claim)) claimArrivals.delete(claim);
+}
 /** @param {Element} control */
 function agentWorkflowDescription(control) {
   let reading = agentWorkflowDescriptions.get(control);
@@ -220,11 +238,13 @@ function agentWorkflowDescription(control) {
 
 /** @param {Element} control @param {import("./framework/application.js").Workflow | null | undefined} receipt */
 function syncAgentArrival(control, receipt) {
+  dropSettledClaims();
   if (!receipt || progressFace(receipt) !== "working") {
     control.removeAttribute("data-lf-agent-arrival");
+    controlArrivals.delete(control);
     return;
   }
-  const claim = JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]);
+  const claim = claimOf(receipt);
   let began = claimArrivals.get(claim);
   if (began === undefined) {
     began = performance.now();
@@ -248,56 +268,48 @@ function paintAgentDescription(control) {
   const reading = agentWorkflowDescriptions.get(control);
   if (!reading) {
     control.removeAttribute("aria-description");
-    control.removeAttribute("title");
-    paintLabelMore(control, null);
     return;
   }
-  const record = records.get(control);
-  // What the title says beyond the label, which a margin entry's label says too, so a
-  // finger holding the entry reads all of it, each word said by whoever says it.
-  const more = [
-    reading.title !== record?.label && reading.title,
-    reading.stage && reading.word,
-    reading.stage && reading.detail && agentSays(reading.detail),
-  ]
-    .flatMap((part) => (part ? [part] : []))
-    .flatMap((part, index) => (index ? [" · ", part] : [part]));
-  paintLabelMore(control, more);
-  if (!reading.stage) {
-    for (const [attribute, value] of Object.entries({
-      "aria-description": reading.description,
-      title: reading.title,
-    })) {
-      keeps(control, attribute, value);
-    }
-    return;
-  }
-  const work = [reading.word?.text, reading.detail].filter(Boolean).join(" · ");
+  const work = reading.stage
+    ? [reading.word?.text, reading.detail].filter(Boolean).join(" · ")
+    : "";
   keeps(
     control,
     "aria-description",
-    [reading.description, work].filter(Boolean).join(" · "),
-  );
-  keeps(
-    control,
-    "title",
-    [
-      record?.title ?? record?.label,
-      reading.title !== (record?.title ?? record?.label) && reading.title,
-      work,
-    ]
-      .filter(Boolean)
-      .join(" · "),
+    [reading.description, work].filter(Boolean).join(" · ") || null,
   );
 }
 
-/** @param {Element} control @param {import("./voice.js").Words | null} more */
-function paintLabelMore(control, more) {
-  /** @type {HTMLElement | null} */
-  const line = control.querySelector(
-    ":scope > .lf-margin-entry-label > .lf-margin-entry-more",
-  );
-  if (line) render(voiced(more ?? []), line);
+// What an entry says when pointed at (preview.js): its label, the context its
+// projection gives it, and what its title says beyond the label, such as an agent's work
+// on it, each word said by whoever says it. A finger holding the entry reads the same.
+// It is about the passage it stands beside, which it leaves in view.
+/** @this {Element} */
+function entryPreview() {
+  const record = records.get(this);
+  if (!record) return null;
+  const label = visibleContributionEntryLabel(record);
+  const reading = agentWorkflowDescriptions.get(this);
+  // A part the label already says, as a Delivered receipt's stage word does, is
+  // said once.
+  const more = [
+    reading?.title !== record.label && reading?.title,
+    reading?.stage && reading.word,
+    reading?.stage && reading.detail && agentSays(reading.detail),
+  ]
+    .flatMap((part) =>
+      part && (typeof part === "string" ? part : part.text) !== label ? [part] : [],
+    )
+    .flatMap((part, index) => (index ? [" · ", part] : [part]));
+  return {
+    name: record.voice ? voiced(saidBy(record.voice, label)) : label,
+    about: closestAcross(this, "[data-lf-margin-for]")?.lfTarget ?? null,
+    detail: [
+      // A context of several lines says each on its own (voice.js, `linesOf`).
+      ...(record.context ? linesOf(record.context).map(voiced) : []),
+      more.length ? voiced(more) : null,
+    ],
+  };
 }
 
 /** @param {Element} control @param {string | null} description @param {string | null} title */
@@ -338,13 +350,6 @@ export function syncContributionSelection(control, selected) {
 /** @param {Element} control @param {boolean} awaitsUser */
 function syncContributionTurn(control, awaitsUser) {
   keeps(control, "data-lf-turn", awaitsUser ? "user" : null);
-}
-
-// Whether a reading carries agent content the user has not taken in: the same
-// Thread `unread` the panel and the margin paint, as one attribute both surfaces share.
-/** @param {Element} control @param {number} count */
-export function syncContributionUnread(control, count) {
-  control.toggleAttribute("data-lf-unread", Boolean(count));
 }
 
 /** @param {Element} control @param {EntryInput | PresentedEntry} offered @param {HostOptions} [options] */
@@ -463,41 +468,36 @@ export const contributionReceipts = elementDirective(
   presentContributionReceipts,
 );
 
-/** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered @param {HostOptions} [options] */
+// An entry's badges stand in one row on its top edge (`.lf-badges`, controls.css): the
+// unread dot, for agent content the user has not taken in (the same Thread `unread`
+// the panel paints), and its count where it stands for more than one.
+/** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
+ * @param {HostOptions & {preview?: import("./preview.js").Read | null, unread?: boolean}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
-  // Its label shows to a resting pointer and the keyboard, and to a finger holding it.
+  // Its label is its preview, which a resting pointer, the keyboard and a finger
+  // holding it read (`entryPreview`), unless its projection says what it opens more
+  // fully, as a thread's entry previews its threads.
   control.classList.toggle("lf-margin-entry", true);
-  control.classList.toggle(HOLDS_WORD, true);
-  const visibleLabel = visibleContributionEntryLabel(record);
+  control.lfPreview = options.preview ?? entryPreview;
   const glyph = record.icon
     ? iconTemplate(record.icon)
     : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
         >${record.glyph}</span
       >`;
+  const counted = record.count > 1;
   render(
-    html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
-      ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word"
-          >${
-            record.voice ? voiced(saidBy(record.voice, visibleLabel)) : visibleLabel
-          }</span
-        >${
-          record.context
-            ? html`<span class="lf-margin-entry-context"
-                >${voiced(record.context)}</span
-              >`
-            : null
-        }<span class="lf-margin-entry-more"></span></span
-      >${
-        record.count > 1
-          ? html`<span class="lf-margin-count" aria-hidden="true"
-              >${record.count}</span
-            >`
-          : null
-      }`,
+    html`${glyph}${
+      counted || options.unread
+        ? html`<span class="lf-badges" aria-hidden="true"
+            >${options.unread ? html`<span class="lf-unread-dot"></span>` : null}${
+              counted ? html`<span class="lf-badge-count">${record.count}</span>` : null
+            }</span
+          >`
+        : null
+    }`,
     control,
   );
   paintAgentDescription(control);

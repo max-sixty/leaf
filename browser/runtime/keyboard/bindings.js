@@ -25,7 +25,7 @@
    - `title` is the command's required concise name, or a function when state changes
      it. The obligation, menu rows, reference, and announcements read these same words.
    - `description` is the row's tooltip in the reference, its meta line when the row
-     is selected, and a line under its title on a touch screen and on an On me card that
+     is selected, and a line under its title on a touch screen and on an On Me card that
      answers a Decision command. Most rows need none. Write one only for something the title and
      section heading leave out and a short title can't hold, such as "Keeps what is
      typed" or the action Undo would take back. If the missing words fit in the title,
@@ -39,7 +39,7 @@
    - `control` is the visible element activating the command. `decision: true` marks a
      command that starts, advances, answers, or revises an obligation; the role does not assign
      bindings. `recommended: true` marks the answer the page advises, so a surface that
-     answers the obligation away from its widget, as On me does, can say so, and
+     answers the obligation away from its widget, as On Me does, can say so, and
      `commits: true` the press that commits the answer the user has composed, such as a
      group's Done, which wears the commit face there as on its widget. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
@@ -72,8 +72,8 @@
      command answers it, and so, with `false`, does every page-scope row with a `run`
      that is not its stance's `exit`: a scope row takes no words. `touchValue` is a
      terse reading that row shows at its end, past words the row may cut, such as how
-     long ago the gesture Undo would take back was made; the row's hover reads the
-     description whole.
+     long ago the gesture Undo would take back was made; the row's hover reads words it
+     cuts whole (preview.js), and never its description.
    - `travels: true` says the command takes the user somewhere, as a walk, a scroll or
      a Go-to destination does, so its result may move what they pressed it on. Every
      other command leaves the control it was pressed on where it stood on screen
@@ -91,6 +91,11 @@
      repeated keydowns must also run — off by default, because a held `]` was a page
      navigation per repeat and a held pick a `choose` per repeat, and it applies to native
      rows too, independently of whether their platform default repeats.
+   - `waits` marks what Leaf does with a key only once nothing else has taken it, as
+     Escape lets go of a control in the page; a function where the row's step varies.
+     Every other row is read ahead of the page's listeners on the document and the
+     window. This one is read after them, and not at all where one of them prevented
+     the key (controller.js).
 
    `live` answers the declared liveness once for every projection. Do not repeat a guard
    inside `run` if the guard changes whether the key should be shown. When the command reference
@@ -116,14 +121,14 @@
    it never reimplements the press.
 
    `aria-keyshortcuts` is another projection of the register. Element scopes expose their
-   currently available rows, including the scope's capability gate. Projected shortcuts
-   on native command buttons describe the dispatcher's currently reachable routes,
-   including contextual aliases and nearer key reservations. A directly attached element
-   scope also names its local keys. `Mod` expands to both Meta and Control because the
-   dispatcher accepts both. The attribute cannot express a sequential sequence: spaces
-   separate alternatives. An associated `control` in a sequence scope therefore omits
-   `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
-   command reference. Call `paintKeys` when a state change moves row liveness so this projection
+   currently available rows, including the scope's capability gate. A control a row or
+   route names also lists the keys that reach it from where the user is now, the
+   dispatcher's reachable routes, contextual aliases and nearer key reservations included
+   (control-keys.js), which its preview's key chips draw too. `Mod` expands to both Meta
+   and Control because the dispatcher accepts both. The attribute cannot express a
+   sequential sequence: spaces separate alternatives. A sequence's destination is reached
+   only once its first key is pressed, so the complete route stays in the keyboard command
+   reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 export { PRESS, rowArrows } from "../control-keys.js";
 import { coarsePointer } from "../pointer.js";
@@ -152,6 +157,7 @@ import { runtime } from "../context.js";
  * @property {boolean} [recommended]
  * @property {boolean} [travels]
  * @property {boolean} [native]
+ * @property {Cell<boolean>} [waits]
  * @property {boolean} [repeat]
  * @property {boolean} [exit]
  * @property {boolean} [retainCurrentLocation]
@@ -667,7 +673,7 @@ export function decisionControls(commands, where = "an obligation") {
 // Control or Meta; aria-keyshortcuts therefore states both working sequences. Native Space
 // uses the named key ARIA expects rather than a literal blank token.
 /** @param {string} binding */
-const ariaBindings = (binding) => {
+export const ariaBindings = (binding) => {
   const { key, mods } = parsed(binding);
   const variants = mods.includes("Mod") ? ["Meta", "Control"] : [null];
   return variants.map((modKey) =>
@@ -700,7 +706,7 @@ export const ariaShortcuts = (rows, current = true, where, includes = () => true
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `M` would match the shifted On me walk from a
+// shifted press. Read off the glyph, `M` would match the shifted On Me walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.
@@ -745,10 +751,12 @@ export function checked(rows, where, ready) {
     )
       throw new Error(`leaf: ${where} declares ${command.id} twice`);
     ids.set(command.id, command);
-    if (!(
-      typeof command.title === "function" ||
-      (typeof command.title === "string" && command.title.trim())
-    ))
+    if (
+      !(
+        typeof command.title === "function" ||
+        (typeof command.title === "string" && command.title.trim())
+      )
+    )
       throw new Error(`leaf: ${command.id} has no command title`);
     if (
       command.description !== undefined &&

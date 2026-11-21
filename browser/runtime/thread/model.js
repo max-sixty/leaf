@@ -17,13 +17,13 @@
    thread this tab opened goes by its pending message's id until the log answers. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
-import { BETWEEN, keptReadings } from "../kept.js";
+import { kept, keptEach } from "../kept.js";
 
 /** @typedef {import("../../types/domain.js").Thread} Thread */
 /** @typedef {import("../../types/domain.js").Message} Message */
 /** @typedef {import("../../types/domain.js").Settlement} Settlement */
 /** @typedef {import("../../types/domain.js").Anchor} Anchor */
-/** @typedef {NonNullable<import("../framework/application.js").SemanticDocument["messageBodies"]> extends ReadonlyMap<string, infer B> ? B : never} CapturedBody */
+/** @typedef {NonNullable<import("../framework/application.js").SemanticDocument["messageBodies"]> extends ReadonlyMap<string, ReadonlyMap<string, infer B>> ? B : never} CapturedBody */
 
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
@@ -101,6 +101,23 @@ export function threadNames(threads) {
   return byName;
 }
 
+// Where in `threads` the open conversations about each element stand, by the id of the
+// element their anchor names (`section`): a resolved thread and a bare reaction stand
+// under none, and nor does a thread with no anchor, which is about the page as a whole.
+/** @param {readonly {anchor: {section?: string | null} | null, resolved?: unknown, bare_reaction: boolean}[]} threads */
+export function threadsBySection(threads) {
+  /** @type {Map<string, number[]>} */
+  const bySection = new Map();
+  threads.forEach((thread, at) => {
+    const section = thread.anchor?.section;
+    if (!section || thread.resolved || !discussed(thread)) return;
+    const about = bySection.get(section);
+    if (about) about.push(at);
+    else bySection.set(section, [at]);
+  });
+  return bySection;
+}
+
 // A message whose words the user may rewrite: one of their own that the log holds, with
 // words to revise. A reaction or a bare drawing has none (`event_contracts._edit_error`).
 /** @param {{author?: string, pending?: boolean, token?: string, text?: string | undefined}} message */
@@ -124,7 +141,7 @@ export const deleted = (message) =>
 export const bareReaction = (thread) => thread.bare_reaction;
 /** @param {Pick<Thread, "bare_reaction">} thread */
 export const discussed = (thread) => !thread.bare_reaction;
-// A thread record's unread versions (`threadRecordReader`), in log order.
+// A thread record's unread versions (`readThreadRecords`), in log order.
 /** @typedef {{readonly unread: readonly unknown[]}} Unread */
 /** Whether a thread holds words the user hasn't read.
  * @param {Unread} thread */
@@ -132,13 +149,13 @@ const hasUnread = (thread) => thread.unread.length > 0;
 /**
  * Whether a thread is news: still open and holding words the user hasn't read. A
  * resolved thread's unread words aren't, so the news the panel counts never outnumbers
- * the open threads; a reply reopens its thread, and the user chose on 21 October to
+ * the open threads; a reply reopens its thread, and the user chose to
  * leave what reaches a closed one unannounced.
  * @param {Pick<Thread, "resolved"> & Unread} thread */
 export const isNews = (thread) => !thread.resolved && hasUnread(thread);
 /**
  * What the panel counts of the threads it lists: those still open, which Threads' tab
- * says, and those that are news (`isNews`), which the On me mark's dot says. A page's
+ * says, and those that are news (`isNews`), which the leaf's dot says. A page's
  * served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
  * @param {readonly (Pick<Thread, "bare_reaction" | "resolved"> & Unread)[]} threads
@@ -150,12 +167,13 @@ export function threadCounts(threads) {
     unread: listed.filter(isNews).length,
   };
 }
-// Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
-// by: an element anchor naming that widget and carrying nothing else. Spelled again here
-// because the server has not seen this message yet, and a thread that seated itself
-// differently for the half-second before it lands would move once it arrived.
-/** @param {Message} message */
-const pendingSeat = (message) =>
+// Which widget's seat a message the server has not seen stands in, a pending thread's
+// root or the comment being written, by the rule `seat_root` reads the log by: an
+// element anchor naming that widget and carrying nothing else. Spelled again here
+// because a thread that seated itself differently for the half-second before it lands
+// would move once it arrived.
+/** @param {{anchor?: import("../../types/domain.js").Anchor | null | undefined, about?: string | null | undefined}} message */
+export const seatOf = (message) =>
   message.about || !message.anchor || Object.keys(message.anchor).length !== 1
     ? null
     : (message.anchor.section ?? null);
@@ -305,7 +323,7 @@ export function foldThreads(threads, gestures) {
         revisions: [],
         resolved: null,
         bare_reaction: reaction,
-        seat: pendingSeat(gesture),
+        seat: seatOf(gesture),
         summaries: [],
         unread: {},
         attention: reaction ? null : sending(gesture),
@@ -409,14 +427,14 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    draws them read in the turn it sends that, and the answer confirms rather than
    decides it. A record lists them in its messages' order.
 
-   A reader made by `threadRecordReader` keeps each thread's record (`kept.js`), and
-   reads it again only where the thread or something it holds has changed: the served
-   thread, its unread versions, workflows, obligations and to-dos, and the state of the
-   widgets frozen into its messages. Within a thread it reads again, it keeps each
-   message's reading in turn, so a reply to a long thread reads one message and the
-   reactions it touches. A message's captured words (`messageBodies`) are prepared from
-   the message itself, so the message stands for them. A workflow stands in the thread
-   of the message it serves, so the thread's workflows hold every message's. */
+   Each thread's record is kept (`kept.js`) by the served thread and what it holds:
+   the versions this tab is marking read of it, its workflows, obligations and to-dos,
+   the widgets in its messages with their state, and its messages' captured words
+   (`messageBodies`), which adoption keeps by thread while they read the same. Within a
+   thread made again, each message's reading is kept by the message and what it holds,
+   so a reply to a long thread reads one message and the reactions it touches. A
+   workflow stands in the thread of the message it serves, so the thread's workflows
+   hold every message's. */
 
 // The reactions a registry declares none of.
 /** @type {Record<string, {glyph: string}>} */
@@ -439,270 +457,259 @@ function grouped(items, key) {
   return groups;
 }
 
-/** @typedef {{id: string, tag: string, state: import("../../types/domain.js").AuthoredWidget["state"]}} Unit */
+/** @typedef {{id: string, tag: string, message: string | undefined, state: import("../../types/domain.js").AuthoredWidget["state"]}} Unit */
+/** @typedef {import("../framework/application.js").Workflow} Workflow */
+/** @typedef {import("../framework/application.js").ObligationRecord} ObligationRecord */
+/** @typedef {import("../../types/contract.js").ServedTodo} ServedTodo */
+/** @typedef {import("../../types/domain.js").ContentVersion} ContentVersion */
+/** @typedef {ReadonlyMap<string, CapturedBody>} ThreadBodies */
 
-export function threadRecordReader() {
-  // Each thread's record, beside the readings of its messages: `bases`, a message's
-  // reading of its own, and `messages`, that reading with the reactions on it.
-  /** @type {ReturnType<typeof keptReadings<{record: unknown, bases: ReturnType<typeof keptReadings<unknown>>, messages: ReturnType<typeof keptReadings<unknown>>}>>} */
-  const records = keptReadings();
-  /** @param {readonly Thread[]} threads
-   * @param {import("../framework/application.js").SemanticDocument} document
-   * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
-   * @param {import("../framework/application.js").Workflow[]} workflows
-   * @param {readonly import("../../types/contract.js").ServedTodo[]} todos
-   *   the open to-dos, of which each thread holds those on it
-   * @param {readonly import("../framework/application.js").ObligationRecord[]} obligations
-   *   the view's obligations, of which each thread holds those its messages make
-   * @param {import("../../types/domain.js").ContentVersion[]} markingRead
-   * @param {boolean} ready
-   */
-  return function readThreadRecords(
-    threads,
-    document,
-    widgets,
-    workflows,
-    todos = [],
-    obligations = [],
-    markingRead = [],
-    ready = true,
-  ) {
-    const locallyRead = new Set(markingRead.map(versionKey));
-    const markingIn = grouped(markingRead, (item) => item.message);
-    const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
-    const reacts = ready && Object.keys(tokens).length > 0;
-    // The widgets frozen into each message, and into each thread, with their state.
+// A widget whose state no action has set.
+/** @type {Unit["state"]} */
+const NO_STATE = Object.freeze({});
+
+// Each list a thread holds, selected once for every thread while the lists stand.
+const byThread = kept(
+  /** @param {readonly Workflow[]} workflows @param {readonly ObligationRecord[]} obligations
+   * @param {readonly ServedTodo[]} todos */
+  (workflows, obligations, todos) => ({
+    workflows: grouped(workflows, (workflow) => workflow.thread),
+    obligations: grouped(obligations, (obligation) => obligation.thread),
+    todos: grouped(todos, (todo) => todo.thread),
+  }),
+);
+// What this tab is marking read, by message.
+const markingByMessage = kept((/** @type {readonly ContentVersion[]} */ marking) =>
+  grouped(marking, (item) => item.message),
+);
+// A widget in a thread's message, with its state, kept while that state stands.
+const unitOf = keptEach(
+  /** @param {import("../framework/application.js").WidgetDescriptor} descriptor
+   * @param {Unit["state"]} state @returns {Unit} */
+  (descriptor, state) => ({
+    id: descriptor.id,
+    tag: descriptor.tag,
+    message:
+      descriptor.document.kind === "thread" ? descriptor.document.message : undefined,
+    state,
+  }),
+);
+// The widgets in each thread's messages, with their state.
+const unitsByThread = kept(
+  /** @param {import("../framework/application.js").SemanticDocument["descriptors"]} descriptors
+   * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets */
+  (descriptors, widgets) => {
     /** @type {Map<string | undefined, Unit[]>} */
-    const unitsByMessage = new Map();
-    /** @type {Map<string | undefined, Unit[]>} */
-    const unitsByThread = new Map();
-    for (const descriptor of document.descriptors.values()) {
+    const units = new Map();
+    for (const descriptor of descriptors.values()) {
       if (descriptor.document.kind !== "thread") continue;
-      const unit = {
-        id: descriptor.id,
-        tag: descriptor.tag,
-        state: widgets.get(descriptor.id)?.state ?? {},
-      };
-      for (const [by, key] of /** @type {const} */ ([
-        [unitsByMessage, descriptor.document.message],
-        [unitsByThread, descriptor.document.thread],
-      ])) {
-        const units = by.get(key);
-        if (units) units.push(unit);
-        else by.set(key, [unit]);
-      }
+      const unit = unitOf(descriptor, widgets.get(descriptor.id)?.state ?? NO_STATE);
+      const held = units.get(descriptor.document.thread);
+      if (held) held.push(unit);
+      else units.set(descriptor.document.thread, [unit]);
     }
-    /** @param {readonly Unit[] | undefined} units */
-    const unitInputs = (units) =>
-      (units ?? NONE).flatMap((unit) => [unit.id, unit.tag, unit.state]);
-    // Each list a thread or message holds, selected once for every thread, in the
-    // published order.
-    /** @type {Map<unknown, number> | undefined} */
-    let published;
-    const workflowsIn = grouped(workflows, (workflow) => workflow.thread);
+    return units;
+  },
+);
+
+// A message's own reading: its fields less those its turn's admission alone carries,
+// its captured words with the state of the widgets in them, and the workflows serving
+// it, the message's own inputs and the actions on widgets in it, in the published order
+// `strongestWorkflow` reads.
+const messageReading = keptEach(
+  /** @param {Message} message @param {string} thread @param {boolean} unread
+   * @param {readonly Workflow[]} workflows @param {readonly Unit[]} units
+   * @param {CapturedBody | undefined} authored */
+  (message, thread, unread, workflows, units, authored) => {
+    const {
+      html,
+      plainText,
+      attention,
+      session,
+      publication,
+      responds,
+      start,
+      title,
+      ...record
+    } = message;
+    if (html && !authored)
+      throw new Error(`Authored message ${message.id} has no captured body`);
+    /** @type {({kind: "authored", units: readonly Unit[]} & CapturedBody)
+     * | {kind: "reaction" | "suggestion" | "prose", text: string}} */
+    const body =
+      html && authored
+        ? { kind: "authored", ...authored, units }
+        : {
+            kind: message.token
+              ? "reaction"
+              : message.suggestion
+                ? "suggestion"
+                : "prose",
+            text: authored?.text ?? plainText ?? message.text ?? message.token ?? "",
+          };
+    return { ...record, thread, unread, key: messageKey(message), body, workflows };
+  },
+);
+// Public readings carry presentation state, including a prior reading's absent fields
+// explicitly restored while news is held. They preserve the values an admitted message
+// can carry without claiming its admission-only correlations.
+/** @typedef {Omit<ReturnType<typeof messageReading>, "text" | "edited" | "provisional" | "completed_by"> & {
+ * text?: Message["text"], edited?: Message["edited"],
+ * provisional?: Message["provisional"], completed_by?: Message["completed_by"]
+ * }} PublishedMessage */
+// A message's reading with the reactions the user may choose on it, where it is one of
+// the agent's they may answer, each with the user's reaction in force on it that a
+// press takes back. The publisher supplies the vocabulary; controls and commands read
+// these same choices, including the exact reaction in force an explicit removal
+// withdraws.
+const withReactions = keptEach(
+  /** @param {PublishedMessage} message @param {string} thread @param {boolean} choosing
+   * @param {boolean} latest @param {Record<string, {glyph: string}>} tokens
+   * @param {readonly PublishedMessage[]} inForce */
+  (message, thread, choosing, latest, tokens, inForce) => ({
+    ...message,
+    reactions: choosing
+      ? reactionChoices(thread, message, latest, tokens, inForce)
+      : null,
+  }),
+);
+
+// One thread's record.
+const threadRecord = keptEach(
+  /** @param {Thread} thread @param {boolean} ready
+   * @param {Record<string, {glyph: string}>} tokens
+   * @param {readonly ContentVersion[]} marking what this tab is marking read of its messages
+   * @param {readonly Workflow[]} workflows @param {readonly ObligationRecord[]} obligations
+   * @param {readonly ServedTodo[]} todos @param {readonly Unit[]} units
+   * @param {ThreadBodies | undefined} bodies */
+  (thread, ready, tokens, marking, workflows, obligations, todos, units, bodies) => {
+    const key = threadKey(thread);
+    const locallyRead = new Set(marking.map(versionKey));
+    /** @type {ContentVersion[]} */
+    const unread = thread.msgs.flatMap(({ id }) => {
+      const version = thread.unread[id];
+      return version !== undefined &&
+        !locallyRead.has(versionKey({ message: id, version }))
+        ? [{ message: id, version }]
+        : [];
+    });
+    const unreadMessages = new Set(unread.map((item) => item.message));
+    const unitsIn = grouped(units, (unit) => unit.message);
     const workflowsOf = grouped(workflows, (workflow) => workflow.message);
     const workflowsOn = grouped(workflows, (workflow) =>
       workflow.subject.kind === "widget" ? workflow.subject.id : null,
     );
-    const obligationsIn = grouped(obligations, (obligation) => obligation.thread);
-    const todosIn = grouped(todos, (todo) => todo.thread);
-    // The message's own inputs, its first words and each rewrite of them, and the
-    // actions on widgets frozen into it, in the published order `strongestWorkflow`
-    // reads.
-    /** @param {Message} message */
+    /** @param {Message} message @returns {readonly Workflow[]} */
     const messageWorkflows = (message) => {
-      const own = workflowsOf.get(message.id) ?? [];
-      const units = unitsByMessage.get(message.id);
-      if (!units) return own;
-      const all = new Set([
+      const own = workflowsOf.get(message.id) ?? NONE;
+      const inIt = unitsIn.get(message.id);
+      if (!inIt) return own;
+      const serving = new Set([
         ...own,
-        ...units.flatMap((unit) => workflowsOn.get(unit.id) ?? []),
+        ...inIt.flatMap((unit) => workflowsOn.get(unit.id) ?? NONE),
       ]);
-      const order = (published ??= new Map(workflows.map((each, at) => [each, at])));
-      return [...all].sort(
-        (a, b) =>
-          /** @type {number} */ (order.get(a)) - /** @type {number} */ (order.get(b)),
-      );
+      return workflows.filter((workflow) => serving.has(workflow));
     };
-    /** @param {Message} message @param {boolean} unread @param {string} thread */
-    const readMessage = (message, unread, thread) => {
-      const {
-        markup,
-        plainText,
-        attention,
-        session,
-        publication,
-        responds,
-        start,
-        title,
-        ...record
-      } = message;
-      const units = unitsByMessage.get(message.id) ?? [];
-      const authored = document.messageBodies?.get(message.id);
-      if (markup && !authored)
-        throw new Error(`Authored message ${message.id} has no captured body`);
-      /** @type {({kind: "authored", units: typeof units} & CapturedBody)
-       * | {kind: "reaction" | "suggestion" | "prose", text: string}} */
-      const body =
-        markup && authored
-          ? { kind: "authored", ...authored, units }
-          : {
-              kind: message.token
-                ? "reaction"
-                : message.suggestion
-                  ? "suggestion"
-                  : "prose",
-              text: authored?.text ?? plainText ?? message.text ?? message.token ?? "",
-            };
-      return {
-        ...record,
-        thread,
-        unread,
-        key: messageKey(message),
-        body,
-        workflows: messageWorkflows(message),
-      };
-    };
-    // Public readings carry presentation state, including a prior reading's absent
-    // fields explicitly restored while news is held. They preserve the values an
-    // admitted message can carry without claiming its admission-only correlations.
-    /** @typedef {Omit<ReturnType<typeof readMessage>, "text" | "edited" | "provisional" | "completed_by"> & {
-     * text?: Message["text"], edited?: Message["edited"],
-     * provisional?: Message["provisional"], completed_by?: Message["completed_by"]
-     * }} PublishedMessage */
-    /** @param {Thread} thread
-     * @param {{bases: ReturnType<typeof keptReadings<unknown>>, messages: ReturnType<typeof keptReadings<unknown>>} | undefined} earlier */
-    const readRecord = (thread, earlier) => {
-      const key = threadKey(thread);
-      /** @type {import("../../types/domain.js").ContentVersion[]} */
-      const unread = thread.msgs.flatMap(({ id }) => {
-        const version = thread.unread[id];
-        return version !== undefined &&
-          !locallyRead.has(versionKey({ message: id, version }))
-          ? [{ message: id, version }]
-          : [];
-      });
-      const unreadMessages = new Set(unread.map((item) => item.message));
-      const bases = earlier?.bases ?? keptReadings();
-      const msgs = thread.msgs.map(
-        (message) =>
-          /** @type {PublishedMessage} */ (
-            bases.read(
-              message.id,
-              [
-                message,
-                key,
-                unreadMessages.has(message.id),
-                BETWEEN,
-                ...messageWorkflows(message),
-                BETWEEN,
-                ...unitInputs(unitsByMessage.get(message.id)),
-              ],
-              () => readMessage(message, unreadMessages.has(message.id), key),
-            )
-          ),
-      );
-      bases.done();
-      // A user's reaction in force on each message, and the agent's newest message
-      // the user may address, read once for the thread rather than once per message.
-      const resolved = Boolean(thread.resolved);
-      const latest = msgs.findLast(
-        (message) => message.author === "agent" && isAddressable(message),
-      );
-      const reactionsOn = grouped(
-        msgs.filter((message) => isReaction(message) && message.author === "user"),
-        (message) => message.parent,
-      );
-      // The publisher supplies the vocabulary; controls and commands read these same
-      // choices, including the exact reaction in force an explicit removal withdraws.
-      /** @param {PublishedMessage} message @param {boolean} choosing
-       * @param {readonly PublishedMessage[]} inForce */
-      const withReactions = (message, choosing, inForce) => ({
-        ...message,
-        reactions: choosing
-          ? reactionChoices(key, message, latest === message, tokens, inForce)
-          : null,
-      });
-      const messages = earlier?.messages ?? keptReadings();
-      const published = msgs.map((message) => {
-        const choosing =
-          reacts && !resolved && message.author === "agent" && isAddressable(message);
-        const inForce = choosing ? (reactionsOn.get(message.id) ?? []) : [];
-        return /** @type {ReturnType<typeof withReactions>} */ (
-          messages.read(
-            message.id,
-            [message, choosing, choosing && latest === message, tokens, ...inForce],
-            () => withReactions(message, choosing, inForce),
+    const msgs = thread.msgs.map(
+      (message) =>
+        /** @type {PublishedMessage} */ (
+          messageReading(
+            message,
+            key,
+            unreadMessages.has(message.id),
+            messageWorkflows(message),
+            unitsIn.get(message.id) ?? NONE,
+            bodies?.get(message.id),
           )
-        );
-      });
-      messages.done();
-      const root = published.find((message) => message.id === thread.root.id);
-      if (!root) throw new Error(`Thread ${thread.id} has no root message`);
-      return {
-        id: thread.id,
-        key,
-        title: thread.title,
-        root,
-        msgs: published,
-        unread: Object.freeze(unread),
-        anchor: thread.anchor,
-        detached_from: thread.detached_from,
-        rewritten_from: thread.rewritten_from,
-        resolved: thread.resolved,
-        attention: thread.attention,
-        // The obligations that stand in it: those widgets in its messages make, such as
-        // an `lf-ask` the user owes words to there, and those its updates publish.
-        obligations: obligationsIn.get(thread.id) ?? [],
-        // The agent's open to-dos on the thread: a reply that promised one says it is
-        // still open (a to-do a reply opens takes the reply's id, `todos.py`), the
-        // first is the one a thread waiting on a to-do waits on, and a running one is
-        // work the thread's working message reads whoever's turn the thread is.
-        todos: todosIn.get(thread.id) ?? [],
-        workflows: workflowsIn.get(thread.id) ?? [],
-        bare_reaction: thread.bare_reaction,
-        seat: thread.seat,
-        summaries: thread.summaries,
-      };
-    };
-    const read = threads.map(
-      (thread) =>
-        /** @type {ReturnType<typeof readRecord>} */ (
-          records.read(
-            thread.id,
-            [
-              thread,
-              ready,
-              tokens,
-              // What this tab is marking read of the thread's unread messages.
-              ...Object.keys(thread.unread).flatMap((id) => markingIn.get(id) ?? NONE),
-              BETWEEN,
-              ...(workflowsIn.get(thread.id) ?? NONE),
-              BETWEEN,
-              ...(obligationsIn.get(thread.id) ?? NONE),
-              BETWEEN,
-              ...(todosIn.get(thread.id) ?? NONE),
-              BETWEEN,
-              ...unitInputs(unitsByThread.get(thread.id)),
-            ],
-            (earlier) => {
-              const bases = earlier?.bases ?? keptReadings();
-              const messages = earlier?.messages ?? keptReadings();
-              return {
-                record: readRecord(thread, { bases, messages }),
-                bases,
-                messages,
-              };
-            },
-          ).record
         ),
     );
-    records.done();
-    return read;
-  };
-}
+    // A user's reaction in force on each message, and the agent's newest message the
+    // user may address, read once for the thread rather than once per message.
+    const reacts = ready && Object.keys(tokens).length > 0 && !thread.resolved;
+    const latest = msgs.findLast(
+      (message) => message.author === "agent" && isAddressable(message),
+    );
+    const reactionsOn = grouped(
+      msgs.filter((message) => isReaction(message) && message.author === "user"),
+      (message) => message.parent,
+    );
+    const published = msgs.map((message) => {
+      const choosing = reacts && message.author === "agent" && isAddressable(message);
+      return withReactions(
+        message,
+        key,
+        choosing,
+        choosing && latest === message,
+        tokens,
+        choosing ? (reactionsOn.get(message.id) ?? NONE) : NONE,
+      );
+    });
+    const root = published.find((message) => message.id === thread.root.id);
+    if (!root) throw new Error(`Thread ${thread.id} has no root message`);
+    return {
+      id: thread.id,
+      key,
+      title: thread.title,
+      root,
+      msgs: published,
+      unread: Object.freeze(unread),
+      anchor: thread.anchor,
+      detached_from: thread.detached_from,
+      rewritten_from: thread.rewritten_from,
+      resolved: thread.resolved,
+      attention: thread.attention,
+      // The obligations that stand in it: those widgets in its messages make, such as
+      // an `lf-options` the user owes a pick there, and those its updates publish.
+      obligations,
+      // The agent's open to-dos on the thread: a reply that promised one says it is
+      // still open (a to-do a reply opens takes the reply's id, `todos.py`), the
+      // first is the one a thread waiting on a to-do waits on, and a running one is
+      // work the thread's working message reads whoever's turn the thread is.
+      todos,
+      workflows,
+      bare_reaction: thread.bare_reaction,
+      seat: thread.seat,
+      summaries: thread.summaries,
+    };
+  },
+);
 
-// One reading with nothing kept from an earlier one.
-export const readThreadRecords = (
-  /** @type {Parameters<ReturnType<typeof threadRecordReader>>} */ ...args
-) => threadRecordReader()(...args);
+/** Each thread's record, kept until the thread or something it holds moves (kept.js).
+ * @param {readonly Thread[]} threads
+ * @param {import("../framework/application.js").SemanticDocument} document
+ * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
+ * @param {readonly Workflow[]} workflows
+ * @param {readonly ServedTodo[]} todos the open to-dos, of which each thread holds those on it
+ * @param {readonly ObligationRecord[]} obligations
+ *   the view's obligations, of which each thread holds those its messages make
+ * @param {readonly ContentVersion[]} markingRead
+ * @param {boolean} ready
+ */
+export function readThreadRecords(
+  threads,
+  document,
+  widgets,
+  workflows,
+  todos = NONE,
+  obligations = NONE,
+  markingRead = NONE,
+  ready = true,
+) {
+  const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
+  const lists = byThread(workflows, obligations, todos);
+  const marking = markingByMessage(markingRead);
+  const units = unitsByThread(document.descriptors, widgets);
+  return threads.map((thread) =>
+    threadRecord(
+      thread,
+      ready,
+      tokens,
+      Object.keys(thread.unread).flatMap((id) => marking.get(id) ?? []),
+      lists.workflows.get(thread.id) ?? NONE,
+      lists.obligations.get(thread.id) ?? NONE,
+      lists.todos.get(thread.id) ?? NONE,
+      units.get(thread.id) ?? NONE,
+      document.messageBodies?.get(thread.id),
+    ),
+  );
+}

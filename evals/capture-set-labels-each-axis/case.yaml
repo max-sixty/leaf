@@ -1,22 +1,27 @@
-# From session aace0a1e, whose bug page showed four captures (two cases, each before
-# and after an agent's step arrives) as two images, each joined from a before and an
-# after frame with ffmpeg, after lf-shot's divider hid the move. Which half was before
-# was said only in the prose above, and which image was which case only in captions.
-# Cold, base 29c077de6 kept the four captures apart and labeled where they stand in 1 of
-# 3 runs (one joined them with vstack); the table of captures in "Source files and
-# media" did in 3 of 3.
+# A session's bug page showed four captures (two cases, each before and after an
+# agent's step arrives) as two images, each joined from a before and an after frame
+# with ffmpeg, after lf-shot's divider hid the move. Which half was before was said
+# only in the prose above, and which image was which case only in captions. Cold,
+# an agent may join them, as with vstack, or leave where they stand unlabeled; the
+# table of captures in "Source files and media" keeps them apart and labeled.
+#
+# The `own-target` metric covers a pointed comment on one screenshot in such a table
+# landing on the table because the captures carry no id. With "Stable anchors"
+# restated alone, an agent may put the id on the link around the image, where the
+# aim's bracket stands on the link's line and not around the image; the capture
+# default names the `<img>` as well.
 description: capture-set-labels-each-axis
 metadata:
   purpose:
     "Source files and media: captures that vary along two axes stay separate images,
-    and the section labels each capture's place on both axes where it stands."
+    the section labels each capture's place on both axes where it stands, and each
+    capture is a comment target of its own."
   tags:
     - evidence
 vars:
   prompt: |
     You are writing a Leaf page that demonstrates a bug in Leaf's floating thread
-    card. Write the section for this finding, after reading "Source files and media"
-    in `references/authoring-evidence.md` under the skill's base directory.
+    card. Write the section for this finding.
 
     Finding. When the agent posts a new progress step, the open card widens. With a
     reply being drafted, the reply field holds still, so the card's top (with its ✓
@@ -47,3 +52,13 @@ assert:
       or its own caption. Fail if any command or image combines two captures into one
       file, or if which capture is which is said only in prose above or below the
       images.
+  - type: llm-rubric
+    metric: own-target
+    value: |
+      Read the HTML fragment. Pass only if a reader could point at each of the four
+      captures alone and comment on it: each capture's `<img>`, or a block that holds
+      only that one capture and its caption, such as its `<figure>` or its table
+      cell, carries an `id` of its own. Fail if the nearest `id` to any capture is on
+      an element that also holds another capture, such as the table, a row or the
+      section, or on the link around the image, whose box is a line of text and not
+      the image.

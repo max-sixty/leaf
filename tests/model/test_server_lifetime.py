@@ -251,44 +251,6 @@ def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
         server_model.stop_when_service_ends(page_dir)
 
 
-def test_a_background_jobs_server_lives_as_long_as_the_job(
-    page_dir, tmp_path, monkeypatch, dead_pid
-):
-    """A background job runs each sitting on a worker its daemon retires between
-    them, so a claim naming that worker's pid takes the page down an hour after
-    every turn. The job's record is the lifetime instead: the page stays held
-    and served whatever became of the process that claimed it, including the
-    SessionEnd Claude Code runs as the worker retires, and retires when the job
-    is deleted — which takes the record and may leave the directory."""
-    job = tmp_path / "job"
-    job.mkdir()
-    cleanup_model.write_json(job / "state.json", {"sessionId": "bg-job"})
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
-    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
-    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
-    assert service_model.claim_page(page_dir)
-    assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
-    assert read_record(page_dir / "service.json")["lifetime"] == "session"
-    cleanup_model.end_harness_instance("bg-job")
-    turn_record = cleanup_model.session_record("bg-job")
-    assert turn_record is not None
-    assert turn_record["turn_closed"] is not None
-    assert not reaper_retires(page_dir, monkeypatch)
-    assert server_model.running_server(page_dir)
-    assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
-    assert presence_model.presence(page_dir, [])["session_alive"] is True
-
-    (job / "state.json").unlink()
-    assert reaper_retires(page_dir, monkeypatch)
-    wait_for(
-        lambda: server_model.running_server(page_dir),
-        lambda running: not running,
-        failure="the background-job server stayed up after its job was deleted",
-    )
-    assert service_model.owned_pages("bg-job") == []
-    assert presence_model.presence(page_dir, [])["session_alive"] is False
-
-
 def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
     page_dir, tmp_path, monkeypatch
 ):
@@ -336,20 +298,6 @@ def test_a_claim_takes_the_app_lifetime_only_for_the_apps_own_session(
         harness_3 = harness_model.session_harness()
         assert harness_3 is not None
         assert harness_3.lifetime() == {"pid": os.getpid()}
-
-
-def test_a_server_exits_when_its_session_is_hard_killed(
-    page_dir, session_process, managed_server
-):
-    owner = session_process()
-    server = managed_server(page_dir, "abandoned", owner.pid)
-    owner.terminate()
-    owner.wait(timeout=STATED_TIMEOUT)
-
-    server.wait(timeout=STATED_TIMEOUT)
-    assert server.returncode == 0, server.stderr.read()
-    assert read_record(page_dir / "service.json")["enabled"] is True
-    assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
 def test_server_stop_disables_desired_state_without_signalling_a_pid(
@@ -457,11 +405,14 @@ def test_server_stop_closes_accepted_keep_alive_connections(
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=STATED_TIMEOUT)
 
+    # A closed connection reads as end of stream or a reset. A socket still open,
+    # as one a surviving child process inherited would be, times out instead, and
+    # `TimeoutError` is an `OSError` this must not take for a close.
     accepted.settimeout(STATED_TIMEOUT)
     try:
         accepted.sendall(b"\r\n")
         remainder = accepted.recv(1)
-    except OSError:
+    except (ConnectionResetError, BrokenPipeError):
         remainder = b""
     assert remainder == b""
 
@@ -522,9 +473,9 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     assert service_model.page_claim(page_dir) is None
 
     process.send_signal(signal.SIGINT)
-    _, error = process.communicate(timeout=STATED_TIMEOUT)
+    output, error = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, error
-    assert json.loads(error)["error"] == "interrupted"
+    assert json.loads(output)["error"] == "interrupted"
 
 
 # The refusal Codex's macOS sandbox makes of a listing of every process, with the

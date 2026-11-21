@@ -9,11 +9,10 @@ from render_harness import (
     watched,
 )
 
-from leaf_dev.commands.verify_site import observe_startup
-from leaf_dev.visits import console_findings
+from leaf_dev.website import observe_startup
 
 
-@pytest.mark.parametrize("collector", [watched, console_findings, observe_startup])
+@pytest.mark.parametrize("collector", [watched, observe_startup])
 def test_uncaught_errors_keep_the_throw_site_in_each_document(browser, collector):
     """Identical messages in separate documents must keep their distinct call sites."""
     page = browser.unwatched.new_page()
@@ -92,17 +91,17 @@ def test_health_judgement_releases_a_frame_removed_inside_its_evaluation(
         }""",
         call,
     )
-    evaluate = child.evaluate
+    wait = child.wait_for_function
     failed_evaluations = []
 
     def observe_evaluation(*args, **kwargs):
         try:
-            return evaluate(*args, **kwargs)
+            return wait(*args, **kwargs)
         except PlaywrightError as error:
             failed_evaluations.append((str(error), child.is_detached()))
             raise
 
-    monkeypatch.setattr(child, "evaluate", observe_evaluation)
+    monkeypatch.setattr(child, "wait_for_function", observe_evaluation)
     judge_watches()
     assert page.evaluate("removedDuringJudgement") == call
     assert child.is_detached()

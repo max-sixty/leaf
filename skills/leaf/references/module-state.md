@@ -8,14 +8,14 @@ module owes.
 Leaf keeps every kind of state a widget has; the module writes no storage or server
 code of its own. Choose by what the state is:
 
-| State                                                                                      | Kept through                                                                                                     | Who sees it                                                                                                         | How the widget hears of a change                                                                           |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `x-state` ([package-data.md, "User state"](package-data.md#user-state)), recorded by the controller | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | `render()` runs with the new `this.state`, whether this tab, another one, Undo or a new version changed it |
-| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                      | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
-| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                         | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
-| Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                  | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
-| A value this widget holds that another widget shows: a film's step, the files a diff holds | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                                  | this tab, while the widget stands                                                                                   | the reader's bound property is set, and its `render()` runs                                                |
-| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                           | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
+| State                                                                                      | Kept through                                                                                                   | Who sees it                                                                                                         | How the widget hears of a change                                                                           |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `verbs` ([package-data.md, "User state"](package-data.md#user-state)), recorded by the controller | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | `render()` runs with the new `this.state`, whether this tab, another one, Undo or a new version changed it |
+| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                    | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
+| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                       | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
+| Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
+| A value this widget holds that another widget shows: a film's step, the files a diff holds | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                                | this tab, while the widget stands                                                                                   | the reader's bound property is set, and its `render()` runs                                                |
+| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                         | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
 
 Undo tells the first row from the third. Record a change the user would expect Undo to
 take back, and that a comment on the page may be about. Keep in the tab what Undo should
@@ -34,7 +34,7 @@ markup has a controller, and only under the `id` it had at upgrade: if the id ch
 user adds through a `creates` verb, such as a new option, has none; its parent draws it
 from its own state and passes the member's asynchronous drawing to
 `controller.present(promise)`. Leaf itself draws what the declaration alone decides,
-such as hiding a suggestion's `lf-old` once it is accepted (`x-retired-when`).
+such as hiding a suggestion's `lf-old` once it is accepted (`retired-when`).
 
 `read()` returns an immutable `{authored, state, memberships, thread, provenance,
 actions}`. `authored` is the state the page's markup sets, and `state` that with every
@@ -42,8 +42,9 @@ recorded action applied, including the user's latest gestures before the server 
 them. `memberships` maps each attribute an `attribute` record marks to the ids of the
 members the widget currently owns. `thread.heldBy` is the id of the open Thread whose
 opening message holds this widget, or `null`. Each entry in `actions` says whether the
-action is available and what Undo can take back; check it before changing anything for
-the action. Before the document has loaded, `authored` and `state` may be missing, and a
+action is `available`, why not in `unavailable` (a phrase such as `no agent or server is
+available`, or `null`), and what Undo can take back; check it before changing anything
+for the action. Before the document has loaded, `authored` and `state` may be missing, and a
 `LeafElement` draws nothing until `state` holds every declared verb.
 
 Record a gesture with `dispatch({kind: "action", verb, detail, attempt?, says?})`, and
@@ -71,7 +72,7 @@ element's completion waits for work its update starts:
 ```js
 updated(changed) {
   super.updated(changed);
-  this.highlighting = highlightBlocks(this);
+  this.highlighting = dressCode(this);
 }
 async getUpdateComplete() {
   const result = await super.getUpdateComplete();
@@ -113,7 +114,7 @@ container's id, and `rankAt(state.<verb>, container, index, unit)`, which places
 unit at `index` among the container's others and keeps it there however other units
 move. A verb with no record sends what its `detail` schema declares.
 
-A widget that puts an obligation on On me can give its class
+A widget that puts an obligation on On Me can give its class
 `static answerWords(value, element)`, returning short words for the answer in the On
 lists, which otherwise show none. `value` is the obligation's `answer.value`, and
 `element` gives the authored markup, such as option labels; read only that, not what
@@ -121,7 +122,7 @@ the module draws.
 
 ## Bound data and projections
 
-A widget reads a bound data source through the property its `x-data` input names
+A widget reads a bound data source through the property its input (`inputs`) names
 ([package-data.md, "External or derived data"](package-data.md#external-or-derived-data)),
 `"property": "value"` for most widgets. Before each update the delivery moves, Leaf
 sets that property to the source's value, or `null` while there is no readable value,
@@ -155,10 +156,6 @@ be any element with an `id` whose tag declares the output. It publishes in the t
 commits the matching rendering, and publishes `null` rather than keep stale records
 after a failed replacement. Leaf doesn't check a published value against its contract,
 so publish only values that fit it.
-
-Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
-with `loadDeferred(value, key)`, passing the value Leaf delivered that the row came
-from; it throws if the source changed in the meantime.
 
 ### Marking drawn data
 
@@ -201,22 +198,31 @@ widget. On a page without Leaf, nothing listens and the marks mean nothing.
 ### Time readings
 
 `ago(ts)` words a server timestamp as the page does everywhere: "just now", then "2m
-ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
-`quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
-server's grace period. For any other reading, use `clockValue((now) => reading)`, with
-`now` the server's time in milliseconds. Read them synchronously in `render()`, which
-then redraws as the time's reading changes.
+ago", "2h ago", "2d ago". Draw an age
+in `<time datetime=${ts}>` and declare `agePreview` as its `lfPreview`
+(`module-input.md`, "Previews"), so pointing at it says when, in the reader's zone and
+as their browser writes a date, as Leaf's own ages do: "Sat, Aug 15, 2026, 2:02 PM PT".
+Read `ago` synchronously in `render()`, which then redraws as the time's reading
+changes.
+
+`clockValue((now) => …)` states any other condition on the time, such as whether a
+timestamp is older than a limit or which day a date falls in. `now` is the server's
+time in milliseconds, the clock `ago` reads, so the answer never disagrees with an age
+beside it; keep no clock of your own. Return the answer rather than the time, as in
+`clockValue((now) => now - Date.parse(collected) > STALE_MS)`: a synchronous read in
+`render()` redraws only when that answer changes.
 
 ## Editing a bound file
 
 `boundFile(binding)` reads and writes a file the agent granted this page with
-`leaf file bind`. `read()` returns `{label, text, revision}`, with `text` in LF line
-endings. `save({revision, text})` writes only if the file is still at `revision`, and
+`leaf file bind`. `label` is the file's path below the deepest folder holding every
+file the page binds, or `null` until the page's state names it. `read()` returns
+`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})` writes only if the file is still at `revision`, and
 otherwise throws a `RequestError` whose `current` holds the newer file.
 `RequestError` also carries the HTTP `status` and response `body`; distinguish it
 with `instanceof` when handling a server refusal. `watch(callback)` calls
-back whenever the file may have changed on disk, the widget's own save included, so read
-it again then. `writable` is false in captured documents and exports. Editing the file
+back whenever the file may have changed on disk or its label changed, the widget's own
+save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
 package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
 travel with the page.
@@ -304,10 +310,12 @@ To render generated Leaf source as an isolated working preview, use
 `mountSample(frame, {source})` from the same module. The [generated sample
 workflow](live-samples.md#generated-samples) covers readiness, sizing and disposal.
 
-The page must have an active Codex, Claude Code or Pi claim. The host reuses that harness's
-existing login and selects its model: Luna for Codex, Haiku for Claude, and the model
-the user configured for Pi. Pi has no structured-output mode, so it is given the schema
-and its answer is validated against it; an answer that doesn't match rejects the promise.
+The page must have an active Codex, Claude Code or Pi claim, and a Claude Code claimant's
+session must be running, since Leaf's plugin in it makes the call. The host reuses that
+harness's existing login and selects its model: Luna for Codex, Haiku for Claude, and the
+model the user configured for Pi. Neither Claude Code's call nor Pi has a
+structured-output mode, so each is given the schema and its answer is validated against
+it; an answer that doesn't match rejects the promise.
 Credentials stay on the host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
 spending allowance: repeated calls can continue to incur charges. Usage is returned
 per call, not retained as a billing ledger. Independent generation calls run

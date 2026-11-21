@@ -1,5 +1,5 @@
-"""How a page keeps its state current: freshness reads, hidden pages, coalesced and
-bounded state reads, offline authored state and recovery, and reloads."""
+"""How a page keeps its state current: freshness reads, hidden pages, coalesced
+state reads and what ends one, offline authored state and recovery, and reloads."""
 
 import re
 from urllib.parse import urlparse
@@ -16,6 +16,7 @@ from render_harness import (
     LONG_PAGE,
     _traffic,
     consume_browser_errors,
+    expect_preview_words,
     holding,
     http_error_console,
     leaf_page,
@@ -96,7 +97,7 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     told(page)
     assert _traffic(page).asked == asked + 1
     notice = page.locator(".lf-fp-joined .lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 new thread")
+    expect_preview_words(notice, "1 new thread")
     notice.click()
     expect(page.locator(".lf-fp-thread", has_text="News.")).to_have_count(1)
 
@@ -133,7 +134,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
         ),
     ) as restarted:
         serve.httpd.server_id = "replacement-server"
-    assert restarted.value.text() == reading
+    assert restarted.value.json()["reading"] == reading
     # The page asks its next look only once it has handled the one that heard the new
     # server, so a reload it decided on is under way by then; a document it reloaded
     # into ends the wait at once.
@@ -298,17 +299,12 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
     delay_state_body_past_deadline = """
       const nativeFetch = window.fetch.bind(window);
-      Object.defineProperty(AbortSignal, 'timeout', {
-        value: () => ({aborted: false}),
-      });
       window.fetch = async (...args) => {
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
         if (new URL(url, location.href).pathname !== '/api/state')
           return nativeFetch(...args);
-        const signal = args[1].signal;
-        const response = await nativeFetch(input, {...args[1], signal: undefined});
-        signal.aborted = true;
+        const response = await nativeFetch(...args);
         return {
           ok: response.ok,
           headers: response.headers,
@@ -323,49 +319,73 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
     expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
 
 
-def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, serve):
-    """Two reads, two deadlines, because they are answerable to different things.
+# Takes every bound the page sets on a request into the test's hands, so none ends a
+# request on its own, and keeps the bound each state read was given: the page sets a
+# read's bound just before it asks. `__lfOutlast(ms)` ends, as the browser ends an
+# expired one, each state read's bound that a read lasting `ms` would have passed, and
+# returns those bounds.
+HELD_BOUNDS = """
+window.__lfBounds = {last: null, reads: []};
+Object.defineProperty(AbortSignal, 'timeout', {
+  value: (ms) => {
+    const controller = new AbortController();
+    window.__lfBounds.last = {ms, controller};
+    return controller.signal;
+  },
+});
+const boundedFetch = window.fetch.bind(window);
+window.fetch = (...args) => {
+  const url = String(args[0] instanceof Request ? args[0].url : args[0]);
+  if (url.includes("api/state")) window.__lfBounds.reads.push(window.__lfBounds.last);
+  return boundedFetch(...args);
+};
+window.__lfOutlast = (ms) => window.__lfBounds.reads
+  .filter((bound) => bound.ms <= ms && !bound.controller.signal.aborted)
+  .map((bound) => {
+    bound.controller.abort(new DOMException("signal timed out", "TimeoutError"));
+    return bound.ms;
+  });
+"""
 
-    `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
-    then read the reloaded page still on the revision from before the turn. A
-    container that has just run a turn answers its next state read in seconds rather
-    than milliseconds — measured against a live deployment at 123 ms before a turn and
-    2252-3918 ms after one. A bound inside that spread does not delay such a read, it
+
+def test_a_state_read_waits_while_news_answers_and_ends_when_a_look_fails(
+    browser, serve
+):
+    """A state read waits for its answer while the server answers the page's news
+    looks, and ends as offline once a look goes unanswered.
+
+    A container that has just run a turn can answer its next state read in seconds
+    rather than milliseconds. A bound inside that spread does not delay such a read, it
     ends it: an expiry is a completed offline answer, so the page takes the container
-    for gone while the answer it asked for is still on its way. Nothing waits on the
-    first read to open the comment interface — upgrade does that independently — so its
-    bound can sit outside every reading a live container takes. The deploy gate gives that container
-    120 seconds for each read it makes of it.
+    for gone while the answer it asked for is still on its way. A slow container still
+    answers news, so the looks, not a deadline on the read, say when the server is gone.
+    """
+    page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS + HELD_BOUNDS)
+    open_threads(page)
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Slow."},
+    )
+    holding(page, held, 1, "the read the news asked for")
+    # A read ten times as slow as the slowest the deployment answered.
+    assert page.evaluate("ms => window.__lfOutlast(ms)", 40_000) == [], (
+        "a read the server was still answering ended on time"
+    )
+    looked_since(page)
+    held[0].continue_()
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+    expect_preview_words(notice, "1 new thread")
 
-    Every read after presentation answers to the user instead. The status's one way
-    to say the server stopped answering runs through a read that *completed* with
-    nothing, and a read still in flight holds the page's one slot, so this bound is the
-    whole time a live page can go on showing a reading the server has abandoned. It
-    stays on a user's timescale rather than the gate's.
-    """
-    record_read_bounds = """
-      window.__leafReadBounds = [];
-      const native = AbortSignal.timeout.bind(AbortSignal);
-      Object.defineProperty(AbortSignal, 'timeout', {
-        value: (ms) => {
-          window.__leafReadBounds.push(ms);
-          return native(ms);
-        },
-      });
-    """
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    page.add_init_script(record_read_bounds)
-    # A read that brings nothing is what puts the page back on the clock: a page holding
-    # an answer asks again only when its news moves, so refusing the reads is how a
-    # second one is reached without waiting on the server to say something new.
-    page.route("**/api/state*", refuse)
-    page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
-    page.wait_for_function("() => window.__leafReadBounds.length >= 2")
-    bounds = page.evaluate("() => window.__leafReadBounds")
-    assert bounds[0] == 120_000, bounds
-    assert 0 < bounds[1] < bounds[0], bounds
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Gone."},
+    )
+    holding(page, held, 2, "the read the next news asked for")
+    page.route("**/api/news*", refuse)
+    expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
+    page.unroute_all(behavior="ignoreErrors")
 
 
 def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
@@ -376,9 +396,9 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
     url = serve(
         leaf_page(
             "Offline choice",
-            '<h1>Offline choice</h1><lf-ask id="ask"><h2>Which?</h2>'
-            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
-            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+            '<h1>Offline choice</h1><lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
+            '<lf-options id="options"><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-group>',
         )
     )
     append_command(
@@ -398,10 +418,10 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
     expect(page.locator("#options .lf-pick")).to_have_count(2)
-    expect(page.locator("#two")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#two")).not_to_have_attribute("selected", "")
     page.unroute("**/api/state*")
     told(page)
-    expect(page.locator("#two")).to_have_attribute("chosen", "")
+    expect(page.locator("#two")).to_have_attribute("selected", "")
 
 
 def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, serve):
@@ -411,9 +431,9 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
     url = serve(
         leaf_page(
             "Waiting choice",
-            '<h1>Waiting choice</h1><lf-ask id="ask"><h2>Which?</h2>'
-            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
-            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+            '<h1>Waiting choice</h1><lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
+            '<lf-options id="options"><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-group>',
         )
     )
     append_command(
@@ -441,7 +461,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
           return {
             verbs: Object.keys(state).sort(),
             chosen: state.choose.value,
-            drawn: [...options.querySelectorAll('lf-option[chosen]')].map((o) => o.id),
+            drawn: [...options.querySelectorAll('lf-option[selected]')].map((o) => o.id),
           };
         }"""
     )
@@ -450,7 +470,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
     for route in held:
         route.continue_()
     told(page)
-    expect(page.locator("#two")).to_have_attribute("chosen", "")
+    expect(page.locator("#two")).to_have_attribute("selected", "")
 
 
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
@@ -458,7 +478,8 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {LeafElement, noChange, clockValue} = await window.__lfWidgetApi();
+          const {LeafElement, clockValue} = await window.__lfWidgetApi();
+          const {noChange} = await window.__lfVendorImport('lit.js');
           window.probeVersion = 0;
           window.probePaints = 0;
           customElements.define('lf-pending-paint', class extends LeafElement {
@@ -495,7 +516,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     """A wake-up the page could not act on is not lost. A freshness answer says when the
     page has moved wakes state once per changed reading, so a read that failed — refused here, a
     dropped request in the world — is asked again on the page's own tick, the
-    spacing a failed exchange has always had. Without that a page would sit under
+    spacing a failed exchange has. Without that a page would sit under
     an offline status until something else happened to it."""
     page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     open_threads(page)
@@ -519,7 +540,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     page.unroute("**/api/state*")
     told(page)
     notice = page.locator(".lf-fp-joined .lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 new thread")
+    expect_preview_words(notice, "1 new thread")
     notice.click()
     expect(page.locator(".lf-fp-thread", has_text="Missed.")).to_have_count(1)
     expect(panel_field(page)).not_to_have_attribute("placeholder", OFFLINE)
@@ -528,12 +549,11 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
 def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser, serve):
     """A reload is only an answer when the document would come back different.
 
-    The page refuses an answer from another layer because it cannot read that state, and
-    it used to reload on the spot. That is right when re-vendoring has moved the page out
-    from under an open tab. It is wrong the other way around — a server behind the
-    document it served, which is what the website looks like while a release's containers
-    are still starting — because the reload lands on the same document and the next answer
-    says the same thing, so the user watches the page restart for as long as the
+    The page refuses an answer from another layer because it cannot read that state.
+    Reloading on the spot is right when re-vendoring has moved the page out from under
+    an open tab. It is wrong the other way around — a server behind the document it
+    served — because the reload lands on the same document and the next answer says
+    the same thing, so the user watches the page restart for as long as the
     disagreement lasts. The source of documents is the one party that can tell the two
     apart, so the page asks it and then holds still: the answers stay refused, the
     authored page stays readable, and the feed keeps asking until the server is back on
@@ -611,3 +631,85 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
     finally:
         page.unroute("**/api/state", foreign)
         page.unroute("**/registry.json", source)
+
+
+# Marks the startup supervisor's probe (bootstrap.js, `check`), which asks for the
+# registry past the cache, apart from the runtime's own read of the same address.
+MARK_PROBES = """
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  if (!String(input).includes("registry.json") || init.cache !== "no-store")
+    return nativeFetch(input, init);
+  const headers = new Headers(init.headers);
+  headers.set("Leaf-Test-Probe", "1");
+  return nativeFetch(input, {...init, headers});
+};
+"""
+
+
+@pytest.mark.parametrize(
+    ("lost", "fails"),
+    [
+        ("runtime/rendering.js", "once"),
+        ("runtime/rendering.js", "every time"),
+        ("theme.css", "once"),
+    ],
+)
+def test_a_page_whose_module_failed_to_load_asks_its_server_once_more(
+    browser, serve, lost, fails
+):
+    """A module can fail on its way from a server that is still there, as when the
+    machine's network changes under the request (`net::ERR_NETWORK_CHANGED`). The page
+    then lacks it however long it waits, and a page that waited only for another server
+    would never start while its server kept answering. Once that server answers, the page
+    asks it for the document once more, and starts. A page that lost only its theme
+    upgrades without it, and asks too, though the network change took the first probe
+    with it and the page upgraded before a probe answered. A module the server fails
+    every time fails the second document too, which asks no third: the count is the
+    assertion, one replacement and then the probe's own cadence."""
+    page = browser.new_page()
+    page.add_init_script(MARK_PROBES)
+    documents, failed, rounds, probes = [], [], [], []
+
+    def heard(request):
+        if request.resource_type == "document":
+            documents.append(request.url)
+        elif len(documents) > 1 and "/registry.json" in request.url:
+            rounds.append(request.url)
+
+    def lose(route):
+        if failed and fails == "once":
+            route.continue_()
+        else:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+
+    def probe(route):
+        if "leaf-test-probe" in route.request.headers and not probes:
+            probes.append(route.request.url)
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+    page.on("request", heard)
+    page.route(f"**/{lost}", lose)
+    page.route("**/registry.json", probe)
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    holding(page, documents, 2, "the document recovery asks for")
+    if fails == "once":
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+        expect(page.locator("html")).to_have_attribute("data-lf-interactive", "")
+        assert len(failed) == 1, failed
+    else:
+        expect(
+            page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
+        ).to_be_visible()
+        holding(page, rounds, 3, "three probe rounds from the replacement document")
+    assert len(documents) == 2, documents
+    assert "_leaf-recovered" in documents[1], documents
+    assert "_leaf-recovered" not in page.evaluate("location.href")
+    page.unroute(f"**/{lost}", lose)
+    page.unroute("**/registry.json", probe)
+    consume_browser_errors(
+        page, lost, "registry.json", "net::ERR_INTERNET_DISCONNECTED"
+    )

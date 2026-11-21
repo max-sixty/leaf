@@ -1,23 +1,29 @@
 /* lf-gloss: a brief explanation at the phrase that needs it.
  *
- * The body stays where the author put it: it is the page's selectable, quotable
- * phrase. The explanation is the x-says rendering of the validated `tip` attribute:
- * generated for the diff, but still page text a user can select and comment on. Paper
- * places those same words after the phrase.
+ * The body stays where the author put it: the phrase, then the explanation the author
+ * wrote in a child element marked with HTML's `popover` attribute, which the platform
+ * keeps out of the sentence until it is shown. Both are the page's authored words, so
+ * the user selects, quotes and comments on the explanation as on the phrase, and
+ * Python's reading of the file holds them where the page shows them. Paper places the
+ * explanation after the phrase. A gloss with no such child is the phrase alone.
  *
- * Hover is only the fastest route. The phrase is the visible affordance; a proxy at the
- * same place (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route
- * without adding a second mark to the prose. Clicking the phrase pins the card for touch and
- * careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
- * CSS anchors keep the card with its phrase. */
+ * Pointing reads; pressing acts. A pointer resting on the phrase, keyboard focus on it
+ * and a finger holding it read the explanation as the phrase's preview, in the face
+ * every preview wears (`lfPreview`, module-input.md, "Previews"). A press pins the
+ * explanation's own card open, where its words can be selected and commented on, and a
+ * second press puts it away. The phrase is the visible affordance; a proxy at the same place
+ * (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route without
+ * adding a second mark to the prose, and its description is the card, which a screen
+ * reader hears on focus. An auto popover owns the card's top-layer lifecycle and light
+ * dismissal; CSS anchors keep the card with its phrase. */
 import {
   keeps,
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
   offerAction,
-  generatedElement,
   once,
+  says,
   reachedForWords,
   worksInside,
   whileConnected,
@@ -29,118 +35,70 @@ let nextId = 0;
 customElements.define(
   "lf-gloss",
   class extends HTMLElement {
-    #bubble = document.createElement("span");
-    #dismissed = false;
-    #focused = false;
-    #hovered = false;
+    /** @type {HTMLElement | null} */
+    #bubble = null;
     #mark = offerAction("proxy", "lf-gloss-mark");
     #pinned = false;
-    #shown = false;
+    // A pinned card already shows the explanation, so nothing previews over it.
+    lfPreview = () =>
+      this.#pinned || !this.#bubble
+        ? false
+        : { name: this.#phrase(), detail: [says(this.#bubble)] };
 
     connectedCallback() {
       if (!once(this)) return;
-      this.#build();
+      this.#bubble = this.querySelector(":scope > [popover]");
+      if (!this.#bubble) return;
+      this.#build(this.#bubble);
       whileConnected(this, (/** @type {AbortSignal} */ signal) => {
-        this.#listen(signal);
+        this.addEventListener("click", (event) => this.#click(event), { signal });
         this.#sync();
         return () => {
-          this.#hovered = false;
-          this.#focused = false;
           this.#pinned = false;
-          this.#shown = false;
         };
       });
     }
 
-    #build() {
-      const phrase = this.textContent.replace(/\s+/g, " ").trim();
+    // The authored phrase, which names the gloss, without the words of its card.
+    #phrase() {
+      return [...this.childNodes]
+        .filter((node) => node !== this.#bubble && node !== this.#mark)
+        .map((node) => node.textContent)
+        .join("")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    /** @param {HTMLElement} bubble */
+    #build(bubble) {
+      const phrase = this.#phrase();
       this.#mark.setAttribute("aria-label", `Explain “${phrase}”`);
       this.#mark.setAttribute("aria-expanded", "false");
 
-      do this.#bubble.id = `lf-gloss-tip-${++nextId}`;
-      while (document.getElementById(this.#bubble.id));
-      this.#bubble.className = "lf-gloss-popover lf-popover";
-      this.#bubble.dataset.lfSaid = "tip";
-      generatedElement(this.#bubble, { says: true });
-      this.#bubble.setAttribute("popover", "auto");
-      this.#bubble.setAttribute("role", "note");
-      this.#bubble.textContent = this.getAttribute("tip");
-      const anchor = `--lf-gloss-${nextId}`;
+      // The mark names the card by id. One the author gave stays; one written here is
+      // the runtime's (`lf-`), which an anchor never takes for its section.
+      let n = ++nextId;
+      while (!bubble.id && document.getElementById(`lf-gloss-tip-${n}`)) n = ++nextId;
+      bubble.id ||= `lf-gloss-tip-${n}`;
+      bubble.classList.add("lf-gloss-popover", "lf-popover");
+      keeps(bubble, "role", "note");
+      const anchor = `--lf-gloss-${n}`;
       this.style.anchorName = anchor;
-      this.#bubble.style.positionAnchor = anchor;
-      this.#mark.setAttribute("aria-controls", this.#bubble.id);
-      this.#mark.setAttribute("aria-describedby", this.#bubble.id);
-      // x-says="after" puts the tip directly after the authored body and before any
-      // trailing generated chrome. Writing that declared span here lets this module
-      // also make it the popover; renderSaid sees the same marker and adds no duplicate.
-      this.append(this.#bubble, this.#mark);
-      // A comment can rest on the x-says tip itself, and following it opens the tip as
-      // Leaf opens any closed popover holding a destination. Opened by anyone but this
-      // module, the tip stays pinned open, as a click pins it.
-      this.#bubble.addEventListener("beforetoggle", (event) => {
-        if (event.newState !== "open" || this.#shown) return;
-        this.#dismissed = false;
-        this.#pinned = true;
-        this.#shown = true;
-        this.#mark.setAttribute("aria-expanded", "true");
-        commandsChanged(this);
+      bubble.style.positionAnchor = anchor;
+      this.#mark.setAttribute("aria-controls", bubble.id);
+      this.#mark.setAttribute("aria-describedby", bubble.id);
+      this.append(this.#mark);
+      // A comment can rest on the explanation itself, and following it opens the card
+      // as Leaf opens any closed popover holding a destination. Opened by anyone but
+      // this module, the card stays pinned open, as a click pins it; a light dismissal
+      // unpins it.
+      bubble.addEventListener("beforetoggle", (event) => {
+        if (event.newState === "open" && !this.#pinned) this.#pin(true);
       });
-      this.#bubble.addEventListener("toggle", (event) => {
-        if (event.newState !== "closed" || !this.#shown || isNativeLayer(this.#bubble))
-          return;
-        this.#shown = false;
-        this.#pinned = false;
-        this.#dismissed = true;
-        this.#mark.setAttribute("aria-expanded", "false");
-        commandsChanged(this);
+      bubble.addEventListener("toggle", (event) => {
+        if (event.newState === "closed" && this.#pinned && !isNativeLayer(bubble))
+          this.#pin(false);
       });
-    }
-
-    /** @param {AbortSignal} signal */
-    #listen(signal) {
-      this.addEventListener(
-        "pointerenter",
-        (event) => {
-          // A tap synthesizes pointerenter too. Treating that as hover leaves a card
-          // permanently open after its click unpins it, so only a hovering mouse takes
-          // this route; touch reaches the same state through click.
-          if (event.pointerType !== "mouse") return;
-          this.#hovered = true;
-          this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener(
-        "pointerleave",
-        (event) => {
-          if (event.pointerType !== "mouse") return;
-          this.#hovered = false;
-          this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener(
-        "focusin",
-        () => {
-          this.#focused = true;
-          this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener(
-        "focusout",
-        (event) => {
-          if (this.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
-          this.#focused = false;
-          this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener("click", (event) => this.#click(event), { signal });
     }
 
     /** @param {MouseEvent} event */
@@ -150,26 +108,24 @@ customElements.define(
       if (!(target instanceof Element)) return;
       const nested = worksInside(target, this);
       if (nested && nested !== this.#mark) return;
-      if (event.composedPath().includes(this.#bubble)) return;
-      this.#dismissed = false;
-      this.#pinned = !this.#pinned;
+      if (this.#bubble && event.composedPath().includes(this.#bubble)) return;
+      event.preventDefault();
+      this.#pin(!this.#pinned);
       this.#sync();
+    }
+
+    /** @param {boolean} pinned */
+    #pin(pinned) {
+      this.#pinned = pinned;
+      keeps(this.#mark, "aria-expanded", pinned);
+      commandsChanged(this);
     }
 
     #sync() {
       if (!this.#bubble?.isConnected) return;
-      const show = !this.#dismissed && (this.#hovered || this.#focused || this.#pinned);
       const open = isNativeLayer(this.#bubble);
-      if (show === this.#shown && show === open) return;
-      this.#shown = show;
-      keeps(this.#mark, "aria-expanded", show);
-      commandsChanged(this);
-
-      if (show) {
-        showNativeLayer(this.#bubble);
-      } else {
-        if (isNativeLayer(this.#bubble)) closeNativeLayer(this.#bubble);
-      }
+      if (this.#pinned && !open) showNativeLayer(this.#bubble);
+      else if (!this.#pinned && open) closeNativeLayer(this.#bubble);
     }
   },
 );

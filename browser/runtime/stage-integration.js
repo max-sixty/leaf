@@ -4,7 +4,7 @@
    sheets remain in place, and re-adoption restores any shared sheets it replaced. */
 import { installStageIntegration } from "./shadow-stage.js";
 import { shadowRules } from "./shadow.js";
-import { annotationMarkSheets, chromeSheet, marksSheet } from "./stylesheets.js";
+import { chromeSheet, marksSheet } from "./stylesheets.js";
 import { watchCurrentLocationIn } from "./focus.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { installLayerStyleIntegration } from "./keyboard/layer-stack.js";
@@ -19,9 +19,7 @@ installLayerStyleIntegration((root) => {
 /** @type {WeakMap<ShadowRoot, HTMLStyleElement>} */
 const styles = new WeakMap();
 installStageIntegration((root) => {
-  root.adoptedStyleSheets = [
-    ...new Set([...root.adoptedStyleSheets, ...annotationMarkSheets, marksSheet]),
-  ];
+  root.adoptedStyleSheets = [...new Set([...root.adoptedStyleSheets, marksSheet])];
   watchDisclosures(root);
   watchCurrentLocationIn(root);
   let style = styles.get(root);

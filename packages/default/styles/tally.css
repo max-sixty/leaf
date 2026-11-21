@@ -1,5 +1,5 @@
 /* lf-tally: a region's obligations still to answer, in a chip (chip.css) as a header's are,
- * with its Next on me beside it. The count's room stacks the widest labels the count
+ * with its Next On Me beside it. The count's room stacks the widest labels the count
  * can take in one cell with the words, giving the chip its width, so a changing count
  * moves neither the control nor what follows. Until the page's first reading is in,
  * the tally keeps its room and shows nothing; once every obligation is answered the chip takes
@@ -7,7 +7,7 @@
 lf-tally {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--lf-sp-2);
   max-width: 100%;
   vertical-align: middle;
 }
@@ -15,7 +15,7 @@ lf-tally {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-1) var(--sp-2);
+  gap: var(--lf-sp-1) var(--lf-sp-2);
   max-width: 100%;
 }
 :host(lf-tally) .lf-tally-face:not([data-lf-ready]) {
@@ -33,32 +33,32 @@ lf-tally {
 :host(lf-tally) .lf-tally-room {
   visibility: hidden;
 }
-/* Next on me stands in a header row beside the chips at their type size, as tall as
+/* Next On Me stands in a header row beside the chips at their type size, as tall as
  * the layer's aim floor, so the row keeps the height its title gives it. A chip after
  * it paints over whatever of its focus ring reaches the chip, and a space between the
  * two is narrower than the ring, so it keeps the ring's room after it. */
 :host(lf-tally) .lf-tally-next {
-  font: var(--font-small);
+  font: var(--lf-font-small);
   padding-block: 0;
-  min-height: var(--aim-floor);
-  margin-inline-end: var(--focus-ring-room);
+  min-height: var(--lf-aim-floor);
+  margin-inline-end: var(--lf-focus-ring-room);
 }
 
 lf-tally:not(:defined)::before {
   content: "00 left to answer · 00 on the agent";
   display: inline-block;
   visibility: hidden;
-  font: var(--font-chip);
-  padding: var(--chip-pad);
+  font: var(--lf-font-chip);
+  padding: var(--lf-chip-pad);
 }
 lf-tally[next]:not(:defined)::after {
-  content: "Next on me";
+  content: "Next On Me";
   display: inline-block;
   visibility: hidden;
-  font: var(--font-small);
+  font: var(--lf-font-small);
   box-sizing: border-box;
-  padding-inline: 10px;
+  padding-inline: var(--wa-form-control-padding-inline);
   border: 1px solid transparent;
-  margin-inline-end: var(--focus-ring-room);
-  min-block-size: var(--aim-floor);
+  margin-inline-end: var(--lf-focus-ring-room);
+  min-block-size: var(--lf-aim-floor);
 }

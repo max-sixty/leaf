@@ -16,13 +16,13 @@
         margin-bottom: 24px;
       }
       #worktree-example-intro p {
-        font: 14px/1.55 var(--sans);
-        color: var(--muted);
+        font: 14px/1.55 var(--lf-sans);
+        color: var(--lf-muted);
         margin: 0;
         max-width: 75ch;
       }
       .worktree-example-status {
-        color: var(--muted);
+        color: var(--lf-muted);
         display: block;
         margin-top: 4px;
         font-size: 12px;
@@ -31,8 +31,8 @@
         margin-top: 32px;
       }
       .worktree-example-cases > summary {
-        font: 14px var(--sans);
-        color: var(--muted);
+        font: 14px var(--lf-sans);
+        color: var(--lf-muted);
       }
       .worktree-example-cases section {
         margin-block-start: 24px;
@@ -41,7 +41,7 @@
         font-size: 20px;
       }
       .worktree-example-cases > p {
-        font: 13px var(--sans);
+        font: 13px var(--lf-sans);
       }
       @media (max-width: 600px) {
         #worktree-example-intro h1 {
@@ -62,11 +62,7 @@
           paths, commits and patches are illustrative snapshots.
         </p>
       </header>
-      <section
-        id="worktree-example-try"
-        aria-label="Four worktrees"
-        class="layout-flow"
-      >
+      <section id="worktree-example-try" aria-label="Four worktrees">
         <lf-worktree-diffs id="worktree-example-workbench">
           <lf-worktree
             id="worktree-example-worktree-0"

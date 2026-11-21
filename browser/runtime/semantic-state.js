@@ -48,7 +48,7 @@ export const agentName = () => agent() || "the agent";
 export const pageClaimed = readPart(
   (root) => root.authoritative?.claim_session != null,
 );
-export const projectView = applicationState.projectView;
+export const projectDocument = applicationState.projectDocument;
 export const selectWidgets = applicationState.selectWidgets;
 /** @param {string} region */
 export const attachApplicationPresentation = (region) => presentation.attach(region);
@@ -285,11 +285,12 @@ export const applicationPresenter = ({ region, after, reading, paint, failSoft }
   return Object.freeze({ present, disconnect, committed: presenter.committed });
 };
 
-// How many times a caller has said the document changed under every region. A reading
-// derived from the page's own nodes, rather than from the root, keys on it. It is an
-// outside reading, so a Lit render that reads one follows it and repaints when the nodes it
-// drew from change, as the floating panel's quote does when a datum's label does. The
-// regions it calls hear it after they have claimed, which owes them nothing more.
+// How many times a caller has said the document changed under every region. A reader
+// of the page's own nodes that the page's reading doesn't hear (passages.js,
+// `pageReadingVersion`), as a datum's label is, reads it. It is an outside reading, so
+// a Lit render that reads one follows it and repaints when the nodes it drew from
+// change, as the floating panel's quote does when a datum's label does. The regions
+// it calls hear it after they have claimed, which owes them nothing more.
 const documentChanges = signal(0);
 export const documentChanged = () => documentChanges.value;
 

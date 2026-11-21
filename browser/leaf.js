@@ -20,6 +20,7 @@ import {
   markPagePresented,
   markPageUpgraded,
   whenArrived,
+  arrivalsOutstanding,
   pageReadiness,
   settlePageInterface,
   afterPresentation,
@@ -87,8 +88,10 @@ import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads, threadNamed } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
-  createThreadLanding,
   declareThreadKeys,
+  landIn,
+  landInThread,
+  landSent,
   scrollThreadIntoView,
   currentLocationThread,
 } from "./runtime/thread/landing.js";
@@ -106,12 +109,19 @@ import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { marginBarLayer } from "./runtime/margin-bars.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
+import {
+  annotationsHidden,
+  mountAnnotationControls,
+  restoreAnnotations,
+} from "./runtime/annotation-layer.js";
+import { createAnchorPaint } from "./runtime/anchor-paint.js";
+import { createVisualMarkPaint } from "./runtime/visual-mark-paint.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
 import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
-import { holdToRead } from "./runtime/held-word.js";
+import { mountPreviews } from "./runtime/preview.js";
 
 import { leavesOffered } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
@@ -176,7 +186,8 @@ async function boot() {
   // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
   // checks can inspect either distribution without turning it into a package API. These
   // scene readings answer different questions: which readiness fact the page has yet to state
-  // (`pageReadiness`), whether its counted queue or complete finite preparation has
+  // (`pageReadiness`), how many arrivals it has yet to land (`arrivalsOutstanding`),
+  // whether its counted queue or complete finite preparation has
   // settled (`renderingState`), and which native layers expose reading and controls.
   // Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
   // widget preparation tracing at each declaration and its settlement.
@@ -185,6 +196,7 @@ async function boot() {
   );
   if (validationEntry) {
     validationEntry.lfReadiness = pageReadiness;
+    validationEntry.lfArrivalsOutstanding = arrivalsOutstanding;
     validationEntry.lfRenderingState = renderingState;
     validationEntry.lfObserveQueuedWork = observeQueuedWork;
     validationEntry.lfObserveWidgetPreparations = observePreparations;
@@ -208,7 +220,7 @@ async function boot() {
     : null;
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-  annotationRenderer?.mountAnnotationControls();
+  mountAnnotationControls();
 
   /** @type {ReturnType<typeof mountApplication>} */
   let app;
@@ -250,11 +262,12 @@ async function boot() {
   let floatingPanel;
   const navigation = createNavigation({
     placedAt: (id) => anchorPlacement.placedAt(id),
+    savedAt: (context) => anchorPlacement.savedAt(context),
+    showDraft: (context) => writingResume.showDraft(context),
     threadDestinations: {
       openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
       threadAtCurrentLocation: (node) =>
         app.threadDestinations.threadAtCurrentLocation(node),
-      threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
     },
   });
 
@@ -262,22 +275,21 @@ async function boot() {
   // covers (geometry.js, `coverBoxes`). Both maps read the same boxes.
   const hintChrome = { barriers: () => coverBoxes() };
   const anchorPlacement = createAnchorPlacement();
-  /** @type {ReturnType<NonNullable<typeof annotationRenderer>["createVisualMarkPaint"]> | undefined} */
-  let visualMarkPaint;
-  /** @type {ReturnType<NonNullable<typeof annotationRenderer>["createAnchorPaint"]> | undefined} */
-  let anchorPaint;
-  if (annotationRenderer) {
-    visualMarkPaint = annotationRenderer.createVisualMarkPaint();
-    anchorPaint = annotationRenderer.createAnchorPaint({
-      targetPaint: visualMarkPaint,
-      pointer: pointerAt,
-      currentLocationThreadId,
-      currentLocationObligation: () => items.currentLocationIn(),
-      rowThread: () => floatingPanel?.hoveredThread() ?? null,
-      threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
-      marginThread: () => app?.overlay?.pointedThread() ?? null,
-    });
-  }
+  // Every page marks its commented words, previews their threads under the pointer
+  // and opens one on a press, whoever draws its margin.
+  const anchorPaint = createAnchorPaint({
+    targetPaint: createVisualMarkPaint(),
+    pointer: pointerAt,
+    currentLocationThreadId,
+    currentLocationObligation: () => items.currentLocationIn(),
+    rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
+    threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
+    marginThread: () => app?.overlay?.pointedThread() ?? null,
+    placedAt: (id) => anchorPlacement.placedAt(id),
+    pendingAt: () => anchorPlacement.pendingAt(),
+    settle: () => anchorPlacement.settle(),
+  });
+  anchorPlacement.hearPlaced((change) => anchorPaint.replace(change));
   const drawingPaint = createDrawingInk({
     drawings: () => [
       ...(annotationRenderer?.postedDrawings(allThreads(), anchorPlacement) ?? []),
@@ -314,10 +326,11 @@ async function boot() {
     },
   });
   pageGeometry = createPageGeometry({
-    refreshAnchorHover: anchorPaint?.refreshHover,
+    refreshAnchorHover: anchorPaint.refreshHover,
     aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
     pointer: pointerAt,
     designMode,
+    pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
@@ -342,8 +355,7 @@ async function boot() {
       floatingPanel?.clearFor(destination, landed) ?? null,
     announce,
   });
-  const landing = createThreadLanding();
-  declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere() ?? null);
+  declareThreadKeys(() => app.threadDestinations.threadHere() ?? null);
   const anchorControls = createAnchorControls({
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
     openThread: (...args) => app.threadDestinations.openPageThread(...args),
@@ -351,6 +363,7 @@ async function boot() {
     labelAnchor: anchorLabel,
     invalidateThread: () => app.refreshThread(),
     invalidatePageGeometry: pageGeometry.invalidate,
+    placement: anchorPlacement,
     messageReferenceRoot: chromeRoot,
     draftQuote: composerQuote,
     focused,
@@ -389,13 +402,14 @@ async function boot() {
 
   app = mountApplication({
     arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
+    showTodo: (todo) => floatingPanel?.showTodo(todo),
     nextObligationWithin: (options) => queueWalk.nextWithin(options),
-    threadAvailable: !offlineInteractive,
+    goToObligation: (record) => queueWalk.goToObligation(record),
     createEngagement,
     targetPickerOpen: () => targets.targetPickerOpen(),
     wireInput: inputs.wireInput,
     anchorPlacement,
-    anchorPaint: anchorPaint ?? null,
+    anchorPaint,
     anchorControls,
     drawingPaint,
     pageGeometry,
@@ -410,7 +424,7 @@ async function boot() {
     compositionSurface: {
       active: () => {
         const anchor = composerOpen ? responseSurface?.fabAnchorAt() : null;
-        return anchor ? { anchor } : null;
+        return anchor ? { anchor, about: pendingAbout } : null;
       },
       node: () => fabBar,
       open: (...args) => responseSurface.commentOnTarget(...args),
@@ -419,8 +433,8 @@ async function boot() {
       restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
       finishPlacement: () => responseSurface?.finishPlacement(),
     },
-    landInThread: (...args) => landing.landInThread(...args),
-    landSent: (...args) => landing.landSent(...args),
+    landInThread,
+    landSent,
     registerReactSurface: (...args) => reactions.registerReactSurface(...args),
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
@@ -435,7 +449,7 @@ async function boot() {
       renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
       scrollThreadIntoView,
       openInPanel: (id) => floatingPanel?.openThread(id),
-      goToObligation: (...args) => items.goToObligation(...args),
+      resumeDraft: (context) => writingResume.resumeDraft(context),
     },
     state: {
       prepareActivation: (state) => version.prepareActivation(state),
@@ -469,14 +483,18 @@ async function boot() {
     annotationFocus: app.overlay?.mapFocusTarget,
   });
 
+  // The control the user sees for `control`: the margin's copy of one it presents.
+  /** @param {Element} control */
+  const presentedControl = (control) =>
+    app.overlay?.presentedControl(control) ?? control;
   // The obligation view is constructed below by its owner factory; all accesses above are inert closures.
   items = createObligationView({
     focusForNavigation,
-    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
+    presentedControl,
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
-    announce,
+    threadLanding: anchorTravel.threadLanding,
     repaint,
   });
   const queueWalk = createQueueWalk({
@@ -488,9 +506,7 @@ async function boot() {
     announce,
   });
   createChangeWalk();
-  const commandHints = createCommandHints({
-    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
-  });
+  const commandHints = createCommandHints({ presentedControl });
 
   const currentTarget = createCurrentTarget({
     currentLocationIn: items.currentLocationIn,
@@ -510,7 +526,9 @@ async function boot() {
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),
     showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
-    annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
+    annotationsHidden,
+    // Resume writing is built once the thread destinations it reveals in stand.
+    resumeDraft: (context) => writingResume.resumeDraft(context),
   });
   // The page's general comment box is the floating panel's field.
   const generalComment = floatingPanel.pageComment;
@@ -520,13 +538,14 @@ async function boot() {
   responseSurface = createResponseSurface({
     rememberSelection: passageSelection.remember,
     createPlacement: annotationRenderer?.createFloatingResponsePlacement,
-    landIn: landing.landIn,
+    landIn,
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
     threadTarget: (id) => app.threadDestinations.threadTarget(id),
     currentTarget,
-    markAt: anchorPaint?.markAt,
+    markAt: anchorPaint.markAt,
     scrollToElement: anchorTravel.scrollToElement,
+    scrollToPassage: anchorTravel.scrollToPassage,
     scrollToRange: anchorTravel.scrollToRange,
     visualActionAnchor: anchorControls.visualActionAnchor,
     designModeActive: designMode.active,
@@ -546,7 +565,7 @@ async function boot() {
     responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
     revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
     createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-    landSent: landing.landSent,
+    landSent,
     wireInput: inputs.wireInput,
     drawingEdits,
   });
@@ -568,7 +587,7 @@ async function boot() {
     currentTarget,
   });
   targets = createTargetPicker({
-    scrollToRange: anchorTravel.scrollToRange,
+    scrollToPassage: anchorTravel.scrollToPassage,
     hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,
@@ -588,7 +607,7 @@ async function boot() {
     watchHeldDrawings: responseSurface.watchHeldDrawings,
     draftKey: responseSurface.draftKey,
     openAnchoredDrawing: (anchor, drawing) =>
-      responseSurface.openComposer(anchor, "", { carry: true, drawing }),
+      responseSurface.openComposer(anchor, "", { drawing }),
     replaceDrawing,
     setDesignMode: designMode.setActive,
     closeTargetPicker: targets.closeTargetPicker,
@@ -599,6 +618,7 @@ async function boot() {
     repaint,
   });
   regionCapture = createRegionCapture({
+    refreshCrosshair: pageGeometry.refreshCrosshair,
     closeTargetPicker: targets.closeTargetPicker,
     closeReactionMode: () => reactions.setReact(false),
     parent: chromeForeground,
@@ -664,7 +684,7 @@ async function boot() {
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
-      writingResume,
+      writingResume.command,
       rewriteRestore,
       passageSelection.command,
       navigation.alignTop,
@@ -675,10 +695,11 @@ async function boot() {
     leavesOffered,
     marginEntries: app.overlay ?? null,
     placeThreadEdge,
+    stepReading: navigation.stepReading,
   });
   const currentLocationPainters = {
     markHere: items.markHere,
-    paintCurrentLocation: () => anchorPaint?.paintCurrentLocation(),
+    paintCurrentLocation: () => anchorPaint.paintCurrentLocation(),
     paintSelectedMarginEntries: () =>
       app.overlay?.paintSelectedMarginEntries([
         { kind: "on-me", target: items.currentLocationIn() },
@@ -699,8 +720,11 @@ async function boot() {
   };
 
   if (!offlineInteractive) {
+    // A served page's bootstrap adopted the chrome's sheet for the first paint, with the
+    // panel's row it stands there (bootstrap.js, `standRow`); it keeps its place after
+    // the annotations' sheets.
     document.adoptedStyleSheets = [
-      ...document.adoptedStyleSheets,
+      ...document.adoptedStyleSheets.filter((sheet) => sheet !== chromeSheet),
       ...annotationSheets,
       chromeSheet,
       marksSheet,
@@ -727,12 +751,11 @@ async function boot() {
     mountPageStatus();
     floatingPanel.mount(chromeForeground);
     responseSurface.mount();
-    holdToRead();
     reactions.mount();
     targets.mount();
     drawing.mount();
     aim.mount();
-    anchorPaint?.mount();
+    anchorPaint.mount();
     anchorControls.mount();
     pageGeometry.mount();
     pageMapDialog.mount(chromeForeground);
@@ -765,14 +788,18 @@ async function boot() {
     chromeRoot.append(mediaViewer);
     document.body.after(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
-    // what a widget's own box shows, such as an options group's addition field.
+    // what a widget's own box shows, such as an options group's addition field, and a
+    // widget's controls name the keys that reach them there as on a live page.
     mountRepaint({
       publishInputHint: inputs.publishInputHint,
       paintCloseRequests,
+      paintCoreControls,
       reflectFirstScopes,
       reflectKeys,
     });
   }
+  // Exports keep previews too: a gloss or a timeline's marks say theirs there as well.
+  mountPreviews(chromeRoot);
 
   // Widget commands belong to interactive documents, including offline exports.
   // The register admits page and chrome commands only in a live document.
@@ -793,7 +820,7 @@ async function boot() {
 
   if (!offlineInteractive) {
     restoreUserView({ setDesignMode: designMode.setActive });
-    annotationRenderer?.restoreAnnotations();
+    restoreAnnotations();
     // A page nobody has used starts Tab at the first control. Inputs before the
     // module graph arrived already gave this document a place to keep.
     recoverComposer.handoff(releaseFocus);

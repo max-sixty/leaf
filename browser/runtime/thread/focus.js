@@ -32,12 +32,12 @@ export function focusThread(thread, cause) {
 // reply, so what they type answers at once, and Escape stands them on the thread
 // (landing.js); a key puts them on the thread, where keys act, and so does a finger,
 // since the keyboard that a box takes would rise over what they opened to read. The user
-// chose this on 4 November 2026 over opening on the thread wherever a press opened it,
-// as the card did, where `r`, `t` and the other keys act at once and `c` starts a reply.
-// That choice was about clicks. A key that opens a thread in a walk, `t` or Enter on a
+// chose this over opening on the thread wherever a press opens it,
+// where `r`, `t` and the other keys act at once and `c` starts a reply.
+// That choice is about clicks. A key that opens a thread in a walk, `t` or Enter on a
 // marker or Next, keeps the user on the thread to walk on. Enter on a row of Threads or
-// On me keeps the caret in the reply instead, as a press on one does, and the floating
-// panel owns that (`focusView`). It was kept on 4 November 2026 because what the user
+// On Me keeps the caret in the reply instead, as a press on one does, and the floating
+// panel owns that (`focusView`). It does so because what the user
 // types after picking a row is an answer. Stood on the thread, after `g T` and Enter,
 // "really?" resolves the thread with `r`, moves on and opens the Command reference with
 // `?`, and Escape closes the panel in one press rather than two.
@@ -73,9 +73,8 @@ export function focusedThreadTarget() {
 
 // The thread the user is in, wherever it is drawn — the Threads list, the margin card, a
 // seat on the page — with a control inside one standing in it too. Climbing from the
-// inner focus reaches a seat a widget stages in its shadow tree. The box's way out climbs
-// further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`). A walk asks
-// the same of the node its origin was read from (`threadIn`).
+// inner focus reaches a seat a widget stages in its shadow tree. A walk asks the same of
+// the node its origin was read from (`threadIn`).
 /** @param {Node | null | undefined} node */
 export const threadIn = (node) => closestAcross(node ?? null, THREAD);
 export const heldThread = () => threadIn(focused());
@@ -117,7 +116,7 @@ export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 // a resolved one too, which the reply reopens. A resolved thread takes the user's box
 // along only while a reply is being written in it (`replyIsEditing`): carrying the
 // caret would otherwise open a card that settlement closed again, over a box the user
-// had finished with or never began in, as the empty box a send or an opening leaves.
+// never began in, as the empty box an opening leaves.
 /** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
   restrictUserIntent(intent, () => {

@@ -12,7 +12,8 @@
  * compartments are shared by every field's state, as a compartment names a slot in a
  * state's configuration rather than holding one.
  */
-import { externalMark as externalLinkMark, opensElsewhere } from "../declared-words.js";
+import { indentColumns } from "../code-lines.js";
+import { opensElsewhere } from "../declared-words.js";
 
 import { leafEditorView } from "../editor-view.js";
 import {
@@ -438,7 +439,7 @@ export function readFaces(field, display) {
     `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`,
     `.lf-face-gap-above { padding-block-start: ${GAP} }`,
     `.lf-face-code { padding-inline: ${pre.inset} }`,
-    `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`,
+    `.lf-face-quote { margin-inline-start: ${quote.indent}; --lf-quote-inset: ${quote.inset} }`,
     `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`,
     `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`,
     `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`,
@@ -630,7 +631,7 @@ function fieldEditor(
   // A box takes the lines that start in its range, including one starting at its end,
   // so it ends on its last line's break. CodeMirror carries a box on into a later one
   // that equals it, so each names its level, and a container is ranked outside its
-  // contents. Rejected: a class on each line (until October 2026), which CodeMirror
+  // contents. Rejected: a class on each line, which CodeMirror
   // merges, so every level of a nested quote drew one rule at one inset and a code
   // block's frame replaced its quote's; and boxes for quotes alone, which put a quote's
   // rule outside the item holding it, and the item's bullet inside the quote.
@@ -680,13 +681,19 @@ function fieldEditor(
       return false;
     }
   }
-  // The mark the page draws after a link that leaves it (declared-words.js).
+  // The mark after a link that leaves the page, which the page's rule draws through
+  // the part (surfaces.css). It stands before its position, where CodeMirror puts no
+  // buffer between it and the link's words, so it keeps to their line.
   class ExternalMark extends WidgetType {
     eq() {
       return true;
     }
     toDOM() {
-      return externalLinkMark();
+      const mark = document.createElement("span");
+      mark.className = "lf-ui lf-external-mark";
+      mark.setAttribute("part", "lf-external-mark");
+      mark.ariaHidden = "true";
+      return mark;
     }
   }
   const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
@@ -878,8 +885,16 @@ function fieldEditor(
             last ? " lf-md-code-last" : "",
             last && markers.length < 2 ? " lf-md-code-pad-end" : "",
           ].join("");
-          out.push(line(`lf-md-code-block${ends}`).range(each.from));
           const kept = body[each.number - opened];
+          // A code line's rows hang from its indent, as the sent block's do
+          // (code-lines.js), which the line states as the block's boxes do.
+          const indent = kept === undefined ? 0 : indentColumns(kept, state.tabSize);
+          out.push(
+            Decoration.line({
+              class: `lf-md-code-block${ends}`,
+              ...(indent && { attributes: { style: `--lf-code-indent: ${indent}` } }),
+            }).range(each.from),
+          );
           if (kept === undefined) return;
           const start = after(each.from, token.level);
           const lead = indentation(state.doc.sliceString(start, each.to));
@@ -1157,6 +1172,31 @@ function fieldEditor(
       EditorView.atomicRanges.of((view) => view.state.field(field)),
     ],
   });
+  // The first line whose words all come after the last change: the line the change
+  // ended in where it ended at that line's start, as Backspace at the start of a line
+  // leaves it, and otherwise the line below; none where the change ended at the field's
+  // end, as clearing or replacing all its words does, since no words follow. A line a
+  // key takes away moves those words with the field's end edge, and the words before
+  // them with its start edge, so an owner carrying the words splits its carry there
+  // (text-field.js, `--lf-field-after`).
+  const afterMark = Decoration.line({ attributes: { "data-lf-after": "" } });
+  const afterChange = StateField.define({
+    create: () => Decoration.none,
+    update(lines, tr) {
+      if (!tr.docChanged) return lines;
+      let end = 0;
+      tr.changes.iterChangedRanges((_fromA, _toA, _fromB, toB) => {
+        end = Math.max(end, toB);
+      });
+      const { doc } = tr.state;
+      if (end === doc.length) return Decoration.none;
+      const line = doc.lineAt(end);
+      if (end === line.from) return Decoration.set([afterMark.range(line.from)]);
+      if (line.number === doc.lines) return Decoration.none;
+      return Decoration.set([afterMark.range(line.to + 1)]);
+    },
+    provide: (field) => EditorView.decorations.from(field),
+  });
 
   // Return in a field that reads as a file begins a line the body shows too, carrying
   // the markers of the containers the caret's line stands in. Among a paragraph's words
@@ -1296,7 +1336,7 @@ function fieldEditor(
   // empty. With the caret among the markers, in no container, or on a line it would
   // leave as it stands, the press is a plain new line. The numbers of the items after a
   // new one stay as typed, since the message numbers a list from its first. Rejected:
-  // CodeMirror's Markdown continuation (until October 2026), whose grammar, a second
+  // CodeMirror's Markdown continuation, whose grammar, a second
   // beside the renderer's, read the whole draft again on every key, ended a quote or
   // item at a fence inside it, and took three presses to leave a list.
   const CHECKBOX = "[ ] ";
@@ -1537,10 +1577,30 @@ function fieldEditor(
         // Words typed over a selection replace it here, not in the DOM: in a shadow
         // root, Firefox inserts them beside a selection that crosses a decoration's
         // element and leaves the selected words in place (Firefox 157, CodeMirror
-        // 6.43). The beforeinput already opened the edit's bracket.
+        // 6.43). The beforeinput already opened the edit's bracket. An input method's
+        // composition, whose beforeinput can't be cancelled, starts once the editor
+        // has taken the selected words away, since Firefox drops one begun over them
+        // and keeps the words (Firefox 159); its first update is the one before the
+        // editor reads it as composing. EditContext composes in the editor's model.
         EditorView.domEventHandlers({
           beforeinput(event, view) {
             const text = event.data;
+            if (
+              event.inputType === "insertCompositionText" &&
+              !view.composing &&
+              !view.state.selection.main.empty &&
+              !view.state.readOnly &&
+              !view.contentDOM.editContext
+            ) {
+              field.typed(true, () =>
+                view.dispatch(
+                  view.state.update(view.state.replaceSelection(""), {
+                    userEvent: "input.type.compose.start",
+                  }),
+                ),
+              );
+              return false;
+            }
             if (
               event.inputType !== "insertText" ||
               text === null ||
@@ -1685,6 +1745,7 @@ function fieldEditor(
         reading,
         message.of(field.message()),
         joints,
+        afterChange,
         livePreview,
         EditorView.lineWrapping,
         editable.of(EditorState.readOnly.of(field.readOnly)),

@@ -28,18 +28,25 @@ A page script is ordinary JavaScript over the page's DOM: it queries elements, l
 draws with the DOM, lit-html or a canvas, animates with CSS or the Web Animations API,
 and builds plain elements that page CSS styles. Leaf asks four things of it:
 
-- Send whatever the agent must hear through a widget: a playground's contributor or
-  actions (the playground package's author instructions), `lf-options`, `lf-draft`, or
-  a page widget whose controller records it (`module-state.md`, "The widget
-  controller"). State the script keeps itself, in memory or `localStorage`, never
+- Send whatever the agent must hear through a widget, such as a playground's
+  contributor or actions (the playground package's author instructions),
+  `lf-options`, `lf-draft`, or a page widget whose controller records it
+  (`module-state.md`, "The widget controller"). State the script keeps itself, in memory or `localStorage`, never
   reaches the log.
 - Leaf takes printed letter keys before the page's listeners, for its own walks and
-  commands, and handles other keys, such as Escape, on `document` once they bubble
-  there. A key typed into a Leaf comment box, draft editor or search box stops at that
-  box, so the page's listeners never hear it bubble. Give the interface keys of its
-  own by declaring them as an element's `lfCommands` (`module-input.md`, "Commands
-  and keyboard routes"), or handle arrows, Enter and Escape on the page's own
-  elements, which hear them first.
+  commands, and, while its Go-to or reaction keys are armed, every key they answer. It
+  leaves letters and digits to a focused field or `select`, and to a focused widget
+  that types ahead: an element whose `role` is a menu, menu item, tree, tree item,
+  listbox, option or combobox, or anything inside `role="application"`. It reads other
+  keys, such as Escape, once they have bubbled past the page's elements. So a listener
+  on an element, `body` included, hears a key before Leaf, and preventing the key's
+  default there keeps Leaf from acting on it. A listener on the document or the window
+  hears only a key Leaf has no command for where the user is, except that Escape lets
+  go of a focused control last, and only if no listener prevented it. A key typed into
+  a Leaf comment box, draft editor or search box stops at that box, so the page's
+  listeners never hear it bubble. Give the interface keys of its own by declaring them
+  as an element's `lfCommands` (`module-input.md`, "Commands and keyboard routes"), or
+  handle arrows, Enter and Escape on the page's own elements.
 - A revision that changes only content patches the page in place without running
   scripts again, so an element it adds or replaces has none of the listeners the script
   attached. Listen on `body`, which survives revisions, or set up again when
@@ -48,10 +55,14 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   asked for less motion. Leaf stops only its own CSS motion for that user, so stop or
   shorten the page's under `@media (prefers-reduced-motion: reduce)`.
 
+Leaf writes attributes of its own on the page's elements, such as on each element
+holding commented words. A script that reads, copies or observes attributes meets them,
+so don't make page CSS or scripts depend on them.
+
 A page script may define custom elements with shadow DOM of their own. Comments can't
 quote the words only such a shadow root shows, and Leaf reads the element's own children
 in its place, so put words the user should quote in the light DOM and slot them, or
-write the element as a widget declaring `x-shadow` (`module-authoring.md`, "Shadow
+write the element as a widget declaring `shadow` (`module-authoring.md`, "Shadow
 stages and styles").
 
 Reach a widget's methods with `whileInterfaceConnected` (`module-authoring.md`,
@@ -71,12 +82,6 @@ Operate those paths through their final result before handover. Compare the posi
 and sizes of the controls and content the reader is using through those states,
 including at a narrow width; a settled screenshot cannot show whether changing
 feedback moved them.
-
-`leaf page check --render` also leaves the presented desktop page alone for three
-seconds and reports the browser's `layout-shift` entries affecting page content as
-advice, naming the nodes that moved and their before/after boxes. Those nodes show
-what moved, not necessarily what caused it. This finite observation does not exercise
-gestures, later timers, offscreen content or embedded documents.
 
 `page/registry.json` adds declarations in the package registry format; an element entry
 there replaces the layer's entry for that tag. `page/widgets/<tag>.js` replaces a

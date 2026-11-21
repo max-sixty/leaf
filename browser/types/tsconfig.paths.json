@@ -31,6 +31,9 @@
       "/vendor/extensions.esm.js": [
         "../../build/entries/file-editor/entry.mjs"
       ],
+      "/vendor/codemirror-yaml.esm.js": [
+        "../../build/entries/file-editor/yaml.mjs"
+      ],
       "/vendor/floating-ui.esm.js": [
         "../../build/entries/floating-ui/entry.mjs"
       ],
@@ -82,11 +85,11 @@
       "/vendor/syntax/yaml.js": [
         "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/yaml.d.mts"
       ],
+      "/vendor/temml.esm.js": [
+        "../../build/entries/temml/entry.mjs"
+      ],
       "/vendor/jsdiff.esm.js": [
         "../../build/entries/jsdiff/entry.mjs"
-      ],
-      "/vendor/blazediff.js": [
-        "../../build/entries/blazediff/entry.mjs"
       ],
       "/vendor/density-clustering.esm.js": [
         "../../build/entries/density-clustering/entry.mjs"

@@ -13,7 +13,14 @@ from collections.abc import Collection
 from copy import deepcopy
 from typing import NamedTuple
 
-from .contract import gathering, is_element_name, registry_error
+from .contract import (
+    MODULES,
+    complete_declarations,
+    is_element_name,
+    module_paths,
+    registry_error,
+    validate_modules,
+)
 from .layer import merge_layer_declarations, stamp_composition
 
 
@@ -21,6 +28,8 @@ class PageRegistry(NamedTuple):
     registry: dict
     declaration_sources: dict[str, str]
     widget_sources: dict[str, str]
+    # The page's own declarations, as composed over the layer.
+    declarations: dict
 
 
 def compose_page_registry(
@@ -31,25 +40,43 @@ def compose_page_registry(
     source="page/registry.json",
     validated: tuple[dict, dict] | None = None,
 ) -> PageRegistry:
-    """Validate a page vocabulary and resolve its upgraded widgets.
+    """Validate a page vocabulary and resolve its widgets' modules.
 
     ``validated`` is the layer and page declarations of a composition already
     validated, such as the active revision's: a composition of the same two is not
     validated again. The layer arrives stamped, so a composition is stamped
     (`registry.layer.stamp_composition`) where it is validated or declares anything
-    over the layer, before its examples are validated.
+    over the layer.
 
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
     authored page. ``declaration_sources`` records ``layer`` or ``page`` for each
     element and each ``$data.contracts.<name>`` declaration; ``widget_sources``
-    records the winning relative path for each upgraded element. Inputs and their
-    nested declarations remain untouched.
+    records the winning relative path for each element a module upgrades, the
+    vocabulary's ``contract.MODULES``. Inputs and their nested declarations remain
+    untouched.
     """
     if "$layer" in page_declarations:
         raise registry_error("page-layer", source)
     registry = deepcopy(layer_registry)
     merge_layer_declarations(registry, deepcopy(page_declarations))
+    # The page's own module over the layer's.
+    registry[MODULES] = module_paths(
+        registry, set(widget_paths), "page/widgets", "widgets"
+    )
+    complete_declarations(registry)
+    # A page's widget module is named for a tag the page or its layer declares. One
+    # under another name is loaded by nothing, and its widget would draw as plain
+    # markup with nothing else to say so.
+    unnamed = sorted(
+        path
+        for path in widget_paths
+        if path.startswith("page/widgets/")
+        and path.endswith(".js")
+        and path not in registry[MODULES].values()
+    )
+    if unnamed:
+        raise registry_error("unnamed-module", source, modules=unnamed)
     # Compared by input, since the stamps make a composition unequal to the
     # unstamped merge of the same inputs.
     fresh = (layer_registry, page_declarations) != validated
@@ -57,8 +84,11 @@ def compose_page_registry(
         from .validation import validate_registry
 
         validate_registry(registry, source)
+    else:
+        # The reused validation read these declarations with the modules they had
+        # then, and a module file can go while its declaration stands.
+        validate_modules(registry, source)
     if fresh or page_declarations:
-        # Examples validate against the vocabulary as pages read it, stamped.
         stamp_composition(registry)
     declaration_sources = {
         f"$data.contracts.{name}": (
@@ -68,33 +98,9 @@ def compose_page_registry(
         )
         for name in registry.get("$data", {}).get("contracts", {})
     }
-    widget_sources = {}
-    available = set(widget_paths)
-    # Each example and each widget's module is found or missed independently, so one
-    # refusal names every problem among them (`contract.gathering`).
-    with gathering() as unit:
-        if fresh and page_declarations:
-            # Example validation consumes source/instance readers which themselves
-            # load page registries. Import it after those owners have finished
-            # initializing.
-            from leaf.validation.composition import validate_registry_examples
-
-            with unit():
-                validate_registry_examples(registry, source)
-        for tag, entry in registry.items():
-            if not is_element_name(tag):
-                continue
+    for tag in registry:
+        if is_element_name(tag):
             declaration_sources[tag] = "page" if tag in page_declarations else "layer"
-            if entry["x-upgrade"]:
-                with unit():
-                    widget_sources[tag] = _implementation(tag, available, source)
-    return PageRegistry(registry, declaration_sources, widget_sources)
-
-
-def _implementation(tag: str, available: set, source) -> str:
-    """The module that upgrades `tag`: the page's own over the layer's."""
-    candidates = (f"page/widgets/{tag}.js", f"widgets/{tag}.js")
-    implementation = next((path for path in candidates if path in available), None)
-    if implementation is None:
-        raise registry_error("missing-module", source, tag, expected=list(candidates))
-    return implementation
+    return PageRegistry(
+        registry, declaration_sources, dict(registry[MODULES]), page_declarations
+    )

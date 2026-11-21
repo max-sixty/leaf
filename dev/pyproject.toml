@@ -1,5 +1,5 @@
 # Leaf's developer tooling as one package. `uv run leaf-dev --help` lists its
-# commands; the suite and the eval harnesses in `notes/` import its modules. It is a
+# commands; the suite and the eval harnesses in `evals/` import its modules. It is a
 # workspace member that only the root dev group depends on, so `bin/leaf`, which runs
 # `--no-dev`, never installs it or what it needs.
 #

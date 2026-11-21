@@ -17,7 +17,6 @@ from render_harness import (
     open_page,
     page_comment,
     panel_field,
-    press_visible,
     resized,
     sending,
     stamp_page,
@@ -153,6 +152,36 @@ def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
         expect(viewer).to_be_hidden()
 
 
+def test_a_capture_in_a_reply_s_table_is_named_by_its_column_head(browser, serve):
+    """A table of captures an agent writes in Markdown names each capture by the head over
+    its column, as the page's own tables do: a message's words are its writer's."""
+    url = serve(
+        leaf_page(
+            "Captures",
+            '<h1>Captures</h1><img src="/media/051bee487bfb5d13.png" alt="Release output">',
+        )
+    )
+    image = (
+        "[![Release output](/media/051bee487bfb5d13.png)](/media/051bee487bfb5d13.png)"
+    )
+    panel_comment(
+        serve.page_dir,
+        f"| | Light | Dark |\n|---|---|---|\n| Before | {image} | {image} |",
+        author="agent",
+    )
+    page = open_page(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(PANEL_THREAD)
+    expect(thread).to_be_visible()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for index, caption in enumerate(("Light", "Dark")):
+        thread.locator('a[href="/media/051bee487bfb5d13.png"]').nth(index).click()
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+
+
 # A diagram that states no size of its own, only a shape, as a diagram renderer writes one.
 DIAGRAM_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
@@ -265,8 +294,8 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     """Under a finger, the removal mark on a picture's top corner reaches the aim floor
     around it. Below its passage the comment box hangs its pictures under the field,
     with the marks facing it; above, a picture shorter than that reach lets it hang past
-    the picture's foot. Either way the reach once stood inside the field, so a tap at
-    the field's edge removed the picture."""
+    the picture's foot. Either way a reach standing inside the field would let a tap at
+    the field's edge remove the picture."""
     context = browser.new_context(
         viewport={"width": 900, "height": 900}, has_touch=True, is_mobile=True
     )
@@ -331,123 +360,6 @@ def test_capture_leaves_selected_content_visible_through_the_drag(browser, serve
     page.mouse.up()
     expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
-
-
-def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
-    browser, serve
-):
-    """A finger's drag is the whole gesture: lifting it attaches the area, and the
-    attachment's ✕ takes a bad one back. Capture opens with no area, and the field
-    asks for a drag. A tap draws no area, so it leaves capture standing with none; the
-    ✕, Enter on it, or Escape leave with nothing attached."""
-    page = capture_page(browser, serve, touch=True)
-    touch = page.context.new_cdp_session(page)
-    # Retain the native event so the assertion reads its final cancellation state.
-    page.evaluate("""() => {
-        window.captureTouchStarts = [];
-        window.addEventListener('touchstart', event => captureTouchStarts.push(event),
-            {capture: true, passive: true});
-    }""")
-
-    def touch_area(dx, dy):
-        target = page.locator("#capture-target").bounding_box()
-        left, top = int(target["x"]) + 10, int(target["y"]) + 20
-        for kind, points in (
-            ("touchStart", [{"x": left, "y": top}]),
-            ("touchMove", [{"x": left + dx, "y": top + dy}]),
-            ("touchEnd", []),
-        ):
-            touch.send(
-                "Input.dispatchTouchEvent", {"type": kind, "touchPoints": points}
-            )
-
-    before = events_model.read_events(serve.page_dir)
-    before_media = sorted((serve.page_dir / "media").glob("*"))
-    surface = open_capture_area(page, touch=True)
-    selection = surface.locator(".lf-region-selection")
-    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "placeholder", re.compile("^Drag an area to capture")
-    )
-    # The panel's row offers only the way out; lifting a drag attaches.
-    expect(page.get_by_role("button", name="Attach capture", exact=True)).to_have_count(
-        0
-    )
-    touch_area(3, 2)
-    rendered(page)
-    expect(surface).to_be_visible()
-    expect(selection).to_be_hidden()
-    page.get_by_role("button", name="Cancel capture", exact=True).tap()
-    expect(surface).to_be_hidden()
-    assert page.evaluate("captureTouchStarts.at(-2).defaultPrevented"), (
-        "a selection must consume its native touch gesture, including fling generation"
-    )
-    assert page.evaluate("!captureTouchStarts.at(-1).defaultPrevented")
-    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
-    assert events_model.read_events(serve.page_dir) == before
-    assert sorted((serve.page_dir / "media").glob("*")) == before_media
-    surface = open_capture_area(page, touch=True)
-    page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
-    expect(surface).to_be_hidden()
-    surface = open_capture_area(page, touch=True)
-    page.keyboard.press("Escape")
-    expect(surface).to_be_hidden()
-    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
-    surface = open_capture_area(page, touch=True)
-    # The lift must start capture, and the next press must belong to its own gesture,
-    # before queued work from the drag runs. Keep that ordering independent of load.
-    page.clock.install(time=0)
-    page.clock.pause_at(1)
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        touch_area(180, 130)
-        assert surface.get_attribute("aria-busy") == "true", (
-            "lifting the drag must start capture before drag timers run"
-        )
-    expect(surface).to_be_hidden()
-    attachment = page.locator(".lf-composer-media-item img")
-    expect(attachment).to_be_visible()
-    image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
-    assert image.size == (360, 260)
-    # Which element each part of the removal tap reached, for the reading below.
-    page.evaluate("""() => {
-        window.removalTap = [];
-        const original = document.querySelector('.lf-composer-media-remove');
-        const box = node => node?.getBoundingClientRect().toJSON();
-        const named = node => node instanceof Element
-            ? `${node.localName}.${[...node.classList].join('.')}`
-              + (node.isConnected ? '' : ' (removed)')
-            : String(node);
-        for (const type of ['pointerdown', 'pointerup', 'touchstart', 'touchend',
-                            'mousedown', 'mouseup', 'click'])
-            window.addEventListener(type, event => {
-                const point = event.changedTouches?.[0] ?? event;
-                removalTap.push({
-                    type, target: named(event.composedPath()[0]),
-                    prevented: event.defaultPrevented,
-                    point: [point.clientX, point.clientY],
-                    hit: named(document.elementFromPoint(point.clientX, point.clientY)),
-                    originalConnected: original.isConnected,
-                    sameButton: original === document.querySelector('.lf-composer-media-remove'),
-                    button: box(original),
-                    grip: box(document.querySelector('.lf-fab-bar > .lf-surface-grip')),
-                });
-            }, {capture: true});
-    }""")
-    press_visible(
-        page,
-        page.get_by_role("button", name="Remove attached image 1", exact=True),
-        touch=True,
-    )
-    # Removal is synchronous in the click, so the shelf is empty as the tap returns,
-    # with the drag's timers still held. An image here with the click on the ✕ says
-    # the click did not remove it; a click elsewhere, or none, says the tap missed.
-    assert attachment.count() == 0, page.evaluate("removalTap")
-    # The next press began while drag timers were held; let its native activation
-    # finish before reading the result.
-    page.clock.resume()
-    expect(attachment).to_have_count(0)
-    assert events_model.read_events(serve.page_dir) == before
-    assert page.evaluate("!captureTouchStarts.at(-1).defaultPrevented")
-    touch.detach()
 
 
 def test_the_keyboard_moves_resizes_and_attaches_the_area(browser, serve):

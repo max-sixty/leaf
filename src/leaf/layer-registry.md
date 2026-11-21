@@ -5,7 +5,7 @@ A page records the packages and theme it selects in `layer.json`
 exports the page composes the layer from that selection, its own core and bundled
 packages and the user's installed ones, in the order and at the merge grains of
 `../../skills/leaf/references/packages.md`, "Package contract"; `registry/layer.py`
-is the merge and `layer.selected_layer` holds the result for the process. The browser
+is the merge and `layer.selected_layer` holds the result. The browser
 runtime comes from the same Leaf (`runtime_selection.py`), so a page's widgets,
 theme, vocabulary and runtime always ship together. Each revision captures its
 authored content, its own declarations and modules, and names the selection, so an
@@ -38,8 +38,9 @@ The layer record holds the selection and two identities:
   theme, the page's look, `{name, source}` with `source` explicit or default. A new
   page takes the user's default or else Leaf's bundled `reading`; null records taking
   none.
-  The theme composes right after the default package, before the content packages,
-  so a content package can restate what it declares. Re-running `page init` preserves
+  The reading look and then the theme compose right after the default package,
+  before the content packages (`themes.with_theme`), so a theme restates the look
+  and a content package restates either. Re-running `page init` preserves
   the recorded choice until `--theme` replaces it or `--no-theme` clears it. User
   catalogue changes affect new pages; `themes.py` owns selection and
   `package-themes.md` documents its authoring interface.
@@ -67,92 +68,66 @@ as its `producer` (`registry.storage.served_layer`), which the panel's menu (Cop
 version) shows.
 
 A served page's bootstrap (`runtime/bootstrap.js`) reloads the tab when the server
-incarnation (`Leaf-Server`), the layer generation or the website release changes. A
-rejected or unchanged `page init` keeps the server and the generation, so open tabs
-don't reload.
+incarnation (`Leaf-Server`), the layer generation or the website release changes, and
+once, marked, when a page that could not start for lack of something it needs finds
+its own server answering. A rejected or unchanged `page init` keeps the server and
+the generation, so open tabs don't reload.
 
 ## Page protocol
 
-The layer record's `protocol` numbers the contract between a page and any Leaf that
-serves it or writes its log. Since every Leaf composes a page's layer and supplies its
-runtime itself, the contract covers only what a page keeps across Leaf versions: the
-kernel event records in its log and their ownership, and the records Leaf keeps
-outside a page. Every page server and the append door refuse a page at another number
-(`layer.incompatible_layer` says what each refusal names). A page at a lower number is
-taken to this Leaf's by the session holding it, at its first write command or hook
-naming the page (`vendoring.renew_layer`); read commands leave it and its server
-alone. No Leaf takes a page down.
+The layer record's `protocol` is the page protocol: the version of what a page keeps
+across Leaf versions, the kernel event records in its log and the records Leaf keeps
+outside the page. Root `AGENTS.md`, "Pages across Leaf updates", says when it moves.
 
-Any Leaf at the page's number serves and writes it, so a plugin update leaves open
-pages working. Admission validates a kernel record against the running Leaf's own
-`$events` (`registry.kernel`), so a field a newer Leaf writes passes on a page an
-older one initialized. The promise runs one way: an older Leaf may refuse a field it
-does not know.
+Every page server and the append door refuse a page at another number
+(`layer.incompatible_layer` says what each refusal names). The session holding a page
+at a lower number takes it to this Leaf's at its first write command or hook naming the
+page (`vendoring.renew_layer`); read commands leave it and its server alone. No Leaf
+takes a page down. `session_runtime.py` selects the Leaf that runs a session's hooks
+and watch.
 
-"Any Leaf at the page's number" is per process, and one session can run two. Claude
-Code keeps a session on the plugin copy it loaded after its marketplace sweep installs
-an update, until `/reload-plugins` or a restart, and a worktree's `bin/leaf` can take
-a page the session holds past that copy's protocol. So the copy the session loaded
-hands each hook, its watch and its bare `leaf` commands to the session's delivering
-Leaf: the checkout that last claimed or initialized one of its pages, or a preview's,
-while it exists, and otherwise the copy Claude Code installed since
-(`session_runtime.py`). An
-update then reaches a session at its next hook; `hooks.json` and the hooks module,
-which Claude Code reads as it loads the plugin, still wait for a reload. Where a
-watch still can't read a page, as one started before this hand-off existed, its lease
-names the older protocol it speaks, so a newer Leaf reads it as no watch and admission
-nudges the session (`leases.wait_is_live`).
+A Leaf's readings skip an event kind it doesn't know, and its deliveries hand such an
+event over as logged, with no handling clause. So a new kind declares `skippable` where
+that leaves an older Leaf's reading right, and bumps otherwise.
 
-Bump the number when a Leaf at it would misread an event another Leaf at it wrote into
-the log, or a record another wrote outside it. A Leaf skips an event kind it doesn't
-know, so a new kind declares `skippable` where skipping it leaves that Leaf's reading
-right, and bumps otherwise. A change to the bundled widgets, their
-registry entries, the theme or the public package API (`runtime/widget-api.js` and
-its portable part `runtime/portable-api.js`) keeps the number, since the Leaf serving a page supplies all of them. A page's own widgets
-and an installed package's modules call that API across Leaf versions, and a bump
-would not repair them, since neither is re-composed from Leaf's tree; `page check
---render` and `package check --render` report a module an API change breaks.
+`build/browser/protocol-baseline.json` keeps `$events`, each `state.Record` schema and
+the composer's draft as they stood at the current number, and the build
+(`build/browser/protocol.mjs`) refuses any change to an event record beyond its
+annotations, or a new kind not declared `skippable`, until the number moves.
 
-The browser build holds the schemas to this. `build/browser/protocol-baseline.json`
-keeps `$events`, each `state.Record` schema and the composer's draft as they stood at
-the current number, and `build/browser/protocol.mjs` compares each build against it
-(its header says in which direction for each schema). It refuses a change to an event
-record, or a new kind not declared `skippable`, until the change takes what it took or
-the number moves. A passing comparison doesn't judge whether a bump chosen by hand was
-needed.
-`served_state/state.schema.json` declares the served state and the `/api/view` answer
-for the generated types and the producer's tests, outside the comparison.
-
-The number is also the only version of what Leaf keeps outside a page's log and
-document: every JSON record in a page directory or the state home (`state.Record`),
-the layer record among them, and the composer's draft in browser storage
-(`$events.draft`). Each carries `leaf-<kind>/<since>` in its `format`, where `since`
-is the protocol at which that record's own shape last changed, so a bump for another
-change leaves claims, deliveries and ports readable. A new record kind starts at the
-current protocol without a bump, since earlier Leaves have no reader for it. A shape
-change that a reader at the same format would misread sets `since` to the current
-protocol, bumping the protocol first where `since` already names it. The build fails
-a change at the same `since` that a reader at either end would misread, and a `since`
-moved anywhere but the current protocol. A reader at another format treats a record
-as absent, except a layer record at a later shape than its own, which refuses the page
-as a newer Leaf's (`registry.storage.layer_record`): read as absent, it would have
-`page init` replace the page's selection.
+The number also versions each record Leaf keeps outside a page's log and document:
+every `state.Record` in a page directory or the state home, the layer record among
+them, and the composer's draft (`$events.draft`). Each carries `leaf-<kind>/<since>` in
+its `format`, where `since` is the protocol at which that record's shape last changed,
+so a bump for another change leaves it readable. A new kind starts at the current
+protocol without a bump, since no earlier Leaf reads it. A shape change sets `since` to
+the current protocol, bumping the protocol first where `since` already names it, and the
+build refuses a shape change at the same `since` or a `since` moved anywhere else. A
+reader treats a record at another format as absent, except a layer
+record at a later shape than its own, which refuses the page as a newer Leaf's
+(`registry.storage.layer_record`): read as absent, it would have `page init` replace
+the page's selection.
 
 ## Composition stamps
 
-Every composition, `page init`'s layer and a page's own declarations over it, stamps
-the facts the browser reads rather than derives (`registry/layer.stamp_composition`),
-overwriting any a layer declared: `$decisions`, each widget's deciding `x-state` verb
-and the member tags each of its outcomes retires, and `$states`, each verb's writer
-and the operation definition an admitted event records. It also completes the
-attribute schemas validation reads: an attribute naming one of the layer's words,
-such as a tone, takes the layer's list as its `enum`, and an attribute holding a
-name Leaf looks up, such as an element id, takes that name's grammar as its
-`pattern`.
+Every composition, `page init`'s layer and a page's own declarations over it, writes
+`$modules`, the module each declared element has among the files it composes
+(`registry/contract.MODULES`): `widgets/<tag>.js` in the kernel or a package, or
+`page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
+declaration says so. It then stamps the facts the browser reads rather than derives
+(`registry/layer.stamp_composition`), overwriting any a layer declared: `$decisions`,
+each widget's deciding verb (`verbs`) and the member tags each of its outcomes
+retires, and `$states`, each verb's writer and the operation definition an admitted
+event records. It also completes the attribute schemas validation reads: an attribute
+naming one of the layer's words, such as a tone, takes the layer's list as its `enum`,
+and an attribute holding a name Leaf looks up, such as an element id, takes that name's
+grammar as its `pattern`.
 
 The kernel registry, `browser/runtime/kernel-registry.json`, declares the other facts
 both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s
 header, and the classifications on each `$events.kinds` entry). It is part of the
 runtime, so both read the serving Leaf's copy, the browser through
-`runtime/kernel-facts.js`. Composition lays each layer over it, none is stamped for
-the browser to read, and a layer that changes one is refused.
+`runtime/kernel-facts.js`. Composition lays each layer over it and keeps the
+kernel's value of each, none is stamped for the browser to read, and the commands that
+check a layer's own declarations name a change to one to its author
+(`registry.layer.kernel_fact_advice`).

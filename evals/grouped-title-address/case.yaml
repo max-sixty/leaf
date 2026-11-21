@@ -1,4 +1,4 @@
-# Added while making an eyebrow and heading one navigation destination with hgroup.
+# An eyebrow and heading make one navigation destination with hgroup.
 # Measures whether shipped authoring instructions express a complete title boundary
 # rather than relying on a pixel offset or making eyebrow text part of the heading.
 description: grouped-title-address
@@ -29,21 +29,20 @@ assert:
       id and only the `h1` or another wrapper carries one.
 
 variants:
-  # A handover used a plain paragraph for its status above the title. With the
-  # default theme supplied, the discovery repair distinguished baseline and fix.
+  # A handover used a plain paragraph for its status above the title. The default
+  # theme is supplied.
   status-label:
     description: grouped-title-address/status-label
     metadata:
-      purpose:
-        A status and date above a new title uses the shared label idiom without an
-        explicit class request.
+      purpose: A status and date above a new title stands in the title's hgroup as the
+        theme's eyebrow without the markup being requested.
     vars:
       now: "2026-10-09T18:00:00-07:00"
       prompt: >-
-        Write a short Leaf handover for the On me contract change. Use the title
-        "On me lists everything the agent needs from you". Put "Implemented locally
-        · October 9, 2026" directly above the title. Explain that On me contains
-        every current request for the user, an empty On me means nothing is needed from
+        Write a short Leaf handover for the On Me contract change. Use the title
+        "On Me lists everything the agent needs from you". Put "Implemented locally
+        · October 9, 2026" directly above the title. Explain that On Me contains
+        every current request for the user, an empty On Me means nothing is needed from
         them, and On Claude can still contain the agent's work. Include a short verification
         paragraph: focused Python and browser checks passed. There is no decision to collect
         here. The page has already been initialized with the default Leaf layer; delivery
@@ -54,6 +53,6 @@ variants:
         metric: shared-label
         value: |
           Pass only if "Implemented locally · October 9, 2026" stands directly above
-          the title as a paragraph in the theme's shared label idiom, `class="eyebrow"`,
-          holding just that text. Fail if it is a plain paragraph, a page-styled
-          class of its own, or part of the heading.
+          the title as the eyebrow the theme styles, a `<p>` holding just that text
+          before the `h1` in the title's `<hgroup>`. Fail if it stands outside that
+          group, carries a page-styled class of its own, or is part of the heading.

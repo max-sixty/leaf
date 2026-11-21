@@ -5,13 +5,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
-import { LeafElement, nothing, html } from "/runtime/widget-api.js";
+import { nothing, html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 let fixtureSequence = 0;
 async function scene() {
   adoptRegistry({
     "lf-feed": {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -49,7 +50,7 @@ async function feed(
   const tag = `lf-feed-${++feeds}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -330,14 +331,14 @@ function outputScene(draw) {
   const consumerTag = `lf-consumer-${suffix}`;
   adoptRegistry({
     [producerTag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
-      "x-output": { rows: { contract: "rows" }, totals: { contract: "totals" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      outputs: { rows: { contract: "rows" }, totals: { contract: "totals" } },
     },
     [consumerTag]: {
-      "x-data": {
+      inputs: {
         rows: { reference: "for", contract: "rows", property: "value" },
       },
-      "x-refers": { for: {} },
+      refers: { for: {} },
     },
   });
   customElements.define(

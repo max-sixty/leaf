@@ -6,17 +6,19 @@ stay in the thread, whether the agent's session is idle or busy. Today the media
 first reply takes 17 s when the session is idle and 21 s when it is busy, and the real
 answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-pages)).
 
-The `forked-replies` branch builds it: `src/leaf/forks.py` holds the states a thread
-moves through, the hold and the reply, and `hooks/claude-code.ts` (`forkReply`) makes
-the fork. This note holds the research behind it: what Claude Code lets a hooks module
-fork, measured, and how well the fork judges what to answer. The main thread is the
-session's own conversation, as against the forks and subagents made from it.
+On main, `src/leaf/forks.py` holds the rules of the working line a fork posts beside
+the session's delivery of a thread message, and `hooks/claude-code.ts`
+makes the fork Leaf's Python asks for (`src/leaf/carrier.py`). How it works' Forks tab (`docs/how-it-works.html`)
+explains what is built. This note holds the research behind it: what Claude Code lets
+a hooks module fork, measured, and how well the fork judges what to answer. The main thread is the session's own
+conversation, as against the forks and subagents made from it.
 
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
-call tools, so it now posts only the agent's working line and hands every message to
-the session, and the message reads On it from the moment the hold starts. Answering
-moves to a fork that can act ("A fork that takes the work"). The measurements below
-are of the fork that answered.
+call tools, so it now posts only the agent's working line, while the session gets each
+message as it gets any input, and the message reads On it once the line stands. The
+session decides who does the work, and spawns a subagent that answers in the thread
+where the work can run beside its own (`src/leaf/forks.py`'s header says why the
+session, not Leaf, decides). The measurements below are of the fork that answered.
 
 ## What a hooks module can fork
 
@@ -46,9 +48,13 @@ pays that request's new part uncached each time. The main thread writes one-hour
 cache entries (`ephemeral_1h` in every run), so a session idle for longer than that,
 or just resumed, makes its first fork write the whole context, as the resumed copy's
 first fork did; the forks after it read that fork's entry. The fork keeps the main
-thread's model, system prompt, tools and effort, since any difference misses the
-cache: a `claude -p --resume --fork-session` fork at `--effort low` read none of it
-(2026-10-24).
+thread's model, system prompt and tools. Since Claude Code 2.1.318 `$.model.fork`
+takes an effort too, and a fork at low in a session at xhigh read the whole
+conversation from the cache where per-message effort reaches the model (2026-11-04,
+`src/leaf/clerk.py`), but rewrote it elsewhere, as on Vertex (#5891, #5904). Both
+forks now run at the session's effort and ask for a quick answer in their prompts,
+each module recording its own measurement (`src/leaf/clerk.py`,
+`src/leaf/forks.py`).
 
 `$.agent.spawn({ prompt, subagentType: "fork" })` starts a background subagent with
 the main thread's current transcript and all its tools. It started within 40 ms of the
@@ -77,22 +83,25 @@ reported the row and treated its question as answered.
 - A handed-over message reaches the main thread one fork decision later. An idle
   session wakes that much later; a busy one notices only if a tool boundary falls
   inside that wait.
-- The fork answers from the main thread's last request, with the same model and
-  effort, and has no tools. A forked subagent (`$.agent.spawn`) could also answer
-  questions that need a look at files, with its writes denied at `tool.call`, and
-  would keep a transcript the main thread could be pointed at.
+- The fork answers from the main thread's last request, with the same model, and
+  has no tools. A forked subagent (`$.agent.spawn`) could also answer questions
+  that need a look at files, with its writes denied at `tool.call`, and would keep
+  a transcript the main thread could be pointed at.
 - Claude Code only. The Leaf side is harness-neutral: Codex App Server has
   `thread/fork`, and Pi's extension could resend its session (`clerk.py`).
-- `$.model.fork` has nothing to fork until the main thread sends a request: in a new
-  process, after `/clear` (its doc comment), and, as observed below, after a
-  compaction or Claude Code's away summary. A forked subagent starts from the
-  transcript instead, so it would cover those.
+- `$.model.fork` has nothing to fork in a new process until the main thread's first
+  request, and after `/clear` (its doc comment). After a compaction it resends the
+  compacted conversation, and after Claude Code's away summary the conversation as it
+  was. One fork after a compaction still had nothing to fork, unexplained; it is the
+  only one whose session had shown an away summary before the compaction (page
+  gh-needs-me, session `cfdfabd1`, 19 November). A forked subagent starts from the
+  transcript instead, so it would cover a new process.
 
 ## How well the fork judges
 
 Thread messages replayed at the moment each arrived: a copy of the session's transcript
 cut there, resumed under `claude -p` with every tool denied, given the prompt
-`forks.reply_prompt` builds from the page log cut at the message. Each case was
+`forks.line_prompt` builds from the page log cut at the message. Each case was
 labelled from what the session did next before any fork ran. The first set holds 25
 messages from 15 sessions (Oct 20–30), 15 idle and 10 mid-turn; the fresh set 15 from
 15 other sessions (mostly Oct 10–19), 9 idle and 6 mid-turn. By those labels only 8 of
@@ -142,13 +151,13 @@ them.
 
 ## Forks on real pages
 
-From 1 to 5 November, 58 thread messages on 26 pages (`leaf-dev response-times`, whose
+From 1 to 5 November, 58 thread messages on 26 pages (`leaf-dev logs response-times`, whose
 `fork_*` and `delivered` rows read this). Forks ran on 40: they answered 6, with the
 agent's first words a median 10.6 s after sending; handed 27 to the session, a median
 3.2 s after sending; and failed on 7. The session's own first words on those 27 came a
 median 35 s after sending, 140 s at p90, and the thread showed nothing from the agent
 until then. The session opened 26 of them with a line, and each time the fork's reason
-(`why` in its `fork_reply` record) had already named the same work, such as "needs a
+(`why` in its `fork_outcome` record) had already named the same work, such as "needs a
 new survey of real pages' event counts" against the session's "Surveying real pages'
 log lengths and growth".
 
@@ -160,6 +169,23 @@ fork after 5.9 idle hours with none of them succeeded. Each of those sessions wa
 so the hand-over's nudge woke it in about 2 s, and a failure cost only the answer a fork
 might have given.
 
+From 6 to 9 November, under the fork that only writes the line, 19 thread messages on
+5 pages: 9 got the line, the 7 of them `logs response-times` times a median 2.4 s after
+sending (1.9–5.3 s); 1 failed `nothing-to-fork`; 1 got an answer from a session still
+running the module it started with on 4 November; and 8, all on one session, got no
+line. That session's pages follower had run since 4 November from its worktree's
+checkout, which moved past two protocol bumps (41 to 42 on 5 November, 43 on 8
+November), while the session's hooks ran the checkout's newer Leaf, which reads the
+follower's lane lease, written at 41, as no one's (`leases.lease_speaks_here`; checked
+on 9 November). Twice the follower, still at 41, kept a message back and listed it, and
+the fork's step, under the newer Leaf, found it not kept back and asked no fork, so its
+bound ran out with no line ("no answer within 30 s"). One came while the session ran a 70 s
+foreground poll, and the user saw the agent's first words after 64 s. Nothing recorded
+why the other 6 had no fork. The follower now ends once the session's hooks would run
+another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
+page now notes where a follower runs (`follower`) and each fork Leaf asks for
+(`fork_asked`), which `leaf-dev logs timeline` reads.
+
 A message no fork answered reads Delivered until the session's first model call ends, a
 median 14 s and 41 s at p90. In 12 of 14 idle sessions that call posted the one-line
 reply `conversation-loop.md` asks for first, so the wait is the thinking before it:
@@ -167,53 +193,3 @@ reply `conversation-loop.md` asks for first, so the wait is the thinking before 
 waits for the next tool boundary, a median 16 s and 99 s at p90; the longest were
 foreground commands (a `sleep 280`, benchmark scripts). The hold made 6 of 26 busy
 hand-overs miss a boundary, adding 42 s across all of them.
-
-## A fork that takes the work
-
-A design not yet built: a fork that does a self-contained request itself rather than
-handing it over. What the session did next with the 27 hand-overs above:
-
-| What the message needed                                                         | Messages | Could a fork take it?                                     |
-| ------------------------------------------------------------------------------- | -------: | --------------------------------------------------------- |
-| a `/dispatch` to a session of its own                                           |        4 | yes: the work runs elsewhere by construction              |
-| a quick look: a config's history, a GitHub doc, why a rule was never added      |        3 | yes, with read-only tools                                 |
-| research or a measurement taking the session minutes                            |        6 | read-only, but long enough to need its own progress lines |
-| recording a decision the user made on the session's question, then acting on it |        7 | no: it changes the session's plan                         |
-| work on the session's own tree, page or PRs                                     |        7 | no: it races the session's edits                          |
-
-So a fork with read-only tools, `leaf thread reply` and `/dispatch` could have taken 7 to
-13 of the 27. A forked subagent (`$.agent.spawn({ subagentType: "fork" })`) is the
-mechanism: it starts from the current transcript, so it also covers the sessions
-`$.model.fork` has nothing to fork in, and the module gates its tool calls at
-`tool.call`. Before building on it, a probe should check whether Claude Code tells
-the main thread when a subagent the module spawned finishes, since that would wake an
-idle session.
-
-Coherence decides the design more than capability does:
-
-- One reader for related messages. Today each held thread gets its own fork, so
-  twelve messages across twelve threads would get twelve independent workers. A
-  fork that takes work should see every held thread of the session at once and
-  decide them together, and a message arriving while it works goes to it
-  (`$.session.send` to its agent id) rather than to a new fork.
-- The session hears what the fork did. A reply already queues a clerk line; taken
-  work needs the same line saying what was done or dispatched and where, so the
-  session neither redoes nor contradicts it.
-- The fork writes nothing the session is changing: no edits to its tree, page source,
-  git state or PRs. Anything that would is handed over, as now.
-
-Evals are viable at three levels, each on the harness `fork_eval.py` already has:
-
-- Decision (reply, take or hand over): constructed cases with a `take` label, plus a
-  replay set of the 33 recorded forks above, labelled by what the session did next.
-- Outcome: for taken cases, a judge compares the fork's answer with the answer the
-  session actually gave. Replays need read-only tools on the repository at the
-  session's commit; lookups that read GitHub or the web drift between runs.
-- Coherence: two-message cases (related messages in two threads, a message during
-  a decision) scored on how many workers ran and whether their answers agree; and
-  the main session resumed after the fork's clerk line, judged on whether it redoes
-  or contradicts the fork's work. This needs a second resumed agent for each case.
-
-The replays in "How well the fork judges" cost about $2.30 a run without tools; with
-tools and a second agent, expect a comparison over 40 cases and two arms to cost a few
-hundred dollars.

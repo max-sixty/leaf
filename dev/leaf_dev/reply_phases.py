@@ -59,13 +59,12 @@ first byte and hook (`claude_code_debug_records`).
 """
 
 import json
-import os
 import re
 import shlex
 from datetime import datetime
 from pathlib import Path
 
-from leaf.harness import NUDGE_WORDS
+from leaf.harness import NUDGE_WORDS, claude_code_config
 from leaf_dev import ROOT
 
 # The directory change an agent puts before a command, which says nothing of it.
@@ -461,14 +460,18 @@ def pickup_wait(records: list[dict], admitted: str, picked_up: str) -> dict:
 
 
 def claude_code_transcript(session: str) -> list[dict] | None:
-    """Claude Code's transcript of `session`, from its configuration directory's
-    projects, or None where it is not on disk. Leaf's session record keeps no path
-    to it."""
-    config = os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
-    found = sorted(Path(config).glob(f"projects/*/{session}.jsonl"))
-    if not found:
-        return None
-    return transcript_records(found[0])
+    """Claude Code's transcript of `session` (`claude_code_transcript_path`), or None
+    where it is not on disk."""
+    path = claude_code_transcript_path(session)
+    return None if path is None else transcript_records(path)
+
+
+def claude_code_transcript_path(session: str) -> Path | None:
+    """Where Claude Code keeps `session`'s transcript, in its configuration
+    directory's projects, with its subagents' beside it (`<session>/subagents/`), or
+    None where it is not on disk. Leaf's session record keeps no path to it."""
+    found = sorted(claude_code_config().glob(f"projects/*/{session}.jsonl"))
+    return found[0] if found else None
 
 
 def transcript_records(path: Path) -> list[dict]:

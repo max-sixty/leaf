@@ -11,15 +11,13 @@ from render_harness import (
     LONG_PAGE,
     open_page,
     panel_control,
-    panel_field,
+    panel_menu,
     panel_view,
     resized,
     round_trip,
-    show_resolved,
 )
 
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -28,19 +26,20 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     browser, serve
 ):
     """Anything a mouse can scroll a keyboard has to reach, and the reference is a list
-    long enough to scroll — but its rows carry no control, so nothing put the user in it
-    and they could read the first screenful of the key reference and no more.
+    long enough to scroll — but its rows carry no control, so without a stop of its own
+    nothing would put the user in it and they could read the first screenful of the key
+    reference and no more.
 
-    The sweep that fixes that asks the box whether it may scroll, and the theme says every
-    table may (`table { display: block; overflow-x: auto }`). So pointing it at the
-    reference tagged all fourteen of its tables, none of which overflows: leaving the
-    reference by Tab went from its native controls to fifteen extra stops, each wearing
-    the browser's own ring rather than the layer's. A rule saying a box *could* scroll is
-    not the same fact as a box that *has* something out of sight, and only the second is
-    somewhere a user needs to be able to stand.
+    The sweep that fixes that asks the box whether it may scroll, and the theme says
+    every table may (`table { display: block; overflow-x: auto }`). So a sweep taking
+    that answer would tag every table in the reference, none of which overflows: leaving
+    the reference by Tab would go from its native controls through a stop for each, each
+    wearing the browser's own ring rather than the layer's. A rule saying a box *could*
+    scroll is not the same fact as a box that *has* something out of sight, and only the
+    second is somewhere a user needs to be able to stand.
 
-    Asserted as the whole set rather than a count, because the count was right before and
-    the members were wrong: every stop in the overlay has to be a control the reference
+    Asserted as the whole set rather than a count, because a count can be right while
+    the members are wrong: every stop in the overlay has to be a control the reference
     offers or a box that really scrolls."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.keyboard.press("?")
@@ -71,8 +70,7 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     # the whole point of the sweep. Its reachability is what is asserted here and not the
     # scroll itself: the headless shell does not move a focused div for an arrow or a
     # PageDown where Chrome does, so a motion assertion would be measuring the harness.
-    # What this can say, and what the defect was, is that the box overflows and that a
-    # user can be put on it.
+    # What this can say is that the box overflows and that a user can be put on it.
     results = page.locator(".lf-command-reference-results")
     assert page.evaluate(
         "() => { const r = document.querySelector('.lf-command-reference-results');"
@@ -245,235 +243,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     expect(page_control).to_be_focused()
 
 
-def test_the_reference_runs_available_commands_and_explains_the_rest(browser, serve):
-    """The reference is the command register made usable, not a second list of prose.
-
-    Search narrows that register, arrows choose a result, and Enter runs it through the
-    same scoped command route as its key. A command outside the user's current scope
-    stays selectable, but explains the scope it needs instead of closing and doing
-    nothing. Stable command IDs are exposed on the results so words can change without
-    breaking this route or tooling built on it."""
-    # Go-to's kind filters need a visible page target; the page's old skip button
-    # used to supply one implicitly.
-    page_with_target = NOTED_PAGE.replace(
-        '<p id="p2">', '<a href="#p1">Jump to the first passage</a><p id="p2">'
-    )
-    page = open_page(browser, serve(page_with_target, comments=2))
-    help_el = page.locator(".lf-command-reference")
-    search = page.get_by_role("combobox", name="Search commands")
-
-    page.keyboard.press("?")
-    commands = help_el.locator(".lf-command-reference-command:visible")
-    assert commands.count() > 1, "the command grid has no pair of rows to walk"
-    # The head's hint and the rows share their verbs, "choose" and "activate".
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        re.compile(r"^\d+ commands · ↑↓ choose · ⏎ activate$")
-    )
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(commands.first).to_have_attribute("data-lf-selected", "true")
-    # The walk says its position where the panel says what passes, in the empty
-    # field's place.
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", f"Command 1 of {commands.count()}"
-    )
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        re.compile(r" · ⏎ activate$")
-    )
-    first_row = commands.first
-    assert search.evaluate(
-        "input => input.ariaActiveDescendantElement?.id"
-    ) == first_row.get_attribute("id")
-    page.keyboard.press("ArrowUp")
-    expect(commands.first).to_have_attribute("data-lf-selected", "true")
-
-    page.keyboard.press("Escape")
-    page.keyboard.press("?")
-    commands = help_el.locator(".lf-command-reference-command:visible")
-    page.keyboard.press("ArrowUp")
-    expect(search).to_be_focused()
-    expect(commands.last).to_have_attribute("data-lf-selected", "true")
-    last_row = commands.last
-    assert search.evaluate(
-        "input => input.ariaActiveDescendantElement?.id"
-    ) == last_row.get_attribute("id")
-    page.keyboard.press("ArrowDown")
-    expect(commands.last).to_have_attribute("data-lf-selected", "true")
-
-    # On a phone, every complete binding stays whole in its own cell, clear of its
-    # command. Search adds a scope to each match; that context wraps to a second line
-    # rather than squeezing the command's words or painting over them.
-    resized(page, 390, 800)
-    overlap = """(a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5
-      && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5"""
-    geometry = help_el.evaluate(
-        f"""help => {{
-          const overlap = {overlap};
-          const results = help.querySelector('.lf-command-reference-results');
-          return {{
-            overflow: results.scrollWidth - results.clientWidth,
-            keys: [...help.querySelectorAll('[role=option]:not([hidden]) .lf-binding-sequence')]
-              .map(key => {{
-                const box = key.getBoundingClientRect();
-                const row = key.closest('[role=option]');
-                return {{
-                  command: row.dataset.lfCommand,
-                  outside: box.right - key.closest('.lf-command-reference-key').getBoundingClientRect().right,
-                  covers: overlap(box, row.querySelector('.lf-command-reference-action')
-                    .getBoundingClientRect()),
-                }};
-              }}),
-          }};
-        }}"""
-    )
-    assert geometry["overflow"] <= 0, geometry
-    assert not [
-        key for key in geometry["keys"] if key["outside"] > 0.5 or key["covers"]
-    ], geometry
-    search.fill("space")
-    matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
-    ).evaluate_all(
-        f"""rows => rows.map(row => {{
-          const overlap = {overlap};
-          const command = row.querySelector('.lf-command-reference-title-words');
-          const words = document.createRange();
-          words.selectNodeContents(command);
-          return {{
-            command: row.dataset.lfCommand,
-            lines: new Set([...words.getClientRects()].map(rect => Math.round(rect.top))).size,
-            covered: overlap(command.getBoundingClientRect(),
-              row.querySelector('.lf-command-reference-scope').getBoundingClientRect()),
-          }};
-        }})"""
-    )
-    assert matches
-    assert all(item["lines"] == 1 and not item["covered"] for item in matches), matches
-    resized(page, 1200, 800)
-
-    # A key query may also occur in command ids and prose. Actual bindings lead the
-    # filtered DOM, which is both the visual order and the Arrow-key command rail. A
-    # trailing separator asks for continuations, and case puts the shifted face first.
-    search.fill("g ")
-    ranked = help_el.locator("[role=option][data-lf-command]:visible").evaluate_all(
-        """rows => rows.map(row => ({
-          command: row.dataset.lfCommand,
-          binding: [...row.querySelectorAll('kbd')].map(key => key.textContent).join(' '),
-        }))"""
-    )
-    assert ranked and ranked[0]["binding"].startswith("g "), ranked
-    first_other = next(
-        (
-            index
-            for index, row in enumerate(ranked)
-            if not row["binding"].startswith("g ")
-        ),
-        len(ranked),
-    )
-    assert first_other > 0, ranked
-    assert not any(row["binding"].startswith("g ") for row in ranked[first_other:]), (
-        ranked
-    )
-    search.fill("g t")
-    assert (
-        help_el.locator("[role=option][data-lf-command]:visible").first.get_attribute(
-            "data-lf-command"
-        )
-        == "navigation.target.filter.threads"
-    )
-    search.fill("g T")
-    assert (
-        help_el.locator("[role=option][data-lf-command]:visible").first.get_attribute(
-            "data-lf-command"
-        )
-        == "navigation.panel.threads"
-    )
-    page.keyboard.press("ArrowDown")
-    expect(
-        help_el.locator(
-            '.lf-command-reference-command[data-lf-command="navigation.panel.threads"]'
-        )
-    ).to_have_attribute("data-lf-selected", "true")
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        "Threads · g · ⏎ activate"
-    )
-    search.fill("Tab")
-    tab_matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
-    ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
-    assert "page.search.match.next" in tab_matches, tab_matches
-    search.fill("w")
-    w_results = help_el.locator("[role=option][data-lf-command]:visible").evaluate_all(
-        "rows => rows.map(row => row.dataset.lfCommand)"
-    )
-    assert w_results.index("draw.mode.exit") < w_results.index("page.down"), w_results
-    w_matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
-    ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
-    assert "draw.mode.exit" in w_matches, w_matches
-    assert w_results.index("page.down") >= len(w_matches), w_results
-
-    search.fill("r resolve")
-    result = help_el.locator(
-        '.lf-command-reference-command[data-lf-command="thread.resolution.toggle"]'
-    )
-    expect(result).to_have_count(1)
-    expect(result).to_have_attribute("data-lf-command", "thread.resolution.toggle")
-    expect(search).to_have_attribute("aria-haspopup", "listbox")
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(result).to_have_attribute("data-lf-selected", "true")
-    expect(result).to_have_attribute("aria-selected", "true")
-    page.keyboard.type("!")
-    expect(search).to_have_value("r resolve!")
-    expect(help_el.locator(".lf-rows-empty")).to_be_visible()
-    page.keyboard.press("Backspace")
-    page.keyboard.press("ArrowDown")
-    expect(result).to_have_attribute("data-lf-selected", "true")
-    page.keyboard.press("Enter")
-    expect(help_el).to_be_visible()
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        "Available in a thread"
-    )
-    search.fill("reaction.cancel")
-    cancel_reaction = help_el.locator(
-        '.lf-command-reference-command[data-lf-command="reaction.cancel"]'
-    )
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(cancel_reaction).to_have_attribute("data-lf-selected", "true")
-    page.keyboard.press("Enter")
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        "Available with reactions open"
-    )
-
-    page.keyboard.press("Escape")
-    page.keyboard.press("?")
-    # The shared description names both directions, so its words match both rows.
-    # Search the stable command id to run this exact direction through the reference.
-    search.fill("thread.previous")
-    previous = help_el.locator(
-        '.lf-command-reference-command[data-lf-command="thread.previous"]'
-    )
-    expect(previous).to_have_count(1)
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(previous).to_have_attribute("data-lf-selected", "true")
-    page.keyboard.press("Enter")
-    # The last thread, which has no card on the page, opens in the panel.
-    expect(page.locator(PANEL_THREAD)).to_be_focused()
-    page.keyboard.press("?")
-    search.fill("r resolve")
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(result).to_have_attribute("data-lf-selected", "true")
-    page.keyboard.press("Enter")
-    expect(help_el).to_be_hidden()
-    expect(show_resolved(page)).to_have_count(1)
-
-
-# On me stands for the panel's views: its mark is the row's control, and Threads, a tab
-# of On, shares its branch.
+# On Me stands for the panel's views: its mark is the row's control.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
@@ -489,14 +259,13 @@ def test_the_reference_enters_named_go_to_destinations(
     command reference reaches it; native controls keep their own activation."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
     destination = page.locator(surface)
-    if suffix in ("T", "M"):
-        control = "threads" if suffix == "T" else "queue"
-        panel_control(page, control).click()
+    if suffix == "M":
+        panel_control(page, "queue").click()
         expect(destination).to_be_visible()
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
         expect(destination).to_be_hidden()
-        panel_control(page, control).press("Enter")
+        panel_control(page, "queue").press("Enter")
         expect(destination).to_be_visible()
         page.wait_for_function(
             "selector => document.querySelector(selector).contains(document.activeElement)",
@@ -512,7 +281,7 @@ def test_the_reference_enters_named_go_to_destinations(
         "selector => document.querySelector(selector).contains(document.activeElement)",
         arg=surface,
     )
-    if suffix in ("T", "M"):
+    if suffix == "M":
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
     else:
@@ -540,7 +309,7 @@ def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
     """A command chosen in the reference enters its destination from the panel leaf."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
     leaf = page.locator(".lf-fp-leaf")
-    leaf.click()
+    panel_menu(page)
     page.keyboard.press("Escape")
     expect(leaf).to_be_focused()
     page.keyboard.press("?")
@@ -759,8 +528,8 @@ def test_the_reference_runs_the_exact_numbered_obligation_action(browser, serve)
     )
 
     second.click()
-    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
-    expect(page.locator("#lq-keep")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#lq-token")).to_have_attribute("selected", "")
+    expect(page.locator("#lq-keep")).not_to_have_attribute("selected", "")
     round_trip(page)
 
 
@@ -790,11 +559,10 @@ def test_away_from_an_obligation_the_reference_names_widget_owned_options(
 
 def test_the_reference_reads_the_same_way_twice(browser, serve):
     """A widget registers its scope at upgrade, and the set the reference walks is
-    insertion-ordered, so the sections came out in whatever order the modules happened to
-    finish in. The same build read twice put "On a tab" above "On a card grip" once and
-    below it the next time. A reference whose headings move between loads is one a user
-    cannot learn the shape of, and any assertion on it flakes rather than fails — which is
-    how it was found, a reviewer taking a reordering for fallout from an unrelated change.
+    insertion-ordered, so read in that order the sections would come out in whatever
+    order the modules happened to finish in, which differs between two reads of the same
+    build. A reference whose headings move between loads is one a user cannot learn the
+    shape of, and any assertion on it flakes rather than fails.
 
     So the widgets' sections read in the order the page holds them. Asserted twice over:
     the same page loaded twice gives the same list, and that list is the document's own
@@ -818,9 +586,9 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
 
 
 def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
-    """The floating panel's section listed ↑ ↓ Home End twice, once for the leaf's menu
-    and once for the open view, under the same words. One walk over the open view's
-    list, the menu's among them, lists each key once."""
+    """Read once for the leaf's menu and once for the open view, the floating panel's
+    section would list ↑ ↓ Home End twice under the same words. One walk over the open
+    view's list, the menu's among them, lists each key once."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
@@ -851,10 +619,10 @@ def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):
     """The reference is a column in a window-capped box, and only its results give up
-    height to fit. Its count line was a shrinkable item too, squeezed to 13.8px under a
-    16.7px line with the results starting on its last pixel, so a row scrolled up to the
-    results' edge ran into the words above it. The line keeps a whole line, and the
-    results start a step below it."""
+    height to fit. Were its count line a shrinkable item too, it would be squeezed below
+    a whole line with the results starting on its last pixel, so a row scrolled up to
+    the results' edge would run into the words above it. The line keeps a whole line,
+    and the results start a step below it."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()

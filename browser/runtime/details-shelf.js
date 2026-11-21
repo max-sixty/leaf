@@ -48,7 +48,7 @@ import { focused, onCurrentLocation } from "./focus.js";
 import { visualAt } from "./anchor-resolution.js";
 import { paintProxyRing } from "./target-paint.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { upFrom } from "./shadow.js";
+import { upFrom } from "./shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { standsAt } from "./user-place.js";
 import { offer, reveal } from "./widget-elements.js";

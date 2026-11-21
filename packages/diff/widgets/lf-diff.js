@@ -17,8 +17,8 @@
  * renders only when it opens, whichever form supplied it; the alternative, a second
  * pipeline for patch text that rendered every file eagerly, drifted from the manifest's
  * on every fix. A source's evidence commits together after open files load. Lazy
- * disclosure joins the pending source render before reading its evidence, and a closed file shows
- * none of the previous revision while it loads current evidence. Line conversations
+ * disclosure joins the pending source render before rendering its file, and a closed file shows
+ * none of the previous revision while it renders the current one. Line conversations
  * follow the visible reader width while source lines may scroll horizontally. The
  * browser sizes those conversations from the reader container. Each source row owns
  * its gutter control; ordinary block flow places conversations between rows. Passage reveal
@@ -30,9 +30,9 @@
  * row without an empty disclosure, and a file-type replacement keeps one file identity.
  * Author notes use the same source coordinate resolver as cross-widget navigation;
  * their authored nodes move into the stage, never copied into generated data rows. */
+import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
   DISCLOSE,
-  HOLDS_WORD,
   announce,
   beginWalk,
   failSoft,
@@ -42,17 +42,12 @@ import {
   generated,
   generatedElement,
   holdFocus,
-  html,
-  nothing,
-  keyed,
-  render,
   inChrome,
   nameAction,
   keeps,
   keepsText,
   langForPath,
   layoutChanged,
-  loadDeferred,
   listWalkPosition,
   move,
   nextRender,
@@ -98,17 +93,16 @@ import { pierre, markSyntax } from "/widgets/pierre.js";
 /** @typedef {import("@pierre/diffs").FileDiffMetadata} NativeFile */
 /** @typedef {{path: string, previousPath?: string, operation: "copy" | "rename" | "add" | "delete" | "modify", hunkCount: number, binary: boolean, oldMode?: string, newMode?: string, additions: number, deletions: number}} FileRecord */
 /** @typedef {NativeFile & {record: FileRecord}} ParsedFile */
-/** @typedef {FileSummary & ({parsed: ParsedFile} | {manifest: Exclude<import("../../../browser/types/contract.js").DataUnifiedDiff, string>})} SourceRecord */
+/** @typedef {{path: string} & ({file: ParsedFile} | {error: unknown})} SourceRecord */
 /** @typedef {{path: string, hunk: number} & ({side: "both", oldLine: number, newLine: number} | {side: "old", oldLine: number, newLine?: never} | {side: "new", newLine: number, oldLine?: never})} SourceLine */
 /** @typedef {SourceLine & {node: HTMLElement, row: HTMLDivElement, content: string}} RenderedLine */
 /** @typedef {Pick<FileRecord, "path"> & Partial<Omit<FileRecord, "path">>} FileSummary */
 /** @typedef {{outlet: HTMLElement, row: Element | null, active: boolean}} ThreadSeat */
 /** @typedef {{kind: "text", row: HTMLDetailsElement, details: HTMLDetailsElement, header: HTMLElement} | {kind: "metadata", row: HTMLDivElement, details: null, header: HTMLDivElement}} FilePresentation */
-/** @typedef {{node: HTMLDivElement, actions: HTMLDivElement, record: FileSummary, source: SourceRecord, file: ParsedFile | undefined, rendered: Awaited<ReturnType<typeof renderFile>> | null, filtered: boolean, loaded: boolean, failed: boolean, refused: boolean, renderKey: string | null, loading: {rendering: number, promise: Promise<void>} | null, disclosure: {node: HTMLDetailsElement, open: boolean, changed: () => void} | null} & FilePresentation} FileEntry */
+/** @typedef {{node: HTMLDivElement, actions: HTMLDivElement, record: FileSummary, source: SourceRecord, rendered: Awaited<ReturnType<typeof renderFile>> | null, filtered: boolean, loaded: boolean, refused: boolean, renderKey: string | null, loading: {rendering: number, promise: Promise<void>} | null, disclosure: {node: HTMLDetailsElement, open: boolean, changed: () => void} | null} & FilePresentation} FileEntry */
 /** @typedef {FileEntry & {kind: "text"}} TextEntry */
 /** @typedef {FilePresentation & {kind: "text"}} TextPresentation */
-/** @typedef {{error: unknown, retry?: boolean} | {file: ParsedFile, renderKey: string | null, rendered: Awaited<ReturnType<typeof renderFile>> | null}} EntryPreparation */
-/** @typedef {{error: unknown, retry?: boolean} | {file: ParsedFile}} EntryEvidence */
+/** @typedef {{error: unknown} | {file: ParsedFile, renderKey: string | null, rendered: Awaited<ReturnType<typeof renderFile>> | null}} EntryPreparation */
 /** @type {Promise<typeof import("/vendor/pierre-parser.esm.js")> | null} */
 let parser = null;
 const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
@@ -123,26 +117,36 @@ const OPTIONS = Object.freeze({
   lineDiffType: "word-alt",
 });
 
-// The records every source form renders from, in the shape of the contract's file
-// manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes
-// incomplete evidence, and each record carries its parsed file where a manifest's
-// record defers its patch. The path keys a record in either form; the contract
-// refuses a manifest that repeats one, and this refuses a patch text that does.
+// The records every source form renders from, one per file, each holding its parsed
+// file or the error that refused it. A patch text is parsed once, strictly, so a
+// malformed hunk never becomes incomplete evidence, and a failure refuses the whole
+// source. A manifest's patches are parsed one by one, so a patch this widget cannot
+// draw refuses only its own file; `applyEntry` reports it to the agent that stored
+// it, since the manifest's producer leaves judging a patch to this widget. The path
+// keys a record in either form; the contract refuses a manifest that repeats one, and
+// `parsedFiles` refuses a patch text that does.
 /** @param {import("../../../browser/types/contract.js").DataUnifiedDiff} source @returns {Promise<readonly SourceRecord[]>} */
 async function sourceRecords(source) {
-  if (typeof source !== "string")
-    return source.files.map(({ path }) => ({ path, manifest: source }));
-  return (await parsedFiles(source)).map((file) => ({ path: file.name, parsed: file }));
+  if (typeof source === "string")
+    return (await parsedFiles(source)).map((file) => ({ path: file.name, file }));
+  return Promise.all(
+    source.files.map(async ({ path, patch }) => {
+      try {
+        return { path, file: await recordFile(patch, path) };
+      } catch (error) {
+        return { path, error };
+      }
+    }),
+  );
 }
 
-// A deferred patch must describe its keyed logical file, including both native
+// A manifest's patch must describe its keyed logical file, including both native
 // sections of a file-type replacement. All display metadata comes from this parse.
-/** @param {string} patch @param {SourceRecord} record */
-async function deferredFile(patch, record) {
-  const { path } = record;
+/** @param {string} patch @param {string} path */
+async function recordFile(patch, path) {
   const [file, extra] = await parsedFiles(patch);
   if (!file || extra || file.name !== path)
-    throw new Error(`the deferred patch for ${path} does not contain that one file`);
+    throw new Error(`the patch for ${path} does not contain that one file`);
   return file;
 }
 
@@ -315,18 +319,17 @@ function pathTemplate(path) {
     }<span class="lf-diff-base">${base}</span>`;
 }
 
-// While a file's row cuts its path short, the row wears `data-lf-path-cut`, which draws
-// the whole path for the keyboard and a held press (widget-shadow.css), and the path's
-// title holds it for a pointer resting there. A path the row shows whole has neither,
-// since each would repeat it. Whether the row cuts the path changes only with the width
+// While a file's row cuts its path short, the row's preview is the whole path, which a
+// resting pointer, the keyboard and a held press read (`lfPreview`, module-input.md,
+// "Previews"). A path the row shows whole previews nothing, since it would repeat it.
+// Whether the row cuts the path changes only with the width
 // of a part of it, the folders or the name (at a new window width, face or press beside
 // it), so each part's size is watched rather than polled. A part is cut where its words
 // run past its box, measured by a Range to the layout unit: `scrollWidth` rounds to
 // whole pixels, and the ellipsis is drawn for a fraction of one. A folder region too
 // small for this font's ellipsis is left blank: the browser otherwise paints a glyph
 // sliver. Its CSS measurement box supplies the native width. Opacity elides only paint,
-// leaving flex allocation and the full path for accessibility, title and held-word
-// intact.
+// leaving flex allocation and the full path for accessibility and the preview intact.
 //
 // One observer watches every file's row, so a delivery reads every row it names before
 // writing any. A summary's paint starts watching its path parts and moves that
@@ -351,6 +354,14 @@ const pathParts = (view) =>
     : [];
 /** @type {WeakMap<Element, {path: HTMLElement, header: HTMLElement}>} */
 const pathOwners = new WeakMap();
+// The whole path a row cuts short, by its row.
+/** @type {WeakMap<Element, string>} */
+const cutPaths = new WeakMap();
+/** @this {Element} */
+function cutPath() {
+  const path = cutPaths.get(this);
+  return path === undefined ? null : { name: path };
+}
 const pathSizes = sizeObserver((entries) => {
   const owners = new Set(
     entries.flatMap(({ target }) => {
@@ -375,8 +386,8 @@ const pathSizes = sizeObserver((entries) => {
     };
   });
   for (const { path, header, cut, folders } of readings) {
-    header.toggleAttribute("data-lf-path-cut", cut);
-    keeps(path, "title", cut ? path.textContent : null);
+    if (cut) cutPaths.set(header, path.textContent ?? "");
+    else cutPaths.delete(header);
     for (const { part, hidden } of folders)
       part.toggleAttribute("data-lf-folder-hidden", hidden);
   }
@@ -390,13 +401,7 @@ function unwatchPathCut(view) {
 /** @param {FileSummary} record */
 function filePathTemplate({ path, previousPath }) {
   const name = path || "(unnamed file)";
-  // The held-word presentation uses generated content, so it needs a soft break
-  // after each slash alongside the visible path's <wbr> opportunities. A cut path
-  // is read whole on keyboard focus or a held press (`paintSummary`, held-word.js).
-  const displayPath = previousPath ? `${previousPath} → ${path}` : name;
-  return html`<span
-    class="lf-diff-path"
-    data-lf-path=${displayPath.replaceAll("/", "/\u200b")}
+  return html`<span class="lf-diff-path"
     >${
       previousPath
         ? html`<span class="lf-diff-source-path">${pathTemplate(previousPath)}</span
@@ -447,7 +452,8 @@ function summaryNode(record, open, verified = true) {
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
-  summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
+  summary.className = "lf-diff-head lf-disclosure-marker";
+  summary.lfPreview = cutPath;
   details.append(summary);
   /** @type {TextPresentation} */
   const view = { kind: "text", row: details, details, header: summary };
@@ -476,8 +482,8 @@ function summaryNode(record, open, verified = true) {
 // while its rows go past, and the press sticks with it only as a box in the flow ahead
 // of the disclosure, since a box placed against the file's top would stay there and
 // drift off the header it belongs to.
-/** @param {FilePresentation} view @param {SourceRecord} record @returns {FileEntry} */
-function fileEntry(view, record) {
+/** @param {FilePresentation} view @param {FileSummary} record @param {SourceRecord} source @returns {FileEntry} */
+function fileEntry(view, record, source) {
   const node = document.createElement("div");
   node.className = "lf-diff-file";
   const actions = offer("div", "lf-diff-file-actions");
@@ -487,10 +493,8 @@ function fileEntry(view, record) {
     node,
     actions,
     record,
-    source: record,
-    file: undefined,
+    source,
     loaded: false,
-    failed: false,
     refused: false,
     renderKey: null,
     loading: null,
@@ -965,33 +969,19 @@ function joinChangeRuns(file) {
 }
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
-// first: a user writing about one of them stays in it, and the hold below, which
-// would hand them to Retry, finds them outside the file. A patch the widget cannot draw
-// offers no Retry, and the hold lands on the file's header.
-/** @param {TextPresentation} view @param {unknown} error @param {(() => void) | false | undefined} retry */
-function deferredError(view, error, retry) {
+// first: a user writing about one of them stays in it. Focus left inside the file
+// moves to its header.
+/** @param {TextPresentation} view @param {unknown} error */
+function fileError(view, error) {
   const { details, header } = view;
   releaseOutlets(details);
   const restore = holdFocus(details);
-  const message = describeFailure(error);
   const box = document.createElement("div");
   box.className = "lf-error";
   generatedElement(box, { says: false });
-  box.textContent = retry
-    ? `That file's diff failed to load: ${message}`
-    : `That file's diff cannot be shown: ${message}`;
-  let standIn = header;
-  if (retry) {
-    standIn = offerAction("symbol", "", undefined, { action: "retry" });
-    standIn.addEventListener("click", () => {
-      if (standIn.getAttribute("aria-disabled") === "true") return;
-      standIn.setAttribute("aria-disabled", "true");
-      retry();
-    });
-    box.append(" ", standIn);
-  }
+  box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
   setChildren(details, [header, box]);
-  restore?.(standIn);
+  restore?.(header);
 }
 
 customElements.define(
@@ -1047,8 +1037,8 @@ customElements.define(
     inlineSource = "";
     unplacedNotes = document.createElement("div");
     // The patch text or file manifest, set by whoever hosts the widget: Leaf from the
-    // bound source (the registry's `x-data.document.property`), or from the written
-    // `<pre>`; null while a bound source has none.
+    // bound source (the registry's `inputs.document.property`), or from the
+    // written `<pre>`; null while a bound source has none.
     static properties = { value: { attribute: false } };
 
     constructor() {
@@ -1238,21 +1228,13 @@ customElements.define(
           (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
         );
         const open = !this.hasAttribute("collapsed");
-        /** @type {{record: SourceRecord, evidence: EntryEvidence, previous: FileEntry | undefined, prepared: EntryPreparation | null}[]} */
-        const plans = await Promise.all(
-          records.map(async (record) => {
-            const evidence = await this.readEntry(record);
-            return {
-              record: {
-                ...record,
-                ...("file" in evidence ? evidence.file.record : {}),
-              },
-              evidence,
-              previous: prior.get(record.path),
-              prepared: "error" in evidence ? evidence : null,
-            };
-          }),
-        );
+        /** @type {{record: FileSummary, evidence: SourceRecord, previous: FileEntry | undefined, prepared: EntryPreparation | null}[]} */
+        const plans = records.map((evidence) => ({
+          record: "file" in evidence ? evidence.file.record : { path: evidence.path },
+          evidence,
+          previous: prior.get(evidence.path),
+          prepared: "error" in evidence ? evidence : null,
+        }));
         // Every row's evidence is judged before its metadata commits. Only open files
         // need the textual renderer; closed files retain their one parsed reading.
         // Open evidence is prepared without changing the current entries or their native
@@ -1272,9 +1254,8 @@ customElements.define(
           await Promise.all(
             pending.map(async (plan) => {
               plan.prepared = await this.prepareEntry(
-                plan.record,
-                plan.previous?.details ? plan.previous.renderKey : null,
                 plan.evidence,
+                plan.previous?.details ? plan.previous.renderKey : null,
               );
             }),
           );
@@ -1310,16 +1291,14 @@ customElements.define(
                 restores.push(replaceFileRendering(previous, view));
                 return previous;
               }
-              const entry = fileEntry(view, record);
+              const entry = fileEntry(view, record, evidence);
               fresh.push(entry);
               return entry;
             })();
             Object.assign(entry, {
               record,
-              source: record,
-              file: "file" in evidence ? evidence.file : undefined,
+              source: evidence,
               loaded: entry.kind === "metadata",
-              failed: false,
               refused: false,
               loading: null,
             });
@@ -1417,34 +1396,11 @@ customElements.define(
       );
     }
 
-    // A patch that fails to load may load on Retry. One this widget cannot draw never
-    // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
-    // it, once the current rendering shows it: the manifest's producer leaves judging a
-    // patch to this widget.
-    /** @param {SourceRecord} record @returns {Promise<EntryEvidence>} */
-    async readEntry(record) {
-      if ("parsed" in record) return { file: record.parsed };
-      let patch;
+    /** @param {SourceRecord} source @param {string | null | undefined} renderKey @returns {Promise<EntryPreparation>} */
+    async prepareEntry(source, renderKey) {
+      if ("error" in source) return source;
       try {
-        patch = /** @type {string} */ (
-          await loadDeferred(record.manifest, record.path)
-        );
-      } catch (error) {
-        return { error, retry: true };
-      }
-      try {
-        return { file: await deferredFile(patch, record) };
-      } catch (error) {
-        return { error };
-      }
-    }
-
-    /** @param {SourceRecord} record @param {string | null | undefined} renderKey @param {EntryEvidence} [evidence] @returns {Promise<EntryPreparation>} */
-    async prepareEntry(record, renderKey, evidence) {
-      const reading = evidence ?? (await this.readEntry(record));
-      if ("error" in reading) return reading;
-      try {
-        const { file } = reading;
+        const { file } = source;
         const overflow = overflowFor(file.name, this.getAttribute("overflow"));
         const nextKey = JSON.stringify([file, overflow]);
         const rendered =
@@ -1524,7 +1480,7 @@ customElements.define(
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value: source } }));
     }
 
-    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
+    // The widget's thread surface: Leaf asks for one outlet, or null, per target it hands over, and
     // the outlets this placement no longer uses come down once it commits.
     /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets @param {import("/runtime/thread/surfaces.js").OutletContext} context */
     threadOutlets(targets, { onCommit }) {
@@ -1545,6 +1501,8 @@ customElements.define(
 
     /** @param {import("/runtime/thread/surfaces.js").OutletTarget} target */
     threadOutletFor({ anchor, placement }) {
+      // A thread about the diff as a whole names no datum, and stays in the margin.
+      if (!anchor.datum) return null;
       const coordinate = readDiffCoordinate(anchor.datum);
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!coordinate || !entry || entry.filtered) return null;
@@ -1621,11 +1579,7 @@ customElements.define(
       if (entry.loading?.rendering === this.rendering) return entry.loading.promise;
       const rendering = this.rendering;
       const promise = (async () => {
-        const prepared = await this.prepareEntry(
-          entry.source,
-          entry.renderKey,
-          entry.file ? { file: entry.file } : undefined,
-        );
+        const prepared = await this.prepareEntry(entry.source, entry.renderKey);
         if (rendering !== this.rendering || !this.isConnected) return;
         await this.commitLoaded(entry, prepared, rendering);
       })();
@@ -1675,31 +1629,19 @@ customElements.define(
     /** @param {TextEntry} entry @param {EntryPreparation} prepared */
     applyEntry(entry, prepared) {
       if ("error" in prepared) {
-        const { error, retry } = prepared;
-        entry.failed = true;
+        // Nothing loads a patch this widget refused again.
+        entry.refused = true;
         paintSummary(entry, entry.record, false);
         paintFileDetails(entry, {});
         if (!entry.details.open) entry.details.open = true;
         if (entry.disclosure) entry.disclosure.open = true;
-        // Reopening retries a load; nothing loads a patch this widget refused again.
-        entry.refused = !retry;
-        if (entry.refused) reportFailure(this, error);
+        reportFailure(this, prepared.error);
         entry.rendered = null;
         entry.renderKey = null;
-        deferredError(
-          entry,
-          error,
-          retry &&
-            (() => {
-              if (!entry.failed) return;
-              entry.failed = false;
-              this.present(this.loadEntry(entry));
-            }),
-        );
+        fileError(entry, prepared.error);
         return null;
       }
       const { file, renderKey, rendered } = prepared;
-      entry.file = file;
       entry.record = file.record;
       paintSummary(entry, entry.record);
       if (entry.record.hunkCount === 0) {
@@ -1761,7 +1703,7 @@ customElements.define(
       else if (entry.filtered) this.clearFilter();
       if (!entry.details) return null;
       if (!entry.details.open) entry.details.open = true;
-      if (entry.loaded || entry.failed) return null;
+      if (entry.loaded || entry.refused) return null;
       return this.loadEntry(entry);
     }
 
@@ -1788,7 +1730,6 @@ customElements.define(
             entry.refused
           )
             return;
-          entry.failed = false;
           this.present(this.loadEntry(entry));
         },
       };
@@ -1992,26 +1933,33 @@ customElements.define(
       );
     }
 
+    // A file's hunks, and the diff's files, are lists on screen, which their first and
+    // last heads bound (walk-declaration.js, `beginWalk`). Each returns the position a
+    // listener hears, "Hunk 2 of 5", before the file it is in.
     markHunkWalk() {
-      beginWalk("diff-hunk", "Hunk", () => {
+      const heads = () => {
         const entry = this.entryAroundFocus();
-        return entry
-          ? listWalkPosition(
-              hunkHeads(entry).map(({ node }) => node),
-              this.hereNode(),
-            )
-          : null;
-      });
+        return entry ? hunkHeads(entry).map(({ node }) => node) : [];
+      };
+      return beginWalk(
+        "diff-hunk",
+        "Hunk",
+        () => {
+          const nodes = heads();
+          return nodes.length ? listWalkPosition(nodes, this.hereNode()) : null;
+        },
+        { list: () => [heads()[0], heads().at(-1)] },
+      );
     }
 
     markFileWalk() {
-      beginWalk("diff-file", "File", () => {
-        const entries = this.navigationEntries();
-        return listWalkPosition(
-          entries.map(({ node }) => node),
-          this.entryAroundFocus()?.node,
-        );
-      });
+      const files = () => this.navigationEntries().map(({ node }) => node);
+      return beginWalk(
+        "diff-file",
+        "File",
+        () => listWalkPosition(files(), this.entryAroundFocus()?.node),
+        { list: () => [files()[0], files().at(-1)] },
+      );
     }
 
     /** @param {FileEntry} entry */
@@ -2025,7 +1973,7 @@ customElements.define(
     // ones after it, so a closed file is opened only once the step has actually reached
     // it: a user on the last hunk of the third file loads the fourth and stops, rather
     // than every remaining file to discover there is nothing past them.
-    // Opening a file may wait on the network, and the user may have moved on by then:
+    // Opening a file waits on its rendering, and the user may have moved on by then:
     // both walks capture the pressing gesture's intent first and land only while it stands.
     /** @param {boolean} back */
     async stepHunk(back) {
@@ -2044,8 +1992,8 @@ customElements.define(
         );
         if (!head) continue;
         this.land(head.node);
-        this.markHunkWalk();
-        announce(`${entry.record.path} · hunk ${head.hunk + 1} of ${heads.length}`);
+        const said = this.markHunkWalk() ?? `Hunk ${head.hunk + 1} of ${heads.length}`;
+        announce(`${said}: ${entry.record.path}`);
         return;
       }
       this.markHunkWalk();
@@ -2076,8 +2024,8 @@ customElements.define(
       // aligning it moves nothing, while aligning the file it heads starts the file at
       // its start. The header is still what takes the focus.
       this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
-      this.markFileWalk();
-      announce(entry.record.path);
+      const said = this.markFileWalk();
+      announce(said ? `${said}: ${entry.record.path}` : entry.record.path);
     }
 
     // Arrival: scrolled to the band the document declares landable, which the pinned

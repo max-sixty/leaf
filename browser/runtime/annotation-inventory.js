@@ -8,9 +8,10 @@
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory.
 
-   Each collection reads the whole page, and an entry stays the same object from one
-   collection to the next for as long as what it is made from holds still (`keptEntry`),
-   so a reader learns whether an entry changed by comparing the two. */
+   Each collection reads the whole page's records, and the words of a target only where
+   they changed (`passageRows`). An entry stays the same object from one collection to
+   the next for as long as what it is made from holds still (`keptEntry`), so a reader
+   learns whether an entry changed by comparing the two. */
 import { share } from "/runtime/framework.js";
 import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
@@ -23,22 +24,33 @@ import { ago } from "./presence.js";
 import { runtime } from "./context.js";
 import {
   elementById,
+  findEach,
   GENERATED,
   inChrome,
   quoteFrom,
+  readsElement,
   textNodesUnder,
 } from "./passages.js";
+import { keptEach } from "./kept.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
-import { threadList } from "./thread/state.js";
+import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
-import { targetSegments } from "./resolved-target.js";
+import {
+  readingOrder,
+  readingPlace,
+  targetElement,
+  targetSegments,
+  targetSurface,
+} from "./resolved-target.js";
+import { focusedVisualPart } from "./visual-parts.js";
+import { draftAnchor, draftSends, draftsReading } from "./drafts.js";
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { claimed } from "./thread/surfaces.js";
 import { threadName } from "./thread/messages.js";
-import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
+import { outlineContexts } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
@@ -48,9 +60,10 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { renderedOrder, shadowHost, under } from "./shadow.js";
+import { renderedOrdering, shadowHost, under } from "./shadow-tree.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
+import { hasObligationSource } from "./obligations/source.js";
 import { scrollBehavior } from "./motion.js";
 import {
   changeAccount,
@@ -59,7 +72,12 @@ import {
   comparisonChanges,
   toggleChangeCard,
 } from "./version.js";
+import { versionProvenance } from "./change-provenance.js";
 
+// The words of every obligation's row, one reading for all of them, so a collection
+// finds each row's words unchanged by identity rather than by reading them
+// (`captureItem`).
+const WAITING_ON_ME = leafSays("Waiting on me");
 // Where each published workflow still in progress stands in the published order, by
 // its id.
 const inProgress = readPart(
@@ -79,11 +97,12 @@ const inProgress = readPart(
  * @typedef {import("./framework/application.js").Workflow} Workflow
  * @typedef {import("./thread/workflow.js").ThreadRecord} ThreadRecord
  * @typedef {import("./anchor-placement.js").Placement} Placement
+ * @typedef {import("./passages.js").Segment} Segment
  * @typedef {{activate: () => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
  * @typedef {AnnotationItem & ItemSource} LiveItem
- * @typedef {{key: string | null, element?: Element | null, passage?: Placement | null, words?: string | null | undefined}} Pointed
+ * @typedef {{key: string | null, element?: Element | null, passage?: Placement | null, name: string | null, surface?: Element | null}} Pointed
  * @typedef {{key: string, target: Element, point: Element | null, passage: Placement | null,
- * pointWords: string | null, word: string, subject: string | null, title: string | null,
+ * name: string | null, surface: Element | null, word: string, subject: string | null, title: string | null,
  * items: LiveItem[], offers: ContributionSource[]}} Group
  * @typedef {Map<string | Element, Group>} Groups
  * @typedef {ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["scrollToElement"]} ScrollToElement
@@ -93,8 +112,9 @@ const inProgress = readPart(
 // entries report, the shown revision and the agent's to-dos, and the projection whose
 // reported and overridden marks it lists once the projection's chrome has painted them.
 // What the thread pass decides about a thread reaches it as readings its paint follows:
-// where the thread is placed (`placedAt`) and whether a widget seats it (`claimed`), so
-// a pass that moves one repaints the margin, and one that moves none leaves it.
+// where the thread, or a saved draft, is placed (`placedAt`, `savedAt`) and whether a
+// widget seats it (`claimed`), so a pass that moves one repaints the margin, and one
+// that moves none leaves it.
 /** @param {import("./framework/application.js").SemanticRoot} root */
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
@@ -104,13 +124,15 @@ export const annotationSelection = (root) => ({
   todos: root.authoritative?.browser.todos ?? null,
 });
 
-/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement}} dependencies */
+/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], savedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["savedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
+  savedAt,
   openThread,
   goToObligation,
   scrollToElement,
+  resumeDraft,
 }) {
   /** @param {string | null | undefined} value */
   const humanized = (value) =>
@@ -118,6 +140,10 @@ export function createAnnotationInventory({
       .replace(/[-_]+/g, " ")
       .trim();
 
+  // A target is named from the nearest element with an id, itself or one around it, and
+  // below that by each element's place among its authored siblings. A name reads only
+  // the siblings between the target and that element, so naming every target costs the
+  // page once rather than its square, and a name survives content added above the id.
   /** @param {Element} target @returns {string} */
   function targetPath(target) {
     const host = shadowHost(target.getRootNode());
@@ -138,6 +164,10 @@ export function createAnnotationInventory({
         from = `datum:${projection}/${node.getAttribute("data-lf-datum")}:`;
         break;
       }
+      if (node.id) {
+        from = `id:${node.id}/`;
+        break;
+      }
       const parent =
         node.parentElement ??
         (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
@@ -152,21 +182,13 @@ export function createAnnotationInventory({
     return `${prefix}${from}${steps.reverse().join("/")}`;
   }
 
-  // What a group stands by, for its place in the page's order: passages in one text
-  // node by where in it they start.
+  // Where a group stands in the page's reading order (resolved-target.js,
+  // `readingOrder`): the row it points into, else its passage, else its target.
   /** @param {Group} group */
-  const standsBy = (group) =>
-    group.point ?? targetSegments(group.passage)[0]?.node ?? group.target;
-  /** @param {Group} group */
-  const startsAt = (group) => targetSegments(group.passage)[0]?.start ?? -1;
-
-  /** @param {Node | null} left @param {Node | null} right */
-  function comesBefore(left, right) {
-    if (left === right) return 0;
-    if (!left) return 1;
-    if (!right) return -1;
-    return renderedOrder(left, right);
-  }
+  const placeIn = (group) => {
+    const place = readingPlace(group.passage, group.point);
+    return place.node ? place : { ...place, node: group.target };
+  };
 
   // Targets and generated-reading callbacks stay outside the model. Registered
   // contributions already publish their own immutable model readings.
@@ -187,6 +209,19 @@ export function createAnnotationInventory({
     entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
   /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
+  // The surface of each entry about a part of a picture (groupFor), by the entry's key.
+  // Such an entry is about the part alone, where a pointed row's comment is about its
+  // whole target, so `entryPart` gives the part and the surface its anchor resolved to,
+  // which pointing at the entry marks. It gives none while the picture draws no part,
+  // and pointing at the entry then marks the picture.
+  /** @type {Map<string, Element>} */
+  const parts = new Map();
+  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
+  const entryPart = (entry) => {
+    const element = entryPoint(entry);
+    const surface = element && entry ? parts.get(entry.key) : undefined;
+    return element && surface ? { element, surface } : null;
+  };
   // The passage a quoting entry stands by (groupFor), as anchor-placement last resolved
   // it (resolved-target.js).
   /** @type {Map<string, Placement>} */
@@ -198,6 +233,22 @@ export function createAnnotationInventory({
   const pointName = (words) => {
     const excerpt = words && excerptWords(words, 32);
     return excerpt ? `“${excerpt}”` : null;
+  };
+  // A part of a picture threads are about is named by the label its visual registers,
+  // as the comment box names it (thread/messages.js, `anchorPlace`), which its anchor
+  // resolved with it, and stands by the part where the picture draws it, at the
+  // picture's top where it draws none yet.
+  /** @param {Element} target @param {Placement} placement @param {string} id
+   * @returns {Pointed} */
+  const partRow = (target, placement, id) => {
+    const element = targetElement(placement);
+    const drawn = element && element !== target ? element : null;
+    return {
+      key: `visual:${id}`,
+      element: drawn,
+      name: (placement.kind === "element" && placement.label) || id,
+      surface: drawn && (targetSurface(placement) ?? drawn),
+    };
   };
   /** @param {AnnotationItem} item */
   const sourceItem = (item) => itemSources.get(item);
@@ -240,13 +291,15 @@ export function createAnnotationInventory({
     );
   };
   // One group per target, one more for each row inside it that pointing gestures stood
-  // threads at (pointed-place.js), and one more for each passage threads quote: those
-  // threads stand there together, by what they are about, and everything else about the
-  // target (its other threads, an obligation's marker, a widget's actions) keeps the target's
-  // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
-  // row's its first comment gave it, a passage's from its words, `passageRow`), the
-  // element it is or the passage it stands by (a resolved anchor), and its words, which
-  // name it.
+  // threads at (pointed-place.js), one more for each passage threads quote, and one more
+  // for each part of a picture threads are about (visual-parts.js): those threads stand
+  // there together, by what they are about, and everything else about the target (its
+  // other threads, an obligation's marker, a widget's actions) keeps the target's own
+  // row. `pointed` is `{ key, element, passage, name, surface }`: the row's key (a pointed
+  // row's its first comment gave it, a passage's from its words, `passageRows`, a part's
+  // its id), the element it stands by or the passage (a resolved anchor), the words
+  // that name it, and, where that element is the part the row is about, the part's
+  // surface.
   /** @param {Groups} groups @param {Element} target @param {Pointed | null} [pointed] */
   function groupFor(groups, target, pointed = null) {
     const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
@@ -259,7 +312,8 @@ export function createAnnotationInventory({
         target,
         point: pointed?.element ?? null,
         passage: pointed?.passage ?? null,
-        pointWords: pointed?.words ?? null,
+        name: pointed?.name ?? null,
+        surface: pointed?.surface ?? null,
         word,
         subject: null,
         title: null,
@@ -271,26 +325,101 @@ export function createAnnotationInventory({
     return group;
   }
 
-  // The row key for threads quoting `passage` of `target`: its words as the page reads
-  // them, and which occurrence of those words in the target's reading it is. Threads
-  // quoting the same words share it, and none settling or arriving changes it, so the
-  // row and a card open on it outlive them. A re-render that removes an earlier
-  // occurrence renumbers it and builds the row again, as a shifted path does an id-less
-  // target's.
-  /** @param {Element} target @param {readonly [import("./passages.js").Segment, ...import("./passages.js").Segment[]]} segments */
-  function passageRow(target, segments) {
-    const page = textNodesUnder(target);
-    const at = page.findIndex(({ node }) => node === segments[0].node);
-    const before = page.flatMap((segment, index) =>
-      index < at || at < 0
-        ? [segment]
-        : index === at
-          ? [{ ...segment, end: segments[0].start }]
-          : [],
+  // The row key for threads quoting a passage of `target`: its words as the page reads
+  // them, and which occurrence of those words in the target's reading it is, counting
+  // the copies that stand wholly before it, one after another. Threads quoting the same
+  // words share it, and none settling or arriving changes it, so the row and a card
+  // open on it outlive them. A re-render that removes an earlier occurrence renumbers it
+  // and builds the row again, as a shifted path does an id-less target's.
+  //
+  // Every passage threads quote in a target is keyed from one reading of it: where each
+  // passage starts among the target's words, heard as they are read, and every place each
+  // passage's words stand in them, found by one pass for all of them. So a paragraph
+  // holding many quoted passages costs its words and its passages, not their product.
+  //
+  // A passage's key is kept, under where it starts and what it says, for as long as the
+  // target's words are unchanged (passages.js, `readsElement`). So a collection reads a
+  // target again only where its words changed or a passage in it is new. Every change to
+  // the page starts a collection, a closed tab's document drawing included, and a change
+  // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
+  // collection, one comment on a large text document would read that document again
+  // each time another document drew.
+  const passageKeys = keptEach((/** @type {Element} */ target) => {
+    readsElement(target);
+    return /** @type {Map<Text, Map<string, string>>} */ (new Map());
+  });
+  /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
+   * @returns {string[]} */
+  function passageRows(target, quoted) {
+    // Each key by the passage's first text node, then by where it starts there and what
+    // it says.
+    /** @type {Map<Text, Map<string, string>>} */
+    const kept = passageKeys(target);
+    const asked = quoted.map((passage) => ({
+      passage,
+      node: passage[0].node,
+      key: `${passage[0].start} ${quoteFrom(passage)}`,
+    }));
+    const unkeyed = asked.filter(({ node, key }) => !kept.get(node)?.has(key));
+    if (unkeyed.length) {
+      const read = readPassageRows(
+        target,
+        unkeyed.map(({ passage }) => passage),
+      );
+      unkeyed.forEach(({ node, key }, at) =>
+        kept.set(
+          node,
+          (kept.get(node) ?? new Map()).set(key, /** @type {string} */ (read[at])),
+        ),
+      );
+    }
+    return asked.map(
+      ({ node, key }) => /** @type {string} */ (kept.get(node)?.get(key)),
     );
-    const words = quoteFrom(segments);
-    return JSON.stringify([words, quoteFrom(before).split(words).length - 1]);
   }
+  /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
+   * @returns {string[]} */
+  function readPassageRows(target, quoted) {
+    // How many of the target's words stand before each passage's first character, as
+    // reading the target only up to there would say: all of them where the passage
+    // starts in none of its text nodes.
+    /** @type {Map<Text, Map<number, number | undefined>>} */
+    const starts = new Map();
+    for (const [{ node, start }] of quoted)
+      starts.set(node, (starts.get(node) ?? new Map()).set(start, undefined));
+    const text = quoteFrom(textNodesUnder(target), (node, offset, length) => {
+      const at = starts.get(node);
+      if (at?.has(offset)) at.set(offset, length);
+    });
+    /** @param {Segment} first */
+    const before = ({ node, start }) => starts.get(node)?.get(start) ?? text.length;
+    const words = quoted.map((segments) => quoteFrom(segments));
+    const places = findEach(text, words);
+    return quoted.map(([first], at) => {
+      const said = /** @type {string} */ (words[at]);
+      const ahead = before(first);
+      // No words split a reading between every character.
+      let count = said ? 0 : ahead - 1;
+      let end = 0;
+      for (const place of said ? (places.get(said) ?? []) : []) {
+        if (place < end) continue;
+        if (place + said.length > ahead) break;
+        count += 1;
+        end = place + said.length;
+      }
+      return JSON.stringify([said, count]);
+    });
+  }
+  // A reading of each target made once a pass, however many of its groups ask.
+  /** @template T @param {(target: Element) => T} read */
+  const perTarget = (read) => {
+    /** @type {Map<Element, T>} */
+    const kept = new Map();
+    return (/** @type {Element} */ target) => {
+      if (!kept.has(target)) kept.set(target, read(target));
+      return /** @type {T} */ (kept.get(target));
+    };
+  };
 
   /** @param {Groups} groups @param {Element | null | undefined} target @param {LiveItem} item @param {Pointed | null} [pointed] */
   function add(groups, target, item, pointed = null) {
@@ -378,19 +507,47 @@ export function createAnnotationInventory({
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same
-  // resolved record as collection, navigation and paint.
+  // resolved record as collection, navigation and paint. A thread on a part of a
+  // picture, which stands at the picture, is about that part alone: it is at a node
+  // inside the part, or at the picture itself where focus there stands on that part,
+  // as a chart's keys stand on a point (`focusedVisualPart`), and at no other place in
+  // the picture. There it outranks a thread on the whole picture, as a pointed row
+  // does, since it is about where the user stands.
   /** @param {Node | null} node */
   function threadIdsAt(node) {
     const place = placeOf(node);
+    /** @type {string | null | undefined} */
+    let standsOn;
+    // How a thread on part `element` of picture `target` stands at the place: 3 where
+    // it is about where the user stands, null where it is about another part, and
+    // undefined for any other thread.
+    /** @param {ThreadRecord} thread @param {Element} element @param {Element} target */
+    const partRank = ({ anchor }, element, target) => {
+      if (!anchor?.visual || element === target) return undefined;
+      if (place && under(place, element)) return 3;
+      if (place !== target) return null;
+      if (standsOn === undefined) standsOn = focusedVisualPart(target)?.id ?? null;
+      return standsOn === anchor.visual ? 3 : null;
+    };
     let best = null;
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread)) continue;
       const placement = placedAt(thread.id);
       const target = placement?.place;
       if (!target || !under(place, target)) continue;
+      const part =
+        placement.kind === "element"
+          ? partRank(thread, placement.element, target)
+          : undefined;
+      if (part === null) continue;
       const point = livePoint(target, placement.point);
-      const rank = !point ? 1 : under(place, point) ? 2 : 0;
-      if (best && target === best.target && point === best.point) {
+      const rank = part ?? (!point ? 1 : under(place, point) ? 2 : 0);
+      if (
+        best &&
+        target === best.target &&
+        point === best.point &&
+        rank === best.rank
+      ) {
         best.ids.push(thread.id);
         continue;
       }
@@ -403,9 +560,18 @@ export function createAnnotationInventory({
     return best?.ids ?? [];
   }
 
+  // Each collection builds every group on the page again from every record, and sorts
+  // them all, though a gesture changes few of them, a cost that grows with the page
+  // (`leaf-dev bench` measures it), and sending a comment runs two. Not
+  // yet built: keep each group between collections while its records are the same
+  // objects and the page's reading stands (kept.js, `kept`), build
+  // again only the groups that changed, and sort again only when that reading moves,
+  // placing a new group into the kept order. A collection would then cost what the
+  // gesture changed.
   function collectEntries() {
     /** @type {Groups} */
     const groups = new Map();
+    const labelOf = perTarget(addressableLabel);
     /** @type {Map<string, Workflow>} */
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
@@ -413,71 +579,143 @@ export function createAnnotationInventory({
       const coordinate = receipt.coordinate;
       receiptByCoordinate.set(JSON.stringify(coordinate), receipt);
     }
-    for (const thread of threadList()) {
-      if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
-        continue;
-      const id = thread.id;
-      const placement = placedAt(id);
+    // Each draft the user wrote and hasn't sent (drafts.js, the drafts list) stands as
+    // an entry where it is about: a reply or a rewrite in its thread's row, and a
+    // comment at its passage or element. A press takes the user back to writing it
+    // (`resumeDraft`), and its preview reads its words as they now stand.
+    /** @param {import("./drafts.js").ListedDraft} draft @returns {LiveItem} */
+    const draftItem = (draft) => ({
+      kind: "draft",
+      id: `draft:${draft.context}`,
+      draft: draft.context,
+      // What the draft is, not its words, which a view reads where it draws them: the
+      // drafts list publishes no keystroke, so words copied here would go stale.
+      text: `${draftSends(draft)} draft`,
+      context: leafSays(draftSends(draft)),
+      activate: () => resumeDraft(draft.context),
+    });
+    /** @type {Map<string, LiveItem[]>} */
+    const threadDrafts = new Map();
+    const placedDrafts = [];
+    for (const draft of draftsReading()) {
+      if (draft.part === "reply" || draft.part === "rewrite") {
+        const thread = threadNamed(draft.name);
+        if (thread)
+          threadDrafts.set(thread.id, [
+            ...(threadDrafts.get(thread.id) ?? []),
+            draftItem(draft),
+          ]);
+      } else placedDrafts.push(draft);
+    }
+    // What stands on the page, each where anchor placement placed it: a thread with the
+    // drafts written in it, a thread's drafts alone where the thread shows no entry of
+    // its own, as a resolved one doesn't, and a comment's draft (`savedAt`). Each takes
+    // the row its passage, pointed row or part gives it, so a draft about the passage a
+    // thread quotes joins that thread's row, and drafts about two passages of one
+    // paragraph, or two points of one chart, stand apart.
+    /** @type {{thread: ThreadRecord | null, drafts: LiveItem[], placement: Placement, target: Element, point: Element | null, passage: readonly [Segment, ...Segment[]] | null, anchor: import("../types/domain.js").Anchor}[]} */
+    const standing = [];
+    /** @type {Map<Element, (readonly [Segment, ...Segment[]])[]>} */
+    const quotedIn = new Map();
+    /** @param {ThreadRecord | null} thread @param {LiveItem[]} drafts
+     * @param {Placement | null | undefined} placement
+     * @param {import("../types/domain.js").Anchor} anchor */
+    const stand = (thread, drafts, placement, anchor) => {
       const target = placement?.place;
-      if (!target) continue;
-      const [firstSegment, ...otherSegments] = targetSegments(placement);
-      const point = livePoint(target, placement?.point);
-      const pointed =
-        point && placement
-          ? { key: placement.pointRow, element: point, words: placement.pointWords }
-          : firstSegment
+      if (!target) return;
+      const [first, ...rest] = targetSegments(placement);
+      const point = livePoint(target, placement.point);
+      /** @type {readonly [Segment, ...Segment[]] | null} */
+      const passage = !point && first ? [first, ...rest] : null;
+      if (passage) quotedIn.set(target, [...(quotedIn.get(target) ?? []), passage]);
+      standing.push({ thread, drafts, placement, target, point, passage, anchor });
+    };
+    for (const thread of threadList()) {
+      if (!thread.anchor || claimed(thread.id)) continue;
+      const drafts = threadDrafts.get(thread.id) ?? [];
+      const shown = threadHasDiscussion(thread);
+      if (shown || drafts.length)
+        stand(shown ? thread : null, drafts, placedAt(thread.id), thread.anchor);
+    }
+    for (const draft of placedDrafts) {
+      const anchor = draftAnchor(draft);
+      if (anchor) stand(null, [draftItem(draft)], savedAt(draft.context), anchor);
+    }
+    /** @type {Map<Element, string[]>} */
+    const rows = new Map(
+      [...quotedIn].map(([target, quoted]) => [target, passageRows(target, quoted)]),
+    );
+    for (const {
+      thread,
+      drafts,
+      placement,
+      target,
+      point,
+      passage,
+      anchor,
+    } of standing) {
+      /** @type {Pointed | null} */
+      const pointed = point
+        ? {
+            key: placement.pointRow,
+            element: point,
+            name: pointName(placement.pointWords),
+          }
+        : anchor.visual
+          ? partRow(target, placement, anchor.visual)
+          : passage
             ? {
-                key: passageRow(target, [firstSegment, ...otherSegments]),
+                key: /** @type {string} */ (rows.get(target)?.shift()),
                 passage: placement,
-                words: thread.anchor.quote,
+                name: pointName(anchor.quote),
               }
             : null;
-      add(
-        groups,
-        target,
-        {
-          kind: "comment",
-          // One row for one thread, across the log answering for it. A thread the
-          // user just opened is known by its attempt until the log names it, and a row
-          // whose identity changed there would be rebuilt — taking with it the reply box
-          // the send had just put them in.
-          id: marginThreadItem(thread),
-          text: threadName(thread),
-          thread,
-          // The Thread record already combines server attention with the local workflow
-          // overlay. Margin and Page Map carry that reading rather than deriving another
-          // answer from raw turn or workflow fields. Work decorates the thread control;
-          // it never replaces the control's comment face or its disclosure action.
-          ...threadMarks(thread, agentName()),
-          activate: () => openThread(id),
-        },
-        pointed,
-      );
+      if (thread) {
+        const id = thread.id;
+        add(
+          groups,
+          target,
+          {
+            kind: "comment",
+            // One row for one thread, across the log answering for it. A thread the
+            // user just opened is known by its attempt until the log names it, and a
+            // row whose identity changed there would be rebuilt — taking with it the
+            // reply box the send had just put them in.
+            id: marginThreadItem(thread),
+            text: threadName(thread),
+            thread,
+            // The Thread record already combines server attention with the local
+            // workflow overlay. Margin and Page Map carry that reading rather than
+            // deriving another answer from raw turn or workflow fields. Work decorates
+            // the thread control; it never replaces the control's comment face or its
+            // disclosure action.
+            ...threadMarks(thread, agentName()),
+            activate: () => openThread(id),
+          },
+          pointed,
+        );
+      }
+      for (const item of drafts) add(groups, target, item, pointed);
     }
-
     // A widget's obligation has a place on the page (obligations/place.js); the rest
     // have no node.
-    /** @param {import("./framework/application.js").ObligationRecord} item
-     * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
-    const hasPlace = (item) => Boolean(obligationPlace(item).node);
-    const placed = () => readObligations().user.filter(hasPlace);
-    for (const item of placed()) {
+    for (const item of readObligations().user) {
       const id = item.id;
       const target = obligationPlace(item).node;
+      if (!target) continue;
       add(groups, target, {
         kind: "on-me",
         id: `on-me:${id}`,
         // The group this row stands in already names the obligation; the row says why it is
         // there, since these are the obligations the user owes.
         text: "Waiting on me",
-        words: leafSays("Waiting on me"),
+        words: WAITING_ON_ME,
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows: the widget's name.
-        label: addressableLabel(target) || null,
+        label: labelOf(target) || null,
         activate: () => {
-          const items = placed();
-          const next = items.find((candidate) => candidate.id === id);
-          if (next) goToObligation(next, items);
+          const next = readObligations().byId.get(id);
+          if (hasObligationSource(next, "widget")) goToObligation(next);
         },
       });
     }
@@ -552,7 +790,10 @@ export function createAnnotationInventory({
     // One entry per change (version.js, `changeRuns`), beside the block the change starts
     // with, or the block beside its gap where it only took blocks out, so a section
     // rewritten whole gets one entry rather than one per paragraph. It says what the
-    // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3".
+    // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3". Under it
+    // stands what the version the comparison shows was saved after, the same for
+    // every change, a line each (change-provenance.js).
+    const savedAfter = versionProvenance()?.lines ?? [];
     comparisonChanges().forEach((change, index) => {
       const target = change.at;
       const did = changeAccount(change);
@@ -573,12 +814,18 @@ export function createAnnotationInventory({
         // promises nothing. The margin entry's quieter line carries what the change did,
         // and the Page Map row the versions its card compares; a change the comparison
         // holds nothing for has neither, so no margin entry offers a press it has not
-        // got.
+        // got. What the version was saved after is the comparison's reading, not the
+        // card's, so it stands under every change, a line each.
         // The entry's relation says whether the card stands open, so opening it changes
         // the entry (`keptEntry`).
-        ...(card
-          ? { context: account, mapContext: card.offer, cardOpen: card.open }
+        ...(card || savedAfter.length
+          ? {
+              context: [...(card ? [[account]] : []), ...savedAfter].flatMap(
+                (line, at) => (at ? ["\n", ...line] : line),
+              ),
+            }
           : {}),
+        ...(card ? { mapContext: card.offer, cardOpen: card.open } : {}),
         // What a Change reading holds, where the comparison kept the words the change
         // replaced or edited: pressing it opens the change's card over the change, so
         // the user learns what changed without travelling to the other version and back
@@ -670,27 +917,32 @@ export function createAnnotationInventory({
       }
     }
 
-    const outline = pageOutline();
     const collected = [...groups.values()];
     const subjects = collected
       .filter((group) => !group.subject)
       .map((group) => group.target);
     targets.clear();
     points.clear();
+    parts.clear();
     passages.clear();
     /** @type {typeof lastEntries} */
     const nextEntries = new Map();
+    const contextOf = perTarget(outlineContexts(subjects));
+    // Each group's place read once for the sort, and each node's climb once in it.
+    const places = new Map(collected.map((group) => [group, placeIn(group)]));
+    const order = renderedOrdering();
+    /** @param {Group} group */
+    const placeOfGroup = (group) =>
+      /** @type {ReturnType<typeof placeIn>} */ (places.get(group));
     entries = Object.freeze(
       collected
-        .sort(
-          (left, right) =>
-            comesBefore(standsBy(left), standsBy(right)) ||
-            startsAt(left) - startsAt(right),
+        .sort((left, right) =>
+          readingOrder(placeOfGroup(left), placeOfGroup(right), order),
         )
         .map((group) => {
-          const subject = outlineSubjectFor(group.target, subjects, outline);
           targets.set(group.key, group.target);
           if (group.point) points.set(group.key, group.point);
+          if (group.surface) parts.set(group.key, group.surface);
           if (group.passage) passages.set(group.key, group.passage);
           const lastItems = lastEntries.get(group.key)?.group.items;
           /** @type {EntryGroup} */
@@ -699,12 +951,12 @@ export function createAnnotationInventory({
             targetId: group.target.id,
             title: labelWords(
               [
-                group.subject ? null : subject.context,
+                group.subject ? null : contextOf(group.target),
                 group.word,
-                group.subject ?? addressableLabel(group.target),
-                // A pointed row is named by the words it stands by, so it and the
-                // target's own row do not read alike.
-                pointName(group.pointWords),
+                group.subject ?? labelOf(group.target),
+                // A pointed row is named by the words it stands by, and a part's row
+                // by its part, so neither reads like the target's own row.
+                group.name,
               ]
                 .filter(Boolean)
                 .join(" · "),
@@ -757,6 +1009,7 @@ export function createAnnotationInventory({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPart,
     entryPassage,
     sourceItem,
     workflowReceipt,

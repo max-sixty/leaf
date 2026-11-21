@@ -107,6 +107,9 @@ def hold_mode(path: Path, mode: int) -> None:
 HOOKS_SUFFIX = "hooks"
 # The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
 TOOLS_SUFFIX = "tools"
+# The harness process its Leaf module last ran in, or whose user Leaf told it
+# didn't (`leases.mark_module`).
+MODULE_SUFFIX = "module"
 # When its tool boundaries last checked its pages' status lines
 # (`hook_transport.status_reminders`), by the file's mtime.
 STATUS_CHECKED_SUFFIX = "status-checked"
@@ -329,8 +332,7 @@ class Record(Generic[_RecordValue]):
     a page's stream, a claim or a session's lifecycle.
 
     Each kind is declared once, beside the module that owns it, whose functions are
-    its only writers, and `schema` declares the object. Objects stay open, so a
-    field another Leaf adds leaves a record readable. Leaf alone writes these files,
+    its only writers, and `schema` declares the object. Leaf alone writes these files,
     and the hooks that read several of them must not load a schema engine, so
     nothing validates a record whole while Leaf runs; the suite checks every record
     a test writes against its schema instead (`tests/conftest.py`).
@@ -753,6 +755,15 @@ def close_session_turn(
         return advance_turn(session_id, turn_id, running=False) is not None
 
 
+def acting_turn(claim: dict | None, session: str | None) -> str | None:
+    """The turn a write of `session` acts in on a page held by `claim`: the claim's
+    turn; None for a write of a session that doesn't hold the page. A command acts in
+    the session's turn whoever ran it, a subagent the session spawned included."""
+    if claim is None or session is None or claim["id"] != session:
+        return None
+    return claim["turn"]
+
+
 def end_session(session_id: str) -> None:
     """End one generation with no page discovery or page-lock acquisition.
 
@@ -932,8 +943,10 @@ def drop_locator(session_id: str, name: str) -> None:
 
 
 def worker_tool_batch(harness: str, payload: dict) -> bool:
-    """A Claude Code worker's batch names its parent's session but receives none
-    of that session's input. Both the standalone gate and the full hook skip it."""
+    """A Claude Code subagent's batch, which names its parent's session and the
+    subagent (`agent_id`), but receives none of that session's input: the main
+    session owns its delivery and passes a subagent what it needs. Both the
+    standalone gate and the full hook skip it."""
     return (
         harness == "claude-code"
         and payload.get("hook_event_name") == "PostToolBatch"

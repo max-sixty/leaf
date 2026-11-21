@@ -3,12 +3,12 @@
 (() => {
   const arrived = new URL(location.href);
   // `_leaf-recovered` is the mark recovery puts on the one document it asks for, so a
-  // document that comes back on the same dead release can tell that asking again is
-  // not going to produce a different one. `t` is the host key a handover link carries;
-  // the server has already answered it with the cookie every later request rides on,
-  // so what stays in the address bar is a link the user can copy, share, or screen
-  // without handing out every page on the machine. All three leave before the user
-  // sees them.
+  // document that comes back on the same dead release, or fails to load again from the
+  // same server, can tell that asking again is not going to produce a different one.
+  // `t` is the host key a handover link carries; the server has already answered it
+  // with the cookie every later request rides on, so what stays in the address bar is
+  // a link the user can copy, share, or screen without handing out every page on the
+  // machine. All three leave before the user sees them.
   const recovered = arrived.searchParams.has("_leaf-recovered");
   const marks = ["_leaf-revision", "_leaf-recovered", "t"];
   if (marks.some((mark) => arrived.searchParams.has(mark))) {
@@ -178,6 +178,172 @@
   /** @type {(reason: string) => void} */
   let recordStartupFault = () => {};
   let stopHoldingKeys = () => {};
+  // The words the held keys show, or null while none do (`holdEarlyKeys`).
+  /** @type {() => HeldWords | null} */
+  let shownKeys = () => null;
+
+  // The floating panel's row stands from the first paint, so the panel never arrives
+  // after the page: the panel's own first drawing, which delivery carries inert in a
+  // template (runtime/panel-row.html, build/panel-row.mjs), stood after `body` as soon
+  // as `body` is parsed, where the runtime's chrome root will stand (base.css), at the
+  // size the reader left the panel (`lfChrome.rest`, prepaint.js). The chrome's sheet is
+  // adopted with it so it paints styled: the instance the runtime adopts, which an
+  // adoption puts after every sheet the page holds, as the runtime's does (leaf.js). It
+  // says what the panel says before it has a reading, the status's words beside a leaf
+  // with no count, since nothing the server reads is known yet, and the keys held below
+  // in place of the status.
+  //
+  // Until the panel mounts, a press on the leaf lands on the row and does nothing. What
+  // it does turns on the panel's state, which only the runtime reads, so a press held
+  // until then would act on a panel the user never saw take it; a key means the same
+  // wherever it lands, which is why keys are held. The press still never
+  // reaches the page beneath the row, and ends a run of held keys as any press does.
+  // Those controls take no focus (`inert`), so Tab passes them by.
+  //
+  // The field is a textarea (`.lf-fp-served-field`), so a press there puts the caret
+  // in it and what the user types is words, which the browser keeps, with the caret,
+  // selection, input methods and a phone's keyboard, and which the hold leaves to it,
+  // as it leaves any field's (`takesLetters`). The words the field says stand under
+  // the textarea while it is empty. Return makes a line, since nothing can send yet.
+  // While the user is in the field, the row stands as the panel's does while the user
+  // writes, as far as the row draws it: the field's ring
+  // (`data-lf-control-focus-visible`, focus.js).
+  // Rejected: dropping the keys typed there, which loses every word typed before the
+  // runtime loads; drawing them in the field's words as typed, which needs a caret,
+  // endings, wrapping and a phone's keyboard of its own; a `contenteditable`, which
+  // Firefox types into but deletes nothing from when it stands after `body`, as the
+  // chrome does (notes/browser-support.md); and holding
+  // Return to send once the panel stands, which hides the words typed after it until
+  // then or needs a display of its own, for a key the user presses again a moment on.
+  //
+  // The panel takes the row over as it mounts, in the task that draws the panel's first
+  // frame, whose leaf, field and marks stand where the row's stood (floating-panel.css,
+  // `data-lf-served`), and offers its field (`lf-held-keys-seat`), which takes the
+  // textarea's words and caret (floating-panel.js, `write`) as the row goes. An input
+  // method composing in the textarea finishes there first, since words taken
+  // mid-composition the method writes again as it ends. Where no panel is coming,
+  // because the document reports it cannot start or the runtime gives it up, the row
+  // goes as the hold on keys ends (`stopHoldingKeys`), and its sheet with it, which
+  // nothing then draws with, unless its field holds words: they stay where the user
+  // wrote them until recovery reloads the page.
+  /** @type {{say(words: HeldWords | null): void, end(): void} | null} */
+  let row = null;
+  let rowEnded = false;
+  // No panel is coming to take the row over.
+  const endRow = () => {
+    rowEnded = true;
+    row?.end();
+    row = null;
+  };
+  function standRow() {
+    const template = document.querySelector(
+      "template[data-lf-runtime][data-lf-panel-row]",
+    );
+    if (!(template instanceof HTMLTemplateElement)) return;
+    const stand = () => {
+      if (rowEnded) return;
+      const chrome = document.createElement("div");
+      chrome.className = "lf-chrome";
+      chrome.setAttribute("data-lf-runtime", "");
+      chrome.append(template.content.cloneNode(true));
+      const panel = chrome.firstElementChild;
+      const fieldWords = panel?.querySelector(".lf-fp-words");
+      const words = fieldWords?.querySelector(".lf-compose-placeholder-words");
+      const box = panel?.querySelector(".lf-fp-served-field");
+      const panelRow = panel?.querySelector(".lf-fp-row");
+      const peek = panel?.querySelector(".lf-fp-peek");
+      if (
+        !(panel instanceof HTMLElement && fieldWords instanceof HTMLElement) ||
+        !(box instanceof HTMLTextAreaElement) ||
+        !words ||
+        !panelRow ||
+        !peek
+      )
+        throw new Error("The panel's served row has no field, field words or peek");
+      panel.dataset.lfRest = window.lfChrome.rest;
+      panel.toggleAttribute("data-lf-served", true);
+      // Only the controls are inert, since an inert subtree is hidden from assistive
+      // technology too: the field's words and the folded leaf's peek are each a status,
+      // so held keys are heard where they are seen.
+      for (const control of panel.querySelectorAll("button, input"))
+        control.toggleAttribute("inert", true);
+      for (const seat of [words, peek]) seat.setAttribute("role", "status");
+      const status = [...words.childNodes];
+      box.addEventListener("input", () => {
+        const typed = box.value !== "";
+        if (fieldWords.hidden !== typed) fieldWords.hidden = typed;
+      });
+      let composing = false;
+      for (const type of ["compositionstart", "compositionend"])
+        box.addEventListener(type, () => (composing = type === "compositionstart"));
+      for (const type of ["focus", "blur"])
+        box.addEventListener(type, () =>
+          panelRow.toggleAttribute("data-lf-control-focus-visible", type === "focus"),
+        );
+      const sheet = window.lfSheets().chrome;
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      document.body.after(chrome);
+      let offered = false;
+      let gone = false;
+      /** @param {boolean} taken whether the panel took the row over */
+      const go = (taken) => {
+        if (gone) return;
+        gone = true;
+        chrome.remove();
+        document.removeEventListener("lf-held-keys-seat", takeOver);
+        // A panel that took the row over adopted the sheet as its own (leaf.js).
+        if (!taken)
+          document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+            (adopted) => adopted !== sheet,
+          );
+      };
+      /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
+      const takeOver = ({ detail }) => {
+        offered = true;
+        const hand = () => {
+          if (composing)
+            return box.addEventListener("compositionend", hand, { once: true });
+          detail.write(box);
+          go(true);
+        };
+        hand();
+      };
+      document.addEventListener("lf-held-keys-seat", takeOver, { once: true });
+      // The panel's size stands while the row does, so one seat says the keys.
+      const folded = panel.dataset.lfRest === "mark";
+      row = {
+        // The keys as the panel says them, each as its badge beside Leaf's words: in
+        // the field, or in the folded leaf's peek, as the panel's `heldParts` draws
+        // them. None gives the field back its status.
+        say(said) {
+          const parts = said?.map((part) => {
+            const node = document.createElement(
+              typeof part === "string" ? "span" : "kbd",
+            );
+            if (typeof part === "string") node.setAttribute("data-lf-voice", "leaf");
+            else node.className = "lf-key-badge lf-held-key";
+            node.textContent = typeof part === "string" ? part : part.key;
+            return node;
+          });
+          if (!folded) return words.replaceChildren(...(parts ?? status));
+          peek.replaceChildren(...(parts ?? []));
+          peek.toggleAttribute("data-lf-shown", Boolean(parts));
+        },
+        end() {
+          if (!offered && !box.value) go(false);
+        },
+      };
+      const held = shownKeys();
+      if (held) row.say(held);
+    };
+    if (document.body) return stand();
+    const parsing = new MutationObserver(() => {
+      if (!document.body) return;
+      parsing.disconnect();
+      stand();
+    });
+    parsing.observe(root, { childList: true });
+  }
 
   // A page key pressed before upgrade would reach a runtime that has not loaded.
   // Upgrade hands the queue to the dispatcher, whose command readiness may retain
@@ -189,13 +355,20 @@
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
   //
+  // They are shown where the page says what it is doing, the floating panel's field,
+  // in place of the status: before the panel mounts, in the row the document served
+  // (`standRow`, below), and once the panel offers its field as their seat
+  // (`lf-held-keys-seat`, floating-panel.js), there. The user chose the panel's look
+  // and field over a notice of the keys' own, a second interface that often stood
+  // beside the panel.
+  //
   // The hold ends when the runtime takes it, when the document reports it cannot start
   // (`recover`, and the runtime's own `letHeldKeysGo` where it gives the document up),
-  // or when the user lets go as above, and never on a clock. The notice says the keys
+  // or when the user lets go as above, and never on a clock. The words say the keys
   // run when the page is ready, and a healthy page can take any time to get there on
-  // a loaded machine or a slow network. Rejected: ending the hold ten seconds in (#1213),
-  // on the reading that a page not upgraded by then had faulted, which dropped the keys
-  // of pages that upgraded fifteen seconds in on a loaded Mac. A page that hangs with no
+  // a loaded machine or a slow network. Rejected: ending the hold ten seconds in,
+  // on the reading that a page not upgraded by then had faulted, which drops the keys
+  // of a page that upgrades later than that on a loaded machine. A page that hangs with no
   // report keeps showing that it is still loading, which is then the truth.
   const { takesLetters } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))
@@ -217,38 +390,52 @@
     /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
-    const echo = document.createElement("p");
-    echo.className = "lf-held-keys";
-    echo.setAttribute("data-lf-runtime", "");
-    echo.setAttribute("role", "status");
+    // The words shown, as text, or "" while none are.
+    let shown = "";
+    /** @type {((words: HeldWords | null) => void) | null} */
+    let seat = null;
+    // What the held keys say, wherever they show: each key as its badge, then Leaf's
+    // words. The keys lead, so a narrow field that cuts the line short keeps them.
+    /** @returns {HeldWords} */
+    const words = () => [
+      ...held.flatMap(({ key }, at) => [
+        ...(at ? [" "] : []),
+        { key: key === " " ? "Space" : key },
+      ]),
+      held.length === 1
+        ? " runs when the page is ready"
+        : " run when the page is ready",
+    ];
+    // Words already shown are not shown again: the panel's field repaints for each, and
+    // each of its paints asks the keyboard owner to take the keys again
+    // (controller.js, `watchCommandAvailability`), which pauses on the same key.
     const show = () => {
-      const keys = held.map(({ key }) => {
-        const badge = document.createElement("kbd");
-        badge.className = "lf-key-badge";
-        badge.textContent = key === " " ? "Space" : key;
-        return badge;
-      });
-      echo.replaceChildren(
-        "Page still loading —",
-        ...keys,
-        keys.length === 1 ? "runs when it's ready" : "run when it's ready",
-      );
-      // After the body and the chrome's root, which it ties with (base.css,
-      // `.lf-held-keys`); before the body is parsed it would stand ahead of both.
-      if (!echo.isConnected && document.body) document.documentElement.append(echo);
+      beat = 0;
+      const said = words();
+      const text = JSON.stringify(said);
+      if (text === shown) return;
+      shown = text;
+      if (seat) seat(said);
+      else row?.say(said);
+    };
+    const hide = () => {
+      clearTimeout(beat);
+      beat = 0;
+      if (!shown) return;
+      shown = "";
+      if (seat) seat(null);
+      else row?.say(null);
     };
     const letGo = () => {
       held.length = 0;
-      clearTimeout(beat);
-      beat = 0;
-      echo.remove();
+      hide();
     };
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
       held.push(event);
       if (taken) return;
-      if (echo.isConnected) show();
+      if (shown) show();
       else beat ||= setTimeout(show, 150);
     };
     /** @param {KeyboardEvent} event */
@@ -288,9 +475,10 @@
       event.stopImmediatePropagation();
     };
     const pointed = () => letGo();
-    // The controller takes a run, so the notice comes down, but the hold stands until its
-    // owner has pressed the last key in it: a printed key pressed meanwhile joins the
-    // same run rather than running ahead of the keys pressed before it.
+    // The controller takes a run, but the hold stands until its owner has pressed the
+    // last key in it: a printed key pressed meanwhile joins the same run rather than
+    // running ahead of the keys pressed before it. Words already shown stand until the
+    // run is pressed or pauses on a key that must still wait, which they then name.
     /** @param {DocumentEventMap["lf-held-keys"]} event */
     const take = (event) => {
       ready = event.detail.ready;
@@ -301,7 +489,7 @@
       }
       taken = true;
       clearTimeout(beat);
-      echo.remove();
+      beat = 0;
       event.detail.keys = held;
       event.detail.pause = () => {
         taken = false;
@@ -310,20 +498,30 @@
       };
       event.detail.release = () => {
         taken = false;
+        hide();
         if (!keep?.()) stopHoldingKeys();
       };
     };
+    /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
+    const seated = (event) => {
+      seat = event.detail.show;
+      if (shown) seat(words());
+    };
+    shownKeys = () => (shown ? words() : null);
     stopHoldingKeys = () => {
       window.removeEventListener("keydown", hold, true);
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
+      document.removeEventListener("lf-held-keys-seat", seated);
       letGo();
+      endRow();
     };
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
+    document.addEventListener("lf-held-keys-seat", seated);
   }
 
   // A small public-site profile separates browser upgrade from the first state
@@ -444,21 +642,35 @@
     };
   }
 
-  // `awaits` is whether a replacement server would answer this fault, which is so
-  // where the page is incomplete (prepaint.js): it lacks something it needs however
-  // far it gets, so the notice stands until a server that can start the page replaces
-  // this one. An uncaught error in code that did load leaves nothing to wait for: the
-  // same server would serve the same bytes, so if the page upgrades it has started
-  // with everything it is going to get. A fault that is the page's own (`page`) is
-  // answered by no server: the page holds what its author wrote, so the notice says
-  // the page has a problem and waits for nothing.
-  /** @param {string} reason @param {boolean} awaits @param {boolean} page */
-  function recover(reason, awaits, page) {
+  // A page is incomplete where something it needs did not arrive (prepaint.js, which
+  // takes `data-lf-interactive` off the root for each such fault, the first or a
+  // later one): it lacks that however far it gets, so the notice stands until a load
+  // brings it. The load may have failed on its way from a server that is still
+  // there, as when the machine's network changes under the request, and the browser
+  // keeps a failed module for the document's life, so once that server answers the
+  // page asks it for the document once more, marked. One that comes back incomplete
+  // from it waits for a server that can start the page to replace this one. A page
+  // that only met an uncaught error in code that did load waits for that server
+  // alone: the same server would serve the same bytes, so if the page upgrades it has
+  // started with everything it is going to get. A fault that is the page's own
+  // (`page`) is answered by no server: the page holds what its author wrote, so the
+  // notice says the page has a problem and waits for nothing.
+  /** @param {string} reason @param {boolean} page */
+  function recover(reason, page) {
     recordStartupFault(reason);
     stopHoldingKeys();
     if (recovering) return;
     recovering = true;
-    let started = false;
+    // The notice says the page has not started, and a page that has upgraded whole has
+    // started, before the fault reached this or after, so a user who is using the page
+    // would otherwise be reading that Leaf could not start, over a request a second
+    // that no answer ends. A page that is incomplete has not started however far it
+    // got, as one whose theme did not arrive, or whose runtime declared it failed once
+    // it had upgraded and so shows its readable fallback (prepaint.js); it asks.
+    const whole = () =>
+      Boolean(document.body?.hasAttribute("data-lf-upgraded")) &&
+      root.hasAttribute("data-lf-interactive");
+    let started = !page && whole();
     const status = document.createElement("p");
     status.className = "lf-chrome";
     status.setAttribute("data-lf-runtime", "");
@@ -471,30 +683,32 @@
     };
     if (document.body) show();
     else document.addEventListener("DOMContentLoaded", show, { once: true });
-    if (page) return;
-
-    // The notice says the page has not started, and a page that upgrades has started,
-    // so a user who is using the page would otherwise be reading that Leaf could not
-    // start, over a request a second that no answer ends.
-    if (!awaits) {
-      const upgrade = new MutationObserver(() => {
-        if (!document.body?.hasAttribute("data-lf-upgraded")) return;
-        upgrade.disconnect();
-        started = true;
-        status.remove();
-      });
-      upgrade.observe(document, {
-        attributes: true,
-        attributeFilter: ["data-lf-upgraded"],
-        childList: true,
-        subtree: true,
-      });
-    }
+    if (page || started) return;
+    const upgrade = new MutationObserver(() => {
+      if (!whole()) return;
+      upgrade.disconnect();
+      started = true;
+      status.remove();
+    });
+    upgrade.observe(document, {
+      attributes: true,
+      attributeFilter: ["data-lf-upgraded"],
+      subtree: true,
+    });
 
     // A round carries what it learned to the end rather than acting where it learned
     // it. The round in flight when the page upgrades resolves after it, and the user
     // is then using a page this would otherwise navigate out from under them, so the
     // one place that acts is the one place that has to ask whether the page started.
+    // The one document recovery asks for is this address marked, reloaded as a
+    // revision's handoff reloads (version.js), past a cache that answered the address
+    // the user typed.
+    const ask = () => {
+      const next = new URL(location.href);
+      next.searchParams.set("_leaf-recovered", "");
+      history.replaceState(history.state, "", next);
+      location.reload();
+    };
     const check = async () => {
       if (started) return;
       let restart = null;
@@ -503,20 +717,13 @@
         if (probe === null)
           throw new Error("Startup recovery requires its delivery probe");
         const response = await fetch(probe, { cache: "no-store" });
-        if (response.status === 404) {
-          // The release this document names is gone, so nothing this document can load
-          // will come back and only a newer one can start the page. Ask for it once,
-          // marked, and past a cache that answered the address the user typed. A
-          // marked document that arrives still naming the dead release says something
-          // between here and the source is serving a copy of it; asking again lands on
-          // that same copy as fast as the network allows, so the page waits on the
-          // probe at the cadence every other unstarted page waits at.
-          if (release && !recovered) {
-            const next = new URL(location.href);
-            next.searchParams.set("_leaf-recovered", "");
-            restart = () => location.replace(next);
-          }
-        }
+        // The release this document names is gone, so nothing this document can load
+        // will come back and only a newer one can start the page. A marked document
+        // that arrives still naming the dead release says something between here and
+        // the source is serving a copy of it; asking again lands on that same copy as
+        // fast as the network allows, so the page waits on the probe at the cadence
+        // every other unstarted page waits at.
+        if (response.status === 404 && release && !recovered) restart = ask;
         const current = response.headers.get("Leaf-Server");
         const generation = response.headers.get("Leaf-Layer");
         const currentRelease = response.headers.get("Leaf-Release");
@@ -526,6 +733,12 @@
           (release && currentRelease && currentRelease !== release)
         ) {
           restart ??= () => location.reload();
+        } else if (
+          response.ok &&
+          !recovered &&
+          !root.hasAttribute("data-lf-interactive")
+        ) {
+          restart ??= ask;
         }
       } catch {
         // The stopped server has not been replaced yet.
@@ -539,12 +752,15 @@
 
   // The prepaint names each startup fault and marks the page for it (prepaint.js).
   window.addEventListener("lf-startup-fault", (event) =>
-    recover(event.detail.reason, event.detail.incomplete, event.detail.page),
+    recover(event.detail.reason, event.detail.page),
   );
   // A sample opened as a window of its own has no containing page to connect it, so its
-  // runtime never starts (leaf.js waits on `lfSample.ready`) and would take nothing held.
-  if (!(root.hasAttribute("data-lf-sample") && window.parent === window))
+  // runtime never starts (leaf.js waits on `lfSample.ready`): no panel takes a row over
+  // there, and nothing takes what is held.
+  if (!(root.hasAttribute("data-lf-sample") && window.parent === window)) {
+    standRow();
     holdEarlyKeys();
+  }
   try {
     observePublicStartup();
   } catch {

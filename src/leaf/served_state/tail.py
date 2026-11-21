@@ -3,24 +3,27 @@
 A browser adopts each state answer whole (`browser/AGENTS.md`, "One writer for each
 fact"), and on a large page most of an answer is records the tab already holds: its
 threads and their messages, workflows, obligations and On rows, its projection
-entries and undo list. So the page server names each reading it serves by its
-content, `browser.basis.key`, and remembers the most recent ones. A tab sends back the
-key of the reading it adopted as `Leaf-Held-Basis`, and when this process still
-remembers that reading the answer carries `since`, naming it, and in place of the
-reading:
+entries and undo list, and its data sources' values. So the page server names each
+reading it serves by its content, `browser.basis.key`, and remembers the most recent
+ones. A tab sends back the key of the reading it adopted as `Leaf-Held-Basis`, and when
+this process still remembers that reading the answer carries `since`, naming it, and in
+place of the reading:
 
 - `patch`: the changes from the held reading to this one;
 - `events`: the events logged after the held reading's `through_seq`, since the log
-  only grows;
-- `data`: whole, since a tab names the data it holds by its version
-  (`http.page_state`).
+  only grows.
 
 So an answer costs what changed since the tab's reading, however many records the
 page holds and however long a thread runs: a reply sends its message and the fields
-of its thread it changed. The browser applies the patch to the reading it named
-(`completeState` in `layer-client.js`); what it assembles is the whole answer, and
-whatever the patch leaves alone keeps the identity it had there, down to each
-message, which is what lets every reader downstream skip it.
+of its thread it changed, and `leaf data set` sends the one source it wrote. The
+browser applies the patch to the reading it named (`completeState` in
+`layer-client.js`); what it assembles is the whole answer, and whatever the patch
+leaves alone keeps the identity it had there, down to each message and each source's
+value, which is what lets every reader downstream skip it.
+
+A source's value is compared by its `revision`, the digest `data.read_data` already
+took of it (`_compared`), and sent whole when that moves: encoding every value again
+to compare it would cost each answer about what sending them all did.
 
 The patch is a list of changes, each at a path of keys from the root of what it
 changes through its objects:
@@ -40,36 +43,40 @@ changes through its objects:
 A list whose items are not all named one of those ways, or whose names repeat, is a
 value like any other.
 
-#5271 sent only the history after the held reading and re-read it at the held
-sequence, which keeps no record of what each tab holds and is exact, since it sent
-everything else whole. Remembering readings, as this module does instead, reverses
-that, and buys the rest: the threads and workflows also read the claim, the live
+Sending only the history after the held reading and re-reading it at the held
+sequence keeps no record of what each tab holds and is exact, since it sends
+everything else whole. Remembering readings, as this module does instead, buys the
+rest: the threads and workflows also read the claim, the live
 stream and the clock, so the same log sequence can read two ways and re-reading
 can't give what the tab holds of them, while a content name can, so those records
-travel as changes too. Readings are remembered in this process alone, each as the
-JSON of its records and the values of its other fields (`_parts`), one copy shared by
-every remembered reading that holds a part unchanged. A restarted server, or another
-process, answers whole, as it does a key it never served or has forgotten.
+travel as changes too. Readings are remembered in the page's memory in this process
+(`page_memory`), each as the JSON of its records and the values of its other fields
+(`_parts`), one copy shared by every remembered reading that holds a part unchanged.
+A restarted server, another process, or one that has dropped the page's memory answers
+whole, as it does a key it never served or has forgotten; that answer leaves out the
+data a tab names by `Leaf-Data-Version` (`http.sent`).
 """
 
 import hashlib
 import json
 import threading
 from collections import OrderedDict
+from pathlib import Path
 
-# The parts of a reading the patch leaves to their own mechanism.
-_OWN = frozenset({"events", "data"})
+from leaf.page_memory import memo
+
 # How many readings this process remembers of each page: a reading for each of a few
 # tabs, and the answers each received but had not adopted yet when it next asked.
 REMEMBERED = 16
-# How many pages it remembers readings of: a multiplexed server's pages, and the live
-# samples in them, so one page's answers never push out another's readings.
-PAGES = 8
 
-# Each page's remembered readings, by key, each its log position and parts (`_parts`);
-# pages and their readings both oldest first.
-_served: OrderedDict[str, OrderedDict[str, tuple[int, tuple]]] = OrderedDict()
-_lock = threading.Lock()
+
+class _Served:
+    """The readings this process served of one page most recently, by key, each its
+    log position and parts (`_parts`), oldest first."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.readings: OrderedDict[str, tuple[int, tuple]] = OrderedDict()
 
 
 def _json(value) -> bytes:
@@ -289,26 +296,37 @@ def _changes(held: tuple, current: tuple, value, path: list, patch: list) -> Non
             patch.append(change)
 
 
-def answer(state: dict, held: str | None, page: str) -> dict:
-    """Name `state`, a whole reading of `page`, in `browser.basis.key`, remember it, and
-    return what a tab holding the reading `held` names is sent: the patch from that
-    reading where this process remembers it, else `state` itself."""
+def _compared(reading: dict) -> dict:
+    """`reading` as its parts are taken: each data source's value stood in for by its
+    `revision`, which digests it."""
+    data = reading["data"]
+    sources = {
+        source: {**held, "value": held["revision"]} if "value" in held else held
+        for source, held in data["sources"].items()
+    }
+    return {**reading, "data": {**data, "sources": sources}}
+
+
+def answer(state: dict, held: str | None, page_dir: Path) -> dict:
+    """Name `state`, a whole reading of the page at `page_dir`, in `browser.basis.key`,
+    remember it in the page's memory, and return what a tab holding the reading `held`
+    names is sent: the patch from that reading where this process remembers it, else
+    `state` itself."""
     browser = state["browser"]
     if browser is None:
         return state
     basis = browser["basis"]
     basis.pop("key", None)
-    patched = {key: value for key, value in state.items() if key not in _OWN}
-    with _lock:
-        readings = _served.setdefault(page, OrderedDict())
-        _served.move_to_end(page)
-        while len(_served) > PAGES:
-            _served.popitem(last=False)
+    # The log only grows, so it travels as the events after the held reading's.
+    patched = {key: value for key, value in state.items() if key != "events"}
+    served = memo(page_dir, _Served)
+    readings = served.readings
+    with served.lock:
         before = readings.get(held) if held is not None else None
         latest = next(reversed(readings.values()), None)
-    current = _parts(patched, (before or latest or (0, None))[1])
+    current = _parts(_compared(patched), (before or latest or (0, None))[1])
     key = basis["key"] = current[1].hex()
-    with _lock:
+    with served.lock:
         if held is not None and held in readings:
             readings.move_to_end(held)
         readings[key] = (basis["through_seq"], current)
@@ -327,5 +345,4 @@ def answer(state: dict, held: str | None, page: str) -> dict:
         "since": {"key": held},
         "patch": patch,
         "events": [event for event in state["events"] if event["seq"] > through],
-        "data": state["data"],
     }

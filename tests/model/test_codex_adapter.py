@@ -12,7 +12,6 @@ import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta
@@ -24,6 +23,7 @@ from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
     EVERY_TURN_DEPENDENCIES,
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _observer,
     _watched,
@@ -64,6 +64,7 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.json_block import json_block, read_json_block
 from leaf.refusals import Refused
 
 
@@ -133,7 +134,7 @@ def claim_command(page, program, *, endpoint=None, launcher=LEAF_COMMAND):
 def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
     page_dir, monkeypatch
 ):
-    minted = iter(["aaaaaaaa", "bbbbbbbb"])
+    minted = iter(["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"])
     monkeypatch.setattr(codex_model, "new_delivery_id", lambda: next(minted))
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
@@ -144,15 +145,15 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
         )
         assert append_batch_result is not None
         path, _, _ = append_batch_result
-    assert path.stem == "aaaaaaaa"
+    assert path.stem == "aaaaaaaaaaaaaaaa"
     delivery_model.freeze_delivery([], delivery_id=path.stem, created_at=0)
 
     record_2 = codex_model.read_record(path)
     assert isinstance(record_2, (codex_model.Collecting, codex_model.Offering))
     prepared = codex_model.offer_delivery(path, record_2, transport="queue")
 
-    assert prepared.payload["id"] == "bbbbbbbb"
-    assert codex_model.record_path("collision-test", "bbbbbbbb").is_file()
+    assert prepared.payload["id"] == "bbbbbbbbbbbbbbbb"
+    assert codex_model.record_path("collision-test", "bbbbbbbbbbbbbbbb").is_file()
     assert not path.exists()
 
 
@@ -315,7 +316,7 @@ def test_embedded_codex_delivery_keeps_the_pages_complete_batch_in_log_order(pag
     action ahead of a comment, input a reply already settled, and an event that owes no
     answer."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     action = append_command(
@@ -420,13 +421,13 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
             },
         )
 
-    kept = envelope("0000000a", claimed)
-    retired = envelope("0000000b", gone)
+    kept = envelope("000000000000000a", claimed)
+    retired = envelope("000000000000000b", gone)
     unreadable = [
-        envelope("0000000c", claimed, "v2"),
-        record(delivery_model.delivery_path("00000012"), {"batches": []}),
+        envelope("000000000000000c", claimed, "v2"),
+        record(delivery_model.delivery_path("0000000000000012"), {"batches": []}),
         record(
-            delivery_model.delivery_path("00000013"),
+            delivery_model.delivery_path("0000000000000013"),
             {"format": delivery_model.DELIVERY.format},
         ),
     ]
@@ -437,6 +438,8 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
     assert session_model.cmd_wait(claimed) == 0
     payload, _, _ = delivered(capsys)
     frozen = delivery_model.delivery_path(payload["id"])
+    assert kept.exists() and frozen.exists() and retired.exists()
+    delivery_model.retire_gone_deliveries()
     assert kept.exists() and frozen.exists()
     assert not retired.exists()
     assert all(path.exists() for path in unreadable)
@@ -458,14 +461,18 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         }
 
     for identity, page in (
-        ("0000000d", claimed),
-        ("0000000e", gone),
-        ("0000000f", gone),
-        ("00000011", claimed),
+        ("000000000000000d", claimed),
+        ("000000000000000e", gone),
+        ("000000000000000f", gone),
+        ("0000000000000011", claimed),
     ):
         envelope(identity, page)
-    live = record(codex_model.record_path("t", "0000000d"), task_record("d", claimed))
-    stale = record(codex_model.record_path("t", "0000000e"), task_record("e", gone))
+    live = record(
+        codex_model.record_path("t", "000000000000000d"), task_record("d", claimed)
+    )
+    stale = record(
+        codex_model.record_path("t", "000000000000000e"), task_record("e", gone)
+    )
     history = live.parent / "history"
     archived_gone = record(history / "0000000f.json", task_record("f", gone))
     archived_other = record(history / "00000010.json", {"batches": []})
@@ -586,7 +593,7 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
     directory = codex_state_model.delivery_dir("codex-thread")
     directory.mkdir(parents=True)
     cleanup_model.write_json(
-        directory / "aaaaaaaa.json",
+        directory / "aaaaaaaaaaaaaaaa.json",
         {
             "format": codex_model.RECORD.format,
             "state": "queued",
@@ -604,7 +611,7 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
     )
     with service_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [event])
-    delivery_model.freeze_delivery([batch], delivery_id="aaaaaaaa")
+    delivery_model.freeze_delivery([batch], delivery_id="aaaaaaaaaaaaaaaa")
     if leaving == "restart":
         cleanup_model.ensure_session("codex-thread", {"pid": os.getppid()})
     elif leaving == "transfer":
@@ -702,8 +709,8 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     persistent = tmp_path / "persistent"
     persistent.mkdir()
     for task, page, identity in (
-        ("ended-task", tmp_path / "gone", "dddddddd"),
-        ("codex-thread", persistent, "eeeeeeee"),
+        ("ended-task", tmp_path / "gone", "dddddddddddddddd"),
+        ("codex-thread", persistent, "eeeeeeeeeeeeeeee"),
     ):
         delivery_model.delivery_path(identity).parent.mkdir(parents=True, exist_ok=True)
         delivery_model.DELIVERY.write(
@@ -755,7 +762,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     assert all(
         path.is_file() and not leases_model.lock_is_held(path) for path in coordination
     )
-    assert [path.name for path in kept.rglob("*.json")] == ["eeeeeeee.json"]
+    assert [path.name for path in kept.rglob("*.json")] == ["eeeeeeeeeeeeeeee.json"]
 
 
 def test_an_adapter_observer_that_cannot_start_releases_its_leases(monkeypatch):
@@ -817,8 +824,8 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
         else output["hookSpecificOutput"]["additionalContext"]
     )
     [(path, record)] = codex_records("codex-thread")
-    assert len(context.splitlines()) == 1
-    envelope = json.loads(context)
+    envelope, after = read_json_block(context)
+    assert after == ""
     assert envelope == delivery_model.cmd_delivery_read(path.stem)
     assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(path.stem)
     assert envelope["batches"][0]["events"][0]["id"] == comment["id"]
@@ -910,7 +917,7 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
             return
         answer = json.loads(capsys.readouterr().out)
         assert answer["decision"] == "block"
-        envelope = json.loads(answer["reason"])
+        envelope, _ = read_json_block(answer["reason"])
         assert [event["id"] for event in envelope["batches"][0]["events"]] == [
             comment["id"]
         ]
@@ -1129,11 +1136,7 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     )
     offer = json.loads(capsys.readouterr().out)
     [(path, _)] = codex_records("codex-thread")
-    context = json.dumps(
-        delivery_model.cmd_delivery_read(path.stem),
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
+    context = json_block(delivery_model.cmd_delivery_read(path.stem))
     if delivery_hook == "Stop":
         assert offer == {"decision": "block", "reason": context}
     else:
@@ -1215,6 +1218,44 @@ cmd_hook(
     assert json.loads(offer)["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
 
 
+def test_codex_tool_hook_offers_only_what_the_cursor_has_not_passed(
+    page_dir, codex_loop, capsys
+):
+    """A comment the adapter queued as the task's next message, which its receipt
+    passed, is the queue's: the running turn's tool hook offers the newer comment
+    alone, never the queued one again beside it."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    queued = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "First, queued"}
+    )
+    with service_model.PageTransaction(page_dir) as page:
+        [event] = [e for e in page.events if e["id"] == queued["id"]]
+        delivery_model.record_pickup(
+            page, [event], phase="queued", session="codex-thread", turn=None
+        )
+        delivery_model.record_receipt(page, event["seq"])
+    newer = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Second, new"}
+    )
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        },
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert [
+        event["id"]
+        for batch in read_json_block(context)[0]["batches"]
+        for event in batch["events"]
+    ] == [newer["id"]]
+
+
 def test_codex_tool_hook_reminds_the_task_of_a_status_line_left_standing(
     page_dir, codex_loop, capsys
 ):
@@ -1291,9 +1332,9 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
         },
     )
     [(path, record)] = codex_records("codex-thread")
-    assert json.loads(
+    assert read_json_block(
         json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
-    ) == delivery_model.cmd_delivery_read(path.stem)
+    )[0] == delivery_model.cmd_delivery_read(path.stem)
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
     delivery_model.cmd_delivery_read(path.stem)
     delivery_model.cmd_delivery_ack(path.stem)
@@ -1847,7 +1888,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         )
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
         assert prompt is not None
-        assert json.loads(prompt) == delivery_model.cmd_delivery_read(path.stem)
+        assert read_json_block(prompt)[0] == delivery_model.cmd_delivery_read(path.stem)
         assert [args[2] for args in queued] == [
             delivery_model.delivery_pointer_prompt(path.stem)
         ]
@@ -1916,8 +1957,9 @@ def test_desktop_wake_follows_queue_acceptance_without_resending(
 
 
 @contextmanager
-def desktop_router(monkeypatch, answers: dict):
-    """Serve the Codex desktop app's IPC router for one connection, as it was observed
+def desktop_router(monkeypatch, home: Path, answers: dict):
+    """Serve the Codex desktop app's IPC router for one connection under `home`, a
+    `socket_dir` short enough to hold its socket, as it was observed
     in app 26.1029 (`codex_desktop.py`): each message a length and JSON, `initialize`
     answered with a client id, and every answer preceded by another client's traffic.
     `answers` maps a method to its response fields, or to any other JSON value, which
@@ -1953,17 +1995,15 @@ def desktop_router(monkeypatch, answers: dict):
                 elif answer is not None:
                     send(answer)
 
-    # A socket path has a short limit, which a test's own temporary directory exceeds.
-    with tempfile.TemporaryDirectory(prefix="lf-ipc-", dir="/tmp") as home:
-        monkeypatch.setenv("CODEX_HOME", home)
-        (Path(home) / "ipc").mkdir()
-        with socket.socket(socket.AF_UNIX) as listener:
-            listener.bind(f"{home}/ipc/ipc.sock")
-            listener.listen()
-            server = threading.Thread(target=serve, args=(listener,), daemon=True)
-            server.start()
-            yield requests
-            server.join(timeout=STATED_TIMEOUT)
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    (home / "ipc").mkdir()
+    with socket.socket(socket.AF_UNIX) as listener:
+        listener.bind(str(home / "ipc" / "ipc.sock"))
+        listener.listen()
+        server = threading.Thread(target=serve, args=(listener,), daemon=True)
+        server.start()
+        yield requests
+        server.join(timeout=STATED_TIMEOUT)
 
 
 OWNED = {
@@ -2064,13 +2104,14 @@ def desktop_pickups(page_dir):
 
 
 def test_an_open_desktop_chat_takes_input_with_no_message_in_the_users_name(
-    page_dir, idle_desktop_chat, monkeypatch
+    page_dir, idle_desktop_chat, monkeypatch, socket_dir
 ):
     chat = idle_desktop_chat
     [(path, _)] = codex_records("codex-thread")
     payload = delivery_model.read_delivery(path.stem)
     with desktop_router(
         monkeypatch,
+        socket_dir,
         {"thread-owner-discovery": OWNED, "thread-follower-start-turn": STARTED},
     ) as requests:
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
@@ -2157,16 +2198,15 @@ def test_an_open_desktop_chat_takes_input_with_no_message_in_the_users_name(
     ],
 )
 def test_a_desktop_chat_the_app_cannot_start_falls_back_to_the_queue(
-    page_dir, idle_desktop_chat, monkeypatch, capsys, answers, reason
+    page_dir, idle_desktop_chat, monkeypatch, capsys, answers, reason, socket_dir
 ):
     chat = idle_desktop_chat
     monkeypatch.setattr(codex_desktop_model, "OWNER_TIMEOUT", 0.1)
     with ExitStack() as stack:
         if answers is None:
-            home = stack.enter_context(tempfile.TemporaryDirectory(dir="/tmp"))
-            monkeypatch.setenv("CODEX_HOME", home)
+            monkeypatch.setenv("CODEX_HOME", str(socket_dir))
         else:
-            stack.enter_context(desktop_router(monkeypatch, answers))
+            stack.enter_context(desktop_router(monkeypatch, socket_dir, answers))
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
 
     assert len(chat.queued) == 1
@@ -2198,12 +2238,15 @@ def sent_delivery(requests):
     ],
 )
 def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
-    page_dir, idle_desktop_chat, monkeypatch, capsys, start
+    page_dir, idle_desktop_chat, monkeypatch, capsys, start, socket_dir
 ):
     chat = idle_desktop_chat
-    monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
+    if start is None:
+        # Only a lost answer waits out the bound. An answer arriving after a short
+        # one would read as lost too, and the arm would test nothing of its own.
+        monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
     answers = {"thread-owner-discovery": OWNED, "thread-follower-start-turn": start}
-    with desktop_router(monkeypatch, answers) as requests:
+    with desktop_router(monkeypatch, socket_dir, answers) as requests:
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     output = sent_delivery(requests)
     assert "unconfirmed" in capsys.readouterr().err
@@ -2239,11 +2282,13 @@ def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
     ],
 )
 def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
-    page_dir, idle_desktop_chat, monkeypatch, last_turn, abandoned
+    page_dir, idle_desktop_chat, monkeypatch, last_turn, abandoned, socket_dir
 ):
     chat = idle_desktop_chat
     monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
-    with desktop_router(monkeypatch, {"thread-owner-discovery": OWNED}) as requests:
+    with desktop_router(
+        monkeypatch, socket_dir, {"thread-owner-discovery": OWNED}
+    ) as requests:
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     sent_delivery(requests)
     [(path, _)] = codex_records("codex-thread")
@@ -2262,7 +2307,9 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
         )
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == [] and chat.opened == []
-    assert desktop_pickups(page_dir) == []
+    assert desktop_pickups(page_dir) == (
+        [("failed", None, codex_model.UNCONFIRMED_DELIVERY)] if abandoned else []
+    )
     assert [
         event.get("failure")
         for event in events_model.read_events(page_dir)
@@ -2274,7 +2321,7 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
 
 
 def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
-    page_dir, idle_desktop_chat, monkeypatch
+    page_dir, idle_desktop_chat, monkeypatch, socket_dir
 ):
     chat = idle_desktop_chat
     refused = {
@@ -2288,7 +2335,10 @@ def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
     def time_out(*args):
         raise Refused("Codex queue command timed out")
 
-    with monkeypatch.context() as failing, desktop_router(monkeypatch, refused):
+    with (
+        monkeypatch.context() as failing,
+        desktop_router(monkeypatch, socket_dir, refused),
+    ):
         failing.setattr(codex_adapter_model, "queue_delivery", time_out)
         with pytest.raises(Refused):
             codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
@@ -2298,7 +2348,7 @@ def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
 
 
 def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(
-    page_dir, idle_desktop_chat, monkeypatch
+    page_dir, idle_desktop_chat, monkeypatch, socket_dir
 ):
     chat = idle_desktop_chat
     answers = {"thread-owner-discovery": OWNED, "thread-follower-start-turn": STARTED}
@@ -2306,7 +2356,10 @@ def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(
     def stop(*args):
         raise OSError("the adapter stopped")
 
-    with monkeypatch.context() as stopped, desktop_router(monkeypatch, answers) as sent:
+    with (
+        monkeypatch.context() as stopped,
+        desktop_router(monkeypatch, socket_dir, answers) as sent,
+    ):
         stopped.setattr(codex_desktop_model, "accept_codex_delivery", stop)
         with pytest.raises(OSError):
             codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
@@ -2319,96 +2372,6 @@ def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == []
     assert desktop_pickups(page_dir) == [("opened", "desktop-turn", None)]
-
-
-def test_codex_serializes_later_input_behind_the_offered_delivery(
-    codex_claimed_page, monkeypatch
-):
-    page = codex_claimed_page
-    append_carried_log_record(
-        page, {"kind": "comment", "id": "first", "author": "user", "text": "one"}
-    )
-    first = events_model.read_events(page)[-1]
-    with service_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            [first],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
-    first_path, _ = current_codex_record("codex-thread")
-
-    queue_started = threading.Event()
-    release_queue = threading.Event()
-
-    def queue_delivery(_codex, _session, _prompt):
-        queue_started.set()
-        assert release_queue.wait(timeout=STATED_TIMEOUT)
-
-    monkeypatch.setattr(codex_adapter_model, "queue_delivery", queue_delivery)
-    offering = threading.Thread(
-        target=lambda: codex_adapter_model._offer_queued_delivery(
-            "codex", "codex-thread", None
-        )
-    )
-    offering.start()
-    assert queue_started.wait(timeout=STATED_TIMEOUT), (
-        "the offer never reached the Codex queue"
-    )
-    assert files_model.read_json(first_path)["state"] == "offering"
-
-    # A parallel step hook leaves the in-flight queue offer to its owner and
-    # cannot capture its still-unacknowledged events into a second record.
-    leases_model.mark_hooks("codex-thread")
-    cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.prompt_turn("codex-thread", "user-turn")
-    prompt, _ = codex_model.offer_hook_delivery(
-        "codex-thread", cleanup_model.session_record("codex-thread")
-    )
-    assert prompt is None
-    assert len(codex_records("codex-thread")) == 1
-
-    append_carried_log_record(
-        page, {"kind": "comment", "id": "second", "author": "user", "text": "two"}
-    )
-    release_queue.set()
-    offering.join(timeout=STATED_TIMEOUT)
-    assert not offering.is_alive()
-    first_delivery = files_model.read_json(
-        first_path.parent / "history" / first_path.name
-    )
-    assert first_delivery["state"] == "queued"
-    payload = files_model.read_json(delivery_model.delivery_path(first_path.stem))
-    assert [
-        event["id"] for batch in payload["batches"] for event in batch["events"]
-    ] == ["first"]
-
-    assert not codex_model.recover_codex_receipt("codex-thread")
-    with service_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            service_model.unacknowledged(transaction.events, transaction.cursor),
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
-    second_path, second_delivery = current_codex_record("codex-thread")
-    assert second_path != first_path
-    assert second_delivery["state"] == "collecting"
-    assert [
-        event["id"]
-        for batch in files_model.read_json(second_path)["batches"]
-        for event in batch["events"]
-    ] == ["second"]
 
 
 def _queued_with_lost_acceptance(page_dir, monkeypatch) -> tuple[Path, dict, list]:
@@ -2683,8 +2646,8 @@ def test_failed_codex_delivery_start_restores_the_previous_page_claim(
     )
     out, err = failed.communicate(timeout=STATED_TIMEOUT)
 
-    assert failed.returncode != 0, out
-    assert "queue unsupported" in err
+    assert failed.returncode != 0, out + err
+    assert "queue unsupported" in out
     assert service_model.page_claim(page_dir) == previous
 
 

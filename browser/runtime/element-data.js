@@ -4,14 +4,14 @@
    The widget itself reads ordinary properties and reports drawn marks; this owner
    associates those drawings with the snapshots Leaf supplied, independently of Lit.
 
-   Bound values. A module reads each x-data input through the plain property its
+   Bound values. A module reads each input (`inputs`) through the plain property its
    declaration names (`property`): before each update that the input's delivery
    moves, this element sets `this[property]` to the delivered value, or null while the
    source has none, so the widget reads `this.value` as it would anywhere else a host
-   sets it. A widget whose body is data (`x-content: data`) declares at most one input
-   its `body`, and where the markup binds that input to nothing, to a source or to
-   another widget's output, the widget reads the text the page wrote in its `<pre>` the
-   same way: this element sets the input's property to that string once, at setup,
+   sets it. A widget whose body is data (`content: data`) declares at most one input
+   that names a `source`, and where the markup binds that input to nothing, to a source
+   or to another widget's output, the widget reads the text the page wrote in its `<pre>`
+   the same way: this element sets the input's property to that string once, at setup,
    since the widget's drawing replaces the `<pre>`. Any other unbound input, such as a
    code block's playhead, and one a module hosts on an element it made without a
    `<pre>`, is left to the widget and whoever else hosts it.
@@ -56,7 +56,7 @@ export class ElementData {
     this.#element = element;
     this.#stage = stage;
     const declaration = registry[element.localName];
-    this.#inputs = Object.entries(declaration?.["x-data"] ?? {}).flatMap(
+    this.#inputs = Object.entries(declaration?.inputs ?? {}).flatMap(
       ([input, declaration]) =>
         declaration.property
           ? [
@@ -81,12 +81,10 @@ export class ElementData {
     const declaration = registry[element.localName];
     // Only an authored, unbound data body supplies an initial property. A host
     // creating an element without a pre owns its value itself.
-    const body = Object.values(declaration?.["x-data"] ?? {}).find(
-      (input) => input.body,
-    );
+    const body = Object.values(declaration?.inputs ?? {}).find((input) => input.source);
     if (
       body?.property &&
-      declaration?.["x-content"] === "data" &&
+      declaration?.content === "data" &&
       element.querySelector(":scope > pre") &&
       !bindsInput(element, body)
     )
@@ -99,9 +97,7 @@ export class ElementData {
 
   /** @param {string} region */
   connect(region) {
-    return registry[this.#element.localName]?.["x-data"]
-      ? joinDataDelivery(region)
-      : null;
+    return registry[this.#element.localName]?.inputs ? joinDataDelivery(region) : null;
   }
 
   // Read before shouldUpdate, so an unchanged-value gate still follows delivery.

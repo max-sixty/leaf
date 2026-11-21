@@ -7,7 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { labelWords } from "./words.js";
+import { excerptWords, labelWords, lastWords } from "./words.js";
 import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
@@ -19,25 +19,31 @@ import {
 import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, shadowHost, under, upFrom } from "./shadow.js";
+import { declaredRoot, queryAllUnder } from "./shadow.js";
+import { inUi, shadowHost, under, upFrom } from "./shadow-tree.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,
   revealRegisteredVisualPart,
-  revealsVisualParts,
+  drawsAbsentParts,
   registeredVisualPartAt,
   registeredVisualParts,
+  focusedVisualPart,
+  visualPartFocus,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
   blockAt,
   closestAcross,
+  AROUND,
   cut,
   contextAround,
-  fencedAt,
   neighbourhood,
   pageText,
+  readingPart,
   readingFrom,
+  runReading,
+  readingHolding,
   rangeOf,
   segmentsIn,
   textNodesUnder,
@@ -45,7 +51,7 @@ import {
   spanIn,
   DATUM,
   elementById,
-  elementReading,
+  excerpt,
   findQuote,
   fileModelsPassage,
   inChrome,
@@ -56,11 +62,13 @@ import {
 import { registry, tagsDeclaring } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
+import { layoutsChanged } from "./widget-upgrade.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
   accessibleName,
   addressableLabel,
   addressableWord,
+  LABEL_WORDS,
   ownName,
 } from "./addressable-names.js";
 
@@ -86,8 +94,12 @@ export function setAnchoringReady(ready) {
 export const sectionOf = (anchor) =>
   anchor?.section ? elementById(anchor.section) : null;
 
+// The data a widget drew for `key`. What says which they are, their source and
+// identity among it, is not what the page's reading hears, so a reader follows the
+// document changing (`documentChanged`), and so does whatever it reads of them after.
 /** @param {Element | null} source @param {string} key @param {string | null} [identity] @param {string | null} [dataSource] */
 function currentDatums(source, key, identity = null, dataSource = null) {
+  documentChanged();
   if (!source?.id) return [];
   return pageQueryAll(DATUM).filter(
     (datum) =>
@@ -109,24 +121,25 @@ export const projectedDatum = (source, key) => {
 // What an anchor's datum is called: the label its projection gave the element drawn
 // for it, found as resolution finds it, or for a datum its lazy widget has not drawn,
 // what that widget calls it (`lfDatumLabel`), so a thread on a line of a closed file
-// is named as its row would be. It reads the page's nodes, so a paint that draws it
-// follows the document changing (`documentChanged`), as a projection relabelling it does.
+// is named as its row would be. A passage across data is named by its first datum and
+// its last. It reads the page's nodes (`currentDatums`), so a paint that draws it
+// follows the document changing, as a projection relabelling it does.
 /** @param {Anchor | null | undefined} anchor */
 export function datumLabel(anchor) {
   if (!anchor?.datum) return "";
-  documentChanged();
   const source = sectionOf(anchor);
-  const datums = currentDatums(
-    source,
-    anchor.datum,
-    anchor.identity ?? null,
-    anchor.source ?? null,
-  );
-  const [datum] = datums;
-  const label = datum
-    ? datums.length === 1 && datum.getAttribute("data-lf-datum-label")
-    : source?.lfDatumLabel?.(anchor.datum);
-  return typeof label === "string" ? label.trim() : "";
+  /** @param {string} key @param {string | null} identity */
+  const labelOf = (key, identity) => {
+    const datums = currentDatums(source, key, identity, anchor.source ?? null);
+    const [datum] = datums;
+    const label = datum
+      ? datums.length === 1 && datum.getAttribute("data-lf-datum-label")
+      : source?.lfDatumLabel?.(key);
+    return typeof label === "string" ? label.trim() : "";
+  };
+  const last = labelOf(anchor.datum, anchor.identity ?? null);
+  const first = anchor.from ? labelOf(anchor.from, null) : "";
+  return first && last ? `${first} – ${last}` : last;
 }
 
 /** @param {Element} source @param {string} key */
@@ -140,7 +153,7 @@ function suppliedDatum(source, key) {
 }
 
 // The elements under a referenced widget that a key addresses, in the one key space
-// every `x-refers` verb reads. A widget whose parts have a private address (a code
+// every `refers` verb reads. A widget whose parts have a private address (a code
 // block's line ranges) answers through `lfElementsFor(key)`; otherwise the key is a
 // registered visual part's id or a projected datum's key. Only elements under the
 // source count, so a hook cannot point a caller elsewhere in the page.
@@ -156,28 +169,47 @@ export function addressedElements(source, key) {
   return datum ? [datum] : [];
 }
 
+// Where focus goes for what a key addresses under a widget: a visual part's destination
+// (`visualPartFocus`), which a chart settles on its point only as focus is placed, else
+// the first element the key addresses. Naming it changes nothing.
+/** @param {Element} source @param {string} key */
+export const addressedFocus = (source, key) =>
+  (admitsVisualPart(source, key) ? visualPartFocus(source, key) : null) ??
+  addressedElements(source, key)[0] ??
+  null;
+
 // Travel's half of that key space: ask the widget to draw what a key addresses before
 // anything reads it. A visual part drawn only in another state is drawn now, as
 // `registerVisualParts` promises; a lazy datum answers with its hydration promise. Every
-// travel to a part of a widget asks this, a thread's anchor (`anchor.visual` or
-// `anchor.datum`) and a module's `navigateToDatum` key alike, so neither route reaches a
-// part the other cannot.
+// travel to a part of a widget asks this, for a thread's anchor (`revealAnchor`) and a
+// module's `navigateToDatum` key alike, so neither route reaches a part the other
+// cannot.
 /** @param {Element} source @param {string} key */
 export function revealAddressed(source, key) {
   if (revealVisualPart(source, key)) return null;
   return source.lfRevealDatum?.(key) ?? null;
 }
 
+// The same for each part of a widget an anchor names: its visual part, or each datum,
+// the one a passage across data starts in (`from`) as well as `datum`.
+/** @param {Element} source @param {Anchor} anchor */
+export function revealAnchor(source, anchor) {
+  const asked = [anchor.visual, anchor.from, anchor.datum].flatMap((key) =>
+    key ? [revealAddressed(source, key)] : [],
+  );
+  return asked.some((hydration) => hydration?.then) ? Promise.all(asked) : null;
+}
+
 // A generated visual part keeps an id its provider's declaration admits.
 /** @param {Element | null} visual */
 const visualAdmission = (visual) =>
   visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"] ?? null)
+    ? visualPartAdmission(visual, registry[visual.localName]?.visual ?? null)
     : null;
 
 /** @param {Element | null} element */
 const wholeVisualSurface = (element) =>
-  element && registry[element.localName]?.["x-visual"] ? element : null;
+  element && registry[element.localName]?.visual ? element : null;
 
 /** The admitted parts in their registered inventory order. */
 /** @param {Element} visual */
@@ -220,12 +252,14 @@ export const visualPartLabel = (visual, part) =>
     ? registeredVisualPartLabel(visual, part)
     : null;
 
-const declaredVisualSelector = () =>
-  [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
+const declaredVisualTags = () => tagsDeclaring((entry) => entry.visual);
+const declaredVisualSelector = () => declaredVisualTags().join(",");
 
-const genericVisualSelector = "svg, img, figure";
-export const visualSelector = () =>
-  [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
+const GENERIC_VISUALS = ["svg", "img", "figure"];
+const genericVisualSelector = GENERIC_VISUALS.join(", ");
+// The tags a picture's element has: a widget that declares `visual`, or a plain
+// one.
+export const visualTags = () => [...declaredVisualTags(), ...GENERIC_VISUALS];
 
 /** @param {Element} element @param {string} selector */
 const outermostAcross = (element, selector) => {
@@ -241,9 +275,15 @@ const outermostAcross = (element, selector) => {
 // A picture inside a press is that control's rendering, so the control keeps the
 // gesture and no visual reading is offered for it. A region that holds content — a tab
 // panel, a scroll region, a stage that takes keys, a grid — leaves its pictures
-// pictures (widget-elements.js, PRESSES).
+// pictures (widget-elements.js, PRESSES). What makes a press, such as a role, is not
+// what the page's reading hears, so it follows the document changing
+// (`documentChanged`) and a widget's layout (widget-upgrade.js, `layoutsChanged`).
 /** @param {Element} element */
-const claimsVisualGesture = (element) => element.matches(`${PRESSES},${PRESSABLE}`);
+const claimsVisualGesture = (element) => {
+  documentChanged();
+  layoutsChanged();
+  return element.matches(`${PRESSES},${PRESSABLE}`);
+};
 
 /** @param {Node | null} target */
 export const unclaimedVisualGesture = (target) => {
@@ -303,7 +343,7 @@ export const ADDRESSABLE = '[id]:not(.lf-ui):not([id^="lf-"])';
 export function isAddressable(at) {
   if (!at.matches(ADDRESSABLE) || inChrome(at) || inUi(at) || settledAway(at))
     return false;
-  const visual = tagsDeclaring((entry) => entry["x-visual"]).join(",");
+  const visual = declaredVisualSelector();
   return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
 }
 
@@ -323,9 +363,9 @@ function addressableAt(node) {
 // addressable element.
 /** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
-  const formatted = tagsDeclaring(
-    (entry) => entry["x-text-format"] === "markdown",
-  ).join(",");
+  const formatted = tagsDeclaring((entry) => entry["text-format"] === "markdown").join(
+    ",",
+  );
   return (
     (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );
@@ -350,7 +390,7 @@ const addressableAimTarget = (addressable) => ({
 // The one coordinate minted from a projected datum. Pointer aim, passage capture, and
 // widget-local comment affordances all pass through this function so source provenance
 // cannot disappear merely because the gesture began in generated UI rather than text.
-/** @param {Element} datum @param {{quote?: string}} [fields] @returns {Anchor | null} */
+/** @param {Element} datum @param {{quote?: string, from?: string}} [fields] @returns {Anchor | null} */
 const anchorForDatum = (datum, fields = {}) => {
   const section = datum.getAttribute("data-lf-projection");
   const key = datum.getAttribute("data-lf-datum");
@@ -366,6 +406,13 @@ const anchorForDatum = (datum, fields = {}) => {
     ...(identity ? { identity } : {}),
   };
 };
+
+// Whether a widget drew two datums from one value: the same projection, source and
+// revision, which both ends of a passage across its data share.
+const DRAWN = ["data-lf-projection", "data-lf-source", "data-lf-source-revision"];
+/** @param {Element} a @param {Element} b */
+const drawnTogether = (a, b) =>
+  DRAWN.every((name) => a.getAttribute(name) === b.getAttribute(name));
 
 /** @param {Node | null} datum @returns {AimTarget | null} */
 export function datumAimTarget(datum) {
@@ -391,36 +438,71 @@ export function datumAimTarget(datum) {
 /** @param {Range} range */
 export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
-/** @param {import("./passages.js").Segment[]} segments @param {Node} node @returns {CapturedAnchor | null} */
-export function anchorForPassage(segments, node) {
-  const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+/** @param {import("./passages.js").Segment[]} selected @param {Node} node @returns {CapturedAnchor | null} */
+export function anchorForPassage(selected, node) {
+  // The passage is the selection's words: a drag from a paragraph's end into a
+  // document's first line holds the newline between them, which is neither's word.
+  /** @param {import("./passages.js").Segment} segment */
+  const says = ({ node: text, start, end }) => /\S/.test(text.data.slice(start, end));
+  const from = selected.findIndex(says);
+  const to = selected.findLastIndex(says);
+  const segments = from < 0 ? [] : selected.slice(from, to + 1);
+  // The words, not the range, say which element holds the passage: a triple-click in
+  // Chromium, or a drag past an item's last word, ends the range at the next item's
+  // start, whose common ancestor is the list. Named by the list, a passage a revision
+  // rewrites falls back to the whole list rather than the item that still stands.
+  const firstText = segments[0]?.node;
+  const lastText = segments.at(-1)?.node;
+  let holder = firstText
+    ? upFrom(firstText)
+    : node.nodeType === Node.ELEMENT_NODE
+      ? node
+      : upFrom(node);
+  while (holder && lastText && !under(lastText, holder)) holder = upFrom(holder);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm
   // context across their seam.
   const { text: quote, units } = readingFrom(segments);
-  const dataNodes = new Set(
-    segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean),
-  );
-  const [onlyDatum] = dataNodes;
+  /** @param {import("./passages.js").Segment | undefined} seg */
+  const datumOf = (seg) => (seg ? closestAcross(seg.node, DATUM) : null);
+  const first = datumOf(segments[0]);
+  const last = datumOf(segments.at(-1));
   const datum =
-    dataNodes.size === 1 &&
-    segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
-      ? onlyDatum
+    first && first === last && segments.every((seg) => datumOf(seg) === first)
+      ? first
       : null;
-  const projected = datum && anchorForDatum(datum);
+  // Words that start in one datum and end in a later one its widget drew from the same
+  // value, as a drag across two lines of a diff holds, name both: `datum` the last, which
+  // the thread stands beside as it would for a comment on that datum alone, and `from`
+  // the first.
+  const projected = datum
+    ? anchorForDatum(datum)
+    : first && last && first !== last && drawnTogether(first, last)
+      ? anchorForDatum(last, { from: first.getAttribute("data-lf-datum") ?? "" })
+      : null;
   if (projected && !quote) return projected;
   const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
   if (!quote) return section === null ? null : { section };
-  const page = pageText();
+  // Other words on both sides of a part's edge stand in no one reading, and no copy of
+  // them is found again, since every part is a passage cell of its own (passages.js,
+  // `pageText`).
+  if (!projected && segments.some((seg) => readingPart(seg.node)))
+    return { section, quote, detached: true };
   // Identity is the context for projected data: the display values beside a datum may
   // reorder or repeat, so their words would make incidental layout a second,
   // conflicting answer to which datum the user selected. Its own words still tell
   // repeats within it apart, as the lines around each copy tell apart a line a text
-  // document holds twice, so a datum's context stops at its edges.
-  const reading = datum && projected ? fencedAt(page, datum) : page;
+  // document holds twice, so a datum's context is read from its words alone, and a
+  // run's from the words of the data it runs across (`runReading`): the reading
+  // `resolveAnchor` searches.
+  const reading = datum
+    ? pageText(datum)
+    : projected && first && last
+      ? runReading(first, last)
+      : pageText();
   const base = projected || { section };
-  const [start, stop] = spanIn(page, segments);
+  const [start, stop] = spanIn(reading, segments);
   for (let width = CONTEXT; ; width *= 2) {
     const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
     const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
@@ -476,39 +558,84 @@ const controlFaces = (control) => [control, ...(control.labels ?? [])];
 /** @param {Element} control */
 const controlIdentity = (control) =>
   (control instanceof HTMLLabelElement ? control.control : null) ?? control;
+// The owner's parts named `name`: the controls whose nearest addressable is `owner`.
+// The walk comes down the trees `upFrom` climbs back out of, `owner`'s own and the
+// declared roots in it, and steps over each addressable it meets with all that one
+// holds, whose controls are that addressable's own parts. So naming a part costs what
+// its owner holds as its own, not what its members hold: a side tab's owner, the tabs
+// widget, holds every tab's document, which a query of the owner read in full on each
+// press on a tab and each picker hint that announced one (#4781).
 /** @param {Element} owner @param {string} name */
-const namedParts = (owner, name) =>
-  [...new Set(pageQueryAll(WORKS).map(controlIdentity))].filter(
+function namedParts(owner, name) {
+  /** @type {Set<Element>} */
+  const controls = new Set();
+  /** @param {Element} element */
+  const visit = (element) => {
+    const root = declaredRoot(element);
+    for (const scope of root ? [element, root] : [element])
+      for (let child = scope.firstElementChild; child; child = child.nextElementSibling)
+        if (!isAddressable(child)) {
+          if (child.matches(WORKS)) controls.add(controlIdentity(child));
+          visit(child);
+        }
+  };
+  visit(owner);
+  return [...controls].filter(
     (control) =>
       control !== owner &&
       under(control, owner) &&
       addressableAt(control) === owner &&
       controlName(control) === name,
   );
-// Spoken context includes prose and this control's visible face, never a neighbour's
-// label. The shared block prose is read once per inventory; chosen capture stays lazy.
-/** @param {Element} control @param {Map<Element, string>} contexts */
-function controlContext(control, contexts) {
+}
+// What a press in Design mode can take as a part: a control, or a picture.
+const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
+/** @typedef {{segments: import("./passages.js").Segment[], at: Map<Element, number>}} BlockWords */
+// A control's spoken words: its block's words on each side of it, at most `AROUND`
+// characters a side as every description of what stands around something reads them
+// (`contextAround`), with its own between. Every part's words are left out of its
+// block's, so a neighbour's label never names this one, and a picture says none of its
+// own, since its name describes it: a text document's view is a picture of the whole
+// document, whose words would be read whole twice for every move of the pointer over it
+// in Design mode. Other controls say their own words
+// as a label does (`LABEL_WORDS`), less the `part` name the spoken name says before
+// them, as a tab whose words start with its name and go on to a count. A block is read
+// once per inventory, noting where each part stands in it; chosen capture stays lazy.
+/** @param {Element} control @param {Map<Element, BlockWords>} contexts @param {string} part */
+function controlContext(control, contexts, part) {
+  const said = control.matches(genericVisualSelector)
+    ? ""
+    : excerptWords(excerpt(control, { upTo: LABEL_WORDS + 1 }).text, LABEL_WORDS);
+  const own = said.startsWith(`${part} `) ? said.slice(part.length + 1) : said;
   const block = blockAt(control);
-  if (!block) return "";
-  if (!contexts.has(block))
-    contexts.set(
-      block,
-      quoteFrom(
-        textNodesUnder(block).filter(({ node }) => !closestAcross(node, WORKS)),
-      ),
-    );
-  return [contexts.get(block), elementReading(control)].filter(Boolean).join(" ");
+  if (!block || block === control || closestAcross(block, WORKS)) return own;
+  let words = contexts.get(block);
+  if (!words) {
+    /** @type {Map<Element, number>} */
+    const at = new Map();
+    const segments = textNodesUnder(block, "says", (element, count) => {
+      if (!element.matches(DESIGN_PARTS)) return false;
+      at.set(element, count);
+      return true;
+    });
+    contexts.set(block, (words = { segments, at }));
+  }
+  const split = words.at.get(control);
+  if (split === undefined) return own;
+  return [
+    lastWords(quoteFrom(words.segments.slice(0, split)), AROUND),
+    own,
+    excerptWords(quoteFrom(words.segments.slice(split)), AROUND),
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 // Keep inline emphasis in one label passage, but never cross the nested field's
 // words or native box to pretend its options are part of the visible label.
 /** @param {Element} face @param {Element} control */
 function controlPassages(face, control) {
   const words = textNodesUnder(face);
-  const barriers =
-    face === control
-      ? pageQueryAll(WORKS).filter((other) => other !== control && under(other, face))
-      : [control];
+  const barriers = face === control ? queryAllUnder(face, WORKS) : [control];
   /** @type {import("./passages.js").Segment[][]} */
   const passages = [];
   /** @type {import("./passages.js").Segment[]} */
@@ -555,7 +682,7 @@ function visiblePassage(segments) {
 }
 
 /** @param {Node | null} node @param {AimOptions["marginTargetAt"]} marginTargetAt
- * @param {{owners: Map<Element, AimTarget>, contexts: Map<Element, string>}} [reading] @returns {AimTarget | null} */
+ * @param {{owners: Map<Element, AimTarget>, contexts: Map<Element, BlockWords>}} [reading] @returns {AimTarget | null} */
 function designTargetAt(
   node,
   marginTargetAt,
@@ -565,9 +692,7 @@ function designTargetAt(
   let at = node instanceof Element ? node : node?.parentElement;
   if (!at) return null;
   const pressed = designPressAt(at);
-  const control = pressed?.matches(`${WORKS},${genericVisualSelector}`)
-    ? controlIdentity(pressed)
-    : null;
+  const control = pressed?.matches(DESIGN_PARTS) ? controlIdentity(pressed) : null;
   const visual = visualAt(at, { unclaimed: false });
   const declared = declaredVisualSelector();
   if (declared && visual?.element.matches(declared)) at = visual.element;
@@ -609,7 +734,7 @@ function designTargetAt(
   const faces = controlFaces(partElement);
   const detail = [
     ...new Set([
-      controlContext(partElement, contexts),
+      controlContext(partElement, contexts, part),
       ...faces
         .filter((face) => face !== partElement)
         .map((label) =>
@@ -631,8 +756,9 @@ function designTargetAt(
   // A picture's name describes a face; it is not a quotation of its pixels.
   if (partElement.matches(genericVisualSelector) && !claimsVisualGesture(partElement))
     return named;
-  // Inventory reads names and faces only. Capture the chosen control's passage once,
-  // when direct aim or a picker choice actually needs its durable coordinate.
+  // Inventory reads names and faces only, which is all the box and name a hovering
+  // pointer paints need. The control's passage is captured once, when a press or a
+  // picker choice commits the target and needs its durable coordinate (`captured`).
   return {
     ...named,
     capture() {
@@ -660,7 +786,8 @@ function designTargetAt(
           ) {
             // A repeated control’s announcement and its durable anchor share the same
             // distinguishing context, including neighbouring table cells.
-            const context = contextAround(pageText(), resolved.segments, {
+            const at = resolved.segments[0]?.node ?? face;
+            const context = contextAround(readingHolding(at), resolved.segments, {
               before: [...(captured.prefix ?? "")].length,
               after: [...(captured.suffix ?? "")].length,
             });
@@ -687,25 +814,49 @@ function designTargetAt(
 
 // The returned element is the coordinate's durable owner. A named control part also
 // supplies its own hint seat, so several controls in one owner keep separate identities.
+// A Design mode target is its inventory reading, as `aimTargets` gives the picker: a
+// control part's quoted passage waits for whoever commits it (`captured`).
 /** @param {Node | null} node @param {AimOptions} [options] @returns {AimTarget | null} */
 export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
-  if (design) {
-    const target = designTargetAt(node, marginTargetAt);
-    return target?.capture ? target.capture() : target;
-  }
+  if (design) return designTargetAt(node, marginTargetAt);
   const visual = visualAt(node, { unclaimed: false });
-  if (visual?.part)
-    return {
-      anchor: { section: visual.id, visual: visual.part.id },
-      element: visual.part.element,
-      label: aimLabel(visual.seat, visual.part.label),
-      surface: visual.part.surface,
-    };
+  if (visual?.part) return partTarget(visual, visual.part);
   const datum = closestAcross(node, DATUM);
   if (datum) return datumAimTarget(datum);
   const addressable = addressableAt(node);
   return addressable ? addressableAimTarget(addressable) : null;
 }
+
+/** @param {NonNullable<ReturnType<typeof visualAt>>} visual
+ * @param {import("./visual-parts.js").VisualPart} part @returns {AimTarget} */
+const partTarget = (visual, part) => ({
+  anchor: { section: visual.id, visual: part.id },
+  element: part.element,
+  label: aimLabel(visual.seat, part.label),
+  surface: part.surface ?? null,
+});
+
+// The target focus on `node` names: the part a visual holding focus stands on, as a
+// chart on the point its keys reached (`focusedVisualPart`), else the target a press
+// on `node` takes. Only focus asks the visual itself, so a reading of the picture as
+// a whole, as the target picker's, keeps it whole.
+/** @param {Element} node @returns {AimTarget | null} */
+export function focusTargetAt(node) {
+  const visual = visualAt(node, { unclaimed: false });
+  const admits = visual?.element === node ? visualAdmission(node) : null;
+  const part = admits && focusedVisualPart(node, (found) => admits(found.id));
+  return visual && part ? partTarget(visual, part) : aimTargetAt(node);
+}
+
+// A target as a comment takes it: a Design mode control part with its passage
+// captured (`designTargetAt`), and any other target as it is. What a caller added to
+// the target, such as the point a press landed on (pointed-place.js), stays with it.
+/** @template {AimTarget | null | undefined} T @param {T} target @returns {T} */
+export const captured = (target) => {
+  if (!target?.capture) return target;
+  const { capture, ...added } = target;
+  return /** @type {T} */ ({ ...added, ...capture() });
+};
 
 /** @param {AimOptions} [options] @returns {AimTarget[]} */
 export function aimTargets(options = {}) {
@@ -741,6 +892,14 @@ export function aimTargets(options = {}) {
     keys.add(key);
     return true;
   });
+}
+
+// The datum a passage across data starts in: the one drawn for `key` from the value
+// `last` was drawn from, or null where none or several are.
+/** @param {Element | null} source @param {string} key @param {Element} last */
+function runStart(source, key, last) {
+  const first = projectedDatum(source, key);
+  return first && first !== last && drawnTogether(first, last) ? first : null;
 }
 
 /** @param {Anchor} anchor @returns {import("./resolved-target.js").ElementTarget | import("./resolved-target.js").PassageTarget | null} */
@@ -803,7 +962,9 @@ export function resolveAnchor(anchor) {
     // where the quote was all of the datum's words, so it named the datum, as a row's
     // label does. A quote with datum words around it named a passage in the datum, such
     // as a line of a text document, and once its words are gone it stands nowhere on the
-    // page, rather than at the top of the datum.
+    // page, rather than at the top of the datum. The quote is searched for in the datum's
+    // words alone, the reading its context was captured from (`anchorForPassage`), so
+    // finding it costs what the datum holds rather than what the page does.
     if (datums.length > 1) return null;
     const [datum] = datums;
     if (!datum) {
@@ -823,7 +984,25 @@ export function resolveAnchor(anchor) {
         exact: true,
         status: "exact",
       };
-    const segments = findQuote(pageText(), anchor.quote, anchor, datum);
+    // A passage across data is found in the words from the datum it starts in to this
+    // one, the last. While its widget hasn't drawn its first datum, as in a file the
+    // user closed, the passage stands on its last, as a datum not drawn stands on its
+    // widget; once that datum is gone, the passage is too.
+    const start = anchor.from ? runStart(source, anchor.from, datum) : datum;
+    if (!start) {
+      const virtual = anchor.from ? source?.lfDataDatum?.(anchor.from) : null;
+      if (!(virtual instanceof Element) || !under(virtual, source)) return null;
+      return {
+        ...resolvedElement({ element: datum }),
+        datumElement: null,
+        exact: false,
+        status: "fallback",
+      };
+    }
+    const segments =
+      start === datum
+        ? findQuote(pageText(datum), anchor.quote, anchor, datum)
+        : findQuote(runReading(start, datum), anchor.quote, anchor);
     const [first] = segments;
     if (!first && (anchor.prefix || anchor.suffix)) return null;
     return first
@@ -855,14 +1034,17 @@ export function resolveAnchor(anchor) {
         element: found.element,
         place: section,
         surface: found.surface,
+        label: found.label,
       });
     // A declared part the visual draws only in another state stands in for the whole
-    // visual, as a lazy datum does, until travel reveals it.
-    return admitsVisualPart(section, anchor.visual) && revealsVisualParts(section)
+    // visual, as a lazy datum does, until travel reveals it or the visual draws it. It
+    // keeps the name its visual gives it there.
+    return admitsVisualPart(section, anchor.visual) && drawsAbsentParts(section)
       ? {
           ...resolvedElement({
             element: section,
             surface: wholeVisualSurface(section),
+            label: visualPartLabel(section, anchor.visual),
           }),
           exact: false,
           status: "fallback",

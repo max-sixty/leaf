@@ -5,21 +5,23 @@
    versions were observed, not a second account of what the page currently means.
 
    The agent's activity is no news here: the page's status says it in the same seat a
-   notice would take, and page-status.js announces a change of its kind. Removed on 26
-   October 2026: "Claude active on this page", which stood for four seconds in front of
-   the status line that named the agent's work.
+   notice would take, and page-status.js announces a change of its kind. Rejected:
+   "Claude active on this page", which stands for four seconds in front of
+   the status line that names the agent's work.
 
    New agent content is the server's `unread` reading, the same one the floating panel
    paints: a version is news the first time this tab sees it unread, and
-   never once the user has taken it in, here or in another tab. What the user has
+   never once the user has taken it in, here or in another tab, nor once this tab has
+   seen it read. An undo of the resolve or reply that marked a message read makes it
+   unread again (read_state.py), but nothing arrived. What the user has
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it.
 
-   On me emptying is news, in the words its empty view says, whoever emptied it: the
+   On Me emptying is news, in the words its empty view says, whoever emptied it: the
    user's last answer, one from another tab, or a revision that took the last
    obligation away. The list is the one the panel's badge counts (queue-api.js,
-   `onUserCount`). The user asked on 5 November 2026 to be told when they finish
+   `onUserCount`). The user asked to be told when they finish
    what waits on them, taking words over a flash of the panel's colour for now. */
 import { moved } from "./thread/model.js";
 import { NOT_ANSWERED } from "./thread/workflow.js";
@@ -43,7 +45,7 @@ import { NOTHING_ON_ME } from "./queues.js";
 /** @param {{attempt?: string | null, id?: string | null}} record */
 const identity = (record) => record.attempt ?? record.id;
 
-// News reads the shown revision's view: the one the page just presented, whose On me list
+// News reads the shown revision's view: the one the page just presented, whose On Me list
 // the floating panel counts. While an activation waits (a gesture defers it, or
 // the document is a pinned version), an obligation the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
@@ -149,6 +151,9 @@ export function observeSemanticNews(prior, reading) {
       });
     observed.content.add(version);
   }
+  for (const thread of reading.thread.threads)
+    for (const message of thread.msgs)
+      if (message.content_version) observed.content.add(message.content_version);
   for (const failure of failures.values()) {
     if (!first && !observed.failures.has(failure.key))
       news.push({
@@ -200,6 +205,19 @@ export function currentSemanticNews(news, reading, observed) {
         : [];
     },
   );
+}
+
+// The one moment the panel's leaf answers a reading's news with (notifications.js,
+// `gesture`), as it arrives: On Me emptying, else something new on it, which may come
+// with the agent's words that ask it, else those words. A failed response moves
+// nothing.
+/** @param {readonly SemanticNews[]} news
+ * @returns {import("./notifications.js").Moment | null} */
+export function newsMoment(news) {
+  if (news.some((item) => item.kind === "on_me_empty")) return "on-me-empty";
+  if (news.some((item) => item.kind === "user_obligation")) return "new-on-me";
+  if (news.some((item) => item.kind === "agent_content")) return "reply";
+  return null;
 }
 
 /** @param {readonly SemanticNews[]} older @param {readonly SemanticNews[]} newer */
@@ -262,7 +280,7 @@ export function semanticNewsNotice(news) {
   if (obligations.length)
     clauses.push([
       leafSays(
-        obligations.length === 1 ? "New on me" : `${obligations.length} new on me`,
+        obligations.length === 1 ? "New On Me" : `${obligations.length} new On Me`,
       ),
     ]);
   if (news.some((item) => item.kind === "on_me_empty"))

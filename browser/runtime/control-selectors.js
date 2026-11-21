@@ -65,9 +65,6 @@ const PRESS_SELECTORS = [
   "summary",
   TEXT_BOX,
   "video[controls]",
-  // A recording whose browser controls the runtime has traded for its own
-  // (video-controls.js).
-  "video[data-lf-player]",
   "[role='button']",
   "[role='checkbox']",
   "[role='combobox']",
@@ -90,10 +87,11 @@ const PRESS_SELECTORS = [
 // Reach lends a mechanical tab stop to overflowing prose. That stop does not
 // turn its content into an authored interactive region.
 export const LENT_REACH_STOP = "data-lf-lent-reach-stop";
+// A tab panel's stop lets the reader reach and scroll its contents; the panel itself
+// has no press to protect from a thread mark inside those contents.
+const TAB_STOP_REGION = `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`;
 const REGION_SELECTORS = [
-  // A tab panel's stop lets the reader reach and scroll its contents; the panel
-  // itself has no press to protect from a thread mark inside those contents.
-  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`,
+  TAB_STOP_REGION,
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
   "[role='application']",
@@ -108,4 +106,35 @@ const REGION_SELECTORS = [
   "[role='treegrid']",
 ];
 export const PRESSES = PRESS_SELECTORS.join(",");
+// The controls that leave a scroll key to the browser, which scrolls for it pressed on
+// one (scrolling.js, `scrollsFor`): a link takes Enter alone, so Space too; a plain
+// press takes no key but Enter and Space, so an arrow, PageUp, PageDown, Home or End;
+// and a radio takes the arrows that move its group's choice, so PageUp, PageDown, Home
+// or End. Every other control takes those keys itself, as a select, a range or a
+// composite widget moves within itself and a field moves its caret.
+export const LINKS = "a[href], [role='link']";
+export const RADIOS = "input[type='radio'], [role='radio']";
+export const PLAIN_PRESSES = [
+  LINKS,
+  "button",
+  "summary",
+  "label",
+  "input[type='button']",
+  "input[type='checkbox']",
+  "input[type='color']",
+  "input[type='file']",
+  "input[type='image']",
+  "input[type='reset']",
+  "input[type='submit']",
+  "[role='button']",
+  "[role='checkbox']",
+  "[role='switch']",
+].join(",");
 export const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
+// The controls, native or ARIA, that work a gesture of their own: what `WORKS` names,
+// less a plain tab stop, which only lets the reader reach and scroll what it holds
+// (widget-elements.js, `aimableAt`).
+export const CONTROLS = [
+  ...PRESS_SELECTORS,
+  ...REGION_SELECTORS.filter((selector) => selector !== TAB_STOP_REGION),
+].join(",");

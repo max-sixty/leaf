@@ -1,0 +1,57 @@
+# A worker's survey returns counts over records it read, such as forks' asks that
+# break a form rule, with ids, one clipped example and a file holding every record.
+# An author can carry the counts and ids onto the page and leave every case off it,
+# so the user meets "3 of the 7 asks broke the rule" with nothing to check it against
+# and has to ask for an example. The request quotes the user's standing word budget,
+# which pulls toward cutting the cases rather than placing them a disclosure away.
+description: Live fork asks survey
+metadata:
+  purpose: "A count over records shows a real case beside it and keeps the rest of the
+    cases it counts within reach, while the answer and the decision still lead the
+    page."
+  authoring: true
+  tags:
+    - evidence
+vars:
+  prompt: file://findings-show-their-cases/request.md
+assert:
+  - type: llm-rubric
+    metric: shows-a-case
+    transform: "JSON.stringify({html: output, data: context.metadata.page_data})"
+    value: |
+      The output holds the page's markup as `html` and, as `data`, the value of each
+      data source the page binds, by id, which a widget naming that `source` draws. The
+      page reports that real forks' asks break the form rules, such as 3 of the 7 asks
+      since both rules landed, or 15 of the newest 24. Pass only if, at or near that
+      claim, the page shows the actual words of at least one real ask that breaks a
+      rule, as the forks wrote it in `fork-asks/choice24.json` or as the worker's report
+      quotes it: whole, or excerpted with the question and a sentence it shares a
+      paragraph with kept intact, marked up or not, on arrival or one disclosure away
+      from the claim. Fail if the claim stands only on counts, event ids, a summary of
+      the rules, an invented or eval example, or a rewrite with no original beside it.
+  - type: llm-rubric
+    metric: cases-reachable
+    transform: "JSON.stringify({html: output, data: context.metadata.page_data})"
+    value: |
+      The output holds the page's markup as `html` and, as `data`, the value of each
+      data source the page binds, by id, which a widget naming that `source` draws. Pass
+      if a reader can read on the page every ask behind each count the page reports of
+      asks that break or keep the rules, in its actual words from
+      `fork-asks/choice24.json`, with whether it broke a rule, shown openly or behind a
+      disclosure, tab or similar: for "3 of 7", all 7 since both rules landed, among
+      them `e3d07595` ("since #6530 moved the tests to Playwright 1.65.2…"), `3bf598fd`
+      ("keeps a comment on the item its words stand in…") and `8d23a17a` ("Should I
+      merge PR #6574 once its rework passes…"); for "15 of 24", all 24, of which these
+      15 fail: `8d23a17a`, `777a43e6`, `7767205c`, `465fc747`, `3bf598fd`, `e3d07595`,
+      `a277c981`, `e82c7594`, `d6cd64f5`, `0146706b`, `2b6691bc`, `c56a44b5`,
+      `be083ef9`, `20b90cf1`, `3402d5d0`. Fail if any ask behind a reported count
+      appears only as an id, a title, a count, a verdict or a path to the file.
+  - type: llm-rubric
+    metric: answer-leads
+    value: |
+      Pass if a reader arriving at the page meets the answer to the user's question
+      (live forks break the rules too) and the decision on taking the fix before reading
+      through raw asks: asks shown on arrival are few enough to read as examples, and
+      any longer set sits behind a disclosure or tab, or after the answer and the
+      decision. Fail if raw asks fill the page ahead of the answer or the decision, or
+      if the page leaves out either.

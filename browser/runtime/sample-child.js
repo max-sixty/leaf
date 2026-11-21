@@ -10,7 +10,7 @@ import {
 } from "./focus.js";
 import { exceptionRecord } from "./exception.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
-import { whenArrived } from "./presentation.js";
+import { startNearWork, whenArrived } from "./presentation.js";
 import { sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
 /** @typedef {import("./sample-protocol.js").SampleCommands} SampleCommands
@@ -87,6 +87,13 @@ if (child) {
     if (!currentLocation?.isConnected || !canPlaceFocus()) return false;
     focusDestination(currentLocation, "return");
     return document.hasFocus();
+  });
+  // The containing page's check asks for all near work (presentation.js,
+  // `startNearWork`); this document starts its own and answers at once, and the check
+  // waits for each document's readiness itself (render_checks.py, `start_near_work`).
+  registerSampleCommand("near-work", () => {
+    startNearWork();
+    return null;
   });
   // The containing page's image shows this part of the viewport where the frame stands.
   registerSampleCommand("image", async ({ x, y, width, height }) => {

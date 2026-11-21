@@ -26,7 +26,13 @@ import { execFileSync } from "node:child_process";
 import { glob, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-const ANNOTATIONS = new Set(["description", "title", "$schema", "$id", "$comment"]);
+export const ANNOTATIONS = new Set([
+  "description",
+  "title",
+  "$schema",
+  "$id",
+  "$comment",
+]);
 
 function reference(ref) {
   const [uri, pointer = ""] = ref.split("#");
@@ -208,13 +214,13 @@ function pythonSchemas(root) {
   const program = `
 import json
 from leaf.registry.schema import leaf_resources
-from leaf.schema import EXTENSION_SCHEMA
+from leaf.schema import DECLARATION_SCHEMA
 from leaf_dev import declared_records
 records = {
     kind: {"since": record.since, "schema": record.schema}
     for kind, record in declared_records().items()
 }
-print(json.dumps({"references": leaf_resources(), "records": records, "widget": EXTENSION_SCHEMA}))
+print(json.dumps({"references": leaf_resources(), "records": records, "widget": DECLARATION_SCHEMA}))
 `;
   return JSON.parse(
     execFileSync("uv", ["run", "--quiet", "python", "-c", program], {
@@ -225,8 +231,8 @@ print(json.dumps({"references": leaf_resources(), "records": records, "widget": 
 }
 
 /** Every schema the generated types and the page protocol read (`protocol.mjs`): the
- * kernel event records and browser commands (`$events`), the served state, the x-state
- * verb, and each `state.Record` with the protocol its shape was set at. */
+ * kernel event records and browser commands (`$events`), the served state, the
+ * verb (`verbs`), and each `state.Record` with the protocol its shape was set at. */
 export async function protocolSchemas(root) {
   const read = async (file) => JSON.parse(await readFile(new URL(file, root), "utf8"));
   const { $events } = await read("browser/runtime/kernel-registry.json");
@@ -312,5 +318,5 @@ export async function contractTypes(root, { events, served, verb, widget }) {
   const registry = JSON.parse(
     await readFile(new URL("browser/runtime/kernel-registry.json", root), "utf8"),
   );
-  return `/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}export type WidgetDeclaration = ${typeOf(widget)} & {type?: string | ReadonlyArray<string>; properties?: Record<string, unknown>};\n${await packageDataTypes(root)}`;
+  return `/* Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}export type WidgetDeclaration = ${typeOf(widget)};\n${await packageDataTypes(root)}`;
 }

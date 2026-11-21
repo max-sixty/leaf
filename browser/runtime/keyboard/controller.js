@@ -9,8 +9,8 @@
    moves on from it. The let-go lands on what they see, so it moves nothing, and they
    are not beside what they let go of, so no walk comes back to it (current-target.js,
    `walkOrigin`). It is not Escape's release: a card open beside what they left stays
-   open where it rides. Chromium still applies a radio's, slider's or select's own arrows
-   at the control the key was aimed at, wherever focus has gone
+   open where it rides. Chromium and WebKit still apply a radio's, slider's or select's
+   own arrows at the control the key was aimed at, wherever focus has gone
    (notes/browser-support.md), so those are withheld, and that arrow scrolls nothing. The
    key stops at the document once it lets go, so no listener on the control or a widget
    around it hears it, and a page's own listener on the document or window hears it only
@@ -33,6 +33,7 @@ import {
   focused,
 } from "../focus.js";
 import { focusPlace } from "../user-place.js";
+import { landForKey } from "../scrolling.js";
 import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
@@ -57,13 +58,18 @@ export function mountKeyboard({
   reactArmed,
   setReact,
 }) {
-  /** @param {KeyboardEvent} event */
-  const run = (event) => {
-    const handled = dispatchKey(event);
+  /** @param {KeyboardEvent} event @param {boolean} [waiting] */
+  const run = (event, waiting = false) => {
+    const handled = dispatchKey(event, waiting);
     // A declared Leaf command wins before a nested widget can interpret the
     // same key. Native activation is left to the focused control.
     if (handled && event.defaultPrevented) event.stopPropagation();
     return handled;
+  };
+  const armed = () => goToSequenceActive() || reactArmed();
+  const disarm = () => {
+    setGoToSequence(false);
+    setReact(false);
   };
   /** @param {KeyboardEvent} ev */
   const press = (ev) => {
@@ -76,9 +82,8 @@ export function mountKeyboard({
     // gives it. A modifier alone is half a press rather than a key: the Shift that
     // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
     // took the window down before the G it was armed for.
-    if ((goToSequenceActive() || reactArmed()) && !MODIFIER_KEYS.includes(ev.key)) {
-      setGoToSequence(false);
-      setReact(false);
+    if (armed() && !MODIFIER_KEYS.includes(ev.key)) {
+      disarm();
       run(ev);
     }
   };
@@ -94,10 +99,14 @@ export function mountKeyboard({
     if (controlNavigationKeys(at).includes(ev.key)) ev.preventDefault();
     return true;
   };
-  // Page shortcut characters need Leaf's scope resolution before a nested
-  // library can use them for typeahead. Other keys keep the control's own
-  // handling first, including search's Enter and Escape steps, but a key that lets go
-  // stops here, ahead of them, so every key reads from where the user is.
+  // Outside its own fields, which read their keys themselves (below), Leaf hears a key
+  // in three places.
+  //
+  // In capture, ahead of every listener of the page's: a printed letter, which Leaf's
+  // page commands take ahead of a nested library's typeahead; a key that lets go, which
+  // stops there so every key reads from where the user is; and, while Go-to or reactions
+  // are armed, a key they answer, since they own the keyboard. Any other key disarms
+  // them there and keeps its ordinary meaning, read below.
   document.addEventListener(
     "keydown",
     (ev) => {
@@ -106,7 +115,15 @@ export function mountKeyboard({
         letGo();
         ev.stopPropagation();
       }
+      // Tab and the paging keys go on to the browser, which moves focus or scrolls from
+      // where the page stands, so the glides under way land first (scrolling.js,
+      // `landForKey`), once the let-go has read where they were headed.
+      landForKey(ev);
       if (away || ev.key.length === 1) press(ev);
+      else if (armed() && !ev.isComposing) {
+        if (run(ev)) ev.stopPropagation();
+        else if (!MODIFIER_KEYS.includes(ev.key)) disarm();
+      }
     },
     { capture: true },
   );
@@ -114,17 +131,58 @@ export function mountKeyboard({
   const afterControl = (ev) => {
     if (ev.key.length !== 1) press(ev);
   };
-  document.addEventListener("keydown", afterControl);
-  // A key typed in a Leaf field stops at the field (field-keys.js), so this
-  // pass reads it there.
+  // On the root element, where every other key is read: after the listeners on the
+  // control and on every element around it, the page's and Leaf's own, and before the
+  // page's listeners on the document and the window, which hear only a key Leaf leaves.
+  // So a key keeps the order a widget's own listener would give it: the focused
+  // element's handling comes first, then Leaf's command there, then a page-wide
+  // shortcut. A key aimed inside `body` whose default is already prevented by then is
+  // the page's, as role-button-press.js reads a press. Read again here, it would act at
+  // wherever page code had moved focus, such as the trigger a page's menu hands focus
+  // back to. Leaf's chrome stands outside `body`, and a mode armed over the page with
+  // nothing focused reads keys aimed at `body` itself, so those stay Leaf's whatever a
+  // page listener prevents.
+  document.documentElement.addEventListener("keydown", (ev) => {
+    const { target } = ev;
+    const pages =
+      ev.defaultPrevented &&
+      target instanceof Node &&
+      target !== document.body &&
+      document.body.contains(target);
+    if (!pages) afterControl(ev);
+  });
+  // A row that `waits` is what Leaf does with a key only once nothing else has taken
+  // it, as Escape lets go of a control in the page (keyboard/page.js), so it is read
+  // last, after the page's listeners on the document and the window. A popup that hears
+  // Escape there from the moment it opens, as UI SDK's tooltip, Web Awesome's select and
+  // Headless UI's dialog do, puts itself away first and prevents the key, and focus
+  // stays on its trigger.
+  /** @param {KeyboardEvent} ev */
+  const last = (ev) => {
+    if (!ev.defaultPrevented && !ev.isComposing) run(ev, true);
+  };
+  // The window hears a key twice, first in capture and last in bubble, and the browser
+  // copies its list of listeners afresh for each (DOM, "inner invoke"). Adding `last`
+  // again in capture puts it behind every listener a page has added to the window
+  // since, so "last" holds whenever the page's listener was added.
+  window.addEventListener(
+    "keydown",
+    () => {
+      window.removeEventListener("keydown", last);
+      window.addEventListener("keydown", last);
+    },
+    { capture: true },
+  );
+  // A key typed in a Leaf field stops at the field (field-keys.js), so this pass reads
+  // it there, a waiting row included: no listener past the field is left to take the key.
   readLeavingKeys((ev) => {
-    if (ev.type === "keydown") afterControl(ev);
+    if (ev.type !== "keydown") return;
+    afterControl(ev);
+    if (ev.key.length !== 1 && !ev.defaultPrevented && !ev.isComposing) run(ev, true);
   });
   document.addEventListener("lf-keyboard-preference", () => {
     paintKeys();
-    if (quickShortcuts()) return;
-    setGoToSequence(false);
-    setReact(false);
+    if (!quickShortcuts()) disarm();
   });
   let pressingHeld = false;
   // Upgrade opens commands about the shown document. A command needing private

@@ -3,16 +3,22 @@ merged into one vocabulary, and the facts stamped into it that its readers read.
 
 Composing validates nothing; `registry.validation` does. A reader of a page reads its
 layer's vocabulary merged and stamped, and Leaf validates the vocabulary wherever it
-composes the layer's files (`layer._composition`)."""
+composes the layer's files (`layer._composition`). A layer's restatement of a kernel
+fact is ignored (`merge_layer_declarations`), and `kernel_fact_advice` names it to
+the layer's author."""
 
 import json
 from pathlib import Path
 
-from leaf.state import KERNEL_REGISTRY
+from leaf.findings import Finding
+from leaf.state import KERNEL_REGISTRY, kernel_registry
 
 from .contract import (
+    MODULES,
+    complete_declarations,
+    module_paths,
     read_registry_declarations,
-    registry_error,
+    registry_finding,
     stamp_decisions,
     stamp_grammars,
     stamp_states,
@@ -51,15 +57,8 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
             merged[name] = entry
             continue
         if name in KERNEL_FACTS:
-            if _canonical(entry) != _canonical(earlier):
-                raise registry_error("fixed-kernel-fact", name=name)
             continue
         if name == "$events":
-            # Only the kernel's own value passes, compared as JSON so that `true` or
-            # `1.0` is not taken for a protocol of 1, and the kernel's copy is kept.
-            for key in entry.keys() - LAYER_OWNED_EVENTS:
-                if _canonical(entry[key]) != _canonical(earlier.get(key)):
-                    raise registry_error("fixed-events", key=key)
             entry = {key: entry[key] for key in entry.keys() & LAYER_OWNED_EVENTS}
         combined = {**earlier, **entry}
         for key, value in entry.items():
@@ -74,23 +73,50 @@ def _canonical(value) -> str:
     return json.dumps(value, sort_keys=True)
 
 
+def kernel_fact_advice(declarations: dict, path) -> list[Finding]:
+    """Each kernel fact, or `$events` member a layer may not restate, that one layer's
+    `declarations` give another value than the kernel's, naming the file `path`. The
+    merge keeps the kernel's whatever the layer says, so this advises the layer's
+    author rather than refusing the layer. Values compare as JSON, so that `true` or
+    `1.0` is not taken for a protocol of 1."""
+    kernel = kernel_registry()
+    found = [
+        registry_finding("fixed-kernel-fact", path, name=name)
+        for name in sorted(declarations.keys() & KERNEL_FACTS)
+        if name in kernel and _canonical(declarations[name]) != _canonical(kernel[name])
+    ]
+    events = declarations.get("$events") or {}
+    found += (
+        registry_finding("fixed-events", path, key=key)
+        for key in sorted(events.keys() - LAYER_OWNED_EVENTS)
+        if _canonical(events[key]) != _canonical(kernel["$events"].get(key))
+    )
+    return found
+
+
 def merged_registry(packages: list[Path]) -> tuple[dict, str]:
     """The kernel registry's facts with each package's registry declarations merged
-    over them, and the name a refusal gives the merge.
+    over them, the module each declared element has among the packages' `widgets/`
+    (`contract.MODULES`), each declaration's defaults written in
+    (`contract.complete_declarations`), and the name a refusal gives the merge.
 
     Packages are additive at the top level; `merge_layer_declarations` holds the
     grain."""
     merged = {}
     merge_layer_declarations(merged, read_registry_declarations(KERNEL_REGISTRY))
     paths = []
+    widgets = set()
     for package in packages:
+        widgets.update(
+            f"widgets/{module.name}" for module in (package / "widgets").glob("*.js")
+        )
         path = package / "registry.json"
         if not path.is_file():
             continue
         paths.append(path)
         merge_layer_declarations(merged, read_registry_declarations(path))
-    if not paths:
-        raise registry_error("no-incoming-registry")
+    merged[MODULES] = module_paths(merged, widgets, "widgets")
+    complete_declarations(merged)
     return merged, "merged registry (" + ", ".join(str(path) for path in paths) + ")"
 
 

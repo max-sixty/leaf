@@ -1,5 +1,4 @@
 import type { ServedState } from "../../browser/types/contract.js";
-import type { OutboundHandler } from "@cloudflare/containers";
 import { ReadableStream } from "node:stream/web";
 import { describe, expect, it, vi } from "vitest";
 import { unpackTar } from "modern-tar";
@@ -8,45 +7,38 @@ import { sqliteStorage } from "./sqlite";
 const forwardedContainerFetch = vi.hoisted(() =>
   vi.fn(async (_request: Request) => new Response("container")),
 );
+// The session object an edge request reaches by its name.
+const getByName = vi.hoisted(() => vi.fn());
 
-const containerHandlers = vi.hoisted(
-  () => new Map<string, Record<string, OutboundHandler<Env>>>(),
-);
-
-vi.mock("@cloudflare/containers", () => ({
-  Container: class {
+vi.mock("cloudflare:workers", () => ({
+  DurableObject: class {
     constructor(
       public ctx: unknown,
       public env: unknown,
     ) {}
-
-    fetch(request: Request) {
-      return forwardedContainerFetch(request);
-    }
-    static get outboundByHost(): Record<string, OutboundHandler<Env>> | undefined {
-      return containerHandlers.get(this.name);
-    }
-
-    static set outboundByHost(handlers: Record<string, OutboundHandler<Env>>) {
-      containerHandlers.set(this.name, handlers);
-    }
   },
-  ContainerProxy: class {},
-  getContainer: vi.fn(),
+  WorkerEntrypoint: class {
+    constructor(
+      public ctx: unknown,
+      public env: unknown,
+    ) {}
+  },
 }));
 
-import { getContainer } from "@cloudflare/containers";
-import worker, { LeafWebsiteSession, type Env } from "../src/index";
+import worker, { LeafSession, SessionOutbound, type Env } from "../src/index";
 import { activeCookie } from "../src/routing";
+import { STORE_FORMAT } from "../src/storage";
 
 function executionContext(waitUntil = vi.fn()): ExecutionContext {
   return { waitUntil } as unknown as ExecutionContext;
 }
 
 const RELEASE = "a".repeat(64);
+const PROTOCOL = 60;
 const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
+  protocol: PROTOCOL,
   frame_ancestors: "frame-ancestors 'self'",
   routes: {
     layer: ["runtime", "widgets", "vendor"],
@@ -112,27 +104,27 @@ const MANIFEST = {
       states: { "1": "/_leaf/state/extending.json" },
       title: "Extending Leaf",
     },
-    "/registry": {
-      assets: `/_leaf-release/${RELEASE}/registry`,
-      description: "The leaf registry keys page.",
-      directory: "_leaf/pages/registry",
+    "/using": {
+      assets: `/_leaf-release/${RELEASE}/using`,
+      description: "Working on a Leaf page.",
+      directory: "_leaf/pages/using",
       image: "/media/0000000000000006.png",
       kind: "product",
       layer: LAYER,
-      state: "/_leaf/state/registry.json",
-      states: { "1": "/_leaf/state/registry.json" },
-      title: "leaf registry keys",
+      state: "/_leaf/state/using.json",
+      states: { "1": "/_leaf/state/using.json" },
+      title: "Using a Leaf page",
     },
-    "/threads": {
-      assets: `/_leaf-release/${RELEASE}/threads`,
-      description: "Comments and replies in Leaf.",
-      directory: "_leaf/pages/threads",
+    "/pages": {
+      assets: `/_leaf-release/${RELEASE}/pages`,
+      description: "Writing a Leaf page.",
+      directory: "_leaf/pages/pages",
       image: "/media/0000000000000007.png",
       kind: "product",
       layer: LAYER,
-      state: "/_leaf/state/threads.json",
-      states: { "1": "/_leaf/state/threads.json" },
-      title: "Threads in Leaf",
+      state: "/_leaf/state/pages.json",
+      states: { "1": "/_leaf/state/pages.json" },
+      title: "Writing a Leaf page",
     },
   },
 };
@@ -151,15 +143,17 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
   presentedMs: 310,
   ...overrides,
 });
-const activeMarker = (root: string, release = RELEASE) =>
-  activeCookie(true, root, release).split(";", 1)[0];
-const containerId = (sessionId: string) => `${RELEASE}:${sessionId}`;
+const SCOPE = `${PROTOCOL}.${STORE_FORMAT}`;
+const activeMarker = (root: string, scope = SCOPE) =>
+  activeCookie(true, root, scope).split(";", 1)[0];
+const containerId = (sessionId: string) => `${SCOPE}:${sessionId}`;
 
 function environment(overrides: Partial<Env> = {}): Env {
   const allow = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
   const suppliedAssets = overrides.ASSETS;
   const rest = { ...overrides };
   delete rest.ASSETS;
+  delete rest.PAGES;
   const fetch = vi.fn(async (request: Request) => {
     const pathname = new URL(request.url).pathname;
     if (pathname === "/_leaf/site.json") return Response.json(MANIFEST);
@@ -181,7 +175,7 @@ function environment(overrides: Partial<Env> = {}): Env {
   });
   return {
     ASSETS: { fetch } as unknown as Fetcher,
-    PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
+    PAGES: { getByName, ...overrides.PAGES } as unknown as Env["PAGES"],
     WEBSITE_EVENTS: { writeDataPoint: vi.fn() },
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
@@ -219,7 +213,7 @@ describe("product-site delivery", () => {
     const allocationFetch = vi.fn(async () =>
       Response.json({ url: allocated, page: `/api/samples/${sampleId}` }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: allocationFetch } as never);
+    getByName.mockReturnValue({ fetch: allocationFetch } as never);
     const containerFetch = vi.fn(async (request: Request) => {
       if (
         request.method === "POST" &&
@@ -269,6 +263,8 @@ describe("product-site delivery", () => {
       env,
       ctx,
     );
+    // The edge passes on the release a container names, which this one leaves out.
+    expect(allocation.headers.get("Leaf-Release")).toBeNull();
     expect(await allocation.json()).toEqual({
       url: `${sample}/`,
       page: `/api/samples/${sampleId}~${objectId}`,
@@ -300,6 +296,8 @@ describe("product-site delivery", () => {
         expect(response.status).toBe(method === "OPTIONS" ? 204 : 200);
         expect(response.headers.get("Set-Cookie")).toBeNull();
         expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+        // The container names no release, and the edge adds none of its own.
+        expect(response.headers.get("Leaf-Release")).toBeNull();
         if (method === "POST" && path.endsWith("/api/samples"))
           expect(await response.json()).toEqual({
             url: `${sample}/api/samples/${"07".repeat(16)}/`,
@@ -357,8 +355,7 @@ describe("product-site delivery", () => {
   it.each([
     "/",
     "/how-it-works/",
-    "/registry/",
-    "/threads/",
+    "/using/",
     "/examples/",
     "/examples/triage-board/",
     "/extending/",
@@ -382,7 +379,7 @@ describe("product-site delivery", () => {
       );
 
       expect(assetFetch).toHaveBeenCalledOnce();
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
       expect(response.headers.get("Content-Security-Policy")).toBe(
         MANIFEST.frame_ancestors,
       );
@@ -416,7 +413,7 @@ describe("product-site delivery", () => {
       );
 
       expect(response.status).toBe(204);
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
       expect(logged).toHaveBeenCalledOnce();
       expect(logged.mock.calls[0][0]).toMatchObject({
         component: "leaf-startup",
@@ -446,7 +443,7 @@ describe("product-site delivery", () => {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-store",
+          "Cache-Control": "no-cache",
           "Set-Cookie": "private-parent-cookie=1",
         },
       });
@@ -545,7 +542,7 @@ describe("product-site delivery", () => {
       expect(emitted).not.toContain("04".repeat(16));
       expect(emitted).not.toContain("06".repeat(32));
       expect(emitted).not.toContain("07".repeat(16));
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
@@ -814,7 +811,7 @@ describe("product-site delivery", () => {
       expect(emitted).not.toContain("secret");
       expect(emitted).not.toContain("04".repeat(16));
       expect(emitted).not.toContain("06".repeat(32));
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
@@ -990,7 +987,7 @@ describe("product-site delivery", () => {
         ],
       });
       expect(JSON.stringify(logged.mock.calls[0][0])).not.toContain("secret");
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
 
       const invalid = await worker.fetch(
         new Request(url, {
@@ -1032,8 +1029,62 @@ describe("product-site delivery", () => {
       expect(oversized.status).toBe(413);
       expect(tooMany.status).toBe(400);
       expect(logged).toHaveBeenCalledOnce();
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("has the session's container compose the page when the visitor focuses a text box", async () => {
+    const sessionId = "17".repeat(16);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const env = environment();
+    const fetched = vi.fn(
+      async (_request: Request) => new Response(null, { status: 204 }),
+    );
+    getByName.mockClear().mockReturnValue({ fetch: fetched } as never);
+    const pending: Promise<unknown>[] = [];
+    const focused = (control: string, textBox?: true) =>
+      worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/interaction", {
+          method: "POST",
+          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+          body: JSON.stringify({
+            session: "a".repeat(32),
+            entries: [
+              {
+                monotonic_ms: 1,
+                visibility: "visible",
+                observed_at: "2026-11-10T12:00:00.000Z",
+                sequence: 1,
+                type: "focusin",
+                target: [control],
+                control,
+                textBox,
+              },
+            ],
+          }),
+        }),
+        env,
+        executionContext(vi.fn((promise: Promise<unknown>) => pending.push(promise))),
+      );
+    try {
+      expect((await focused("button")).status).toBe(204);
+      expect(pending).toHaveLength(0);
+      expect((await focused("leaf-text", true)).status).toBe(204);
+      await Promise.all(pending);
+      expect(getByName).toHaveBeenCalledExactlyOnceWith(containerId(sessionId));
+      expect(fetched).toHaveBeenCalledOnce();
+      const [request] = fetched.mock.calls[0]!;
+      expect(request.method).toBe("POST");
+      expect(request.url).toBe(
+        "http://container/examples/triage-board/_leaf/agent/prewarm",
+      );
+      expect(logged).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "container_prewarm_completed" }),
+      );
+    } finally {
+      getByName.mockClear();
       logged.mockRestore();
     }
   });
@@ -1122,7 +1173,7 @@ describe("product-site delivery", () => {
       expect(privateField.status).toBe(400);
       expect(oversized.status).toBe(413);
       expect(logged).not.toHaveBeenCalled();
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
@@ -1146,21 +1197,21 @@ describe("product-site delivery", () => {
         }
       }
       expect(logged).not.toHaveBeenCalled();
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }
   });
 
-  it("selects private state by the deployed release", async () => {
+  it("selects private state by the page protocol, across releases", async () => {
     const sessionId = "0b".repeat(16);
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { reading: "private" },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment();
 
     const response = await worker.fetch(
@@ -1175,80 +1226,57 @@ describe("product-site delivery", () => {
       executionContext(),
     );
 
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(await response.json()).toMatchObject({ reading: "private" });
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
-  // A container still on the previous image answers for a release the edge no longer
-  // serves. The browser's only move against a foreign release is to reload, and the
-  // document it reloads onto is the one the edge already gave it, so the answer has to
-  // stop here: while the rollout runs, the user reads the published projection.
-  it("reads the published projection while the container image rolls out", async () => {
-    const sessionId = "0c".repeat(16);
-    const containerFetch = vi.fn(async (_request: Request) =>
-      Response.json(
-        { reading: "old-release" },
-        { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
-      ),
-    );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const env = environment();
+  // A container names the release its image runs, which a deploy can leave behind the
+  // edge's while the container keeps serving its tab (`LeafSession`), so the edge
+  // passes the container's own release on rather than its own.
+  it.each([
+    ["a state read", "GET", "api/state"],
+    ["a gesture", "POST", "api/event"],
+  ])(
+    "keeps the release of the container that answers %s",
+    async (_, method, inside) => {
+      const sessionId = "0d".repeat(16);
+      const containerReleases: Record<string, string>[] = [
+        {},
+        { "Leaf-Release": "b".repeat(64) },
+      ];
+      for (const named of containerReleases) {
+        const containerFetch = vi.fn(async (_request: Request) =>
+          Response.json(
+            { reading: "private" },
+            { headers: { "Leaf-Layer": LAYER, ...named } },
+          ),
+        );
+        getByName.mockReturnValue({ fetch: containerFetch } as never);
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/state", {
-        headers: {
-          Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
-          "Leaf-Layer": LAYER,
-          "Leaf-Release": RELEASE,
-        },
-      }),
-      env,
-      executionContext(),
-    );
+        const response = await worker.fetch(
+          new Request(`https://leaf.page/examples/triage-board/${inside}`, {
+            method,
+            headers: {
+              Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+              "Content-Type": "application/json",
+              "Leaf-Layer": LAYER,
+              "Leaf-Release": RELEASE,
+            },
+            ...(method === "POST" && { body: JSON.stringify({ kind: "comment" }) }),
+          }),
+          environment(),
+          executionContext(),
+        );
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    expect(response.headers.get("Leaf-Layer")).toBe(LAYER);
-    expect(response.headers.get("Leaf-Session")).toBe("passive");
-    expect(await response.json()).toMatchObject({ reading: "published" });
-    expect(response.headers.get("Set-Cookie")).toBe(
-      "__Host-leaf-active-page-examples%2Ftriage-board=; Path=/; Secure; " +
-        "HttpOnly; SameSite=Lax; Max-Age=0",
-    );
-  });
-
-  it("holds a gesture back from a container the rollout has not reached", async () => {
-    const sessionId = "0d".repeat(16);
-    const containerFetch = vi.fn(async (_request: Request) =>
-      Response.json(
-        { id: "e1" },
-        { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
-      ),
-    );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const env = environment();
-
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/event", {
-        method: "POST",
-        headers: {
-          Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
-          "Content-Type": "application/json",
-          "Leaf-Layer": LAYER,
-          "Leaf-Release": RELEASE,
-        },
-        body: JSON.stringify({ kind: "comment", text: "hello" }),
-      }),
-      env,
-      executionContext(),
-    );
-
-    expect(response.status).toBe(503);
-    expect(response.headers.get("Retry-After")).toBe("5");
-    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
-  });
+        expect(containerFetch).toHaveBeenCalledOnce();
+        expect(response.status).toBe(200);
+        expect(response.headers.get("Leaf-Release")).toBe(
+          named["Leaf-Release"] ?? null,
+        );
+      }
+    },
+  );
 
   it("serves a page's immutable runtime without allocating its session", async () => {
     const asset = new Response("export {};", {
@@ -1268,7 +1296,7 @@ describe("product-site delivery", () => {
     expect(await response.text()).toBe("export {};");
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
@@ -1289,7 +1317,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Set-Cookie")).toMatch(
       /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,
     );
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("maps a release-addressed module graph to immutable edge assets", async () => {
@@ -1338,7 +1366,7 @@ describe("product-site delivery", () => {
     );
     expect(preflight.headers.get("Access-Control-Allow-Headers")).toBe("*");
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("serves a browser navigation without starting a container", async () => {
@@ -1358,7 +1386,7 @@ describe("product-site delivery", () => {
       executionContext(waitUntil),
     );
     expect(response.headers.get("Set-Cookie")).toContain("__Host-leaf-page=");
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
   });
 
@@ -1380,7 +1408,7 @@ describe("product-site delivery", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
   });
 
@@ -1395,7 +1423,7 @@ describe("product-site delivery", () => {
             headers: { "Content-Type": "image/png" },
           }),
       );
-      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      getByName.mockReturnValue({ fetch: containerFetch } as never);
       const env = environment({
         ASSETS: { fetch: assetFetch } as unknown as Fetcher,
       });
@@ -1411,7 +1439,7 @@ describe("product-site delivery", () => {
       );
 
       expect(assetFetch).toHaveBeenCalledOnce();
-      expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+      expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
       expect(containerFetch).toHaveBeenCalledOnce();
       expect(response.headers.get("Content-Type")).toBe("image/png");
       expect(new Uint8Array(await response.arrayBuffer())).toEqual(
@@ -1437,13 +1465,17 @@ describe("product-site delivery", () => {
       new Uint8Array([4, 5, 6]),
     );
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it.each([
-    "/examples/triage-board/revisions/r3-aabbccdd.html",
-    "/examples/triage-board/versions/v3.html",
-  ])("falls back to the active user's container for %s", async (pathname) => {
+    // A revision is named by its content, so a published copy is the same file; only a
+    // revision the release didn't publish reaches the container.
+    ["/examples/triage-board/revisions/r3-aabbccdd.html", 1],
+    // A version is named by its number, and a record an earlier release saved holds
+    // its own: the release's published version of that number may be another page.
+    ["/examples/triage-board/versions/v3.html", 0],
+  ])("serves an active page's %s from its own record", async (pathname, published) => {
     const sessionId = "18".repeat(16);
     const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
     const containerFetch = vi.fn(
@@ -1452,7 +1484,7 @@ describe("product-site delivery", () => {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment({
       ASSETS: { fetch: assetFetch } as unknown as Fetcher,
     });
@@ -1467,11 +1499,10 @@ describe("product-site delivery", () => {
       executionContext(),
     );
 
-    expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(assetFetch).toHaveBeenCalledTimes(published);
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(await response.text()).toContain("Private revision");
-    expect(response.headers.get("Leaf-Session")).toBe("active");
   });
 
   it("loads an active page's private document on every navigation", async () => {
@@ -1488,7 +1519,7 @@ describe("product-site delivery", () => {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment({
       ASSETS: { fetch: assetFetch } as unknown as Fetcher,
     });
@@ -1527,10 +1558,9 @@ describe("product-site delivery", () => {
     expect(await marked.text()).toContain("Published revision");
     expect(await recovered.text()).toContain("Published revision");
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).toHaveBeenCalledTimes(3);
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledTimes(3);
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledTimes(3);
-    expect(marked.headers.get("Leaf-Session")).toBe("active");
   });
 
   it.each([
@@ -1551,7 +1581,7 @@ describe("product-site delivery", () => {
 
     expect(response.status).toBe(404);
     expect(assetFetch).toHaveBeenCalledOnce();
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
@@ -1568,9 +1598,14 @@ describe("product-site delivery", () => {
         executionContext(),
       );
 
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
       expect(response.headers.get("Set-Cookie")).toBeNull();
       expect(response.headers.get("Leaf-Session")).toBe("passive");
+      // A stored answer serves only a request naming the same data version.
+      expect(response.headers.get("Cache-Control")).toBe("no-cache");
+      expect(response.headers.get("Vary")).toBe(
+        "Leaf-Data-Version, Leaf-View-Revision",
+      );
       expect(response.headers.get("Leaf-Session-Reference")).toMatch(/^\d{12}$/);
       expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
       const state = await response.json<Pick<ServedState, "taken" | "now" | "data">>();
@@ -1608,12 +1643,12 @@ describe("product-site delivery", () => {
     // The edge names the deployed release whatever a container is running, so a
     // user asking after a release learns nothing about one from this answer.
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
-  it("keeps an earlier release's active page passive after deployment", async () => {
+  it("keeps a page made active at an earlier page protocol or store format passive", async () => {
     const sessionId = "1c".repeat(16);
-    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`;
+    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`;
     const env = environment({
       ASSETS: {
         fetch: async () =>
@@ -1643,7 +1678,7 @@ describe("product-site delivery", () => {
       reading: "published",
       release: RELEASE,
     });
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("keeps optional geometry reports passive until their page is active", async () => {
@@ -1652,7 +1687,7 @@ describe("product-site delivery", () => {
     const containerFetch = vi.fn(
       async (_request: Request) => new Response(null, { status: 204 }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const report = (cookie?: string) =>
       worker.fetch(
         new Request("https://leaf.page/examples/triage-board/api/user-view", {
@@ -1669,7 +1704,7 @@ describe("product-site delivery", () => {
     for (const cookie of [
       undefined,
       `__Host-leaf-page=${sessionId}`,
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`,
       `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
     ]) {
       const response = await report(cookie);
@@ -1677,16 +1712,15 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).not.toBe("active");
       expect(response.headers.get("Set-Cookie")).toBeNull();
     }
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
     expect(containerFetch).not.toHaveBeenCalled();
 
     const active = await report(
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
     );
     expect(active.status).toBe(204);
-    expect(active.headers.get("Leaf-Session")).toBe("active");
     expect(active.headers.get("Set-Cookie")).toBeNull();
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
   });
 
@@ -1702,7 +1736,7 @@ describe("product-site delivery", () => {
         state: { events: [], activity: { obligations: [] } },
       }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const read = (cookie?: string) =>
       worker.fetch(
         new Request("https://leaf.page/examples/triage-board/api/event", {
@@ -1723,7 +1757,7 @@ describe("product-site delivery", () => {
     for (const cookie of [
       undefined,
       `__Host-leaf-page=${sessionId}`,
-      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", `${PROTOCOL - 1}.${STORE_FORMAT}`)}`,
       `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
     ]) {
       const response = await read(cookie);
@@ -1739,14 +1773,13 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("passive");
       expect(response.headers.get("Set-Cookie")).toBeNull();
     }
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
 
     const active = await read(
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
     );
     expect(active.status).toBe(200);
-    expect(active.headers.get("Leaf-Session")).toBe("active");
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenCalledWith(containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();
   });
 
@@ -1755,10 +1788,10 @@ describe("product-site delivery", () => {
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { browser: { basis: { through_seq: 0 } } },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
 
     const response = await worker.fetch(
       new Request(
@@ -1773,18 +1806,43 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
-      `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+      `__Host-leaf-active-page-examples%2Ftriage-board=${SCOPE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
+  });
+
+  it("leaves the reader passive when their container never answered", async () => {
+    const sessionId = "1c".repeat(16);
+    // The Containers SDK's own failure, as for a container that exited while starting:
+    // no answer from Python, so nothing in the container holds the page.
+    const containerFetch = vi.fn(
+      async (_request: Request) =>
+        new Response("Failed to start container", { status: 500 }),
+    );
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
+
+    const response = await worker.fetch(
+      new Request(
+        "https://leaf.page/examples/triage-board/api/view?revision=2&through_seq=0",
+        { headers: { Cookie: `__Host-leaf-page=${sessionId}` } },
+      ),
+      environment(),
+      executionContext(),
+    );
+
+    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(response.status).toBe(500);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(response.headers.get("Leaf-Session")).toBeNull();
   });
 
   it("routes concurrent first uploads through the identity minted by the document", async () => {
     const containerFetch = vi.fn(async (_request: Request) =>
       Response.json(
         { path: "/media/0123456789abcdef.png" },
-        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Session": "active" } },
       ),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment({
       ASSETS: {
         fetch: async () =>
@@ -1815,14 +1873,14 @@ describe("product-site delivery", () => {
 
     const responses = await Promise.all([upload(), upload()]);
 
-    expect(getContainer).toHaveBeenNthCalledWith(1, env.PAGES, containerId(sessionId));
-    expect(getContainer).toHaveBeenNthCalledWith(2, env.PAGES, containerId(sessionId));
+    expect(getByName).toHaveBeenNthCalledWith(1, containerId(sessionId));
+    expect(getByName).toHaveBeenNthCalledWith(2, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledTimes(2);
     for (const response of responses) {
       expect(response.headers.get("Leaf-Session")).toBe("active");
       expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
-        `__Host-leaf-active-page-examples%2Ftriage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        `__Host-leaf-active-page-examples%2Ftriage-board=${SCOPE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
       );
     }
   });
@@ -1847,7 +1905,7 @@ describe("product-site delivery", () => {
       expect(vi.mocked(env.ASSETS.fetch).mock.calls[1][0]).toMatchObject({
         url: "https://leaf.page/_leaf/state/examples--triage-board--r1.json",
       });
-      expect(getContainer).not.toHaveBeenCalled();
+      expect(getByName).not.toHaveBeenCalled();
     },
   );
 
@@ -1862,7 +1920,7 @@ describe("product-site delivery", () => {
 
     expect(response.status).toBe(400);
     expect(await response.text()).toBe("unknown page revision");
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it("passes a static non-HTML asset through unchanged", async () => {
@@ -1922,7 +1980,7 @@ describe("website event analytics", () => {
       .mockResolvedValueOnce(
         Response.json({ ok: false, error: "refused", final: true }, { status: 400 }),
       );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const env = environment({ WEBSITE_EVENTS: { writeDataPoint } });
     const request = (body: object) =>
       worker.fetch(
@@ -1985,7 +2043,7 @@ describe("page faults", () => {
   it("logs a passive reader's page fault at the edge without activating a container", async () => {
     const sessionId = "13".repeat(16);
     const containerFetch = vi.fn();
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
       const response = await send(`__Host-leaf-page=${sessionId}`, {
@@ -2027,7 +2085,7 @@ describe("page faults", () => {
         state: { events: [], activity: { obligations: [] } },
       }),
     );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
 
     await send(
       `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
@@ -2050,19 +2108,211 @@ describe("page faults", () => {
   });
 });
 
+const IMAGE = "registry.cloudflare.com/account/leaf-website@sha256:" + "c".repeat(64);
+const SESSION_OBJECT = "0a".repeat(32);
+
+// The parts of a session object's state the tests below drive: its storage, its
+// container, its name for itself and its outbound entrypoint, and the gate that holds
+// other requests while one claims it. The container answers its health route at
+// once, and sends every other request to `forwardedContainerFetch`.
+function sessionContext(storage: DurableObjectStorage) {
+  const container = {
+    running: false,
+    images: { leaf: IMAGE },
+    start: vi.fn((_options: ContainerStartupOptions) => {
+      container.running = true;
+    }),
+    monitor: vi.fn(async () => {}),
+    destroy: vi.fn(async () => {
+      container.running = false;
+    }),
+    setInactivityTimeout: vi.fn(async (_ms: number) => {}),
+    interceptOutboundHttps: vi.fn(async (_host: string, _outbound: unknown) => {}),
+    interceptAllOutboundHttp: vi.fn(async (_outbound: unknown) => {}),
+    getTcpPort: vi.fn((_port: number) => ({
+      fetch: async (url: string, init?: Request) =>
+        url === "http://container/health"
+          ? new Response("ok")
+          : forwardedContainerFetch(init!),
+    })),
+  };
+  return {
+    storage,
+    container,
+    id: { toString: () => SESSION_OBJECT },
+    exports: {
+      SessionOutbound: vi.fn((options: { props: { session: string } }) => options),
+    },
+    blockConcurrencyWhile: <T>(operation: () => Promise<T>) => operation(),
+  };
+}
+
+// A session object whose container its first request started.
+async function startedSession(storage: DurableObjectStorage, env = environment()) {
+  const ctx = sessionContext(storage);
+  const session = new LeafSession(ctx as never, env);
+  await session.fetch(new Request("https://leaf.page/"));
+  expect(ctx.container.running).toBe(true);
+  forwardedContainerFetch.mockClear();
+  return { ctx, session };
+}
+
+// A request a container on this release sends its session's page store.
+function storeRequest(path: string, init: RequestInit = {}) {
+  return new Request(`https://leaf-state.internal${path}`, {
+    ...init,
+    headers: { ...(init.headers as Record<string, string>), "Leaf-Release": RELEASE },
+  });
+}
+
+// The container's outbound requests as the session object `containerId` names routes
+// them.
+function outbound(
+  request: Request,
+  env: Env,
+  { containerId }: { containerId: string },
+) {
+  return new SessionOutbound({ props: { session: containerId } } as never, env).fetch(
+    request,
+  );
+}
+
 describe("website page agent", () => {
-  it("identifies silent container disconnect responses without logging private data", async () => {
+  it("starts the container on this release's image, sealed but for its own routes", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const { ctx } = await startedSession(storage);
+      expect(ctx.container.start).toHaveBeenCalledExactlyOnceWith({
+        image: IMAGE,
+        instance: { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
+        enableInternet: false,
+        env: {
+          LEAF_AGENT: "Agent",
+          OPENAI_API_KEY: "leaf-outbound-proxy",
+          CODEX_CA_CERTIFICATE: "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
+          LEAF_PAGE_STORE_URL: "https://leaf-state.internal",
+        },
+      });
+      expect(ctx.container.setInactivityTimeout).toHaveBeenCalledWith(600_000);
+      const routes = { props: { session: SESSION_OBJECT } };
+      expect(ctx.container.interceptOutboundHttps).toHaveBeenCalledWith("*", routes);
+      expect(ctx.container.interceptAllOutboundHttp).toHaveBeenCalledWith(routes);
+      for (const host of ["example.com", "169.254.169.254"]) {
+        const refused = await outbound(new Request(`https://${host}/`), environment(), {
+          containerId: SESSION_OBJECT,
+        });
+        expect(refused.status).toBe(520);
+      }
+    } finally {
+      close();
+    }
+  });
+
+  it("starts one container for the requests that arrive while it starts", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const ctx = sessionContext(storage);
+      let listening!: () => void;
+      const ready = new Promise<void>((resolve) => (listening = resolve));
+      let checks = 0;
+      ctx.container.getTcpPort.mockImplementation(() => ({
+        fetch: async (url: string, init?: Request) => {
+          if (url !== "http://container/health") return forwardedContainerFetch(init!);
+          checks += 1;
+          if (checks === 1) throw new Error("the container is not listening");
+          await ready;
+          return new Response("ok");
+        },
+      }));
+      const session = new LeafSession(ctx as never, environment());
+      const reads = [1, 2, 3].map(() =>
+        session.fetch(new Request("https://leaf.page/examples/triage-board/api/news")),
+      );
+      await vi.waitFor(() => expect(checks).toBe(2));
+      listening();
+      for (const read of await Promise.all(reads))
+        expect(await read.text()).toBe("container");
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+    } finally {
+      close();
+    }
+  });
+
+  it("starts again where the platform could not place the container, and answers a crash with its reason", async () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const session = new LeafWebsiteSession(
-        { storage, container: { running: true } } as never,
-        environment(),
+      const ctx = sessionContext(storage);
+      // The first start finds no instance to run on, as just after another stopped.
+      let starts = 0;
+      ctx.container.getTcpPort.mockImplementation(() => ({
+        fetch: async (url: string, init?: Request) => {
+          if (url !== "http://container/health") return forwardedContainerFetch(init!);
+          if (starts === 1) {
+            ctx.container.running = false;
+            throw new Error("the container is not listening");
+          }
+          return new Response("ok");
+        },
+      }));
+      ctx.container.start.mockImplementation(() => {
+        starts += 1;
+        ctx.container.running = true;
+      });
+      ctx.container.monitor.mockRejectedValue(
+        new Error("there is no container instance that can be provided"),
       );
+      const session = new LeafSession(ctx as never, environment());
+      const news = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/news"),
+      );
+      expect(await news.text()).toBe("container");
+      expect(ctx.container.start).toHaveBeenCalledTimes(2);
+      expect(log).not.toHaveBeenCalled();
+
+      // A server that exits is a fault the tab shows, not a wait.
+      const crashed = Object.assign(new Error("Container exited with code 1"), {
+        exitCode: 1,
+      });
+      const failing = sessionContext(storage);
+      failing.container.getTcpPort.mockImplementation(() => ({
+        fetch: async () => {
+          failing.container.running = false;
+          throw new Error("the container is not listening");
+        },
+      }));
+      failing.container.monitor.mockRejectedValue(crashed);
+      const response = await new LeafSession(failing as never, environment()).fetch(
+        new Request("https://leaf.page/examples/triage-board/api/news"),
+      );
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe(
+        "Failed to start container: Container exited with code 1",
+      );
+      expect(failing.container.start).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenCalledExactlyOnceWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "GET",
+        status: 500,
+        source: "start",
+        detail: "Container exited with code 1",
+        retried: false,
+      });
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
+  it("identifies container failure responses without logging private data", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { session } = await startedSession(storage);
       for (const [body, headers, expected] of [
-        ["Container suddenly disconnected, try again", {}, "disconnected"],
         ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
-        ["private-adapter-error", { "Leaf-Release": RELEASE }, "adapter"],
+        ["private-adapter-error", { "Leaf-Session": "active" }, "adapter"],
       ] as const) {
         forwardedContainerFetch.mockResolvedValueOnce(
           new Response(body, { status: 500, headers }),
@@ -2080,6 +2330,7 @@ describe("website page agent", () => {
           method: "GET",
           status: 500,
           source: expected,
+          retried: false,
         });
       }
       expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
@@ -2095,11 +2346,160 @@ describe("website page agent", () => {
     }
   });
 
+  it("resends a read or a view report once when the container connection drops, but no other write", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { session } = await startedSession(storage);
+      const url = "https://leaf.page/examples/triage-board/api/news?private=secret";
+      const lost = "Network connection lost.";
+      forwardedContainerFetch
+        .mockRejectedValueOnce(new Error(lost))
+        .mockResolvedValueOnce(new Response("news"));
+      const response = await session.fetch(new Request(url));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("news");
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+      expect(log).toHaveBeenCalledExactlyOnceWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "GET",
+        status: 500,
+        source: "disconnected",
+        detail: lost,
+        retried: true,
+      });
+
+      // A second loss reaches the caller rather than retrying again.
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch
+        .mockRejectedValueOnce(new Error(lost))
+        .mockRejectedValueOnce(new Error(lost));
+      expect((await session.fetch(new Request(url))).status).toBe(500);
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch.mockRejectedValueOnce(new Error(lost));
+      const write = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/media", {
+          method: "POST",
+          body: "bytes",
+        }),
+      );
+      expect(write.status).toBe(500);
+      expect(forwardedContainerFetch).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenLastCalledWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "POST",
+        status: 500,
+        source: "disconnected",
+        detail: lost,
+        retried: false,
+      });
+
+      // A view report replaces only an older report of its session, so a resent
+      // copy changes nothing the first one stored.
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch
+        .mockRejectedValueOnce(new Error(lost))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const view = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/user-view", {
+          method: "POST",
+          body: '{"session":"s","sequence":3}',
+        }),
+      );
+      expect(view.status).toBe(204);
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+      const resent = forwardedContainerFetch.mock.calls[1][0] as Request;
+      expect(await resent.text()).toBe('{"session":"s","sequence":3}');
+      expect(log).toHaveBeenLastCalledWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "POST",
+        status: 500,
+        source: "disconnected",
+        detail: lost,
+        retried: true,
+      });
+      expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
+  it("waits out a lost connection once for every read that met it", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { ctx, session } = await startedSession(storage);
+      let checks = 0;
+      let lost = 3;
+      ctx.container.getTcpPort.mockImplementation(() => ({
+        fetch: async (url: string, init?: Request) => {
+          if (url === "http://container/health") {
+            checks += 1;
+            return new Response("ok");
+          }
+          if (lost-- > 0) throw new Error("Network connection lost.");
+          return forwardedContainerFetch(init!);
+        },
+      }));
+      const reads = await Promise.all(
+        [1, 2, 3].map(() =>
+          session.fetch(
+            new Request("https://leaf.page/examples/triage-board/api/news"),
+          ),
+        ),
+      );
+      for (const read of reads) expect(await read.text()).toBe("container");
+      expect(checks).toBe(1);
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
+  it("stops a container from before a deploy at the deploy's first request", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const earlier = {
+        ...environment(),
+        ASSETS: {
+          fetch: async () => Response.json({ ...MANIFEST, release: "b".repeat(64) }),
+        } as unknown as Fetcher,
+      };
+      const { ctx } = await startedSession(storage, earlier);
+      ctx.container.start.mockClear();
+      const destroy = vi.fn(async () => {
+        ctx.container.running = false;
+      });
+      Object.assign(ctx.container, { destroy });
+      // The deploy restarts the object on the new release's code; its container still
+      // runs the earlier image.
+      const session = new LeafSession(ctx as never, environment());
+      const state = () =>
+        session.fetch(new Request("https://leaf.page/examples/triage-board/api/state"));
+      expect(await (await state()).text()).toBe("container");
+      expect(destroy).toHaveBeenCalledOnce();
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+      // The container this release started stays.
+      expect(await (await state()).text()).toBe("container");
+      expect(destroy).toHaveBeenCalledOnce();
+      expect(ctx.container.start).toHaveBeenCalledOnce();
+    } finally {
+      close();
+    }
+  });
+
   it("recalls saved content and private resources without starting the container", async () => {
     const { storage, close } = sqliteStorage();
     try {
-      const ctx = { storage, container: { running: false } };
-      const session = new LeafWebsiteSession(ctx as never, environment());
+      const ctx = sessionContext(storage);
+      const session = new LeafSession(ctx as never, environment());
       const responses: Record<
         string,
         { headers: Record<string, string>; chunks: string[] }
@@ -2118,11 +2518,6 @@ describe("website page agent", () => {
           }),
         ],
         ["api/news", "saved-reading"],
-        ["api/deferred?source=table&source_revision=one&key=row", "saved-detail"],
-        [
-          "api/deferred?source=table&source_revision=one&key=a~b%2Acaf%C3%A9+%2F%2B",
-          "special-detail",
-        ],
         ["revisions/r3-private.html", "<p>Private revision</p>"],
       ]) {
         const bytes = new TextEncoder().encode(body);
@@ -2132,20 +2527,26 @@ describe("website page agent", () => {
         blobs.set(digest, bytes);
         responses[path] = { headers: {}, chunks: [digest] };
       }
-      const publication = {
-        root: "/examples/triage-board",
-        release: RELEASE,
-        record: {},
-        responses,
-      };
-      const prepared = await session.preparePublication(publication);
+      const publication = { root: "/examples/triage-board", record: {}, responses };
+      const prepared = (await (
+        await session.pageStore(
+          storeRequest("/prepare", {
+            method: "PUT",
+            body: JSON.stringify(publication),
+          }),
+        )
+      ).json()) as { identity: string; missing: string[] };
       for (const digest of prepared.missing) {
-        await session.saveBlob(digest, blobs.get(digest)!.slice().buffer);
+        await session.pageStore(
+          storeRequest(`/blobs/${digest}`, { method: "PUT", body: blobs.get(digest)! }),
+        );
       }
-      await session.savePublication({
-        root: publication.root,
-        identity: prepared.identity,
-      });
+      await session.pageStore(
+        storeRequest("/publication", {
+          method: "PUT",
+          body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
+        }),
+      );
       forwardedContainerFetch.mockClear();
       const state = await session.fetch(
         new Request("https://leaf.page/examples/triage-board/api/state", {
@@ -2168,25 +2569,6 @@ describe("website page agent", () => {
         await (
           await session.fetch(
             new Request(
-              "https://leaf.page/examples/triage-board/api/deferred?key=row&source=table&source_revision=one",
-            ),
-          )
-        ).text(),
-      ).toBe("saved-detail");
-      const deferred = new URL("https://leaf.page/examples/triage-board/api/deferred");
-      deferred.search = new URLSearchParams({
-        key: "a~b*café /+",
-        source_revision: "one",
-        source: "table",
-        through_seq: "12",
-      }).toString();
-      const detail = await session.fetch(new Request(deferred));
-      expect(detail.headers.get("Leaf-State-Source")).toBe("durable");
-      expect(await detail.text()).toBe("special-detail");
-      expect(
-        await (
-          await session.fetch(
-            new Request(
               "https://leaf.page/examples/triage-board/revisions/r3-private.html",
             ),
           )
@@ -2203,7 +2585,10 @@ describe("website page agent", () => {
         ).status,
       ).toBe(204);
       expect(forwardedContainerFetch).not.toHaveBeenCalled();
+      expect(ctx.container.start).not.toHaveBeenCalled();
+      // A container this release started.
       ctx.container.running = true;
+      storage.kv.put("container-release", RELEASE);
       expect(
         await (
           await session.fetch(
@@ -2221,47 +2606,53 @@ describe("website page agent", () => {
     const { storage, close } = sqliteStorage();
     try {
       const env = environment();
-      const session = new LeafWebsiteSession({ storage } as never, env);
+      const session = new LeafSession(sessionContext(storage) as never, env);
       const get = vi.fn(() => session);
       const idFromString = vi.fn((id: string) => id);
       env.PAGES = { get, idFromString } as never;
-      const handler =
-        containerHandlers.get("LeafWebsiteSession")!["leaf-state.internal"];
       const bytes = new TextEncoder().encode("private saved bytes");
       const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString(
         "hex",
       );
-      const context = { containerId: "trusted-owner", className: "LeafWebsiteSession" };
+      // Each request names the release its container runs, as Python's does
+      // (`_request` in `worker/leaf_website/storage.py`).
+      const ask = (
+        path: string,
+        init: RequestInit = {},
+        release: string | null = RELEASE,
+      ) =>
+        outbound(
+          new Request(`https://leaf-state.internal${path}`, {
+            ...init,
+            headers: {
+              ...(init.headers as Record<string, string>),
+              ...(release === null ? {} : { "Leaf-Release": release }),
+            },
+          }),
+          env,
+          { containerId: "trusted-owner" },
+        );
       const absent = "f".repeat(64);
       const missing = () =>
-        handler(
-          new Request("https://leaf-state.internal/prepare", {
-            method: "PUT",
-            body: JSON.stringify({
-              root: "/examples/triage-board",
-              release: RELEASE,
-              record: {
-                "events.jsonl": { chunks: [digest, absent], modified: 1_700_000_000 },
-              },
-              responses: {},
-            }),
-          }) as never,
-          env as never,
-          context as never,
-        );
+        ask("/prepare", {
+          method: "PUT",
+          body: JSON.stringify({
+            root: "/examples/triage-board",
+            record: {
+              "events.jsonl": { chunks: [digest, absent], modified: 1_700_000_000 },
+            },
+            responses: {},
+          }),
+        });
       expect(await (await missing()).json()).toEqual({
         identity: expect.stringMatching(/^[0-9a-f]{64}$/),
         missing: [digest, absent],
       });
-      const put = await handler(
-        new Request(`https://leaf-state.internal/blobs/${digest}`, {
-          method: "PUT",
-          body: bytes,
-          headers: { Cookie: "__Host-leaf-page=another-user" },
-        }) as never,
-        env as never,
-        context as never,
-      );
+      const put = await ask(`/blobs/${digest}`, {
+        method: "PUT",
+        body: bytes,
+        headers: { Cookie: "__Host-leaf-page=another-user" },
+      });
       expect(put.status).toBe(204);
       expect(await (await missing()).json()).toEqual({
         identity: expect.stringMatching(/^[0-9a-f]{64}$/),
@@ -2269,48 +2660,105 @@ describe("website page agent", () => {
       });
       const publication = {
         root: "/examples/triage-board",
-        release: RELEASE,
         record: { "events.jsonl": { chunks: [digest], modified: 1_700_000_000 } },
         responses: {},
       };
-      const prepared = await session.preparePublication(publication);
-      const committed = await handler(
-        new Request("https://leaf-state.internal/publication", {
-          method: "PUT",
-          body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
-        }) as never,
-        env as never,
-        context as never,
-      );
+      const prepared = (await (
+        await ask("/prepare", { method: "PUT", body: JSON.stringify(publication) })
+      ).json()) as { identity: string };
+      const committed = await ask("/publication", {
+        method: "PUT",
+        body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
+      });
       expect(committed.status).toBe(204);
-      const answer = await handler(
-        new Request("https://leaf-state.internal/records") as never,
-        env as never,
-        context as never,
-      );
-      expect(answer.headers.get("Content-Type")).toBe("application/x-tar");
-      const entries = await unpackTar(answer.body!);
+      const drafts = { store: "store-1", version: 1, drafts: {} };
+      const saved = await ask("/drafts", {
+        method: "PUT",
+        body: JSON.stringify({ root: publication.root, replaces: null, drafts }),
+      });
+      expect(await saved.json()).toEqual({ drafts });
+      const snapshot = async () => {
+        const answer = await ask("/records");
+        expect(answer.headers.get("Content-Type")).toBe("application/x-tar");
+        return unpackTar(answer.body!);
+      };
+      const entries = await snapshot();
       expect(entries.map(({ header }) => header.name)).toEqual([
         "records.json",
         digest,
       ]);
       expect(JSON.parse(new TextDecoder().decode(entries[0].data!))).toEqual({
-        "/examples/triage-board": publication.record,
+        records: { "/examples/triage-board": publication.record },
+        drafts: { "/examples/triage-board": drafts },
       });
       expect(new TextDecoder().decode(entries[1].data!)).toBe("private saved bytes");
       expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(
         true,
       );
-      await expect(
-        handler(
-          new Request(`https://leaf-state.internal/blobs/${digest}`, {
+      // A refusal reaches the container as an answer carrying its reason, which
+      // a thrown handler would turn into a closed connection.
+      const oversized = await ask(`/blobs/${digest}`, {
+        method: "PUT",
+        body: new Uint8Array(1024 * 1024 + 1),
+      });
+      expect(oversized.status).toBe(500);
+      expect(await oversized.text()).toBe("page storage chunk exceeds 1 MiB");
+      // A container still on the previous image after a deploy reads nothing this
+      // release shaped and writes nothing, and its refusal says so apart from a fault.
+      for (const release of ["previous-release", null]) {
+        const restore = await ask("/records", {}, release);
+        expect(restore.status).toBe(409);
+        expect(await restore.text()).toBe(`the page store serves release ${RELEASE}`);
+        const write = await ask(
+          "/drafts",
+          {
             method: "PUT",
-            body: new Uint8Array(1024 * 1024 + 1),
-          }) as never,
-          env as never,
-          context as never,
-        ),
-      ).rejects.toThrow("exceeds 1 MiB");
+            body: JSON.stringify({
+              root: publication.root,
+              replaces: { store: drafts.store, version: drafts.version },
+              drafts: { ...drafts, version: 2 },
+            }),
+          },
+          release,
+        );
+        expect(write.status).toBe(409);
+      }
+      const held = await snapshot();
+      expect(JSON.parse(new TextDecoder().decode(held[0].data!)).drafts).toEqual({
+        "/examples/triage-board": drafts,
+      });
+    } finally {
+      close();
+    }
+  });
+
+  it("holds a container to its session object's release, not the handler's", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      // For some seconds after a deploy the object can still run the previous code, and
+      // so start the previous image, while the handler already runs the deployed code.
+      const previous = { ...MANIFEST, release: "previous-release" };
+      const objectEnv = {
+        ...environment(),
+        ASSETS: { fetch: async () => Response.json(previous) } as unknown as Fetcher,
+      };
+      const session = new LeafSession(sessionContext(storage) as never, objectEnv);
+      const env = environment();
+      env.PAGES = { get: () => session, idFromString: (id: string) => id } as never;
+      const restore = (release: string) =>
+        outbound(
+          new Request("https://leaf-state.internal/records", {
+            headers: { "Leaf-Release": release },
+          }),
+          env,
+          { containerId: "trusted-owner" },
+        );
+      expect((await restore("previous-release")).status).toBe(200);
+      const refused = await restore(RELEASE);
+      expect(refused.status).toBe(409);
+      expect(await refused.text()).toBe(
+        "the page store serves release previous-release",
+      );
     } finally {
       close();
     }
@@ -2318,35 +2766,16 @@ describe("website page agent", () => {
 
   it("keeps the OpenAI secret in the trusted outbound handler", async () => {
     const env = environment();
-    const { storage, close } = sqliteStorage();
-    const session = new LeafWebsiteSession({ storage } as never, env);
-    close();
-
-    expect(session.enableInternet).toBe(false);
-    expect(session.interceptHttps).toBe(true);
-    expect(session.allowedHosts).toEqual(["api.openai.com", "leaf-state.internal"]);
-    expect(session.envVars).toMatchObject({
-      LEAF_AGENT: "Agent",
-      OPENAI_API_KEY: "leaf-outbound-proxy",
-      CODEX_CA_CERTIFICATE: "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
-    });
-
     const upstream = vi.fn(async (_request: Request) => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    const handler = containerHandlers.get("LeafWebsiteSession")?.["api.openai.com"];
-    expect(handler).toBeDefined();
-    const context = {
-      containerId: "user-container",
-      className: "LeafWebsiteSession",
-    };
-    const response = await handler!(
+    const response = await outbound(
       new Request("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { Authorization: "Bearer leaf-outbound-proxy" },
         body: "{}",
       }),
       env,
-      context,
+      { containerId: "user-container" },
     );
 
     expect(await response.text()).toBe("ok");
@@ -2385,7 +2814,7 @@ describe("website page agent", () => {
     );
     vi.stubGlobal("fetch", upstream);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+    const handler = outbound;
 
     try {
       const response = await handler(
@@ -2402,7 +2831,7 @@ describe("website page agent", () => {
           body: "private prompt",
         }),
         env,
-        { containerId: "user-container", className: "LeafWebsiteSession" },
+        { containerId: "user-container" },
       );
 
       expect(await response.text()).toBe(responseBody);
@@ -2438,12 +2867,74 @@ describe("website page agent", () => {
     }
   });
 
+  it("logs a model body Codex cancels with its bytes and idle time", async () => {
+    const keepalive = new TextEncoder().encode('data: {"type":"keepalive"}\r\n\r\n');
+    let upstreamCancelled = false;
+    const upstream = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(keepalive);
+            },
+            cancel() {
+              upstreamCancelled = true;
+            },
+          }),
+          { headers: { "x-request-id": "upstream-request" } },
+        ),
+    );
+    vi.stubGlobal("fetch", upstream);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const handler = outbound;
+
+    try {
+      const response = await handler(
+        new Request("https://api.openai.com/v1/responses", {
+          method: "POST",
+          body: "{}",
+        }),
+        environment(),
+        { containerId: "user-container" },
+      );
+      const reader = response.body!.getReader();
+      expect((await reader.read()).value).toEqual(keepalive);
+      // Codex waits on a silent stream with a read pending when it cancels.
+      const pending = reader.read();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await reader.cancel();
+      expect((await pending).done).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const records = logged.mock.calls.map(
+        ([record]) => record as Record<string, unknown>,
+      );
+      expect(records.map((record) => record.event)).toEqual([
+        "model_request_started",
+        "model_response_headers",
+        "model_response_first_byte",
+        "model_response_first_output",
+        "model_response_cancelled",
+      ]);
+      expect(records[4]).toMatchObject({
+        bytes: keepalive.byteLength,
+        idleMs: expect.any(Number),
+        status: 200,
+        upstreamRequestId: "upstream-request",
+      });
+      expect(upstreamCancelled).toBe(true);
+    } finally {
+      logged.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("rejects other uses of the credential-injecting route", async () => {
-    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+    const handler = outbound;
     const response = await handler(
       new Request("https://api.openai.com/v1/files", { method: "POST" }),
       environment(),
-      { containerId: "user-container", className: "LeafWebsiteSession" },
+      { containerId: "user-container" },
     );
 
     expect(response.status).toBe(403);
@@ -2456,7 +2947,7 @@ describe("website page agent", () => {
     const env = environment({ SOURCE_AGENT_RATE_LIMITER: denied });
     const upstream = vi.fn(async (_request: Request) => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+    const handler = outbound;
 
     const response = await handler(
       new Request("https://api.openai.com/v1/responses", {
@@ -2464,7 +2955,7 @@ describe("website page agent", () => {
         body: "{}",
       }),
       env,
-      { containerId: "user-container", className: "LeafWebsiteSession" },
+      { containerId: "user-container" },
     );
 
     expect(response.status).toBe(429);
@@ -2481,7 +2972,7 @@ describe("website page agent", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(getContainer).not.toHaveBeenCalled();
+    expect(getByName).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -2512,7 +3003,7 @@ describe("website page agent", () => {
         }
         return agentStart;
       });
-      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      getByName.mockReturnValue({ fetch: containerFetch } as never);
       const waitUntil = vi.fn();
       const env = environment();
 
@@ -2550,7 +3041,7 @@ describe("website page agent", () => {
   it("does not dispatch work after Leaf says the accepted event is settled", async () => {
     const sessionId = "06".repeat(16);
     const attempt = "settled-attempt-1";
-    vi.mocked(getContainer).mockReturnValue({
+    getByName.mockReturnValue({
       fetch: async () =>
         Response.json({
           ok: true,
@@ -2600,7 +3091,7 @@ describe("website page agent", () => {
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "15".repeat(16) }),
       );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const deny = vi.fn(async () => ({ success: false }));
     const waitUntil = vi.fn();
 
@@ -2650,7 +3141,7 @@ describe("website page agent", () => {
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "10".repeat(16) }),
       );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    getByName.mockReturnValue({ fetch: containerFetch } as never);
     const waitUntil = vi.fn();
 
     const response = await worker.fetch(

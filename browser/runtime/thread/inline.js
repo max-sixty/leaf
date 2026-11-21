@@ -1,7 +1,7 @@
 /* Synchronous thread seats outside the panel. Each seat owns its host's children: its
    retained open thread cards in order, its Resolved disclosure, then its response row.
-   Descriptors contain values; native first-message and response editors remain
-   explicit capabilities.
+   Descriptors contain values; the native editor of a seat's response row remains an
+   explicit capability.
 
    A seat in the page's flow gathers its resolved threads under one Resolved
    disclosure after its open ones, closed until the reader opens it, so however many
@@ -20,17 +20,13 @@
 import { setChildren } from "../dom-children.js";
 import { generatedElement } from "../widget-elements.js";
 import { html, render } from "/runtime/framework.js";
-import { seatRoot, threadKey } from "./model.js";
+import { threadKey } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { holdFocus, focused, focusDestination, currentLocationIn } from "../focus.js";
-import { registry } from "../registry.js";
-import { loadDraft } from "../drafts.js";
 import { HeldNews } from "./held-news.js";
 import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
 import { foldBlock } from "../motion.js";
-import { closestAcross } from "../passages.js";
-import { drawnThreadsWithId } from "./selectors.js";
 
 /** @typedef {import("./thread-card.js").ThreadCommands} ThreadCommands */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
@@ -139,8 +135,7 @@ class ThreadSeat {
           ]
         : [];
     this.#model = model;
-    // A reading with no surface, a first-message box drawn before its seat's threads,
-    // is no baseline for news.
+    // The reading that empties a seat names no surface, and is no baseline for news.
     if (model.surface)
       this.#held ??= new HeldNews(
         this.node,
@@ -149,7 +144,6 @@ class ThreadSeat {
           if (!view || this.#model.surface === "margin") return view ?? null;
           return {
             node: view.node,
-            progressOpen: view.progressOpen,
             /** @param {import("./held-news.js").ThreadChange} change */
             newsMoves: (change) =>
               (!currentLocationIn(view.node) || Boolean(change.news.settled)) &&
@@ -361,7 +355,7 @@ class ThreadSeat {
 
 /** @param {Element} host @param {ThreadCommands} commands
  * @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
-function seatFor(host, commands, response = () => null, outlets = {}) {
+function seatFor(host, commands, response, outlets = {}) {
   let seat = seats.get(host);
   if (!seat) {
     seat = new ThreadSeat(host, commands);
@@ -402,34 +396,6 @@ export function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);
 }
 
-/** @param {HTMLElement} host @param {HTMLElement} editor */
-export function mountFirstMessage(host, editor) {
-  setChildren(host, [editor]);
-}
-
-// The card a page-owned seat (`renderSeats`) draws for the thread `id`, open or in its
-// Resolved disclosure, or null.
-/** @param {string} id @returns {Element | null} */
-export const pageSeatThread = (id) =>
-  [...drawnThreadsWithId(document, id)].find((thread) =>
-    closestAcross(thread, ".lf-thread-seat[data-lf-thread-seat]"),
-  ) ?? null;
-
-/** @param {readonly ThreadRecord[]} threads @param {ThreadCommands} commands */
-export function renderSeats(threads, commands) {
-  /** @type {NodeListOf<HTMLElement & {lfThreadSeatOwner: Element}>} */
-  const hosts = document.querySelectorAll(".lf-thread-seat[data-lf-thread-seat]");
-  for (const host of hosts) {
-    const owner = host.lfThreadSeatOwner;
-    const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
-    const hold = registry[owner.localName]?.["x-thread-seat"]?.hold;
-    const response = !owned.length || hold || loadDraft("say:" + owner.id) !== null;
-    seatFor(host, commands, () => host.lfFirstMessage ?? null).present(
-      seatReading(owned, "page", commands, response),
-    );
-  }
-}
-
 /** @param {HTMLElement} host @param {ThreadRecord} thread @param {ThreadCommands} commands
  * @param {ViewOutlets} outlets */
 export function renderMarginThread(host, thread, commands, outlets) {
@@ -441,6 +407,8 @@ export function renderMarginThread(host, thread, commands, outlets) {
       transcript: view.transcript,
       settled: () => view.settled(),
       answering: () => view.answering,
+      /** @param {import("../scrolling.js").BoxExtent} before */
+      placesEnd: (before) => view.placesEnd(before),
     }));
 }
 

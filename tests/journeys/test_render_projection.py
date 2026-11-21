@@ -13,18 +13,23 @@ from interact_support import (
     append_command,
     running_http_server,
     trial_family,
+    working,
 )
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ACTIONS_IN_FORCE,
     COMMAND_HUB_EXAMPLE,
     IN_FORCE_PAGE,
+    LIVE_V1,
+    LIVE_V2,
+    LIVE_V3,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
     THREAD_OBLIGATIONS,
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
     drifting_widget,
+    executable_revision,
     live_url,
 )
 from render_cases_navigation import (
@@ -40,11 +45,15 @@ from render_harness import (
     consume_browser_errors,
     example_media,
     expect_obligations_answered,
+    expect_on_me,
     holding,
     leaf_page,
     names,
+    nudge,
+    open_latest,
     open_page,
-    page_registry,
+    page_comment,
+    page_declarations,
     panel_field,
     panel_view,
     resized,
@@ -54,6 +63,8 @@ from render_harness import (
     stamp_page,
     ticked,
     told,
+    wait_for_revision,
+    write,
 )
 
 from leaf import cli as cli_model
@@ -66,7 +77,9 @@ from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
+from leaf.registry.storage import layer_record
+from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import scheme as scheme_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf_dev.browser import PANEL_THREAD
@@ -302,20 +315,30 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
 ):
     """A read that never comes back is a sentence, not a hang.
 
-    Every document the gate reads used to be fetched inside the page, and
-    `page.evaluate` sends the driver no timeout at all — measured, an evaluate
-    awaiting a fetch that never answers is still running at 200s. So a server that
-    accepted a request and then went quiet left `page check --render` running with
-    nothing printed, which is the one failure a user cannot tell from slowness: the
-    gate stopping is loud, and the gate never stopping looks like a slow machine.
+    `page.evaluate` sends the driver no timeout at all: an evaluate awaiting a fetch
+    that never answers keeps running. So a document the gate fetched inside the page,
+    from a server that accepted the request and then went quiet, would leave
+    `page check --render` running with nothing printed, which is the one failure a user
+    cannot tell from slowness: the gate stopping is loud, and the gate never stopping
+    looks like a slow machine.
 
     Stall the gate's second read of this version, after its first read delivered the
     page. Stalling that first read would wedge navigation instead and report the
-    banner the gate never saw. The deadline is shortened here because the number is
-    not the subject, the bound is.
+    banner the gate never saw. Only the stalled read's deadline is shortened, since
+    its answer never comes: the number is not the subject, the bound is. Every other
+    read and probe keeps the suite's deadline, so a slow machine still renders.
     """
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(render_gate_model, "SERVED_TIMEOUT_MS", 1500)
+    bounded = scheme_model.served
+    shortened = []
+
+    def served(page, url, path, timeout_ms=None):
+        if path == "/versions/v2.html" and not shortened:
+            shortened.append(path)
+            timeout_ms = 1500
+        return bounded(page, url, path, timeout_ms)
+
+    monkeypatch.setattr(scheme_model, "served", served)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
     for _ in (1, 2):
@@ -349,13 +372,13 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             failures = render_gate_model.render_version(
                 browser,
                 f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
-            ).failures
+            ).findings
         finally:
             release.set()
 
     assert asked.is_set(), "nothing ever asked for the stalled file, so nothing stalled"
     assert failures and all(f.code == "server-stopped" for f in failures), (
-        f"a wedged server has to come back as a failure, and this came back as {failures}"
+        f"a wedged server has to come back as its finding, and this came back as {failures}"
     )
 
 
@@ -388,7 +411,7 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     # A version that honors either decision, or says nothing of one, is the weaker
     # case of the same rule.
     contradicted = REPLAYED_PAGE.replace(
-        'id="opt-stage"', 'id="opt-stage" chosen'
+        'id="opt-stage"', 'id="opt-stage" selected'
     ).replace(IMPORTER_CARD, "")
     contradicted = contradicted.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
@@ -401,8 +424,8 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
         assert render_gate_model.render_version(browser, at).failures == []
     stamp_page(d, contradicted, "t")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
+    expect(page.locator("#opt-stage")).not_to_have_attribute("selected", "")
 
 
 def test_the_render_gate_applies_every_action_in_force_a_second_time(
@@ -433,19 +456,21 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-tally"]["properties"]["count"] = {
+    declarations["lf-tally"]["attributes"]["properties"]["count"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    declarations["lf-tally"].setdefault("required", []).append("count")
-    declarations["lf-tally"]["x-content"] = "data"
-    declarations["lf-tally"]["x-example"] = (
+    declarations["lf-tally"]["attributes"].setdefault("required", []).append("count")
+    declarations["lf-tally"]["content"] = "data"
+    declarations["lf-tally"]["example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
-    declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
-    declarations["lf-tally"]["x-state"] = {
+    declarations["lf-tally"]["attributes"]["properties"]["restated"] = {
+        "type": "boolean"
+    }
+    declarations["lf-tally"]["verbs"] = {
         "step": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "count"},
@@ -522,7 +547,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         (tag, verb)
         for tag, entry in registry.items()
         if tag.startswith("lf-")
-        for verb in entry.get("x-state", {})
+        for verb in entry.get("verbs", {})
     }
     assert {(tag, verb) for _id, tag, _key, verb in in_force} == declared, (
         "the gate applies the state in force, so a declared verb missing from it is a "
@@ -534,12 +559,10 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     failures = render_gate_model.render_version(browser, url).failures
     assert [
-        (f.scheme, f.at, f.values["changed"])
-        for f in failures
-        if f.code == "relative-render"
+        (f.at, f.values["changed"]) for f in failures if f.code == "relative-render"
     ] == [
-        ("light", "<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
-        ("light", "<lf-tally id=tally-seen>", ["body text"]),
+        ("<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
+        ("<lf-tally id=tally-seen>", ["body text"]),
     ], failures
     # The relative widget's appended caption is its own fault in other readings too;
     # the current vocabulary beside it leaves the gate nothing to say.
@@ -561,7 +584,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     rather than teleports.
 
     Both windows are load-shaped — a busy server, a few hundred milliseconds — which
-    is how this page passed at a desk and reported words drawn over words under a
+    is how this page can pass at a desk and report words drawn over words under a
     full suite. Holding the action back until the page's first read has answered, and
     the gate's own read until the action is in, makes the window the same every run:
     the page reads as broken for about three seconds, and the gate must have nothing
@@ -743,12 +766,12 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
-    page's reading has dropped. The mark and the hide used to be each holder
-    module's own duty, stated in the module contract and the key table and enforced
-    nowhere, and the first family that forgot would have split the page's reading
-    from the file's in silence. Later the layer painted them only through a
-    controller the module subscribed to, which left the same duty under another
-    name. The second half drives it all back out: the fold
+    page's reading has dropped. The mark and the hide are not each holder module's
+    own duty, which the module contract and the key table would state and nothing
+    enforce, so the first family that forgot would split the page's reading from the
+    file's in silence; nor does the layer paint them only through a controller the
+    module subscribes to, which leaves the same duty under another name. The second
+    half drives it all back out: the fold
     keeps the last surviving action per verb and unit, so a decision on an outcome
     that settles nothing displaces the one before it, and the mark, the marker and
     the hide follow it."""
@@ -950,9 +973,10 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
 def test_a_thread_obligation_waits_until_answered(browser, serve):
     """A question in a thread is one of the page's obligations — an obligation for the user
         wherever it stands — and `m` reaches it. A single-answer group
-    is answered by its pick, as on the page; a `multiple` group's toggles each
-    reach the agent live, so only its Done press closes it, as an `answer` action
-    x-awaits.answered names for a `multiple` group. The thread's own reply box is the words'
+    is answered by its pick, as on the page; a `multiple` group's toggles each reach the
+    agent live, so only its Done press closes it, as an `answer` action
+    `awaits.answered` names for a `multiple` group. The thread's own reply box is
+    the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
     Threads, while `t` reaches a particular thread and `c` reaches its reply box.
 
@@ -973,12 +997,11 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect(page.locator("#tq-one-decision")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
-    expect(one.locator(".lf-say")).to_have_count(0)
     reply = panel_field(page)
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_have_attribute("name", "reply")
-    expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#tq-one > lf-option[selected]")).to_have_count(0)
     # The box hands the user back to the thread it belongs to, which is the
     # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
@@ -1002,11 +1025,9 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # And it butts that hairline, like every other cell of the control. This is the one
     # place the reading is asked at all: the joined-cell readings in the render gate see
     # a served version, and a thread group lives in the panel the runtime builds, so the
-    # gate never reaches it. The press was written as a control floating inside the
-    # group on a margin of its own, and the theme comment said so — but the group is a
-    # grid and had been stretching it to the full column all along, so what the 8px
-    # actually drew was a hairline with dead ground under it, on every thread the agent
-    # asked a set question in.
+    # gate never reaches it. The group is a grid and stretches the press to the full
+    # column, so an 8px margin of the press's own draws a hairline with dead ground
+    # under it, on every thread the agent asks a set question in.
     seam = page.locator("#tq-set").evaluate(
         """el => { const done = el.querySelector('.lf-done');
                    const last = done.parentElement.previousElementSibling;
@@ -1025,20 +1046,22 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     )
 
     page.locator("#tq-logs").click()
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect_obligations_answered(page, "1/2")
     with sending(page, "the answer"):
         page.locator("#tq-set .lf-done").click()
     expect_obligations_answered(page, "2/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-live")).to_have_text("Marked answered")
-    # Said once, by the log's answer. An `answered` attribute on the group said it
+    # Said once, by the log's answer. An `answered` attribute on the group would say it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every
     # consumer but shallowSigs, which reads what no version can assert as state one
     # authored.
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", page_declarations(page)
+        )
         == []
     ), "the Done press left an attribute on a widget its entry never declared"
     actions = [
@@ -1058,7 +1081,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     assert (
         render_checks_model.evaluate_probe(
-            other, "undeclaredAttrs", page_registry(other)
+            other, "undeclaredAttrs", page_declarations(other)
         )
         == []
     ), "replaying the answer left an attribute the entry never declared"
@@ -1069,13 +1092,13 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a `multiple` set, whose x-awaits.answered condition is an `answer` in force.
+    # a `multiple` set, whose `awaits.answered` condition is an `answer` in force.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
     expect_obligations_answered(page, "2/2")
     holding(page, held, 1, "the thread answer's withdrawal")
@@ -1104,3 +1127,260 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
     assert sent[-1]["action"] == "answer", "the sequence's digit must not pick"
+
+
+def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
+    """Thread editing follows its log identity, independently of page-source changes."""
+    first = leaf_page(
+        "Reply continuity",
+        '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
+    )
+    question = (
+        '<lf-group id="question" label="Decision?"><h2 id="question-h">Decision?</h2><lf-options id="options">'
+        '<lf-option id="yes">Yes</lf-option></lf-options></lf-group>'
+    )
+    second = first.replace("</main>", question + "</main>")
+    url = serve(first)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Please review this.",
+            "anchor": {"section": "subject"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    thread = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    open_panel_thread(page, thread)
+    editor = panel_field(page)
+    words = "Keep my reply while questions arrive."
+    write(editor, words)
+    editor.evaluate(
+        "node => { window.heldReply = node; node.setSelectionRange(5, 9); }"
+    )
+    editor.press("Tab")
+    send = page.locator(".lf-fp-field .lf-compose-submit")
+    expect(send).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    expect_on_me(page, 1)
+    expect(send).to_be_focused()
+
+    third = second.replace('<p id="subject">Work under discussion.</p>', "")
+    (serve.page_dir / "index.html").write_text(third)
+    expect(page.locator("#subject")).to_have_count(0)
+    expect(send).to_be_focused()
+    assert editor.evaluate("node => node === window.heldReply")
+    expect(editor).to_have_js_property("value", words)
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [5, 9]
+
+    # A fresh document cannot claim native retention and still waits for composition.
+    (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
+    # Once the page has heard of it, a state read after that asks again whether the
+    # page may follow, and the composition still says no.
+    told(page)
+    nudge(serve.page_dir)
+    told(page)
+    assert editor.evaluate("node => node === window.heldReply")
+    send.press("Shift+Tab")
+    expect(editor).to_be_focused()
+    editor.press("Escape")
+    page.wait_for_function("window.heldReply === undefined")
+    expect_on_me(page, 1)
+
+
+def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
+    """A request started by the old realm cannot apply a later response in the new one."""
+
+    # A new executable identity requires the fresh-document path. An in-place patch
+    # can retain the page-comment editor and doesn't wait for this draft.
+    version_url = serve(executable_revision(LIVE_V1, "one"))
+    page = open_page(browser, live_url(version_url))
+    general = page_comment(page)
+    write(general, "Do not replace the page under these words.")
+
+    # Let the page learn that the second revision exists before holding a read. The
+    # draft, with the caret in it, keeps the first revision shown. It holds only while
+    # the caret stays: opening the leaf's menu moves focus to its search, and the next
+    # heartbeat then installs the second revision under the menu. So every press below
+    # leaves the caret where it is.
+    (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
+    told(page)
+    expect(page).to_have_title("Live first")
+
+    # One read, held open while it still names the first revision. Releasing it below is
+    # what sends it, so the server answers it against the log and versions of that
+    # moment while the request still asks for the revision the page has since left.
+    held = []
+    sent = []
+
+    def hold_the_first_read(route):
+        if held:
+            route.continue_()
+        else:
+            held.append(route)
+
+    def release_the_held_read():
+        # Released, not popped: the list is the record and the armed flag both, so
+        # emptying it would arm the route again and hold the page's next read for good.
+        # `sent` is what lets the cleanup below run this after a failed assertion
+        # without answering the same route twice.
+        if held and not sent:
+            sent.append(True)
+            held[0].continue_()
+
+    page.route("**/api/state*", hold_the_first_read)
+    try:
+        working(serve.page_dir, "exercising the held state request")
+        holding(page, held, 1, "the read from revision 1")
+
+        # Open latest's own read remains independent of the background read held
+        # above. It moves the page to the second revision, then the third revision is
+        # written before the held request is released.
+        open_latest(page)
+        expect(page).to_have_title("Live second")
+        page_comment(page)
+        (serve.page_dir / "index.html").write_text(
+            executable_revision(LIVE_V3, "three")
+        )
+
+        # The premise of the whole reading arrangement, stated rather than inferred: a read the
+        # page took while it still stood on the first revision. Held after the press it
+        # would name the second, and the answer would carry the view the page wants.
+        assert held[0].request.headers.get("leaf-view-revision") == "1", (
+            "the held read was not the one taken on the first revision"
+        )
+        layer = layer_record(serve.page_dir)
+        assert layer is not None
+        generation = layer["generation"]
+        assert held[0].request.headers.get("leaf-layer") == generation
+        release_the_held_read()
+        told(page)
+        expect(page).to_have_title("Live second")
+        assert [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "error"
+        ] == [], "the page reported a stale answer as a fault"
+
+        # Nothing about the drop cost the page the version it was holding.
+        write(general, "")
+        page.locator("#live-reading").click()
+        told(page)
+        expect(page).to_have_title("Live third")
+        assert "/versions/" not in page.url
+    finally:
+        # A route handler is a live browser resource after the verdict stops depending
+        # on it, and an abandoned one hangs context teardown even when every assertion
+        # passed.
+        release_the_held_read()
+        page.unroute("**/api/state*")
+
+
+@pytest.mark.parametrize("fresh", [False, True], ids=["patched", "fresh"])
+def test_activity_held_targets_follow_the_current_document(browser, serve, fresh):
+    """Held history keeps its words and seat, but never a departed destination."""
+
+    def source(destination, executable=""):
+        return leaf_page(
+            "Route",
+            '<h1>Route history</h1><lf-activity id="feed"></lf-activity>' + destination,
+        ).replace("</head>", executable + "</head>")
+
+    route = """<lf-group id="route-ask" label="Which route?"><h2 id="route-ask-h">Which route?</h2>
+      <lf-options id="route">
+        <lf-option id="route-fast">Fast path</lf-option>
+        <lf-option id="route-slow">Slow path</lf-option>
+      </lf-options></lf-group>"""
+    url = live_url(serve(source(route)))
+    page = open_page(browser, url)
+    page.locator("#route-fast .lf-pick").click()
+    round_trip(page)
+    page.locator("#feed .lf-activity-news").click()
+    row = page.locator("#feed .lf-activity-row", has_text="chose")
+    target = row.locator(".lf-activity-target")
+    expect(target).to_have_attribute("href", "#route")
+    page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+    before = row.bounding_box()
+    what = row.locator(".lf-activity-what").text_content()
+    label = target.text_content()
+    fragment = page.evaluate("location.hash")
+    executable = '<script type="module">void 0;</script>' if fresh else ""
+    if fresh:
+        page.add_init_script("""
+          window.activityTargetFrames = [];
+          let remaining = 180;
+          function readTarget() {
+            const target = document.querySelector('#feed a.lf-activity-target');
+            if (target) window.activityTargetFrames.push({
+              href: target.getAttribute('href'), label: target.textContent,
+              parsed: document.readyState !== 'loading'
+            });
+            if (--remaining) requestAnimationFrame(readTarget);
+          }
+          requestAnimationFrame(readTarget);
+        """)
+
+    stamp_page(serve.page_dir, source("", executable), "Remove the route")
+    wait_for_revision(page, 2)
+    wait_until_ready(page)
+    expect(row.locator(".lf-activity-what")).to_have_text(what)
+    expect(target).to_have_text(label)
+    expect(target).not_to_have_attribute("href", "#route")
+    expect(row.get_by_role("link")).to_have_count(0)
+    expect(target).to_be_focused()
+    assert row.bounding_box() == before
+    target.press("Enter")
+    assert page.evaluate("location.hash") == fragment
+    target.click()
+    assert page.evaluate("location.hash") == fragment
+    if fresh:
+        frames = page.evaluate("window.activityTargetFrames")
+        assert frames
+        assert all(
+            frame["href"] is None and frame["label"] == label for frame in frames
+        )
+
+    # A destination returning is current capability too; held labels stay historical.
+    restored = '<section id="route"><h2>A different route heading</h2></section>'
+    restored_executable = '<script type="module">void 1;</script>' if fresh else ""
+    blocked = []
+    if fresh:
+        page.route("**/leaf.js", lambda route: blocked.append(route))
+    stamp_page(
+        serve.page_dir, source(restored, restored_executable), "Restore a destination"
+    )
+    if fresh:
+        # Generated history is drawn by the runtime, after the authored destination
+        # has parsed. Holding that runtime must not wait for its own drawing.
+        page.wait_for_function("""() => document.readyState === 'interactive' &&
+          document.getElementById('route') !== null""")
+        assert blocked, "startup module must remain pending after parsing"
+        assert page.locator("body").get_attribute("data-lf-presented") is None
+        page.unroute("**/leaf.js")
+        for route in blocked:
+            route.continue_()
+    wait_for_revision(page, 3)
+    expect(target).to_have_attribute("href", "#route")
+    expect(row.locator(".lf-activity-what")).to_have_text(what)
+    expect(target).to_have_text(label)
+    expect(target).to_be_focused()
+    assert row.bounding_box() == before
+    if fresh:
+        frames = page.evaluate(
+            "window.activityTargetFrames.filter(frame => frame.parsed)"
+        )
+        assert frames
+        assert all(
+            frame["href"] == "#route" and frame["label"] == label for frame in frames
+        )
+    target.press("Enter")
+    expect(page).to_have_url(re.compile(r"#route$"))
+    expect(page.locator("#route")).to_be_in_viewport()

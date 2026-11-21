@@ -23,6 +23,7 @@ from pathlib import Path
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     TURN_LIMIT,
+    arm_python,
     build_source,
     codex_home,
     codex_program,
@@ -30,6 +31,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     scratch,
     serving,
+    terminated,
 )
 from leaf_dev.eval_cases import definition
 
@@ -81,15 +83,7 @@ def execute_scenario(
             (work / "adapter.log").open("w") as log,
             subprocess.Popen(
                 [
-                    "uv",
-                    "run",
-                    "-q",
-                    "--no-dev",
-                    "--project",
-                    str(payload),
-                    "--with-editable",
-                    str(ROOT / "dev"),
-                    "python",
+                    *arm_python(payload, dev=ROOT / "dev"),
                     "-m",
                     "leaf_dev.website_eval",
                 ],
@@ -175,7 +169,6 @@ def run_hosted() -> None:
     from leaf.event_log import read_events
     from leaf.interaction_log import read_interactions
     from leaf.thread import successful_replies
-    from leaf_dev.commands.preview import terminated
     from leaf_dev.review_scenario import post
 
     try:

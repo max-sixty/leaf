@@ -1,7 +1,7 @@
 /* Focus contours follow the obligation reading before its DOM paint catches up. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createAnchorPaint } from "/runtime/annotation-overlay/anchor-paint.js";
+import { createAnchorPaint } from "/runtime/anchor-paint.js";
 
 test("an obligation's own focus cue does not depend on a previous paint", () => {
   const active = document.createElement("textarea");

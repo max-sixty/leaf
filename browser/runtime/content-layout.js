@@ -12,7 +12,7 @@ import { layoutWindow, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { readPageHead } from "./root-headers.js";
+import { inChrome } from "./shadow-tree.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */
@@ -27,13 +27,8 @@ let watchedHead = null;
 let railAvailable = null;
 function readDocumentLayout() {
   const { changed } = readDocumentHeaders();
-  // The page's own head, read once the Layout's header has passed its height on, so
-  // the one is never read as the other (root-headers.js).
-  readPageHead();
   syncLayoutRegion();
-  const header =
-    [...(layoutBox()?.children ?? [])].find((child) => child.localName === "header") ??
-    null;
+  const header = layoutHeader();
   if (header !== watchedHead) {
     headSizes ??= sizeObserver(scheduleDocumentLayout);
     if (watchedHead) headSizes.unobserve(watchedHead);
@@ -72,7 +67,16 @@ export function settleDocumentLayout() {
 export function openDocumentLayout({ onRead }) {
   readFinished = onRead;
   documentLayoutOpen = true;
-  document.addEventListener("toggle", scheduleDocumentLayout, { capture: true });
+  // A disclosure or popover the page opens can move its prose; one in Leaf's chrome,
+  // such as a preview standing over the page (preview.js), moves none of it.
+  document.addEventListener(
+    "toggle",
+    (event) => {
+      if (!inChrome(/** @type {Node | null} */ (event.target)))
+        scheduleDocumentLayout();
+    },
+    { capture: true },
+  );
   window.addEventListener("resize", scheduleDocumentLayout);
   readDocumentLayout();
 }
@@ -126,7 +130,7 @@ export const railStands = (main = layoutBox()) => {
     document.body.dataset.rail === "none"
   )
     return false;
-  const width = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+  const width = parseFloat(getComputedStyle(main).getPropertyValue("--lf-rail")) || 0;
   return shellRight() - proseRect(main).right >= width;
 };
 // Whether the window has room for the rail: as wide as the column with a rail on either
@@ -163,10 +167,15 @@ const title = () => {
 // sticky-header slot (`--lf-top`, theme.css) to add. Which header sticks is the
 // stylesheet's to say; this reads its computed position.
 const HEAD = "--lf-layout-head-h";
+// Read off the box's children rather than by `:scope >`, which walks every element under
+// the box to find one of its children (passages.js, `partsOf`).
+const layoutHeader = () =>
+  [...(layoutBox()?.children ?? [])].find((child) => child.localName === "header") ??
+  null;
 const head = () => {
   const body = document.body;
   if (!body) return false;
-  const header = layoutBox()?.querySelector(":scope > header");
+  const header = layoutHeader();
   const value =
     header && getComputedStyle(header).position === "sticky"
       ? `${Math.ceil(header.getBoundingClientRect().height)}px`

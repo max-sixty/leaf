@@ -1,38 +1,21 @@
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
  * affordance. The words keep the page's ink while the underline uses the accent —
- * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
- * ink, and rule rather than inventing a tooltip palette. The explanation is words in
- * a card standing over the page, so it takes the face a thread card's words take
- * (`--font-message`, tokens.css), upright and regular even where the phrase is
- * emphasised. Paper puts the explanation after the phrase, where it can honour its
- * words. */
+ * this phrase goes nowhere — and the card a press pins uses the popover face, as the
+ * preview pointing shows does (runtime/preview.js).
+ * The explanation is words in a card standing over the page, so it takes the face a
+ * thread card's words take (`--lf-font-message`, tokens.css), upright and regular even
+ * where the phrase is emphasised. Paper puts the explanation after the phrase, where it
+ * can honour its words. */
 lf-gloss {
   display: inline;
   /* The phrase wears its mark's ring, inside its edge, as every mark on it stands
      (base.css, "Where it stands"). */
-  --lf-ring-at: var(--focus-ring-inset);
-}
-/* The no-script rendering of x-says. Once the runtime writes the selectable span, that
- * span takes over. */
-lf-gloss[tip]::after {
-  content: " (" attr(tip) ")";
-  color: var(--muted);
-}
-/* Where the runtime runs, the module puts the words in the card, so the phrase never
- * shows them inline, before the upgrade either. A runtime missing what it needs to start
- * takes the mark off (runtime/prepaint.js), since no card will come. */
-@scope (html[data-lf-interactive] lf-gloss) {
-  :scope:is(lf-gloss)[tip]::after {
-    content: none;
-  }
-}
-lf-gloss:has(> [data-lf-said="tip"])::after {
-  content: none;
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 @media screen {
-  lf-gloss {
+  lf-gloss:has(> [popover]) {
     text-decoration-line: underline;
-    text-decoration-color: var(--accent);
+    text-decoration-color: var(--lf-accent);
     text-decoration-thickness: 1px;
     text-underline-offset: 0.18em;
     cursor: help;
@@ -40,8 +23,11 @@ lf-gloss:has(> [data-lf-said="tip"])::after {
 }
 /* The phrase takes the pointer; its proxy (`.lf-gloss-mark`) is the keyboard's route,
    whose visible focus the phrase wears as its own ring. */
-lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
-  outline: var(--focus-ring);
+lf-gloss > .lf-gloss-mark {
+  --lf-focus-box: lf-gloss;
+}
+lf-gloss[data-lf-control-focus-visible] {
+  outline: var(--lf-focus-ring);
   --lf-wears-ring: 1;
 }
 .lf-gloss-popover {
@@ -55,40 +41,36 @@ lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
   max-width: min(22rem, calc(100vw - 24px));
   margin: var(--lf-gloss-gap) 0;
   padding: 10px 13px 11px;
-  font: var(--font-message);
+  font: var(--lf-font-message);
   text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;
   overflow: visible;
 }
-/* Keep the space to the phrase inside the card's hover region, above and below
- * so CSS anchor flipping preserves the same pointer route. */
-@media screen {
-  .lf-gloss-popover::before {
-    content: "";
-    position: absolute;
-    inset: calc(-1 * var(--lf-gloss-gap)) 0;
-    z-index: -1;
+/* On paper, and where no runtime runs, the explanation follows the phrase in
+ * parentheses, out of the popover the platform keeps it in. Where the runtime runs on
+ * screen, the module opens it as the phrase's card, so the phrase never shows it inline,
+ * before the upgrade either. A runtime missing what it needs to start takes the mark off
+ * (runtime/prepaint.js), since no card will come. */
+@media print {
+  lf-gloss > [popover] {
+    all: unset;
+    color: var(--lf-muted);
+    &::before {
+      content: " (";
+    }
+    &::after {
+      content: ")";
+    }
   }
 }
-@media print {
-  lf-gloss > .lf-gloss-popover {
-    display: inline;
-    position: static;
-    width: auto;
-    max-width: none;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--muted);
-    box-shadow: none;
-    font: inherit;
-  }
-  lf-gloss > .lf-gloss-popover::before {
+html:not([data-lf-interactive]) lf-gloss > [popover] {
+  all: unset;
+  color: var(--lf-muted);
+  &::before {
     content: " (";
   }
-  lf-gloss > .lf-gloss-popover::after {
+  &::after {
     content: ")";
   }
 }

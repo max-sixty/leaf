@@ -1,16 +1,18 @@
 """Tool-free, schema-constrained inference through the host's existing login.
 
-Codex uses an ephemeral App Server thread, Claude Code a safe-mode print run and Pi
-a print run with nothing the user installed. None loads page tools, plugins or
-session identity. The host fixes the model; callers supply input, instructions and
-a required JSON Schema. Results contain value, model, usage and duration metadata.
-This layer neither retries requests nor collects or persists page data; callers own
-those policies.
+Codex uses an ephemeral App Server thread, Claude Code a completion on the claimant
+session's own model client, which Leaf's hooks module makes (`completions`), and Pi
+a print run with nothing the user installed. None loads tools or the agent's
+conversation. Claude Code puts its identity block before the system prompt, and the
+session's other plugins can hook the completion. The host fixes the model; callers
+supply input, instructions and a required JSON Schema. Results contain value, model,
+usage and duration metadata. This layer neither retries requests nor collects or
+persists page data; callers own those policies.
 
-Codex and Claude Code constrain the answer to the schema. Pi has no answer schema,
-so its system prompt carries the schema, and its answer is parsed and validated
-here; an answer that is not JSON matching the schema fails the request as any other
-failure does (`pi_generate`).
+Codex constrains the answer to the schema. Claude Code's completion and Pi take no
+answer schema, so the system prompt carries it (`answering`), and the answer is
+parsed and validated here (`answered`); an answer that is not JSON matching the
+schema fails the request as any other failure does.
 """
 
 import json
@@ -23,6 +25,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from . import completions
 from .codex import (
     app_server_connect,
     app_server_handshake,
@@ -30,6 +33,7 @@ from .codex import (
     private_app_server,
 )
 from .harness import IDENTITY_VARIABLES
+from .json_block import json_block
 from .registry.schema import json_validator
 
 TIMEOUT = 60
@@ -81,89 +85,92 @@ CODEX_CONFIG = {
 # Disable plugins at server startup too: a thread override comes after the server
 # syncs the user's marketplaces, causing unrelated network and filesystem work.
 CODEX_SERVER_ARGUMENTS = ("--disable", "plugins")
-# Safe mode omits user instructions, plugins, hooks, MCP servers and skills while
-# keeping auth. User-only settings prevent project settings from overriding auth.
-# Thinking made Haiku titles slower (3–7 s versus 1–2 s) without better results.
-# Disabling nonessential traffic cut median startup/exit overhead in an interleaved
-# four-pair comparison on a busy host (8.4 s versus 15.8 s total).
-CLAUDE_CODE_ENVIRONMENT = {
-    "MAX_THINKING_TOKENS": "0",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-}
+# What a model that takes no answer schema is told after the caller's instructions.
+JSON_ANSWER = (
+    "Answer with one JSON value and nothing else: no prose before or after it, and "
+    "no Markdown code fence around it. The value must match this JSON Schema:"
+)
 
 
-def claude_code_generate(
-    request: str,
-    page_dir: Path,
-    *,
-    schema: dict,
-    instructions: str,
-) -> dict:
-    """Ask for structured JSON through the `claude` on PATH, on the user's own login
-    and provider.
+def answering(instructions: str, schema: dict) -> str:
+    """The system prompt of a model that takes no answer schema: the caller's
+    instructions, then the schema its answer must match."""
+    return "\n\n".join(filter(None, [instructions, JSON_ANSWER, json_block(schema)]))
 
-    The page server's environment is that of whichever session started it, so the
-    child is given none of that session's identity and starts as a session of its
-    own. The request goes on stdin, out of the process table."""
-    executable = shutil.which("claude")
-    if executable is None:
-        raise FileNotFoundError("no `claude` on PATH")
-    started = time.monotonic()
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if name not in IDENTITY_VARIABLES
-    }
-    finished = subprocess.run(
-        [
-            executable,
-            "-p",
-            "--no-session-persistence",
-            "--model=haiku",
-            "--tools=",
-            "--safe-mode",
-            "--setting-sources=user",
-            "--system-prompt",
-            instructions,
-            "--json-schema",
-            json.dumps(schema),
-            "--output-format",
-            "json",
-        ],
-        env=env | CLAUDE_CODE_ENVIRONMENT,
-        input=request,
-        capture_output=True,
-        text=True,
-        timeout=TIMEOUT,
-        check=False,
-    )
-    if finished.returncode != 0:
-        raise RuntimeError(
-            f"claude exited {finished.returncode}: {finished.stderr.strip()[-300:]}"
+
+def answered(text: str, schema: dict, host: str) -> object:
+    """The JSON value `text` holds, checked against `schema`. Prose can echo the
+    user's words, so it stays out of the error."""
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{host}'s answer is not JSON ({error.msg})") from None
+    json_validator(schema).validate(value)
+    return value
+
+
+# The model Claude Code is asked on, whatever model the session runs. The request names
+# no effort: Haiku writes a title without thinking it over, and thinking makes its
+# titles slower without better results.
+CLAUDE_CODE_MODEL = "haiku"
+# The most one reply can hold, claude-haiku-5-5's limit and `$.model.complete`'s
+# (Claude Code 2.1.322), so the time limit ends a long answer, such as a widget's
+# code, rather than the default cap of 1024 tokens.
+CLAUDE_CODE_MAX_TOKENS = 64_000
+
+
+def claude_code_generator(session_id: str) -> Callable[..., dict]:
+    """Ask for structured JSON through the Claude Code session `session_id`, on its
+    own model client, credentials and provider: a completion Leaf's hooks module
+    makes (`completions`), with no tools, history or system prompt beyond Claude
+    Code's identity block and the one given.
+
+    Told the schema in the system prompt (`answering`), Haiku answers a thread title
+    with JSON matching it; asked for the title as plain text, it can preface it with
+    its reasoning about the request (Claude Code 2.1.322)."""
+
+    def generate(
+        request: str,
+        page_dir: Path,
+        *,
+        schema: dict,
+        instructions: str,
+    ) -> dict:
+        started = time.monotonic()
+        reply = completions.ask(
+            session_id,
+            {
+                "model": CLAUDE_CODE_MODEL,
+                "system": answering(instructions, schema),
+                "prompt": request,
+                "maxTokens": CLAUDE_CODE_MAX_TOKENS,
+                "timeoutMs": round((TIMEOUT - completions.GRACE_S) * 1000),
+            },
+            timeout=TIMEOUT,
         )
-    answer = json.loads(finished.stdout)
-    # Haiku sometimes answers in prose rather than calling for the structured one;
-    # the prose echoes the user's words, so it stays out of the record.
-    if "structured_output" not in answer:
-        raise RuntimeError(
-            f"no structured output in the answer ({answer.get('stop_reason')})"
-        )
-    json_validator(schema).validate(answer["structured_output"])
-    usage = answer["usage"]
-    return {
-        "value": answer["structured_output"],
-        "model": "haiku",
-        "durationMs": round((time.monotonic() - started) * 1000),
-        # The model's share of `durationMs`; the rest is `claude` starting and
-        # exiting, which a busy machine stretches and the model does not.
-        "apiDurationMs": answer["duration_api_ms"],
-        "usage": {
-            "inputTokens": usage["input_tokens"]
-            + usage.get("cache_read_input_tokens", 0)
-            + usage.get("cache_creation_input_tokens", 0),
-            "outputTokens": usage["output_tokens"],
-        },
-    }
+        if "text" not in reply:
+            status = reply.get("status")
+            raise (RateLimited if status == 429 else RuntimeError)(
+                f"the completion gave no answer: {reply.get('failed')}"
+                + (f" (HTTP {status}: {reply.get('error')})" if status else "")
+            )
+        usage = reply["usage"]
+        return {
+            "value": answered(reply["text"], schema, "Claude Code"),
+            "model": CLAUDE_CODE_MODEL,
+            "durationMs": round((time.monotonic() - started) * 1000),
+            # The model call's share of `durationMs`, as the module timed it; the
+            # rest is the relay through the session's pages follower and the module.
+            "apiDurationMs": reply["elapsed_ms"],
+            "usage": {
+                "inputTokens": usage["input_tokens"]
+                + usage["cache_read_input_tokens"]
+                + usage["cache_creation_input_tokens"],
+                "outputTokens": usage["output_tokens"],
+            },
+        }
+
+    return generate
 
 
 def open_thread(socket, page_dir: Path, instructions: str) -> str:
@@ -333,10 +340,6 @@ PI_COMMAND = (
     "--thinking",
     "off",
 )
-PI_ANSWER = (
-    "Answer with one JSON value and nothing else: no prose before or after it, and "
-    "no Markdown code fence around it. The value must match this JSON Schema:\n"
-)
 
 
 def pi_generate(
@@ -355,14 +358,12 @@ def pi_generate(
     caller's instructions from naming one: Pi reads a `--system-prompt` that names an
     existing path as that file, and an empty one as its own coding-agent prompt.
 
-    Told the schema that way, gpt-6.1-sol on Pi's `openai-codex` provider answered 56
-    of 56 requests with JSON matching it, across eight widget-style requests (a thread
-    title, a classification, nullable fields in a list, no instructions, and a request
-    for Markdown paragraphs among them). Answers took 1.8–3.6 s, and the Markdown one
-    up to 15 s, at a load average near 30 (Pi 1.0.4). Asked for thread titles, whose
-    instructions say to reply with the title alone, it answered 24 of 24 in the
-    schema, to messages asking for a fix, a shell command, a poem, a sum, a bare
-    "YES" or a plain-text answer.
+    Told the schema that way, gpt-6.1-sol on Pi's `openai-codex` provider answered with
+    JSON matching it across widget-style requests (a thread title, a classification,
+    nullable fields in a list, no instructions, and a request for Markdown paragraphs
+    among them) (Pi 1.0.4). Asked for thread titles, whose instructions say to reply
+    with the title alone, it answered in the schema, to messages asking for a fix, a
+    shell command, a poem, a sum, a bare "YES" or a plain-text answer.
 
     Pi exits some 3 s after it answers (Pi 1.0.4 on its `openai-codex` provider,
     where the model took 1–2 s), so the answer is read as Pi prints it, and the
@@ -380,9 +381,7 @@ def pi_generate(
         tempfile.NamedTemporaryFile("w", encoding="utf-8") as system_prompt,
         tempfile.TemporaryFile("w+") as errors,
     ):
-        system_prompt.write(
-            "\n\n".join(filter(None, [instructions, PI_ANSWER + json.dumps(schema)]))
-        )
+        system_prompt.write(answering(instructions, schema))
         system_prompt.flush()
         with subprocess.Popen(
             [executable, *PI_COMMAND, "--system-prompt", system_prompt.name],
@@ -427,15 +426,9 @@ def pi_generate(
             f"{answer.get('errorMessage')}"
         )
     text = "".join(part["text"] for part in answer["content"] if part["type"] == "text")
-    try:
-        value = json.loads(text)
-    # The prose can echo the user's words, so it stays out of the error.
-    except json.JSONDecodeError as error:
-        raise ValueError(f"Pi's answer is not JSON ({error.msg})") from None
-    json_validator(schema).validate(value)
     usage = answer["usage"]
     return {
-        "value": value,
+        "value": answered(text, schema, "Pi"),
         "model": f"{answer['provider']}/{answer['model']}",
         "durationMs": round((time.monotonic() - started) * 1000),
         "usage": {

@@ -14,21 +14,30 @@
    An error about a text field stands at that field, wherever it is, covering the
    field's words and actions until the user comes back to them, by a key or an image
    there, a press on the cover or Resume writing (`g i`), or the field stops showing
-   them (`passErrorsAt`; composing/input.js, `errorOver`). The floating panel's field
+   them (`passErrorsAt`, `errorOver`; composing/input.js). The floating panel's field
    also says an error about nothing, in its status's place while it is empty, until the
    user's first edit there (floating-panel.js). An error no field stands for, or one the user has
-   passed, waits in the Errors list in the leaf's menu, with a dot on the leaf until
-   the user opens the list (`seeErrors`). The user chose this on 17 October over
-   errors riding the passing notice, which faded after four seconds, was replaced by
-   whatever came next, and went unseen while the user typed; and on 19 October chose
-   the cover at a passage's comment box, where the error had shown only as the leaf's
-   dot, so nothing said a refused send's words had come back.
+   passed, waits in the Errors list in the leaf's menu, with a dot on the leaf and on
+   the menu's Errors until the user opens the list (`seeErrors`), so the row the
+   dotted leaf leads to reads at once. The user chose this over
+   errors riding the passing notice, which fades after four seconds, gives way to
+   whatever comes next, and goes unseen while the user types; and chose
+   the cover at a passage's comment box over the error showing only as the leaf's
+   dot, which leaves nothing saying a refused send's words have come back.
 
    A screen reader hears each error as it is raised, unless its producer already says
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
-   notices (notifications.js); an error is never one. */
-import { signal } from "/runtime/framework.js";
-import { announce } from "./notifications.js";
+   notices (notifications.js); an error is never one.
+
+   Each error keeps the revision the page showed and the stack it was raised from
+   (`revision`, `stack`), so whoever is handed a copy of it starts from the source and
+   the code that raised it, however the page has moved on since (floating-panel.js,
+   `errorReport`).
+   The tab's trace records it among the gestures that led to it (interaction-log.js). */
+import { signal, untracked } from "/runtime/framework.js";
+import { runtime } from "./context.js";
+import { recordInteraction } from "./interaction-log.js";
+import { announce, gesture } from "./notifications.js";
 
 /**
  * @typedef {Readonly<{
@@ -36,6 +45,8 @@ import { announce } from "./notifications.js";
  *   message: string,
  *   subject: Element | null,
  *   at: number,
+ *   revision: number | null,
+ *   stack: string,
  *   passed: boolean,
  *   seen: boolean,
  * }>} RaisedError
@@ -60,6 +71,12 @@ const publish = (next) => {
 /** The standing errors, newest first. */
 export const errorsReading = () => errors.value;
 
+/** The newest error about a text field the user has not come back to, which covers its
+ * words.
+ * @param {Element | null | undefined} subject */
+export const errorOver = (subject) =>
+  errorsReading().find((error) => error.subject === subject && !error.passed) ?? null;
+
 /**
  * Tell the user something failed. `subject` is the text field it concerns, if any;
  * `announce: false` leaves the words to a producer that already says them aloud.
@@ -81,10 +98,23 @@ function raise(message, subject, speak, replaced) {
       unsaid = [];
     });
   if (speak) unsaid.push(message);
+  const stack = new Error(message).stack ?? "";
+  recordInteraction("error", { message, stack });
   publish([
-    Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
+    Object.freeze({
+      id,
+      message,
+      subject,
+      at: Date.now(),
+      revision: untracked(() => runtime.currentRevision ?? null),
+      stack,
+      passed: false,
+      seen: false,
+    }),
     ...errors.peek().filter((entry) => entry.id !== replaced),
   ]);
+  // An error about no field is the panel's to say, and its leaf shakes at it.
+  if (!subject) gesture("error");
   return Object.freeze({ id, clear: () => dismissError(id) });
 }
 

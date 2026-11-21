@@ -13,37 +13,33 @@ A process holds one watchdog observer. Each directory its subscriptions want is
 scheduled on it once per recursion mode, however many subscriptions want it, and
 the observer hands each event to every subscription that accepts a path it names.
 Directories join and leave the observer while it runs, so subscribing disturbs no
-other subscription. On Linux watchdog shares one inotify instance across the
-process, and each directory takes one watch, each directory of a recursive tree
-included. The per-user instance limit (`fs.inotify.max_user_instances`, 128 unless
-raised) is the one that ran out when Leaf held a watcher per page (issue #4812);
-the watch limit is far larger. Each scheduled directory costs the process an idle
+other subscription. On Linux the observer holds one inotify instance, and each
+directory takes one watch, each directory of a recursive tree included. The
+per-user instance limit (`fs.inotify.max_user_instances`, 128 unless raised) is
+the one a watcher per page would run out of; the watch
+limit is far larger. Each scheduled directory costs the process an idle
 thread.
 
 Page subscriptions take no tree. The page's reading stamps every directory in its
 trees, so a new one moves the reading, its owner subscribes again, and the
-directory joins the observer. watchdog 7.0's recursive watch on Linux never
-watches a directory moved into its tree from outside, and skips without raising a
-directory beneath its root that the kernel refuses a watch, so nothing falls back
-to polling, and reporting what that directory holds can then raise on the thread
-that reads for every watch in the process, which stops them all. A recursive
+directory joins the observer. watchdog's recursive watch on Linux skips without
+raising a directory beneath its root that the kernel refuses a watch, so nothing
+falls back to polling and that directory's changes go unheard. A recursive
 subscription suits only an owner that can afford to stop hearing changes and whose
 trees can be too large for a thread per directory, such as a developer's
 preview.
 
-An event reaches a subscription as the platform reports it: at once from inotify,
-but for a file moved out of a watched directory, which watchdog holds up to 500 ms
-to pair with its arrival elsewhere, and within watchdog's 10 ms FSEvents latency on
-macOS. watchfiles, which this replaced, polled for the events its Rust side had
-already received: it slept a step between looks and ended a batch a step after its
-last change, so a wake waited one to two steps, and a shorter step bought speed with
-idle wakes in every process. It also fixed a watcher's directories when the watcher
-started, so a subscription needing a new directory restarted the process's watcher
-over every subscription and woke them all. Calling inotify and FSEvents through
-ctypes would avoid the thread per directory and the repairs to watchdog, but Leaf
-would own the foreign-function code and its hazards: a prototype came to half again
-this module's length, and crashed at exit until it stopped its FSEvents streams
-first.
+An event reaches a subscription as the platform reports it: at once from inotify, but
+for a file moved out of a watched directory, which watchdog holds up to 500 ms to pair
+with its arrival elsewhere, and within watchdog's 10 ms FSEvents latency on macOS.
+watchfiles polls for the events its Rust side has already received: it sleeps a step
+between looks and ends a batch a step after its last change, so a wake waits one to two
+steps, and a shorter step buys speed with idle wakes in every process. It also fixes a
+watcher's directories when the watcher starts, so a subscription needing a new directory
+would restart the process's watcher over every subscription and wake them all. Calling
+inotify and FSEvents through ctypes would avoid the thread per directory and the repairs
+to watchdog, but Leaf would own the foreign-function code and its hazards, such as
+having to stop its FSEvents streams before the process exits.
 
 A subscription hears what changes a file's content, metadata, name or presence.
 Opening and closing a file change none of those. watchdog also reports a directory
@@ -269,7 +265,6 @@ class _Native:
             Finding(
                 "watch-limit",
                 values={"limit": limit, "roots": [str(path)]},
-                severity="advice",
             )
         )
         return self._schedule(path, recursive, polling=True)
@@ -391,32 +386,9 @@ def _native_observer() -> "BaseObserver":
 
 
 def _polling_observer() -> "BaseObserver":
-    """watchdog's polling observer.
+    """watchdog's polling observer."""
+    from watchdog.observers.polling import PollingObserver
 
-    On Linux watchdog 7.0 opens its process's inotify instance as its
-    `watchdog.observers` package is imported, so where the kernel has none left to
-    give, that import fails, and the polling observer's with it. The package is
-    then imported again with watchdog's platform check saying this isn't Linux, so
-    its platform selection picks polling and opens no instance. That leaves
-    watchdog's `Observer` bound to polling for the rest of the process, so
-    `_native_observer` names the inotify observer, whose import asks the kernel for
-    an instance again.
-
-    TODO(2026-11-03): delete this repair, and import `PollingObserver` directly, once
-    a watchdog release fixes https://github.com/gorakhargosh/watchdog/issues/1389."""
-    try:
-        from watchdog.observers.polling import PollingObserver
-    except OSError as error:
-        if error.errno != errno.EMFILE:
-            raise
-        from watchdog.utils import platform
-
-        linux = platform.is_linux
-        platform.is_linux = lambda: False  # ty: ignore[invalid-assignment] -- restored below
-        try:
-            from watchdog.observers.polling import PollingObserver
-        finally:
-            platform.is_linux = linux
     return PollingObserver()
 
 

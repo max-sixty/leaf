@@ -1,8 +1,5 @@
 # Reconstructed handoff decision: the passing target competes with the reader task.
 # Read-only proof selection; does not execute implementation or browser review.
-# Source: Codex chat 01a11909-99f9-7d00-ac47-a10407be0b0a, 2026-10-07.
-# Against b4c58d346, document proof selection was 0/2 before and 2/2 after the repair;
-# both arms passed map comparison and intentional disclosure in 2/2 runs each.
 description: interaction-proof-follows-the-reader
 metadata:
   instructions: .claude/skills/developing-leaf/SKILL.md

@@ -1,4 +1,4 @@
-"""What waits on the user: the `m` queue, the panel's On me count and its On view,
+"""What waits on the user: the `m` queue, the panel's On Me count and its On view,
 and tallies."""
 
 import re
@@ -9,7 +9,9 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
+    expect_obligations_answered,
     expect_panel_says,
+    field_press,
     holding,
     leaf_page,
     open_page,
@@ -32,7 +34,7 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-# What waits on the user, as On me counts it (floating-panel.js, `onUserCount`): the
+# What waits on the user, as On Me counts it (floating-panel.js, `onUserCount`): the
 # queue's own reading, since a gesture's next step can stand in the marks' place.
 ON_ME = """async () => {
   const {readQueues} = await window.__lfWidgetApi();
@@ -44,7 +46,7 @@ ON_ME = """async () => {
 
 
 def expect_on_me(page, count):
-    """Wait until On me counts `count` obligations waiting on the user."""
+    """Wait until On Me counts `count` obligations waiting on the user."""
     page.evaluate(ON_ME)
     page.wait_for_function("count => window.__lfOnMe() === count", arg=count)
 
@@ -52,9 +54,9 @@ def expect_on_me(page, count):
 QUEUE_PAGE = leaf_page(
     "What waits on you",
     '<h1 id="h">Release</h1><p id="cadence">We publish a build every week.</p>'
-    '<lf-ask id="channel-ask"><h2>Which channel first?</h2>'
-    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
-    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    '<lf-group id="channel-ask" label="Which channel first?"><h2 id="channel-ask-h">Which channel first?</h2>'
+    '<lf-options id="channel"><lf-option id="beta">Beta first</lf-option>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-group>'
     '<p id="notes">Release notes come from merged titles.</p>',
 )
 
@@ -92,13 +94,13 @@ def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, se
     )
     position = walk_position(page)
     assert position is not None
-    assert position["text"] == "1 of 1 waiting on me · Reply"
+    assert position["text"] == "1 of 1 waiting on me"
 
 
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
     as at an open obligation, and passes a thread waiting on the agent; `t` still walks both
-    threads. The panel's On me mark counts what waits on the user. A reply the user
+    threads. The panel's leaf counts what waits on the user. A reply the user
     sends takes its thread off that count and out of the walk once the server has read
     the reply."""
     url = serve(QUEUE_PAGE)
@@ -146,19 +148,19 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     thread = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"]')
     message = thread.locator(f'.lf-msg[data-lf-event="{question["id"]}"]')
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(message).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Options")
+    expect_walk_position(page, "2 of 2 waiting on me")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(message).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "2 of 2 waiting on me · Options")
+    expect_walk_position(page, "2 of 2 waiting on me")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(message).to_be_focused()
 
     page.keyboard.press("Enter")
@@ -178,7 +180,7 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     counts(1)
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 1 waiting on me · Options")
+    expect_walk_position(page, "1 of 1 waiting on me")
     page.locator("#h").click()
     page.keyboard.press("t")
     expect_walk_position(page, "Thread 1 of 2")
@@ -215,13 +217,13 @@ UNDER_PANEL_PAGE = leaf_page(
     "Stops under the panel",
     '<h1 id="h">Release</h1>'
     + FILLER
-    + '<lf-ask id="mid-ask"><h2>Which channel first?</h2>'
-    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
-    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    + '<lf-group id="mid-ask" label="Which channel first?"><h2 id="mid-ask-h">Which channel first?</h2>'
+    '<lf-options id="channel"><lf-option id="beta">Beta first</lf-option>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-group>'
     + FILLER
-    + '<lf-ask id="foot-ask"><h2>Ship notes with it?</h2>'
-    '<lf-options id="notes" choose><lf-option id="yes">Yes</lf-option>'
-    '<lf-option id="no">No</lf-option></lf-options></lf-ask>'
+    + '<lf-group id="foot-ask" label="Ship notes with it?"><h2 id="foot-ask-h">Ship notes with it?</h2>'
+    '<lf-options id="notes"><lf-option id="yes">Yes</lf-option>'
+    '<lf-option id="no">No</lf-option></lf-options></lf-group>'
     '<p id="tail">The notes go out with the build.</p>',
 )
 
@@ -236,6 +238,71 @@ SEEN_SHARE = """async (selector) => {
     ? ((seen.right - seen.left) * (seen.bottom - seen.top)) / (box.width * box.height)
     : 0;
 }"""
+
+
+def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, serve):
+    """While anything waits on the user, the panel field's end offers Next On Me with
+    `m`, and still does once an answer leaves one item there, the send leaving the user
+    on the thread, where `m` walks. With the caret back in the card's reply box, where
+    `m` is a letter typed, the field's end shows nothing, and the press and its key
+    stand again once the caret leaves. Once nothing is On Me, the field's end offers it
+    no more."""
+    url = serve(QUEUE_PAGE)
+    d = serve.page_dir
+    asked = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Weekly?",
+            "anchor": {"section": "cadence"},
+        },
+    )
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Weekly or daily?",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    expect_on_me(page, 2)
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(press.locator("kbd")).to_have_text("m")
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me")
+    page.keyboard.press("Enter")
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"]')
+    box = thread.locator("leaf-text")
+    write(box, "Weekly.")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_on_me(page, 1)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(thread).to_be_focused()
+    expect(press.locator("kbd")).to_have_text("m")
+    page.keyboard.press("c")
+    expect(box).to_be_focused()
+    expect(press).to_have_count(0)
+    page.locator("h1").click()
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(press.locator("kbd")).to_have_text("m")
+    press.click()
+    expect(page.locator("#channel-ask")).to_be_focused()
+
+    with sending(page, "the pick"):
+        page.locator("#beta").click()
+    expect_on_me(page, 0)
+    round_trip(page)
+    expect(press).to_have_count(0)
 
 
 def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):
@@ -271,21 +338,21 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
         scroll_settled(page)
         assert page.evaluate(SEEN_SHARE, selector) > 0.99
 
-    for position in ("1 of 3 · Options", "2 of 3 · Options", "3 of 3 · Reply"):
+    for at in (1, 2, 3):
         page.keyboard.press("m")
-        expect_walk_position(page, position.replace(" ·", " waiting on me ·"))
+        expect_walk_position(page, f"{at} of 3 waiting on me")
     panel_settled(page, view="thread")
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 3 waiting on me · Options")
+    expect_walk_position(page, "1 of 3 waiting on me")
     lands_whole("#mid-ask")
     expect(thread).to_have_count(1)
     expect(page.locator(".lf-fp-field .lf-compose-placeholder-lead")).to_have_text(
-        "1 of 3 waiting on me · Options"
+        "1 of 3 waiting on me"
     )
 
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 3 waiting on me · Options")
+    expect_walk_position(page, "2 of 3 waiting on me")
     panel_settled(page, open=False)
     lands_whole("#foot-ask")
 
@@ -299,9 +366,9 @@ BOUNDED_FOOT_PAGE = leaf_page(
     + FILLER
     + '<section id="bounded" data-bound="start" style="height: 220px">'
     + "".join(f"<p>Log line {i} of the bounded block.</p>" for i in range(12))
-    + '<lf-ask id="bound-ask"><h2>Ship notes with it?</h2>'
-    '<lf-options id="bound" choose><lf-option id="yes">Yes</lf-option>'
-    '<lf-option id="no">No</lf-option></lf-options></lf-ask></section>'
+    + '<lf-group id="bound-ask" label="Ship notes with it?"><h2 id="bound-ask-h">Ship notes with it?</h2>'
+    '<lf-options id="bound"><lf-option id="yes">Yes</lf-option>'
+    '<lf-option id="no">No</lf-option></lf-options></lf-group></section>'
     '<p id="end">The end.</p>',
 )
 
@@ -333,14 +400,14 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
     resized(page, 1280, 900)
     page.evaluate("getSelection().removeAllRanges()")
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect_walk_position(page, "1 of 2 waiting on me")
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Reply")
+    expect_walk_position(page, "2 of 2 waiting on me")
     panel_settled(page, view="thread")
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     scroll_settled(page)
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(page.locator("#bound-ask")).to_be_focused()
     panel_settled(page, open=False)
     scroll_settled(page)
@@ -348,9 +415,9 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
 
 
 def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
-    """On me stays open over a place `m` reaches, whose card it rings, and gives way to
-    one it doesn't list: `t` to a thread at the page's foot, which On me would stand
-    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On me stands on
+    """On Me stays open over a place `m` reaches, whose card it rings, and gives way to
+    one it doesn't list: `t` to a thread at the page's foot, which On Me would stand
+    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On Me stands on
     its first row, the channel question, so `m` steps on from it to the second."""
     url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
     page = open_page(browser, url)
@@ -361,7 +428,7 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · Options")
+    expect_walk_position(page, "2 of 2 waiting on me")
     expect(page.locator("#foot-ask")).to_be_focused()
     expect(on_me).to_have_count(1)
     page.keyboard.press("t")
@@ -373,20 +440,20 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
 
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
-    reads, and leaves out one outside it. Its Next on me is `m` within the region: a
+    reads, and leaves out one outside it. Its Next On Me is `m` within the region: a
     press keeps the user located where they are and steps on, coming round at the end,
     and the walk announces its place among the region's obligations. Reached by Shift+Tab from
     an obligation, through the queue's own rows, Enter counts from that obligation, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next on me is disabled. One the user commented on is the agent's
+    tally says so and Next On Me is disabled. One the user commented on is the agent's
     turn, which the tally names instead of calling it the user's to answer."""
 
     def item(key, label):
         return (
-            f'<lf-tab id="t-{key}" label="{label}"><lf-ask id="{key}-decision">'
-            f'<h2>Pick the {key}</h2><lf-options id="{key}" choose>'
+            f'<lf-tab id="t-{key}" label="{label}"><lf-group id="{key}-decision" label="Pick the {key}">'
+            f'<h2 id="{key}-decision-h">Pick the {key}</h2><lf-options id="{key}">'
             f'<lf-option id="{key}-a">Alpha</lf-option>'
-            f'<lf-option id="{key}-b">Beta</lf-option></lf-options></lf-ask></lf-tab>'
+            f'<lf-option id="{key}-b">Beta</lf-option></lf-options></lf-group></lf-tab>'
         )
 
     page = open_page(
@@ -396,9 +463,9 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
                 "A tallied queue",
                 '<header><h1>Queue</h1><p><lf-tally id="left" for="queue" next>'
                 "</lf-tally></p></header>"
-                '<lf-ask id="outside-decision"><h2>Outside</h2>'
-                '<lf-options id="outside" choose><lf-option id="outside-a">Out</lf-option>'
-                "</lf-options></lf-ask>"
+                '<lf-group id="outside-decision" label="Outside"><h2 id="outside-decision-h">Outside</h2>'
+                '<lf-options id="outside"><lf-option id="outside-a">Out</lf-option>'
+                "</lf-options></lf-group>"
                 '<lf-tabs id="queue" list="side">'
                 + item("first", "First")
                 + item("second", "Second")
@@ -407,7 +474,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
         ),
     )
     words = page.locator("#left .lf-tally-words")
-    button = page.locator("#left").get_by_role("button", name="Next on me")
+    button = page.locator("#left").get_by_role("button", name="Next On Me")
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 left to answer")
     count = page.locator("#left .lf-tally-count")
@@ -434,13 +501,12 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     assert answer["widget"] == "second"
     button.click()
     expect(first).to_be_focused()
-    # Next put the answer out of view in its tab, so the first press shows it there
-    # and the second takes it back.
-    page.keyboard.press("z")
-    expect(page.locator("#second")).to_be_focused()
+    # Next put the answer out of view in its tab, so the press takes it back and then
+    # shows it there.
     with sending(page, "undo the second item's answer after Next"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
+    expect(page.locator("#second")).to_be_focused()
     expect(words).to_have_text("2 left to answer")
     assert events_model.read_events(serve.page_dir)[-1]["undoes"] == answer["id"]
     # Leave the next press at the region's start, as on initial arrival.
@@ -453,14 +519,14 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
             ):
                 return
             page.keyboard.press("Shift+Tab")
-        raise AssertionError("Shift+Tab never reached Next on me")
+        raise AssertionError("Shift+Tab never reached Next On Me")
 
     button.click()
     expect(first).to_be_focused()
-    expect_walk_position(page, "1 of 2 waiting on me here · Options")
+    expect_walk_position(page, "1 of 2 waiting on me here")
     button.click()
     expect(second).to_be_focused()
-    expect_walk_position(page, "2 of 2 waiting on me here · Options")
+    expect_walk_position(page, "2 of 2 waiting on me here")
     back_to_the_tally()
     page.keyboard.press("Enter")
     expect(first).to_be_focused()
@@ -481,14 +547,14 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(count).not_to_have_css("color", waiting_color)
     expect(button).to_be_disabled()
     with sending(page, "undo the first decision's answer"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(words).to_have_text("1 left to answer")
     expect(count).to_have_css("color", waiting_color)
     expect(button).to_be_enabled()
     # A comment on the open obligation hands it to the agent until a reply: the tally and
     # the item's row say so rather than calling it the user's to answer, beside a
-    # disabled Next on me.
+    # disabled Next On Me.
     panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
     expect(words).to_have_text("1 on Claude")
     expect(count).to_have_css("color", waiting_color)
@@ -527,7 +593,7 @@ def test_an_idle_m_arrival_paints_in_its_first_frame(browser, serve, idle_setup)
       }, true);
     }""")
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 1 waiting on me · Options")
+    expect_walk_position(page, "1 of 1 waiting on me")
     expect(page.locator("#channel-ask")).to_be_focused()
     assert page.evaluate("focusAtFirstFrame") == "channel-ask"
 
@@ -577,24 +643,24 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
     page.keyboard.press("m")
     page.wait_for_function("window.threadRevealStarted === true")
-    page.locator(".lf-fp-on-user").focus()
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    page.locator(".lf-fp-leaf").focus()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
     page.wait_for_function("window.threadRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     assert walk_position(page) is None
     # The control: the same press left alone arrives and says where.
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    expect_walk_position(page, "1 of 2 waiting on me")
     expect(page.locator(f'.lf-msg[data-lf-event="{question["id"]}"]')).to_be_focused()
 
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, width):
-    """An answered obligation stays in On me under Done, which closes and reopens through
+    """An answered obligation stays in On Me under Done, which closes and reopens through
     its routes, and finishing the page preserves the route back through the answer. The
     answer that leaves nothing on the user has the panel say so, unasked."""
     page = open_page(
@@ -602,10 +668,10 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
         serve(
             leaf_page(
                 "One decision",
-                '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
-                '<lf-options id="only" choose>'
+                '<h1>One decision</h1><lf-group id="only-decision" label="Pick one"><h2 id="only-decision-h">Pick one</h2>'
+                '<lf-options id="only">'
                 '<lf-option id="first">First</lf-option>'
-                '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
+                '<lf-option id="second">Second</lf-option></lf-options></lf-group>',
             )
         ),
     )
@@ -676,7 +742,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     page.keyboard.press("Shift+m")
     panel_settled(page, open=False)
 
-    # With nothing left on the user, On me opens on its folded Done.
+    # With nothing left on the user, On Me opens on its folded Done.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
@@ -695,14 +761,66 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     expect(page.locator("#only-decision")).to_be_focused()
 
 
+def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
+    """A press naming one obligation, as a Page Map row or a deck's arrival does, says
+    where it stands in On Me as `m` landing there says it, counting the same list: with
+    the first of three questions answered, the third is the second of three, beside the
+    proposal still open. An answered question inside that proposal has no place in On
+    Me, so it says how it ended rather than the proposal's place, and the proposal's
+    place, said a moment before, stands no longer."""
+    asks = "".join(
+        f"""<lf-group id="ask-{index}" label="Question {index}"><h2>Question {index}</h2>
+<lf-options id="pick-{index}">
+  <lf-option id="pick-{index}-yes">Yes</lf-option>
+  <lf-option id="pick-{index}-no">No</lf-option>
+</lf-options></lf-group>"""
+        for index in range(1, 4)
+    )
+    proposal = """<lf-suggestion id="plan"><lf-old><p>The old plan reads this way.</p></lf-old>
+<lf-new><p>The new plan reads another way.</p>
+<lf-group id="step-ask" label="Keep the new step?"><lf-options id="step">
+  <lf-option id="step-keep">Keep it</lf-option>
+  <lf-option id="step-drop">Drop it</lf-option>
+</lf-options></lf-group></lf-new></lf-suggestion>"""
+    page = open_page(
+        browser,
+        serve(leaf_page("three questions", f"<h1>Questions</h1>{asks}{proposal}")),
+    )
+
+    def open_obligation(id_):
+        assert page.evaluate(
+            """async id => (await window.__lfWidgetApi()).obligationActions.open(id)""",
+            id_,
+        )
+
+    page.keyboard.press("m")
+    expect(page.locator("#ask-1")).to_be_focused()
+    page.keyboard.press("1")
+    expect_obligations_answered(page, "1/5")
+    page.keyboard.press("Escape")
+    open_obligation("widget:pick-3")
+    expect(page.locator("#ask-3")).to_be_focused()
+    expect_walk_position(page, "2 of 4 waiting on me")
+
+    page.locator("#step lf-option-control").first.click()
+    expect_obligations_answered(page, "2/5")
+    page.keyboard.press("Escape")
+    open_obligation("widget:plan")
+    expect_walk_position(page, "3 of 3 waiting on me")
+    open_obligation("widget:step")
+    expect(page.locator("#step-ask")).to_be_focused()
+    expect(page.locator(".lf-live")).to_have_text("Answered: Keep it")
+    expect_walk_position(page, None)
+
+
 def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
-    """An empty On me list says the panel rendered, rather than looking broken."""
+    """An empty On Me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",
-        '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
-        '<lf-options id="only" choose>'
+        '<h1>One decision</h1><lf-group id="only-decision" label="Pick one"><h2 id="only-decision-h">Pick one</h2>'
+        '<lf-options id="only">'
         '<lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>',
     )
     url = serve(source)
     page = open_page(browser, live_url(url))
@@ -731,19 +849,88 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     ).to_have_text(re.compile(r"Nothing waiting on \S+\."))
 
 
+# The motion the panel's leaf plays, named by the turn it reaches first
+# (floating-panel.js, `MOTIONS`).
+LEAF_MOTIONS = {
+    "rotate(-12deg) scale(1.15)": "nod",
+    "translateX(-3px) rotate(-5deg)": "shake",
+    "translateY(-3px) scale(1.14)": "perk",
+    "rotate(10deg)": "sway",
+    "rotate(180deg) scale(1.15)": "twirl",
+    "rotate(14deg) translateX(1px)": "beckon",
+}
+
+
+def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
+    """The panel's leaf nods at each step of `m`, a second over the one item waiting
+    included, though nothing else moves, twirls when the user's answer empties On Me,
+    and nods at `m` over the empty list, once each, however often the field leaves a
+    notice's words and comes back to them."""
+    source = leaf_page(
+        "One decision",
+        '<h1>One decision</h1><lf-group id="only-decision" label="Pick one"><h2 id="only-decision-h">Pick one</h2>'
+        '<lf-options id="only">'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>',
+    )
+    page = open_page(browser, serve(source))
+    # The sequence of motions the leaf's mark starts, each by the turn it reaches first.
+    page.evaluate(
+        """() => {
+          window.__lfLeaf = [];
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (keyframes, options) {
+            if (this.matches('.lf-fp-leaf > svg'))
+              window.__lfLeaf.push(keyframes[1].transform);
+            return animate.call(this, keyframes, options);
+          };
+        }"""
+    )
+
+    def gestures(count):
+        page.wait_for_function(f"() => window.__lfLeaf.length >= {count}")
+        return [LEAF_MOTIONS[turn] for turn in page.evaluate("() => window.__lfLeaf")]
+
+    page.keyboard.press("m")
+    expect(page.locator("#only-decision")).to_be_focused()
+    assert gestures(1) == ["nod"]
+    page.keyboard.press("m")
+    assert gestures(2) == ["nod", "nod"]
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#only .lf-pick").first).to_be_focused()
+    page.keyboard.press("1")
+    round_trip(page)
+    expect_panel_says(page, "Nothing waiting on me")
+    assert gestures(3) == ["nod", "nod", "twirl"]
+
+    page.keyboard.press("m")
+    assert gestures(4) == ["nod", "nod", "twirl", "nod"]
+
+    # The field says the selected words, then the notice's again once they go.
+    page.locator("h1").select_text()
+    expect_panel_says(page, "One decision")
+    page.evaluate("() => getSelection().removeAllRanges()")
+    expect_panel_says(page, "One decision", says=False)
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert gestures(4) == ["nod", "nod", "twirl", "nod"]
+
+
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
-    """With On me open, `m` lands a suggestion the view would cover above the view,
+    """With On Me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
     (floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall. Opened by a
-    key, On me stands on its first row, the suggestion, so `m` steps on to the first
+    key, On Me stands on its first row, the suggestion, so `m` steps on to the first
     ask and `Shift+m` walks back to the suggestion."""
     filler = "".join(f"<p>Paragraph {n} of the release notes.</p>" for n in range(30))
     asks = "".join(
-        f'<lf-ask id="ask-{n}"><h2>Question {n}</h2><lf-options id="pick-{n}" choose>'
+        f'<lf-group id="ask-{n}" label="Question {n}"><h2 id="ask-{n}-h">Question {n}</h2><lf-options id="pick-{n}">'
         f'<lf-option id="yes-{n}">Yes</lf-option><lf-option id="no-{n}">No</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
         for n in range(10)
     )
     page = open_page(

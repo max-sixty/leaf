@@ -7,9 +7,9 @@ file below, in the page directory or the state home. Each entry names the module
 owns it, whose header holds the rest of its contract.
 
 Each JSON record below is a `state.Record`, declared once beside its owning module,
-whose functions are its only writers. A record carries the protocol at which its kind's
-shape last changed, and one this Leaf does not read reads as absent. A state-home
-record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
+whose functions are its only writers. Its `format` versions it
+([layer-registry.md](layer-registry.md), "Page protocol"). A state-home record whose
+pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 
 - `index.html` — the author's mutable document. The server validates it before
   activation and never serves it directly. An invalid save creates no revision, leaves
@@ -60,7 +60,7 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
   developer run context. It never enters page state or acknowledgement and is never
   served. `interaction_log.py` owns admission and reading, `browser/runtime/interaction-log.js`
   what a tab sends and sheds, `interaction-batch.schema.json` a browser batch, and
-  `leaf-dev response-times` the timing query over it.
+  `leaf-dev logs response-times` the timing query over it.
 
 - `user-views.json` — replaceable observations of the user's browser views, and when a
   document last showed the page (`user_views.py`). They are context for the author, not
@@ -70,9 +70,21 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 - `user-views.lock` — the lock serializing writes to `user-views.json`, which freshness
   and activation also ignore.
 
+- `drafts.json` — the user's unsent message drafts, each draft's latest generation by
+  its context (`drafts.py`), which every tab and device showing the page reads and
+  writes. A tab hears it through its own store identity and version in `/api/news`,
+  so no reading of the page, activation or watcher counts it, and the agent never
+  reads it. It outlives the process serving it, as the log does. The identity is
+  minted when the file is created, so it follows the file: a server restart keeps it,
+  and a replaced file starts another store, whose versions say nothing of the first
+  one's. Within one identity the version never goes back.
+
+- `drafts.lock` — the lock serializing writes to `drafts.json`.
+
 - `files.json` — local text-file grants written by `leaf file bind PAGE ID PATH`
   (`file_bindings.py`). The bound files remain their own authority, outside revisions
-  and the log.
+  and the log. A bound file may live in the page directory, as an example's
+  `files/` does; its grant names it from there, so it moves with the directory.
 
 - `data/` — one publication per source, `<source>.json`, which `leaf data set` writes
   and `leaf data clear` removes (`data.py`). The page holds a source exactly while its
@@ -123,6 +135,10 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 
 - `<state-home>/rows/<page-key>.json` — disposable output of a serving page's own
   activity, for its neighbours (`server_rows.py`). No page's fold reads it.
+
+- `<state-home>/render-readings/<page-key>.json` — the page's latest render check,
+  for its server (`render_gate/handover_pass.py`). No page's fold reads it, and
+  without it a version is read again.
 
 ## Revision delivery
 

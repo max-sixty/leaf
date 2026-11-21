@@ -230,7 +230,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         def send(self, message):
             pass
 
-        def recv(self, timeout):
+        def recv(self, timeout=None):
             return next(messages)
 
         def close(self):
@@ -628,7 +628,7 @@ def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(
     A fault the stream handler does not name would otherwise leave the claim open with
     the activity its first line set, which is a page that reads working for as long as
     the container lives and never reaches a receipt. Catching it takes the traceback
-    the excepthook used to print, so the turn's own record has to name the fault.
+    the excepthook would print, so the turn's own record has to name the fault.
     """
     comment = append_event(
         page_dir,

@@ -1,7 +1,5 @@
-# Added when the workspace stopped setting a reading measure: a workspace's blocks fill
-# their region, so a page whose region holds paragraphs caps them itself. The change 3 of
-# 3 on Claude Code, each capping the write-up with a grid track (46rem, 68ch, 68ch). Not
-# run on the base, whose Layout capped the prose for the page.
+# The workspace sets no reading measure: a workspace's blocks fill their region, so a
+# page whose region holds paragraphs caps them itself, such as with a grid track.
 description: workspace-prose-keeps-a-reading-width
 metadata:
   purpose:
@@ -26,6 +24,6 @@ assert:
       Read the HTML. Pass only if `main` has class `layout-workspace` and the incident
       write-up's paragraphs cannot run wider than about 1100px on a 2560px-wide window:
       the page's own stylesheet caps them or a box holding them (a `max-inline-size`,
-      `max-width`, `ch`-based width, or `var(--wide)`), or its grid gives the region that
+      `max-width`, `ch`-based width, or `var(--lf-wide)`), or its grid gives the region that
       holds them a track that cannot grow past that width. Fail if nothing in the page
       keeps those paragraphs from spanning the window beside the list.

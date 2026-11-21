@@ -1,15 +1,15 @@
-/* The On me walk: `m` and Shift+`m` page through everything waiting on the user,
-   in the order the floating panel's On me view lists it (`onMeGroups`). The view opens
+/* The On Me walk: `m` and Shift+`m` page through everything waiting on the user,
+   in the order the floating panel's On Me view lists it (`onMeGroups`). The view opens
    with `g M`, as Threads opens with `g T` and `t` walks the threads.
 
-   On me groups its items one of three ways, which the user picks at the view's foot
+   On Me groups its items one of three ways, which the user picks at the view's foot
    and the browser keeps for every page (storage.js, `userChoice`): By place, under what
    names the part of the page each stands in (thread/placement.js, `partOver`); By kind,
-   under the walk's word for each (`queueStop`); and By <agent>, under the goals of the
+   under a word for what each is (`queueStop`); and By <agent>, under the goals of the
    agent's plan whose steps name them, those no goal names last. Until the user picks, a
    plan that gives the user a step groups By <agent>, else By place. The walk steps
    through the groups' items in the list's one order (`onMeGroups`), so successive
-   presses reach successive rows. The user chose these groupings (2026-10-21) over Leaf
+   presses reach successive rows. The user chose these groupings over Leaf
    ordering by what the plan waits on, an agent's note with picks, and a priority on
    every obligation, each needing a new contract or a guess. A step from where the user
    reads goes to the first item in that order after their place (`stepFrom`), which
@@ -28,7 +28,7 @@
    wherever that walk lands. Only what is no obligation the page places has no owner
    that arrives at it, a page widget action handed back to the user or an On <agent>
    card's to-do, so travel's `arrive` puts the user where its subject stands
-   (`subjectPlace`). An On me card's Show arrives through the same
+   (`subjectPlace`). An On Me card's Show arrives through the same
    function (`arriveAtItem`), for an item on either list or one that is done, and
    offers itself where that arrival goes anywhere (`arrivesAt`).
 
@@ -36,14 +36,14 @@
    it, by the rule every walk shares (current-target.js, `walkOrigin` and `stepFrom`).
    The chrome is a binding badge, not a page position, so its controls do not become
    the walk's origin. The user is on an obligation when their current location is in
-   its place (`obligationHolding`, current-target.js) or on its On me card
+   its place (`obligationHolding`, current-target.js) or on its On Me card
    (`ON_CARD`), on a thread stop when they are in its thread (`threadIn`), and on an
    action handed back when they are in its widget.
 
    With nothing waiting on the user, a press of `m` or Shift+`m` says so in the panel's
    seat (notifications.js, `notice`), as every walk with nothing to step through does
    (keyboard/AGENTS.md, "Page grammar"); the reading that empties the list says it
-   unasked (semantic-news.js). The user asked for both on 5 November 2026, taking the
+   unasked (semantic-news.js). The user asked for both, taking the
    words over a flash of the panel's colour for now.
 
    The walk opens what answers each item it reaches: a thread opens, and a widget's
@@ -60,13 +60,14 @@
    goal's by its steps' order.
 
    The walk can also step within one region of the page (`obligationActions.next`, as an
-   `lf-tally`'s Next on me presses it): its stops are then the obligations waiting on the user
+   `lf-tally`'s Next On Me presses it): its stops are then the obligations waiting on the user
    that the region holds (`obligationsIn`, obligations/place.js), stepped by the same current location and
    page order, and its position counts them alone. A press from outside the region, such as
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
    control, so they keep it, while any other move the user makes ends it. Without one it
-   counts from the block they read in the region (reading-place.js, `readingBlock`), as a
+   counts from what they see of the region, the block they read there (reading-place.js,
+   `readingBlock`) or a stop in view ahead of it (current-target.js, `stepFrom`), as a
    place they are at without being on it, and with none in sight it counts from where
    they are. That obligation, kept by identity
    so a revision replacing its node keeps it, is the one place this walk keeps, and only
@@ -83,16 +84,17 @@ import {
   obligationHolding,
   placeOf,
   currentLocationOrigin,
+  questionAsked,
   stepFrom,
   walkOrigin,
 } from "./current-target.js";
 import { readingBlock } from "./reading-place.js";
 import { readingRegionFor } from "./reading-regions.js";
 import { closestAcross, inChrome } from "./passages.js";
-import { byRenderedOrder, under } from "./shadow.js";
+import { byRenderedOrder, under } from "./shadow-tree.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
-import { obligationWord } from "./obligations/answer.js";
+import { obligationEnding, obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
 import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
@@ -102,6 +104,7 @@ import { drawnThreadId } from "./thread/selectors.js";
 import { partOver } from "./thread/placement.js";
 import { addressableLabel } from "./addressable-names.js";
 import { userChoice } from "./storage.js";
+import { kept, keptEach } from "./kept.js";
 import { agentName } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -117,6 +120,7 @@ import { notice } from "./notifications.js";
  * | {kind: "subject", id: string, subject: import("../types/contract.js").ServedSubject, thread: null}} Stop
  * @typedef {Stop & {key: string, noun: string}} QueueStop
  * @typedef {QueueStop & {place: Element | null}} PlacedStop
+ * @typedef {{stop: QueueStop, place: Element | null, heading: Element | null}} Seat
  * @typedef {"place" | "kind" | "plan"} Grouping
  * @typedef {ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>} Travel
  */
@@ -170,15 +174,15 @@ const stopOf = (item) =>
         };
 
 // An item as the walk reads it: where it is arrived at, the key the walk's position
-// names that stop by, and what the walk calls it. An On me card reads the same, so it
-// knows when the walk stands on it, and By kind groups by what the walk calls it.
+// names that stop by, and the word By kind groups it under. An On Me card reads the
+// same, so it knows when the walk stands on it.
 /** @param {QueueItem} item @returns {QueueStop} */
 export function queueStop(item) {
   const stop = stopOf(item);
   return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };
 }
 
-// On me's groupings, in the order its chooser offers them, and the one the user chose.
+// On Me's groupings, in the order its chooser offers them, and the one the user chose.
 /** @type {readonly Grouping[]} */
 export const ON_ME_GROUPINGS = Object.freeze(["place", "kind", "plan"]);
 const chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
@@ -232,29 +236,40 @@ export function createQueueWalk({
     return at?.isConnected && !inChrome(at) ? at : null;
   };
 
+  // An item's seat: its stop, the element the stop stands at (`pagePlace`) and the
+  // heading over that element (`partOver`).
+  /** @param {QueueItem} item @returns {Seat} */
+  const seatFor = (item) => {
+    const stop = queueStop(item);
+    const place = pagePlace(stop);
+    return { stop, place, heading: place ? partOver(place) : null };
+  };
+  // On Me's reading of the page: each item's seat, made when the item is first asked
+  // about (`seats`), and the walk's stops in On Me's order and in page order (`stops`,
+  // `pageStops`). Each is kept until something it read changes (kept.js), the lists, the
+  // obligations and the plan the server read, the user's grouping, the page's reading
+  // and the threads' placement among them, so a press of `m`, the position it announces
+  // and the On Me view look items up rather than reading the page for each item
+  // (AGENTS.md, "Responsiveness").
+  const seats = keptEach(seatFor);
+
   // Items of any list in the walk's order: by where each is arrived at on the page, and
   // those with no place there after, in the list's own order.
   /** @template {QueueItem} T @param {readonly T[]} items */
-  const inWalkOrder = (items) =>
-    byRenderedOrder(items, (item) => pagePlace(queueStop(item)));
+  const inWalkOrder = (items) => byRenderedOrder(items, (item) => seats(item).place);
 
-  // How On me groups now: the user's choice, else By <agent> where the plan gives the
+  // How On Me groups now: the user's choice, else By <agent> where the plan gives the
   // user a step, which stays so as the user answers it, else By place.
   const grouping = () =>
     chosenGrouping.read() ??
     ((readPlan()?.steps ?? []).some(givesUser) ? "plan" : "place");
-  // The heading of the part of the page an item stands in, and what it says.
-  /** @param {QueueItem} item */
-  const itemHeading = (item) => {
-    const at = pagePlace(queueStop(item));
-    return at ? partOver(at) : null;
-  };
+  // What the heading of the part of the page an item stands in says.
   /** @param {QueueItem} item */
   const itemPlace = (item) => {
-    const heading = itemHeading(item);
+    const { heading } = seats(item);
     return heading ? addressableLabel(heading) : "";
   };
-  // Everything On me has held on this page: what waits on the user and what the user
+  // Everything On Me has held on this page: what waits on the user and what the user
   // finished. It only grows as they answer, so an order read from it holds still while
   // the list empties.
   const heldOnMe = () => {
@@ -264,10 +279,10 @@ export function createQueueWalk({
       ...reading.done.filter((item) => item.owner === "user"),
     ];
   };
-  // `items` in On me's groups (`grouping`), each a `title` over its items, and `leads`,
+  // `items` in On Me's groups (`grouping`), each a `title` over its items, and `leads`,
   // the items that lead their walk stops: the list's one order, which the walk follows
   // too. The groups and their order are read from
-  // everything On me has held (`heldOnMe`), not from which items remain, so the list,
+  // everything On Me has held (`heldOnMe`), not from which items remain, so the list,
   // which keeps an answered item in its seat, and the walk, which steps over it, stand
   // in one order: a plan's goals in the plan's order, else each group where the first
   // item it holds comes in page order. A group's items stand by their steps' order in
@@ -313,10 +328,10 @@ export function createQueueWalk({
       if (unplanned)
         return planGroups.find((held) => held.named?.includes(item.id)) ?? unplanned;
       if (by === "kind") {
-        const noun = queueStop(item).noun;
+        const noun = seats(item).stop.noun;
         return group(noun, `kind:${noun}`, noun);
       }
-      const heading = itemHeading(item);
+      const { heading } = seats(item);
       return group(
         heading,
         heading ?? "place",
@@ -328,7 +343,7 @@ export function createQueueWalk({
     /** @type {Map<string, {at: number, items: QueueItem[]}>} */
     const stops = new Map();
     basis.forEach((item, at) => {
-      const key = queueStop(item).key;
+      const key = seats(item).stop.key;
       const previous = stops.get(key);
       if (previous) previous.items.push(item);
       else stops.set(key, { at, items: [item] });
@@ -373,7 +388,7 @@ export function createQueueWalk({
     const list = [];
     const listed = new Set();
     for (const item of items) {
-      const stop = queueStop(item);
+      const { stop, place } = seats(item);
       // Two items arrived at in one place, such as a question in a thread and an update
       // to send again there, are one stop: the user standing there is on the first of
       // them, and the next press goes on past the place.
@@ -382,35 +397,38 @@ export function createQueueWalk({
         stop.key;
       if (listed.has(at)) continue;
       listed.add(at);
-      list.push({ ...stop, place: pagePlace(stop) });
+      list.push({ ...stop, place });
     }
     return list;
   }
-  const stops = () =>
-    stopsAmong(onMeGroups(readQueues().on_user).flatMap((group) => group.items));
+  // The walk's stops in On Me's order, and in page order whatever On Me's grouping.
+  const stops = kept(() =>
+    stopsAmong(onMeGroups(readQueues().on_user).flatMap((group) => group.items)),
+  );
+  const pageStops = kept(() => stopsAmong(inWalkOrder(readQueues().on_user)));
 
   // The stops of a walk within `region`: the obligations waiting on the user it holds,
-  // in page order whatever On me's grouping, as the region is read on the page.
+  // in page order whatever On Me's grouping, as the region is read on the page.
   /** @param {Element} region */
   function stopsWithin(region) {
     const held = new Set(obligationsIn(region).map((item) => item.id));
-    return stopsAmong(inWalkOrder(readQueues().on_user)).filter(
+    return pageStops().filter(
       (stop) => stop.kind === "obligation" && held.has(stop.id),
     );
   }
   /** @param {Element | null | undefined} region */
   const stopsOf = (region) => (region ? stopsWithin(region) : stops());
 
-  // The item the user is on, if any: the thread holding them, else the innermost of the
+  // The item the user is on, if any: the thread holding them, else the question that
+  // thread asks them (`questionAsked`, current-target.js), else the innermost of the
   // list's obligations holding their place, as `obligationHolding` reads obligations,
   // or the innermost widget an action was handed back on, in page order the last that holds
   // them. A thread drawn beside their place, such as the card a thread about an
   // obligation opens, is not one they are in, so a thread stop of its own is the next
   // one along from the obligation, and from the thread's target the press arrives at
-  // it. Being in a thread that holds an open obligation is not being on that
-  // obligation. `origin` names the user's place unless a walk supplies its own starting
-  // point; only a current location can be on a stop, so a place they let go of or a
-  // reading in the viewport starts a walk but selects no task to finish or count.
+  // it. `origin` names the user's place unless a walk supplies its own starting point;
+  // only a current location can be on a stop, so a place they let go of or a reading in
+  // the viewport starts a walk but selects no task to finish or count.
   /** @param {readonly PlacedStop[]} list @param {Origin | null} origin */
   function currentLocationStop(list, origin = currentLocationOrigin()) {
     if (origin?.kind !== "current-location") return null;
@@ -435,16 +453,21 @@ export function createQueueWalk({
     return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
   }
 
-  // The obligation or subject stop holding the user's place, if any.
-  /** @param {readonly PlacedStop[]} list @param {Origin} origin */
-  function placeStop(list, { place: here }) {
+  // A list's obligation stops and their records, read once for each list (kept.js), so
+  // that asking which holds a place costs the place's depth for a list the walk keeps
+  // (`obligationHolding`).
+  const obligationStops = keptEach((/** @type {readonly PlacedStop[]} */ list) => {
     const listed = list.filter((stop) => stop.kind === "obligation");
-    const item = obligationHolding(
-      listed.map((stop) => stop.obligation),
-      placeOf(here),
-      readObligations().all,
-    );
-    if (item) return listed.find((stop) => stop.id === item.id);
+    return { listed, records: listed.map((stop) => stop.obligation) };
+  });
+  // The obligation or subject stop the user is on, if any.
+  /** @param {readonly PlacedStop[]} list @param {Origin} origin */
+  function placeStop(list, { node, place: here }) {
+    const { listed, records } = obligationStops(list);
+    const item =
+      questionAsked(node) ??
+      obligationHolding(records, placeOf(here), readObligations().all);
+    if (item) return listed.find((stop) => stop.id === item.id) ?? null;
     return (
       list.findLast((stop) => {
         if (stop.kind !== "subject") return false;
@@ -462,7 +485,7 @@ export function createQueueWalk({
   /** @param {readonly PlacedStop[]} list @param {Step} dir @param {Element | null} region @param {Origin} origin */
   function step(list, dir, region, origin) {
     // Outside the region nothing the user is on is one of its stops, even where the
-    // press sits inside the lf-ask around an obligation.
+    // press sits inside the group around an obligation.
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
     const currentLocation = currentLocationStop(list, origin);
     if (currentLocation) return cycledRow(list, currentLocation, dir);
@@ -493,12 +516,12 @@ export function createQueueWalk({
     );
   }
 
-  // An answered obligation is arrived at the same way, which is how On me's Done
+  // An answered obligation is arrived at the same way, which is how On Me's Done
   // rows return the user to one to review or revise it.
   /** @param {Stop} stop */
   function arriveAt(stop) {
     if (stop.kind === "obligation") {
-      const record = readObligations().all.find((item) => item.id === stop.id);
+      const record = readObligations().byId.get(stop.id);
       if (!record || hasObligationSource(record, "update"))
         return Promise.resolve(false);
       return arriveAtRecord(record);
@@ -507,17 +530,22 @@ export function createQueueWalk({
     return arriveAtElement(() => stopElement(stop));
   }
 
-  // Where the walk stands in the whole list, and the kind of item it stands on: the
-  // count is of every kind, so the kind follows it rather than naming the list.
+  // Where the walk stands in the list, named by the list since it counts every kind.
+  // The item the user stands on is in front of them and shows what it is, so the
+  // position names neither it nor its kind, as an On Me card names no kind.
   /** @param {Element | null} region */
   function position(region) {
     const list = stopsOf(region);
-    const here = currentLocationStop(list);
-    const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
-    return at && here
-      ? { ...at, qualifier: `${region ? WITHIN : QUALIFIER} · ${here.noun}` }
-      : null;
+    const at = listWalkPosition(list, currentLocationStop(list), {
+      identity: (stop) => stop.key,
+    });
+    return at && { ...at, qualifier: qualifier(region, list) };
   }
+  // "Here" says the walk counts only the region's stops; a region holding every stop On
+  // Me lists counts On Me's, which the words say plainly.
+  /** @param {Element | null} region @param {readonly QueueStop[]} list */
+  const qualifier = (region, list) =>
+    region && list.length < stopsOf(null).length ? WITHIN : QUALIFIER;
 
   // Resolves whether it arrived.
   /** @param {Step} dir @param {Element | null} region @param {Origin} origin */
@@ -537,7 +565,7 @@ export function createQueueWalk({
             null,
             list.indexOf(next) + 1,
             list.length,
-            `${region ? WITHIN : QUALIFIER} · ${next.noun}`,
+            qualifier(region, list),
           ),
       );
       return true;
@@ -552,19 +580,19 @@ export function createQueueWalk({
     touch: false,
     keys: ["m", "Shift+m"],
     routes: [
-      // The whole page's list, which a tally's Next on me, walking one region, is not.
+      // The whole page's list, which a tally's Next On Me, walking one region, is not.
       {
         id: "queue.next",
         binding: "m",
-        title: "Next on me",
+        title: "Next On Me",
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
-        title: "Previous on me",
+        title: "Previous On Me",
       },
     ],
-    title: "On me",
+    title: "On Me",
     repeat: true,
     travels: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
@@ -579,9 +607,44 @@ export function createQueueWalk({
     },
   });
 
-  // An On me row arrives where the walk would, whichever list its obligation is on.
+  // An On Me row arrives where the walk would, whichever list its obligation is on.
   /** @param {QueueItem} item */
   const arriveAtItem = (item) => arriveAt(stopOf(item));
+
+  // A press naming one obligation outright, as a Page Map row or
+  // `obligationActions.open` does, arrives where the walk would and says where the
+  // obligation stands in On Me as `m` landing there would, so every route counts the one
+  // list. It says so only where the stop the user then stands on is the obligation's
+  // own: one On Me doesn't hold, answered or left with the agent, can stand inside a
+  // stop that waits, as a question inside a proposal does, and has no position of its
+  // own there. A finished one says how it ended.
+  /** @param {Obligation} record */
+  function goToObligation(record) {
+    /** @type {Stop} */
+    const stop = {
+      kind: "obligation",
+      id: record.id,
+      thread: record.thread,
+      obligation: record,
+    };
+    const key = `${stop.kind}:${stop.id}`;
+    // Read where the obligation's own stop is the one the user stands on, and nowhere
+    // else, so a position another stop declared ends here too.
+    const own = () => {
+      const at = position(null);
+      return at?.target === key ? at : null;
+    };
+    const ready = arriveAt(stop).then((arrived) => {
+      if (!arrived) return false;
+      const said =
+        beginWalk("queue", null, own) ??
+        (record.status === "open" ? null : obligationEnding(record));
+      if (said) announce(said);
+      return true;
+    });
+    void ready.catch(() => {});
+    return ready;
+  }
   // Whether the walk takes the user somewhere for an item that its card does not already
   // offer: its place on the page, or a widget in a thread the page draws no passage for,
   // which the panel opens with the user on the widget. A question can also arrive at
@@ -590,7 +653,7 @@ export function createQueueWalk({
   const arrivesAt = (item) => {
     const stop = stopOf(item);
     return (
-      Boolean(pagePlace(stop)) ||
+      Boolean(seats(item).place) ||
       (stop.kind === "thread" && Boolean(stop.message)) ||
       (stop.kind === "obligation" && stop.thread !== null)
     );
@@ -622,20 +685,21 @@ export function createQueueWalk({
         place: obligationPlace(kept).source,
         kind: "current-location",
       });
-    // What the user reads in the region, where they are without being on any of its
-    // obligations, so the one holding it or the next waiting one is the next.
+    // What the user sees of the region, where they are without being on any of its
+    // obligations, so one on screen ahead of what they read there, else the one
+    // holding it or the next waiting one, is the next.
     const reading = readingBlock(readingRegionFor(within) ?? null, within);
     return walk(
       toward,
       within,
-      reading ? { node: reading, place: reading, kind: "at" } : here,
+      reading ? { node: reading, place: reading, kind: "view" } : here,
     );
   }
 
-  // On me's list as the panel draws it: its groups, the grouping they stand in and the
+  // On Me's list as the panel draws it: its groups, the grouping they stand in and the
   // user's choice of it, the heading each item's row names as its place, and whether
   // one of its items is arrived at on `node`, as a walk standing there would be on it
-  // (`currentLocationStop`), so On me's card shows what travel took the user to.
+  // (`currentLocationStop`), so On Me's card shows what travel took the user to.
   const onMe = Object.freeze({
     groups: onMeGroups,
     grouping,
@@ -652,5 +716,5 @@ export function createQueueWalk({
       ),
   });
 
-  return { arriveAtItem, arrivesAt, onMe, nextWithin };
+  return { arriveAtItem, arrivesAt, goToObligation, onMe, nextWithin };
 }

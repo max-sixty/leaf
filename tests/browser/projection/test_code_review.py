@@ -442,7 +442,10 @@ def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
     assert widget.locator(".lf-call-root-location a").all_inner_texts() == [
         f"{path}:1" for path in paths
     ]
-    widget.get_by_role("button", name="Expand all 2 call-tree roots").click()
+    # Every root stands open, so each call's link is in reach.
+    expect(
+        widget.get_by_role("button", name="Collapse all 2 call-tree roots")
+    ).to_be_visible()
     for tree in capture["trees"]:
         for node in [tree["tree"], *tree["tree"]["children"]]:
             path, number = node["file"], node["line"]
@@ -668,6 +671,73 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
+def test_a_comment_on_words_across_diff_lines_stays_on_them(browser, serve):
+    """A sentence a diff wraps across two lines is one passage to comment on: its
+    thread stands beside the line it ends on and marks its words on both, and its
+    anchor names both lines, so the agent can tell which lines it is about."""
+    url = serve(
+        leaf_page(
+            "cross-line comment",
+            '<h1 id="title">Wording</h1><lf-diff id="patch" source="patch-data"></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/AGENTS.md b/AGENTS.md\n--- a/AGENTS.md\n+++ b/AGENTS.md\n"
+        "@@ -10,2 +10,3 @@\n Text in the tree says what holds now.\n"
+        "-Old wording.\n+Instructions must reach a reader who has only\n"
+        "+that text and the files it points to.\n",
+    )
+    page = open_page(browser, url)
+    first, last = '["AGENTS.md","new",11]', '["AGENTS.md","new",12]'
+    start, end = page.locator("#patch").evaluate(
+        """(diff, [first, last]) => [[first, "reach", 0], [last, "it points to.", 1]].map(
+          ([key, word, after]) => {
+            const text = diff.shadowRoot.querySelector(`[data-lf-datum='${key}']`);
+            const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+            for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+              const at = node.data.indexOf(word);
+              if (at < 0) continue;
+              const range = document.createRange();
+              range.setStart(node, at + after * word.length);
+              const box = range.getBoundingClientRect();
+              return [box.left + 1 - after * 2, box.top + box.height / 2];
+            }
+          })""",
+        [first, last],
+    )
+    select(page, start, end)
+    page.keyboard.press("c")
+    draft = page.locator(".lf-fab-input")
+    write(draft, "Too obvious?")
+    with sending(page, "the comment across two lines"):
+        draft.press("ControlOrMeta+Enter")
+    comment = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    words = "reach a reader who has only that text and the files it points to."
+    assert {
+        key: comment["anchor"].get(key) for key in ("section", "from", "datum", "quote")
+    } == {"section": "patch", "from": first, "datum": last, "quote": words}
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    assert page.evaluate("() => [...CSS.highlights.get('lf-mark')].map(String)") == [
+        "reach a reader who has only",
+        "that text and the files it points to.",
+    ]
+    outlet = page.locator(
+        f"#patch .lf-diff-thread-outlet[data-lf-thread-datum='{last}']"
+    )
+    expect(outlet).to_be_visible()
+    line = page.locator(f"#patch [data-lf-datum='{last}']").bounding_box()
+    assert outlet.bounding_box()["y"] >= line["y"] + line["height"] - 1
+    status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")
+    expect(status).to_have_count(0)
+
+
 def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(
@@ -876,7 +946,6 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     )
     expect(root).to_be_focused()
 
-    widget.locator(".lf-call-toggle").click()
     row = widget.locator(".lf-call-location", has_text="gateway/limits.py:22")
     row.focus()
     capture(dict(second, children=list(reversed(calls))), first)
@@ -886,9 +955,9 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     ).to_have_text("├─ three()")
     expect(row).to_be_focused()
 
-    # Equal root names can share a stable call row while its group changes. The
-    # closed destination may already exist or arrive in this capture; both expose
-    # the user's focused row while a transfer without focus leaves its group closed.
+    # Equal root names can share a stable call row while its group changes. A group
+    # the user closed opens to show their focused row moving into it, while a
+    # transfer without focus leaves its group closed.
     first_work = call_node("work()", "app.py", 1)
     second_work = call_node("work()", "app.py", 20)
     third_work = call_node("work()", "app.py", 60)
@@ -897,7 +966,9 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     capture(dict(first_work, children=[unfocused, shared]), second_work, third_work)
     told(page)
     expect(groups).to_have_count(3)
-    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    for group in (groups.nth(1), groups.nth(2)):
+        group.locator(":scope > summary").click()
+        expect(group).not_to_have_attribute("open", "")
     location = widget.locator(".lf-call-location", has_text="utils.py:2")
     location.focus()
     for destination, roots in (
@@ -1098,10 +1169,12 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     rendered(page)
     # Reopening is a fresh placement on the document's current full-width box. The
     # document scrolls inside its box, so the card may open over that box or under it.
+    # Under it, the card stands a mark's room and a gap clear (`place-clear`).
     reopened = card.bounding_box()
+    clear = page.evaluate("async () => (await window.__lfOverlayApi()).subjectGap()")
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
-    assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + 10
+    assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + clear + 2
     # A comment on the whole document follows it, so its head has nothing to say.
     status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")
     expect(status).to_have_count(0)

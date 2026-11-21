@@ -1,11 +1,45 @@
 """A captured revision as one HTML file that opens offline.
 
-The export packages the captured revision, its resources, the exporting Leaf's
-runtime (`runtime_selection`), and the page's authoritative state reading, which that
-runtime reads, into one file. Neighboring live pages are omitted: their access URLs
-grant machine-wide server access and have no place in an offline record.
-Its resource owner allocates one object URL per embedded body before handing the
-composed document to the native HTML parser; Leaf's normal
+Every export starts from one package (`export_document`): the captured revision, its
+resources, the exporting Leaf's runtime (`runtime_selection`), and a state reading of
+the page, which that runtime reads. Neighboring live pages are omitted: their access
+URLs grant machine-wide server access and have no place in an offline record.
+
+Most exports are read rather than operated, so by default the file is the page the
+package draws, not the package (`static_document`): the host's browser boots the
+package once, and the file keeps the page's markup with each widget in its current
+state, what each fold draws once opened, its images and fonts as data URLs, and no
+script. It shows the same with scripts off, and it leaves out the runtime, which is
+nearly all of a package's bytes. With `runtime` the file is the package, for a reader
+who should operate the widgets.
+
+Widgets draw only in the browser, so a file without the runtime needs either a browser
+at export time or a second, script-free renderer for every widget. A browser keeps one
+renderer and asks nothing of a package; the host already supplies one for `page check
+--render`. Its cost is that what a widget computes while drawing keeps the desktop
+window it was drawn in (`render_checks.RENDER_VIEWPORT`): on a phone a chart shrinks to
+fit rather than redrawing, and a contents list the runtime folds for a narrow window
+stays open. The file's CSS adapts the rest to its reader's window and color scheme. A
+renderer per widget would need no browser, but every package, a third party's too,
+would have to keep it matching the first.
+
+An export goes to people who shouldn't see what the user and the agent said to each
+other, so the file holds the page and none of the conversation. Its reading is folded
+from `_page_log`, the part of the log that changes the page, with no process facts
+(`capture_page_snapshot`'s `process`). Threads, obligations, queues, to-dos, activity
+and history are all readings of that log, so none of them has a message to carry, and
+a new kind of event stays out until `_page_log` names it. A widget in a message can
+bind a data source and an image can be attached to a message, so the file holds only
+the data the page's own markup binds (`_page_data`) and the media that markup and data
+name.
+
+Two other designs were rejected. Embedding the threads and turning their surface
+off hides the discussion from the page's reader and leaves it readable in the file's
+source. Showing the threads read-only would put the discussion in front of
+the same people.
+
+The package's resource owner allocates one object URL per embedded body before handing
+the composed document to the native HTML parser; Leaf's normal
 runtime then boots from that document. The normal composer also supplies the
 scripts-off record: authored text, layout and alt text, with an explanation that
 embedded graphics, fonts and recordings require JavaScript. Media is
@@ -13,14 +47,11 @@ embedded in full, including recordings: no size cap silently removes content, an
 the reported output byte count includes the base64 expansion.
 
 Data is embedded beside media, not in the reading the composed document carries:
-each source's value with its deferred fields left out, and each deferred field, is
-one gzipped JSON body, so each part of a value is in the file once. The bodies are
-spans of one embedded file, so a diff of thousands of files costs startup one object
-URL rather than one a record. The runtime decodes the values when it reads the
-page's state, as a served page's first state answer brings them, and a deferred field
-when a widget loads it (`runtime/context.js`). A value inside the composed document
-would cross the package's JSON, the HTML parser and the reading's JSON before any
-widget read it, escaped again at each JSON layer.
+the sources' values are one gzipped JSON object, embedded as one file, so they cost
+startup one object URL. The runtime decodes them when it reads the page's
+state, as a served page's first state answer brings them (`runtime/context.js`). A
+value inside the composed document would cross the package's JSON, the HTML parser
+and the reading's JSON before any widget read it, escaped again at each JSON layer.
 """
 
 from __future__ import annotations
@@ -36,7 +67,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from leaf.data import deferred_fields
+from leaf.data import read_data
+from leaf.data_contracts import data_bindings
 from leaf.files import (
     published_versions,
     version_name,
@@ -44,6 +76,7 @@ from leaf.files import (
 )
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
+from leaf.registry.kernel import verb_writers
 from leaf.revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -64,34 +97,32 @@ from leaf.runtime_selection import executing
 from leaf.served_state.service import PageStateService
 from leaf.service import PageTransaction
 from leaf.structure import UTF8_BOM, SourceDocument
-from leaf.thread_context import logged_fragment
 
 ResourceReader = Callable[[str], Resource]
+
+DRAWING = Path(__file__).with_name("static-export.js")
+# Where the browser opens the package to draw it. An https origin is a secure context,
+# as a file is, and `.invalid` never resolves, so a request the page makes beyond
+# itself fails as it would offline. The address's path is `/`, so the drawing carries
+# no local path, as the page's storage scope would from a file (`prepaint.js`).
+DRAWING_URL = "https://leaf.invalid/"
 
 
 def _data_url(resource: Resource) -> str:
     return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
 
 
-class _DataFile:
-    """The one embedded file holding every data body (the module header), each a span
-    the runtime reads (`embeddedValue` in `runtime/context.js`): a value's JSON,
-    gzipped. Nothing compresses a file opened from disk or sent as an attachment, and
-    gzip puts prose and code in the file at about 40% of their size, base64 included,
-    where uncompressed base64 takes 133%. Level 6 packs within 1% of gzip's default 9
-    in a third to a half of the time."""
-
-    def __init__(self) -> None:
-        self.data = bytearray()
-
-    def span(self, value) -> list[int]:
-        """Append one value's body, and return its offset and length."""
-        body = gzip.compress(
-            json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(),
-            compresslevel=6,
-        )
-        self.data.extend(body)
-        return [len(self.data) - len(body), len(body)]
+def _data_body(values: dict) -> bytes:
+    """The one embedded file holding every source's value (the module header), which
+    the runtime reads (`offlineState` in `runtime/context.js`): a JSON object keyed by
+    source, gzipped. Nothing compresses a file opened from disk or sent as an
+    attachment, and gzip puts prose and code in the file at about 40% of their size,
+    base64 included, where uncompressed base64 takes 133%. Level 6 packs within 1% of
+    gzip's default 9 in a third to a half of the time."""
+    return gzip.compress(
+        json.dumps(values, ensure_ascii=False, separators=(",", ":")).encode(),
+        compresslevel=6,
+    )
 
 
 @dataclass
@@ -100,7 +131,6 @@ class _CssFrame:
 
     source: str
     base: str
-    declarations: bool
     references: Iterator[str]
     addresses: dict[str, str | None]
     parent_reference: str | None = None
@@ -110,19 +140,11 @@ class _CssFrame:
         cls,
         source: str,
         base: str,
-        declarations: bool = False,
         parent_reference: str | None = None,
     ) -> _CssFrame:
         addresses: dict[str, str | None] = {}
-        rebase_css(
-            source,
-            base,
-            lambda path: addresses.setdefault(path, path),
-            declarations=declarations,
-        )
-        return cls(
-            source, base, declarations, iter(addresses), addresses, parent_reference
-        )
+        rebase_css(source, base, lambda path: addresses.setdefault(path, path))
+        return cls(source, base, iter(addresses), addresses, parent_reference)
 
 
 def _fragment(address: str | None, reference: str) -> str | None:
@@ -163,15 +185,9 @@ class _Assets(ABC):
             resource = Resource(self.stylesheet(path).encode("utf-8"), "text/css")
         return _fragment(self.embed(resource), reference)
 
-    def css(
-        self,
-        css: str,
-        base: str,
-        *,
-        declarations: bool = False,
-    ) -> str:
+    def css(self, css: str, base: str) -> str:
         """Rewrite the CSS graph in depth-first order without recursive resource reads."""
-        stack = [_CssFrame.read(css, base, declarations)]
+        stack = [_CssFrame.read(css, base)]
         active = {base}
         while True:
             frame = stack[-1]
@@ -194,10 +210,7 @@ class _Assets(ABC):
                 frame.addresses[reference] = _fragment(self.embed(resource), reference)
                 continue
             rewritten = rebase_css(
-                frame.source,
-                frame.base,
-                frame.addresses.__getitem__,
-                declarations=frame.declarations,
+                frame.source, frame.base, frame.addresses.__getitem__
             )
             stack.pop()
             active.remove(frame.base)
@@ -251,19 +264,19 @@ class ReadableAssets(_Assets):
 
 
 def _module_urls(
-    artifact: RevisionArtifact, markup: list[SourceDocument], inliner: AssetInliner
+    artifact: RevisionArtifact, document: SourceDocument, inliner: AssetInliner
 ) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
     The computed imports an exported page makes are widget modules, asked for only
     where the widget's tag stands in markup about to be upgraded (`importWidgets` in
-    `runtime/widget-loader.js`). Offline that markup is the captured page and the frozen
-    markup its messages carry, since the embedded reading never activates another
-    revision. Every other import is literal, so the runtime entry, the page's own
-    modules, and the modules of the widgets that markup names close the graph: a page
-    that draws no diff carries no diff renderer.
+    `runtime/widget-loader.js`). Offline that markup is the captured page, since the
+    embedded reading never activates another revision and holds no message. Every
+    other import is literal, so the runtime entry, the page's own modules, and the
+    modules of the widgets its markup names close the graph: a page that draws no diff
+    carries no diff renderer.
     """
-    tags = {record["tag"] for document in markup for record in document.lf_elements}
+    tags = {record["tag"] for record in document.lf_elements}
     required = {f"/widgets/{tag}.js" for tag in tags}
     widgets = {
         alias: source
@@ -292,11 +305,54 @@ def _module_urls(
     return urls | {alias: urls[path] for alias, path in widgets.items()}
 
 
+def _page_log(events: list[dict]) -> list[dict]:
+    """The log an export's reading folds (the module header): each action and report on
+    a page widget (`verb_writers`), each undo of one, and each stamp, which maps a
+    version to its revision and names the decisions it takes back.
+
+    A widget in a message belongs to its thread, so the file leaves its actions
+    out with the thread. A stamp's changelog is the agent's words to the user, so a
+    blank replaces it, since the record's schema requires text. An event's `session`
+    names the agent's session, and the page has no use for it.
+    """
+    widget_state = {
+        event["id"]
+        for event in events
+        if event["kind"] in verb_writers() and event["meaning"]["scope"] == "page"
+    }
+    page_log = []
+    for event in events:
+        if event["kind"] == "note":
+            event = {**event, "text": " "}
+        elif not (event["id"] in widget_state or event.get("undoes") in widget_state):
+            continue
+        page_log.append(
+            {key: value for key, value in event.items() if key != "session"}
+        )
+    return page_log
+
+
+def _page_data(page_dir: Path, document: SourceDocument, registry: dict) -> dict:
+    """The stored data the file holds (the module header): each source `document`
+    binds, which leaves out a source only a message's widget or an earlier revision
+    binds. A widget a page's script creates finds its source only if the page's markup
+    binds it too."""
+    stored = read_data(page_dir, registry)
+    bound = {source for *_, source in data_bindings(document.lf_elements, registry)}
+    return {
+        **stored,
+        "sources": {
+            source: reading
+            for source, reading in stored["sources"].items()
+            if source in bound
+        },
+    }
+
+
 def export_document(
     artifact: RevisionArtifact,
     document: SourceDocument,
     state: dict,
-    data: dict,
     revision: int,
     version: int | None,
     data_resources: Mapping[str, Resource],
@@ -311,10 +367,9 @@ def export_document(
     The shared resource allocator gives each embedded module one object URL.
     The normal application publisher, widgets, and presentation coordinator boot
     against the embedded authoritative reading, so the file opens offline wherever the
-    page itself names no other server. `data` is the page's stored data
-    (`data.read_data`), whose deferred fields the reading leaves out.
+    page itself names no other server.
     """
-    # The reading names each value's body rather than holding it (the module header).
+    # The reading leaves out the values, which the data file holds (the module header).
     values = {
         source: reading["value"]
         for source, reading in state["data"]["sources"].items()
@@ -322,7 +377,6 @@ def export_document(
     }
     state = {
         **state,
-        "others": [],
         "data": {
             **state["data"],
             "sources": {
@@ -347,18 +401,7 @@ def export_document(
     ]
     while any(inliner.prefix in text for text in authored_text):
         inliner.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
-    modules = _module_urls(
-        artifact,
-        [
-            document,
-            *(
-                logged_fragment(event)
-                for event in state["events"]
-                if event.get("markup")
-            ),
-        ],
-        inliner,
-    )
+    modules = _module_urls(artifact, document, inliner)
     embedded_resources = {
         path: inliner.address(path)
         for path, resource in resources.items()
@@ -366,25 +409,10 @@ def export_document(
     }
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
     embedded_resources["/registry.json"] = inliner.address("/registry.json")
-    data_file = _DataFile()
-    values = {source: data_file.span(value) for source, value in values.items()}
-    # Each record's deferred field, as the deferred door answers it.
-    deferred = {
-        source: {
-            key: data_file.span(field)
-            for key, field in deferred_fields(
-                reading["value"], reading["contract"], artifact.registry
-            ).items()
-        }
-        for source, reading in data["sources"].items()
-        if "value" in reading
-    }
     payload = json_script(
         {
             "state": state,
-            "data": inliner.embed(Resource(bytes(data_file.data), "application/gzip")),
-            "values": values,
-            "deferred": deferred,
+            "data": inliner.embed(Resource(_data_body(values), "application/gzip")),
             "resources": embedded_resources,
         }
     )
@@ -470,15 +498,66 @@ def export_document(
     return fallback[:body] + note + fallback[body:]
 
 
+def static_document(package: str) -> str:
+    """The page `package` (`export_document`) draws, as one file with no script.
+
+    The host's browser opens the package at the fixed desktop window
+    (`render_checks.RENDER_VIEWPORT`) and waits until the page is ready, as any reader
+    outside it does. It then opens the page's folds, waiting again after each round,
+    until a round finds none, closes them again, and once the page is ready once more
+    serializes what it drew (`static-export.js`).
+    Refused where the host has no browser, or the page cannot start, since there is
+    then no drawing to keep."""
+    from leaf.render_checks import (
+        RENDER_VIEWPORT,
+        PageNotReady,
+        open_render_page,
+        wait_until_ready,
+    )
+    from leaf.render_gate.command import NoBrowser, run_in_browser
+
+    def draw(browser) -> str:
+        page = open_render_page(browser, viewport=RENDER_VIEWPORT)
+        page.add_init_script(path=DRAWING)
+        page.route(
+            DRAWING_URL,
+            lambda route: route.fulfill(body=package, content_type="text/html"),
+        )
+        page.goto(DRAWING_URL, wait_until="load")
+        wait_until_ready(page, fixed_server=True)
+        while page.evaluate("globalThis.__leafStaticExport.unfold()"):
+            wait_until_ready(page, fixed_server=True)
+        page.evaluate("globalThis.__leafStaticExport.refold()")
+        wait_until_ready(page, fixed_server=True)
+        return page.evaluate("globalThis.__leafStaticExport.document()")
+
+    try:
+        drawn, _ = run_in_browser(draw)
+    except NoBrowser as error:
+        raise Refused(
+            f"An export draws the page in a browser, and {error} "
+            "`--runtime` exports the page with Leaf's runtime, which needs none."
+        ) from error
+    except PageNotReady as error:
+        raise Refused(f"The page didn't draw: {error}") from error
+    return drawn
+
+
 def cmd_export(
-    page_dir: Path, out: Path, version: int | None, *, draft: bool = False
+    page_dir: Path,
+    out: Path,
+    version: int | None,
+    *,
+    draft: bool = False,
+    runtime: bool = False,
 ) -> dict:
-    """Export the selected stamp, or current valid source with `draft`.
+    """Export the selected stamp, or current valid source with `draft`, as the page
+    it draws, or with `runtime` as the package that draws it (the module header).
 
     Draft export activates source through the same check as a live page, preserving
     decisions and reanchors without adding a version checkpoint. Selection and the
     authoritative snapshot share one page transaction. The file has no host command
-    or transport capability.
+    or transport capability, and no conversation (the module header).
     """
     if draft and version is not None:
         raise Refused("--draft and --version cannot be used together")
@@ -513,7 +592,15 @@ def cmd_export(
             )
         artifact = executing(read_artifact(page_dir, revision))
         snapshot = capture_page_snapshot(
-            page_dir, document, revision, url=url, artifact=artifact, transaction=page
+            page_dir,
+            document,
+            revision,
+            url=url,
+            artifact=artifact,
+            transaction=page,
+            process=False,
+            log=_page_log(page.events),
+            data=_page_data(page_dir, document, artifact.registry),
         )
     state = PageStateService(
         page_dir,
@@ -523,11 +610,12 @@ def cmd_export(
         artifact,
         document,
         state,
-        snapshot.context.data,
         revision,
         version,
         snapshot.data_resources,
     )
+    if not runtime:
+        html = static_document(html)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")

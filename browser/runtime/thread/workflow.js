@@ -46,15 +46,20 @@ export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 // what Leaf observed of the update's way to the agent, through the harness or the
 // clock, so Leaf says it in its own voice: the update waiting for the agent whether or
 // not the server has logged it yet, the harness queuing or delivering it, and every
-// condition. The user chose this on 30 October 2026, over stage words in the agent's
-// voice such as "Got it", which put Leaf's inference in the agent's mouth, and the same
-// day gave the agent the reply it is streaming; on 27 October they chose Leaf's
-// "Queued for Claude" over the agent's "Not seen yet". On 5 November they gave a
+// condition. The user chose this over stage words in the agent's
+// voice such as "Got it", which put Leaf's inference in the agent's mouth, and
+// gave the agent the reply it is streaming; they chose Leaf's
+// "Queued for Claude" over the agent's "Not seen yet". They gave a
 // fork's taking an update on the agent's On it, from the moment the fork starts.
+// On leaf.page a write to a page whose agent isn't running waits seconds while its
+// container starts, a wait only that first write pays, so a send that launches it says
+// so until the server has it. The user asked for these words.
 /** @param {string} agent */
 const queuedFor = (agent) => leafSays(`Queued for ${agent}`);
+/** @type {Record<Workflow["stage"], (agent: string, workflow: Workflow) => import("../voice.js").Said>} */
 const STAGES = Object.freeze({
-  sending: queuedFor,
+  sending: (agent, workflow) =>
+    workflow.launching ? leafSays("Starting the agent") : queuedFor(agent),
   sent: queuedFor,
   queued: () => leafSays("Up next"),
   picked_up: () => leafSays("Delivered"),
@@ -89,7 +94,7 @@ export const workflowWord = (workflow, agent, { answered = false } = {}) => {
         ? NOT_ANSWERED
         : leafSays(CONDITION_WORDS[condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return null;
-  return STAGES[shownStage(workflow)]?.(agent) ?? null;
+  return STAGES[shownStage(workflow)]?.(agent, workflow) ?? null;
 };
 
 // The stage a workflow's word shows: `working` where the agent is at work on an update
@@ -122,12 +127,12 @@ export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 
 // What the agent's last step on a workflow says while it is at work on it: the line of
 // the start or progress reply that holds it (`detail`), which the page's status says of
-// the newest it holds. Before it says one, and once the work stalls, the workflow's word.
-/** @param {Workflow | null | undefined} workflow @param {string} agent */
-export const workflowStep = (workflow, agent) =>
+// the newest it holds. Before it says one, and once the work stalls, none.
+/** @param {Workflow | null | undefined} workflow */
+export const workflowStep = (workflow) =>
   progressFace(workflow) === "working" && workflow?.detail
     ? agentSays(workflow.detail)
-    : workflowWord(workflow, agent);
+    : null;
 
 /** @param {Workflow} workflow @param {number | null} revision */
 export const isPageWidgetWorkflow = (workflow, revision) =>
@@ -162,7 +167,7 @@ export function strongestWorkflow(workflows) {
 
 // An open to-do's word, wherever it stands, in the agent's voice since it opened the
 // to-do: On it while a start runs on it, else what it means for the user's request,
-// which the user chose over "To-do open" (2026-10-27).
+// which the user chose over "To-do open".
 /** @param {import("../../types/contract.js").ServedTodo["running"]} running */
 export const todoWord = (running) => agentSays(running ? "On it" : "Still to do");
 

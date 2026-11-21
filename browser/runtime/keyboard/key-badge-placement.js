@@ -4,7 +4,17 @@
    a different control: a digit laid over a neighbour's corner reads as that neighbour's.
    It may move back inside the viewport, but it yields wherever that move would cover
    fixed chrome or another badge: its ordered choices make a missing digit inferable. Opaque generated target
-   hints instead use the no-drop placement in hints.js.
+   hints instead spread apart while each still reads as its own target's (hints.js,
+   `seatHints`).
+
+   Once seated, a chip keeps its corner while that corner still serves. A pass reads the
+   frame as it stands, where a corner's room can turn on a pixel: a pressed button
+   shrinks by Web Awesome's press scale, which frees the corner beside its neighbour
+   until the press ends, so a chip chosen afresh on each pass would cross its control
+   and back with every press. Rejected: reading the control's box without its
+   transforms, which a table translated into place or a deck's scaled slide needs
+   (css-anchors.js, `anchorBox`), and which would still flip on any other pixel's
+   change, such as a reflow.
 
    One pass constructs this reading once and asks it for every member, so the clips over
    shared ancestors are walked once and every member is admitted, tested for exposure,
@@ -37,7 +47,7 @@ import {
   startsAt,
 } from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
-import { renderedUnder } from "../shadow.js";
+import { renderedUnder } from "../shadow-tree.js";
 
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {NonNullable<ReturnType<typeof rect>>} VisibleBox
@@ -61,6 +71,12 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
       }
     : null;
 
+// The corner each binding chip's seat was last placed at, as an index into `paint`'s
+// corners. A seat lasts while its control stays in reach (chip-seats.js), so this lasts
+// as long as the chip shows.
+/** @type {WeakMap<HTMLElement, number>} */
+const seatedCorner = new WeakMap();
+
 export function keyBadgePlacement() {
   /** @type {import("../geometry.js").ClipCache} */
   const clips = new Map();
@@ -78,7 +94,8 @@ export function keyBadgePlacement() {
   // floating panel's row states the armed map's filter and changes as the user types it,
   // so a map that read it would lose members as it armed and swap codes as its own
   // legend grew. A chip that would land there is moved by the placement pass instead
-  // (`spreadHints`, hints.js), which keeps the route where dropping the member loses it.
+  // (`seatHints`, hints.js), or withheld where no move leaves it reading as its own
+  // target's, and its member stays in the map either way.
   /** @param {Box | null | undefined} box @param {number} [sourceTop] */
   const clearBox = (box, sourceTop = box?.top) => {
     if (!box) return null;
@@ -172,9 +189,10 @@ export function keyBadgePlacement() {
 
   // Measure every rendered binding chip before seating or hiding any. Each names
   // its seat (chip-seats.js), the control it labels, and the
-  // corner box the chip hangs off; a chip moves to the first corner of that box whose
-  // place, pulled back inside the window, covers no other control and no chrome or
-  // badge, and failing every one keeps the first corner's place where that is free. A
+  // corner box the chip hangs off; a chip keeps the corner it was last placed at while
+  // that place, pulled back inside the window, covers no other control and no chrome or
+  // badge, and otherwise moves to the first corner whose place does, failing every one
+  // keeping the first corner's place where that is free. A
   // chip with no room is hidden rather than removed, so a pass that changes nothing
   // writes nothing.
   /** @param {ReturnType<typeof import("./chip-seats.js").chipSeats>} seats @param {readonly BindingChip[]} chips */
@@ -211,10 +229,14 @@ export function keyBadgePlacement() {
         return Object.assign(place, { held: Math.abs(place.top - top) >= 0.5 });
       };
       const places = corners.map(placeAt);
+      /** @param {DOMRect} place */
+      const serves = (place) =>
+        free(place, owner) && !coversAnotherControl(place, owner);
+      const stood = places[seatedCorner.get(seat) ?? -1];
       const box =
-        places.find(
-          (place) => free(place, owner) && !coversAnotherControl(place, owner),
-        ) ?? placeAt([corner.left, corner.top]);
+        (stood && serves(stood) ? stood : places.find(serves)) ??
+        placeAt([corner.left, corner.top]);
+      seatedCorner.set(seat, Math.max(places.indexOf(box), 0));
       seated.push({
         seat,
         chip,

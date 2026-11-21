@@ -29,8 +29,9 @@ from leaf.runtime_selection import executing, serving_runtime
 from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
-from leaf_dev.commands import journey, verify_site
+from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.page_fixtures import example_media
+from leaf_dev.website import activation_url
 from process.website_server import (
     FakeCodexHarness,
     get,
@@ -302,9 +303,10 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     if published_revision:
-        manifest["pages"]["/examples/decision"]["states"] = {
-            "1": "/_leaf/state/decision--r1.json"
-        }
+        assert website_server.activate_source(published).revision == 1
+        manifest["pages"]["/examples/decision"]["revisions"] = [
+            revision_path(published, 1).stem
+        ]
     manifest_path.write_text(json.dumps(manifest))
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, harness)
@@ -335,7 +337,7 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert b"sitenote.js" not in document
         assert b"data-lf-release=" not in document
         assert headers.get("Content-Security-Policy") is None
-        assert headers["Cache-Control"] == "no-store"
+        assert headers["Cache-Control"] == "no-cache"
         assert headers["Access-Control-Allow-Origin"] == "*"
         assert headers["Referrer-Policy"] == "no-referrer"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
@@ -350,18 +352,6 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
             {"Leaf-Layer": state["layer"]["generation"]},
         )
         assert accepted["state"]["events"][-1]["text"] == "Try this here"
-        # An image attached in the child is as private as one attached on its parent.
-        upload = urllib.request.Request(
-            url + "api/media",
-            data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
-            headers={
-                "Content-Type": "image/png",
-                "Leaf-Layer": state["layer"]["generation"],
-            },
-        )
-        with urllib.request.urlopen(upload) as stored:
-            media = json.loads(stored.read())["path"]
-        assert get(url + media.lstrip("/"))[1]["Cache-Control"] == "no-store"
         assert read_events(published) == []
         assert harness.attached == []
 
@@ -422,8 +412,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         )
         assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
-        # A visitor's private page stays out of the browser's disk cache.
-        assert headers["Cache-Control"] == "no-store"
+        # The browser may store a visitor's page, as it does a local one, so Back
+        # restores it from the back/forward cache once the visitor has acted on it.
+        assert headers["Cache-Control"] == "no-cache"
 
         # A released document sends the public startup beacon, which the deployed site
         # answers at the edge. Nothing stands in front of this adapter, so it owes the
@@ -449,10 +440,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert state["agent"] == "Agent"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         assert headers["Leaf-Session"] == "active"
-        assert headers["Cache-Control"] == "no-store"
+        assert headers["Cache-Control"] == "no-cache"
 
-        # So does an image the visitor attaches, though a local server lets the
-        # browser keep page media for good.
+        # An image the visitor attaches is named by its bytes, so the browser keeps it.
         upload = urllib.request.Request(
             f"{root}/examples/decision/api/media",
             data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
@@ -463,20 +453,14 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         )
         with urllib.request.urlopen(upload) as stored:
             media = json.loads(stored.read())["path"]
-        assert get(f"{root}/examples/decision{media}")[1]["Cache-Control"] == "no-store"
-
-        raw_view, _ = get(
-            verify_site.activation_url(f"{root}/examples/decision/", state)
+        assert get(f"{root}/examples/decision{media}")[1]["Cache-Control"] == (
+            "private, max-age=31536000, immutable"
         )
+
+        raw_view, _ = get(activation_url(f"{root}/examples/decision/", state))
         view = json.loads(raw_view)
         revision = state["active"]["revision"]
-        assert view["browser"]["views"][str(revision)]["basis"] == {
-            "revision": revision,
-            "through_seq": state["events"][-1]["seq"] if state["events"] else 0,
-        }
-        # The comparison base carries its own obligation records, because the browser reads
-        # which obligations a revision holds rather than folding the declarations again.
-        assert isinstance(view["browser"]["views"][str(revision)]["obligations"], list)
+        assert view["document"]["revision"] == revision
 
         posted = {
             "kind": "comment",
@@ -608,65 +592,13 @@ def test_an_answer_to_a_held_reading_addresses_a_new_revision_at_the_page_root(
     assert all(url.startswith("/examples/decision/revisions/") for url in revisions)
 
 
-def test_an_answer_to_a_held_reading_addresses_only_the_events_it_sends(
-    page_dir, tmp_path, monkeypatch
-):
-    """Beneath a prefix each message's markup is addressed at the page root, which
-    parses it. An answer carrying only what changed since the tab's reading sends no
-    event the tab holds, so it parses none of their markup: its parses fall short of
-    the whole answer's by one for each markup message the log holds."""
-    import leaf.http
-
-    site = tmp_path / "site"
-    published = site / "examples" / "decision"
-    published.parent.mkdir(parents=True)
-    shutil.copytree(page_dir, published)
-    messages = 3
-    for at in range(messages):
-        created = open_thread(
-            published, "--text", f"Look {at}:", "--markup", f"<p>Part {at}.</p>"
-        )
-        assert created.exit_code == 0, created.output
-    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
-    parsed = []
-    rebase = leaf.http.rebase_document
-    monkeypatch.setattr(
-        leaf.http,
-        "rebase_document",
-        lambda source, *args, **kwargs: (
-            parsed.append(source),
-            rebase(source, *args, **kwargs),
-        )[1],
-    )
-    httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
-    )
-    state = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision/api/state"
-
-    def parses(headers: dict) -> tuple[dict, int]:
-        before = len(parsed)
-        with urllib.request.urlopen(
-            urllib.request.Request(state, headers=headers)
-        ) as response:
-            return json.loads(response.read()), len(parsed) - before
-
-    with running_http_server(httpd):
-        whole, whole_parses = parses({})
-        tail, tail_parses = parses(
-            {"Leaf-Held-Basis": whole["browser"]["basis"]["key"]}
-        )
-    assert "since" in tail
-    assert tail["events"] == []
-    assert whole_parses - tail_parses == messages
-
-
 def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     page_dir, tmp_path
 ):
-    """What a user posting into a draining rollout gets back.
+    """What a user posting under another layer than their container's gets back.
 
-    A container carries the layer of the image it runs, so a session allocated on a
-    previous image answers a newer generation with its own rather than with state.
+    A container carries the layer of the image it runs, so it answers another
+    generation with its own rather than with state.
     The website deploy gate reads that answer, so it has to be the shape it names.
     """
     site = tmp_path / "site"
@@ -714,7 +646,7 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     page = manifest["pages"]["/examples/decision"]
-    page["states"] = {"1": "unused"}
+    page["revisions"] = [revision_path(published, 1).stem]
     manifest_path.write_text(json.dumps(manifest))
     release = f"{page['assets']}/revisions/{revision_path(published, 1).stem}"
     # A revision a session saved after the release is the container's, never the
@@ -737,7 +669,7 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
         assert f'data-lf-entry="{release}/leaf.js"'.encode() in document
         current, _ = get(f"{root}/examples/decision/")
         assert (
-            f'data-lf-entry="/examples/decision/revisions/{private.stem}/'.encode()
+            f'data-lf-entry="/examples/decision{revision_root(published, 2)}/'.encode()
             in current
         )
         runtime = serving_runtime().resources({}, {})
@@ -748,7 +680,6 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
             assert headers["Access-Control-Allow-Origin"] == "*"
         registry, headers = get(f"{root}{release}/registry.json")
         assert json.loads(registry)["$layer"] == load_registry(published)["$layer"]
-        assert headers["Leaf-Release"] == manifest["release"]
         for missing in (
             f"{release}/api/state",
             f"{page['assets']}/revisions/r9-x/a.js",

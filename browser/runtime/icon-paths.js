@@ -36,8 +36,8 @@ const ICONS = {
   grip: '<g fill="currentColor" stroke="none"><circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/><circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/><circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/></g>',
   fold: '<path d="M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
-  // What waits on the user, an inbox's tray: the On me mark. The question mark stays
-  // with an obligation and with help (`?`).
+  // What waits on the user, an inbox's tray: a tab's On Me mark. The question mark
+  // stays with an obligation and with help (`?`).
   inbox:
     '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
   link: '<path d="M6.67 8.67a3.33 3.33 0 0 0 5.03.36l2-2a3.33 3.33 0 0 0-4.71-4.71l-1.15 1.14M9.33 7.33a3.33 3.33 0 0 0-5.03-.36l-2 2a3.33 3.33 0 0 0 4.71 4.71l1.14-1.14"/>',
@@ -66,8 +66,8 @@ const ICONS = {
   start: '<path d="M3.5 3v10M12.5 3.5 6 8l6.5 4.5z"/>',
   subtract: '<path d="M3 8h10"/>',
   unfold: '<path d="M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5"/>',
-  // A U-turn back to the left, as Apple's and Lucide's undo draw it (the user's pick,
-  // 31 October 2026). Rejected: a left arrow whose tail turns down, which is Lucide's
+  // A U-turn back to the left, as Apple's and Lucide's undo draw it (the user's pick).
+  // Rejected: a left arrow whose tail turns down, which is Lucide's
   // and VS Code's reply and reads as Reply beside a message; and the arc Material's
   // undo draws.
   undo: '<path d="M5.5 2.75 2.75 5.5l2.75 2.75M3 5.5h6.25a3.5 3.5 0 0 1 0 7H6.5"/>',
@@ -105,9 +105,8 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 //
 // Discard throws an editor's unsaved words away, so it wears Undo's U-turn rather than
 // Close's ✕, which keeps them: closing a card leaves an open rewrite's words in its
-// draft, and a draft's other ways out save. A rewrite's Discard also stood two seats
-// from its card's Close. A reaction's removal took undo over ✕ for the same reading
-// (the user's choice, 23 October 2026, anchor-controls.js).
+// draft, and a draft's other ways out save. A reaction's removal took undo over ✕ for
+// the same reading (the user's choice, anchor-controls.js).
 /** @type {Record<string, {name: string, icon: string}>} */
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
@@ -137,7 +136,14 @@ export const ACTIONS = {
   next: { name: "Next", icon: "next" },
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },
-  "on-me": { name: "On me", icon: "inbox" },
+  // The next steps the floating panel's field offers at its end (floating-panel.js,
+  // `noticePress`): after a Resolve, at rest while On Me lists anything
+  // (`pageOffer`), and after a box put words away (drafts.js, `noticeDraftKept`), in
+  // the title case the user asked for.
+  "next-on-me": { name: "Next On Me", icon: "inbox" },
+  "next-thread": { name: "Next thread", icon: "next" },
+  "resume-writing": { name: "Resume writing", icon: "edit" },
+  "on-me": { name: "On Me", icon: "inbox" },
   pause: { name: "Pause", icon: "pause" },
   play: { name: "Play", icon: "play" },
   previous: { name: "Previous", icon: "previous" },
@@ -212,36 +218,34 @@ const drawAction = (node, role, action) =>
 
 /**
  * The role constructors (`control-faces.js`, `ACTION_FACES`) with each symbol and mark
- * drawn from its action: `offerAction(role, className, label, {title, action})`, and
+ * drawn from its action: `offerAction(role, className, label, {action})`, and
  * `offerActionElement(node, …)` for a template's element. The runtime builds its own
  * from these (widget-elements.js).
  * @param {{
- * offerAction: (role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => HTMLButtonElement,
- * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => T
+ * offerAction: (role: LeafActionRole, className?: string, label?: string) => HTMLButtonElement,
+ * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string) => T
  * }} base
  */
 export function actionOffers(base) {
-  /** @param {string | undefined} title */
-  const titled = (title) => (title === undefined ? undefined : { title });
   return {
     /**
      * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
-     * @param {{title?: string, action?: string}} [options]
+     * @param {{action?: string}} [options]
      */
-    offerAction(role, className, label, { title, action } = {}) {
+    offerAction(role, className, label, { action } = {}) {
       const face = actionFace(role, label, action);
-      const node = base.offerAction(role, className, face.label, titled(title));
+      const node = base.offerAction(role, className, face.label);
       if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },
     /**
      * @template {Element} T
      * @param {T} node @param {LeafActionRole} role @param {string} [className]
-     * @param {string} [label] @param {{title?: string, action?: string}} [options]
+     * @param {string} [label] @param {{action?: string}} [options]
      */
-    offerActionElement(node, role, className, label, { title, action } = {}) {
+    offerActionElement(node, role, className, label, { action } = {}) {
       const face = actionFace(role, label, action);
-      base.offerActionElement(node, role, className, face.label, titled(title));
+      base.offerActionElement(node, role, className, face.label);
       if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },

@@ -45,7 +45,6 @@ import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offerAction, responseAction } from "./widget-elements.js";
-import { HOLDS_WORD } from "./held-word.js";
 import { keeps } from "./keeps.js";
 
 import { elementById } from "./passages.js";
@@ -73,7 +72,6 @@ import {
   rowArrows,
   savedReadingSettled,
 } from "./keyboard/bindings.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
@@ -114,12 +112,11 @@ const anchorChoices = (anchor) =>
 // shape of every chip.
 /** @param {{name: string, glyph: string, label: string}} choice @param {(name: string) => unknown} pressed */
 function reactionChip({ name, glyph, label }, pressed) {
-  const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
+  const chip = offerAction("response", "lf-react");
   // A toggle from the start, before the bar paints which reactions stand
   // (`paintBarReactions`), so it wears a reaction's face (controls.css).
   chip.setAttribute("aria-pressed", "false");
   chip.dataset.lfToken = name;
-  chip.title = label;
   chip.setAttribute("aria-label", label);
   responseAction(chip, { glyph, label: name, collapse: true });
   keys(chip, "On a reaction", [
@@ -510,10 +507,8 @@ export function createReactionController({
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding,
     );
+    // The bar stands whole around the ring, so the step says no position.
     focusDestination(cycledRow(choices, focused(), backward ? -1 : 1), "move");
-    beginWalk("reaction", "Reaction", () =>
-      listWalkPosition(responseChoices(reactSurface), focused()),
-    );
   }
 
   /** @satisfies {import("./keyboard/bindings.js").Scope} */
@@ -658,7 +653,6 @@ export function createReactionController({
   return {
     registerReactSurface,
     buildReactBar,
-    hasReactionTarget,
     syncReactLayout,
     setReact,
     isReactArmed,

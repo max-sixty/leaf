@@ -153,7 +153,7 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
         return leaf_page(
             f"Stuck tab {added}",
             "<style>html { overflow-anchor: none; }</style>"
-            f'<lf-tabs id="views" class="layout-flow"><lf-tab id="first" label="First view">{paragraphs}'
+            f'<lf-tabs id="views" flow="page"><lf-tab id="first" label="First view">{paragraphs}'
             '</lf-tab><lf-tab id="second" label="Second view"><p>Other.</p></lf-tab>'
             "</lf-tabs>",
         )
@@ -321,11 +321,11 @@ def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
 def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, serve):
     """A partly cut title is the page opening, not a reading place to preserve.
 
-    A revision change used the heading as its semantic landmark and restored its exact
-    viewport coordinate. When the user had moved just far enough for the first title
-    line to sit above the scroller's landable top (then under the fixed banner), both
-    an arriving current revision and a chosen historical version faithfully restored
-    that broken view: the later line looked like the whole heading. The scroller
+    A revision change that used the heading as its semantic landmark and restored its
+    exact viewport coordinate would, when the user had moved just far enough for the
+    first title line to sit above the scroller's landable top, faithfully restore that
+    broken view for both an arriving current revision and a chosen historical version:
+    the later line would look like the whole heading. The scroller
     declares its landable top through scroll-padding, so a heading landmark must honor
     that edge while ordinary passage landmarks retain their exact coordinate.
     """
@@ -335,7 +335,7 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
         "Heading continuity",
         f"""
 <header id="summary">
-  <p class="eyebrow">Playground replacement audit</p>
+  <p>Playground replacement audit</p>
   <h1>{title}</h1>
   <p>The opening account is long enough to become the next reading landmark.</p>
 </header>
@@ -437,7 +437,7 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     add_test_widget(package, "lf-shadow-reading", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-shadow-reading"]["x-shadow"] = True
+    declarations["lf-shadow-reading"]["shadow"] = True
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
         """import { once, shadowStage } from "/runtime/widget-api.js";
@@ -676,13 +676,13 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
-    """Obligation repaint keeps the reading of the panel's On me view the user scrolled."""
+    """Obligation repaint keeps the reading of the panel's On Me view the user scrolled."""
     questions = "".join(
-        f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
-        f'<lf-options id="options-{index}" choose>'
+        f'<lf-group id="ask-{index}" label="Question {index} about this project"><h2 id="ask-{index}-h">Question {index} about this project</h2>'
+        f'<lf-options id="options-{index}">'
         f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
         f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
         for index in range(30)
     )
     page = open_page(
@@ -752,7 +752,7 @@ def test_a_panes_scroll_behavior_change_keeps_the_reading_after_scrolling_past_f
         # Interleave at the announced handover, before its deferred restoration. The
         # platform input supersedes that restoration just as a trackpad gesture does.
         page.evaluate("""async () => {
-          const regions = await window.__lfWidgetApi();
+          const regions = await window.__lfCheckApi();
           const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
             if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
               return;
@@ -837,19 +837,18 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
     """A nested flow region cannot carry one parent's offset into another parent."""
     entry = {
         "description": "A test-owned reading scroller.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": True,
-        "x-example": (
-            '<lf-owned-scroll id="example">'
-            "<div data-scroll-body><button>Control</button></div>"
-            "</lf-owned-scroll>"
-        ),
+        "content": "markup",
+        "example": '<lf-owned-scroll id="example">'
+        "<div data-scroll-body><button>Control</button></div>"
+        "</lf-owned-scroll>",
     }
     module = """
 import {registerReadingRegion} from '/runtime/widget-api.js';
@@ -933,11 +932,11 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     an element that generates no box measures (0,0) at the document's origin.
 
     Read raw, that answer arrives on both sides of the subtraction — once when the
-    place is written down and once when it is put back — so the correction came out 0
-    and a restore that had somewhere to land did nothing at all. The user was left at
-    the top of a page they had been thirty paragraphs into. It is quiet twice over: only
-    a user whose quote the new version rewrote reaches this branch, and a page whose
-    sections all draw boxes never sees it."""
+    place is written down and once when it is put back — so the correction would come
+    out 0 and a restore that had somewhere to land would do nothing at all, leaving the
+    user at the top of a page they had been thirty paragraphs into. It is quiet twice
+    over: only a user whose quote the new version rewrote reaches this branch, and a
+    page whose sections all draw boxes never sees it."""
     url = serve(BOXLESS_SECTION_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
@@ -1002,3 +1001,46 @@ def test_an_arrival_keeps_a_readable_native_fragment_where_the_browser_landed_it
         })"""
     )
     assert abs(position["top"] - position["clear"]) < 2, position
+
+
+def test_a_drawing_beside_a_document_out_of_view_stays_the_place(browser, serve):
+    """The window's top edge cuts a tall chart whose section also holds a text document
+    below the window. The section holds that document's words whether or not the
+    window shows them, so the chart, not the section, is the place, and restoring it
+    after the document grows below keeps the chart where it was."""
+    url = serve(
+        leaf_page(
+            "drawing beside a document",
+            """
+<h1>Drawing beside a document</h1>
+<p>A paragraph above the figure section, long enough to read as a place in the page.</p>
+<section id="fig">
+<svg id="chart" width="600" height="1200" viewBox="0 0 600 1200" role="img"
+  aria-label="Tall chart"><rect width="600" height="1200" fill="#9ab"></rect></svg>
+<lf-text-document id="notes" label="notes.txt"><pre>
+first line of the notes document, long enough to quote as a reading place
+second line of the notes document, also long enough to quote as a place
+</pre></lf-text-document>
+</section>
+<p>The outro paragraph closes the page with a sentence long enough to read as a place.</p>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    moved = page.evaluate(
+        """async () => {
+          const entry = new URL(document.querySelector("script[data-lf-entry]").dataset.lfEntry, location.href);
+          const R = await import(new URL("runtime/reading-place.js", entry).href);
+          const chart = document.getElementById("chart");
+          scrollTo(0, chart.getBoundingClientRect().top + scrollY + 100);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const before = chart.getBoundingClientRect().top;
+          const place = R.capturePlace(null);
+          document.getElementById("notes").style.paddingBottom = "2000px";
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          R.restorePlace(place, null, () => true);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          return Math.round(chart.getBoundingClientRect().top - before);
+        }"""
+    )
+    assert moved == 0, f"restoring the place moved the chart {moved}px"

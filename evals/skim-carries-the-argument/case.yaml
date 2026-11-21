@@ -1,0 +1,157 @@
+# Instructions that tell authors to open each section with its gist, while Skim keeps
+# every heading, make Skim a fixed cut of one paragraph per section, whatever a
+# section holds for a reader on a quick pass. The instructions state what Skim is for
+# and let a section with nothing for that reader take no gist, which folds it whole.
+# Skim keeps a picture only when the author marks it, so the author also chooses
+# which pictures carry the argument. A report with material a skimming lead doesn't
+# need (background on the gateway, which the instructions don't name, a
+# minute-by-minute timeline and the investigation's method) and a decision she owes
+# tests both halves. Its decline rate per 5 minutes invites a chart she needs at
+# Skim, and the pool's layout a diagram that is background unless it shows the
+# failing host. The failures are giving the timeline and the investigation a gist,
+# such as a timeline gist saying how long finding the host took, leaving the decline
+# chart unmarked so Skim drops it, and marking a picture of the background. Asked for
+# "a detail dial" without its name, authors can build their own from radio buttons
+# and CSS without reading the detail package, so the request names `lf-dial`.
+description: skim-carries-the-argument
+metadata:
+  purpose: "A long report with a detail dial: its lede and gists, read alone in order,
+    give the argument and the decision the reader owes; a picture of the failure is a
+    gist, and a section or picture with nothing for a quick pass takes none."
+  authoring: true
+  tags:
+    - authoring
+    - detail
+vars:
+  prompt: |
+    Turn this postmortem into a Leaf page. Priya, who leads payments, will skim it
+    between meetings: she needs to know what happened and approve one of the two
+    health-check fixes below. The on-call engineers will read all of it. Give the page
+    Leaf's detail dial, `lf-dial`, so Priya can skim it.
+
+    ---
+
+    Card payments for EU merchants failed for 52 minutes on 12 November.
+
+    Background: how the EU gateway pool works. EU card payments go through our own
+    gateway pool rather than the card network's managed gateway. The pool has three
+    hosts behind one load balancer, lb-eu, in eu-west-1: gw-eu-1 in zone a, gw-eu-2 in
+    zone b and gw-eu-3 in zone c. The load balancer sends traffic to every host whose
+    health check passes and checks each host every 10 seconds. Each host keeps a pool
+    of up to 64 open TLS connections to the card network's EU endpoint,
+    auth.eu.cardnet.example, so most payments reuse a connection and a host opens a new
+    one only when its pool runs short. The fraud team's rules run inside the gateway on
+    each host, on each payment before it leaves the pool.
+
+    Impact. From 09:14 to 10:06 UTC, about 4,100 EU card authorizations failed with a
+    handshake error; at its height, from 09:30 to 09:55, 7.2% of EU authorizations
+    failed. Merchants' automatic retries recovered 2,860 of the failed payments; 1,240
+    payments, about €96,000, were not retried and are lost unless the customer pays
+    again. US and UK traffic was unaffected. Support received 38 tickets, all from
+    merchants on the EU gateway pool. The EU decline rate per 5 minutes, from the
+    decline-rate dashboard (ordinary declines run near 1%, and US and UK stayed between
+    0.9% and 1.1% throughout): 09:00 1.0%, 09:05 1.1%, 09:10 1.3%, 09:15 3.2%, 09:20
+    5.6%, 09:25 7.6%, 09:30 8.3%, 09:35 8.1%, 09:40 8.4%, 09:45 8.2%, 09:50 8.0%, 09:55
+    3.9%, 10:00 1.6%, 10:05 1.1%, 10:10 1.0%.
+
+    Cause. The card network rotated the intermediate certificate on its EU endpoint at
+    09:12. Our EU gateway pool has three hosts. Two picked up the new chain on their next
+    connection; the third, gw-eu-3, kept the old chain cached in its connection pool
+    and failed every new handshake. Its health check opens a TCP connection and nothing
+    more, so the load balancer kept sending it a third of EU traffic. Retries landed on a
+    healthy host two times in three, which is why the failure rate sat near 7% rather
+    than 33%.
+
+    Timeline (UTC).
+    09:12 card network rotates its EU intermediate certificate.
+    09:14 first handshake failures on gw-eu-3.
+    09:21 decline-rate alert fires at 5% and pages the payments on-call.
+    09:26 on-call acknowledges, opens the incident channel.
+    09:33 dashboards show failures only on EU; on-call suspects the card network.
+    09:41 card network status page shows no incident; on-call checks our gateways.
+    09:48 per-host error rates show gw-eu-3 at 100% handshake failure.
+    09:55 gw-eu-3 drained from the load balancer.
+    10:06 failure rate back to baseline; incident downgraded.
+    10:40 gw-eu-3's connection pool flushed and the host restored.
+
+    How we investigated. The decline-rate dashboard groups by region, so the first
+    signal was EU only. The on-call engineer first suspected the network because the
+    error was a handshake failure, and spent fifteen minutes on the network's status
+    page and support line. Grouping the gateway's error metric by host showed one host
+    at 100%. Running `openssl s_client` from gw-eu-3 against the network's endpoint
+    returned the old intermediate; the same command from gw-eu-1 returned the new one.
+    Restarting the gateway process on a staging host with a pre-seeded pool reproduced
+    the cached chain.
+
+    What we already changed. The gateway now drops pooled connections when a handshake
+    fails twice in a row, so a stale chain can't outlive two attempts. The decline-rate
+    alert now fires at 3% instead of 5%, which would have paged five minutes sooner. We
+    are contacting the merchants with lost payments with a list of affected orders.
+
+    Decision needed. The health check still can't see a failed handshake. Two fixes:
+    A. Make the health check complete a TLS handshake with the card network's endpoint
+       on every probe. Two days of work; it catches this failure on any host within
+       30 seconds. It adds one handshake per host every 10 seconds, which the network's
+       rate limits allow.
+    B. Move to the card network's managed gateway and retire our pool. About three
+       weeks; it removes our certificate handling entirely, but costs €4,000 a month and
+       moves us off the pool the fraud team's rules run on, which they would need to
+       port.
+    We recommend A now. Priya needs to approve A or B.
+
+    Owners. Gateway changes: Tomás. Merchant outreach: Hana. Fraud-rule port, if B:
+    Lines.
+
+    ---
+
+    Write the page in the initialized Leaf page directory.
+assert:
+  - type: llm-rubric
+    metric: skim-reads-coherently
+    value: |
+      Read the page's HTML. With its `lf-dial` at Skim, a reader sees the `h1`, the
+      element with class `lede` and the elements with class `gist`, in document order;
+      read only those, as Priya would. Pass only if, read alone in that order, they
+      give her a coherent account she can act on: what failed and its cost (including
+      the lost payments), why it happened, and the decision she owes between fix A and
+      fix B with enough to choose (what each costs and the recommendation). Each must
+      make sense without the text around it: fail on a gist that only says what a
+      section covers ("This section describes the timeline"), or that leans on a
+      passage Skim hides ("as shown above"). Fail if the page has no `lf-dial`, or if
+      the decision is not in the lede, a gist, or an element itself marked `gist`.
+  - type: llm-rubric
+    metric: skim-folds-what-it-skips
+    value: |
+      Read the page's HTML. Pass only if the elements with class `gist` spend nothing
+      on material Priya doesn't need on a quick pass. She leads payments and knows how
+      the gateway pool works, so none of the background on how the pool works, the
+      minute-by-minute timeline or the account of how the team investigated gets a
+      gist of its own, and a section holding only that material contains no element
+      with class `gist`. Fail if a gist summarizes the background, the timeline or the
+      investigation, as a page that opens every section with a gist does. A passing page may keep that material in its own
+      section, inside a closed `details`, or within another section, as long as no
+      gist is given to it. Fail if the page has no `lf-dial` or no element with class
+      `gist`, since then it chose nothing for Skim.
+  - type: llm-rubric
+    metric: skim-keeps-the-failure-picture
+    value: |
+      Read the page's HTML and find every picture it draws: a `figure`, an `img`, an
+      inline `svg`, a `canvas` or `video`, or a widget that draws a chart, diagram or
+      timeline, such as `lf-chart`, `lf-diagram` or `lf-timeline`. A table is not a
+      picture. Count a picture as shown at Skim when it, or an element containing it,
+      has class `gist` and it is not inside a closed `details`, and every other picture
+      as folded. Sort each picture by what it shows:
+
+      - The failure's course or size: the EU decline rate or failed payments over the
+        incident, or failed, recovered and lost payments.
+      - The cause: the pool with gw-eu-3 failing while the load balancer still sends it
+        traffic.
+      - Skipped material: only how the gateway pool is laid out, with nothing failing
+        in it; only the timeline's events; or only how the team investigated.
+
+      Pass only if every picture of the failure's course or size shows at Skim, and no
+      picture of skipped material does. A picture of the cause may show at Skim or not.
+      A page that draws no picture, or none of a kind, is judged on the pictures it
+      does draw: drawing none is no failure. Begin your reason with one line per
+      picture, giving its element and id, its kind and whether it shows at Skim, or
+      "No pictures" when the page draws none.

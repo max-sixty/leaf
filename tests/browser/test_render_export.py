@@ -8,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
+    append_command,
 )
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
@@ -61,6 +62,7 @@ def test_interactive_export_with_an_obligation_reaches_application_presentation(
             str(serve.page_dir),
             "--out",
             str(interactive),
+            "--runtime",
             *(["--draft"] if draft else []),
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
@@ -89,7 +91,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     interactive = tmp_path / "interactive-addition.html"
     result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "export", str(serve.page_dir), "--out", str(interactive)],
+        ["page", "export", str(serve.page_dir), "--out", str(interactive), "--runtime"],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
@@ -132,7 +134,7 @@ def test_exported_workspace_tabs_open_new_evidence_below_the_pinned_strip(
     )
     serve(source)
     out = tmp_path / "evidence-review.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     page = browser.new_page(viewport={"width": 900, "height": 600})
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
@@ -163,12 +165,16 @@ def test_exported_workspace_tabs_open_new_evidence_below_the_pinned_strip(
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
     browser, serve, tmp_path
 ):
-    """One file boots the captured runtime, but never resurrects its host boundary."""
+    """One file boots the captured runtime, but never resurrects its host boundary.
+
+    The file keeps the choice recorded on the page's widget and leaves out the thread on
+    another, which offers no comment box to start one in."""
     source = leaf_page(
         "offline interactive",
         """
 <h1>Offline interactive</h1>
 <lf-offline-test id="offline-widget" choice="idle"></lf-offline-test>
+<lf-test-plan id="hub"><lf-test-task id="seated" status="active" talk>Discuss this.</lf-test-task></lf-test-plan>
 <a id="jump" href="#destination">Jump locally</a>
 <h2 id="destination">Destination</h2>
 """,
@@ -187,6 +193,20 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         ).click()
     round_trip(live)
     expect(live.locator("#offline-widget #choice")).to_have_text("chosen")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A remark the export leaves behind",
+            "anchor": {"section": "seated"},
+        },
+    )
+    expect(live.locator("#seated .lf-msg")).to_contain_text(
+        "A remark the export leaves behind"
+    )
+    expect(live.locator("#seated > .lf-test-comment")).to_be_visible()
     live.close()
 
     # Export resolves the stamped artifact, never the page's mutable source.
@@ -204,6 +224,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
             str(serve.page_dir),
             "--out",
             str(interactive),
+            "--runtime",
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
@@ -227,6 +248,10 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
     expect(page.locator(".lf-floating-panel")).to_have_count(0)
+    expect(page.locator("#seated")).to_contain_text("Discuss this.")
+    expect(page.locator("#seated .lf-msg")).to_have_count(0)
+    expect(page.locator("#seated > .lf-test-comment")).to_be_hidden()
+    expect(page.locator("#seated .lf-fab-input")).to_have_count(0)
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"
@@ -256,11 +281,97 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert external == []
 
 
-def test_an_interactive_export_reads_each_source_and_deferred_field_offline(
+def test_an_export_draws_the_page_as_it_stands_with_scripts_off(
     browser, serve, tmp_path
 ):
-    """Each source reaches the widget bound to it, an unopened tab's too, and each
-    unopened deferred payload loads, from one file with no host."""
+    """The default file is the page as the runtime draws it, with no script: a widget
+    shows the decision recorded on it and not its stand-in for loading, a suggestion
+    its changed words, an image and a canvas their pixels, and each fold, still
+    closed, what it draws once opened. It holds nothing of the conversation, nor where
+    the page lives on this machine."""
+    image = solid_png(64, 40, (40, 90, 160))
+    shot = f"/media/{hashlib.sha256(image).hexdigest()[:16]}.png"
+    serve(
+        leaf_page(
+            "Static export",
+            f"""
+<h1>Static export</h1>
+<img id="shot" src="{shot}" width="64" height="40" alt="A captured screen">
+<lf-offline-test id="offline-widget" choice="idle"></lf-offline-test>
+<p id="rule"><lf-suggestion id="sug"><lf-old>Refill every feeder each morning</lf-old><lf-new>Refill each feeder when it runs empty</lf-new></lf-suggestion>.</p>
+<details id="fold"><summary>More</summary><p>Not drawn</p></details>
+<section id="panel" hidden="until-found"><p>Not drawn</p></section>
+<canvas id="plot" width="30" height="20">A red bar</canvas>
+""",
+            head=(
+                "<style>lf-offline-test:not(:defined)::before {content: 'Loading'}</style>"
+                '<script type="module" src="/page/draw.js"></script>'
+            ),
+        ),
+        page_files={
+            "registry.json": json.dumps(OFFLINE_REGISTRY),
+            "widgets/lf-offline-test.js": OFFLINE_WIDGET,
+            "draw.js": """
+const fold = document.querySelector("#fold");
+fold.addEventListener("toggle", () => {
+  fold.querySelector("p").textContent = "Drawn on opening";
+});
+const panel = document.querySelector("#panel");
+new ResizeObserver(() => {
+  if (panel.offsetWidth) panel.querySelector("p").textContent = "Drawn on showing";
+}).observe(panel);
+const plot = document.querySelector("#plot").getContext("2d");
+plot.fillStyle = "rgb(200, 40, 40)";
+plot.fillRect(0, 0, 30, 20);
+""",
+        },
+        media={shot: image},
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "offline-widget",
+            "action": "choose",
+            "detail": {"value": "chosen"},
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "PRIVATEWORD"},
+    )
+    out = tmp_path / "static.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    exported = out.read_text(encoding="utf-8")
+    # Counted, so a failure doesn't make pytest diff the whole file.
+    assert [exported.count(word) for word in ("<script", "PRIVATEWORD")] == [0, 0]
+    assert str(tmp_path) not in exported
+
+    page = browser.new_context(java_script_enabled=False).new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    widget = page.locator("#offline-widget")
+    expect(widget.locator("#choice")).to_have_text("chosen")
+    assert widget.evaluate("w => getComputedStyle(w, '::before').content") == "none"
+    expect(page.locator("#shot")).to_have_js_property("naturalWidth", 64)
+    expect(page.locator("img#plot")).to_have_js_property("naturalWidth", 30)
+    expect(page.locator("#fold")).not_to_have_attribute("open", "")
+    assert page.locator("#fold p").text_content() == "Drawn on opening"
+    expect(page.locator("#panel")).to_have_attribute("hidden", "until-found")
+    assert page.locator("#panel p").text_content() == "Drawn on showing"
+    changed = page.locator('#sug lf-old [data-lf-highlight~="lf-sug-del"]')
+    expect(changed.first).to_be_visible()
+    assert changed.first.evaluate(
+        "words => getComputedStyle(words).backgroundColor"
+    ) != page.locator("#sug lf-old").evaluate(
+        "slot => getComputedStyle(slot).backgroundColor"
+    )
+
+
+def test_an_interactive_export_reads_each_source_offline(browser, serve, tmp_path):
+    """Each source reaches the widget bound to it, an unopened tab's and an unopened
+    diff file's too, from one file with no host."""
     serve(
         leaf_page(
             "offline data",
@@ -295,6 +406,7 @@ def test_an_interactive_export_reads_each_source_and_deferred_field_offline(
             str(serve.page_dir),
             "--out",
             str(interactive),
+            "--runtime",
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
@@ -379,7 +491,7 @@ def test_an_export_keeps_visual_review_images_and_inspection_offline(
         },
     )
     out = tmp_path / "visual-review.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     context = browser.new_context(offline=True, viewport={"width": 1200, "height": 900})
     page = context.new_page()
     requests = []
@@ -422,7 +534,7 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     )
     serve(source)
     out = tmp_path / "cafe.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     assert out.read_text(encoding="utf-8").startswith(UTF8_BOM)
 
     page = browser.new_page()
@@ -469,7 +581,7 @@ def test_an_export_without_scripts_keeps_text_layout_and_alt_text(
     )
     serve(source)
     out = tmp_path / "readable.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     page = browser.new_page(
         java_script_enabled=False, viewport={"width": 390, "height": 844}
     )
@@ -508,17 +620,17 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
     lived only in the chrome's sheet, which an export never adopts, so quiet words in an
     exported file appeared on screen as well as their tint.
 
-    A widget the page and its messages never name brings none of its modules. The page
-    draws code and a chart and a reply carries a diagram; nothing names a diff, so
-    Pierre's renderer stays out of the file.
+    A widget the page never names brings none of its modules. The page draws code and a
+    chart, and only a reply, which the file leaves out, carries a diagram. Nothing names
+    a diff, so Pierre's renderer is out of the file too.
     """
     serve(
         leaf_page(
             "Reachable modules",
             '<h1>Reachable</h1><lf-chart id="c"><pre>'
             '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
-            '</pre></lf-chart><lf-code id="m" language="python" hi="1">'
-            "<pre>ship()</pre></lf-code>",
+            '</pre></lf-chart><lf-code id="m" hi="1">'
+            '<pre><code class="language-python">ship()</code></pre></lf-code>',
         )
     )
     root = append_carried_log_record(
@@ -532,13 +644,13 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
             "author": "agent",
             "parent": root["id"],
             "revision": 1,
-            "text": "Here:",
-            "markup": '<lf-diagram id="sketch"><pre>flowchart LR\n  A --> B\n'
+            "text": "Here:\n\n"
+            '<lf-diagram id="sketch">\n<pre>flowchart LR\n  A --> B\n'
             "</pre></lf-diagram>",
         },
     )
     out = tmp_path / "reachable.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     html = out.read_text(encoding="utf-8")
     match = re.search(
         r'<script type="application/json" data-lf-export>(.*?)</script>',
@@ -552,8 +664,9 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
     )
     assert match_2 is not None
     imports = json.loads(match_2[1])["imports"]
-    assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
+    assert "leaf:/widgets/lf-code.js" in imports
     assert not {
+        "leaf:/widgets/lf-diagram.js",
         "leaf:/widgets/lf-diff.js",
         "leaf:/vendor/pierre-diffs.esm.js",
     } & set(imports)
@@ -624,7 +737,7 @@ body { --export-tone: rgb(12, 34, 56); }
         ]
     )
     out = tmp_path / "captured.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     page = browser.new_page()
     requests = []
     page.on("request", lambda request: requests.append(request.url))
@@ -655,8 +768,8 @@ def test_a_gloss_keeps_its_explanation_in_print(browser, serve):
         "gloss export",
         """
 <h1>Rollout</h1>
-<p>Start with a <lf-gloss tip="A thin path through the real system."
-  >walking skeleton</lf-gloss> before parallelizing.</p>
+<p>Start with a <lf-gloss
+  >walking skeleton<span popover>A thin path through the real system.</span></lf-gloss> before parallelizing.</p>
 """,
     )
     url = serve(source)
@@ -776,7 +889,7 @@ def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
         },
     )
     out = tmp_path / "offline.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     expected = {
         "eval": "ran",
         "blob worker": "ran",
@@ -800,36 +913,43 @@ def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
         assert page.evaluate("() => window.policyOutcomes") == expected, url
 
 
-def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp_path):
-    """Offline reading shares the same initial and width-dependent composition."""
-    serve(
-        leaf_page(
-            "Exported notes",
-            '<h1 id="title">Migration</h1>'
-            '<div class="layout-note"><p id="passage">Advance the migration one cohort at a time.</p>'
-            '<aside class="note" id="note">Keep earlier readers available.</aside></div>',
-        ).replace(
-            '<main class="layout-column">', '<main class="layout-column layout-notes">'
-        )
-    )
-    interactive = tmp_path / "margin-notes.html"
+def test_an_export_s_preview_takes_escape_before_the_dialog_around_it(
+    browser, serve, tmp_path
+):
+    """Offline the register admits no page scope, so the preview takes Escape itself.
+    A pointer's preview over a control in a modal dialog goes on the first Escape and
+    the dialog stays open, as on a live page; the next Escape closes the dialog.
+    Before, one Escape closed both."""
+    serve(leaf_page("Dialog", "<h1>Dialog</h1><p>Words beside it.</p>"))
+    exported = tmp_path / "dialog.html"
     result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "export", str(serve.page_dir), "--out", str(interactive)],
+        ["page", "export", str(serve.page_dir), "--out", str(exported), "--runtime"],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    page = browser.new_page(viewport={"width": 1600, "height": 900})
-    page.goto(interactive.as_uri(), wait_until="load")
+    page = browser.new_page()
+    page.goto(exported.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    wide = page.locator("#note").bounding_box()
-    prose = page.locator("#passage").bounding_box()
-    assert wide["x"] >= prose["x"] + prose["width"]
-    page.set_viewport_size({"width": 390, "height": 900})
-    narrow = page.locator("#note").bounding_box()
-    prose = page.locator("#passage").bounding_box()
-    assert narrow["y"] >= prose["y"] + prose["height"]
-    page.set_viewport_size({"width": 1600, "height": 900})
-    assert page.locator("#note").bounding_box() == pytest.approx(wide)
+    page.evaluate(
+        """() => {
+          const dialog = document.createElement('dialog');
+          dialog.id = 'dialog';
+          dialog.innerHTML = '<button id="open" aria-label="Read report">?</button>';
+          document.querySelector('main').append(dialog);
+          dialog.querySelector('button').lfPreview = () => ({name: 'Read report',
+            detail: ['Offline reading.']});
+          dialog.showModal();
+        }"""
+    )
+    dialog = page.locator("#dialog")
+    tip = page.locator("#lf-preview")
+    page.locator("#open").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    expect(dialog).to_have_attribute("open", "")
+    page.keyboard.press("Escape")
+    expect(dialog).not_to_have_attribute("open", "")

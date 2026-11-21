@@ -15,9 +15,9 @@ import {
   AXIS_LABEL_CHROME as LABEL_CHROME,
 } from "/runtime/portable-api.js";
 
-/** @typedef {{label: string, row: number}} TimelineRun */
+/** @typedef {{label: string, abbr: string | null, row: number}} TimelineRun */
 /** @typedef {{id: string, label: string, lane: TimelineLane, at: number, end: number | null, step: number}} TimelineEvent */
-/** @typedef {{index: number, label: string, run: TimelineRun | null, name: string, row: number, events: TimelineEvent[]}} TimelineLane */
+/** @typedef {{index: number, label: string, abbr: string | null, run: TimelineRun | null, name: string, row: number, events: TimelineEvent[]}} TimelineLane */
 /** @typedef {{time: number, events: TimelineEvent[]}} TimelineStep */
 /** @param {string | null} value */
 const time = (value) => (value == null || value === "" ? null : Number(value));
@@ -51,6 +51,7 @@ export function timelineModel(host) {
     const reading = {
       index,
       label,
+      abbr: lane.getAttribute("abbr"),
       run,
       name: run ? `${run.label} · ${label}` : label,
       row: ++row,
@@ -83,7 +84,11 @@ export function timelineModel(host) {
       bare ??= child;
     }
     if (child.localName !== "lf-run") continue;
-    const run = { label: child.getAttribute("label") ?? "", row: ++row };
+    const run = {
+      label: child.getAttribute("label") ?? "",
+      abbr: child.getAttribute("abbr"),
+      row: ++row,
+    };
     runs.push(run);
     for (const lane of child.children)
       if (lane.localName === "lf-lane") readLane(lane, run);
@@ -117,7 +122,12 @@ export function timelineModel(host) {
 }
 
 /** The ruler's width and the labels' widest font determine geometry, independently
- * of the selected step. End labels read back from their mark when they fit. */
+ * of the selected step. A label's stroke stands at its event's moment, so the label
+ * reads on from its mark where it fits, back from it where it fits, and otherwise
+ * toward the roomier side, its words cut short at the ruler's edge. A label moved
+ * clear of its mark to show every word would leave its stroke at a time the event
+ * isn't, or no stroke at all; the step list below the chart gives every label
+ * whole. */
 /** @param {ReturnType<typeof timelineModel>} model @param {number} width @param {string} font */
 export function timelineLayout(model, width, font) {
   const span = Math.max(1, width - 2 * EDGE);
@@ -125,11 +135,11 @@ export function timelineLayout(model, width, font) {
   const rows = model.lanes.map((lane) => {
     const labels = lane.events.map((event) => {
       const anchor = EDGE + (event.at / model.duration) * span;
-      const size = Math.min(width, textWidth(event.label, font) + LABEL_CHROME);
-      const place =
-        anchor + size <= width ? "start" : anchor - size >= 0 ? "flip" : "end";
-      const left =
-        place === "start" ? anchor : place === "flip" ? anchor - size : width - size;
+      const wanted = textWidth(event.label, font) + LABEL_CHROME;
+      const ahead = width - anchor;
+      const place = wanted <= ahead || ahead >= anchor ? "start" : "flip";
+      const size = Math.min(wanted, place === "start" ? ahead : anchor);
+      const left = place === "start" ? anchor : anchor - size;
       return { id: event.id, left, size, place };
     });
     const rowOf = assignRows(
@@ -161,6 +171,48 @@ const stepButton = (action, available) =>
     aria-disabled=${available ? nothing : "true"}
   ></button>`;
 
+/** What a short form stands for, as its preview (`lfPreview`) reads it to a pointer
+ * resting on the short form or a finger holding it. The user chose this over a key
+ * beside each label in the chart, the alternative that shows before anyone points.
+ * @param {string} label */
+const spelledOut = (label) => () => ({ name: label });
+
+/** A step's lane name. A short form is hidden from listeners, who hear the label as
+ * its quiet word.
+ * @param {TimelineLane} lane */
+const laneName = (lane) =>
+  html`<span
+    class="lf-timeline-step-lane"
+    data-lf-quiet=${lane.abbr ? lane.label : nothing}
+    >${
+      lane.abbr
+        ? html`<span aria-hidden="true" .lfPreview=${spelledOut(lane.label)}
+            >${lane.abbr}</span
+          >`
+        : lane.label
+    }${": "}</span
+  >`;
+
+/** A step row's preview (`lfPreview`). Its quiet words name what the timeline shows
+ * elsewhere, each cell's run in the head above its column and a lane's full name in
+ * the chart, so a pointer or a finger on the row previews nothing but the short form
+ * it rests on. Focus, which reaches the row and none of its short forms, previews what
+ * each lane's short form in the row stands for. No key reaches a row.
+ * @param {TimelineStep} step */
+const stepPreview = (step) => {
+  const forms = [
+    ...new Set(
+      step.events.flatMap(({ lane }) =>
+        lane.abbr ? [`${lane.abbr} = ${lane.label}`] : [],
+      ),
+    ),
+  ];
+  return (/** @type {string} */ route) =>
+    route === "focus" && forms.length
+      ? { name: forms[0], detail: forms.slice(1) }
+      : false;
+};
+
 /** One retained template for connection, revision, resizing and stepping. */
 /** @param {HTMLElement} host @param {number} current
  * @param {ReturnType<typeof timelineModel>} model @param {ReturnType<typeof timelineLayout> | null | undefined} layout */
@@ -168,6 +220,16 @@ export function render(host, current, model, layout) {
   current = Math.max(0, Math.min(model.steps.length - 1, current));
   const now = model.steps[current]?.time ?? 0;
   const along = (/** @type {number} */ ms) => fraction(ms / model.duration);
+  // Compared runs each take a column of the step list, named once in the list's head,
+  // so a row shows every run at its moment without repeating a run's name. A run
+  // number on each row would keep one column at any width, but the reader would look
+  // each number up in the chart. A timeline of bare lanes has one column. The head is
+  // hidden from listeners, who hear each cell's run as its quiet word. The list names a
+  // run or lane by its short form (`abbr`) where the author gives one, since the chart
+  // above names it in full; listeners hear the full name. The author declares the short
+  // form because letters taken from labels collide, as Job A's and Job B's would.
+  /** @type {(TimelineRun | null)[]} */
+  const columns = model.runs.length ? model.runs : [null];
   const position = model.steps.length
     ? `Step ${current + 1} of ${model.steps.length} · ${seconds(now)}`
     : "No events";
@@ -275,7 +337,26 @@ export function render(host, current, model, layout) {
         ></span>
       </div>
     </div>
-    <ol class="lf-timeline-steps lf-rows" ${generated({ says: true })}>
+    <ol
+      class="lf-timeline-steps lf-rows"
+      ${generated({ says: true })}
+      style="--lf-timeline-columns: ${columns.length}"
+    >
+      ${
+        model.runs.length
+          ? html`<li class="lf-timeline-steps-head" aria-hidden="true">
+              ${model.runs.map(
+                (run, column) =>
+                  html`<span
+                    class="lf-timeline-steps-run lf-label"
+                    style="grid-column: ${column + 2}"
+                    .lfPreview=${run.abbr ? spelledOut(run.label) : nothing}
+                    >${run.abbr ?? run.label}</span
+                  >`,
+              )}
+            </li>`
+          : nothing
+      }
       ${repeat(
         model.steps,
         (step) => step.time,
@@ -288,20 +369,26 @@ export function render(host, current, model, layout) {
               data-lf-step=${index}
               aria-current=${index === current ? "step" : nothing}
               ?data-lf-ahead=${index > current}
+              .lfPreview=${stepPreview(step)}
             >
               <span class="lf-timeline-step-time lf-row-lead"
                 >${seconds(step.time)}</span
               >
-              ${step.events.map((event, order) => {
-                // A row names each run once, before the first of its events.
-                const lane = event.lane;
-                const before = step.events[order - 1]?.lane;
-                const who =
-                  lane.run && lane.run !== before?.run ? lane.name : lane.label;
-                return html`<span class="lf-timeline-step-event lf-row-main"
-                  ><span class="lf-timeline-step-lane">${who}: </span
-                  >${event.label}</span
-                >`;
+              ${columns.map((run, column) => {
+                const events = step.events.filter((event) => event.lane.run === run);
+                return events.length
+                  ? html`<span
+                      class="lf-timeline-step-cell lf-row-main"
+                      style=${run ? `grid-column: ${column + 2}` : nothing}
+                      data-lf-quiet=${run?.label ?? nothing}
+                      >${events.map(
+                        (event) =>
+                          html`<span class="lf-timeline-step-event"
+                            >${laneName(event.lane)}${event.label}</span
+                          >`,
+                      )}</span
+                    >`
+                  : nothing;
               })}
             </span>
           </li>`,

@@ -6,8 +6,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_LAYER
-from render_cases_navigation import go_to_address
-from render_harness import leaf_page, open_page
+from render_harness import leaf_page, open_page, put_preview_away
 
 from browser.navigation import offered_routes
 from leaf.render_checks import rendered
@@ -15,113 +14,22 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-@pytest.mark.parametrize("touch", [False, True])
-def test_native_disclosure_inherits_the_offered_control_target(browser, serve, touch):
-    """A native disclosure gets the same press target without a widget-specific rule."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=touch
-    )
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Native disclosure",
-                """<h1>Comparison</h1>
-<details id="comparison"><p>Inspection controls.</p></details>
-<details id="wrapped-comparison" style="width: 160px"><p>Wrapped controls.</p></details>
-<script type="module">
-import {offer} from '/runtime/widget-api.js';
-const summary = offer('summary', '', 'Inspect comparison');
-summary.id = 'inspect';
-document.querySelector('#comparison').prepend(summary);
-const wrapped = offer('summary', '', 'A long disclosure label that wraps across several lines');
-wrapped.id = 'wrapped-inspect';
-document.querySelector('#wrapped-comparison').prepend(wrapped);
-</script>""",
-            )
-        ),
-        context=context,
-    )
-    for control_id, detail_id in (
-        ("inspect", "comparison"),
-        ("wrapped-inspect", "wrapped-comparison"),
-    ):
-        control = page.locator(f"#{control_id}")
-        before = control.bounding_box()
-        floor = 44 if touch else 24
-        assert min(before["width"], before["height"]) >= floor - 0.5, before
-        label_room = control.evaluate(
-            """node => {
-              const range = document.createRange(); range.selectNodeContents(node);
-              const box = node.getBoundingClientRect(), text = range.getBoundingClientRect();
-              return {above: text.top-box.top, below: box.bottom-text.bottom,
-                      display: getComputedStyle(node).display};
-            }"""
-        )
-        assert abs(label_room["above"] - label_room["below"]) <= 2, label_room
-        assert label_room["display"] == "list-item", label_room
-        if touch:
-            control.tap()
-        else:
-            control.click()
-        expect(page.locator(f"#{detail_id}")).to_have_attribute("open", "")
-        assert control.bounding_box() == before
-        control.press("Space")
-        expect(page.locator(f"#{detail_id}")).not_to_have_attribute("open", "")
-        assert control.bounding_box() == before
-        control.press("Enter")
-        expect(page.locator(f"#{detail_id}")).to_have_attribute("open", "")
-        assert control.bounding_box() == before
-
-
-def test_offered_native_targets_keep_their_navigation_meaning(browser, serve):
-    """An offered disclosure or link keeps its native Go-to arrival, not a generic press."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Native routes",
-                """<h1>Comparison</h1>
-<details id="comparison"><p>Inspection controls.</p></details>
-<p id="destination">Destination evidence.</p>
-<script type="module">
-import {offer} from '/runtime/widget-api.js';
-const summary = offer('summary', '', 'Inspect comparison');
-summary.id = 'inspect';
-document.querySelector('#comparison').prepend(summary);
-const link = offer('a', '', 'Evidence');
-link.id = 'evidence';
-link.href = '#destination';
-document.querySelector('main').append(link);
-</script>""",
-            )
-        ),
-    )
-    summary = page.locator("#inspect")
-    go_to_address(page, "Fold", "inspect")
-    expect(summary).to_be_focused()
-    expect(page.locator("#comparison")).to_have_attribute("open", "")
-    page.keyboard.press("Enter")
-    expect(page.locator("#comparison")).not_to_have_attribute("open", "")
-    go_to_address(page, "Link", "evidence")
-    expect(page).to_have_url(re.compile(r"#destination$"))
-
-
 KEYBOARD_HINT_REGISTRY = {
     "lf-keyboard-probe": {
         "description": "Exercises declared keyboard commands and their controls.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "asks": {"type": "boolean"},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "asks": {"type": "boolean"},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-state": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-state"],
-        "x-awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-awaits"],
+        "content": "empty",
+        "verbs": SEATED_OBLIGATION_LAYER["lf-verdict"]["verbs"],
+        "awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["awaits"],
     }
 }
 
@@ -213,8 +121,8 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
             leaf_page(
                 "command hints",
                 '<h1>Command hints</h1><button id="outside">Outside the widget</button>'
-                '<lf-ask id="question"><h2>Apply the operation?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<lf-group id="question" label="Apply the operation?"><h2 id="question-h">Apply the operation?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={
@@ -577,8 +485,8 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
         serve(
             leaf_page(
                 "explicit context commands",
-                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<h1>Explicit bindings</h1><lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
@@ -634,8 +542,8 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
             leaf_page(
                 "synchronous context commands",
                 '<h1>Explicit bindings</h1><button id="outside">Outside</button>'
-                '<lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
@@ -683,8 +591,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         serve(
             leaf_page(
                 "contextual escape",
-                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<h1>Explicit bindings</h1><lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -724,6 +632,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     ).to_be_focused()
     page.keyboard.press("x")
     expect(result).to_have_text("Applied 3")
+    # The Tab showed the control's preview, Escape's first step (WCAG 1.4.13).
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(result).to_have_text("Applied 4")
 
@@ -756,8 +666,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             leaf_page(
                 "context command identity",
                 '<h1>Explicit bindings</h1><button id="outside">Outside</button>'
-                '<lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -823,8 +733,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         serve(
             leaf_page(
                 "contextual reference policy",
-                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<h1>Explicit bindings</h1><lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -884,20 +794,14 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
     Obligation forwarding and the intrinsic route must preserve that choice and merge into
     one hint when both bindings reach the same original command.
     """
-    registry = {
-        "lf-verdict": {
-            key: value
-            for key, value in SEATED_OBLIGATION_LAYER["lf-verdict"].items()
-            if key != "x-thread-seat"
-        }
-    }
+    registry = {"lf-verdict": dict(SEATED_OBLIGATION_LAYER["lf-verdict"])}
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "route hint override",
-                '<h1>Inspection</h1><lf-ask id="question"><h2>Inspect this?</h2>'
-                '<lf-verdict id="probe" asks>The proposal.</lf-verdict></lf-ask>',
+                '<h1>Inspection</h1><lf-group id="question" label="Inspect this?"><h2 id="question-h">Inspect this?</h2>'
+                '<lf-verdict id="probe" asks>The proposal.</lf-verdict></lf-group>',
             ),
             layer_registry=registry,
             layer_widgets={"lf-verdict.js": ROUTE_HINT_OVERRIDE_MODULE},
@@ -926,3 +830,64 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
     page.keyboard.press("x")
     expect(result).to_have_text("x:2")
     expect(chip).to_have_count(1)
+
+
+SHIFTING_CONTROL_MODULE = """\
+import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
+
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
+  connectedCallback() {
+    const neighbour = offer('button', '', 'Neighbour');
+    const control = offer('button', '', 'Apply');
+    const result = offer('output', '', '0');
+    this.append(neighbour, control, result);
+    this.shift = (by) => { control.style.translate = by; commandsChanged(this); };
+    this.lfCommands = { title: 'In the probe', rows: [{
+      id: 'probe.apply', title: 'Apply', contextKeys: ['1'], control,
+      bindingBadge: null, run: () => keepsText(result, 'Applied'),
+    }] };
+    commandsChanged(this);
+  }
+});
+"""
+
+
+def test_a_key_chip_keeps_its_corner_while_that_corner_serves(browser, serve):
+    """A corner chip moves off a corner only when that corner stops serving.
+
+    The chip leaves its control's upper-left corner, where it would cover the
+    neighbour, for the upper-right. A change that frees the upper-left, as a press's
+    scale can by a pixel, leaves it there, so it doesn't cross its control and back
+    with every press.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a chip keeps its corner",
+                '<h1>Corners</h1><lf-group id="question" label="Apply this?"><h2 id="question-h">Apply this?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": SHIFTING_CONTROL_MODULE},
+        ),
+    )
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    control = page.get_by_role("button", name="Apply", exact=True)
+
+    def side():
+        rendered(page)
+        at = chip.bounding_box()
+        box = control.bounding_box()
+        assert at and box
+        middle = at["x"] + at["width"] / 2
+        return "left" if middle < box["x"] + box["width"] / 2 else "right"
+
+    page.keyboard.press("m")
+    expect(chip).to_have_text("1")
+    expect(chip).to_be_visible()
+    assert side() == "right"
+    page.locator("#probe").evaluate("probe => probe.shift('80px 0')")
+    assert side() == "right"
+    page.locator("#probe").evaluate("probe => probe.shift('')")
+    assert side() == "right"

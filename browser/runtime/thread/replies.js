@@ -6,24 +6,23 @@
    A session is the user writing, so only their own act begins one: words typed, a
    press in the box, a Tab into its row, or a command that takes them there (`c`, Enter
    on a thread; `beginReplyAt`, landing.js). A caret alone is not that act: the one an
-   opening places (thread/focus.js, `openingPart`), a send leaves or a pass carries
-   begins nothing, so a thread settled meanwhile leaves the margin as it would for a
-   reader. A caret landing on words the box already holds does begin one, since those
-   words are the user's draft. Everything that asks whether the user is writing reads
-   the session (`replyIsEditing`), a margin card's news as a margin's entry
+   opening places (thread/focus.js, `openingPart`) or a pass carries begins nothing, so
+   a thread settled meanwhile leaves the margin as it would for a reader. A caret
+   landing on words the box already holds does begin one, since those words are the
+   user's draft. Everything that asks whether the user is writing reads the session
+   (`replyIsEditing`), a margin card's news as a margin's entry
    (annotation-overlay/thread-preview.js, `endNewsMoves`); the edge the card holds
-   asks only whether a text field in it has focus (`heldEdge`). Rejected:
+   asks only whether the user is typing words in its reply box (`heldEdge`), not the
+   session, which stands through a send until the server accepts it. Rejected:
    beginning on every `focusin`, which made an opening's caret a session nobody began
-   and kept a resolved thread's card standing over its empty box (the same class as the
-   send's caret, #5364; found on 4 November 2026).
+   and kept a resolved thread's card standing over its empty box.
    The send preserves the panel's narrowing and, whichever control sent it, leaves the
-   caret in the box for the next message, on a card or a seat as in the floating
-   panel's field; Escape takes the user to the thread. The user chose this on 31
-   October, as an experiment for consistency with the panel: a second send by mistake
-   is rare, so keeping the caret costs little. Reverting it would again leave focus on
-   the conversation's card or title (`landSent`, landing.js), ringed, where the next
-   message takes `c` or Enter on the thread first. A saved draft preserves
-   words independently of the editor. External settlement retains a reply the user is
+   box for the conversation's card, seat or view (`landSent`, landing.js, which
+   says why the user chose that over keeping the caret in the box): `c` or Enter on
+   the thread opens the box again for the next message. A refusal gives the words back
+   to the box, and the user with them while they have done nothing since the send
+   (drafts.js, `sendMessage`). A saved draft preserves words independently of the
+   editor. External settlement retains a reply the user is
    editing; deliberate Resolve leaves that editing place and closes the editor. Native
    Tab preserves the row's session independently of focus. The complete presentation
    carries its detached native owner through a complete commit, then hands the
@@ -76,10 +75,10 @@ import { tick } from "../version-signal.js";
 /** @typedef {ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"]} WireInput */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
  * wireInput: WireInput,
- * landSent: ReturnType<typeof import("./landing.js").createThreadLanding>["landSent"],
- * landInThread: ReturnType<typeof import("./landing.js").createThreadLanding>["landInThread"]}} ReplyCommands */
+ * landSent: typeof import("./landing.js").landSent,
+ * landInThread: typeof import("./landing.js").landInThread}} ReplyCommands */
 /** @typedef {Partial<Pick<import("../composing/input.js").InputOptions,
- * "hint" | "hintParts" | "hintLead" | "accessibleName" | "busy">> & {
+ * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed">> & {
  * onChange?: () => void,
  * editLast?: ReturnType<typeof import("./message-edit.js").threadRewrites>["editLast"] | null,
  * sending?: (() => void) | null, sent?: (() => unknown) | null}} ReplyOptions */
@@ -356,14 +355,18 @@ export function replyControlDestination(node) {
 
 // A thread's reply draft has several views, and sending claims its exact generation.
 // A second view pressing Send afterwards reads the generation as
-// spent and refuses on its own — in this tab and in any other showing the page, which is
-// further than a hold kept in this document's memory reached. A send returns the
-// message it drew; nothing when nothing was sent.
+// spent and refuses on its own — in this tab and in any other showing the page, which a
+// hold kept in this document's memory would not reach. A send returns the
+// message it drew; nothing when nothing was sent. A refusal comes `back` to the box.
 /** @param {string} draftCtx @param {string} key @param {string} text
- * @param {Parameters<typeof sendMessage>[1]} owns @param {ReplyCommands["actions"]} actions */
-function sendReply(draftCtx, key, text, owns, actions) {
-  return sendMessage(draftCtx, owns, (attempt) =>
-    actions.reply(key, text, { attempt }),
+ * @param {Parameters<typeof sendMessage>[1]} owns @param {ReplyCommands["actions"]} actions
+ * @param {() => unknown} back */
+function sendReply(draftCtx, key, text, owns, actions, back) {
+  return sendMessage(
+    draftCtx,
+    owns,
+    (attempt) => actions.reply(key, text, { attempt }),
+    back,
   );
 }
 
@@ -376,13 +379,13 @@ function sendReply(draftCtx, key, text, owns, actions) {
 /** @param {string} key @param {HTMLDivElement} row
  * @param {ReturnType<typeof import("../composing/text-field.js").textField>} input
  * @param {ReplyCommands} commands
- * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "accessibleName" | "busy">>} options */
+ * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed">>} options */
 function wireReply(
   key,
   row,
   input,
   commands,
-  { hint, hintParts, hintLead, accessibleName, busy },
+  { hint, hintParts, hintLead, enters, accessibleName, busy, closed },
 ) {
   row.classList.add("lf-comment-box");
   input.setAttribute("data-lf-voice", "leaf");
@@ -392,15 +395,17 @@ function wireReply(
     hint,
     hintParts,
     hintLead,
+    enters,
     accessibleName,
     busy,
+    closed,
     sends: "send",
     sendClass: "lf-thread-send",
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.
     // The user's own edit is writing a reply, so it opens the session where none
-    // stands: a box Send or an opening left the caret in counts once they type.
+    // stands: a box an opening left the caret in counts once they type.
     save: (v) => {
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
@@ -410,9 +415,9 @@ function wireReply(
       }
       remember(composition);
     },
-    // The new turn is drawn above the box, which keeps the caret; the landing shows the
-    // turn with the box, read before the send draws. A view that lands its turns
-    // itself, as the floating panel's does, says so (`sent`).
+    // The new turn is drawn above the box, and the send leaves the user on the thread;
+    // the landing shows the turn with the box, read before the send draws. A view that
+    // lands its turns itself, as the floating panel's does, says so (`sent`).
     send: (...args) => composition.send?.(...args),
     // ↑ from an empty box reaches back to the user's own last words in the thread, to
     // rewrite them where they stand (`message-edit.js`). A box holding words keeps the
@@ -479,12 +484,17 @@ function attach(composition, binding) {
   const { context, controls, sync } = composition;
   composition.binding = binding;
   composition.send = (_text, raw, owns) => {
-    const { actions, sending, sent } = binding;
+    const { actions, landSent, sending, sent } = binding;
     const land = sendLanding(controls.input);
     sending?.();
-    if (!sendReply(context, composition.key, raw, owns, actions)) return;
+    // The box a refusal brings the user back to is this row's, in whichever view holds
+    // it by then.
+    const back = () =>
+      controls.input.isConnected && composition.binding?.landInThread(controls.input);
+    if (!sendReply(context, composition.key, raw, owns, actions, back)) return;
+    landSent(controls.input);
     if (sent) return sent();
-    land(controls.input);
+    land();
   };
   const attached = { composition, binding };
   views.add(attached);
@@ -559,7 +569,7 @@ export async function restoreReplyEditing(editing, land) {
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`), what stands before that
-// (`hintLead`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
+// (`hintLead`), the press its end offers (`enters`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), take no words while its owner says so (`closed`), and
 // land a send's turn itself (`sent`), as the floating panel's view does at its end,
 // told before the send draws (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
@@ -575,8 +585,10 @@ export function createReplyView(
     hint = () => REPLY_HINT,
     hintParts = null,
     hintLead = () => "",
+    enters = () => "",
     accessibleName = "Reply",
     busy = () => false,
+    closed = () => false,
     sending = null,
     sent = null,
   } = {},
@@ -590,8 +602,10 @@ export function createReplyView(
       hint,
       hintParts,
       hintLead,
+      enters,
       accessibleName,
       busy,
+      closed,
     });
   };
   let composition = fresh();

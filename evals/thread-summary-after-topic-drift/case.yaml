@@ -1,7 +1,6 @@
 # Contrasts settled earlier topics with the compact exchange above.
 # Scores proposed commands and summary meaning, not actual page writes.
-# Initial A/B: each harness summarized the settled range under both wordings.
-# This guards range selection and summary meaning; it did not separate the arms.
+# This guards range selection and summary meaning.
 description: thread-summary-after-topic-drift
 metadata:
   purpose: Summarize settled earlier topics while answering the current exchange and preserving its visibility.
@@ -31,8 +30,8 @@ vars:
     You have confirmed the proposed morning run keeps retrying and marks quotes
     unavailable until a fresh feed arrives; it does not serve expired quotes.
 
-    Work out the next turn. Nothing here can execute writes: read the relevant
-    Leaf instructions, then give the CLI commands you would run, in order,
+    Work out the next turn. Nothing here can execute writes, so give the
+    CLI commands you would run, in order,
     with the full text of any replies or other content you would write.
 assert:
   - type: llm-rubric

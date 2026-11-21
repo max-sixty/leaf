@@ -1,4 +1,4 @@
-"""Developer tooling checks; run explicitly from dev/tests."""
+"""Developer tooling checks."""
 
 import json
 import shutil
@@ -20,7 +20,8 @@ from journeys.test_site import (
 )
 
 from leaf_dev import docs
-from leaf_dev.commands import site as site_build
+from leaf_dev.commands.site import _build as site_build
+from leaf_dev.website import asset_site
 
 
 def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted, site):
@@ -34,8 +35,8 @@ def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted, site):
             site_build.check_links(staged_site)
         return str(stopped.value)
 
-    assets = site_build.asset_site(staged_site)
-    shutil.copytree(site_build.asset_site(site), assets)
+    assets = asset_site(staged_site)
+    shutil.copytree(asset_site(site), assets)
     site_build.check_links(staged_site)
     tour = assets / "index.html"
     authored = tour.read_bytes()

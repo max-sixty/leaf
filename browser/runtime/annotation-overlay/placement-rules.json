@@ -1,5 +1,5 @@
 {
-  "$comment": "Where a comment's surfaces stand, as a reader sees them: the comment box the user types in and the thread card Send turns it into, which stand by one rule so Send moves nothing. comment-placement.js and thread-preview.js keep these rules and say how, and which designs they rejected. A rule's `swept` names the findings by which the placement sweep (tests/journeys/margin/test_card_placement.py) reports it broken, each finding under one rule; the sweep refuses a finding no rule names, and a rule naming one it never reports.",
+  "$comment": "Where a comment's surfaces stand, as a reader sees them: the comment box the user types in and the thread card Send turns it into, which stand by one rule, so the card Send opens starts where the box did. comment-placement.js and thread-preview.js keep these rules and say how, and which designs they rejected. A rule's `swept` names the findings by which the placement sweep (tests/journeys/margin/test_card_placement.py) reports it broken, each finding under one rule; the sweep refuses a finding no rule names, and a rule naming one it never reports.",
   "sections": [
     {
       "id": "room",
@@ -25,7 +25,7 @@
         {
           "id": "room-pane",
           "stands_in": "A workspace pane that scrolls",
-          "room": "The pane's visible part, where that holds the card's minimum width (`--thread-card-min`) and the least height a surface stands in (`LEAST_HEIGHT`); otherwise the window",
+          "room": "The pane's visible part, where that holds the card's minimum width (`--lf-thread-card-min`) and the least height a surface stands in (`LEAST_HEIGHT`); otherwise the window",
           "cut": "The pane's edges, so the card never stands over another pane",
           "swept": ["over-another-pane"]
         },
@@ -68,12 +68,16 @@
       "title": "Where on that side",
       "rules": [
         {
+          "id": "place-clear",
+          "says": "Clear of its text by the room a mark on the text takes (`--lf-focus-region-room`) and then a gap (`COMMENT_GAP`), the same one it keeps from the room's edges, so its edge never meets the mark's line."
+        },
+        {
           "id": "place-beside",
-          "says": "Beside: its top a gap (`COMMENT_GAP`) above the commented text's first line, and right of the row's margin entry where the card's full width (`--thread-card`) still fits beyond it; otherwise over the entry."
+          "says": "Beside: its top a gap (`COMMENT_GAP`) above the commented text's first line, and right of the row's margin entry where the card's full width (`--lf-thread-card`) still fits beyond it; otherwise over the entry."
         },
         {
           "id": "place-under-or-over",
-          "says": "Under or over: starting at the quoted words' first character."
+          "says": "Under or over: starting at the quoted words' first character, or, on a whole element, ending at its right edge; further left where the card would otherwise cross the room's right edge, so it keeps its width."
         },
         {
           "id": "place-carried",
@@ -83,8 +87,12 @@
     },
     {
       "id": "size",
-      "title": "How tall",
+      "title": "How big",
       "rules": [
+        {
+          "id": "size-width",
+          "says": "Beside its text: at its least width (`--lf-thread-card-min`) until a message it shows stands taller than it is wide there, then at the measure (`--lf-thread-card`) until another selection, widening once, from its start; the room's width caps either. The comment box keeps the least width however many lines are typed in it, so Send opens the card of a comment that tall at the measure. A long answer widens a slim card as it arrives, carrying its controls, or, held while the user writes a reply, as they send it. Left of its text, and under or over where the measure starts it elsewhere, the box and card take the measure at once, since their start there is the far end of that width from the text. A box with no text to stand by keeps the least width. A carried card keeps the width it was carried at."
+        },
         {
           "id": "size-grows-away",
           "says": "It grows away from its text: down beside or under it, up over it. Opening, it may take the room's whole height, sliding inside the room rather than shrinking."
@@ -96,11 +104,11 @@
         },
         {
           "id": "size-rises",
-          "says": "Beside its text it rises instead, the window's foot lifting it, as an answer arrives. While a text field in it has your caret, it keeps its foot, so the line you're typing stays still as the conversation grows above it."
+          "says": "Beside its text it rises instead, the window's foot lifting it, as an answer arrives. While you write words in its reply box, it keeps its foot, so the line you're typing stays still as the conversation grows above it. A send empties the box, so the card grows down past it."
         },
         {
           "id": "size-page-still",
-          "says": "Growing never scrolls the page. Opening under or over scrolls the room's box, as far as it can, to make the room the card needs, so it opens clear of its text."
+          "says": "Growing never scrolls the page. Opening under or over scrolls the room's box, as far as it can, to make the room the card needs, so it opens clear of its text. The first landing of the input that opened it, as a walk's is, makes that room again where it leaves the text."
         }
       ]
     },
@@ -122,6 +130,10 @@
           "id": "scroll-cut",
           "says": "The edges in the room table's last column cut it as its text crosses them, so it leaves as its text does. Leaf's chrome passes over it.",
           "swept": ["leaves-past-top", "leaves-past-foot"]
+        },
+        {
+          "id": "scroll-covers",
+          "says": "It may cover all that shows of the box that scrolls its text, as a card under a row of a log does in a pane about as wide as the card, once the row passes the log's top. The wheel then can't reach that box, so the reader closes the card to scroll it, and opens it again."
         },
         {
           "id": "scroll-stays-open",

@@ -7,6 +7,7 @@ import { createPendingLedger } from "./state.js";
 import { applicationState, readApplication } from "../semantic-state.js";
 import { randomId } from "../ids.js";
 import { saidNow } from "../presence.js";
+import { writeLaunchesAgent } from "../layer-client.js";
 import { recordInteraction } from "../interaction-log.js";
 import { messageText } from "../thread/messages.js";
 
@@ -42,6 +43,7 @@ export function createCommandDispatch() {
         event,
         saidNow(),
         isThreadEvent(event) ? messageText(event) : undefined,
+        writeLaunchesAgent(),
       );
     },
   });

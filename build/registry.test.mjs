@@ -6,16 +6,18 @@
  * the markup Python writes can only spell a name out. Each test here holds those spellings to their other
  * side:
  *
- * - each `$marks` paint is still spelled somewhere, and no source spells another
- *   `data-lf-` name formed from a mark's key, which is what a renamed paint leaves
- *   behind;
+ * - each `$marks` attribute is still spelled somewhere, and no source spells another
+ *   `data-lf-` name formed from its fact's name, which is what a renamed attribute
+ *   leaves behind;
  * - each `data-lf-` attribute Python writes into a page or reads off one is one the
  *   browser spells too, so renaming it on either side alone fails here. A name two
  *   browser sources read, such as the served script's `data-lf-layer`, still passes
  *   while one of them keeps it: the check knows names, not which reader needs one;
  * - each stylesheet selector on a page-wide allocation names a value `$authored`
  *   declares. The runtime's readers of those values are typed by the same table
- *   (`AuthoredAllocations`, build/browser/contract-types.mjs). */
+ *   (`AuthoredAllocations`, build/browser/contract-types.mjs);
+ * - the phrasing content a suggestion slot's block test spells out is
+ *   `$passages.phrasing`, which the runtime reads. */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -24,9 +26,15 @@ import { test } from "node:test";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 // The `data-lf-` names Python writes only for itself: the export's fallback style
-// hides a page until its bootstrap replaces the document, and the inlined annotation
-// sheet is named for the suite to find.
-const PYTHON_ONLY = new Set(["data-lf-export-pending", "data-lf-annotation-theme"]);
+// hides a page until its bootstrap replaces the document, the inlined annotation
+// sheet is named for the suite to find, and a static export's CSS reads what a script
+// would have shown it from the marks its drawing writes (`static-export.js`).
+const PYTHON_ONLY = new Set([
+  "data-lf-export-pending",
+  "data-lf-annotation-theme",
+  "data-lf-defined",
+  "data-lf-highlight",
+]);
 
 const registry = JSON.parse(
   await readFile(
@@ -68,13 +76,16 @@ async function spelledNames(files) {
 test("hand-written sources spell each mark as `$marks` paints it", async () => {
   const { description: _, ...marks } = registry.$marks;
   const spelled = await spelledNames([...python, ...browser]);
-  for (const [key, { paint }] of Object.entries(marks)) {
-    assert.ok(spelled.has(paint), `no stylesheet or module spells ${key}'s ${paint}`);
-    const stale = `data-lf-${key.slice("x-".length)}`;
-    if (stale !== paint)
+  for (const [key, { attribute }] of Object.entries(marks)) {
+    assert.ok(
+      spelled.has(attribute),
+      `no stylesheet or module spells ${key}'s ${attribute}`,
+    );
+    const stale = `data-lf-${key}`;
+    if (stale !== attribute)
       assert.ok(
         !spelled.has(stale),
-        `${spelled.get(stale)} spell ${stale}, but $marks paints ${key} as ${paint}`,
+        `${spelled.get(stale)} spell ${stale}, but $marks paints ${key} as ${attribute}`,
       );
   }
 });
@@ -91,6 +102,22 @@ test("the browser spells each `data-lf-` attribute Python spells", async () => {
   );
   for (const name of PYTHON_ONLY)
     assert.ok(!browserNames.has(name), `the browser reads ${name}; drop it here`);
+});
+
+test("a suggestion slot's phrasing content is the kernel's", async () => {
+  const sheet = await readFile(`${root}browser/base.css`, "utf8");
+  const [, spelled] =
+    sheet.match(
+      /> :is\(lf-old, lf-new\)\s*> :not\(([^)]*?):where\(\[data-lf-inline\]\)/,
+    ) ?? [];
+  assert.ok(spelled, "base.css no longer asks whether a slot holds block content");
+  assert.deepEqual(
+    spelled
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean),
+    registry.$passages.phrasing,
+  );
 });
 
 test("stylesheets select only the allocation values `$authored` declares", async () => {

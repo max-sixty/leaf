@@ -6,15 +6,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { signal } from "/runtime/framework.js";
-import {
-  html,
-  LeafElement,
-  nothing,
-  noChange,
-  shadowStage,
-} from "/runtime/widget-api.js";
+import { html, nothing, noChange } from "/vendor/lit.js";
+import { LeafElement, shadowStage } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
+import { keys, reflectFirstScopes, reflectKeys } from "/runtime/keyboard/scopes.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -333,7 +329,7 @@ test("an element gates its draws on the delivered bound value", async () => {
   const tag = `lf-probe-data-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -507,6 +503,66 @@ test("a failed preparation stands beside the render root, which the next draw st
   element.remove();
 });
 
+// A tab set draws only its strip and leaves the page's panels beside it, so a draw
+// reads again the keys of the strip it drew and of the set around it, and never walks
+// a panel: walking every panel's document holds each tab switch.
+test("a draw reads again the keys of what it drew and around it, not of the page's content beside it", async () => {
+  const tag = `lf-probe-strip-${++tags}`;
+  const reads = { set: 0, strip: 0, panel: 0 };
+  // A scope whose control a query finds, counting each reading of it.
+  /** @param {Element} where @param {keyof typeof reads} name @param {string} selector */
+  const counted = (where, name, selector) =>
+    keys(where, null, [
+      {
+        id: `probe.${name}-${tags}`,
+        title: "Act",
+        keys: ["x"],
+        control: () => {
+          reads[name]++;
+          return where.querySelector(selector);
+        },
+        run: () => {},
+      },
+    ]);
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      setup() {
+        this.strip = document.createElement("div");
+        this.panel = document.createElement("section");
+        this.panel.append(document.createElement("button"));
+        this.append(this.strip, this.panel);
+      }
+      createRenderRoot() {
+        return this.strip;
+      }
+      render() {
+        return html`<button>Open</button><button>Close</button>`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    counted(element, "set", "div > button + button");
+    counted(element.strip, "strip", "button");
+    counted(element.panel, "panel", "button");
+    reflectFirstScopes();
+    reflectKeys();
+    for (const name of Object.keys(reads)) reads[name] = 0;
+    element.requestUpdate();
+    await settled(element);
+    reflectKeys();
+    assert.ok(reads.strip > 0, "the strip it drew reads its keys again");
+    assert.ok(reads.set > 0, "the set around the strip reads its keys again");
+    assert.equal(reads.panel, 0, "the panel beside the strip is not read");
+  } finally {
+    element.remove();
+  }
+});
+
 test("a setup that throws shows its failure and the element draws nothing, a check's redraw included", async () => {
   applicationState.setPhase("waiting");
   const errors = [];
@@ -569,7 +625,7 @@ test("bound data draws only as it is delivered", async () => {
   const tag = `lf-probe-delivered-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -614,10 +670,8 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   const tag = `lf-probe-written-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-content": "data",
-      "x-data": {
-        text: { source: "source", contract: "text", property: "value", body: true },
-      },
+      content: "data",
+      inputs: { text: { source: "source", contract: "text", property: "value" } },
     },
   });
   const drawn = [];
@@ -822,7 +876,7 @@ test("accepted data claims the element's region until its delivery draws", async
   const tag = `lf-probe-claim-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -868,7 +922,7 @@ test(
     const tag = `lf-probe-unused-data-${++tags}`;
     adoptRegistry({
       [tag]: {
-        "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
       },
       $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
     });

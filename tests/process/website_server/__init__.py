@@ -14,8 +14,6 @@ from leaf.codex import accept_codex_delivery, delivery_records
 from leaf.codex_state import delivery_lock_path
 from leaf.state import flocked, session_record, start_session_turn, turn_open
 
-ROOT = Path(__file__).parents[3]
-
 
 def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
     """Open the provider turn and accept the offered delivery into it, as
@@ -84,6 +82,7 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
                 "directory": directory,
                 "assets": f"/_leaf-release/{'0' * 64}/{route.strip('/').replace('/', '--') or 'root'}",
                 "states": {},
+                "revisions": [],
                 "kind": kind,
                 "title": f"The {route} page",
                 "description": f"What a user does at {route}.",

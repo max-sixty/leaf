@@ -11,8 +11,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from ..activity import WORKING_GRACE
-from ..data import browser_data_from
-from ..files import revision_label
+from ..files import revision_labels
 from ..read_state import seen_revision
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
@@ -57,13 +56,6 @@ def read_served_page(
     projected = project_browser_state(context, view_revision)
     browser, reading = projected if projected is not None else (None, None)
     work = context.work
-    selected_registry = (
-        context.revision(view_revision or active["revision"]).registry
-        if active is not None
-        else context.registry
-    )
-    if active is not None:
-        assert selected_registry is not None
     state = {
         "now": context.now,
         "working_grace_ms": WORKING_GRACE // timedelta(milliseconds=1),
@@ -71,11 +63,18 @@ def read_served_page(
         "active": active,
         "versions": list(context.versions),
         "revision_labels": {
-            str(revision): revision_label(context.events, revision)
-            for revision in sorted(
-                context.revisions
-                | {event["revision"] for event in context.events if "revision" in event}
-            )
+            str(revision): label
+            for revision, label in revision_labels(
+                context.events,
+                sorted(
+                    context.revisions
+                    | {
+                        event["revision"]
+                        for event in context.events
+                        if "revision" in event
+                    }
+                ),
+            ).items()
         },
         # What the page's own user last saw; a hosted copy's reader is someone else.
         "seen": (
@@ -84,7 +83,7 @@ def read_served_page(
             else None
         ),
         "source_error": source_error,
-        "data": browser_data_from(context.data, selected_registry),
+        "data": context.data,
         "files": context.bound_files(),
         **context.presence,
         "activity": {

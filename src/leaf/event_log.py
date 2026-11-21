@@ -10,12 +10,15 @@ import os
 import secrets
 import signal
 import sys
-from collections.abc import Iterator
+import threading
+from collections.abc import Generator, Iterable, Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
 from leaf.files import file_stamp
 from leaf.findings import Finding, Rejected
+from leaf.page_memory import memo
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.state import (
@@ -90,9 +93,10 @@ def _matching_attempt(events: list[dict], event: dict) -> dict | None:
     return None
 
 
-def _event_id_exists(events: list[dict], event_id: str) -> bool:
-    """Whether this log already owns an event identity."""
-    return any(existing.get("id") == event_id for existing in events)
+def logged_ids(events: list[dict]) -> set[str]:
+    """Every event identity the log holds. A command's ID names a widget or a message
+    in one address space, so markup may not take one (`ids-taken-by-events`)."""
+    return {event["id"] for event in events if "id" in event}
 
 
 def new_event_id(events: list[dict]) -> str:
@@ -102,10 +106,29 @@ def new_event_id(events: list[dict]) -> str:
     from checking the held log, not their width; a harness pairs the id with its page.
     Admission allocates it before semantic folding and storage keeps that identity.
     """
+    taken = logged_ids(events)
     while True:
         candidate = secrets.token_hex(4)
-        if not _event_id_exists(events, candidate):
+        if candidate not in taken:
             return candidate
+
+
+def _end_last_line(f) -> None:
+    """End the log's last line, under its exclusive lease, before an append and
+    before a transaction reads the log (`service.PageTransaction`).
+
+    A crash can tear an append mid-line: SIGKILL under a buffered flush, a full
+    disk. The line discipline is the writer's, so the lease holder restores it.
+    Without this, the next event glues onto the torn fragment and one lost event
+    becomes an unreadable line mid-file. And a reader takes only whole lines
+    (`_Tail`), so a record the tear left complete but for its newline would stay
+    unread, and a retry of its attempt would be appended again."""
+    f.seek(0, os.SEEK_END)
+    if f.tell():
+        f.seek(-1, os.SEEK_END)
+        if f.read(1) != b"\n":
+            f.write(b"\n")
+            f.flush()
 
 
 def _append_event_unlocked(
@@ -117,20 +140,12 @@ def _append_event_unlocked(
     reads the log under this same lease before its gates, so two server threads
     cannot both observe an attempt's absence and append it twice."""
     if "id" in event:
-        if _event_id_exists(events, event["id"]):
+        if event["id"] in logged_ids(events):
             raise ValueError(f"event id {event['id']!r} already exists")
     else:
         event["id"] = new_event_id(events)
     event.setdefault("ts", now_iso())
-    # A crash can tear the previous append mid-line: SIGKILL under a buffered
-    # flush, a full disk. The line discipline is the writer's, so the writer
-    # restores it — without this, the next event glues onto the torn fragment
-    # and one lost event becomes an unreadable line mid-file.
-    f.seek(0, os.SEEK_END)
-    if f.tell():
-        f.seek(-1, os.SEEK_END)
-        if f.read(1) != b"\n":
-            f.write(b"\n")
+    _end_last_line(f)
     f.seek(0)
     seq = f.read().count(b"\n") + 1
     stored = event if context is None else {**event, "context": context}
@@ -189,8 +204,8 @@ def _stored_events(data: bytes, before: int = 0) -> list[dict]:
     `before + 1`."""
     events = []
     # The log's grammar is events joined by "\n" — the writer's own separator,
-    # not splitlines()'s wider class, which once read a U+2028 inside a comment's
-    # text as a break and left half an event leading a line no parse could take.
+    # not splitlines()'s wider class, which reads a U+2028 inside a comment's
+    # text as a break and leaves half an event leading a line no parse can take.
     # Bytes, decoded per line: a crash can tear mid-character as easily as
     # mid-line (ensure_ascii=False writes multi-byte UTF-8), and one strict
     # read_text of the file would raise on the tear before any line-level
@@ -206,8 +221,9 @@ def _stored_events(data: bytes, before: int = 0) -> list[dict]:
         except (json.JSONDecodeError, UnicodeDecodeError):
             # The final line is a concurrent append mid-flush, complete on the
             # next read. An earlier one is the tear a crash left, standing alone
-            # because append_event repairs the discipline before writing: that
-            # event's sender already saw its send fail, the seqs around it hold,
+            # because _append_event_unlocked repairs the discipline before
+            # writing: that event's sender already saw its send fail, the seqs
+            # around it hold,
             # and there is nothing anyone could do with a fragment — so it is
             # skipped, not raised over, and the page keeps reading.
             continue
@@ -225,11 +241,54 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
     return events
 
 
-def read_events(page_dir: Path) -> list:
-    path = page_dir / EVENTS_FILE
-    if not path.exists():
-        return []
-    return _parse_events(path.read_bytes())
+class _Read:
+    """The events one page's log holds and the attempts they were sent with, as this
+    process has read them so far, beside the place in the log they were read to."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.tail: _Tail | None = None
+        self.events: list[dict] = []
+        self.attempts: set[str] = set()
+
+    def read_on(self, log: Path) -> None:
+        """Read on to the end of `log`, under `lock`."""
+        self.tail = self.tail or _Tail(log)
+        try:
+            events = self.tail.read_on()
+        except FileNotFoundError:
+            # Another log from here on, read whole, or none.
+            self.tail, self.events, self.attempts = _Tail(log), [], set()
+            try:
+                events = self.tail.read_on()
+            except FileNotFoundError:
+                return
+        self.events += events
+        self.attempts.update(
+            event["attempt"] for event in events if event.get("attempt")
+        )
+
+
+@contextmanager
+def _read(page_dir: Path) -> Generator[_Read]:
+    """The page's kept reading of its log (`page_memory`), read on to the log's end
+    and held for the block."""
+    held = memo(page_dir, _Read)
+    with held.lock:
+        held.read_on(page_dir.resolve() / EVENTS_FILE)
+        yield held
+
+
+def read_events(page_dir: Path) -> list[dict]:
+    """Every event in the page's log, as application readings take them
+    (`_parse_events`), or none where the page has no log.
+
+    The page's memory keeps the events read so far, and each read parses only the
+    lines appended since (`_Tail`), so parsing costs what the log gained since the
+    last read, not its length. The list is the caller's, but every reader of the
+    page in this process shares its events, so none may change one in place."""
+    with _read(page_dir) as held:
+        return list(held.events)
 
 
 def read_stored_events(page_dir: Path) -> list[dict]:
@@ -251,51 +310,77 @@ def _line_start(data: bytes, n: int) -> int:
     return at
 
 
+class _Tail:
+    """A reader's place in one log: the file it first opened, and the bytes and lines
+    it has read there.
+
+    Each read takes only the bytes past that place, and only through the last
+    newline: the line after it is an append mid-flush, whose rest a later read
+    takes. Seq is the line number, so the lines read are counted whether or not they
+    parse, exactly as `_parse_events` counts them. Appends only ever grow the file
+    first opened, so a log that is another file now (a rename put a new one in its
+    place) or shorter than what was read is not the log this place is in: reading
+    on would take its middle under the wrong seqs, so the read raises
+    FileNotFoundError, as it does where the log is gone."""
+
+    def __init__(self, log: Path) -> None:
+        self.log = log
+        self.inode: int | None = None
+        self.read = self.lines = 0
+
+    def read_on(self, after: int = 0) -> list[dict]:
+        """The events appended since the last read, less those at or before seq
+        `after`, which are counted without being parsed."""
+        with open(self.log, "rb") as f:
+            opened = os.fstat(f.fileno())
+            self.inode = self.inode or opened.st_ino
+            if opened.st_ino != self.inode or opened.st_size < self.read:
+                raise FileNotFoundError(f"{self.log} is another file now")
+            f.seek(self.read)
+            data = f.read()
+        complete = data[: data.rfind(b"\n") + 1]
+        unread = _line_start(complete, max(0, after - self.lines))
+        events = _parse_events(
+            complete[unread:], self.lines + complete.count(b"\n", 0, unread)
+        )
+        self.read += len(complete)
+        self.lines += complete.count(b"\n")
+        return events
+
+
+def admitted_attempts(page_dir: Path, attempts: Iterable[str]) -> set[str]:
+    """Which of `attempts` the page's log holds an event sent with. The log keeps every
+    attempt it admitted, so an answer never lapses. The page's memory keeps the
+    attempts beside the events read so far (`_read`), so asking, as each draft write
+    does, costs what the log gained since the last read, not its length."""
+    with _read(page_dir) as held:
+        return held.attempts.intersection(attempts)
+
+
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     """Every event after seq `after`, then each one appended from here on, forever.
 
     It waits on the page's native subscription (`file_changes.page_changes`), so an
     event any process appends wakes it, and each wake compares the log's own stamp
-    with the one taken before the last read. A moved stamp reads only the bytes past
-    what was already read, and only through the last newline: the line after it is
-    an append mid-flush, whose rest moves the stamp again. Seq is the line number, so
-    the lines read are counted whether or not they parse, exactly as `_parse_events`
-    counts them; the lines at or before `after` are counted without being parsed.
-
-    The offset read so far is a position in the file first opened, and appends
-    only ever grow that file. A log that is another file now (a rename put a new
-    one in its place) or shorter than what was read is not the log being
-    followed, and reading on from the old offset would print its middle under the
-    wrong seqs, so the follower ends there, as it does when the log is removed.
+    with the one taken before the last read. A moved stamp reads on from the
+    follower's place in the log (`_Tail`), and a log that is another file now or
+    gone ends the follower.
     """
     # file_changes reads the page's inputs, which reach back here through `service`.
     from leaf.file_changes import page_changes
 
     log = page_dir / EVENTS_FILE
     gone = FileNotFoundError(f"{log} is gone")
-    read = lines = 0
-    followed = None
+    tail = _Tail(log)
     stamp = file_stamp(log)
     while True:
         if stamp is None:
             raise gone
         try:
-            with open(log, "rb") as f:
-                opened = os.fstat(f.fileno())
-                followed = followed or opened.st_ino
-                if opened.st_ino != followed or opened.st_size < read:
-                    raise gone
-                f.seek(read)
-                data = f.read()
+            events = tail.read_on(after)
         except FileNotFoundError:
             raise gone from None
-        complete = data[: data.rfind(b"\n") + 1]
-        unread = _line_start(complete, max(0, after - lines))
-        yield from _parse_events(
-            complete[unread:], lines + complete.count(b"\n", 0, unread)
-        )
-        read += len(complete)
-        lines += complete.count(b"\n")
+        yield from events
         seen = stamp
         while (stamp := file_stamp(log)) == seen:
             # The generation is taken before the stamp it confirms, so an append

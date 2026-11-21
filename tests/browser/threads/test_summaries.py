@@ -8,6 +8,7 @@ from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_harness import (
+    expect_preview_words,
     open_page,
     resized,
     sending,
@@ -20,8 +21,10 @@ from browser.threads import (
     open_panel_thread,
     summarize_thread,
 )
+from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -54,12 +57,12 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Choose the first job.",
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
-        '<lf-options id="first-job" choose>'
+        "Choose the first job.\n\n"
+        '<lf-group id="first-job-decision" label="Which job first?">\n<h3 id="first-job-decision-h">Which job first?</h3>'
+        '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )
     for i in range(8):
         append_carried_log_record(
@@ -98,12 +101,12 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Choose the first job.",
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
-        '<lf-options id="first-job" choose>'
+        "Choose the first job.\n\n"
+        '<lf-group id="first-job-decision" label="Which job first?">\n<h3 id="first-job-decision-h">Which job first?</h3>'
+        '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )
     page = open_page(browser, url)
     seated = page.locator(f'#jobs .lf-msg[data-lf-event="{reply["id"]}"]')
@@ -124,8 +127,8 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(
     reaches their words and opens the whole fold, which its toggle closes again; Leaf's
     travel to an element inside one opens it the same way. A link to a passage of text
     drives the browser's search here: it reveals a match by the same algorithm as
-    find-in-page, which a test cannot press. Before, folded messages were plain
-    `hidden`, which the browser's search skips.
+    find-in-page, which a test cannot press. Folded messages that were plain `hidden`
+    would be skipped by the browser's search.
 
     A reply's markup, which stands in one drawing at a time, stays in a drawing that
     shows it rather than one that folds the reply away: here the panel, which outranks
@@ -160,7 +163,7 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(
 
     def opened():
         expect(toggle).to_have_attribute("aria-expanded", "true")
-        expect(toggle).to_have_accessible_name("Hide 3 earlier messages")
+        expect(toggle).to_have_accessible_name("3 earlier messages")
         for message in covered:
             expect(message).to_be_visible()
         expect(note).to_be_in_viewport()
@@ -183,6 +186,96 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(
         view = open_panel_thread(page, root)
         expect(view.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')).to_be_hidden()
         expect(note).to_be_attached()
+
+
+def test_on_me_opens_the_fold_over_a_message_it_lists(browser, serve):
+    """A summary folds messages that still ask something of the user as it folds any
+    others, so the thread shows the summary alone. On Me still lists what they ask, and
+    its Show lands on the asking message, opening the fold around it."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Is forty megabytes enough?", {"section": "s-how"}
+    )
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "obligation": True,
+            "text": "It holds a week of edits. Try a week offline and tell me.",
+        },
+    )
+    corrected = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "obligation": True,
+            "text": "A correction: it holds three days, not a week.",
+        },
+    )
+    summarize_thread(
+        serve.page_dir,
+        asked["id"],
+        corrected["id"],
+        "Forty megabytes holds three days of edits; try three days offline.",
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="s-how"] .lf-margin-marker').click()
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    toggle = card.locator(".lf-summary-expand")
+    message = card.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')
+    expect(toggle).to_have_attribute("aria-expanded", "false")
+    expect(message).to_be_hidden()
+
+    open_on_me(page).locator(".lf-fp-on-item").first.get_by_role(
+        "button", name="Show", exact=True
+    ).click()
+    expect(message).to_be_focused()
+    expect(message).to_be_visible()
+    expect(toggle).to_have_attribute("aria-expanded", "true")
+
+
+@pytest.mark.parametrize(
+    "text", ["It holds three days of edits.", ""], ids=["prose", "bare-fold"]
+)
+def test_reading_a_summary_reads_the_messages_it_folds(browser, serve, text):
+    """The agent folded the messages for the user to read the fold instead, so once
+    the fold has been on screen whole, whatever it says of them, they count as read in
+    the versions it folds, and nothing offers to open the fold as unread."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Is forty megabytes enough?", {"section": "s-how"}
+    )
+    answer = append_agent_reply(serve.page_dir, root, "It holds a week of edits.")
+    correction = append_agent_reply(serve.page_dir, root, "A correction: three days.")
+    summarize_thread(serve.page_dir, answer["id"], correction["id"], text)
+    page = open_page(browser, url)
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    with sending(page, "the summary read"):
+        page.locator('[data-lf-margin-for="s-how"] .lf-margin-marker').click()
+        expect(card.locator(".lf-summary-expand")).to_be_visible()
+    marked = {
+        (item["message"], item["version"])
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "read"
+        for item in event["messages"]
+    }
+    assert marked == {
+        (answer["id"], answer["id"]),
+        (correction["id"], correction["id"]),
+    }
+    expect(card.locator(".lf-summary-expand")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    expect(page.locator(".lf-next-unread:visible")).to_have_count(0)
 
 
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):
@@ -227,12 +320,8 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
     )
     expand = checkpoint.locator(".lf-summary-expand")
     expect(expand).to_have_attribute("aria-expanded", "false")
-    expect(expand).to_have_accessible_name("Show 3 earlier messages")
-    expect(checkpoint.locator(".lf-summary-label")).to_have_text("Earlier discussion")
-    label_box = checkpoint.locator(".lf-summary-label").bounding_box()
-    control_box = expand.bounding_box()
-    assert label_box["x"] + label_box["width"] <= control_box["x"]
-    assert control_box["y"] <= label_box["y"] < control_box["y"] + control_box["height"]
+    expect(expand).to_have_accessible_name("3 earlier messages")
+    expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "Checkpoint digest: the dependency remains and the measurement took 18 minutes."
     )
@@ -262,23 +351,22 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
         expect(
             card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
         ).to_be_visible()
-    expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
-    expect(expand).to_have_accessible_name("Hide 3 earlier messages")
+    expect(expand).to_have_accessible_name("3 earlier messages")
     expand.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")
     expect(card.locator(f'.lf-msg[data-lf-event="{last["id"]}"]')).to_be_hidden()
 
     # The open fold shows a reply's markup in place.
-    card.get_by_role("button", name="Show 3 earlier messages", exact=True).click()
+    card.get_by_role("button", name="3 earlier messages", exact=True).click()
     expect(card.locator(f'.lf-msg[data-lf-event="{last["id"]}"]')).to_contain_text(
         "The measured result is 18 minutes."
     )
 
 
 def test_previous_progress_messages_can_fold_without_summary_prose(browser, serve):
-    """Progress stays available without a digest, including when the readable label
-    and disclosure need separate lines on a narrow screen."""
+    """Progress stays available without a digest: the name the agent gave the range
+    stands under the press that says what it folds, both whole on a narrow screen."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
@@ -296,24 +384,23 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
         f'.lf-thread-checkpoint[data-lf-summary-id="{summary["id"]}"]'
     )
     label = checkpoint.locator(".lf-summary-label")
-    expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
+    expand = checkpoint.get_by_role("button", name="2 earlier messages")
     expect(label).to_have_text("Previous progress messages")
-    expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+    expect(checkpoint.locator(".lf-summary-text")).to_have_text(
+        "Previous progress messages"
+    )
     expect(card.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_hidden()
-    # Font metrics decide whether they share a line; both arrangements must remain
-    # readable and inside the checkpoint. The narrower screen exercises wrapping
-    # even with macOS's smaller text metrics.
     for width in (390, 320):
         resized(page, width, 900)
         expect(label).to_be_visible()
         label_box = label.bounding_box()
         control_box = expand.bounding_box()
         bounds = checkpoint.bounding_box()
-        assert (
-            label_box["x"] + label_box["width"] <= control_box["x"]
-            or label_box["y"] + label_box["height"] <= control_box["y"]
-        ), (label_box, control_box)
+        assert control_box["y"] + control_box["height"] <= label_box["y"] + 0.5, (
+            label_box,
+            control_box,
+        )
         for box in (label_box, control_box):
             assert bounds["x"] <= box["x"]
             assert box["x"] + box["width"] <= bounds["x"] + bounds["width"]
@@ -324,13 +411,15 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     page.keyboard.press("Enter")
     expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-lf-event="{last["id"]}"]')).to_be_visible()
-    checkpoint.get_by_role("button", name="Hide 2 earlier messages").click()
+    expect(expand).to_have_attribute("aria-expanded", "true")
+    expand.click()
     expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_hidden()
 
 
 def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, serve):
-    """Revealing a held answer hides all progress, including across an intervening
-    user reply. A fresh reading shows the same transcript without a disclosure."""
+    """A step the user wrote after stands above their reply beside the agent's next
+    step, and revealing a held answer ends both. A fresh reading shows the same
+    transcript without a disclosure."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     thread_model.post_reply(
@@ -365,8 +454,11 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, 
     identity = "data-lf-event"
     original = card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
     expect(original).to_be_hidden()
-    expect(card.locator(".lf-thread-working")).to_have_count(2)
-    expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
+    faces = card.locator(".lf-thread-working")
+    expect(faces).to_have_count(2)
+    expect(faces.first).to_contain_text("Checking the camera")
+    expect(faces.last).to_contain_text("Checking the mount")
+    expect(faces.get_by_role("button")).to_have_count(0)
 
     answer = thread_model.post_reply(
         serve.page_dir, {"responds": owed}, "The schedule works."
@@ -377,9 +469,6 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, 
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(card.locator(".lf-thread-working")).to_have_count(0)
     expect(original).to_be_hidden()
-    expect(
-        card.get_by_role("button", name=re.compile("progress message"))
-    ).to_have_count(0)
 
     fresh = open_page(browser, url)
     fresh_card = show(fresh)
@@ -391,166 +480,16 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, 
     expect(fresh_card.get_by_text("Check the mount too.", exact=True)).to_be_visible()
 
 
-@pytest.mark.parametrize(("width", "touch"), [(1400, False), (1400, True)])
-def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
-    browser, serve, width, touch
-):
-    """A card at its least width, as a 1400px window stands one beside its words, keeps
-    the full disclosure beside shared-target controls."""
-    url = serve(PANEL_PAGE)
-    roots = [
-        panel_comment(serve.page_dir, text, {"section": "lede"})
-        for text in ("Check the schedule.", "Check the camera.", "Check the mount.")
-    ]
-    root = roots[0]
-    progress = [
-        thread_model.post_reply(
-            serve.page_dir, {"responds": root}, text, ephemeral=True
-        )
-        for text in (
-            "I'm checking the afternoon schedule against the break.",
-            "The three sessions take two hours. I'm checking whether the discussion still fits.",
-            "The room is available until five. That leaves enough time for the break.",
-        )
-    ]
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "user",
-            "parent": root,
-            "text": "And does the room stay free after five?",
-        },
-    )
-    context = browser.new_context(
-        viewport={"width": width, "height": 670}, has_touch=touch, is_mobile=touch
-    )
-    page = open_page(browser, url, context=context)
-    page.locator(".lf-margin-marker").first.click()
-    preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
-    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
-    for _ in roots[1:]:
-        if card.count():
-            break
-        preview.get_by_role("button", name="Previous thread", exact=True).click()
-    expect(card).to_be_visible()
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/3")
-
-    # What every head on the actions' line shows stops short of them: the first
-    # message's head ends at them and cuts what it can't fit, and a later message's head,
-    # which runs to the card's edge, shows only its name and time there until its
-    # message is offered.
-    def expect_headers_clear_actions():
-        # Read where the card comes to rest, once its entrance and any landing settle.
-        preview.evaluate(
-            """card => Promise.all(card.getAnimations({subtree: true})
-              .filter(motion => motion.timeline === document.timeline &&
-                motion.effect.getComputedTiming().endTime !== Infinity)
-              .map(motion => motion.finished))"""
-        )
-        geometry = card.evaluate("""card => {
-          const actions = card.querySelector('.lf-margin-thread-controls');
-          const line = [...actions.querySelectorAll('.lf-icon-action')]
-            .filter(control => control.checkVisibility())
-            .map(control => control.getBoundingClientRect());
-          const top = Math.min(...line.map(box => box.top));
-          const bottom = Math.max(...line.map(box => box.bottom));
-          const shown = head => Math.max(...[...head.querySelectorAll(
-            ':scope > :not(.lf-msg-control-room), :scope .lf-msg-controls > *')]
-            .filter(item => item.checkVisibility(
-              {visibilityProperty: true, opacityProperty: true}))
-            .map(item => item.getBoundingClientRect().right));
-          return {
-            actions: actions.getBoundingClientRect().left,
-            heads: [...card.querySelectorAll('.lf-msg-head')]
-              .filter(head => head.checkVisibility())
-              .filter(head => {
-                const box = head.getBoundingClientRect();
-                return box.top < bottom && box.bottom > top;
-              })
-              .map(head => Math.min(head.getBoundingClientRect().right, shown(head))),
-          };
-        }""")
-        assert geometry["heads"], geometry
-        assert all(right <= geometry["actions"] + 0.5 for right in geometry["heads"]), (
-            geometry
-        )
-
-    expect_headers_clear_actions()
-    originals = [
-        card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
-        for message in progress
-    ]
-    for original in originals:
-        expect(original).to_be_hidden()
-
-    def expect_unclipped_words(control):
-        expect(control).to_be_visible()
-        expect(control).to_be_in_viewport(ratio=1)
-        geometry = control.evaluate("""control => {
-          const range = document.createRange();
-          range.selectNodeContents(control);
-          const words = [...range.getClientRects()].filter(box => box.width && box.height);
-          const clipped = [];
-          for (let node = control; node; node = node.parentElement) {
-            if (!/^(hidden|clip|auto|scroll)$/.test(getComputedStyle(node).overflowX)) continue;
-            const box = node.getBoundingClientRect();
-            if (words.some(word => word.left < box.left - 1 || word.right > box.right + 1))
-              clipped.push({class: node.className, left: box.left, right: box.right});
-          }
-          return {words: words.length, clipped};
-        }""")
-        assert geometry["words"] > 0, geometry
-        assert geometry["clipped"] == [], geometry
-
-    expand = card.get_by_role("button", name="Show 3 progress messages", exact=True)
-    expect_unclipped_words(expand)
-    # A keyboard arrival: the disclosure is the card's first stop, so Shift+Tab goes
-    # back to the margin entry the card hangs from and Tab comes into the card again.
-    expand.focus()
-    page.keyboard.press("Shift+Tab")
-    expect(page.locator(".lf-margin-marker").first).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(expand).to_be_focused()
-    assert expand.evaluate("node => node.matches(':focus-visible')")
-    page.keyboard.press("Enter")
-    for original in originals:
-        expect(original).to_be_visible()
-    expect_headers_clear_actions()
-    collapse = card.get_by_role("button", name="Hide 3 progress messages", exact=True)
-    expect(collapse).to_be_focused()
-    expect_unclipped_words(collapse)
-    page.keyboard.press("Enter")
-    for original in originals:
-        expect(original).to_be_hidden()
-    expect(expand).to_be_focused()
-    expect_unclipped_words(expand)
-
-    # A newer reading gesture supersedes that landing even while focus stays on Hide.
-    page.keyboard.press("Enter")
-    expect_unclipped_words(collapse)
-    transcript = card.locator(":scope > .lf-thread-transcript")
-    transcript.hover()
-    page.mouse.wheel(0, -1000)
-    expect(transcript).to_have_js_property("scrollTop", 0)
-    expect(collapse).to_be_focused()
-    resized(page, width, 650)
-    expect(card.locator(".lf-msg").first).to_be_in_viewport()
-    expect(collapse).to_be_focused()
-    expect(originals[0]).to_be_in_viewport()
-
-
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     """A summary arriving over messages the user is reading, closed and opened again,
     then retracted, leaves them where they stand: a frame in one keeps the document it
     loaded, and words the user selected in another stay selected. Moving a message
-    reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
-    every engine. The checkpoint groups its messages for assistive technology by
-    `aria-owns`, since it no longer contains them. Its toggle takes a press while those
-    words stay selected. Standing on that toggle, the user is in the thread, so the
-    edit that retracts the summary draws at once."""
+    would reload its frame in WebKit, which lacks `moveBefore`, and lose the selection
+    in every engine. The checkpoint groups its messages for assistive technology by
+    `aria-owns`, since it doesn't contain them. Its toggle takes a press while those
+    words stay selected. Standing on that toggle, the user is in the thread, so their
+    rewrite of a folded message, which retracts the summary, draws at once."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -560,7 +499,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
     )
     worded = append_agent_reply(serve.page_dir, root, "The mounts take an hour.")
-    edited = append_agent_reply(serve.page_dir, root, "The camera takes two.")
+    edited = append_user_reply(serve.page_dir, root, "The camera takes two.")
     append_user_reply(serve.page_dir, root, "Keep the latest visible.")
 
     page = open_page(request.getfixturevalue(engine), url)
@@ -608,11 +547,11 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
     assert owned == [message.evaluate("node => node.id") for message in covered]
 
-    # A press, with those words still selected, folds and unfolds them: the guard that
-    # takes a drag ending on a control for the selection's mouseup once asked the whole
-    # card, so a selection anywhere in it deadened the toggle. Show and Hide leave their
-    # toggle under the user's aim: the thread landing it brought the thread's head back
-    # into view and lifted the toggle 20px.
+    # A press, with those words still selected, folds and unfolds them: were the guard
+    # that takes a drag ending on a control for the selection's mouseup to ask the whole
+    # card, a selection anywhere in it would deaden the toggle. Opening and closing
+    # leave the toggle under the user's aim: a thread landing that brought the thread's
+    # head back into view would lift the toggle.
     toggle.scroll_into_view_if_needed()
     stood = toggle.evaluate("node => node.getBoundingClientRect().top")
     toggle.click()
@@ -630,9 +569,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
+            "author": "user",
             "message": edited["id"],
             "text": "The camera takes three.",
         },
@@ -693,8 +630,8 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
 ):
     """A checkpoint may cover the root turn without hiding thread actions.
 
-    A narrow touch header wraps its disclosure while keeping its context label
-    readable beside the complete header.
+    It stands under the actions at the card's width, its press whole on one line, with
+    a mouse and under a finger.
     An edit that retracts the checkpoint waits behind the card's notice while the user
     reads it, and drawn once they show it, leaves them on Resolve."""
     url = serve(PANEL_PAGE)
@@ -729,20 +666,20 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     checkpoint = card.locator(f'[data-lf-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
     alignment = card.evaluate("""card => {
-      const headerNode = card.querySelector('.lf-summary-header');
-      const header = headerNode.getBoundingClientRect();
-      const labelNode = headerNode.querySelector('.lf-summary-label');
-      const label = labelNode.getBoundingClientRect();
-      const disclosure = headerNode.querySelector('.lf-summary-expand').getBoundingClientRect();
-      const resolve = card.querySelector('.lf-resolve').getBoundingClientRect();
-      return {headerCenter: header.top + header.height / 2,
-        resolveCenter: resolve.top + resolve.height / 2,
-        labelLines: label.height / parseFloat(getComputedStyle(labelNode).lineHeight),
-        disclosureRight: disclosure.right,
-        contentRight: header.right - parseFloat(getComputedStyle(headerNode).paddingInlineEnd)};
+      const region = card.querySelector('.lf-summary-checkpoint').getBoundingClientRect();
+      const press = card.querySelector('.lf-summary-expand');
+      const words = press.querySelector('[data-lf-room] > span');
+      const actions = card.querySelector('.lf-margin-thread-controls').getBoundingClientRect();
+      return {regionTop: region.top, actionsBottom: actions.bottom,
+        regionWidth: region.width, actionsLeft: actions.left - region.left,
+        pressLines: words.getBoundingClientRect().height
+          / parseFloat(getComputedStyle(press).lineHeight),
+        pressRight: press.getBoundingClientRect().right, regionRight: region.right};
     }""")
-    assert alignment["labelLines"] <= 1.1, alignment
-    assert alignment["disclosureRight"] <= alignment["contentRight"] + 0.5, alignment
+    assert alignment["regionTop"] >= alignment["actionsBottom"] - 0.5, alignment
+    assert alignment["actionsLeft"] < alignment["regionWidth"], alignment
+    assert alignment["pressLines"] <= 1.1, alignment
+    assert alignment["pressRight"] <= alignment["regionRight"], alignment
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
     root_message = card.locator(
         f'.lf-msg[data-lf-event="{root}"][data-lf-summary="{summary["id"]}"]'
@@ -765,9 +702,10 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
         told(page)
 
     edit_root("Start with the corrected measured constraint.")
-    expect(
-        card.get_by_role("button", name="2 new", exact=True)
-    ).to_have_accessible_description("1 message edited · 1 summary changed")
+    expect_preview_words(
+        card.get_by_role("button", name="2 new", exact=True),
+        "1 message edited · 1 summary changed",
+    )
     expect(checkpoint).to_have_count(1)
     expect(resolve).to_be_focused()
 
@@ -780,13 +718,14 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     expect(card).to_be_hidden()
 
 
-def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
+def test_a_later_summary_replaces_its_overlap_and_a_rewrite_restores_originals(
     browser, serve
 ):
     """The browser follows the canonical summary fold as the transcript changes.
 
     Each change to the fold of a card the user is reading waits behind its notice, with
-    the words it would change; shown, a summary opens around the messages being read."""
+    the words it would change; shown, a summary opens around the messages being read.
+    The user's rewrite of a folded message retires the summary, so the originals show."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
@@ -794,7 +733,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     first = thread_model.post_reply(
         serve.page_dir, {"responds": root}, "The first constraint."
     )
-    second = append_agent_reply(serve.page_dir, root, "The second constraint.")
+    second = append_user_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")
     old = summarize_thread(
         serve.page_dir,
@@ -820,7 +759,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     )
     told(page)
     notice = card.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_accessible_description("1 summary changed")
+    expect_preview_words(notice, "1 summary changed")
     expect(old_checkpoint).to_be_visible()
     expect(opened).to_be_focused()
     notice.click()
@@ -838,9 +777,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-summary",
+            "author": "user",
             "message": second["id"],
             "text": "The corrected second constraint.",
         },

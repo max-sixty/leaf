@@ -1,20 +1,15 @@
-# From session 0cc26736, whose plan page after the plain HTML comparison put ten
-# accept/reject asks to the user in words and one defect table, though four of the
-# defects were layouts the eval had screenshotted. The user asked "for all of these,
-# can you mark up images or make diagrams", and called the marked-up captures and
-# drawn options that followed "really good". In the two weeks before, 12 of 39 asks
-# whose subject had a shape went unpictured, nearly all on plan, survey or to-do pages
-# whose options name actions ("Explore and build it", "Leave it").
-# The captures are cited only as paths, as the source's subagent findings cited them:
-# listing them as page media, or naming `leaf page media`, made base embed them 3/3.
-# Tool-capable authoring now registers real files and grades the saved page;
-# drawings no longer substitute for an unavailable capture.
-# At 35c660aee base passed 0/6 (draws-the-change 1/6, shows-today 0/3); the
-# shape-shown-inside-the-ask rule in authoring-asks.md passed 3/3, drawing the
-# change 6/6. The wording guardrail held 12/12.
-# On 2026-10-24 a populated spatial text wireframe showed the queue proposal but
-# failed the tag-based drawing criterion. Accepting concrete sketches in any form
-# passed that saved output 1/1 on regrade, without regenerating its author.
+# A session's plan page put ten accept/reject asks to the user in words and one
+# defect table, though four of the defects were layouts the eval had screenshotted.
+# The user wants such asks pictured: "for all of these, can you mark up images or
+# make diagrams". Asks whose subject has a shape can go unpictured on plan, survey or
+# to-do pages whose options name actions ("Explore and build it", "Leave it").
+# The captures are cited only as paths, as the source's subagent findings cited
+# them: listing them as page media, or naming `leaf page media`, can make an author
+# embed them without the rule. Tool-capable authoring registers real files and
+# grades the saved page; drawings don't substitute for an unavailable capture.
+# The shape-shown-inside-the-ask rule in authoring-on-me.md addresses it. The
+# drawing criterion accepts concrete sketches in any form, such as a populated
+# spatial text wireframe, rather than judging by tag.
 description: proposals-show-what-they-change
 metadata:
   purpose:
@@ -34,7 +29,7 @@ vars:
     version now, improved over time; (4) broader changes to Leaf to get it producing
     better outputs: review the judges' feedback and assess where they are correct."
 
-    The report is done: `leaf-dev eval-report` wrote it as its own Leaf page, with each
+    The report is done: `leaf-dev eval report` wrote it as its own Leaf page, with each
     pair's final screens side by side, at /report/. Now write the plan page, where each
     change you propose waits on the user's accept or reject. Your notes:
 
@@ -59,7 +54,7 @@ vars:
 
     Leaf. Three subagents checked every judge claim about Leaf's pages against the
     screenshots and source, citing captures under
-    `evals/proposals-show-what-they-change/captures/`. Real defects, each with its cause
+    `captures/`. Real defects, each with its cause
     and proposed fix:
     1. Configuration: each alert's threshold and action controls sit in the playground's
        right rail, apart from that alert's evidence in the stage. HTML put threshold
@@ -83,7 +78,7 @@ vars:
        (`document-z029x2il/p3-short-0.png`). Cause: `layout-sidebar` lacks the column
        sidebar's bounded scroll. Proposal: bound the sticky aside in the Layout and
        delete the instruction. Clear-cut.
-    4. Document: an `lf-ask` set its option cards in a narrow track beside a table, leaving
+    4. Document: a question set its option cards in a narrow track beside a table, leaving
        about 800px of empty space beside long options
        (`document-z029x2il/p3-laptop-2.png`). Cause: the options track turns on whenever
        a table precedes the list. Proposal: turn the track on only when the list fits
@@ -106,27 +101,27 @@ assert:
       Treat those as the supplied captures without rechecking their identical pixels.
       For other page media, open the cited originals and compare the images the HTML
       uses: cropped or marked captures must still show the cited defect.
-      Find the `lf-ask` elements deciding the configuration controls (defect 1), the queue's progress
+      Find the question sections deciding the configuration controls (defect 1), the queue's progress
       (defect 2) and the options track (defect 4). Pass only if each of the three shows
-      the defect as it looks today in a picture, inside that `lf-ask`: the capture the
+      the defect as it looks today in a picture, inside that section: the capture the
       notes cite for it as an `<img>` or `lf-shot` (cropped or marked counts). A drawing
       alone does not show the captured state. Fail if any of the three describes today's state only
       in words, a table row, a cited file path, or a link to the report page.
   - type: llm-rubric
     metric: draws-the-change
     value: |
-      Find the `lf-ask` elements deciding the configuration controls (defect 1) and the queue's
+      Find the question sections deciding the configuration controls (defect 1) and the queue's
       progress (defect 2). Pass only if each shows what accepting the proposal would look
-      like in a concrete interface sketch inside that `lf-ask`: in the accepting
+      like in a concrete interface sketch inside that section: in the accepting
       `lf-option`, or in a composition showing today beside the change. Judge what the
       sketch shows, not its HTML tag: a drawing, sample, HTML mockup, or textual
       wireframe can communicate the arrangement and resulting experience. A textual
       wireframe qualifies when its spatial arrangement shows the proposed interface;
       a list of controls or prose describing their placement does not. Fail if either
-      proposal's change is only described, or shown only outside the `lf-ask`.
+      proposal's change is only described, or shown only outside the section.
   - type: llm-rubric
     metric: wording-stays-text
     value: |
-      Find the `lf-ask` deciding the `leaf thread reply` refusal. Pass if it carries no image,
+      Find the question section deciding the `leaf thread reply` refusal. Pass if it carries no image,
       screenshot or drawing; showing the refusal's text, before or after, as text or code
       is fine. Fail if it holds an `<img>`, `<svg>`, `lf-shot` or `lf-diagram`.

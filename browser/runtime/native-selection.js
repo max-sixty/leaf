@@ -10,16 +10,23 @@ import { pageShadowRoots } from "./shadow.js";
 // worth naming twice — not a refusal, which the fence rule turns into a message to the
 // author, but a quote anchored somewhere the user never pointed.
 //
-// `getComposedRanges` is the only thing that answers truthfully, and it answers only for
-// the roots it is handed, which is why the declaration (x-shadow) and not a sweep decides
-// what is passed. A selection that starts in one tree and ends in another is left to the
-// light-DOM range on purpose: a Range cannot hold ends in two roots, and a quote running
-// from the page's prose into a widget's shadow is exactly what the fences already refuse.
+// `getComposedRanges` is the only thing that answers truthfully, and it answers only
+// for the roots it is handed, which is why the declaration (`shadow`) and not a
+// sweep decides what is passed. An end in any other root moves out to its host's edge,
+// past the host where the selection ends, as the page's reading reads that host by its
+// light children: a drag from prose into a typeset formula (formulas.js) takes the
+// whole formula. Firefox's legacy Range is wrong there: a drag across a formula came
+// back holding only the words after it. A caret in such a root moves out as a range
+// round its host, so it is collapsed again: as a range it read as words the user had
+// selected, and a click on a formula in a label opened a comment rather than pressing
+// the label. A selection that starts in one tree and ends in another is left to the
+// light-DOM range on purpose: a Range cannot hold ends in two roots, and a quote
+// running from the page's prose into a widget's shadow is exactly what the fences
+// already refuse.
 /** @param {Selection} sel */
 export function pageRange(sel) {
   const plain = sel.getRangeAt(0);
   const shadowRoots = pageShadowRoots();
-  if (!shadowRoots.length) return plain;
   const [composed] = sel.getComposedRanges({ shadowRoots });
   if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
@@ -27,6 +34,7 @@ export function pageRange(sel) {
   const range = document.createRange();
   range.setStart(startContainer, startOffset);
   range.setEnd(endContainer, endOffset);
+  if (sel.type === "Caret") range.collapse(true);
   return range;
 }
 
@@ -39,15 +47,14 @@ let writtenBackward = false;
 // Each end is a boundary point, `[node, offset]`.
 /** @typedef {[node: Node, offset: number]} SelectionEnd */
 /** @param {SelectionEnd} anchor @param {SelectionEnd} focus */
+// Its ends may stand in different trees, as a passage's run from the page into a
+// shadow stage, which the selection holds as one composed range and the platform orders
+// (`direction`), where comparing them as two ranges' bounds throws.
 export function selectEnds(anchor, focus) {
   const selection = getSelection();
   if (!selection) return;
-  const from = document.createRange(),
-    to = document.createRange();
-  from.setStart(...anchor);
-  to.setStart(...focus);
-  writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
   selection.setBaseAndExtent(...anchor, ...focus);
+  writtenBackward = selection.direction === "backward";
   writtenSelection = selectionEnds(selection);
 }
 /** @param {Selection} selection */

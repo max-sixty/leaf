@@ -1,4 +1,4 @@
-/* The two lists, On me and On <agent>, the application publishes: the server's selection
+/* The two lists, On Me and On <agent>, the application publishes: the server's selection
    (`served_state.queues`), with this tab's unresolved sends placed against it. Each
    case adopts a whole reading the server folded (`tests/served_records.py`), so the
    lists it starts from are the ones `page state` prints. */
@@ -15,9 +15,12 @@ const adopted = (name) => {
   // captured; this stands in its words.
   const view = served.browser.views[String(served.active.revision)];
   const messageBodies = new Map(
-    view.thread.threads.flatMap(({ msgs }) =>
-      msgs.filter(({ markup }) => markup).map(({ id, text }) => [id, { text }]),
-    ),
+    view.thread.threads.map(({ id: thread, msgs }) => [
+      thread,
+      new Map(
+        msgs.filter(({ markup }) => markup).map(({ id, text }) => [id, { text }]),
+      ),
+    ]),
   );
   assert.equal(app.adopt(served, { ...app.read().document, messageBodies }), true);
   return {
@@ -109,7 +112,10 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
   const answers = published(app).on_agent.filter((item) => item.kind === "update");
   assert.deepEqual(kinds(answers), [["update", "update:pending:a5"]]);
   app.refuse("a5");
-  assert.equal(answers[0].thread, owed.thread);
+  // The answer falls back to the follow-up still sending, in the same thread.
+  const left = published(app).on_agent.filter((item) => item.kind === "update");
+  assert.deepEqual(kinds(left), [["update", "update:pending:a3"]]);
+  assert.equal(left[0].thread, owed.thread);
   assert.equal(published(app).on_agent.at(-1).kind, "todo");
   app.refuse("a3");
   // A refused follow-up leaves the thread the user's to send again, and the answer
@@ -183,7 +189,7 @@ test("an item lands in the Done of the list it left, newest first", () => {
   const { app } = adopted("done");
   const { done } = published(app);
   const owners = Object.fromEntries(done.map((item) => [item.id, item.owner]));
-  // The answered obligation leaves On me; the ended to-do and the comment the agent
+  // The answered obligation leaves On Me; the ended to-do and the comment the agent
   // answered leave On <agent>.
   assert.deepEqual(owners, {
     "widget:ship": "user",

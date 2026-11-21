@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   combineSemanticNews,
   currentSemanticNews,
+  newsMoment,
   observeSemanticNews,
   semanticNewsNotice,
   semanticNewsReading,
@@ -149,7 +150,7 @@ test("structural questions own their thread obligation and reopening starts a ne
     reopened.news.map(({ kind, thread, source }) => [kind, thread, source]),
     [["user_obligation", "t", "choice"]],
   );
-  assert.equal(said(reopened.news), "New on me");
+  assert.equal(said(reopened.news), "New On Me");
   const queued = combineSemanticNews(first.news, reopened.news);
   assert.equal(queued.length, 4);
   const current = currentSemanticNews(queued, reopenedReading, reopened.observed);
@@ -160,7 +161,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(said(current), "2 new on me");
+  assert.equal(said(current), "2 new On Me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
@@ -235,7 +236,7 @@ test("current content versions and admitted messages determine arrivals", () => 
 
 test("a failed answer to a move in a thread's markup is news about that thread", () => {
   const baseline = observeSemanticNews(null, reading());
-  // The server stamps the thread the widget was frozen into.
+  // The server stamps the thread whose markup holds the widget.
   const move = {
     ...responseFailure({ attempt: "attempt" }),
     subject: { kind: "widget", id: "pick" },
@@ -356,7 +357,7 @@ test("page obligations come from the shown revision, not a waiting activation", 
   assert.equal(selected.onMe, 1);
 });
 
-test("a reading that empties On me says so while the list stays empty", () => {
+test("a reading that empties On Me says so while the list stays empty", () => {
   // A list empty from the first reading is no news.
   const baseline = observeSemanticNews(null, reading());
   assert.deepEqual(baseline.news, []);
@@ -374,7 +375,7 @@ test("a reading that empties On me says so while the list stays empty", () => {
   const queued = combineSemanticNews(emptied.news, again.news);
   assert.equal(
     said(currentSemanticNews(queued, refilled, again.observed)),
-    "New on me",
+    "New On Me",
   );
 });
 
@@ -408,7 +409,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
   const both = observeSemanticNews(baseline.observed, more);
   assert.equal(
     said(currentSemanticNews(both.news, more, both.observed)),
-    "Does this answer your question? · New on me",
+    "Does this answer your question? · New On Me",
   );
 });
 
@@ -457,7 +458,7 @@ test("a notice sets the agent's words apart from Leaf's news", () => {
       [" · ", "leaf"],
       ["Not answered", "leaf"],
       [" · ", "leaf"],
-      ["New on me", "leaf"],
+      ["New On Me", "leaf"],
     ],
   );
   const edited = message("m2", { edited: { id: "edit", seq: 2 } });
@@ -534,6 +535,25 @@ test("agent content is news while it is unread, including on the first reading",
   assert.deepEqual(later.news, []);
 });
 
+test("content this tab saw read is no news when an undo makes it unread again", () => {
+  const resolved = reading({
+    threads: [thread("t", [message("answer", { unread: false })])],
+  });
+  const seen = observeSemanticNews(null, resolved);
+  assert.deepEqual(seen.news, []);
+  // The undo of the resolve that had marked the answer read.
+  const reopened = reading({ threads: [thread("t", [message("answer")])] });
+  assert.deepEqual(observeSemanticNews(seen.observed, reopened).news, []);
+  // A rewrite of it is a new version, and news.
+  const rewritten = reading({
+    threads: [thread("t", [message("answer", { edited: { id: "rewrite" } })])],
+  });
+  assert.deepEqual(
+    observeSemanticNews(seen.observed, rewritten).news.map(({ version }) => version),
+    ["rewrite"],
+  );
+});
+
 test("news is ordered by when each message last moved", () => {
   const result = observeSemanticNews(
     null,
@@ -554,7 +574,7 @@ test("news is ordered by when each message last moved", () => {
 });
 
 test("held producer batches preserve interrupted news and merge later arrivals", async (t) => {
-  const { notice, noticeReading, holdStatus, liveEl } =
+  const { NOTICE_MS, answerStep, notice, noticeReading, liveEl } =
     await import("/runtime/notifications.js");
   t.mock.timers.enable({ apis: ["setTimeout"] });
   t.after(() => window.happyDOM.cancelAsync());
@@ -592,7 +612,8 @@ test("held producer batches preserve interrupted news and merge later arrivals",
   await announce(news.slice(0, 2));
   assert.equal(words(noticeReading().message), "2 replies in 2 threads");
   assert.equal(noticeReading().visible, true);
-  holdStatus(10000);
+  // A walk's step takes the seat for its moment, holding news back meanwhile.
+  answerStep();
   assert.equal(noticeReading().visible, false);
   for (const item of news.slice(2)) await announce([item]);
   assert.equal(noticeReading().visible, false);
@@ -602,8 +623,7 @@ test("held producer batches preserve interrupted news and merge later arrivals",
     "Words of queued-3.",
   ]);
   const before = [...announcements];
-  holdStatus(1);
-  t.mock.timers.tick(1);
+  t.mock.timers.tick(NOTICE_MS);
   assert.equal(words(noticeReading().message), "4 replies in 2 threads");
   assert.equal(noticeReading().visible, true);
   t.mock.timers.tick(30);
@@ -613,4 +633,62 @@ test("held producer batches preserve interrupted news and merge later arrivals",
     before,
     "showing deferred news must not announce it again",
   );
+});
+
+test("a reading's news gives the leaf one moment, its most pressing", () => {
+  const content = {
+    kind: "agent_content",
+    key: "content:m",
+    thread: "t",
+    version: "m",
+    message: message("m"),
+  };
+  const asked = {
+    kind: "user_obligation",
+    key: "obligation:q",
+    sourceKey: "q",
+    episode: 1,
+    source: "q",
+    thread: "t",
+    message: "m",
+  };
+  const emptied = { kind: "on_me_empty", key: "on-me:empty" };
+  const failed = {
+    kind: "response_failure",
+    key: "response:input",
+    condition: "failed",
+    input: "input",
+    thread: "t",
+    seq: 3,
+  };
+  assert.equal(newsMoment([content]), "reply");
+  assert.equal(newsMoment([content, asked]), "new-on-me");
+  assert.equal(newsMoment([failed, emptied]), "on-me-empty");
+  assert.equal(newsMoment([failed]), null);
+});
+
+test("a notice of the user's own command, and an error about no field, each give the leaf a moment", async (t) => {
+  const { notice, gestureReading } = await import("/runtime/notifications.js");
+  const { dismissErrors, raiseError } = await import("/runtime/errors.js");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.after(() => window.happyDOM.cancelAsync());
+  const moments = [];
+  const step = (run) => {
+    const before = gestureReading().beat;
+    run();
+    const after = gestureReading();
+    if (after.beat !== before) moments.push(after.moment);
+  };
+  // The user's own command, and the same words again.
+  step(() => notice("No search to repeat"));
+  step(() => notice("No search to repeat"));
+  // News is its producer's moment to give, as it arrives, not the seat's when it shows.
+  step(() => notice("Updated to v2", { background: true }));
+  step(() => t.mock.timers.tick(4000));
+  step(() => t.mock.timers.tick(4000));
+  // An error the panel says shakes the leaf; one standing at a box of its own doesn't.
+  step(() => raiseError("Wait for the current change to finish before undoing"));
+  step(() => raiseError("Not sent", { subject: document.createElement("textarea") }));
+  dismissErrors();
+  assert.deepEqual(moments, ["notice", "notice", "error"]);
 });

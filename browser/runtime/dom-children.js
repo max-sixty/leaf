@@ -108,7 +108,6 @@ export function setRenderedChildren(parent, nodes, { bounded = false } = {}) {
     sameValue: (held, wanted) => held === wanted,
     touched: () => {},
     declared: () => false,
-    body: () => null,
     same: (held, wanted) => held.isEqualNode(wanted),
     generated: () => false,
     contains: (target, owner) => Boolean(owner?.contains(target)),
@@ -222,9 +221,6 @@ function staying(parent, nodes) {
      pass reads off its attributes is owed again.
    - `declared(element)`: an upgraded widget, whose children are its controller's. Asked
      of the held element; a match names the same element on both sides.
-   - `body(element)`: the box a widget's module built to hold every authored child of
-     this live element, or null. The source's children are that box's, so the patch
-     writes, places and orders them there.
    - `reaches(before, after)`: this widget's controller leaves its members where the
      author wrote them, and the two revisions differ only inside those members. What
      changed is then authored markup the patch can write, and nothing the controller
@@ -250,7 +246,7 @@ function staying(parent, nodes) {
    inserted among them. Only the gaps between those pins are diffed again, by kind alone,
    which is what pairs a paragraph with its own rewrite. */
 /** @typedef {{pairs: SourcePairs, contains: (target: Node, owner: Node | null | undefined) => boolean,
- * declared: (element: Element) => boolean, body: (element: Element) => Element | null,
+ * declared: (element: Element) => boolean,
  * reaches: (before: Element, after: Element) => boolean,
  * traversed: (element: Element) => boolean,
  * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean,
@@ -261,7 +257,7 @@ function staying(parent, nodes) {
 export function patchTree(before, after, rules) {
   const live = rules.pairs.require(before);
   patchAttributes(live, before, after, rules);
-  patchChildren(holder(live, rules), tree(before), tree(after), rules);
+  patchChildren(tree(live), tree(before), tree(after), rules);
 }
 
 // Whether the authored patch preserves this native node. An owned target needs its
@@ -335,10 +331,6 @@ function retainedWithin(before, after, target, rules) {
 // however much markup it holds.
 /** @template {Node} T @param {T} node @returns {T | DocumentFragment} */
 const tree = (node) => (node instanceof HTMLTemplateElement ? node.content : node);
-// Where a live element's authored children stand: its tree, or the authored body its
-// widget's module moved them into.
-/** @param {Element} live @param {RetentionRules} rules */
-const holder = (live, rules) => rules.body(live) ?? tree(live);
 
 // Only where the two revisions disagree. An attribute they both carry is left exactly as
 // the page has it, which is the whole of how a user's `<details open>`, a tab stop
@@ -532,10 +524,9 @@ function pairInterior(before, after, rules) {
 // block's one authored text node stood, and the nodes this patch paired are then not
 // there to write through — putting one back would stand the source's own text beside
 // the colouring of it. Both are read the same way afterwards: whole, or not at all.
-// A widget whose controller only builds beside its members, or around the authored
-// body holding them, is neither, for a revision that leaves everything but their
-// interiors alone: a page written as tabs keeps every tab the author did not touch,
-// rather than rebuilding the page for one sentence.
+// A widget whose controller only builds beside its members is neither, for a revision
+// that leaves everything but their interiors alone: a page written as tabs keeps every
+// tab the author did not touch, rather than rebuilding the page for one sentence.
 // A stylesheet's parsed rules belong to CSSOM. Replacing a changed source owner
 // reparses its original text, including when only its access declaration changed.
 /** @param {Element} before @param {Element} after @param {Element} live @param {RetentionRules} rules */
@@ -544,7 +535,7 @@ const atomic = (before, after, live, rules) =>
   (rules.declared(before) && !rules.reaches(before, after)) ||
   (!rules.traversed(live) &&
     [...tree(before).childNodes].some(
-      (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
+      (node) => rules.pairs.get(node)?.parentNode !== tree(live),
     ));
 
 /** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {number} work */

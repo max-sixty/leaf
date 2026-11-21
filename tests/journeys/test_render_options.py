@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import (
-    command_findings,
     end_work_on,
     working,
 )
@@ -31,6 +30,7 @@ from render_harness import (
     write,
 )
 
+from leaf.render_checks import start_near_work
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -89,7 +89,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
     expect(box).not_to_be_focused()
-    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
     # The controls remain in document order: the other mark, then the text box.
     # An option title is one line: Shift+Enter leaves it intact; Enter submits it.
@@ -116,7 +116,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
     page.keyboard.press("2")
-    expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
+    expect(page.locator("#storage-stop")).to_have_attribute("selected", "")
     chosen = page.locator("#storage-stop .lf-pick")
     # The digit acts within the obligation without turning binding selection into focus
     # navigation; the user remains on the control they tabbed to.
@@ -164,17 +164,15 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     """A page widget is a first-class work subject even before anybody comments.
 
-    A board card declares a local work seat and receives its page-edge margin entry without
-    inventing a comment thread. An options group deliberately has no such seat: adding
-    an option changes decision state, and any discussion starts as a separate thread
-    once that option exists. Unrelated versions leave the board claim in force, while
-    a claim made on v2 does not leak backward into a pinned v1 tab.
+    A board card receives its page-edge margin entry without inventing a comment
+    thread. Unrelated versions leave the board claim in force, while a claim made on v2
+    does not leak backward into a pinned v1 tab.
     """
     work_page = OBLIGATION_PAGE.replace(
         '<h1 id="h">Three jobs</h1>',
         '<h1 id="h">Three jobs</h1>\n'
         '<lf-board id="work-board"><lf-column id="work-now" label="In flight">\n'
-        '  <lf-card id="card-migration"><strong>Run the migration</strong> '
+        '  <lf-card id="card-migration" label="Run the migration"><strong>Run the migration</strong> '
         "Check the shard before cutover.</lf-card>\n"
         '</lf-column><lf-column id="work-next" label="Next"></lf-column>\n'
         '<lf-column id="work-done" label="Done"></lf-column></lf-board>',
@@ -188,10 +186,6 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         told(page)
 
     claim("card-migration", "checking the shard")
-    [unsupported] = command_findings(
-        "task", "create", d, "jobs", "--title", "Price the alternatives"
-    )
-    assert unsupported.code == "no-work-seat"
 
     card_button = page.locator(
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
@@ -245,7 +239,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 )
 def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serve):
     """The gutter marks what is quoted and nothing else, at both ends, and two separate
-    things had to be true for that. The "quoted ·" note over the bar is the theme's word
+    things had to be true for that. The "quoted" note over the bar is the theme's word
     *about* the region rather than a word in it, and the bar opened at the note, drawing
     the marking around a line the page never said. And a table cell is a margin barrier,
     so the room the exhibit's outermost blocks reserve against neighbours they haven't
@@ -270,6 +264,9 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     # Serve each example with its data and history: live samples can select
     # authored threads as part of the exhibit.
     page = open_page(browser, serve(source))
+    # A live sample's frame takes its child's height once the child starts, which it
+    # does as it nears the window, so every one starts before the gutters are read.
+    start_near_work(page)
     scale = page.evaluate("() => devicePixelRatio")
     # Rendered, not merely present. A sample inside a tab panel the page is not
     # showing sits in skipped content, which still reports its last laid-out rect — a
@@ -303,14 +300,18 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             "el => el.querySelector(':scope > .lf-sample-view > .lf-sample-exhibit')"
             " ? `#${el.id} .lf-sample-exhibit` : `#${el.id}`"
         )
+        # Computed style can write the bar's colour in oklab, so it is painted on a
+        # canvas to read its sRGB channels.
         ink = tuple(
-            int(n)
-            for n in re.findall(
-                r"\d+",
-                page.locator(painter).evaluate(
-                    "el => getComputedStyle(el).borderLeftColor"
-                ),
-            )[:3]
+            page.locator(painter).evaluate(
+                """el => {
+                    const context = document.createElement('canvas')
+                        .getContext('2d', {willReadFrequently: true});
+                    context.fillStyle = getComputedStyle(el).borderLeftColor;
+                    context.fillRect(0, 0, 1, 1);
+                    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+                }"""
+            )
         )
         found = {}
         for edge in ("top", "bottom"):
@@ -397,8 +398,6 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 else clip["y"] + painted / scale
             )
             found[f"{edge}-exhibit"] = exhibit[edge]
-            if edge == "top":
-                found["note"] = exhibit["note"]
 
         assert abs(found["top"] - found["top-exhibit"]) <= 1, (
             f"#{spec}'s marking begins at {found['top']} and the exhibit at "
@@ -411,9 +410,3 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             f"a trailing margin inside a child that generates no box, which the "
             f"theme's rule for the sample's last child cannot reach"
         )
-        if found["note"] is not None:
-            assert found["note"] <= found["top"] + 1, (
-                f"#{spec}'s marking begins at {found['top']}, above the foot of the "
-                f"note at {found['note']}: the marking takes in a line the page never "
-                f"said"
-            )

@@ -1,4 +1,5 @@
-"""The load diagnostic must not manufacture failures or change its candidate."""
+"""The load diagnostic must not manufacture failures, change its candidate or leave its
+load running."""
 
 import importlib
 import os
@@ -14,9 +15,9 @@ from interact_support import STATED_TIMEOUT, wait_for
 
 @pytest.mark.parametrize("scenario", ["output", "candidate"])
 def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, scenario):
-    flake = importlib.import_module("leaf_dev.commands.flake")
+    flake = importlib.import_module("leaf_dev.commands.suite.flake")
     arms = importlib.import_module("leaf_dev.arms")
-    suite = importlib.import_module("leaf_dev.suite")
+    suite = importlib.import_module("leaf_dev.commands.suite._runs")
     root = tmp_path / "candidate"
     root.mkdir()
     subprocess.run(["git", "init", "-q", root], check=True)
@@ -40,11 +41,23 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
     # Untracked files and edits, rather than HEAD, are the candidate.
     (root / "input.txt").write_text("candidate")
     started = tmp_path / "started"
+    # Each copy records whether it runs in macOS's background band.
+    bands = tmp_path / "bands"
     (root / "test_candidate.py").write_text(
-        "from pathlib import Path\nimport time\n"
+        "from pathlib import Path\nimport os, time\n"
         "def test_candidate():\n"
         " root = Path(__file__).parent\n"
         f" Path({str(started)!r}).touch()\n"
+        # A failing browser test's picture, which outlives its copy's checkout.
+        " screens = root / '.tmp' / 'test-results' / 'screens'\n"
+        " screens.mkdir(parents=True)\n"
+        " (screens / 'page.png').touch()\n"
+        + (
+            f" open({str(bands)!r}, 'a').write("
+            "str(os.getpriority(os.PRIO_DARWIN_PROCESS, 0)))\n"
+            if sys.platform == "darwin"
+            else ""
+        )
         + (
             " output = root / '.tmp' / 'fixed-output'\n"
             " output.parent.mkdir(exist_ok=True)\n"
@@ -58,8 +71,6 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
     monkeypatch.setattr(arms, "ROOT", root)
     monkeypatch.setattr(suite, "ROOT", root)
     monkeypatch.setattr(flake, "OUT", root / ".tmp" / "flake")
-    monkeypatch.setattr(flake, "COPIES", 4)
-    monkeypatch.setattr(flake, "WORKERS", 2)
     monkeypatch.setenv(
         "PATH", str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"]
     )
@@ -73,9 +84,20 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
         editor = Thread(target=edit)
         editor.start()
     try:
-        result = CliRunner().invoke(flake.flake, ["test_candidate.py"])
+        result = CliRunner().invoke(
+            flake.flake,
+            ["--copies", "4", "--workers", "2", "--load", "1", "test_candidate.py"],
+        )
     finally:
         if editor:
             editor.join(timeout=STATED_TIMEOUT)
     assert result.exit_code == 0, result.output
     assert "| 4 | 0 | 0 | 0 | 0 |" in result.output
+    assert (
+        len(list((root / ".tmp" / "flake").glob("run-*/copy-*-screens/page.png"))) == 4
+    )
+    # The busy loop ended with the command that started it.
+    spinning = ["pgrep", "-P", str(os.getpid()), "-f", "os.getppid"]
+    assert subprocess.run(spinning, capture_output=True).stdout == b""
+    if flake.BACKGROUND:
+        assert bands.read_text() == "1111"

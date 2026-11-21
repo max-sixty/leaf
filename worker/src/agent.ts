@@ -4,11 +4,10 @@
  * The fetch handler hands an accepted event that owes a reply to `dispatchAgentTask`,
  * which reserves the source's capacity and asks the user's container to start the
  * turn, or to write the rate-limit or startup failure receipt the user reads in its
- * place. Every record these and the model proxy write goes through `leafAgentLog`,
+ * place. `prewarmContainer` starts a visitor's container while they type their first
+ * write. Every record these and the model proxy write goes through `leafAgentLog`,
  * whose fields `worker/README.md`, "Hosted turns", describes.
  */
-
-import { getContainer } from "@cloudflare/containers";
 
 import type { Env } from "./index";
 
@@ -34,7 +33,8 @@ type WorkerFailure = "rate_limited" | "startup_failed";
 
 type AgentAsk =
   | { action: "start"; event: string }
-  | { action: "fail"; event: string; failure: WorkerFailure };
+  | { action: "fail"; event: string; failure: WorkerFailure }
+  | { action: "prewarm" };
 
 // Every leaf-agent record. Callers project the fields they log, and never spread an
 // AgentTaskParams, whose sourceId is the client's IP.
@@ -79,8 +79,8 @@ async function measuredAgentOperation<T>(
   }
 }
 
-function agentRequest(params: AgentTaskParams, { action, ...body }: AgentAsk): Request {
-  const root = params.route === "/" ? "" : params.route;
+function agentRequest(route: string, { action, ...body }: AgentAsk): Request {
+  const root = route === "/" ? "" : route;
   return new Request(`http://container${root}/_leaf/agent/${action}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -93,8 +93,8 @@ async function askContainer(
   params: AgentTaskParams,
   ask: AgentAsk,
 ): Promise<AgentResult> {
-  const response = await getContainer(env.PAGES, params.containerId).fetch(
-    agentRequest(params, ask),
+  const response = await env.PAGES.getByName(params.containerId).fetch(
+    agentRequest(params.route, ask),
   );
   if (!response.ok) {
     throw new Error(
@@ -129,6 +129,46 @@ async function runAgentTask(env: Env, params: AgentTaskParams): Promise<AgentRes
       failure: "rate_limited",
     }),
   );
+}
+
+// A page's first write waits while its container boots, restores the session's record,
+// starts the App Server and composes the page's layer. A visitor who focuses a text box
+// is about to write, so the edge asks the container to compose that page's layer then,
+// which starts it too, and all of it overlaps their typing. Reads alone still start
+// nothing (`worker/README.md`, "Saved state and capacity").
+export async function prewarmContainer(
+  env: Env,
+  containerId: string,
+  reference: string,
+  route: string,
+  sourceId: string,
+): Promise<void> {
+  const started = Date.now();
+  try {
+    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+      key: `prewarm:${sourceId}`,
+    });
+    if (!allowed.success) {
+      leafAgentLog("container_prewarm_denied", { reference, route });
+      return;
+    }
+    const response = await env.PAGES.getByName(containerId).fetch(
+      agentRequest(route, { action: "prewarm" }),
+    );
+    if (!response.ok) throw new Error(`container prewarm returned ${response.status}`);
+    leafAgentLog("container_prewarm_completed", {
+      reference,
+      route,
+      durationMs: Date.now() - started,
+    });
+  } catch (error) {
+    leafAgentLog("container_prewarm_failed", {
+      reference,
+      route,
+      durationMs: Date.now() - started,
+      error: errorName(error),
+    });
+  }
 }
 
 export async function dispatchAgentTask(

@@ -30,6 +30,7 @@ from render_harness import (
     panel_settled,
     panel_view,
     press_visible,
+    preview_parts,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -717,7 +718,7 @@ def test_the_page_map_search_filters_in_place_and_walks_its_rows(
 
 def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     """An obligation is named by its heading, not its heading run into its options and their
-    chips: the card in the panel's On me view, and the Page Map group for it, whose one
+    chips: the card in the panel's On Me view, and the Page Map group for it, whose one
     row says why the obligation is there rather than naming it a second time."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     page.keyboard.press("g")
@@ -734,9 +735,7 @@ def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
-        has=page.get_by_role(
-            "heading", name="question · Which jobs are worth starting?"
-        )
+        has=page.get_by_role("heading", name="group · Which jobs are worth starting?")
     )
     expect(group).to_have_count(1)
     expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on me"])
@@ -818,7 +817,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     expect(page.locator("#address-action lf-new")).to_be_visible()
 
     with sending(page, "the withdrawal of the addressed action"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     expect(action).to_be_visible()
     expect(page.locator("#address-action lf-old")).to_be_visible()
 
@@ -828,7 +827,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     expect(page.locator("#address-action lf-new")).to_be_hidden()
 
     with sending(page, "the withdrawal of the addressed rejection"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     expect(action).to_be_visible()
 
     page.keyboard.press("g")
@@ -966,10 +965,13 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     assert page.locator(":focus").get_attribute("aria-label") == first
 
 
-def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, serve):
-    """Which location of how many, and how far down, is how a user listening places a
-    margin entry in the walk. Painted, the same words read as progress toward something, which
-    is not what they say, so they belong to the accessible name alone."""
+def test_a_margin_entry_says_where_it_stands_only_while_focus_is_on_it(browser, serve):
+    """Which location of how many, and how far down, is how a user listening places the
+    margin entry they land on. Painted, the same words read as progress toward
+    something, which is not what they say, so they belong to the accessible name alone,
+    and only to the name of the entry focus is on: they change for every entry whenever
+    one joins or the page grows, and renaming every entry would cost each such change a
+    read of every entry's target."""
     subject = (
         "Which jobs should we start before the first frost reaches the garden, "
         "while keeping the bird bath available and leaving enough time to replace "
@@ -980,20 +982,41 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
         browser, serve(source, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION])
     )
     resized(page, 1440, 900)
-    buttons = page.evaluate(
-        """() => [...document.querySelectorAll('.lf-margin-entry')].map(control => ({
-          name: control.getAttribute('aria-label'),
-          word: control.querySelector(':scope > .lf-margin-entry-label').textContent,
-        }))"""
-    )
-    placed = [button for button in buttons if re.search(r"\d+ of \d+", button["name"])]
-    assert placed, "no margin entry announced where it stands in the walk"
-    for button in placed:
-        assert "percent down" in button["name"], button
+    entries = page.locator(".lf-margin-entry")
+    # What each entry the margin shows says when pointed at; one folded into another's
+    # overflow shows nothing to point at.
+    buttons = [
+        {
+            "name": entries.nth(index).get_attribute("aria-label"),
+            "word": " ".join(preview_parts(entries.nth(index)))
+            if entries.nth(index).is_visible()
+            else "",
+        }
+        for index in range(entries.count())
+    ]
+    place = r"\d+ of \d+|percent down"
     for button in buttons:
-        assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
-    named = next(button["name"] for button in placed if "Which jobs" in button["name"])
+        assert not re.search(place, button["name"] or ""), button
+        assert not re.search(place, button["word"]), button
+    markers = page.locator(".lf-margin-marker:visible")
+    assert markers.count() > 1, "the margin has no pair of markers to walk"
+    markers.first.focus()
+    page.keyboard.press("Home")
+    said = []
+    for _ in range(markers.count()):
+        said.append(page.locator(":focus").get_attribute("aria-label"))
+        page.keyboard.press("ArrowDown")
+    assert all(re.search(r"\d+ of \d+, \d+ percent down", name) for name in said), said
+    named = next(name for name in said if "Which jobs" in name)
     assert named.index("percent down") < named.index("Which jobs"), named
+    # Focus leaving the entry takes where it stands out of its name again.
+    left = page.locator(":focus").evaluate(
+        "node => node.closest('[data-lf-margin-for]').dataset.lfMarginFor"
+    )
+    page.locator("main h1").click()
+    marker = page.locator(f'[data-lf-margin-for="{left}"] > .lf-margin-marker')
+    expect(marker).not_to_be_focused()
+    assert not re.search(place, marker.get_attribute("aria-label")), left
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     expect(page.locator(".lf-page-map-group h3", has_text=subject)).to_have_count(1)
@@ -1030,6 +1053,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     page = open_page(browser, url)
     resized(page, 1440, 900)
     marker = page.locator('[data-lf-margin-for="t-parser"] > .lf-margin-marker')
+    marker.focus()
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
     expect(page.locator('[data-lf-margin-for="t-mounts"]')).to_have_count(0)
     expect(page.get_by_role("navigation", name="Page Map, 2 locations")).to_have_count(
@@ -1228,7 +1252,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     told(page)
     expect(
         page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').locator(
-            ".lf-margin-count"
+            ".lf-badge-count"
         )
     ).to_have_text("10")
     expect(actions).to_have_count(13)

@@ -10,7 +10,8 @@
    block it starts with, or, where it only took blocks out, on its gap's stand-in
    (margin-bars.js, `removalProxy`), which rings the gap, since the block beside the gap
    didn't change. It brings the change into view where it is not, and says the walk's
-   position as every walk says it (walk-position.js). A current location anywhere in a
+   position as every walk says it (walk-position.js), a listener hearing after it what
+   the version was saved after (change-provenance.js). A current location anywhere in a
    change's blocks, or on its gap's stand-in, is on that change, so the next step goes
    on to the following one, even from one of two gaps beside one block to the other;
    from any other origin a step compares only where each change stands, as an editor's
@@ -19,7 +20,7 @@
 
    The marks are annotations, so `o` hides them with the rest, and nothing here stops
    them: a comparison ends with `v` or its Compare in Versions. The user decided
-   on 31 October against a stop of their own, an Escape step and a menu row, which no
+   against a stop of their own, an Escape step and a menu row, which no
    other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
    routes"): every change is marked where it stands, and its margin entry and Page Map
    row reach it with a tap.
@@ -30,6 +31,8 @@
    every page. While a comparison `v` started is still loading, its marks aren't known
    yet, so the key isn't taken rather than saying none are marked. */
 import { comparisonBase, comparisonChanges, selectedBase } from "./version.js";
+import { versionProvenance } from "./change-provenance.js";
+import { wordsText } from "./voice.js";
 import { removalProxy } from "./margin-bars.js";
 import { pageCommand } from "./keyboard/register.js";
 import { cycledRow } from "./keyboard/bindings.js";
@@ -59,6 +62,9 @@ const currentChange = (list, origin = currentLocationOrigin()) =>
       ) ?? null)
     : null;
 
+// "Change 1 of 5 since v2". The changes are the comparison's (`about`), which the
+// panel's field says while it stands, "5 changes since v2" (floating-panel.js,
+// `standing`), so the field says the walk's place alone, "1 of 5".
 const position = () => {
   const list = comparisonChanges();
   const base = comparisonBase();
@@ -81,8 +87,12 @@ function step(dir) {
   if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
-  const said = beginWalk("change", "Change", position);
-  if (said) announce(said);
+  const said = beginWalk("change", "Change", position, { about: "comparison" });
+  if (!said) return;
+  // A listener hears what the version was saved after too, as the ⇄ entry's label says
+  // it under what the change did (change-provenance.js).
+  const savedAfter = (versionProvenance()?.lines ?? []).map(wordsText).join(" ");
+  announce(savedAfter ? `${said}. ${savedAfter}` : said);
 }
 
 export function createChangeWalk() {
@@ -101,6 +111,8 @@ export function createChangeWalk() {
     runKey: (binding) =>
       comparisonChanges().length
         ? step(binding === "h" ? 1 : -1)
-        : notice("No changes marked"),
+        : notice("No changes marked", {
+            stands: () => !comparisonChanges().length,
+          }),
   });
 }

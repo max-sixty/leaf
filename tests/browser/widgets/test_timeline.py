@@ -1,12 +1,22 @@
 """An authored timeline steps through its events by every route, lays its labels out
-clear of one another at any width, and prints whole. The step is tab-local view
-state."""
+clear of one another at any width with each label's stroke at its event's moment, and
+prints whole. The step is tab-local view state."""
 
+import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, select, told
+from render_harness import (
+    clocked,
+    dwelt,
+    leaf_page,
+    open_page,
+    preview_parts,
+    select,
+    tab_onto,
+    told,
+)
 
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 
 RACE = """<h1>Race</h1>
 <lf-timeline id="race" aria-label="The race">
@@ -27,13 +37,46 @@ RACE = """<h1>Race</h1>
   </lf-lane>
 </lf-timeline>"""
 
-# Each lane's label boxes, and the chart's track, in viewport pixels.
-LABEL_BOXES = """() => {
-  const track = document.querySelector('#race').querySelector('.lf-timeline-ruler').getBoundingClientRect();
-  const lanes = [...document.querySelector('#race').querySelectorAll('.lf-timeline-lane')].map((lane) =>
-    [...lane.querySelectorAll('.lf-timeline-label')].map((label) => {
+# Two labels too long to read either way from their mark in a phone's column, and
+# whole in a desktop's.
+HANDOVER = """<h1>Handover</h1>
+<lf-timeline id="handover" aria-label="A handover">
+  <lf-lane label="Leaf">
+    <lf-event id="hold" at="0" end="12600" label="Holds your question back"></lf-event>
+    <lf-event id="post" at="12600" label="Posts the fork's answer"></lf-event>
+    <lf-event id="carry" at="25000" label="Hook hands over the exchange"></lf-event>
+  </lf-lane>
+  <lf-lane label="Session">
+    <lf-event id="command" at="0" end="25000"
+      label="Runs the command your question waits behind, start to finish"></lf-event>
+    <lf-event id="reply" at="45900" label="Reply posted"></lf-event>
+  </lf-lane>
+</lf-timeline>"""
+
+# Each lane's labels, and the chart's track, in viewport pixels. A label's stroke is
+# whichever inline border it draws; its event's moment is an instant mark's centre
+# or a span mark's start.
+LABEL_BOXES = """(timeline) => {
+  const host = document.querySelector(timeline);
+  const track = host.querySelector('.lf-timeline-ruler').getBoundingClientRect();
+  const lanes = [...host.querySelectorAll('.lf-timeline-lane')].map((lane) =>
+    [...lane.querySelectorAll('.lf-timeline-event')].map((event) => {
+      const label = event.querySelector('.lf-timeline-label');
+      const mark = event.querySelector('.lf-timeline-mark');
       const box = label.getBoundingClientRect();
-      return { left: box.left, right: box.right, top: box.top, clipped: label.scrollWidth > label.clientWidth };
+      const markBox = mark.getBoundingClientRect();
+      const style = getComputedStyle(label);
+      return {
+        id: event.dataset.lfEvent,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        stroke: parseFloat(style.borderLeftWidth) ? box.left : parseFloat(style.borderRightWidth) ? box.right : null,
+        moment: mark.dataset.lfKind === 'instant' ? (markBox.left + markBox.right) / 2 : markBox.left,
+        // The label's words at full length, with its padding and stroke.
+        whole: label.scrollWidth + box.width - label.clientWidth,
+        clipped: label.scrollWidth > label.clientWidth,
+      };
     }),
   );
   return { left: track.left, right: track.right, lanes };
@@ -43,11 +86,19 @@ LABEL_BOXES = """() => {
 NEXT_FRAME = "() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))"
 
 
-def assert_labels_clear(page):
-    reading = page.evaluate(LABEL_BOXES)
+def assert_labels_clear(page, timeline="#race"):
+    """Every label stands inside the track and clear of the others in its row, its
+    stroke at its event's moment, and whole unless neither side of its mark has room
+    for all its words. Returns each label's reading by event id."""
+    reading = page.evaluate(LABEL_BOXES, timeline)
     for lane in reading["lanes"]:
         for label in lane:
-            assert not label["clipped"], label
+            assert label["stroke"] is not None, label
+            assert abs(label["stroke"] - label["moment"]) < 1, label
+            room = max(
+                label["moment"] - reading["left"], reading["right"] - label["moment"]
+            )
+            assert not label["clipped"] or label["whole"] > room, (label, room)
             assert reading["left"] - 0.5 <= label["left"], (label, reading["left"])
             assert label["right"] <= reading["right"] + 0.5, (label, reading["right"])
         for index, one in enumerate(lane):
@@ -59,6 +110,7 @@ def assert_labels_clear(page):
                         one,
                         other,
                     )
+    return {label["id"]: label for lane in reading["lanes"] for label in lane}
 
 
 def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
@@ -125,6 +177,34 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     expect(position).to_have_text("Step 3 of 6 · 1 s")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_leaving_a_comment_on_an_event_keeps_the_timeline_at_its_step(
+    engine, request, serve
+):
+    """A comment box opened on an event another step shows, and put away again,
+    hands the reader back to the event and leaves the playhead where it was."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Race", RACE), packages=("timeline",)),
+    )
+    position = page.locator("#race .lf-timeline-position")
+    page.locator("#race .lf-timeline-step").first.focus()
+    page.keyboard.press("End")
+    expect(position).to_have_text("Step 6 of 6 · 5.2 s")
+    label = page.locator('[data-lf-event="a-read"] .lf-timeline-label')
+    page.keyboard.down("Alt")
+    label.click()
+    page.keyboard.up("Alt")
+    composer = page.locator(".lf-composer")
+    expect(composer).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("Job A: Reads balance")
+    expect(position).to_have_text("Step 6 of 6 · 5.2 s")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    expect(page.locator('[data-lf-event="a-read"]')).to_be_focused()
+    expect(position).to_have_text("Step 6 of 6 · 5.2 s")
+
+
 def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     page = open_page(browser, serve(leaf_page("Race", RACE), packages=("timeline",)))
     assert_labels_clear(page)
@@ -132,7 +212,7 @@ def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     expect(page.locator("#race .lf-axis-tick[data-lf-major]")).to_have_text(
         ["0 s", "1 s", "2 s", "3 s", "4 s", "5 s"]
     )
-    lanes = page.evaluate(LABEL_BOXES)["lanes"]
+    lanes = page.evaluate(LABEL_BOXES, "#race")["lanes"]
     assert any(len({label["top"] for label in lane}) < len(lane) for lane in lanes)
     chart = page.locator("#race .lf-timeline-chart")
     before = chart.bounding_box()
@@ -155,6 +235,23 @@ def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     page.set_viewport_size({"width": 700, "height": 900})
     page.evaluate(NEXT_FRAME)
     assert_labels_clear(page)
+
+
+def test_a_label_with_no_room_beside_its_mark_keeps_its_stroke_there(browser, serve):
+    """A label too long to read either way from its mark ends its words at the
+    track's edge, its stroke still at its event's moment, rather than move clear of
+    the mark and leave its stroke at a time the event isn't."""
+    page = open_page(
+        browser, serve(leaf_page("Handover", HANDOVER), packages=("timeline",))
+    )
+    crowded = ("carry", "command")
+    labels = assert_labels_clear(page, "#handover")
+    assert not any(labels[event]["clipped"] for event in crowded), labels
+    # One reads on from its mark, the other back from it, as each has more room.
+    page.set_viewport_size({"width": 390, "height": 900})
+    page.evaluate(NEXT_FRAME)
+    labels = assert_labels_clear(page, "#handover")
+    assert all(labels[event]["clipped"] for event in crowded), labels
 
 
 RUNS = """<h1>Race</h1>
@@ -246,11 +343,79 @@ def test_compared_runs_line_up_on_one_axis_under_one_playhead(browser, serve):
     assert after_run["bottom"] <= lanes[2]["top"] + 0.5, reading
     assert_labels_clear(page)
 
+    # The step list names each run once, over a column that holds the run's events,
+    # and a step's events in both runs share its row.
+    columns = page.evaluate(
+        """() => {
+          const steps = document.querySelector('#race .lf-timeline-steps');
+          const x = (el) => Math.round(el.getBoundingClientRect().left);
+          return {
+            heads: Object.fromEntries([...steps.querySelectorAll('.lf-timeline-steps-run')]
+              .map((head) => [head.textContent, x(head)])),
+            cells: [...steps.querySelectorAll('.lf-timeline-step-cell')].map((cell) =>
+              [cell.dataset.lfQuiet, x(cell), Math.round(cell.getBoundingClientRect().top)]),
+          };
+        }"""
+    )
+    heads = columns["heads"]
+    assert list(heads) == ["Before the fix", "After the fix"], columns
+    assert heads["Before the fix"] < heads["After the fix"], columns
+    for run, left, _ in columns["cells"]:
+        assert left == heads[run], columns
+    first, second = columns["cells"][:2]
+    assert (first[0], second[0], first[2]) == (
+        "Before the fix",
+        "After the fix",
+        second[2],
+    )
+
     page.locator("#race").get_by_role("button", name="Next").click()
     page.keyboard.press("ArrowRight")
     expect(page.locator(".lf-live")).to_have_text(
         "Step 3 of 4. Before the fix · Job B: Writes 70"
     )
+
+
+def test_a_compared_step_row_previews_nothing(browser, serve):
+    """A step row's quiet words name each cell's run, which the head above its column
+    shows, so neither a resting pointer nor Tab previews the row."""
+    page = open_page(
+        clocked(browser), serve(leaf_page("Race", RUNS), packages=("timeline",))
+    )
+    preview = page.locator("#lf-preview")
+    row = page.locator("#race .lf-timeline-step").first
+    row.hover()
+    dwelt(page)
+    assert not preview.is_visible(), preview.inner_text()
+    tab_onto(row)
+    rendered(page)
+    assert not preview.is_visible(), preview.inner_text()
+
+
+SHORT_RUNS = (
+    RUNS.replace('label="Before the fix"', 'label="Before the fix" abbr="Before"')
+    .replace('label="After the fix"', 'label="After the fix" abbr="After"')
+    .replace('label="Job A"', 'label="Job A" abbr="A"')
+    .replace('label="Job B"', 'label="Job B" abbr="B"')
+)
+
+
+def test_a_short_form_previews_what_it_stands_for(browser, serve):
+    """A pointer resting on a lane's or a run's short form in the step list reads its
+    label, and the keyboard's focus, which reaches a row and none of its short forms,
+    reads what each lane's short form in the row stands for, once each."""
+    page = open_page(
+        browser, serve(leaf_page("Race", SHORT_RUNS), packages=("timeline",))
+    )
+    race = page.locator("#race")
+    row = race.locator(".lf-timeline-step").first
+    assert preview_parts(
+        row.locator(".lf-timeline-step-lane > [aria-hidden]").first
+    ) == ["Job A"]
+    assert preview_parts(race.locator(".lf-timeline-steps-run").last) == [
+        "After the fix"
+    ]
+    assert preview_parts(row, "focus") == ["A = Job A"]
 
 
 def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(

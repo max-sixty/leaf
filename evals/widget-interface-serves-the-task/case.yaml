@@ -1,9 +1,6 @@
-# The diff-widget simplification exposed optional toolbars and custom controls
-# competing with the evidence. This case probes the same choice on configuration
-# changes, including a colleague's competing interface proposal.
-# One Codex trial per arm (20261009-121127-7n2nug94) kept the toolbar out on both;
-# only the head reused the shared comment icon. This is narrow icon-reuse
-# evidence, not evidence that the new guidance improves interface simplicity.
+# A diff widget's optional toolbars and custom controls competed with the evidence.
+# This case probes the same choice on configuration changes, including a colleague's
+# competing interface proposal.
 description: widget-interface-serves-the-task
 metadata:
   purpose: A widget keeps its first interface focused and reuses Leaf's shared presentation.
@@ -22,7 +19,7 @@ vars:
     supplied CSS giving the widget its own type scale, colors and button styles.
     The release author has asked us to implement the comparison and discussion.
 
-    Read the package and module references. Propose the first version's default
+    Propose the first version's default
     interface and show short CSS and JavaScript excerpts for its presentation and
     discussion controls. You can assume the value rendering and anchor creation
     already exist; no running renderer is available.

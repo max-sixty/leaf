@@ -1,11 +1,8 @@
-# Added when Leaf's Claude Code watch moved from a background `leaf wait` the model
-# restarts into Leaf's own `asyncRewake` Stop hook, which Claude Code 2.1.286 keeps
-# past the two-hour limit it puts on a background command. Replaces a case that
-# pinned the wait's `timeout`. Base at 12432f61c, whose reference has the model
-# start a background `leaf wait`, passed 0 of 4 runs that finished; the change 4 of
-# 4. Two runs in each arm ended on a model error and measured nothing. Opus 5.5's
-# safeguards later refused every run while the prompt asked for each tool call with
-# its full JSON input; asking for the commands, base passed 0 of 3, the change 3 of 3.
+# Leaf's Claude Code watch is Leaf's own `asyncRewake` Stop hook, which Claude
+# Code 2.1.286 keeps past the two-hour limit it puts on a background command,
+# rather than a background `leaf wait` the model restarts. Opus 5.5's safeguards
+# can refuse a run whose prompt asks for each tool call with its full JSON input, so
+# the prompt asks for the commands.
 description: handoff-leaves-the-watch-to-leaf
 metadata:
   purpose:
@@ -22,7 +19,7 @@ vars:
     harness; the user expects to comment a few hours from now. The plan is complete,
     no answer or approval is required, and any later comments are optional.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out, in
+    Only Skill and Read run here, so write out, in
     order, each command you would run before your closing message, then give the
     closing message itself.
 assert:
@@ -42,7 +39,7 @@ assert:
 variants:
   missing-input:
     metadata:
-      purpose: "A required answer goes into an On me thread obligation, not a page availability declaration."
+      purpose: "A required answer goes into an On Me thread obligation, not a page availability declaration."
     vars:
       prompt: |
         You are a Claude Code session driving the Leaf report at
@@ -52,7 +49,7 @@ variants:
         notes. I haven't shared that budget yet. Ask me in a new page thread and
         keep the report unchanged until I answer."
 
-        Read whatever instructions you need. The page and services are unreachable
+        The page and services are unreachable
         here, so write the commands you would run and your short closing reply.
     assert:
       - type: llm-rubric
@@ -61,7 +58,7 @@ variants:
           The agent opens a new thread asking for the missing latency budget and
           registers the plain message as a user obligation with --obligation.
           The question remains owed until answered. A status detail, question only
-          in chat, an lf-ask widget, or a claim to have registered it without a
+          in chat, a question section on the page, or a claim to have registered it without a
           command is insufficient. The report is unchanged, no budget is invented,
           and the page remains available for the answer rather than being closed.
   finished:
@@ -75,7 +72,7 @@ variants:
         "We're finished with this report. End the conversation and stop watching
         for comments, but keep the report available at its URL."
 
-        Read whatever instructions you need. The page and services are unreachable
+        The page and services are unreachable
         here, so write the commands you would run and your short closing reply.
     assert:
       - type: llm-rubric

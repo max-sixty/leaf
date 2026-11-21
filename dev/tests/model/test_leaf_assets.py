@@ -26,7 +26,8 @@ def test_fetches_the_pin_over_git_and_publishes_a_complete_cache(tmp_path, monke
 
     source = tmp_path / "source"
     source.mkdir()
-    lock = source / "leaf-assets.json"
+    lock = source / leaf_assets.LOCK
+    lock.parent.mkdir()
     lock.write_text(json.dumps({"repository": "fixture/assets", "revision": pin}))
     cache = tmp_path / "cache"
     monkeypatch.setattr(leaf_assets, "CACHE", cache)
@@ -96,7 +97,8 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
         source = tmp_path / name
         source.mkdir()
         (source / "README.md").write_text("No images.\n")
-        (source / "leaf-assets.json").write_text(
+        (source / ".config").mkdir()
+        (source / leaf_assets.LOCK).write_text(
             json.dumps({"repository": repository, "revision": pin})
         )
         monkeypatch.setattr(leaf_assets, "ROOT", source)
@@ -104,7 +106,7 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
         staging = tmp_path / f"staging-{name}"
         staging.mkdir()
         checkout = leaf_assets.stage(directory, files, staging)
-        publisher(checkout.path)
+        publisher(checkout)
         return checkout
 
     def published(revision):
@@ -171,7 +173,7 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
         "late.png": "late",
         "media/third.png": "third's",
     }
-    assert json.loads((tmp_path / "third" / "leaf-assets.json").read_text()) == {
+    assert json.loads((tmp_path / "third" / leaf_assets.LOCK).read_text()) == {
         "repository": repository,
         "revision": retried,
     }

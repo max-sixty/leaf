@@ -21,7 +21,7 @@ Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
 ## Must remember
 
-Everything waiting on the user is an obligation on their On me list, including
+Everything waiting on the user is an obligation on their On Me list, including
 each decision you leave to them that your next step doesn't depend on. Register
 it before a page heading, a chat open item or a `needs input:` line mentions it.
 `references/conversation-loop.md`, "The On lists", owns registration and
@@ -30,23 +30,24 @@ reconciliation.
 ## Author the page
 
 Record the work you take on as `references/conversation-loop.md`, "When to write",
-says. Initialize a new page with `leaf page init <page>`, adding the packages its
-content needs: `leaf page init --package diagram --package diff <page>`.
-`references/packages.md`, "Package reach", lists the packages. Use `playground`
-when the user explores candidates or tunes a configuration before sending it; its
-choices can contain the previews themselves. Simple choices use `lf-options`
-(`references/authoring-on-me.md`). Running `page init` again with `--package`
-replaces the page's packages, so name every package the page keeps. Personal themes
-and their author instructions are discoverable with `leaf theme list`;
+says. Choose a page's packages from `leaf package list`, which prints each package
+this machine can select, bundled or installed by the user, with what it adds, such as
+a live preview in which the user compares candidates or tunes a configuration before
+sending it. Initialize the page with each package whose purpose fits it:
+`leaf page init --package diagram --package diff <page>`. Running `page init` again
+with `--package` replaces the page's packages, so name every package the page keeps.
+Personal themes and their author instructions are discoverable with `leaf theme list`;
 `references/package-themes.md`, "Personal themes", covers choosing one and how the
 page captures it.
 
-Read the applicable references under **Author a version** below. For substantial
-new material, including a new section on an existing page, start an author without
+Read the applicable references under **Author a version** below. For substantial new
+material, including a new section on an existing page, start an author without
 inherited conversation (`fork_turns: "none"` where available). Give it the reader's
-question, task, relevant facts and constraints, initial content and state, the page
-registry, `references/page-authoring.md` and a fresh output directory (`mktemp -d`).
-Ask it to construct the subject the page discusses, following "Develop the work",
+question, the task, the relevant facts with the material they rest on (the cases,
+records or code, or the files that hold them), the constraints, the initial content
+and state, the page registry, `references/page-authoring.md` and a fresh output
+directory (`mktemp -d`). Ask it to construct the subject the page discusses,
+following "Show the subject", "Show what a claim rests on" and "Develop the work",
 and return finished files and captions. Keep the research history and existing page
 with you. Integrate the returned material following "Composing a page" and
 `references/authoring-on-me.md` for decisions left to the user. When subagents are
@@ -74,8 +75,10 @@ checkpoints, such as an approved plan or a settled stage of work. At those later
 checkpoints, reply before reviewing. Use `leaf page check <page> --render` and
 `references/page-checkpoints.md`, "Pre-handover review". They find problems markup
 checks can't, such as unreadable tables and broken phone layouts, but take minutes.
-Give that time to pages the user relies on longer, pages with more content, and
-pages with more custom layout. Weigh that against how urgently the user is waiting.
+The review is worth those minutes in proportion to how much the user will read the
+page as it stands: how long they rely on it, within this conversation as much as
+after it, how much it holds and how much of its layout is your own. Weigh that
+against how urgently the user is waiting.
 A quick page the user reacts to once and then revises or drops needs no browser
 review.
 
@@ -95,13 +98,18 @@ user messages, `references/threads.md`. Answer every event as they say. Say what
 you are doing before you do it (`references/conversation-loop.md`, "When to write").
 Continue the existing page; it needs no new initialization or handoff.
 
-Whenever the user returns, the page should be the one you would write today from
-what you now know. When work lands, a decision is acted on or your understanding
-changes, reread the whole page and bring all of it up to date in that revision,
-rather than amending the sentences that mention the change: open work and open
-questions fill the column, decisions you have acted on become settled records,
-finished work shrinks to its outcome out of the way, and superseded material goes
-(`references/authoring-revisions.md`, "Keep the current page current"). Stamp
+Whenever the user returns, the page should be the one you would write today for the
+work as it now stands. Each time the work moves on, as when the user redirects it,
+work lands, a decision is acted on or your understanding changes, reread the whole
+page and bring all of it up to date in that revision, rather than amending the
+sentences that mention the change: the title and lede name the work as it now
+stands, open work and open questions fill the column, decisions you have acted on
+become settled records, and finished work shrinks to its outcome out of the way.
+Keep open only the material a reader arriving now needs for the work as it now
+stands, however true the rest remains, and show each result on something that still
+exists. Material about something since removed goes, and earlier context the current
+work still rests on is collapsed (`references/authoring-revisions.md`, "Keep the
+current page current"). Stamp
 checkpoints and end the page as `references/page-checkpoints.md` says.
 
 ## Stay responsive
@@ -112,10 +120,15 @@ testing. Keep direct answers, small edits, and review and integration of worker
 results with you. Having more work to do is a reason to
 delegate it while you remain available for the user's next move.
 
+New input from the page reaches you only between your steps, so while you hold a
+page, keep each step you wait on to about a minute. Run a longer command, or a wait
+on CI or on your own background work, in the background. While it runs, end your
+turn if your harness wakes you when it finishes, and otherwise check on it a minute
+at a time. A fork you give a thread message to keeps each step it waits on to a
+minute too, since the thread's later messages reach it between its own steps.
+
 `references/conversation-loop.md`, "Long-running work", owns worker briefs,
-results and work continuing beyond your turn. If subagents are unavailable, run
-long operations in the background and follow the harness delivery loop between
-bounded steps.
+results and work continuing beyond your turn.
 
 ## Commands
 

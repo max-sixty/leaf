@@ -1,17 +1,13 @@
-# Added when a survey of 360 real pages found 2 of 1,027 agent messages asking with a
-# widget in a thread, against 46 asking in words with --obligation: 3 of those listed
-# the answers ("Which do you want? - Keep this hold. - Drop it.") and 14 asked yes or no
-# to an action ("Shall I open the PR?"), which the user answers with a press when the
-# reply carries lf-options. The delivery's handling then sent every user move to
-# --obligation and named the widget route only as an aside. The envelopes are the real
-# delivery's shape with the handling at the commit that adds this case; a handling change
-# is scored by regenerating them with each wording.
-# Scored on Claude Code and Codex, three runs each. Before this case's handling, no
-# reply carried a widget (0 of 6 baseline choices, 0 of 6 permissions) and every open
-# question stayed in words (6 of 6). A handling that only named `lf-options` put every
-# choice and permission in a widget, but `leaf thread reply` refused each markup it
-# could read (9 of 9), which lacked ids and `choose`. Giving the markup's shape passed
-# all 18 runs, and the command accepted all 12 widgets.
+# Agent messages in a thread can ask in words with --obligation, some listing the
+# answers ("Which do you want? - Keep this hold. - Drop it.") and some asking yes or
+# no to an action ("Shall I open the PR?"), which the user could answer with a press
+# were the reply to carry lf-options. A handling that sends every user move to
+# --obligation and names the widget route only as an aside can keep every open
+# question in words. The envelopes are the real delivery's shape with the handling at
+# the commit that adds this case; a handling change is scored by regenerating them
+# with each wording. A handling that only names `lf-options` can lead agents to markup
+# that `leaf thread reply` refuses, lacking ids, so the handling gives the markup's
+# shape.
 description: thread-choice-takes-a-press
 metadata:
   purpose:
@@ -30,7 +26,79 @@ vars:
 
     Leaf's prompt hook handed you this complete inline delivery:
 
-    {"format": "leaf-delivery/15", "id": "42e90c8c", "created_at": 1793492930.0903082, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/checkout-latency", "claim": null, "through_seq": 2, "threads": [{"id": "6988cfa8", "title": null, "anchor": {"section": "p95"}, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in `--markup` in place of `--obligation`, as `<lf-options id=\"…\" choose>` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind": "comment", "author": "user", "revision": 1, "attention": true, "text": "add a comparison against last year", "anchor": {"section": "p95"}, "id": "6988cfa8", "ts": "2026-10-31T17:28:50.085-07:00", "seq": 2, "subject": {"kind": "thread", "id": "6988cfa8"}, "threads": ["6988cfa8"], "handling": ["h1", "h2", "h3"], "answer": {"kind": "reply", "parent": "6988cfa8", "responds": "6988cfa8", "ref": "42e90c8c:0:6988cfa8", "writer": "agent"}}]}]}
+    ```json
+    {
+     "format": "leaf-delivery/52",
+     "id": "42e90c8c",
+     "created_at": 1793492930.0903082,
+     "acknowledge": null,
+     "batches": [
+      {
+       "page": "/Users/max/.local/state/leaf/pages/checkout-latency",
+       "claim": null,
+       "through_seq": 2,
+       "threads": [
+        {
+         "id": "6988cfa8",
+         "title": null,
+         "anchor": {
+          "section": "p95"
+         },
+         "detached_from": null,
+         "rewritten_from": null,
+         "resolved": null,
+         "elided": {
+          "messages": 0,
+          "actions": 0
+         },
+         "messages": [],
+         "summaries": [],
+         "actions": []
+        }
+       ],
+       "handling": {
+        "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+        "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+        "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
+       },
+       "events": [
+        {
+         "kind": "comment",
+         "author": "user",
+         "revision": 1,
+         "attention": true,
+         "text": "add a comparison against last year",
+         "anchor": {
+          "section": "p95"
+         },
+         "id": "6988cfa8",
+         "ts": "2026-10-31T17:28:50.085-07:00",
+         "seq": 2,
+         "subject": {
+          "kind": "thread",
+          "id": "6988cfa8"
+         },
+         "threads": [
+          "6988cfa8"
+         ],
+         "handling": [
+          "h1",
+          "h2",
+          "h3"
+         ],
+         "answer": {
+          "kind": "reply",
+          "parent": "6988cfa8",
+          "responds": "6988cfa8",
+          "ref": "42e90c8c:0:6988cfa8",
+          "writer": "agent"
+         }
+        }
+       ]
+      }
+     ]
+    }
+    ```
 
     You posted your progress line and checked the data. "Last year" has two readings, and
     they tell different stories:
@@ -52,8 +120,8 @@ assert:
     metric: choice-in-the-reply
     value: |
       Find how the answer asks the user to choose the baseline. Pass only if the
-      `leaf thread reply` that answers the comment carries, in `--markup`, a widget the
-      user answers by picking, such as `lf-options` with `choose` and one `lf-option`
+      `leaf thread reply` that answers the comment carries, in its text, a widget the
+      user answers by picking, such as `lf-options` with one `lf-option`
       for Q3 2025 and one for the trailing twelve months. Fail if the choice is asked
       only in words, even with `--obligation`, or only on the page.
   - type: llm-rubric
@@ -66,11 +134,21 @@ assert:
     type: llm-rubric
     metric: markup-accepted
     value: |
-      Pass unless the reply's `--markup` holds a choice that `leaf thread reply`
-      refuses or that the user can't press: an `lf-options` without both an `id` and
-      `choose`, an `lf-option` without an `id`, or either carrying an attribute Leaf
-      doesn't declare, such as `name`, `value`, `prompt` or `recommended`. A reply
-      without markup passes this metric.
+      Pass unless the reply holds a choice that `leaf thread reply` refuses or that
+      the user can't press: an `lf-options` or an `lf-option` without an `id`,
+      either carrying an attribute Leaf doesn't declare, such as `name` or `prompt`,
+      a choice inside backticks or a code fence, which
+      shows it as text, or one passed as `--markup`, an option the command doesn't
+      take. A reply without a choice passes this metric.
+  - &said-once
+    type: llm-rubric
+    metric: said-once
+    value: |
+      Pass unless the reply carries a widget the user answers by picking, such as
+      `lf-options`, and its text says again what the options say. The text holds the
+      question, the facts it rests on and any advice, and leaves what each option
+      does or costs to that option's card: text that also goes through the options,
+      as a list of them or a sentence for each, fails.
 variants:
   permission:
     metadata:
@@ -87,7 +165,79 @@ variants:
 
         Leaf's prompt hook handed you this complete inline delivery:
 
-        {"format": "leaf-delivery/15", "id": "d97658bb", "created_at": 1793492930.747287, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/export-retries", "claim": null, "through_seq": 2, "threads": [{"id": "e024424b", "title": null, "anchor": {"section": "checks"}, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in `--markup` in place of `--obligation`, as `<lf-options id=\"…\" choose>` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind": "comment", "author": "user", "revision": 1, "attention": true, "text": "nice, this looks good", "anchor": {"section": "checks"}, "id": "e024424b", "ts": "2026-10-31T17:28:50.744-07:00", "seq": 2, "subject": {"kind": "thread", "id": "e024424b"}, "threads": ["e024424b"], "handling": ["h1", "h2", "h3"], "answer": {"kind": "reply", "parent": "e024424b", "responds": "e024424b", "ref": "d97658bb:0:e024424b", "writer": "agent"}}]}]}
+        ```json
+        {
+         "format": "leaf-delivery/52",
+         "id": "d97658bb",
+         "created_at": 1793492930.747287,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/export-retries",
+           "claim": null,
+           "through_seq": 2,
+           "threads": [
+            {
+             "id": "e024424b",
+             "title": null,
+             "anchor": {
+              "section": "checks"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
+           },
+           "events": [
+            {
+             "kind": "comment",
+             "author": "user",
+             "revision": 1,
+             "attention": true,
+             "text": "nice, this looks good",
+             "anchor": {
+              "section": "checks"
+             },
+             "id": "e024424b",
+             "ts": "2026-10-31T17:28:50.744-07:00",
+             "seq": 2,
+             "subject": {
+              "kind": "thread",
+              "id": "e024424b"
+             },
+             "threads": [
+              "e024424b"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "e024424b",
+              "responds": "e024424b",
+              "ref": "d97658bb:0:e024424b",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
 
         You'd open the pull request and merge it once CI passes, but you need the user's
         permission before opening it.
@@ -100,7 +250,7 @@ variants:
         metric: permission-in-the-reply
         value: |
           Pass only if the reply asks permission to open the pull request with a widget
-          in `--markup` whose options take the action or leave things as they are, such
+          in its text whose options take the action or leave things as they are, such
           as `lf-options` with "Open the pull request" and "Keep it on the branch". Fail
           if it asks only in words, even with `--obligation`, or opens the pull request
           without asking.
@@ -110,6 +260,7 @@ variants:
           Pass unless a reply that carries a widget asking for permission also passes
           `--obligation`. A reply without such a widget passes this metric.
       - *markup-accepted
+      - *said-once
   open-question:
     metadata:
       purpose: A question whose answer the agent can't list stays in words, with --obligation.
@@ -122,7 +273,79 @@ variants:
 
         Leaf's prompt hook handed you this complete inline delivery:
 
-        {"format": "leaf-delivery/15", "id": "42e90c8c", "created_at": 1793492930.0903082, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/checkout-latency", "claim": null, "through_seq": 2, "threads": [{"id": "6988cfa8", "title": null, "anchor": {"section": "p95"}, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in `--markup` in place of `--obligation`, as `<lf-options id=\"…\" choose>` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind": "comment", "author": "user", "revision": 1, "attention": true, "text": "add a comparison against our target", "anchor": {"section": "p95"}, "id": "6988cfa8", "ts": "2026-10-31T17:28:50.085-07:00", "seq": 2, "subject": {"kind": "thread", "id": "6988cfa8"}, "threads": ["6988cfa8"], "handling": ["h1", "h2", "h3"], "answer": {"kind": "reply", "parent": "6988cfa8", "responds": "6988cfa8", "ref": "42e90c8c:0:6988cfa8", "writer": "agent"}}]}]}
+        ```json
+        {
+         "format": "leaf-delivery/52",
+         "id": "42e90c8c",
+         "created_at": 1793492930.0903082,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/checkout-latency",
+           "claim": null,
+           "through_seq": 2,
+           "threads": [
+            {
+             "id": "6988cfa8",
+             "title": null,
+             "anchor": {
+              "section": "p95"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
+           },
+           "events": [
+            {
+             "kind": "comment",
+             "author": "user",
+             "revision": 1,
+             "attention": true,
+             "text": "add a comparison against our target",
+             "anchor": {
+              "section": "p95"
+             },
+             "id": "6988cfa8",
+             "ts": "2026-10-31T17:28:50.085-07:00",
+             "seq": 2,
+             "subject": {
+              "kind": "thread",
+              "id": "6988cfa8"
+             },
+             "threads": [
+              "6988cfa8"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "6988cfa8",
+              "responds": "6988cfa8",
+              "ref": "42e90c8c:0:6988cfa8",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
 
         You posted your progress line and looked for the target. Neither the page, the
         repository nor the dashboards name one, and each team sets its own, so you need the user

@@ -9,13 +9,12 @@
  */
 import { hasObligationSource } from "../obligations/source.js";
 import { VERB_WRITERS } from "../kernel-facts.js";
-import { createApplicationPublisher, share } from "./snapshot.js";
+import { createApplicationPublisher, share, shareFold } from "./snapshot.js";
 import {
   coordinateOf,
   foldProjection,
   foldedValue,
   foldWidgetStates,
-  widgetStateReader,
   obligationValue,
   isProjectionEntry,
   stateCoordinate,
@@ -24,8 +23,9 @@ import { stampedState, sameStateDefinition } from "../registry-contract.js";
 import {
   discussed,
   foldThreads,
-  threadRecordReader,
+  readThreadRecords,
   threadNames,
+  threadsBySection,
 } from "../thread/model.js";
 import {
   threadForAttempt,
@@ -38,6 +38,7 @@ import {
   turnMessage,
 } from "../pending/model.js";
 import { PENDING } from "../thread/identity.js";
+import { kept, keptEach } from "../kept.js";
 
 /** @import {
  *   AuthoredMap, Thread, Event, Command, LocalMessage, LocalEdit, ThreadGesture,
@@ -136,6 +137,9 @@ const UNPRESENTED = new Set([
  * @property {string} [namedParent]
  * @property {GestureState} state
  * @property {Event | null} admitted
+ * @property {boolean} launching
+ *   Whether the server had to launch the page's agent before it could take the
+ *   gesture, as the tab read the server when it sent it.
  */
 
 // The log's id for a gesture this tab sent: its ledger entry's while it stands, its
@@ -199,18 +203,19 @@ function advance(entry, signal, admitted = null) {
  */
 /** Published workflows include local sends, before the server can classify them: a
  * send has no stage the server knows yet, and a widget move no coordinate the server
- * has read.
+ * has read. A send `launching` waits for the server to launch the page's agent first.
  *
  * @template T
  * @typedef {T extends unknown ? Omit<T, "stage" | "coordinate"> & {
  *   stage: ServedWorkflow["stage"] | "sending";
  *   coordinate: readonly (string | null)[] | null;
+ *   launching?: boolean;
  * } : never} PublishedWorkflow
  */
 /** @typedef {PublishedWorkflow<ServedWorkflow>} Workflow
  */
 
-/** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
+/** One row of On Me or On <agent>, as `served_state.queues` serves it or this tab
  * places it: `owner` names the list. A row names its record by `id`. `also`, on a
  * record's row, names the other records the user answers at its place; `live` says
  * whether the agent has it in hand now. `localQueues` joins the current obligation or
@@ -253,7 +258,8 @@ function advance(entry, signal, admitted = null) {
  *   registry: Record<
  *     string,
  *     {
- *       "x-state"?: Record<string, ActionSpec>;
+ *       verbs?: Record<string, ActionSpec>;
+ *       awaits?: { value?: string };
  *       [name: string]: unknown;
  *     }
  *   > & {
@@ -264,7 +270,14 @@ function advance(entry, signal, admitted = null) {
  *   descriptors: ReadonlyMap<string, WidgetDescriptor>;
  *   messageBodies?: ReadonlyMap<
  *     string,
- *     { text: string; markup: string; document?: { thread: string; message: string } }
+ *     ReadonlyMap<
+ *       string,
+ *       {
+ *         text: string;
+ *         heldElsewhere?: string;
+ *         document?: { thread: string; message: string };
+ *       }
+ *     >
  *   >;
  * }} SemanticDocument
  */
@@ -283,31 +296,33 @@ function advance(entry, signal, admitted = null) {
  * }} WidgetDescriptor
  */
 
+// An admitted entry as the folds read it, kept by the served entry (`kept.js`), so a
+// widget's fold can tell the entries in force on it unchanged by identity.
+const admittedEntry = keptEach(
+  /** @param {PageView["document"]["projection"]["entries"][number]} wire */
+  (wire) => ({
+    coordinate: stateCoordinate(...wire.coordinate),
+    e: wire.event,
+    restated: wire.restated,
+    absorbed: wire.absorbed,
+    stands: wire.stands,
+    scope: wire.scope,
+    spec: wire.spec,
+    unit: wire.coordinate[1],
+    value: wire.value,
+  }),
+);
 // The server classifies a view's page and thread entries alike under that revision's
 // registry, so every entry is one the view's widgets can draw.
-/** @param {PageView | null | undefined} view */
-function normalizedProjection(view) {
+/** @param {readonly (PageView["document"]["projection"] | undefined)[]} projections */
+function normalizedProjection(projections) {
   const entries = [];
   const actionIds = [];
   const reportIds = [];
   const desiredIds = [];
-  for (const projection of [view?.document.projection, view?.thread.projection]) {
+  for (const projection of projections) {
     if (!projection) continue;
-    for (const wire of projection.entries) {
-      const e = wire.event;
-      const coordinate = stateCoordinate(...wire.coordinate);
-      entries.push({
-        coordinate,
-        e,
-        restated: wire.restated,
-        absorbed: wire.absorbed,
-        stands: wire.stands,
-        scope: wire.scope,
-        spec: wire.spec,
-        unit: wire.coordinate[1],
-        value: wire.value,
-      });
-    }
+    for (const wire of projection.entries) entries.push(admittedEntry(wire));
     actionIds.push(...projection.actions);
     reportIds.push(...projection.reports);
     desiredIds.push(...projection.desired);
@@ -319,13 +334,17 @@ function normalizedProjection(view) {
 // classify it at, an undo at its target's, or null where they classify none: what the
 // page's applied stamp counts (`projection/presentation.js`), and what `foldProjection`
 // keeps classified as terminal where the view draws nothing for it.
-/** @param {PageView | null} view @param {readonly Event[]} events
- * @returns {import("../../types/domain.js").Coverage[]} */
-function logCoverage(view, events) {
-  if (!view) return [];
+/**
+ * @param {PageView["document"]["projection"] | undefined} pageProjection
+ * @param {PageView["thread"]["projection"] | undefined} threadProjection
+ * @param {readonly Event[]} events
+ * @returns {import("../../types/domain.js").Coverage[]}
+ */
+function logCoverage(pageProjection, threadProjection, events) {
+  if (!pageProjection || !threadProjection) return [];
   /** @type {Map<string, readonly string[]>} */
   const coordinates = new Map();
-  for (const { projection } of [view.document, view.thread])
+  for (const projection of [pageProjection, threadProjection])
     for (const entry of projection.entries)
       coordinates.set(entry.event.id, entry.coordinate);
   return events.flatMap((event) => {
@@ -346,52 +365,71 @@ const NO_OBLIGATIONS = {
   user: /** @type {ObligationRecord[]} */ ([]),
   unanswered: /** @type {ObligationRecord[]} */ ([]),
 };
+/** @type {import("../../types/domain.js").ClassifiedEntry[]} */
+const NO_WITHDRAWALS = [];
 
 /* The admitted inventory owns membership and widget completion. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
  * visible before its POST settles the obligation. */
+// A widget's obligation record as this tab reads it, kept (`kept.js`) by the served
+// record, its widget's state, the verb it awaits and that widget's withdrawals, so a
+// publication that moves one widget makes that widget's record again and no other.
+const widgetObligation = keptEach(
+  /** @param {Extract<ObligationRecord, {source: {kind: "widget"}}>} item
+   * @param {import("../projection/model.js").FoldedWidget} widget @param {string} verb
+   * @param {readonly import("../../types/domain.js").ClassifiedEntry[]} withdrawals
+   * @param {boolean} answerWithdrawn @returns {ObligationRecord} */
+  (item, widget, verb, withdrawals, answerWithdrawn) => {
+    const sourceUnit = item.source.unit;
+    const completed = item.status === "answered" && !answerWithdrawn;
+    const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
+    const pendingValue =
+      /** @type {{ e: Event; unit: string }[]} */ (widget.entries).some(
+        ({ e, unit }) =>
+          e.action === verb &&
+          (sourceUnit === undefined || unit === sourceUnit) &&
+          !Number.isInteger(e.seq),
+      ) ||
+      withdrawals.some(
+        ({ e, unit }) =>
+          (sourceUnit === undefined || unit === sourceUnit) &&
+          (e.action === verb || e.id === item.answer?.event?.id),
+      );
+    const answer = present
+      ? { value, event: pendingValue ? null : (item.answer?.event ?? null) }
+      : null;
+    return { ...item, answer };
+  },
+);
+
 /**
- * @param {PageView | null} view
- * @param {ReturnType<typeof foldWidgetStates>} widgets
- * @param {SemanticDocument} document
- * @param {ReturnType<typeof foldProjection>} projection
+ * @param {PageView["obligations"] | undefined} obligations
+ * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
+ * @param {SemanticDocument["descriptors"]} descriptors
+ * @param {ReturnType<typeof foldProjection>["pendingWithdrawals"]} pendingWithdrawals
  * @returns {ObligationLists}
  */
-function normalizedObligations(view, widgets, document, projection) {
-  const all = (view?.obligations ?? []).map(
+function normalizedObligations(obligations, widgets, descriptors, pendingWithdrawals) {
+  /** @type {Map<string, import("../../types/domain.js").ClassifiedEntry[]>} */
+  const withdrawing = new Map();
+  for (const withdrawal of pendingWithdrawals.values()) {
+    const widget = withdrawal.e.widget;
+    if (widget !== undefined)
+      withdrawing.set(widget, [...(withdrawing.get(widget) ?? []), withdrawal]);
+  }
+  const all = (obligations ?? []).map(
     /** @returns {ObligationRecord} */ (item) => {
       if (!hasObligationSource(item, "widget")) return item;
       const sourceId = item.source.id;
-      const sourceUnit = item.source.unit;
       const widget = widgets.get(sourceId);
-      const declaration = /** @type {{ value?: string } | undefined} */ (
-        document.descriptors.get(item.source.id)?.declaration["x-awaits"]
-      );
+      const declaration = descriptors.get(item.source.id)?.declaration.awaits;
       const verb = declaration?.value;
       if (!verb || !widget) return item;
-      const completed =
-        item.status === "answered" &&
-        !(
-          item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id)
-        );
-      const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
-      const pendingValue =
-        /** @type {{ e: Event; unit: string }[]} */ (widget.entries).some(
-          ({ e, unit }) =>
-            e.action === verb &&
-            (sourceUnit === undefined || unit === sourceUnit) &&
-            !Number.isInteger(e.seq),
-        ) ||
-        [...projection.pendingWithdrawals.values()].some(
-          ({ e, unit }) =>
-            e.widget === sourceId &&
-            (sourceUnit === undefined || unit === sourceUnit) &&
-            (e.action === verb || e.id === item.answer?.event?.id),
-        );
-      const answer = present
-        ? { value, event: pendingValue ? null : (item.answer?.event ?? null) }
-        : null;
-      return { ...item, answer };
+      const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
+      const answerWithdrawn = Boolean(
+        item.answer?.event && pendingWithdrawals.has(item.answer.event.id),
+      );
+      return widgetObligation(item, widget, verb, withdrawals, answerWithdrawn);
     },
   );
   // A widget's record keeps the server's status and next actor, which only the log
@@ -406,18 +444,86 @@ function normalizedObligations(view, widgets, document, projection) {
 /** @type {WireQueues} */
 const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
 
+// Each obligation by its id, indexed as the reading arrives, so a reader asking for one
+// does no walk of its own.
+const obligationIndex = kept(
+  (/** @type {readonly ObligationRecord[]} */ all) =>
+    new Map(all.map((item) => [item.id, item])),
+);
+// The thread each name names, the threads about each element, and those discussed,
+// indexed as the threads arrive, so a reader asking any of them does no walk of its
+// own. The names index holds a thread's place in the list rather than the record, so
+// a record has one home and sharing the index against the last reading compares
+// numbers.
+const threadIndex = kept(
+  /** @param {readonly ReturnType<typeof readThreadRecords>[number][]} threads */
+  (threads) => {
+    const placeOf = new Map(threads.map((thread, index) => [thread, index]));
+    return {
+      named: new Map(
+        [...threadNames(threads)].map(([name, thread]) => [
+          name,
+          /** @type {number} */ (placeOf.get(thread)),
+        ]),
+      ),
+      bySection: threadsBySection(threads),
+      discussed: threads.filter(discussed),
+    };
+  },
+);
+// The strongest workflow serving each record, the first in the published order, which
+// a record's row reads.
+const servingIndex = kept((/** @type {readonly Workflow[]} */ workflows) => {
+  /** @type {Map<string, Workflow>} */
+  const serving = new Map();
+  for (const workflow of workflows)
+    if (workflow.obligation !== null && !serving.has(workflow.obligation))
+      serving.set(workflow.obligation, workflow);
+  return serving;
+});
+
+// A pending undo with the id the log gave its target, kept by both, so the folds can
+// tell it unchanged by identity.
+const pendingUndo = keptEach(
+  /** @param {Extract<PendingProjection, {kind: "undo"}>} projection @param {string | null} targetId */
+  (projection, targetId) => ({ ...projection, targetId }),
+);
+
+// The steps of `derive` that read the whole page, each a function of the arguments it
+// is kept by and nothing else (`createSemanticApplication`).
+/** @param {ServedView | undefined} served @returns {PageView | null} */
+const shownView = (served) =>
+  served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
+/**
+ * @param {PageView["document"]["projection"] | undefined} pageProjection
+ * @param {PageView["thread"]["projection"] | undefined} threadProjection
+ */
+const admittedProjection = (pageProjection, threadProjection) =>
+  normalizedProjection([pageProjection, threadProjection]);
+/** @param {ReturnType<typeof normalizedProjection>} admitted */
+const classifiedIdsOf = (admitted) => new Set(admitted.entries.map(({ e }) => e.id));
+/**
+ * @param {ReturnType<typeof normalizedProjection>} admitted
+ * @param {ReturnType<typeof logCoverage>} coverage
+ * @param {PendingProjection[]} pendingEntries
+ */
+const projectionOf = (admitted, coverage, ...pendingEntries) =>
+  foldProjection({ ...admitted, coverage, pendingEntries });
+/** @param {readonly Thread[] | undefined} threads @param {ThreadGesture[]} gestures */
+const threadsOf = (threads, ...gestures) => foldThreads(threads ?? [], gestures);
+
 /** Attribute-set owners depend on the members their total render paints, as well
  * as on the selected ids. Capture supplies authored parentage; the complete
  * position fold supplies current parentage for declared descendants. Flat creates
  * supply additional members to their creator without becoming widget owners. */
 /**
- * @param {SemanticDocument} document
- * @param {ReturnType<typeof foldWidgetStates>} widgets
- * @param {ReturnType<typeof foldProjection>} projection
+ * @param {SemanticDocument["descriptors"]} descriptors
+ * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
+ * @param {ReturnType<typeof foldProjection>["desired"]} desired
  */
-function currentWidgetRelations(document, widgets, projection) {
+function currentWidgetRelations(descriptors, widgets, desired) {
   const parents = new Map(
-    [...document.descriptors].map(([id, descriptor]) => [id, descriptor.parent?.id]),
+    [...descriptors].map(([id, descriptor]) => [id, descriptor.parent?.id]),
   );
   /** @type {Map<string, Set<string>>} */
   const owners = new Map();
@@ -448,7 +554,7 @@ function currentWidgetRelations(document, widgets, projection) {
     }
   }
   for (const [attr, named] of owners) {
-    for (const id of document.descriptors.keys()) {
+    for (const id of descriptors.keys()) {
       const seen = new Set([id]);
       for (let parent = parents.get(id); parent; parent = parents.get(parent)) {
         if (seen.has(parent)) break;
@@ -458,15 +564,15 @@ function currentWidgetRelations(document, widgets, projection) {
         break;
       }
     }
-    for (const { e, unit, spec } of projection.desired.values())
-      if (spec.creates && named.has(e.widget) && !document.descriptors.has(unit))
+    for (const { e, unit, spec } of desired.values())
+      if (spec.creates && named.has(e.widget) && !descriptors.has(unit))
         members(e.widget, attr).push(unit);
     for (const owner of named) members(owner, attr).sort();
   }
   return { parents, memberships };
 }
 
-/* What is on the user (On me), what is on the agent (On <agent>), and what is done:
+/* What is on the user (On Me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. Every row but a to-do names an obligation record, and only the
  * agent ends a to-do, so a send moves an item the server listed only where the record
@@ -475,15 +581,31 @@ function currentWidgetRelations(document, widgets, projection) {
  * records a send alone publishes (`localUpdates`): the answer it is owed, which stands
  * for every update the server listed open in its thread, and the resend a refused one
  * leaves. Nothing here selects a list again. */
+// Each served item's row, kept by the item and the record it carries (`kept.js`).
+const recordRow = keptEach(
+  /** @param {QueueItem} item @param {ObligationRecord} obligation */
+  (item, obligation) => ({ ...item, obligation }),
+);
+const todoRow = keptEach(
+  /** @param {QueueItem} item @param {ServedTodo} todo */
+  (item, todo) => ({ ...item, kind: "todo", owner: "agent", todo }),
+);
+// A row with the strongest workflow serving its record, the first in the published
+// order.
+const servedRow = keptEach(
+  /** @template {object} T @param {T} item @param {Workflow | null} workflow */
+  (item, workflow) => ({ ...item, workflow }),
+);
+
 /**
  * @param {WireQueues} served
  * @param {readonly Workflow[]} workflows
  * @param {readonly ServedTodo[]} todos
  * @param {ObligationLists} items
  * @param {readonly ObligationRecord[]} local
+ * @param {ReadonlyMap<string, ObligationRecord>} record each of `items` by its id
  */
-function localQueues(served, workflows, todos, items, local) {
-  const record = new Map(items.all.map((item) => [item.id, item]));
+function localQueues(served, workflows, todos, items, local, record) {
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const todoRecord = new Map(todos.map((todo) => [todo.id, todo]));
   // The threads holding a send this tab has in flight.
@@ -536,10 +658,17 @@ function localQueues(served, workflows, todos, items, local) {
   // A record's row carries this tab's record of its obligation, and a to-do's row the
   // served to-do.
   /** @template {QueueItem} T @param {T} item @returns {T & QueueRecord} */
-  const current = (item) =>
-    namesRecord(item)
-      ? { ...item, obligation: obligationOf(item) }
-      : { ...item, kind: "todo", owner: "agent", todo: todoOf(item) };
+  const current = (item) => {
+    if (namesRecord(item)) {
+      const obligation = obligationOf(item);
+      return /** @type {T & QueueRecord} */ (
+        /** @type {unknown} */ (recordRow(item, obligation))
+      );
+    }
+    return /** @type {T & QueueRecord} */ (
+      /** @type {unknown} */ (todoRow(item, todoOf(item)))
+    );
+  };
   /** @param {DoneItem} done */
   const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }) =>
     current(/** @type {QueueItem} */ (item));
@@ -638,7 +767,6 @@ function localUpdates(workflows) {
           },
           answer: null,
           status: "open",
-          end: null,
           next_actor: refused ? "user" : "agent",
         });
       return { ...workflow, obligation: id };
@@ -647,7 +775,7 @@ function localUpdates(workflows) {
   return { workflows: named, records };
 }
 
-// The order the server lists On me in: obligations, then updates to send again;
+// The order the server lists On Me in: obligations, then updates to send again;
 // records of a kind among themselves in the order the view's inventory holds them.
 /** @param {QueueItem} item */
 const onUserRank = (item) => (item.kind === "update" ? 1 : 0);
@@ -681,7 +809,7 @@ const namesRecord = (item) => item.kind !== "todo";
 // publisher shares each widget's group across publications, so a widget whose entries
 // did not move reads the group it read before. Entries group by widget id alone: the
 // selected server view already bounds page history to the captured revision and thread
-// history to its frozen document, and widget ids are unique across both, so filtering
+// history to its thread markup, and widget ids are unique across both, so filtering
 // again by the event's authored revision would discard carried decisions from an
 // earlier revision.
 /** @param {SemanticRoot} root @returns {WidgetIndex} */
@@ -720,23 +848,35 @@ function widgetIndex(root) {
 /** @type {WidgetEntries} */
 const NO_ENTRIES = { classified: [], desired: [], undo: [] };
 
-// Everything one widget's reading draws from the root, each part by identity.
+// The parts of the root any widget's reading draws from (`widgetInputs`).
+/** @param {SemanticRoot} root @param {WidgetIndex} index */
+const widgetParts = (root, index) => ({
+  descriptors: root.document.descriptors,
+  states: root.document.registry.$states,
+  widgets: root.effective.widgets,
+  memberships: root.effective.memberships,
+  authored: root.document.authored,
+  hostAvailable: root.effective.hostAvailable,
+  ready: root.phase === "ready",
+  index,
+});
+
+// Everything one widget's reading draws from those parts, each by identity.
 /**
- * @param {SemanticRoot} root
- * @param {WidgetIndex} index
+ * @param {ReturnType<typeof widgetParts>} parts
  * @param {WidgetDescriptor} descriptor
  */
-function widgetInputs(root, index, { id, tag }) {
+function widgetInputs(parts, { id, tag }) {
   return {
-    registered: root.document.descriptors.get(id),
-    states: root.document.registry.$states[tag],
-    current: root.effective.widgets.get(id),
-    memberships: root.effective.memberships.get(id),
-    authored: root.document.authored.get(id),
-    hostAvailable: root.effective.hostAvailable,
-    ready: root.phase === "ready",
-    entries: index.byWidget.get(id) ?? NO_ENTRIES,
-    heldBy: index.heldBy.get(id) ?? null,
+    registered: parts.descriptors.get(id),
+    states: parts.states[tag],
+    current: parts.widgets.get(id),
+    memberships: parts.memberships.get(id),
+    authored: parts.authored.get(id),
+    hostAvailable: parts.hostAvailable,
+    ready: parts.ready,
+    entries: parts.index.byWidget.get(id) ?? NO_ENTRIES,
+    heldBy: parts.index.heldBy.get(id) ?? null,
   };
 }
 
@@ -755,7 +895,7 @@ function widgetReading(inputs, descriptor) {
   const classified = inputs.entries.classified.toSorted(
     (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
   );
-  const actionSpecs = descriptor.declaration["x-state"] ?? {};
+  const actionSpecs = descriptor.declaration.verbs ?? {};
   const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
   const durableUndo = inputs.entries.undo;
@@ -815,10 +955,22 @@ function widgetReading(inputs, descriptor) {
 
 /** @param {{ presentation?: PresentationLifecycle }} [options] */
 export function createSemanticApplication({ presentation } = {}) {
-  // Each publication's widget states and thread records, read again only where what
-  // one reads changed (`kept.js`).
-  const widgetStates = widgetStateReader();
-  const threadRecords = threadRecordReader();
+  // The fold, and each step of it that reads the whole page, run again only where an
+  // argument it is given changed (`kept.js`). A step left alone hands back what it made
+  // last time, which the publisher has shared before and so need not compare again
+  // (snapshot.js, `shareFold`): a publication about one thing costs what it changed,
+  // and one that moves no argument of the fold, such as a widget's output, folds
+  // nothing. Each step sits at module scope, so it reads only what it is given.
+  const viewOf = kept(shownView);
+  const admittedOf = kept(admittedProjection);
+  const coverageOf = kept(logCoverage);
+  const classifiedOf = kept(classifiedIdsOf);
+  const projectionFrom = kept(projectionOf);
+  const threadsFrom = kept(threadsOf);
+  const widgetsOf = kept(foldWidgetStates);
+  const relationsOf = kept(currentWidgetRelations);
+  const obligationsOf = kept(normalizedObligations);
+  const derived = kept(derive);
   const initial = {
     document: /** @type {SemanticDocument} */ ({
       revision: null,
@@ -869,6 +1021,9 @@ export function createSemanticApplication({ presentation } = {}) {
   };
   const publisher = createApplicationPublisher(initial);
   const widgets = publisher.select(widgetIndex);
+  // Read by every widget's selection in place of the root, so a publication that moves
+  // none of these parts, such as a comment's, reads no widget again.
+  const parts = publisher.select((root) => widgetParts(root, widgets.read()));
   let dataTaken = -Infinity;
   let order = 0;
   // The attempts of `settled` and of the ledger whose receipts a document pass has drawn
@@ -908,17 +1063,20 @@ export function createSemanticApplication({ presentation } = {}) {
     // boundary has already matched to the log reading; left in, a read that only moved
     // the log's sequence would publish a new semantic epoch.
     const served = state?.browser.views[String(document.revision)];
-    /** @type {PageView | null} */
-    const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
-    const admitted = normalizedProjection(view);
-    const coverage = logCoverage(view, events);
-    const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
+    const view = viewOf(served);
+    const pageProjection = view?.document.projection;
+    const threadProjection = view?.thread.projection;
+    const admitted = admittedOf(pageProjection, threadProjection);
+    const coverage = coverageOf(pageProjection, threadProjection, events);
+    const classifiedIds = classifiedOf(admitted);
     // A revision may reuse a widget/verb with a different operation. Keep its pending
     // delivery, but stop drawing it against that new declaration. This tab wrote a
     // pending action's definition itself, so it draws while the shown declaration
     // still defines the same one; the server validates the durable payload. An undo
     // draws while its target draws: in the server's reading of this document, under
-    // the id the log gave it, or as a pending action by the rule above.
+    // the id the log gave it, or as a pending action by the rule above, and withdraws
+    // it under the id it draws under, so a target the log has answered but no reading
+    // holds yet goes by its pending id.
     /** @param {ProjectionEntry["e"]} e */
     const drawsAction = (e) => {
       const descriptor = document.descriptors.get(e.widget);
@@ -932,19 +1090,16 @@ export function createSemanticApplication({ presentation } = {}) {
         if (projection.kind !== "undo")
           return drawsAction(projection.e) ? [projection] : [];
         const { target } = projection;
-        const targetId = admittedId(entry.undoTarget, unresolved, events);
+        const logged = admittedId(entry.undoTarget, unresolved, events);
+        const targetId = logged !== null && classifiedIds.has(logged) ? logged : null;
         const pending = !Number.isInteger(target.e.seq);
         const draws =
           classifiedIds.has(targetId ?? target.e.id) ||
           (pending && drawsAction(target.e));
-        return draws ? [{ ...projection, targetId }] : [];
+        return draws ? [pendingUndo(projection, targetId)] : [];
       },
     );
-    const projection = foldProjection({
-      ...admitted,
-      coverage,
-      pendingEntries: localProjections,
-    });
+    const projection = projectionFrom(admitted, coverage, ...localProjections);
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
     // still says whether this is a complete reading. The obligations need the log to say which
@@ -961,16 +1116,21 @@ export function createSemanticApplication({ presentation } = {}) {
               ? [event]
               : [],
     );
-    const folded = foldThreads(view?.thread.threads ?? [], gestures);
-    const widgets = widgetStates(document.authored, projection);
-    const { parents: widgetParents, memberships } = currentWidgetRelations(
-      document,
+    const folded = threadsFrom(view?.thread.threads, ...gestures);
+    const widgets = widgetsOf(document.authored, projection);
+    const { parents: widgetParents, memberships } = relationsOf(
+      document.descriptors,
       widgets,
-      projection,
+      projection.desired,
     );
     const todos = ready ? (state?.browser.todos ?? []) : [];
     const servedItems = ready
-      ? normalizedObligations(view, widgets, document, projection)
+      ? obligationsOf(
+          view?.obligations,
+          widgets,
+          document.descriptors,
+          projection.pendingWithdrawals,
+        )
       : NO_OBLIGATIONS;
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
@@ -1095,6 +1255,7 @@ export function createSemanticApplication({ presentation } = {}) {
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
         started_by: [],
+        launching: entry.launching,
       };
       if (entry.event.kind === "action")
         return {
@@ -1130,7 +1291,8 @@ export function createSemanticApplication({ presentation } = {}) {
       ],
       unanswered: [...servedItems.unanswered, ...localRecords],
     };
-    const threads = threadRecords(
+    const obligationsById = obligationIndex(all);
+    const threads = readThreadRecords(
       obligated,
       document,
       widgets,
@@ -1140,52 +1302,57 @@ export function createSemanticApplication({ presentation } = {}) {
       markingRead,
       ready,
     );
+    const {
+      named: threadsNamed,
+      bySection,
+      discussed: discussedThreads,
+    } = threadIndex(threads);
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       workflows,
       todos,
       items,
       localRecords,
+      obligationsById,
     );
-    // A record's row reads the strongest workflow serving it, the first in the
-    // published order.
-    /** @type {Map<string, Workflow>} */
-    const serving = new Map();
-    for (const workflow of workflows)
-      if (workflow.obligation !== null && !serving.has(workflow.obligation))
-        serving.set(workflow.obligation, workflow);
+    const serving = servingIndex(workflows);
     /** @template {{ id: string; kind: QueueItem["kind"] }} T @param {T[]} items */
     const contextual = (items) =>
-      items.map((item) => ({
-        ...item,
-        workflow: serving.get(item.id) ?? null,
-      }));
+      items.map((item) => {
+        const workflow = serving.get(item.id) ?? null;
+        return /** @type {T & {workflow: Workflow | null}} */ (
+          servedRow(item, workflow)
+        );
+      });
+    const queues = {
+      phase,
+      on_user: contextual(selectedQueues.on_user),
+      on_agent: contextual(selectedQueues.on_agent),
+      done: contextual(selectedQueues.done),
+    };
     return {
       hostAvailable,
       projection,
       widgets,
       thread: {
         all: threads,
+        named: threadsNamed,
+        bySection,
         collection: {
           phase,
-          threads: threads.filter(discussed),
+          threads: discussedThreads,
         },
         // The threads the gestures this tab's ledger still holds concern, refused ones
         // included until the reading they restore is drawn, and those the adopted
         // reading settled (held-news.js, `gesturedOn`).
         gestured: [...new Set([...unresolved, ...settled].flatMap(threadsOfEntry))],
       },
-      obligations: { phase, ...items },
+      obligations: { phase, ...items, byId: obligationsById },
       // The agent's plan in force, as the server read it (`plans.plan_reading`).
       plan: ready ? (state?.browser.plan ?? null) : null,
-      // On me (on the user), On <agent> (on the agent), and done: the served lists
+      // On Me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
-      queues: {
-        phase,
-        on_user: contextual(selectedQueues.on_user),
-        on_agent: contextual(selectedQueues.on_agent),
-        done: contextual(selectedQueues.done),
-      },
+      queues,
       // Part of the effective reading, so a read that changes only the view's
       // reports, publication time, or undo list opens an epoch and reaches its readers.
       view,
@@ -1206,14 +1373,14 @@ export function createSemanticApplication({ presentation } = {}) {
     const prior = publisher.peek();
     const next = /** @type {typeof initial} */ ({ ...prior, ...changes });
     // The folds read the server's reading as the root holds it, so each record the new
-    // answer left alone is the very object they read last time, and the record readers
-    // that keep what they read (`threadRecordReader`) keep it too.
+    // answer left alone is the very object they read last time, and the readings kept
+    // by the records they read (`readThreadRecords`) keep it too.
     next.authoritative = share(prior.authoritative, next.authoritative);
     // Shared against the current reading, so a part whose contents did not move keeps
     // its identity: that is what an epoch and every selection compare.
-    next.effective = share(
+    next.effective = shareFold(
       prior.effective,
-      derive(
+      derived(
         next.document,
         next.authoritative,
         next.unresolved,
@@ -1332,55 +1499,37 @@ export function createSemanticApplication({ presentation } = {}) {
   return Object.freeze({
     read: publisher.read,
     select: publisher.select,
-    // Whether a publication is still running its synchronous subscribers. A renderer
-    // driven by one paints after it, so every region has claimed this epoch before any
-    // of them touches the document.
-    publishing: () => publicationDepth > 0,
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    /** @param {ServedView} view */
-    projectView(view) {
+    /** @param {ServedView["document"]["projection"]} projection */
+    projectDocument(projection) {
       return foldProjection({
-        ...normalizedProjection(view),
+        ...normalizedProjection([projection]),
         pendingEntries: [],
       });
     },
-    // Render checks compare authored, carried, and current states. The event filter is
-    // a semantic selection of the same root, not a presentation-owned partial fold.
-    /** @param {readonly string[] | null} [eventIds] */
-    selectWidgets(eventIds = null) {
-      if (eventIds === null) return widgetsPart.read();
-      const wanted = new Set(eventIds);
-      return publisher
-        .select((root) =>
-          foldWidgetStates(root.document.authored, {
-            ...root.effective.projection,
-            desired: new Map(
-              [...root.effective.projection.desired].filter(([, entry]) =>
-                wanted.has(entry.e.id),
-              ),
-            ),
-          }),
-        )
-        .read();
+    // Every widget's current state, which the replay render check reads.
+    selectWidgets() {
+      return widgetsPart.read();
     },
-    // A widget's reading, recomputed only when one of the parts it draws moves, so a
-    // publication about another widget or a thread costs each widget a comparison.
+    // A widget's reading, recomputed only when one of the parts it draws moves. A
+    // publication that moves none of the parts any widget draws reads no widget, and
+    // one about another widget costs each widget a comparison.
     /** @param {WidgetDescriptor} descriptor */
     selectWidget(descriptor) {
       /** @type {ReturnType<typeof widgetInputs> | null} */
       let inputs = null;
       /** @type {ReturnType<typeof widgetReading>} */
       let reading;
-      return publisher.select((root) => {
-        const next = widgetInputs(root, widgets.read(), descriptor);
+      return publisher.select((from) => {
+        const next = widgetInputs(from, descriptor);
         const keys = /** @type {(keyof typeof next)[]} */ (Object.keys(next));
         const prior = inputs;
         if (prior && keys.every((key) => next[key] === prior[key])) return reading;
         inputs = next;
         return (reading = widgetReading(next, descriptor));
-      });
+      }, parts);
     },
     entry,
     /** @param {number | null} revision @param {number | null} [stamp] */
@@ -1488,8 +1637,14 @@ export function createSemanticApplication({ presentation } = {}) {
       });
       return true;
     },
-    /** @param {Command} event @param {string} timestamp @param {string} [plainText] */
-    enqueue(event, timestamp, plainText = event.text ?? event.token ?? "") {
+    /** @param {Command} event @param {string} timestamp @param {string} [plainText]
+     * @param {boolean} [launching] */
+    enqueue(
+      event,
+      timestamp,
+      plainText = event.text ?? event.token ?? "",
+      launching = false,
+    ) {
       if (entry(event.attempt)) return null;
       const before = publisher.peek();
       const localId = PENDING + event.attempt;
@@ -1517,9 +1672,7 @@ export function createSemanticApplication({ presentation } = {}) {
           ? before.document.descriptors.get(event.widget)?.declaration
           : null;
       const spec =
-        event.kind === "action" && widget
-          ? declaration?.["x-state"]?.[event.action]
-          : null;
+        event.kind === "action" && widget ? declaration?.verbs?.[event.action] : null;
       const unit =
         event.kind === "action" && spec
           ? spec.unit === "widget"
@@ -1570,6 +1723,7 @@ export function createSemanticApplication({ presentation } = {}) {
             undoTarget: undoTarget?.event.attempt ?? null,
             state: "sending",
             admitted: null,
+            launching,
           },
         ],
       });

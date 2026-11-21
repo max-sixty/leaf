@@ -1,8 +1,8 @@
 /* Control construction and labels are document-local. Leaf reads their generated
    word and action markers; an ordinary host needs no page services to build them. */
-import { offer, generatedElement } from "./element-markers.js";
+import { offer, titlesName } from "./element-markers.js";
 import { actionName, showAction } from "./icon-paths.js";
-import { keeps, keepsText } from "./keeps.js";
+import { keeps } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
 
 // Runtime searches share the vendor's native editor, frame and focus band. Callers
@@ -32,29 +32,30 @@ export function searchField(cls, { name, label, placeholder = label }) {
 
 // A role's symbol whose action follows its state, as Expand all turns to Collapse
 // all, takes its new symbol and name from its action:
-// `nameAction(button, action, {label, title, className})`. It shows `action`'s symbol
-// and says the action's name as tooltip and accessible name unless `label` says
-// more, as a symbol role does, so the name and the symbol can't drift apart.
+// `nameAction(button, action, {label, className})`. It shows `action`'s symbol and
+// says the action's name as accessible name, and off Leaf as title (`titlesName`),
+// unless `label` says more, as a symbol role does, so the name and the symbol can't
+// drift apart.
 /**
  * @param {Element} control @param {string} action
- * @param {{label?: string, title?: string, className?: string}} [options]
+ * @param {{label?: string, className?: string}} [options]
  */
-export function nameAction(control, action, { label, title, className } = {}) {
+export function nameAction(control, action, { label, className } = {}) {
   const name = label ?? actionName(action);
   keeps(control, "aria-label", name);
-  keeps(control, "title", title ?? name);
+  keeps(control, "title", titlesName() ? name : null);
   showAction(control, action, className);
 }
 
 // A control's label, and which kind of word it is. Most are things to do — "Save",
 // "choose", a grip — and go with the rest of the UI on paper, out of reach of a
-// quote. Some are the page speaking: a pick mark reading "chosen" is the only place
+// quote. Some are the page speaking: a pick mark reading "selected" is the only place
 // the page says which option it carries, and a tab's name is the panel's only name
 // once the strip exists. One element wears both over its life, so the kind is
 // restated on every write rather than settled at birth.
 //
 // This writes the page-speaking marker, data-lf-said. Anchoring takes it over the
-// `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
+// `.lf-ui` box around it — that box is a look, the chrome face, and would be standing
 // in for a permission the user has no category for — and paper reads it beside
 // data-lf-offer to keep a control whose label is one of the page's own words.
 // data-lf-gen goes on either way, because no label is words the author wrote, which
@@ -69,14 +70,14 @@ export function nameAction(control, action, { label, title, className } = {}) {
 // passage, and the same bargain on paper that data-lf-said strikes — the press goes,
 // the words stay. Paper is the medium that bargain holds in.
 //
-// It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
+// It leaves data-lf-offer alone. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it
 // is worded, and four passes ask it (print, the drag guard above, the render gate, and
 // the theme's one pressable rule, which reads the value to tell a press from the rest of
 // what a widget builds).
-// Clearing it here made "paper drops this" the meaning and left the others unable to
-// see a control — a drag across a picked card's mark was a press again, and only
-// lf-options' own guard on the card stood between that and clearing the pick.
+// Clearing it here would make "paper drops this" the meaning and leave the others unable
+// to see a control — a drag across a picked card's mark would be a press again, and only
+// lf-options' own guard on the card would stand between that and clearing the pick.
 //
 // `says` has no default, because the answer a caller doesn't give is the one that
 // costs a printed page its words, and silently. Refusing throws where the widget
@@ -85,18 +86,11 @@ export function nameAction(control, action, { label, title, className } = {}) {
 //
 // `generatedElement(node, {says})` writes those markers without the words: for a box
 // whose contents the widget writes, or words it fills in some other way.
-// Widgets write the markers only through it, `relabel` and the offers, so the three
-// stay consistent. Words a module writes unmarked are the page's: the version
+// Widgets write the markers only through it and the offers, so the two stay
+// consistent. Words a module writes unmarked are the page's: the version
 // comparison reads sources (`version.js`), so they never read as a change, but `wrote`
 // keeps them and a quote can run across them. `generated({says})` is its template form:
 // `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
 // they do something it doesn't: the datum projection (projection/data.js) marks and
 // unmarks authored nodes as their data comes and goes, markdown.js serializes its
 // media button as HTML, and revision_delivery.py writes prepaint faces on the server.
-
-/** @overload @param {Element} node @param {string} label @param {{says: boolean | "echo"}} options @returns {void} */
-/** @param {Element} node @param {string} label @param {{says?: boolean | "echo"}} [options] */
-export function relabel(node, label, options = {}) {
-  generatedElement(node, options);
-  keepsText(node, label);
-}

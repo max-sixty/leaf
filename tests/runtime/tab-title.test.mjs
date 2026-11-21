@@ -1,4 +1,4 @@
-/* The tab's title carries On me's count in front of the authored title, follows it to
+/* The tab's title carries On Me's count in front of the authored title, follows it to
    zero, and leaves the authored title to every reader that asks for it (All pages). */
 import assert from "node:assert/strict";
 import test from "node:test";

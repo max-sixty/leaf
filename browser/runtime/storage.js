@@ -3,6 +3,7 @@
  * documents use native scoped storage, whose refusal never prevents reading. */
 import { registry } from "./registry.js";
 import { keeps } from "./keeps.js";
+import { version } from "./kept.js";
 import { marks } from "./kernel-facts.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
@@ -21,17 +22,21 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // Which store is the part worth reading at a call site, and naming them is what puts it
 // there. `tabStore` is what only this window keeps, and it dies with the tab — the reading
 // position, which panel of a widget stands open, whether design mode is on — because each
-// of those is about the window rather than about the page. `draftStore` is what the user
-// typed or drew into a composition the log settles (a comment, a reply, an `lf-draft`)
-// and hasn't sent. The agent reads none of it, because sending is when the user says it.
-// It outlives the tab, because closing one is the ordinary end of a tab here, and
-// every tab shows one live copy of it (see the draft section below). An edit to a bound
-// file is not one: the file on disk is what tabs share, so its buffer stays in its tab.
-// `userStore` is this user's lasting preference across pages, which is the chrome
-// they arrange and expect to find arranged. The stores reach this tab or this browser.
-// What another browser or the agent must read is none of the three: it goes in the log,
-// which every tab already follows, such as a playground's settings before the user
-// submits them. The skill's `module-state.md`, "Where a widget keeps its state", tells
+// of those is about the window rather than about the page. `writingStore` is where in
+// this page this browser was last writing, which Resume writing returns to, and it
+// outlives the tab, because closing one is the ordinary end of a tab here. The words
+// themselves, what the user typed or drew into a composition the log settles (a
+// comment, a reply, an `lf-draft`) and hasn't sent, are every tab's and every device's,
+// so the page's server keeps them (drafts.js), and the agent reads none of them, because
+// sending is when the user says them. An edit to a bound file is not one: the file on
+// disk is what tabs share, so its buffer stays in its tab. The tab holds unsent words
+// only from a page to its reload, while the server has yet to answer their writes
+// (drafts.js). `userStore` is this user's
+// lasting preference across pages, which is the chrome they arrange and expect to find
+// arranged. The stores reach this tab or this browser. What another browser or the agent
+// must read is none of the three: it goes in the log, which every tab already follows,
+// such as a playground's settings before the user submits them, or for unsent words, the
+// page's drafts. The skill's `module-state.md`, "Where a widget keeps its state", tells
 // package authors which kind of state goes where.
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
@@ -39,7 +44,7 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 const { stored } = window.lfStorage;
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
 // there are three backings: what the user arranges is theirs wherever they are reading,
-// while what they typed here belongs to this page. tabStore is the only one on the helper
+// while where they were writing here belongs to this page. tabStore is the only one on the helper
 // surface, because only widgets keep state in the tab (lf-tabs' open panel, lf-options'
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
@@ -48,7 +53,7 @@ const { stored } = window.lfStorage;
 // registry's same declaration. Only the browser evaluates it. Reading members or
 // the opening choice changes no DOM; keeping a choice owns its presentation.
 /** @param {Element} holder */
-const memberSelector = (holder) => registry[holder.localName]?.["x-views"]?.members;
+const memberSelector = (holder) => registry[holder.localName]?.views?.members;
 /** @param {Element} holder */
 export function viewMembers(holder) {
   return window.lfViews.members(holder, memberSelector(holder));
@@ -59,36 +64,50 @@ export function openingView(holder, fallback = undefined) {
 }
 /** @param {Element} holder */
 export function markViews(holder) {
-  const declaration = registry[holder.localName]?.["x-views"];
+  const declaration = registry[holder.localName]?.views;
   if (!declaration) return;
-  keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+  keeps(holder, marks.views.attribute, declaration.parts ? "parts" : "");
   keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
 }
 // The document a node stands in, which is the view member holding it, such as a tab's
 // panel, or else the `main` holding it; null outside both. A widget that acts on the
-// document around it, such as a contents list or a depth dial, reads it here, and
-// chooses for itself where a node beside `main` or in a message looks.
+// document around it, such as a contents list, reads it here, and chooses for itself
+// where a node beside `main` or in a message looks.
 /** @param {Element} node @returns {HTMLElement | null} */
 export const viewDocument = (node) =>
-  node.closest(`[${marks["x-views"].paint}] > *, main`);
+  node.closest(`[${marks.views.attribute}] > *, main`);
 /** @param {Element} holder @param {Element | null} member @param {Element | null} [leaving] */
 export function keepView(holder, member, leaving = null) {
   markViews(holder);
   return window.lfViews.keep(holder, member, leaving);
 }
-export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+export const writingStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
 export const userStore = window.lfStorage.userStore;
-// Which of a view's arrangements the user chose, such as On me's grouping, kept for
+// Which of a view's arrangements the user chose, such as On Me's grouping, kept for
 // every page as the chrome they arrange is: the stored value while it is one of
 // `values`, else null, as a store that refuses reads, so the caller's default stands.
+// Another tab may change it, so its version catches up by reading the store again, and
+// a reading kept from it (kept.js) is made again when the choice changes.
 /** @template {string} T @param {string} key @param {readonly T[]} values */
-export const userChoice = (key, values) =>
-  Object.freeze({
+export const userChoice = (key, values) => {
+  /** @type {T | null} */
+  let chosen = null;
+  const catchUp = () => {
+    const value = userStore.get(key);
+    const now = values.find((candidate) => candidate === value) ?? null;
+    if (now === chosen) return;
+    chosen = now;
+    choice.move();
+  };
+  const choice = version(catchUp);
+  return Object.freeze({
     read: () => {
-      const value = userStore.get(key);
-      return values.find((candidate) => candidate === value) ?? null;
+      catchUp();
+      choice.read();
+      return chosen;
     },
     write: (/** @type {T | null} */ value) => userStore.set(key, value),
   });
+};

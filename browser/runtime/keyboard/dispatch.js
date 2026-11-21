@@ -666,7 +666,7 @@ export function invokePress({ id, row, binding }) {
   return true;
 }
 // A control standing in for a page command's key, as the floating panel's field-end
-// presses do (floating-panel.js, `noticePress`): the command's row by its id or by one
+// presses do (notifications.js, `pressReading`): the command's row by its id or by one
 // of its routes', made as a press of that route's key, so it acts wherever the caret
 // stands, as a menu row or a touch control does, where the key would be a letter typed.
 /** @param {string} id */

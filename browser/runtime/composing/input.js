@@ -318,11 +318,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
   /** @type {import("@preact/signals-core").Signal<Element | null>} */
   const hintedBox = signal(null);
   const hintLabel = signal("");
-  // A box's press stands only while a key of its would make it (floating-panel.js,
-  // `noticePress`), which the dispatcher decides from focus and the keys' liveness
-  // rather than from anything a box reads, so this frame reads each offered press
-  // again, as it gives every box the comment key's destination, and repaints a box
-  // whose press now reads otherwise than it drew.
+  // A box's press stands only while a key of its would make it
+  // (keyboard/control-keys.js, `commandKeysNow`), which the dispatcher decides from
+  // focus and the keys' liveness rather than from anything a box reads, so this frame
+  // reads each offered press again, as it gives every box the comment key's
+  // destination, and repaints a box whose press now reads otherwise than it drew.
   /** @type {Map<CompositionField, () => boolean>} */
   const pressing = new Map();
   const publishInputHint = () => {

@@ -147,6 +147,13 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     expect(preview.locator(".lf-place-item:not([data-lf-chosen])")).to_have_text(
         "At the door"
     )
+    # Each option stands on a line of its own.
+    chosen, other = (
+        preview.locator(f".lf-place-item{which}").bounding_box()
+        for which in ("[data-lf-chosen]", ":not([data-lf-chosen])")
+    )
+    assert chosen and other, (chosen, other)
+    assert abs(other["y"] - chosen["y"]) >= chosen["height"] - 0.5, (chosen, other)
     page.locator("#to-site").hover()
     expect(preview).to_be_hidden()
 

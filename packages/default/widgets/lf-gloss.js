@@ -10,8 +10,8 @@
  * Pointing reads; pressing acts. A pointer resting on the phrase, keyboard focus on it
  * and a finger holding it read the explanation as the phrase's preview, in the face
  * every preview wears (`lfPreview`, module-input.md, "Previews"). A press pins the
- * explanation's own card open, on the page's paper rather than the preview's ink,
- * where its words can be selected and commented on, and a second press puts it away. The phrase is the visible affordance; a proxy at the same place
+ * explanation's own card open, where its words can be selected and commented on, and a
+ * second press puts it away. The phrase is the visible affordance; a proxy at the same place
  * (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route without
  * adding a second mark to the prose, and its description is the card, which a screen
  * reader hears on focus. An auto popover owns the card's top-layer lifecycle and light

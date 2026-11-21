@@ -1230,7 +1230,9 @@ html[data-lf-draw-mode] {
     border-radius: var(--lf-tip-r);
     background: var(--lf-tip-bg);
     color: var(--lf-tip-ink);
-    box-shadow: var(--lf-raise-1);
+    box-shadow:
+      0 0 0 1px var(--lf-tip-ring),
+      var(--lf-tip-lift);
     font: var(--lf-font-tip);
     text-align: start;
     white-space: normal;
@@ -1330,15 +1332,17 @@ html[data-lf-draw-mode] {
      excerpt room: under the place's name, its first parts as the page reads them, each a
      line of detail the face fits to its room (`fit`, preview.js), a list's items, a
      table's cells and a code block's lines each cut to one, then the conversations about
-     it under a rule. The tooltip's ground is the page's ink, so its marks mix the
-     tooltip's own ink rather than the paper's colours. */
+     it under a rule. Its marks mix the face's own ink, so they hold on whatever ground
+     the face wears. */
   .lf-place-heading,
   .lf-place-cell[data-lf-head] {
     font-weight: 600;
   }
-  .lf-place-list {
-    display: flex;
-    flex-direction: column;
+  /* Its items in block flow, each a line, which a line clamp counts and holds back, as
+     it can't in a flex box. */
+  .lf-place-list,
+  .lf-place-item {
+    display: block;
   }
   .lf-place-item,
   .lf-place-cell,

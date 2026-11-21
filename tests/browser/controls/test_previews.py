@@ -882,14 +882,22 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 )
 
 
-# Places longer than a card shows: a log of long lines, a paragraph and a list whose first
-# item each run past what a card holds.
+# Places longer than a card shows: a log of long lines, a paragraph, a table of more rows
+# than a card holds and a list whose first item each run past what a card holds. Their
+# links stand fixed at the window's top, 24 px tall, and a bar stands fixed 55 px of room
+# below them, so every card holds its name and one line of detail, not two, whatever the
+# face its words are set in; above them the window holds no line at all.
 LONG_LINE = "x" * 300
 CUT_PAGE = leaf_page(
     "Places that run on",
     """
-<p><a id="to-log" href="#log">the log</a>, <a id="to-prose" href="#prose">the prose</a>
-and <a id="to-items" href="#items">the items</a></p>
+<p style="position: fixed; top: 40px; left: 8px; margin: 0"
+><a id="to-log" href="#log">the log</a>, <a id="to-prose" href="#prose">the prose</a>,
+<a id="to-table" href="#table">the table</a> and <a id="to-items" href="#items">the
+items</a></p>
+<button id="bar" style="position: fixed; left: 0; top: 130px; width: 100%; height: 24px"
+>Bar</button>
+<div style="height: 200px"></div>
 <pre id="log">"""
     + "\n".join(f"L{n} {LONG_LINE}" for n in range(1, 41))
     + """</pre>
@@ -899,16 +907,28 @@ and <a id="to-items" href="#items">the items</a></p>
 <ul id="items"><li>"""
     + " ".join(["A first item that runs on and on."] * 30)
     + """</li><li>Second.</li></ul>
+<table id="table"><thead><tr><th>Session</th><th>Room</th></tr></thead><tbody>"""
+    + "".join(f"<tr><td>Row {n}</td><td>Workshop hall</td></tr>" for n in range(1, 21))
+    + """</tbody></table>
 """,
+    head="<style>#to-log, #to-prose, #to-table, #to-items"
+    " { display: inline-block; height: 24px }</style>",
 )
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_card_cut_short_says_so_with_an_ellipsis(engine, request, serve):
-    """A card reads no more of a place than it shows, and says so where the place runs
-    on: a log of long lines shows its first four lines whole and then an ellipsis, and a
-    paragraph and a list's first item longer than the card holds end in one."""
+    """A card cut short says so where its place runs on: a log of long lines takes its
+    first four lines, each whole, and ends in an ellipsis, and a paragraph and a list's
+    first item longer than the card holds end in one. A table shows its first rows
+    after a card that ended in a clamp: the card draws each place into the elements the
+    last one used, and a clamp holds back none of a table's rows, so the fit reads the
+    lines a block shows off its box, not off the count the clamp was given. Read off
+    the count, the table would be one line taller than the room, and the card would
+    show only its name."""
     page = open_page(request.getfixturevalue(engine), serve(CUT_PAGE))
+    # Too narrow for a card beside a link, so each stands below it.
+    page.set_viewport_size({"width": 390, "height": 600})
     preview = page.locator(PREVIEW)
 
     def card(link):
@@ -924,14 +944,18 @@ def test_a_card_cut_short_says_so_with_an_ellipsis(engine, request, serve):
     assert lines[-1].endswith("…"), lines[-1][-20:]
     card("#to-prose")
     assert preview.locator(".lf-place-text").inner_text().endswith("…")
+    card("#to-table")
+    assert preview.locator(".lf-place-cell").first.inner_text() == "Session"
     card("#to-items")
     assert preview.locator(".lf-place-item").first.inner_text().endswith("…")
 
 
+# The links stand well above the places they lead to, so a preview below the last lines
+# of links has room for its name and its first part clear of the first place's summary.
 DRAWN_PAGE = leaf_page(
     "What a place draws",
     """
-<p id="lede"><a id="to-closed" href="#closed">a closed disclosure</a>,
+<p id="lede" style="margin-block-end: 5em"><a id="to-closed" href="#closed">a closed disclosure</a>,
 <a id="to-held" href="#held">a block holding one</a>,
 <a id="to-spans" href="#spans">a paragraph with hidden words</a>,
 <a id="to-titled" href="#titled">a section with a hidden word in its title</a>,
@@ -1103,16 +1127,17 @@ def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
 def test_an_entry_holding_several_threads_says_each(engine, request, serve):
     """A margin entry holding several threads is named by their count and gives every
     thread a line of its name and where it stands, as the card a press opens lists
-    them all."""
+    them all. The names are short enough that each thread's line stays one line, so
+    the room beside the entry holds all four."""
     url = serve(PANEL_PAGE)
     for n in range(1, 5):
-        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+        panel_comment(serve.page_dir, f"Question {n}?", {"section": "lede"})
     page = open_page(request.getfixturevalue(engine), url)
     entry = page.locator('[data-lf-margin-for="lede"] > .lf-margin-marker')
     parts = preview_parts(entry)
     assert parts[0] == "4 threads", parts
     assert [part.split(" · ")[0] for part in parts[1:]] == [
-        f"Question {n} on the lede?" for n in range(1, 5)
+        f"Question {n}?" for n in range(1, 5)
     ], parts
 
 
@@ -2769,7 +2794,7 @@ def test_a_line_that_ends_in_an_ellipsis_keeps_to_its_room(engine, request, serv
                 "Cut line",
                 '<span id="aim" tabindex="0" style="position: fixed; left: 8px;'
                 ' top: 40px; width: 300px; height: 24px">Aim</span>'
-                '<button id="bar" style="position: fixed; left: 0; top: 115px;'
+                '<button id="bar" style="position: fixed; left: 0; top: 125px;'
                 ' width: 100%; height: 24px">Bar</button>',
             )
         ),

@@ -487,9 +487,13 @@ function wholeHeight() {
 // The face's lines as it lays out whole, read from layout whatever room a past fit held
 // it to, so the fit and the decision count a line alike: each block, the element its
 // lines wrap in (a name's words, else the block), the offset of its top from the face's
-// top, its line's height as laid out and its lines, a past fit's clamp added back in; and
-// the room each whole line needs from the face's top, the face's foot padding included.
-// A list's lines short of all of them need room for its count under them too.
+// top, its line's height as laid out and its lines, what a past fit's clamp holds back
+// added in; and the room each whole line needs from the face's top, the face's foot
+// padding included. A list's lines short of all of them need room for its count under
+// them too. A block's lines shown are read off its box, never off the count a past
+// clamp was given: the block may since hold another reading's words, which the face
+// draws into the same elements, and a clamp holds back nothing of a part the browser
+// lays out as a grid, such as a table's, so its box stands whole.
 /** @param {Reading} reading @returns {{blocks: {block: HTMLElement, el: HTMLElement, item: boolean, top: number, line: number, lines: number}[], rooms: number[], padEnd: number, counted: number}} */
 function faceLines(reading) {
   const faceTop = body.getBoundingClientRect().top;
@@ -502,7 +506,6 @@ function faceLines(reading) {
   if (reading.list && more && !more.textContent)
     render(reading.list.more(reading.list.items.length), more);
   const counted = reading.list && more ? more.getBoundingClientRect().height : padEnd;
-  const was = clampedNow();
   let held = 0;
   const blocks = /** @type {HTMLElement[]} */ ([
     ...body.querySelectorAll(":scope > .lf-preview-name, :scope > .lf-preview-detail"),
@@ -511,18 +514,14 @@ function faceLines(reading) {
       block.querySelector(":scope > .lf-preview-word") ?? block
     );
     const box = el.getBoundingClientRect();
-    const shown =
-      el === was
-        ? Number(el.style.getPropertyValue("--lf-preview-lines"))
-        : Math.max(
-            1,
-            Math.round(box.height / parseFloat(getComputedStyle(el).lineHeight)),
-          );
-    const line = box.height / Math.max(shown, 1);
-    const lines =
-      el === was ? Math.max(shown, Math.round(el.scrollHeight / line)) : shown;
+    const shown = Math.max(
+      1,
+      Math.round(box.height / parseFloat(getComputedStyle(el).lineHeight)),
+    );
+    const line = box.height / shown;
+    const lines = Math.max(shown, Math.round(el.scrollHeight / line));
     const top = box.top - faceTop + held;
-    if (el === was) held += (lines - shown) * line;
+    held += (lines - shown) * line;
     return {
       block,
       el,

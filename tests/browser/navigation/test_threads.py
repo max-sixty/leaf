@@ -547,7 +547,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 {lead}
 <div id="local">
   {"".join(f"<p>Local context line {i}.</p>" for i in range(16))}
-  <pre id="rail"><code>{"prefix " * 80}Far-side passage to review.</code></pre>
+  <pre id="rail" style="white-space: pre"><code>{"prefix " * 80}Far-side passage to review.</code></pre>
 </div>
 {tail}
 """,

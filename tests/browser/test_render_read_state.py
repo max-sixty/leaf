@@ -121,13 +121,15 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
 
 
 def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
-    """Content inside a message that scrolls on its own, like a long code line, is part
-    of what was shown; it does not hold the message unread."""
+    """Content inside a message that scrolls on its own, like a code block that keeps
+    its long line, is part of what was shown; it does not hold the message unread."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier user thread.")
     root = panel_comment(
         serve.page_dir,
-        "Run this:\n\n```\n" + "leaf page state --json " * 40 + "\n```",
+        'Run this:\n\n<pre style="white-space: pre"><code>'
+        + "leaf page state --json " * 40
+        + "</code></pre>",
         author="agent",
     )
     page = open_page(browser, url)

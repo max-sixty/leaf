@@ -614,9 +614,6 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   summary {
     list-style: none;
   }
-  summary::-webkit-details-marker {
-    display: none;
-  }
   .lf-disclosure-marker::before {
     visibility: hidden;
   }
@@ -634,9 +631,6 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    after it. */
 .lf-disclosure-marker {
   list-style: none;
-}
-.lf-disclosure-marker::-webkit-details-marker {
-  display: none;
 }
 .lf-disclosure-marker::before {
   content: "";

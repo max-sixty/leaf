@@ -35,7 +35,9 @@ const PAINT = PAGE_PAINT_ATTRIBUTE.formula;
 // A typeset formula's `<code>`, and a display formula's `<pre>`, only wrap its source, so
 // they draw nothing of their own: a formula takes the size and ink of the words around
 // it rather than code's face, and a display formula stands in no code block's frame,
-// keeping the block's room and scrolling in it where it is too wide for the column.
+// keeping the block's room and scrolling in it where it is too wide for the column. A
+// formula can't wrap, so the block is contained: it asks what holds it for no width,
+// and a wide formula scrolls rather than widening a flex item or a grid track.
 const WRAPPING = `
 code[${PAINT}] {
   font: inherit;
@@ -51,6 +53,7 @@ pre:has(> code[${PAINT}="display"]) {
   border-color: transparent;
   white-space: normal;
   overflow-x: auto;
+  contain: inline-size;
 }
 code[${PAINT}="display"],
 code[${PAINT}="display"] > * {

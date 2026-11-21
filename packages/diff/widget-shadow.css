@@ -110,10 +110,13 @@
 .lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) .lf-diff-dir {
   flex: 1 1 0;
 }
-/* The path observer reads this font's native ellipsis width without adding words
-   or allocating another column. It paints the folder only where that glyph fits. */
+/* The path observer reads the width of a wide letter and this font's native ellipsis
+   without adding words or allocating another column. It paints the folder only where
+   both fit, since a box's first character is clipped rather than ellipsed (CSS
+   Overflow, `text-overflow`), as Firefox draws it: a box with room for the ellipsis
+   alone shows a cut letter and no ellipsis there. */
 .lf-diff-head .lf-diff-dir::before {
-  content: "…" / "";
+  content: "m…" / "";
   position: absolute;
   visibility: hidden;
   inline-size: max-content;

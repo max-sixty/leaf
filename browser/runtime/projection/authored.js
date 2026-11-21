@@ -21,7 +21,7 @@ import { authoredRank } from "./model.js";
    ownership. `stageAuthoredStates` decodes source elements while their validated
    attributes, member order, and data bodies are intact. The complete staged document
    enters the application publisher before its content modules render. Page revisions
-   and frozen thread markup use the same boundary, so presentation never becomes a
+   and thread markup use the same boundary, so presentation never becomes a
    semantic input.
 
    `authoredStates` holds the one typed initial condition per owner. Provenance
@@ -51,7 +51,11 @@ const recordedOwner = (member, record) => {
 /** @param {Element} widget @param {string} selector @param {StateRecord} record */
 const ownedRecordMembers = (widget, selector, record) =>
   [...widget.querySelectorAll(selector)].filter(
-    (member) => recordedOwner(member, record) === widget,
+    // Only a Leaf element holds recorded state, as the server's index reads it
+    // (structure.py): a native `<option selected>` inside an option's card is the
+    // author's own control, not a pick.
+    (member) =>
+      member.localName.startsWith("lf-") && recordedOwner(member, record) === widget,
   );
 
 /** @param {Element} el @param {StateRecord} record */

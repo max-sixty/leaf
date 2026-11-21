@@ -33,8 +33,9 @@ from leaf.render_checks import one_frame, rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve):
-    """CSS paint and the root's accessible description survive a link's text render."""
+def test_a_render_of_an_external_links_words_keeps_its_mark(browser, serve):
+    """The mark after a link that leaves the page survives a render of its words and a
+    revision that leaves the link as written."""
     source = leaf_page(
         "kept link",
         '<h1 id="t">Links</h1><p id="holder">Read <a id="ext" '
@@ -43,7 +44,7 @@ def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve)
     )
     page = open_page(browser, live_url(serve(source)))
     link = page.locator("#ext")
-    expect(link).to_have_accessible_description("opens in a new tab")
+    expect(link).to_have_attribute("data-lf-external", "")
     expect(page.locator("#ext ~ *")).to_have_count(0)
     page.evaluate(
         """async () => {
@@ -54,10 +55,9 @@ def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve)
     )
     rendered(page)
     expect(link).to_have_attribute("data-lf-external", "")
-    expect(link).to_have_accessible_description("opens in a new tab")
 
     # A source revision compares authored hrefs, not the marker prepaint lent the
-    # first document. An unrelated edit leaves the same link and its treatment.
+    # first document. An unrelated edit leaves the same link and its mark.
     page.evaluate("window.keptLink = document.getElementById('ext')")
     (serve.page_dir / "index.html").write_text(
         source.replace("Other words.", "Revised other words.")
@@ -66,7 +66,6 @@ def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve)
     expect(page.locator("#other")).to_have_text("Revised other words.")
     assert page.evaluate("window.keptLink === document.getElementById('ext')")
     expect(link).to_have_attribute("data-lf-external", "")
-    expect(link).to_have_accessible_description("opens in a new tab")
 
 
 def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
@@ -96,14 +95,13 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
           await new Promise(requestAnimationFrame);
           await new Promise(requestAnimationFrame);
           return {
-            target: link.getAttribute('target'),
             marked: link.hasAttribute('data-lf-external'),
             scroller: scrollerFor(log.querySelector('p')) === log,
             atEnd: log.scrollHeight - log.scrollTop - log.clientHeight <= 2,
           };
         }"""
     )
-    assert held == {"target": "_blank", "marked": True, "scroller": True, "atEnd": True}
+    assert held == {"marked": True, "scroller": True, "atEnd": True}
 
 
 def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
@@ -322,7 +320,7 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
 
     # The paint that can read a notice is the one taken while it shows, and only a
     # notice wide enough to reach under the hint could move it.
-    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Moved to Done.')")
+    page.evaluate("async () => (await window.__lfCheckApi()).notice('Moved to Done.')")
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-lf-says", "notice"
     )
@@ -632,19 +630,66 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
         )
     ).to_be_focused()
     # The one close control every surface wears: the cross, named for what it closes,
-    # at the header's end.
+    # its drawn ✕ ending where the header does, on the edge the sheet's words share.
     header = sheet.locator(".lf-dialog-head")
     close = header.get_by_role("button", name="Close Page Map", exact=True)
-    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
-    header_box, close_box = header.bounding_box(), close.bounding_box()
-    assert header_box and close_box
-    assert close_box["x"] + close_box["width"] == pytest.approx(
-        header_box["x"] + header_box["width"], abs=0.5
-    ), (header_box, close_box)
+    cross = close.locator('svg[data-lf-icon="cross"]')
+    expect(cross).to_have_count(1)
+    header_box = header.bounding_box()
+    assert header_box
+    ink_end = cross.evaluate("""svg => {
+      const box = svg.getBBox(), at = svg.getScreenCTM();
+      return at.a * (box.x + box.width + parseFloat(getComputedStyle(svg).strokeWidth) / 2) + at.e;
+    }""")
+    assert ink_end == pytest.approx(header_box["x"] + header_box["width"], abs=1), (
+        header_box,
+        ink_end,
+    )
     expect(sheet).to_contain_text(
         "No margin controls, status indicators or locations yet"
     )
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
+
+
+def test_an_armed_go_to_is_named_beside_the_way_out_that_closes_it_from_any_step(
+    browser, serve
+):
+    """While Go-to waits for a key, the panel's row names it beside its ✕, chips or
+    none, where the field says what Go-to found, and the ✕ takes the map off from any
+    step, a filter typed or none. The field's end says Close and esc while Escape would
+    take the map off, and nothing while it would take back a typed letter first."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Links", '<h1>Links</h1><p><a id="one" href="#one">One link</a></p>'
+            )
+        ),
+    )
+    field = page.locator(".lf-fp-field leaf-text")
+    name = page.locator(".lf-fp-mode")
+    leave = page.locator('.lf-fp-row > .lf-fp-exit[aria-label="Close Go to"]')
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    expect(name).to_have_text("Go to")
+    expect(leave).to_be_visible()
+    expect(field).to_have_attribute("placeholder", re.compile(r" · Close esc$"))
+    expect(field).not_to_have_attribute("placeholder", re.compile("Go-to"))
+    # A filter that keeps the link's chip.
+    page.keyboard.press("h")
+    expect(page.locator(f"{CHIPS}:visible")).to_have_count(1)
+    expect(name).to_have_text("Go to")
+    expect(field).not_to_have_attribute("placeholder", re.compile("Close"))
+    page.keyboard.press("Escape")
+    expect(field).to_have_attribute("placeholder", re.compile(r" · Close esc$"))
+    page.keyboard.press("t")
+    expect(field).to_have_attribute("placeholder", "No visible threads")
+    leave.click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
+    expect(name).to_be_hidden()
+    expect(leave).to_have_count(0)
 
 
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
@@ -670,7 +715,8 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(page.locator("#tab-feeders")).to_have_attribute("hidden", re.compile(".*"))
     page.keyboard.press("ArrowLeft")
     expect(tabs.first).to_be_focused()
-    expect_walk_position(page, "Tab 1 of 2")
+    # Both tabs stand in view around the ring, so the step declares no position.
+    expect_walk_position(page, None)
 
 
 def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve):
@@ -823,7 +869,8 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("Tab")
     first_code = address_code(page, "Link", "first")
-    expect_walk_position(page, "Target 1 of 2")
+    # Every hint stands on screen, the heard one marked, so the walk says no position.
+    expect_walk_position(page, None)
     expect(page.locator(".lf-live")).to_have_text(
         f"Hint {first_code}: Link, First destination. Press Enter to go there."
     )
@@ -832,7 +879,6 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     )
 
     page.keyboard.press("Tab")
-    expect_walk_position(page, "Target 2 of 2")
     page.keyboard.press("Enter")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
@@ -841,3 +887,38 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
     )
     expect(page.locator(CHIPS)).to_have_count(0)
+
+
+def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, serve):
+    """A revision moves the page under an armed Go-to map with no scroll. Each chip rides
+    its target, and every letter the user has read and the target the walk stands on
+    stay, so the letter they just read takes what they read it on (keyboard/hints.js)."""
+    links = "".join(
+        f'<p><a id="l{n}" href="#top">Destination {n}</a></p>' for n in range(1, 6)
+    )
+    heading = '<h1 id="top">Kept letters</h1>'
+    source = leaf_page("Kept letters", heading + links)
+    page = open_page(browser, live_url(serve(source)))
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS)).to_have_count(5)
+    codes = {n: address_code(page, "Link", f"l{n}") for n in range(1, 6)}
+    for _ in range(3):
+        page.keyboard.press("Tab")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l3"]')).to_have_class(
+        re.compile(r"\blf-current\b")
+    )
+
+    added = '<p>New words with <a id="new" href="#top">a new link</a>.</p>'
+    (serve.page_dir / "index.html").write_text(source.replace(heading, heading + added))
+    told(page)
+    expect(page.locator("#new")).to_be_visible()
+    rendered(page)
+    assert {n: address_code(page, "Link", f"l{n}") for n in range(1, 6)} == codes
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l3"]')).to_have_class(
+        re.compile(r"\blf-current\b")
+    )
+    page.keyboard.press("Tab")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l4"]')).to_have_class(
+        re.compile(r"\blf-current\b")
+    )
+    expect(page.locator(".lf-live")).to_contain_text("Destination 4")

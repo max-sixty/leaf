@@ -33,7 +33,7 @@ option to click, reads none of that input, and the report names it as missing.
   it paints (`leaf_dev.painted`). Each counts the requests and bytes it caused
   (`Traffic`).
 - `server` times the server's paths on each generated page in this process, with no
-  browser, on this checkout only (`leaf_dev.server_paths`).
+  browser, on this checkout only (`measure_server`).
 
 Each pass reads a POST its own way. The CPU pass reads it from the page's Resource
 Timing, which every engine keeps and which adds no work to the main thread it times.
@@ -75,10 +75,7 @@ profiled run and durations from one without.
 --browser firefox measures Playwright's Firefox, on macOS, and reads only `cpu`.
 Firefox offers no count of its tasks, so there an input's CPU is the page's main
 thread's as the OS counts it (`ContentClock`), the clock Chromium's thread ticks read.
-Over the same windows in Chromium on 2026-11-05, the OS's count was at most 0.7 ms per
-input above the ticks. Driven alike through geckodriver that day, the Firefox 159 on
-this Mac read about 10% below Playwright's build, Firefox 157, with the same functions
-on top. To name what took Firefox's time, run under the Gecko profiler's variables;
+To name what took Firefox's time, run under the Gecko profiler's variables;
 the browser writes a profile of the whole run as it closes, which
 <https://profiler.firefox.com> reads, and its samples' `threadCPUDelta` sum to the
 OS's count:
@@ -89,16 +86,20 @@ OS's count:
 
 CPU time spreads less than elapsed time on a loaded host, and each exponent compares
 sizes within one run. `event`, `painted`, `answered` and `shown` are elapsed time, which
-a busy host stretches, and so does a run held to the efficiency cores: on 2026-11-05
-`taskpolicy -c utility` read a click's `shown` at 110 to 170 ms on pages the default
-policy showed in 30 to 35. The daily CI run measures the generated pages and charts
-their readings (`.github/workflows/ci.yaml`, `bench`).
+a busy host stretches, and so does a run held to the efficiency cores, as
+`taskpolicy -c utility` holds it. The daily CI run measures the generated pages and
+charts their readings (`.github/workflows/ci.yaml`, `bench`).
 """
 
+import cProfile
 import ctypes
+import gc
 import itertools
 import json
 import math
+import os
+import re
+import shutil
 import statistics
 import subprocess
 import time
@@ -118,6 +119,7 @@ from dataclasses import asdict, dataclass, field, replace
 from functools import partial
 from pathlib import Path
 from typing import NamedTuple
+from unittest.mock import patch
 from urllib.parse import urlsplit
 
 import click
@@ -189,18 +191,17 @@ FITTED = 3
 # Where a reading grows by less than its floor above BASE, what little it grew is the
 # host's noise, and its exponent leaves that size out. A floor is a share of the BASE
 # page's load CPU from the same run. A slower machine slows that reading as much as
-# every other, so it fits the same sizes to the same exponent. With the BASE page
-# loading in 150-210 ms on an unloaded M5 Max, the shares put a floor near 10 ms of
-# CPU and near 50 ms of elapsed time. Sizes and counts no machine's speed changes have
+# every other, so it fits the same sizes to the same exponent. Where the BASE page
+# loads in about 200 ms, the shares put a floor near 10 ms of CPU and near 50 ms of
+# elapsed time. Sizes and counts no machine's speed changes have
 # floors of their own.
 FLOOR_SHARES = {"cpu": 0.05, "elapsed": 0.25}
 COUNT_FLOORS = {"KB": 10, "requests": 1}
 # A held reading's floor is this share of its own reading on the BASE page, as a server
-# path's is its own (`server_paths.floors`), and a held count's is at least one. A
+# path's is its own (`server_floors`), and a held count's is at least one. A
 # keystroke's CPU is a few ms, less than the load's share, so a floor from the load
 # would hide its doubling, and a POST's 4 KB answer growing to 20 KB stays under the
-# fixed 10 KB. In the daily runs of 2026-11-12 to 14, an input's CPU differed between
-# two rounds by a median of 4%, and by 18% at the 90th percentile.
+# fixed 10 KB.
 HELD_FLOOR_SHARE = 0.25
 # Root `AGENTS.md`, "Responsiveness": a gesture shows the server's reading within this
 # many ms on the largest page.
@@ -233,9 +234,8 @@ THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
     f"Earlier conversation paragraph {line + 1}." for line in range(20)
 )
 # The steps each of `side_documents`' sources holds, two lines a step: a few percent of
-# one of #4781's 4 MB documents, long enough that a walk of every document's rows on
-# each tab opened (#5996) shows at 256, and short enough to keep the daily run to
-# minutes.
+# a 4 MB document, long enough that a walk of every document's rows on each tab
+# opened shows at 256, and short enough to keep the daily run to minutes.
 DOCUMENT_STEPS = 1024
 # A word every line of `steps` holds, which `matches` searches for.
 WORD = "value"
@@ -291,9 +291,20 @@ CENTRE = """(selector) => {
   const box = node.getBoundingClientRect();
   return [box.x + box.width / 2, box.y + box.height / 2];
 }"""
-# The leaf's menu, its Annotations, and Capture area's row there.
+# The centres of the page's first two tab controls, the first brought into view.
+TAB_CENTRES = """() => {
+  const controls = [...document.querySelectorAll("[role=tab]")].slice(0, 2);
+  controls[0].scrollIntoView({ block: "nearest" });
+  return controls.map((control) => {
+    const box = control.getBoundingClientRect();
+    return [box.x + box.width / 2, box.y + box.height / 2];
+  });
+}"""
+# The leaf, the menu's tab at the On view's foot, which the leaf may have opened on
+# another, its Annotations, and Capture area's row there.
 MENU_ROWS = (
     ".lf-fp-leaf",
+    ".lf-fp-controls .lf-fp-filters > button:first-child",
     '.lf-fp-item[data-lf-row="group:annotate"]',
     '.lf-fp-item[data-lf-row="command:capture.region.open"]',
 )
@@ -382,16 +393,16 @@ OWNERS = 6
 
 
 def ask(g: int, options: int = 4) -> str:
-    """Section `g`: a heading, a paragraph and an `lf-ask` of `options` options."""
+    """Section `g`: a heading, a paragraph and a question section of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose multiple>'
+        f'<lf-group id="q{g}" label="Question {g}"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
-            f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
+            f'<lf-option id="o{g}-{i}" label="Option {i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
             for i in range(1, options + 1)
         )
-        + "</lf-options></lf-ask></section>"
+        + "</lf-options></lf-group></section>"
     )
 
 
@@ -425,8 +436,7 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
         return (
             f'<lf-column id="b{b}-{name}" label="{name.title()}">'
             + "".join(
-                f'<lf-card id="b{b}-{name}{j}"><strong>Card {j}</strong> of board {b}.'
-                "</lf-card>"
+                f'<lf-card id="b{b}-{name}{j}" label="Card {j}"><strong>Card {j}</strong> of board {b}.</lf-card>'
                 for j in range(1, count + 1)
             )
             + "</lf-column>"
@@ -448,9 +458,9 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     sections = "".join(
         f'<section id="s{g}"><h2>Section {g}</h2>'
@@ -475,13 +485,14 @@ def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     document = (
-        '<lf-text-document id="listing" label="steps.py" language="python">'
-        f"<pre>{steps(n * 32)}</pre></lf-text-document>"
+        '<lf-text-document id="listing" label="steps.py">'
+        f'<pre><code class="language-python">{steps(n * 32)}</code></pre>'
+        "</lf-text-document>"
     )
     return page("Document", question + document)
 
@@ -489,12 +500,12 @@ def document_lines(n: int) -> str:
 def documents(n: int) -> int:
     """How many documents `side_documents(n)` holds: the one shown, one in a closed
     tab for each eight of `n`, and one more, so the BASE page has the two closed tabs
-    `reveal` opens and 256 holds about #4781's thirty."""
+    `reveal` opens and 256 holds about thirty."""
     return 2 + n // 8
 
 
 def side_documents(n: int) -> str:
-    """#4781's page: a side list of tabs, each holding a text document bound to a
+    """A page of a side list of tabs, each holding a text document bound to a
     source of its own (`document_sources`), the first tab's shown and the rest closed.
     The documents grow in number and each stays as long, so a cost that grows with
     the documents the page holds, such as every source sent on a write to one
@@ -504,11 +515,22 @@ def side_documents(n: int) -> str:
     reads."""
     tabs = "".join(
         f'<lf-tab id="t{d}" label="Document {d}"><lf-text-document id="d{d}" '
-        f'source="s{d}" label="document_{d}.py" language="python"></lf-text-document>'
+        f'source="s{d}" label="document_{d}.py" class="language-python"></lf-text-document>'
         "</lf-tab>"
         for d in range(documents(n))
     )
     return page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+
+
+def side_asks(n: int) -> str:
+    """A side list of `n` tabs, each holding one section's ask, so each tab marks the
+    state of the obligation its panel holds. A click on an option redraws every tab's
+    mark, so the CPU of that click reads what counting each panel's obligations costs
+    (#5722)."""
+    tabs = "".join(
+        f'<lf-tab id="t{g}" label="Tab {g}">{ask(g)}</lf-tab>' for g in range(1, n + 1)
+    )
+    return page("Asks", f'<lf-tabs id="tabs" list="side">{tabs}</lf-tabs>')
 
 
 def document_text(d: int, first: str | None = None) -> str:
@@ -529,9 +551,9 @@ def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     rows = "".join(
         f"<tr><td>Row {r}</td><td><code>branch-{r}</code></td><td>{r} days</td>"
@@ -697,6 +719,7 @@ COLLECTIONS: dict[str, Collection] = {
     ),
     "rows": Collection(table_rows),
     "documents": Collection(side_documents, data=document_sources),
+    "asktabs": Collection(side_asks),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
     ),
@@ -984,14 +1007,17 @@ class Input(NamedTuple):
     for the input's painted goals where it has them, for the POST's answer where they
     include the server's reading of its event (`delivered`), and then `after` ms. The
     paint pass times it `count` times, each after `ready`, where it `paints`, and a
-    page reads the input only where it holds `needs`. An `agent` input is an agent's
-    write, which reaches the page only in the server's reading. A `whole` input's
-    result is made of the whole page, as a revision's new document or a search's
-    count of its matches is, so what it costs may grow with the page (`held`)."""
+    page reads the input only where it holds `needs`. `leave` follows each `ready` once
+    the windows after it end, to take back a mode `ready` entered, so the inputs after
+    it meet the page as they would without it. An `agent` input is an agent's write,
+    which reaches the page only in the server's reading. A `whole` input's result is
+    made of the whole page, as a revision's new document or a search's count of its
+    matches is, so what it costs may grow with the page (`held`)."""
 
     act: Callable[[Tab], float | None]
     count: int = 1
     ready: Callable[[Tab], Goals] = lambda _: {}
+    leave: Callable[[Tab], None] = lambda _: None
     each: bool = True
     paints: bool = False
     after: float = 0
@@ -1045,6 +1071,13 @@ def tab_step(tab: Tab) -> None:
     tab.page.keyboard.press("Tab" if way > 0 else "Shift+Tab")
 
 
+def walk_step(tab: Tab) -> None:
+    """Step the On Me walk to the next question waiting on the user, or back, from
+    where `halfway` left the reader, so every size walks the same few questions."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("m" if way > 0 else "Shift+m")
+
+
 def halfway(tab: Tab) -> Goals:
     x, y = tab.page.evaluate(HALFWAY, RUN * NOTCH)
     tab.target = {"x": x, "y": y}
@@ -1064,6 +1097,14 @@ def hover_step(tab: Tab) -> None:
     tab.page.mouse.move(tab.target["x"], tab.target["y"] + LINE * lines)
 
 
+def hold_alt(tab: Tab) -> None:
+    """Hold ⌥ down, which arms the page under the pointer, or let it up."""
+    if tab.sample % 2:
+        tab.page.keyboard.up("Alt")
+    else:
+        tab.page.keyboard.down("Alt")
+
+
 def design_key(tab: Tab) -> None:
     """Enter Design mode, or leave it."""
     tab.page.keyboard.press("l")
@@ -1072,6 +1113,55 @@ def design_key(tab: Tab) -> None:
 def draw_key(tab: Tab) -> None:
     """Enter Draw mode, or leave it."""
     tab.page.keyboard.press("w")
+
+
+def enter_design(tab: Tab) -> Goals:
+    """Leave nothing focused, rest the pointer on the first tab control, in view, with
+    its centre and the second's noted (`TAB_CENTRES`), and enter Design mode."""
+    tab.page.evaluate("() => document.activeElement?.blur()")
+    centres = tab.page.evaluate(TAB_CENTRES)
+    tab.target = {"centres": centres}
+    tab.page.mouse.move(*centres[0])
+    design_key(tab)
+    tab.quiet(600)
+    return {}
+
+
+def inspect_step(tab: Tab) -> None:
+    """Move the pointer onto the other of the two tab controls, each a part Design mode
+    names inside the tabs widget, as #4781's reader moved between its side tabs."""
+    tab.page.mouse.move(*tab.target["centres"][(tab.sample + 1) % 2])
+
+
+def open_picker(tab: Tab) -> Goals:
+    """Enter Design mode as `enter_design` does, open the target picker (`s`), and stand
+    its walk on the last hint in view: on `side_documents`' pages, the last tab the side
+    list shows, a part Design mode names inside the tabs widget."""
+    enter_design(tab)
+    tab.page.keyboard.press("s")
+    tab.page.keyboard.press("Shift+Tab")
+    tab.quiet(600)
+    return {}
+
+
+def pick_step(tab: Tab) -> None:
+    """Walk the picker's hints up from the last and back (`WAYS`), each step announcing
+    the hint it reaches, as #4781's reader heard the side tabs."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("Shift+Tab" if way > 0 else "Tab")
+
+
+def leave_picker(tab: Tab) -> None:
+    """Close the target picker, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    design_key(tab)
+
+
+def leave_composer(tab: Tab) -> None:
+    """Close the comment a press in Design mode opened, which holds no words and so
+    leaves no draft, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    tab.page.keyboard.press("Escape")
 
 
 def open_annotations(tab: Tab) -> Goals:
@@ -1423,9 +1513,32 @@ INPUTS: dict[str, Input] = {
     "key": Input(type_letter, 20, enter_field, each=False, after=60),
     "leave": Input(leave_field, 4, enter_field, after=200),
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
+    "walk": Input(walk_step, 8, halfway, each=False, after=300, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
     "hover": Input(hover_step, 32, halfway, each=False, after=50),
+    "aim": Input(hold_alt, 8, halfway, each=False, after=100),
     "design": Input(design_key, 2, halfway, each=False, after=400),
+    "inspect": Input(
+        inspect_step,
+        16,
+        enter_design,
+        leave=design_key,
+        each=False,
+        after=50,
+        needs="[role=tab]",
+    ),
+    "pick": Input(
+        pick_step,
+        16,
+        open_picker,
+        leave=leave_picker,
+        each=False,
+        after=100,
+        needs="[role=tab]",
+    ),
+    "part": Input(
+        press, 4, enter_design, leave=leave_composer, after=400, needs="[role=tab]"
+    ),
     "draw": Input(draw_key, 2, halfway, each=False, after=400),
     "capture": Input(capture_toggle, 2, open_annotations, each=False, after=400),
     "data": Input(
@@ -1466,9 +1579,15 @@ INPUTS: dict[str, Input] = {
         agent_status, ready=name_status, paints=True, after=300, agent=True
     ),
     "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=DOCUMENTS),
-    "search": Input(open_search, ready=aim_at_search, after=400, needs=DOCUMENTS),
+    "search": Input(
+        open_search, ready=aim_at_search, after=400, needs="lf-text-document"
+    ),
     "matches": Input(
-        search_word, ready=empty_search, after=400, needs=DOCUMENTS, whole=True
+        search_word,
+        ready=empty_search,
+        after=400,
+        needs="lf-text-document",
+        whole=True,
     ),
     "browse": Input(run_step, 16, open_tabs, each=False, after=300, needs=DOCUMENTS),
 }
@@ -1747,6 +1866,10 @@ def per_input(tab: Tab, name: str, timed, idle: float) -> dict[str, float]:
         cpu, elapsed = timed(name, partial(run, samples, after))
         spent += cpu - idle * elapsed
         posts += page.evaluate(EVENT_POSTS)[posted:]
+        if each.each:
+            each.leave(tab)
+    if not each.each:
+        each.leave(tab)
     readings = {f"{name} cpu": spent / each.count}
     if posts:
         readings[f"{name} event"] = statistics.median(post["ms"] for post in posts)
@@ -1791,6 +1914,7 @@ def paint_pass(
                 current.sample = sample
                 goals = each.ready(current)
                 windows.append(measure(current, traffic, name, goals, profiles))
+                each.leave(current)
         # Playwright delivers the browser's reports only while it talks to the page.
         page.evaluate("0")
     return windows, missing
@@ -1866,8 +1990,8 @@ def traced(page: Page, directory: Path, name: str):
     browser = page.context.browser
     assert browser is not None
     recorded = []
-    # The trace starts first: on 2026-11-05 a profile started before it held no
-    # samples in the window the trace's marks bound.
+    # The trace starts first: a profile started before it can hold no samples in the
+    # window the trace's marks bound.
     browser.start_tracing(page=page, path=str(trace), categories=CATEGORIES)
     try:
         with cpu_profile(page, profile):
@@ -2138,10 +2262,7 @@ def exponent(
     ]
     if len(pairs) < max(2, fitted - 1):
         return None
-    mean_x = sum(x for x, _ in pairs) / len(pairs)
-    mean_y = sum(y for _, y in pairs) / len(pairs)
-    spread = sum((x - mean_x) ** 2 for x, _ in pairs)
-    return sum((x - mean_x) * (y - mean_y) for x, y in pairs) / spread
+    return statistics.linear_regression(*zip(*pairs, strict=True)).slope
 
 
 def interleaved[K](rounds: int, keys: Sequence[K]) -> Iterator[tuple[int, K]]:
@@ -2466,24 +2587,364 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
         show_marks(by_arm)
 
 
+# The `server` read times the server's paths on the generated pages, in this process:
+# `server_pages` makes one collection's page (`COLLECTIONS`) at each size in a scratch
+# directory, with its versions activated in turn and then its log, and
+# `measure_server` reads the CPU each path takes on each page, least of
+# `SERVER_ROUNDS`:
+#
+# - `state`: the served state a page server answers each read with
+#   (`PageStateService.page_state`), read after an append has changed the log, or
+#   with nothing changed on a page with no log;
+# - `append`: admitting one more event like the log's last, where it has one, in the
+#   transaction every writer takes (`event_contracts.append_admitted`);
+# - `delivery`: what `leaf wait` hands the agent of everything no receipt has passed,
+#   captured, frozen and read (`delivery.batch_data`);
+# - `agent`: `leaf page state` for the page;
+# - `thread`: `leaf page state` for the log's first thread, where it has one;
+# - `activate`: making a changed source the next revision (`activate_source`).
+#
+# It runs this checkout's `leaf`, with `XDG_STATE_HOME` in the scratch directory for
+# the duration. A page server keeps a page's readings between
+# requests (`page_memory`), and so does this process, so each path is timed as a
+# server takes it again, with the readings of what didn't change kept. A `leaf`
+# command starts with none kept, so `agent`, `thread` and a hook's `delivery` cost a
+# command more than these, by the page's parse and the imports.
+SERVER_PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
+# A click's paths: admitting its event and computing the reading the server answers
+# with. Root `AGENTS.md`, "Responsiveness", puts that reading on screen within
+# `BUDGET_MS`, so the two together take no more at `REFERENCE` (`over_budget`); it
+# holds the agent's paths only to growing no faster than the page. Admission reads
+# the page as a reading does, so on the `events` page both may grow with the log.
+CLICK = ("append", "state")
+SERVER_ROUNDS = 3
+# How many of the largest sizes an exponent is fitted over: 256 to 1,600, a ratio of
+# 6.25. Over three, a ratio of 3.1, a host at load 50 fitted linear costs past 1.5.
+SERVER_FITTED = 4
+
+
+def server_floors(rows: list[dict]) -> dict[str, float]:
+    """Each path's noise floor (`exponent`) in `rows`, one run's readings by
+    size from BASE: the path's own reading on the BASE page, a reading of the same run,
+    as the browser's floors are shares of its load (`floor`). A path's own
+    fixed cost sets the floor, so a cheap path's growth isn't judged against a dearer
+    one's fixed work."""
+    return {path: rows[0][path] for path in SERVER_PATHS if path in rows[0]}
+
+
+def server_pages(
+    collection: Collection, sizes: list[int], directory: Path
+) -> dict[int, Path]:
+    """Make `collection`'s page at each of `sizes` under `directory`: each version
+    activated in turn, then its sources' values, then the log. Where a page's versions
+    begin with a smaller page's, they are activated once, on a page each size copies
+    before its values and log are written, so the pages of every size together
+    activate each version once."""
+    from leaf.data import cmd_data_set
+    from leaf.revisioning import activate_source
+    from leaf.vendoring import cmd_init
+    from leaf_dev.page_fixtures import DEFAULT_PACKAGES
+
+    # The packages the browser's bench builds the same pages with
+    # (`page_fixtures.source_packages`), so a collection may use any of their widgets.
+    packages = tuple(json.loads(DEFAULT_PACKAGES.read_text(encoding="utf-8")))
+
+    pages = {}
+    versions, built = directory, []
+    for n in sorted(sizes):
+        sources = collection.sources(n)
+        if not built or sources[: len(built)] != built:
+            versions, built = directory / f"{n}-versions", []
+            versions.mkdir(parents=True)
+        for source in sources[len(built) :]:
+            (versions / "index.html").write_text(source)
+            if not built:
+                cmd_init(versions, packages)
+            activation = activate_source(versions)
+            assert activation.error is None, activation.error
+            built.append(source)
+        pages[n] = shutil.copytree(versions, directory / str(n), symlinks=True)
+        for source, value in collection.data(n).items():
+            cmd_data_set(pages[n], source, value)
+        write_log(pages[n], collection.log(n))
+    return pages
+
+
+def write_log(page: Path, commands: list[dict]) -> None:
+    """Append `commands` to `page`'s log as admission records them: the first and
+    last of each `shape` through `append_admitted`, the rest `renamed` from the
+    first. A copy renames only the ids and words its command names, so a field
+    admission derives from the document, such as the authored cards a move lies
+    among, has to be the same for every command of a shape. The last one is
+    checked against its copy, and a collection that breaks this fails here.
+
+    Admitting each of thousands of events through `append_admitted` costs a fold of
+    the log apiece, which is the cost the `events` collection measures, so it would
+    cost the square of the log to build one. Admission derives the same fields for
+    events that differ only in the ids and numbers they name, so a copy of what it
+    made of the first stands for the rest."""
+    from leaf.event_contracts import append_admitted
+    from leaf.event_log import jsonl_line, new_event_id, read_events
+    from leaf.service import PageTransaction
+
+    admitted: dict[str, tuple[dict, dict]] = {}
+    last = {shape(command): index for index, command in enumerate(commands)}
+    events = read_events(page)
+    copies: list[str] = []
+
+    def flush() -> None:
+        with (page / "events.jsonl").open("a", encoding="utf-8") as log:
+            log.writelines(copies)
+        copies.clear()
+
+    def admit(command: dict) -> dict:
+        flush()
+        with PageTransaction(page) as transaction:
+            record, _ = append_admitted(transaction, command)
+        events.append(record)
+        return record
+
+    for index, command in enumerate(commands):
+        key = shape(command)
+        if key not in admitted:
+            admitted[key] = (command, admit(command))
+            continue
+        template, record = admitted[key]
+        copy = renamed(record, names(template, command))
+        copy.pop("seq")
+        if index == last[key]:
+            made = admit(command)
+            if _unstamped(made) != _unstamped(copy):
+                raise ValueError(
+                    f"admission made {made} of {command}, and its copy {copy}"
+                )
+            continue
+        copy["id"] = command.get("id") or new_event_id(events)
+        events.append(copy)
+        copies.append(jsonl_line(copy) + "\n")
+    flush()
+
+
+def _unstamped(record: dict) -> dict:
+    """`record` without what the append lease stamps on it."""
+    return {
+        key: value for key, value in record.items() if key not in ("id", "ts", "seq")
+    }
+
+
+def shape(command: dict) -> str:
+    """What `command` is with its ids and numbers left out."""
+    return json.dumps(_numbers_out(command), sort_keys=True)
+
+
+def _numbers_out(value):
+    if isinstance(value, dict):
+        return {key: _numbers_out(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_numbers_out(item) for item in value]
+    return re.sub(r"\d+", "#", value) if isinstance(value, str) else value
+
+
+def _strings(value, path: tuple = ()) -> Iterator[tuple[tuple, str]]:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield from _strings(item, (*path, key))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _strings(item, (*path, index))
+    elif isinstance(value, str):
+        yield path, value
+
+
+def names(template: dict, command: dict) -> dict[str, str]:
+    """Each string `template` holds and what `command`, of the same shape, holds in
+    its place."""
+    theirs = dict(_strings(command))
+    renames: dict[str, str] = {}
+    for path, string in _strings(template):
+        if renames.setdefault(string, theirs[path]) != theirs[path]:
+            raise ValueError(f"{string!r} in {template} names two things in {command}")
+    return renames
+
+
+def renamed(value, renames: dict[str, str]):
+    if isinstance(value, dict):
+        return {key: renamed(item, renames) for key, item in value.items()}
+    if isinstance(value, list):
+        return [renamed(item, renames) for item in value]
+    return renames.get(value, value) if isinstance(value, str) else value
+
+
+def cpu_ms(run: Callable[[], object]) -> float:
+    """The CPU `run` takes, in ms, with the collector run before it and held off
+    during it, as `timeit` holds it: a collection costs what every page this
+    process has read holds, not what the call does."""
+    gc.collect()
+    gc.disable()
+    try:
+        started = time.process_time()
+        run()
+        return (time.process_time() - started) * 1000
+    finally:
+        gc.enable()
+
+
+def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], object]]:
+    """Each of `SERVER_PATHS` on `page`, whose log `events` built, as a call;
+    `append` only where the log holds an event to send again, and `thread` only where
+    it opens one."""
+    from leaf.agent_state import cmd_page_state
+    from leaf.delivery import batch_data, deliverable, delivery_reading, freeze_delivery
+    from leaf.event_contracts import append_admitted
+    from leaf.revisioning import activate_source
+    from leaf.served_state.service import PageStateService
+    from leaf.service import PageTransaction
+
+    source = page / "index.html"
+    authored = source.read_text()
+    saves = iter(range(1, 1_000_000))
+
+    def delivery():
+        with PageTransaction(page) as transaction:
+            if batch := deliverable(transaction):
+                delivery_reading(
+                    freeze_delivery([batch_data(page, transaction, batch)])
+                )
+
+    def activate():
+        source.write_text(authored.replace("</h1>", f", saved {next(saves)}</h1>", 1))
+        activation = activate_source(page)
+        assert activation.error is None, activation.error
+
+    calls = {
+        "state": lambda: PageStateService(page).page_state(),
+        "delivery": delivery,
+        "agent": lambda: cmd_page_state(page),
+        "activate": activate,
+    }
+    if events:
+        # The event is sent again without the id its writer gave it, so admission
+        # gives each time its own.
+        again = {key: value for key, value in events[-1].items() if key != "id"}
+
+        def append():
+            with PageTransaction(page) as transaction:
+                append_admitted(transaction, again)
+
+        calls["append"] = append
+    if thread := next((e["id"] for e in events if e["kind"] == "comment"), None):
+        calls["thread"] = lambda: cmd_page_state(page, thread)
+    return calls
+
+
+def function_times(call: Callable[[], object]) -> dict[str, float]:
+    """Inclusive ms per function of one profiled `call`."""
+    profile = cProfile.Profile()
+    profile.runcall(call)
+    return {
+        entry.code
+        if isinstance(entry.code, str)
+        else f"{entry.code.co_name} ({Path(entry.code.co_filename).name}:"
+        f"{entry.code.co_firstlineno})": entry.totaltime * 1000
+        for entry in profile.getstats()
+    }
+
+
+def measure_server(
+    collection: Collection,
+    sizes: list[int],
+    directory: Path,
+    profile: bool = False,
+    rounds: int = SERVER_ROUNDS,
+) -> tuple[list[dict], dict[str, tuple[dict, dict]]]:
+    """Each path's least CPU over `rounds` on `collection`'s page at each of `sizes`,
+    built under `directory`, in ms, beside the events its log holds; with
+    `profile`, the function times of one more run of each path on the smallest
+    page and the largest, in the order the rounds take them.
+
+    The rounds are interleaved (`interleaved`, `lowest`). In each a page
+    appends first, as a click does before its reading, and its versions come after
+    every round, since a new one leaves the appended events on an earlier
+    revision."""
+    from leaf.event_log import read_events
+
+    # The pages' claims, deliveries and presence stay out of the machine's own.
+    state = directory / "state"
+    state.mkdir(parents=True, exist_ok=True)
+    with patch.dict(os.environ, XDG_STATE_HOME=str(state)):
+        pages = server_pages(collection, sizes, directory)
+        held = {n: len(read_events(pages[n])) for n in sizes}
+        calls = {n: server_paths(pages[n], collection.log(n)) for n in sizes}
+        order = (("append", "state", "delivery", "agent", "thread"), ("activate",))
+
+        def timed(paths: tuple[str, ...], n: int) -> dict[str, float]:
+            return {path: cpu_ms(calls[n][path]) for path in paths if path in calls[n]}
+
+        appended, activated = (
+            lowest((n, timed(paths, n)) for _, n in interleaved(rounds, sizes))
+            for paths in order
+        )
+        profiled: dict[str, list[dict]] = {}
+        if profile:
+            for n in (sizes[0], sizes[-1]):
+                for paths in order:
+                    for path in paths:
+                        if path in calls[n]:
+                            profiled.setdefault(path, []).append(
+                                function_times(calls[n][path])
+                            )
+        rows = []
+        for n in sizes:
+            readings = {**appended[n], **activated[n]}
+            rows.append(
+                {
+                    "n": n,
+                    "events": held[n],
+                    **{
+                        path: readings[path]
+                        for path in SERVER_PATHS
+                        if path in readings
+                    },
+                }
+            )
+    return rows, {path: (before, after) for path, (before, after) in profiled.items()}
+
+
+def over_budget(rows: list[dict]) -> str | None:
+    """Why a click's paths together take more than `BUDGET_MS` at `REFERENCE` in
+    `rows`, or None: on a page with no log, or where `rows` has no `REFERENCE`, there
+    is no click to time."""
+    at = next((row for row in rows if row["n"] == REFERENCE), None)
+    if at is None or not all(path in at for path in CLICK):
+        return None
+    click = sum(at[path] for path in CLICK)
+    if click <= BUDGET_MS:
+        return None
+    return (
+        f"{' + '.join(CLICK)} take {click:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms"
+    )
+
+
 def bench_server(
     pages: Sequence[str], sizes: list[int], rounds: int | None, profile: bool, run: Path
 ) -> dict:
     """Time each server path on each generated page in this process
-    (`leaf_dev.server_paths`), echo each page's table, and return the rows."""
-    from leaf_dev.server_paths import FITTED, PATHS, RUNS, floors, measure, over_budget
-
-    rounds = rounds or RUNS
+    (`measure_server`), echo each page's table, and return the rows."""
+    rounds = rounds or SERVER_ROUNDS
     click.echo(f"Server paths of this checkout, least CPU of {rounds} rounds\n")
     results = {}
     for name in pages:
-        rows, profiles = measure(COLLECTIONS[name], sizes, run / name, profile, rounds)
+        rows, profiles = measure_server(
+            COLLECTIONS[name], sizes, run / name, profile, rounds
+        )
         results[name] = rows
-        paths = [path for path in PATHS if path in rows[0]]
-        noise = floors(rows)
+        paths = [path for path in SERVER_PATHS if path in rows[0]]
+        noise = server_floors(rows)
         sized = [row["n"] for row in rows]
         fits = {
-            path: exponent(sized, [row[path] for row in rows], noise[path], FITTED)
+            path: exponent(
+                sized, [row[path] for row in rows], noise[path], SERVER_FITTED
+            )
             for path in paths
         }
         columns = [(str(row["n"]), row) for row in rows]

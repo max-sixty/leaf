@@ -1,7 +1,6 @@
-# Added with opt-in ephemeral progress replies. This measures command selection
+# Covers opt-in ephemeral progress replies. This measures command selection
 # from shipped instructions; CLI and browser tests cover execution and folding.
-# Its answer was rewritten in the declared envelope's shape (`parent`,
-# `responds`) at 6a66b9b7b. Not rescored.
+# Its answer is in the declared envelope's shape (`parent`, `responds`).
 description: ephemeral-progress-reply
 metadata:
   purpose: Post interim progress in an owed thread without answering the input, then let the final reply fold it.

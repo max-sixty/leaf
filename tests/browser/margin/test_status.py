@@ -96,6 +96,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
                   id: `tone-${index}`,
                   subject: {kind: 'widget', id: `${tone}-target`},
                   stage,
+                  at_work: stage === 'working',
                   condition: null,
                 } : null
               })]}), activate: () => {}
@@ -194,6 +195,9 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
             hovered = []
             focused = []
             for button in buttons:
+                # Focus left on the entry above rests the comment box in the rail,
+                # over this one (floating-response.js), so let it go first.
+                page.evaluate(RELEASE_FOCUS)
                 button.hover()
                 hovered.append(button.evaluate(read))
                 page.mouse.move(0, 0)
@@ -998,7 +1002,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     group that waits for Done hands the agent nothing, so it has no receipt.
     """
     single = OBLIGATION_PAGE.replace(
-        '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
+        '<lf-options id="jobs" multiple>', '<lf-options id="jobs">'
     )
     page = open_page(browser, live_url(serve(single)))
     page_dir = serve.page_dir
@@ -1057,8 +1061,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_ink = resolved_color("--lf-ink-2")
     expected_paper = resolved_color("--lf-paper")
     expected_rule = resolved_color("--lf-rule")
-    expected_label_ink = resolved_color("--lf-paper")
-    expected_label_background = resolved_color("--lf-ink")
+    expected_label_ink = resolved_color("--lf-tip-ink")
+    expected_label_background = resolved_color("--lf-tip-bg")
 
     def words_still():
         """The preview fades in over 90ms, so the frame it opens on is a box drawn at
@@ -1124,18 +1128,18 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         expect(drawn).to_have_css("background-color", expected_label_background)
         expect(drawn).to_have_css("color", expected_label_ink)
         expect(label).to_have_text(f"{phase}{context}")
-        # A rectangular trace uses the same outside stroke as target focus, on the
-        # region's perimeter, in the trace's quiet ink, cut to brackets.
+        # A rectangular trace uses the same stroke as target focus, where the box says
+        # its marks stand (a joined option group, which draws its own frame, on that
+        # frame), in the trace's quiet ink, cut to brackets.
         mark = traced.evaluate(MARK)
-        region = page.evaluate(
-            "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-focus-region-gap'))"
+        stands_at = traced.evaluate(
+            "box => parseFloat(getComputedStyle(box).getPropertyValue('--lf-ring-at'))"
         )
         leader = page.evaluate(
             "() => getComputedStyle(document.querySelector('.lf-margin-cluster'),"
             " '::before').content"
         )
-        assert mark and mark["offset"] == region, (mark, region)
+        assert mark and mark["offset"] == stands_at == 0, (mark, stands_at)
         assert (mark["style"], mark["width"], mark["color"], mark["brackets"]) == (
             "solid",
             2,
@@ -1282,12 +1286,12 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(page.get_by_role("button", name=re.compile(r"^On it,"))).to_have_count(1)
 
     honored = single.replace(
-        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
+        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" selected'
     )
     stamped = stamp_page(page_dir, honored, "Honor the mounts choice")
     wait_for_revision(page, stamped["revision"])
     expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
-    expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
+    expect(page.locator("#job-mounts[selected]")).to_have_count(1)
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(

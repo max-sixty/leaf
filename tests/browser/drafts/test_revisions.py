@@ -4,11 +4,13 @@ focus and session, and the revision a draft aims at."""
 import pytest
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
-from render_cases_interaction import live_url, panel_comment
+from render_cases_interaction import live_url, open_seat_box, panel_comment
 from render_cases_navigation import JOURNEY_V1, NOTED_PAGE, _publish
 from render_harness import (
     REPLY_HOST_PAGE,
     consume_browser_errors,
+    holding,
+    open_latest,
     open_page,
     panel_field,
     refuse,
@@ -213,7 +215,8 @@ def editing_read(editor):
         "composer",
         # The margin card's reply; the panel's open thread holds the same reply editor.
         "reply",
-        "first-message",
+        # The comment box where a widget seats it, in an outlet of its own.
+        "seated",
         "edit",
         # A document edit opened and selected in, with no words changed, so no draft.
         "edit-unchanged",
@@ -224,8 +227,8 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     page = open_page(browser, live_url(serve(editing_revision_source("overlay"))))
     if kind == "authored":
         editor = page.locator("#authored-draft")
-    elif kind == "first-message":
-        editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
+    elif kind == "seated":
+        _seat, editor = open_seat_box(page, "#seat-root")
     elif kind in {"edit", "edit-unchanged"}:
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
@@ -264,7 +267,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     )
     told(page)
     if page.evaluate("performance.timeOrigin") == first_document:
-        page.keyboard.press("Control+Alt+r")
+        open_latest(page)
     wait_for_revision(page, 2)
     after_digest = page.locator('meta[name="lf-executable"]').get_attribute("content")
     assert after_digest != before_digest
@@ -331,7 +334,9 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
     assert stored_draft_text(page, context) == words
 
 
-@pytest.mark.parametrize("kind", ["edit", "first-message", "option"])
+# `seated` is the comment box in a widget's outlet, the one editor here Leaf carries
+# from the replaced widget to its successor rather than generating again.
+@pytest.mark.parametrize("kind", ["edit", "seated", "option"])
 def test_in_place_revision_restores_the_current_generated_editor(browser, serve, kind):
     original = editing_revision_source("same-module")
     page = open_page(browser, live_url(serve(original)))
@@ -341,8 +346,8 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
         revised = original.replace(
             "Current editable text.", "A revised authored draft body."
         )
-    elif kind == "first-message":
-        editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
+    elif kind == "seated":
+        _seat, editor = open_seat_box(page, "#seat-root")
         revised = original.replace("What should we do?", "What should we do next?")
     else:
         editor = page.locator("#options-root > .lf-another leaf-text")
@@ -354,13 +359,13 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
     birth = page.evaluate("performance.timeOrigin")
     stamp_page(serve.page_dir, revised, "Replace authored widget, retain executable")
     told(page)
-    # Takes the panel's offered Latest where the revision waits for one, and is a no-op
-    # where it installed by itself.
-    page.keyboard.press("Control+Alt+r")
+    # Opens the latest where the revision waits for it, and is a no-op where it
+    # installed by itself.
+    open_latest(page)
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin") == birth
     expect(editor).to_be_visible()
-    if kind != "option":
+    if kind == "edit":
         assert not editor.evaluate("el=>Boolean(el.__outgoingEditor)")
     expect(editor).to_be_focused()
     assert editing_read(editor) == before
@@ -430,7 +435,8 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
         )
     ):
         with page.expect_request("**/api/state**") as requested:
-            page.keyboard.press("Control+Alt+r")
+            open_latest(page)
+        holding(page, later_readings, 1, "the latest's reading")
         first = next(
             route for route in later_readings if route.request == requested.value
         )
@@ -488,7 +494,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     )
     stamp_page(serve.page_dir, revised, "Fresh executable with mechanical failure")
     told(page)
-    page.keyboard.press("Control+Alt+r")
+    open_latest(page)
     wait_for_revision(page, 2)
     errors = reported_browser_errors(page, "fresh mechanical caret fixture failed")
     assert page.evaluate("Boolean(window.__presentationDispatched)")
@@ -597,7 +603,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     if change != "widget":
         rendered(page)
         if change in {"revision", "dragged-revision", "window-revision"}:
-            page.keyboard.press("Control+Alt+r")
+            open_latest(page)
         wait_for_revision(page, 2)
     if change == "reloaded-revision":
         page.reload()
@@ -650,7 +656,7 @@ def test_revisiting_a_passage_recaptures_its_revision_without_losing_words(
         "A new revision",
     )
     told(page)
-    page.keyboard.press("Control+Alt+r")
+    open_latest(page)
     wait_for_revision(page, 2)
     select_words(page, "#passage")
     page.keyboard.press("c")

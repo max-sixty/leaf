@@ -100,8 +100,10 @@
         <nav class="sitenav" aria-label="Site"></nav>
 
         <header id="top">
-          <p class="eyebrow">reference</p>
-          <h1>Data structures</h1>
+          <hgroup>
+            <p>reference</p>
+            <h1>Data structures</h1>
+          </hgroup>
           <p class="lede" id="lede">
             Leaf uses JSON for the state the server sends to the browser, the events in
             a page's log, and the records stored beside the log. Each table below lists
@@ -119,7 +121,7 @@
           </p>
         </header>
 
-        <section id="served" class="layout-flow">
+        <section id="served">
           <h2>Served state</h2>
           <p id="served-lede">
             The page's runtime reads the state from <code>GET /api/state</code>. The
@@ -130,7 +132,7 @@
           <div class="schema-list" data-schemas="served"></div>
         </section>
 
-        <section id="events" class="layout-flow">
+        <section id="events">
           <h2>Events</h2>
           <p id="events-lede">
             Each line of a page's <code>events.jsonl</code> is one event, validated
@@ -140,7 +142,7 @@
           <div class="schema-list" data-schemas="events"></div>
         </section>
 
-        <section id="records" class="layout-flow">
+        <section id="records">
           <h2>Records</h2>
           <p id="records-lede">
             Leaf keeps these JSON files outside a page's log and document, in the page
@@ -153,7 +155,7 @@
           <div class="schema-list" data-schemas="records"></div>
         </section>
 
-        <section id="interactions" class="layout-flow">
+        <section id="interactions">
           <h2>Interaction batch</h2>
           <p id="interactions-lede">
             The browser posts what it observed of the user's session, such as DOM

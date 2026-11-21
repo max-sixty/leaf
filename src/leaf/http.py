@@ -14,7 +14,8 @@ A document runs this process's browser runtime (`runtime_selection`), whose iden
 is part of the address of the resources a document loads (`assets_path`) and is named
 on every answer (`Leaf-Runtime`) and on every write a tab sends, so a tab running
 another runtime reads and writes nothing here. A website release already names its
-runtime, so a release answers by its release alone.
+runtime, so its answers name none, and the edge in front of it names the release
+(`worker/src/index.ts`).
 """
 
 import hashlib
@@ -35,6 +36,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
+from .drafts import write_draft
 from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
@@ -51,7 +53,7 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .page_memory import memo, once
 from .passages import SourceReading
-from .presence import live_servers
+from .presence import live_servers, pages_reading
 from .refusals import Refused
 from .registry.storage import layer_metadata, layer_record
 from .revision_artifact import (
@@ -64,8 +66,9 @@ from .revision_delivery import (
     compose_document,
     deliver_resource,
     delivered_resource,
+    json_script,
     layer_import_map,
-    rebase_document,
+    runtime_element,
     runtime_settings,
 )
 from .runtime_selection import (
@@ -87,6 +90,7 @@ from .schema import (
 from .served_state.service import LivePage, PageSource, PageStateService
 from .served_state.tail import answer as tail_answer
 from .server import page_origin, preview_metadata, running_server
+from .state import page_key
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
 
@@ -151,11 +155,13 @@ def _query_int(raw, name: str, minimum: int) -> int:
 
 
 def scope_page_urls(value, page_root: str):
-    """Address a state response's documents and message markup at a page root.
+    """Address a state response's documents at a page root.
 
-    A response carries version addresses and frozen message markup in their canonical,
-    root-relative form; beneath a prefix both answer at the page root, as the live
-    page's media does.
+    A response carries version addresses in their canonical, root-relative form;
+    beneath a prefix they answer at the page root, as the live page's media does. A
+    message's media is the browser's to address as it renders the message
+    (`scopedMediaUrl` in markdown.js and thread/messages.js), since only its rendering
+    tells a reference from words that spell one.
     """
     if not page_root:
         return value
@@ -171,8 +177,6 @@ def scope_page_urls(value, page_root: str):
             and item.startswith(("/versions/", "/revisions/"))
         ):
             scoped[key] = page_root.rstrip("/") + item
-        elif key == "markup" and isinstance(item, str):
-            scoped[key] = rebase_document(item, DeliveryAddress(page_root, page_root))
         else:
             scoped[key] = scope_page_urls(item, page_root)
     return scoped
@@ -219,22 +223,30 @@ def page_delivery(
 
     The document is addressed at `page_root` and `asset_root` (`DeliveryAddress`),
     and starts under the import map its layer modules resolve through and the runtime
-    bootstrap with its server incarnation probe, so historical
+    bootstrap with its server incarnation probe, beside the floating panel's row the
+    bootstrap stands from the first paint, so historical
     sources inherit the current delivery boundary without carrying delivery markup
     themselves. A keyed top-level page declares its share address here, including
     on a bare-URL reload. Disposable samples and public website documents have no
     such address. `write_live_shell` delivers published documents the same way.
 
     `probe` is where a tab asks whether its source has moved on to another layer or
-    release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
-    recovery), so its answer must name the layer or release a fresh document would
-    start under. It defaults to the page's `/registry.json`, whose answer names its
-    release. `runtime_identity` is the runtime a host without a release serves the
+    release (`bootstrap.js`'s startup recovery, and for a layer `layer-client.js`'s
+    `sourceMovedOn`), so its answer must name the layer or release a fresh document
+    would start under. It defaults to the page's `/registry.json`, whose answer names
+    its release. `runtime_identity` is the runtime a host without a release serves the
     document with (`runtime_selection`), which the tab holds every answer to.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
-    runtime = runtime_settings(
+    # The floating panel's row, which the bootstrap stands after `body` from the first
+    # paint until the panel takes it over (build/panel-row.mjs), inert in a template.
+    row = runtime_element(
+        "template",
+        {"data-lf-panel-row": True},
+        resources["/runtime/panel-row.html"].data.decode(),
+    )
+    runtime = row + runtime_settings(
         resources["/runtime/bootstrap.js"].data.decode(),
         layer=layer_id,
         page_root=page_root,
@@ -287,9 +299,8 @@ class PostRoute:
 # The stored copy outlives the visit in the browser's disk cache. Locally it holds what
 # the page directory already holds in plain files, for the same user. On leaf.page it
 # holds a visitor's comments, replies and images, and Back shows them to whoever next
-# uses that browser profile. leaf.page answered `no-store` to keep them out until
-# 2026-11-08, when the maintainer reversed that choice for an instant Back (issue
-# #4024).
+# uses that browser profile. Answering `no-store` on leaf.page would keep them out;
+# the maintainer chose an instant Back over that.
 CACHE_CONTROL = "no-cache"
 # A revision's resources and page media (`media.media_name`) are named by digests of
 # their bytes, so a name never changes what it answers and the browser keeps one copy
@@ -552,9 +563,8 @@ class PageEndpoint:
         (`served_state.tail`). Without this every gesture's answer would carry back
         every record and past event the tab already holds. The answer goes out as
         it stands (`_json_body`), since addressing it again would address its
-        markup twice. The log travels apart from the reading, as only the events
-        after the held reading's, so only the events sent are addressed, rather than
-        every message's markup the session has logged.
+        versions twice. The log travels apart from the reading, and its events hold
+        no address.
 
         A whole answer to a tab that names, in `Leaf-Data-Version`, the data version
         it still holds leaves out its sources for the tab to restore (`completeState`
@@ -572,15 +582,13 @@ class PageEndpoint:
         answer = (
             scoped
             if self.page_snapshot is not None
-            else tail_answer(
-                scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
-            )
+            else tail_answer(scoped, self.headers.get("Leaf-Held-Basis"), self.page_dir)
         )
         if "since" not in answer and (
             self.headers.get("Leaf-Data-Version") == answer["data"]["version"]
         ):
             answer = {**answer, "data": {"version": answer["data"]["version"]}}
-        return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
+        return answer
 
     def page_comparison(
         self, revision: int, through_seq: int, shown: int | None
@@ -615,21 +623,29 @@ class PageEndpoint:
         return _query_int(raw, "view sequence", 0)
 
     def _news(self) -> Response:
-        """A finite reading of the files and presence a visible page is watching.
+        """A finite reading of what a visible page is watching: the page's own files
+        and presence (`reading`), and the machine's other live pages (`pages`).
 
-        The browser compares this cheap token with the reading it has in hand, then
-        asks for state only when they differ. Each request releases its HTTP slot,
-        so live child pages cannot hold the origin's connections away from modules,
-        gestures or revisions. Presence caches its process and lease observations;
-        page files are read anew, including external data and authored dependencies.
-        A look that finds a saved source activates it first, holding the page's
-        transaction through the source check, so its token names the revision the
-        state read it prompts will answer with (`LivePage._activated`), in the order
-        `page_state` explains.
+        The browser compares each cheap token with the one it has in hand, and asks
+        `/api/state` only when the page's own reading differs, and `/api/pages` only
+        when the pages reading does, so another page's change never makes this one
+        read its state again. Each request releases its HTTP slot, so live child
+        pages cannot hold the origin's connections away from modules, gestures or
+        revisions. Presence caches its process and lease observations; page files
+        are read anew, including external data and authored dependencies. A look
+        that finds a saved source activates it first, holding the page's transaction
+        through the source check, so its token names the revision the state read it
+        prompts will answer with (`LivePage._activated`), in the order `page_state`
+        explains.
         """
         self.housekeeping = True
-        return self._content(
-            200, "text/plain; charset=utf-8", self.source.news().encode()
+        drafts = self.source.drafts()
+        return self._json_body(
+            {
+                "reading": self.source.news(),
+                "pages": pages_reading(self.source.other_pages()),
+                "drafts": {"store": drafts["store"], "version": drafts["version"]},
+            }
         )
 
     @property
@@ -700,9 +716,7 @@ class PageEndpoint:
         ) or self.path in {"/registry.json", "/"}:
             headers["Leaf-Layer"] = self.response_layer
             headers["Leaf-Server"] = self.server.server_id
-            if self.release is not None:
-                headers["Leaf-Release"] = self.release
-            else:
+            if self.release is None:
                 headers["Leaf-Runtime"] = serving_runtime().identity
         if self.set_cookie:
             headers["Set-Cookie"] = (
@@ -1055,7 +1069,7 @@ class PageEndpoint:
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         """How this transport delivers a document; a transport adds its own marks."""
-        return page_delivery(
+        delivery = page_delivery(
             artifact.resources,
             server_id=self.server.server_id,
             layer_id=artifact.registry["$layer"]["generation"],
@@ -1079,6 +1093,27 @@ class PageEndpoint:
                 if self.token is not None
                 else None
             ),
+        )
+        if self.release is not None:
+            return delivery
+        # Which page the document is, as the prefix of what the browser keeps for it
+        # (prepaint.js). A release's path names its page under its host. The local
+        # server serves its one page at the root of a port that another page's server
+        # takes once this one stops, so the page directory names it: by the address
+        # alone, Threads listed a draft typed on another page a month before.
+        scope = f"{page_key(self.page_dir)[:16]}{self.page_root}/"
+        # The drafts the user is writing arrive with the document, so a box opens on
+        # its words before any look (`runtime/drafts.js`). A release's document may be
+        # the edge's, which its visitors share, so there they arrive with the first look.
+        drafts = runtime_element(
+            "script",
+            {"type": "application/json", "id": "lf-drafts"},
+            json_script(self.source.drafts()),
+        )
+        return replace(
+            delivery,
+            head=delivery.head + drafts,
+            html_attributes={"data-lf-page-scope": scope},
         )
 
     def _serve_artifact_resource(self) -> Response | None:
@@ -1184,6 +1219,10 @@ class PageEndpoint:
             return self._serve_root()
         if path == "/api/news":
             return self._news()
+        if path == "/api/pages":
+            return self._json_body(self.source.other_pages())
+        if path == "/api/drafts":
+            return self._json_body(self.source.drafts())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
@@ -1372,6 +1411,12 @@ class PageEndpoint:
         except (FileBindingError, UnicodeEncodeError) as error:
             return self._refuse(str(error))
 
+    def _write_draft(self) -> Response:
+        try:
+            return self._json_body(write_draft(self.page_dir, self.posted))
+        except ValueError as error:
+            return self._refuse(str(error))
+
     def _observe_user_view(self) -> Response:
         # Captured render previews are instruments, not the user's reading.
         if not self.source.writable:
@@ -1493,6 +1538,9 @@ class PageEndpoint:
             (_runtime_gate, _live_files_gate, _same_origin_gate, _body_gate),
         ),
         "/api/user-view": PostRoute(_observe_user_view, (_runtime_gate, _body_gate)),
+        "/api/draft": PostRoute(
+            _write_draft, (_writable_gate, _runtime_gate, _body_gate)
+        ),
         "/api/interaction": PostRoute(_record_interactions, (_body_gate,)),
         "/api/samples": PostRoute(
             _create_sample, (_runtime_gate, _layer_gate, _body_gate)
@@ -1560,9 +1608,11 @@ class SampleEndpoint(PageEndpoint):
         # chrome stands after the body. Whether the child lays out as a block or a
         # window is its frame's to say (sample.js), which its bootstrap asks before it
         # paints.
+        delivery = super()._delivery(artifact, revision)
         return replace(
-            super()._delivery(artifact, revision),
+            delivery,
             html_attributes={
+                **delivery.html_attributes,
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
                 "inert": "",

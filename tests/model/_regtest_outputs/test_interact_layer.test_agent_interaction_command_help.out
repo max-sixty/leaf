@@ -43,12 +43,12 @@ Usage: leaf page state [OPTIONS] PAGE [MESSAGE_OR_WIDGET]
   revision's HTML beside it for the document.
 
   MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
-  frozen into one, names its thread: the output is that thread with a page of
-  its messages, their frozen markup, and the state of its widgets, paged by
-  --after and --limit. Each action in force and each message carries what its
-  delivery added to it, such as a choice's words and a message's `unsent`. A
-  widget on the page names itself: its element, its current actions and reports,
-  its obligations and to-dos, and its workflows.
+  in one, names its thread: the output is that thread with a page of its
+  messages and the state of their widgets, paged by --after and --limit. Each
+  action in force and each message carries what its delivery added to it, such
+  as a choice's words and a message's `unsent`. A widget on the page names
+  itself: its element, its current actions and reports, its obligations and to-
+  dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -76,12 +76,10 @@ Usage: leaf thread summarize [OPTIONS] PAGE
 
   Replace --from through --through in the panel with a Markdown summary.
 
-  Both name messages in one thread, which is the thread summarized. No message
-  but the thread's first may stay unsummarized above any summary; a refusal
-  names a wider range that keeps this. An empty summary, such as `--text ''`,
-  folds them without prose. The original messages remain in the append-only
-  transcript and can always be revealed. A later overlapping summary replaces
-  this one.
+  Both name messages in one thread, which is the thread summarized. An empty
+  summary, such as `--text ''`, folds them without prose. The original messages
+  remain in the append-only transcript and can always be revealed. A later
+  overlapping summary replaces this one.
 
 Options:
   --from MESSAGE     the first message folded  [required]
@@ -89,7 +87,7 @@ Options:
   --text TEXT        the summary's Markdown
   --file PATH        read the summary's Markdown from PATH, - for stdin; with
                      neither option, from piped stdin
-  --label TEXT       disclosure label (default: Earlier discussion)
+  --label TEXT       a name for the folded range, leading the summary
   --help             Show this message and exit.
 
 ## leaf page open --help
@@ -121,34 +119,35 @@ Usage: leaf thread create [OPTIONS] PAGE
 
   Create a thread as the agent: anchored where --quote or --section points at a
   passage, general where neither does \u2014 a question about the work as a whole.
+  The text is Markdown, and HTML in it draws, checked here.
 
   Use --obligation when the next move is the user's: the message waits on On Me
   until their reply or settling reaction. A question whose answers you can list
-  takes an `lf-options` choice in --markup instead, which waits on the user
-  until they pick. Refuses a quote the active revision does not hold, or holds
-  more than once. The comment's id is the thread's.
+  takes a widget that asks in the text instead, such as an `lf-options` choice,
+  which waits on the user until they pick. Refuses a quote the active revision
+  does not hold, or holds more than once. The comment's id is the thread's.
 
 Options:
-  --quote TEXT   passage text from the active revision
-  --section ID   element ID to anchor or scope --quote
-  --part ID      declared visual part within --section
-  --text TEXT    the comment's text
-  --file PATH    read the comment's text from PATH, - for stdin; with neither
-                 option, from piped stdin
-  --markup TEXT  HTML fragment after the text, validated here
-  --title TEXT   name the thread for the panel unless it has a name: a few
-                 words, at most 80 characters
-  --obligation   put this message on On Me until the user replies or settles it
-  --help         Show this message and exit.
+  --quote TEXT  passage text from the active revision
+  --section ID  element ID to anchor or scope --quote
+  --part ID     declared visual part within --section
+  --text TEXT   the comment's text
+  --file PATH   read the comment's text from PATH, - for stdin; with neither
+                option, from piped stdin
+  --title TEXT  name the thread for the panel unless it has a name: a few words;
+                one past 80 characters is cut at a word
+  --obligation  put this message on On Me until the user replies or settles it
+  --help        Show this message and exit.
 
 ## leaf thread reply --help
 Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
 
   Answer a delivered update by its `answer.ref` alone, or post into the thread
-  PAGE MESSAGE names, which is refused while that thread owes an answer.
+  PAGE MESSAGE names, which answers nothing that thread owes. The text is
+  Markdown, and HTML in it draws, checked here.
 
   An answer declares what it leaves with --done, --todo or --obligation, or
-  carries a widget in --markup that asks, as an `lf-options` choice asks a
+  carries a widget in its text that asks, as an `lf-options` choice asks a
   question whose answers you can list; --ephemeral progress declares nothing,
   and --done needs a reference. The reply publishes your saved page edits,
   checked as `page check` checks them without a browser. The Leaf skill's
@@ -159,13 +158,12 @@ Options:
   --text TEXT        the reply's text
   --file PATH        read the reply's text from PATH, - for stdin; with neither
                      option, from piped stdin
-  --markup TEXT      frozen HTML fragment after the text
   --todo TITLE       the reply promises work it doesn't deliver; opens that to-
                      do on the thread, ended by `leaf task end` with the reply's
                      id
   --ephemeral        one-line progress, without answering
   --title TEXT       name the thread for the panel unless it has a name: a few
-                     words, at most 80 characters
+                     words; one past 80 characters is cut at a word
   --obligation [ID]  put this message on On Me until the user replies or settles
                      it; with the ID of a question their reply left standing,
                      ask that question again, once per question
@@ -182,15 +180,15 @@ Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
   with --title rename the thread MESSAGE is in, whoever opened it. --title alone
   leaves the text as it is.
 
-  Frozen markup is not editable. Keep a title stable unless the thread's subject
-  changes.
+  The replacement may hold HTML, checked as a new message's is. Keep a title
+  stable unless the thread's subject changes.
 
 Options:
   --text TEXT   the replacement text
   --file PATH   read the replacement text from PATH, - for stdin; with neither
                 option, from piped stdin
-  --title TEXT  rename MESSAGE's thread for the panel: a few words, at most 80
-                characters
+  --title TEXT  rename MESSAGE's thread for the panel: a few words; one past 80
+                characters is cut at a word
   --help        Show this message and exit.
 
 ## leaf thread resolve --help
@@ -207,17 +205,14 @@ Options:
 ## leaf task end --help
 Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
 
-  End the to-do or conversational obligation named by ID in `page state`.
+  End the to-do named by ID in `page state`.
 
   A to-do ends done, failed or dropped. --text says where the result is, such as
   the version or reply holding it, or why there is none.
 
-  For a message obligation (`message:<id>`) or a question widget answered in
-  words (`widget:<id>`), done records that the user answered elsewhere, or that
-  you saw a step's effect, --text saying where or what you saw; dropped
-  withdraws the question. These outcomes record no answer from the user. A
-  widget answered through its controls ends through its state or an authored
-  withdrawal.
+  A question you asked in a thread is the user's to answer, not a to-do: once
+  they answer it elsewhere, or you see the step it asked for take effect, or it
+  no longer applies, resolve its thread with `leaf thread resolve`.
 
 Options:
   --text TEXT  where the result is, or why there is none
@@ -228,11 +223,11 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
 
   Report a state change onto a page widget, as a worker.
 
-  VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE
-  one of its fields: `leaf page report <page> t-parser status value=review
-  text="Ready for review"` moves a task. The page shows the report at once,
-  marked provisional, until a stamped version writes it into the markup or
-  overrules it.
+  VERB is one of the widget's agent-written `verbs`, and each NAME=VALUE one of
+  its fields: `leaf page report <page> t-parser status value=review text="Ready
+  for review"` moves a task. The page shows the report at once, marked
+  provisional, until a stamped version writes it into the markup or overrules
+  it.
 
 Options:
   --help  Show this message and exit.

@@ -2,7 +2,6 @@
 sample in a frame, and published on the Leaf website."""
 
 import re
-import time
 
 import pytest
 from playwright.sync_api import expect
@@ -21,7 +20,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered, start_near_work, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -31,9 +30,9 @@ def test_a_live_page_embeds_at_its_own_origin_and_cannot_run_its_data(browser, s
     source = leaf_page(
         "Boundaries",
         """<h1 id="h">Boundaries</h1>
-<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<lf-group id="decision" label="Proceed?"><h2 id="decision-h">Proceed?</h2><lf-options id="pick">
 <lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
-</lf-options></lf-ask>""",
+</lf-options></lf-group>""",
         head="""<script type="module">
 window.authoredModuleRan = true;
 </script>""",
@@ -77,7 +76,7 @@ window.authoredModuleRan = true;
     expect(frame.locator("body")).to_have_attribute("data-lf-presented", "1")
     frame.locator("#yes").click()
     page.wait_for_function(
-        "() => document.querySelector('#yes')?.hasAttribute('chosen')"
+        "() => document.querySelector('#yes')?.hasAttribute('selected')"
     )
     assert any(
         event.get("kind") == "action"
@@ -537,6 +536,64 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     grows_to(child_grows(2000))
 
 
+def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it(
+    browser, serve
+):
+    """A sample's page gets no rendering while its frame is off screen, so a chart in
+    a sample out of view draws only once its frame shows, and the page reads as ready
+    without it. A check that reads every document the page can show brings each such
+    frame into view, a sample's own samples included, waits for its chart, and puts
+    back every box it scrolled, leaving nothing to move after it returns. One a scroll
+    can't show, as in a box clipped to nothing, stays as the page has it."""
+    chart = (
+        '<lf-chart id="line" data-height="120"><pre>'
+        '{ariaLabel: "A rising line", marks: [Plot.lineY([1, 3, 2, 4])]}'
+        "</pre></lf-chart>"
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.goto(
+        serve(
+            leaf_page(
+                "Charts",
+                "<h1>Charts</h1>"
+                + live_sample("shown", " window", chart)
+                + '<div id="box" style="height: 200px; overflow: auto">'
+                + '<div style="height: 1200px"></div>'
+                + live_sample("boxed", " window", chart)
+                + "</div>"
+                + '<div style="max-height: 0; overflow: hidden">'
+                + live_sample("clipped", " window", chart)
+                + "</div>"
+                + '<div style="height: 900px"></div>'
+                + live_sample(
+                    "outer",
+                    "",
+                    '<div style="height: 1600px"></div>'
+                    + live_sample("inner", " window", chart),
+                ),
+            )
+        )
+    )
+
+    def drawn(*samples):
+        frame = page
+        for sample in samples:
+            frame = frame.locator(f"#{sample} iframe").content_frame
+        return frame.locator("lf-chart.lf-rendered").count()
+
+    wait_until_ready(page)
+    assert (drawn("shown"), drawn("boxed")) == (1, 0)
+    start_near_work(page)
+    assert (drawn("boxed"), drawn("outer", "inner"), drawn("clipped")) == (1, 1, 0)
+    places = """() => [scrollY, document.querySelector('#box').scrollTop,
+        document.querySelector('#outer iframe').getBoundingClientRect().height]"""
+    after = page.evaluate(places)
+    assert after[:2] == [0, 0]
+    rendered(page)
+    assert page.evaluate(places) == after
+
+
 def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
     browser, serve
 ):
@@ -650,65 +707,3 @@ def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
 
     page.locator("#last").evaluate("sample => sample.reset()")
     assert allocated == ["far-source", "folded-source", "last-source"]
-
-
-# A choice whose press shows at once on a page that has come up.
-CHOICE = """<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
-<lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
-</lf-options></lf-ask>"""
-
-
-def rolling_out(page):
-    """Answer each sample allocation as leaf.page's edge does for the minutes after a
-    deploy that a visitor's container still runs the previous release: 503 and the
-    seconds to wait (`worker/src/index.ts`, `rollingOut`). Returns the allocations
-    asked, each as its time and template, and `end()`, after which they go through."""
-    asked = []
-    rolling = [True]
-
-    def answer(route):
-        asked.append((time.monotonic(), route.request.post_data_json["template"]))
-        if not rolling[0]:
-            route.continue_()
-            return
-        route.fulfill(
-            status=503,
-            body="this release is still starting",
-            headers={"Retry-After": "1", "Cache-Control": "no-store"},
-        )
-
-    page.route("**/api/samples", answer)
-    return asked, lambda: rolling.__setitem__(0, False)
-
-
-def test_a_sample_brought_into_view_releases_the_page_while_its_server_waits(
-    browser, serve
-):
-    """A sample a jump brings into view holds the page's rendering until its frame fits
-    its page, as the landing of that jump, but not through a wait its server names, as
-    during a leaf.page deploy: once the allocation is refused with a wait, the page's
-    rendering settles while the sample reads as loading, and the sample arrives when
-    the rollout ends."""
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    asked, end = rolling_out(page)
-    page.goto(
-        serve(
-            leaf_page(
-                "Rollout jump",
-                '<p><a id="jump" href="#s">Jump to the sample</a></p>'
-                '<div style="height: 400vh"></div>' + live_sample("s"),
-            )
-        )
-    )
-    wait_until_ready(page)
-    assert asked == []
-    page.locator("#jump").click()
-    holding(page, asked, 1, "the sample's allocation")
-    expect(page.locator("#s .lf-sample-status")).to_have_text("Loading sample…")
-    rendered(page, facts=("preparationsSettled",))
-    end()
-    page.locator("#s").evaluate("sample => sample.ready")
-    wait_until_ready(page)
-    expect(page.locator("#s .lf-sample-status")).to_have_text("")
-    consume_browser_errors(page, http_error_console(503))

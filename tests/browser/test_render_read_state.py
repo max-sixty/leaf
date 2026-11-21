@@ -13,7 +13,7 @@ from journeys.test_render_read_state import (
     _box_height,
     _expect_news,
     _first_unread,
-    _on_me_mark,
+    _leaf,
     _read_events,
     _said,
     _thread_row,
@@ -103,12 +103,12 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
         None,
         None,
         None,
-        "Choose the next step.",
-        '<lf-ask id="read-decision"><h3>Which way?</h3>'
-        '<lf-options id="read-choice" choose>'
+        "Choose the next step.\n\n"
+        '<lf-group id="read-decision" label="Which way?">\n<h3 id="read-decision-h">Which way?</h3>'
+        '<lf-options id="read-choice">'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )["id"]
     page = open_page(browser, url)
     with sending(page, "the shown body's read"):
@@ -121,13 +121,15 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
 
 
 def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
-    """Content inside a message that scrolls on its own, like a long code line, is part
-    of what was shown; it does not hold the message unread."""
+    """Content inside a message that scrolls on its own, like a code block that keeps
+    its long line, is part of what was shown; it does not hold the message unread."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier user thread.")
     root = panel_comment(
         serve.page_dir,
-        "Run this:\n\n```\n" + "leaf page state --json " * 40 + "\n```",
+        'Run this:\n\n<pre style="white-space: pre"><code>'
+        + "leaf page state --json " * 40
+        + "</code></pre>",
         author="agent",
     )
     page = open_page(browser, url)
@@ -147,11 +149,11 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         None,
         None,
         None,
-        "Choose this answer.",
-        '<lf-ask id="read-refusal"><h3>Choose</h3>'
-        '<lf-options id="read-refusal-options" choose>'
+        "Choose this answer.\n\n"
+        '<lf-group id="read-refusal" label="Choose">\n<h3 id="read-refusal-h">Choose</h3>'
+        '<lf-options id="read-refusal-options">'
         '<lf-option id="read-refusal-yes">Yes</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-group>",
     )["id"]
     page = open_page(browser, url)
     cut = CutOff().hold(page)
@@ -295,11 +297,13 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     root = panel_comment(serve.page_dir, "An answer for the user.", author="agent")
     page = open_page(browser, url)
 
-    mark = _on_me_mark(page)
-    expect(mark).to_have_attribute("aria-label", "On Me, 1 thread with news")
-    expect(mark.locator(".lf-fp-news")).to_be_visible()
+    mark = _leaf(page)
+    expect(mark).to_have_attribute(
+        "aria-label", re.compile(r"^Threads · 1 thread with news · ")
+    )
+    expect(mark.locator(".lf-fp-news-dot")).to_be_visible()
     thread_control_width = mark.bounding_box()["width"]
-    # With news waiting and nothing on the user, the mark opens Threads, where the
+    # With news waiting and nothing on the user, the leaf opens Threads, where the
     # thread holding it says so.
     mark.click()
     panel_settled(page, view="threads")
@@ -318,8 +322,8 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     ]
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    expect(mark).to_have_attribute("aria-label", "On Me")
-    expect(mark.locator(".lf-fp-news")).to_be_hidden()
+    expect(mark).to_have_attribute("aria-label", re.compile(r"^Page menu · "))
+    expect(mark.locator(".lf-fp-news-dot")).to_be_hidden()
     assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     page.reload()
     _expect_news(page, False)
@@ -409,7 +413,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     url = serve(PANEL_PAGE)
     user = panel_comment(serve.page_dir, "The earlier user thread.")
     original = thread_model.cmd_comment(
-        serve.page_dir, None, None, None, "Original answer.", None
+        serve.page_dir, None, None, None, "Original answer."
     )
     root = original["id"]
     page = open_page(browser, url)
@@ -528,7 +532,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         },
     )["id"]
     page = open_page(request.getfixturevalue(engine), url)
-    thread = page.locator(f'.lf-thread-seat .lf-page-thread[data-lf-thread="{root}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     thread.evaluate(
         """thread => document.scrollingElement.scrollBy({
           top: thread.getBoundingClientRect().top - innerHeight / 3,
@@ -590,16 +594,16 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         stood = box.bounding_box()["y"]
         box.click()
         expect(thread.locator(".lf-msg")).to_have_count(3)
-        # Chrome hides a shift for half a second after a click, so the watch can't see
-        # the box leave the pointer.
+        # The click owns every move its rendering makes, so the watch would credit the
+        # box leaving the pointer.
         assert box.bounding_box()["y"] == pytest.approx(stood, abs=1)
         write(box, "Then the roof first.")
         with sending(page, "the user's reply"):
             page.keyboard.press("Enter")
     elif end == "tabbed":
-        # The seat's comment box stands below the thread, so Shift+Tab from it arrives
-        # in the thread's reply row, which the replies draw above.
-        page.locator(".lf-thread-seat > .lf-say leaf-text").click()
+        # The task's Comment control stands below the thread, so Shift+Tab from it
+        # arrives in the thread's reply row, which the replies draw above.
+        page.locator("#jobs > .lf-test-comment").focus()
         row = thread.locator(":scope > .lf-thread-reply")
         stood = row.bounding_box()["y"]
         page.keyboard.press("Shift+Tab")

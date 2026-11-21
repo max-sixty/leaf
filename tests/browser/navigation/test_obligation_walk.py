@@ -54,7 +54,7 @@ CARD = ".lf-margin-preview"
 def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
     browser, serve, reduced, nested_source
 ):
-    """A disclosure extends one reading; a mutually exclusive tab opens at its lf-ask.
+    """A disclosure extends one reading; a mutually exclusive tab opens at its question.
 
     Capture frames rather than just scroll events: a new panel must already show the
     question in its first painted frame, not appear elsewhere and glide afterwards.
@@ -62,7 +62,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
 
     def question(name):
         options = (
-            f'<lf-options id="choice-{name}" choose>'
+            f'<lf-options id="choice-{name}">'
             f'<lf-option id="yes-{name}">Yes</lf-option>'
             f'<lf-option id="no-{name}">No</lf-option></lf-options>'
         )
@@ -74,7 +74,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
                 + options
                 + "</lf-tab></lf-tabs>"
             )
-        return f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>{options}</lf-ask>'
+        return f'<lf-group id="ask-{name}" label="Choose {name}?"><h2 id="ask-{name}-h">Choose {name}?</h2>{options}</lf-group>'
 
     first = question("first")
     if not nested_source:
@@ -85,7 +85,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         )
     source = leaf_page(
         "Ask travel across tabs",
-        '<h1>Review the two proposals</h1><lf-tabs id="views" class="layout-flow">'
+        '<h1>Review the two proposals</h1><lf-tabs id="views" flow="page">'
         '<lf-tab id="first" label="First">'
         '<div style="height: 1800px"></div>'
         + first
@@ -228,10 +228,10 @@ def test_an_obligation_walk_reveals_the_owning_regions_horizontal_destination(
         '<h1>Inspect the wide proposal</h1><div id="inspection" data-bound="start" '
         'style="width:220px; height:280px; overflow:auto">'
         '<div style="width:1600px; padding-left:900px; box-sizing:border-box">'
-        '<lf-ask id="wide-ask"><h2>Choose the wider plan?</h2>'
-        '<lf-options id="wide-choice" choose>'
+        '<lf-group id="wide-ask" label="Choose the wider plan?"><h2 id="wide-ask-h">Choose the wider plan?</h2>'
+        '<lf-options id="wide-choice">'
         '<lf-option id="wide-yes">Yes</lf-option>'
-        '<lf-option id="wide-no">No</lf-option></lf-options></lf-ask>'
+        '<lf-option id="wide-no">No</lf-option></lf-options></lf-group>'
         "</div></div>",
     )
     page = open_page(browser, serve(source))
@@ -296,7 +296,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the obligation, which wears its options' digits; the marks
     # are the next Tab stops.
@@ -307,7 +307,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.evaluate(
         """async () => {
-          const {notice} = await window.__lfWidgetApi();
+          const {notice} = await window.__lfCheckApi();
           notice('Saved');
           dispatchEvent(new Event('resize'));
         }"""
@@ -322,7 +322,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
@@ -343,28 +343,22 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     expect(marks.nth(1)).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(marks.nth(1)).to_be_focused()
-    # Home and End reach the ends, as in every other list of rows.
+    # Home and End reach the ends, as in every other list of rows. The options stand
+    # whole around the ring, so their steps say no position, and the On Me walk that
+    # brought the user here goes on saying theirs.
     page.keyboard.press("Home")
     expect(marks.first).to_be_focused()
-    expect_walk_position(page, "Option 1 of 2")
+    expect_walk_position(page, "1 of 4 waiting on me")
     page.keyboard.press("End")
     expect(marks.nth(1)).to_be_focused()
-    expect_walk_position(page, "Option 2 of 2")
+    expect_walk_position(page, "1 of 4 waiting on me")
 
     with sending(page, "the numbered pick"):
         page.keyboard.press("1")
-    expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
-    # The pick's notice takes the panel's seat for passing words, and focus never left
-    # the second option, so the walk's reading stands behind it rather than retiring.
+    expect(page.locator("#lq-keep")).to_have_attribute("selected", "")
+    # The pick's notice takes the panel's seat for passing words.
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-lf-says", "notice"
-    )
-    assert (
-        page.evaluate(
-            """async () => (await window.__lfCheckApi())
-                .walkPosition()?.text"""
-        )
-        == "Option 2 of 2"
     )
     acts = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -377,7 +371,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     """A rejected reveal neither advances nor marks the existing obligation walk."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("m")
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
     page.evaluate(
         """async () => {
           const {widgetController} = await window.__lfWidgetApi();
@@ -403,7 +397,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     )
     page.wait_for_function("window.obligationRevealRejected === true")
     rendered(page)
-    assert walk_position(page)["text"] == "1 of 4 waiting on me · Options"
+    assert walk_position(page)["text"] == "1 of 4 waiting on me"
     expect(page.locator("#live-question-decision")).to_be_focused()
     reported_browser_errors(page, "leaf: Presentation failed: obligation reveal probe")
     round_trip(page)
@@ -414,7 +408,7 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    expect_walk_position(page, "1 of 4 waiting on me · Options")
+    expect_walk_position(page, "1 of 4 waiting on me")
     page.evaluate(
         """() => {
           const held = new Promise(resolve => { window.releaseObligationReveal = resolve; });
@@ -434,16 +428,16 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
     page.wait_for_function("window.obligationRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
-    page.locator(".lf-fp-on-user").focus()
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    page.locator(".lf-fp-leaf").focus()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     page.evaluate("releaseObligationReveal()")
     page.wait_for_function("window.obligationRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     # The user left the walk, so it says nothing more; it never says the next arrival.
     position = walk_position(page)
-    assert (position or {}).get("text") in (None, "1 of 4 waiting on me · Options")
+    assert (position or {}).get("text") in (None, "1 of 4 waiting on me")
 
 
 def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
@@ -457,9 +451,9 @@ def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
                 '<button role="tab" aria-selected="true" aria-controls="second-decision">'
                 "Second</button></div>"
                 + "".join(
-                    f'<lf-ask id="{key}-decision"><h2>Pick {key}</h2>'
-                    f'<lf-options id="{key}" choose><lf-option id="{key}-a">'
-                    "Alpha</lf-option></lf-options></lf-ask>"
+                    f'<lf-group id="{key}-decision" label="Pick {key}"><h2 id="{key}-decision-h">Pick {key}</h2>'
+                    f'<lf-options id="{key}"><lf-option id="{key}-a">'
+                    "Alpha</lf-option></lf-options></lf-group>"
                     for key in ("first", "second")
                 ),
             )
@@ -475,14 +469,13 @@ def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
 def test_an_obligations_digits_are_drawn_whole(browser, serve):
     """A binding badge arrives into room its option already holds, and lands on nothing.
 
-    Every earlier placement borrowed that room instead, and each borrow showed. On the
-    cell's outer corner the chip was half outside a group that clips itself, so no
-    binding badge the product drew had ever been whole — seven of its seventeen pixels gone,
-    and in a bare-label group the first digit was a sliver.
-    Out in the page margin beside the group it was whole and it was in the neighbouring
-    card's prose, because a middle column's margin is another cell. Neither showed up
-    as a failure: a clipped element still reports its whole box and still answers
-    `to_be_visible`, and a chip drawn over words breaks no rule anybody had written.
+    A placement that borrows that room instead shows it. On the cell's outer corner the
+    chip would be half outside a group that clips itself, and in a bare-label group the
+    first digit a sliver. Out in the page margin beside the group it would be whole and
+    in the neighbouring card's prose, because a middle column's margin is another cell.
+    Neither shows up as a failure: a clipped element still reports its whole box and
+    still answers `to_be_visible`, and a chip drawn over words breaks no rule anybody
+    had written.
 
     So the cell holds a place for it, and this asks the two questions that place
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
@@ -493,13 +486,13 @@ def test_an_obligations_digits_are_drawn_whole(browser, serve):
     How far down the column it stands is each form's own answer, so each is asked for the
     fact it states rather than for one number covering both. A card's digit rides at the
     head of that column, beside the title rather than over it; a row's is centred on the
-    row. Pinned as one 8px it was level with a 15px row, and the day the row went to the
-    page's own 17px it was two pixels too high with the gate still green — because what
-    the gate read was the number the theme stated, and the claim beside it, that a row's
-    digit is level with its words, was checked by nothing.
+    row. Pinned as one number, it is level with one row size and too high at another with
+    the gate still green — because what the gate reads is the number the theme states,
+    and the claim beside it, that a row's digit is level with its words, is checked by
+    nothing.
 
     How far in it stands is each form's own relation: edge, digit, then prose for a row;
-    prose opening, then digit, then edge for a card. The two forms deliberately no longer
+    prose opening, then digit, then edge for a card. The two forms deliberately don't
     claim one rail, while every option within a form still claims one stable seat."""
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     seats = {"card": {}, "row": {}}
@@ -553,17 +546,17 @@ def test_an_obligations_digits_are_drawn_whole(browser, serve):
     )
 
 
-def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
+def test_thread_widget_obligation_walk_orders_by_its_threads_page_passage(
     browser, serve
 ):
-    """A materialized frozen source keeps its thread's authored page order."""
+    """A materialized thread source keeps its thread's authored page order."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
     page.locator("h1").focus()
     page.keyboard.press("m")
-    expect(page.locator(f"{CARD} lf-ask[data-lf-obligation]")).to_be_focused()
+    expect(page.locator(f"{CARD} lf-group[data-lf-obligation]")).to_be_focused()
 
 
 def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
@@ -573,7 +566,7 @@ def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
     leaving the user beside the passage."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.keyboard.press("m")
-    item = page.locator(f"{CARD} lf-ask[data-lf-obligation]")
+    item = page.locator(f"{CARD} lf-group[data-lf-obligation]")
     expect(item).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
     page.keyboard.press("Escape")
@@ -623,15 +616,15 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
         serve(
             leaf_page(
                 "Shared Question context",
-                '<h1>Shared Question context</h1><lf-ask id="shared">'
-                "<h2>Choose both releases</h2>"
-                '<lf-options id="first" choose>'
+                '<h1>Shared Question context</h1><lf-group id="shared" label="Choose both releases">'
+                '<h2 id="shared-h">Choose both releases</h2>'
+                '<lf-options id="first">'
                 '<lf-option id="first-a">Alpha</lf-option>'
                 '<lf-option id="first-b">Beta</lf-option></lf-options>'
                 '<div style="height:1200px">Evidence between decisions</div>'
-                '<lf-options id="second" choose>'
+                '<lf-options id="second">'
                 '<lf-option id="second-a">Gamma</lf-option>'
-                '<lf-option id="second-b">Delta</lf-option></lf-options></lf-ask>',
+                '<lf-option id="second-b">Delta</lf-option></lf-options></lf-group>',
             )
         ),
     )
@@ -708,11 +701,11 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
         serve(
             leaf_page(
                 "An ask scrolled away",
-                '<h1>An ask scrolled away</h1><lf-ask id="route"><h2>Which route?</h2>'
-                '<lf-options id="routes" choose>'
+                '<h1>An ask scrolled away</h1><lf-group id="route" label="Which route?"><h2 id="route-h">Which route?</h2>'
+                '<lf-options id="routes">'
                 '<lf-option id="left">Take the left route</lf-option>'
                 '<lf-option id="right">Take the right route</lf-option>'
-                '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
+                '</lf-options></lf-group><div style="height:4000px">Reading on</div>',
             )
         ),
     )
@@ -769,11 +762,11 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     Home pressed before `d` has moved the page keeps it at the top, though at the top
     Home itself moves nothing."""
     asks = "".join(
-        f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
-        f'<h2>Which route?</h2><lf-options id="routes-{index}" choose>'
+        f'<div style="height:3000px">Reading on</div><lf-group id="ask-{index}" label="Which route?">'
+        f'<h2 id="ask-{index}-h">Which route?</h2><lf-options id="routes-{index}">'
         f'<lf-option id="left-{index}">Take the left route</lf-option>'
         f'<lf-option id="right-{index}">Take the right route</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
         for index in (1, 2)
     )
     page = open_page(
@@ -886,6 +879,43 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     assert settled() == 0
 
 
+def test_m_pressed_while_a_glide_carries_asks_past_steps_on_from_where_it_lands(
+    browser, serve
+):
+    """`m` pressed while the page still glides steps on from where the glide lands, as
+    it does pressed once the glide has landed: an ask the glide carries through the
+    window to end above it is not one the reader sees there."""
+    asks = "".join(
+        f'<lf-group id="ask-{index}" label="Question {index}">'
+        f'<h2 id="ask-{index}-h">Question {index}: which route?</h2>'
+        f"<p>Premise {index}, long enough to read as a line of the page.</p>"
+        f'<lf-options id="routes-{index}"><lf-option id="left-{index}">Left</lf-option>'
+        f'<lf-option id="right-{index}">Right</lf-option></lf-options></lf-group>'
+        for index in range(80)
+    )
+    page = open_page(
+        browser, serve(leaf_page("Many asks", f"<h1>Many asks</h1>{asks}"))
+    )
+    reached = []
+    for landed in (False, True):
+        page.evaluate(RELEASE_FOCUS)
+        page.evaluate(
+            "() => document.querySelector('#ask-40-h')"
+            ".scrollIntoView({block: 'start', behavior: 'instant'})"
+        )
+        scroll_settled(page)
+        for _ in range(12):
+            page.keyboard.press("d")
+        if landed:
+            scroll_settled(page)
+        page.keyboard.press("m")
+        scroll_settled(page)
+        reached.append(
+            page.evaluate("() => document.activeElement?.closest('lf-group')?.id")
+        )
+    assert reached[0] == reached[1]
+
+
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):
@@ -894,11 +924,11 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     obligation there rather than past it."""
     items = "".join(
         f"""
-<lf-ask id="question-{index}"><h2>Question {index}: which route should we take?</h2>
-<lf-options id="routes-{index}" choose>
+<lf-group id="question-{index}" label="Question {index}: which route should we take?"><h2 id="question-{index}-h">Question {index}: which route should we take?</h2>
+<lf-options id="routes-{index}">
   <lf-option id="route-{index}-left">Take the left route</lf-option>
   <lf-option id="route-{index}-right">Take the right route</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 <div style="height: 1200px"></div>
 """
         for index in range(1, 5)
@@ -948,6 +978,84 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     expect(page.locator("#question-3")).to_be_focused()
 
 
+def test_the_obligation_walk_reaches_a_question_in_view_whatever_its_words(
+    browser, serve
+):
+    """With nothing focused the walk starts from what the window shows, and a question
+    on screen ahead of the first paragraph there is where the user is, though its
+    options make no paragraph: `m` at the top of a page opening with options alone
+    reaches them, and so does `m` with a question's options at the window's top and its
+    heading scrolled away above. A question in view in the column beside the one the
+    reader's pointer is over is not where they are, as a block there is not."""
+    asks = "".join(
+        f"""
+<lf-group id="ask-{index}" label="Question {index}"><h2 id="ask-{index}-h">Question {index}: which route should we take?</h2>
+<p>The premise of question {index}, long enough to read as a line of the page.</p>
+<lf-options id="routes-{index}">
+  <lf-option id="routes-{index}-left">Take the left route through the valley</lf-option>
+  <lf-option id="routes-{index}-right">Take the right route over the ridge</lf-option>
+  <lf-option id="routes-{index}-wait">Wait for better weather before choosing</lf-option>
+</lf-options></lf-group>
+<div style="height: 200px"></div>"""
+        for index in range(1, 4)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a question of options alone",
+                f"""<lf-group id="ask-0" label="Question 0"><lf-options id="routes-0">
+  <lf-option id="routes-0-left">Take the left route</lf-option>
+  <lf-option id="routes-0-right">Take the right route</lf-option>
+</lf-options></lf-group>{asks}
+<div id="columns" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem">
+<div><lf-group id="beside-ask" label="Beside"><lf-options id="beside-routes">
+  <lf-option id="beside-left">Go left beside</lf-option>
+  <lf-option id="beside-right">Go right beside</lf-option>
+</lf-options></lf-group></div>
+<div><p id="read">The words the reader is reading run on in this column, long enough to wrap.</p>
+<lf-group id="read-ask" label="Read"><h2 id="read-ask-h">The question in the column read</h2>
+<lf-options id="read-routes">
+  <lf-option id="read-left">Go left here</lf-option>
+  <lf-option id="read-right">Go right here</lf-option>
+</lf-options></lf-group></div>
+</div><div style="height: 1200px"></div>""",
+            )
+        ),
+    )
+    page.emulate_media(reduced_motion="reduce")
+    page.keyboard.press("m")
+    expect(page.locator("#ask-0")).to_be_focused()
+    page.keyboard.press("Escape")
+
+    options = page.locator("#routes-2")
+    page.mouse.move(220, 450)
+    page.mouse.wheel(0, options.bounding_box()["y"] - 40)
+    page.wait_for_function(
+        "options => Math.abs(options.getBoundingClientRect().top - 40) < 2",
+        arg=options.element_handle(),
+    )
+    scroll_settled(page)
+    expect(page.locator("#ask-2-h")).not_to_be_in_viewport()
+    expect(page.locator("#ask-3-h")).to_be_in_viewport()
+    page.keyboard.press("m")
+    expect(page.locator("#ask-2")).to_be_focused()
+    page.keyboard.press("Escape")
+
+    columns = page.locator("#columns")
+    page.mouse.wheel(0, columns.bounding_box()["y"] - 80)
+    page.wait_for_function(
+        "columns => Math.abs(columns.getBoundingClientRect().top - 80) < 2",
+        arg=columns.element_handle(),
+    )
+    scroll_settled(page)
+    expect(page.locator("#beside-ask")).to_be_in_viewport()
+    read = page.locator("#read").bounding_box()
+    page.mouse.move(read["x"] + read["width"] / 2, read["y"] + 4)
+    page.keyboard.press("m")
+    expect(page.locator("#read-ask")).to_be_focused()
+
+
 def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
     browser, serve
 ):
@@ -955,11 +1063,11 @@ def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
     it rather than at the top of the view: `m` returns to it, and Tab carries on into
     it."""
     asks = "".join(
-        f"""<lf-ask id="ask-{index}"><h2>Question {index}</h2>
-<lf-options id="pick-{index}" choose>
+        f"""<lf-group id="ask-{index}" label="Question {index}"><h2 id="ask-{index}-h">Question {index}</h2>
+<lf-options id="pick-{index}">
   <lf-option id="pick-{index}-yes">Yes</lf-option>
   <lf-option id="pick-{index}-no">No</lf-option>
-</lf-options></lf-ask>"""
+</lf-options></lf-group>"""
         for index in range(1, 4)
     )
     page = open_page(
@@ -985,7 +1093,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
     appended after the whole page, so a user located on a thread in the panel would
     measure as past every obligation there is.
 
-    The route runs through the chrome all the same: a widget frozen into a reply is an
+    The route runs through the chrome all the same: a widget in a reply is an
     obligation the walk visits, and a user working its controls is located in the space the
     step measures. So the question is which obligations the layer holds and not whether the
     layer is chrome.
@@ -997,16 +1105,16 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             "asks over a panel",
             """
 <h1 id="h">Open questions</h1>
-<lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
-<lf-options id="first" choose>
-  <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
-  <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="second-decision"><h2>Who fills them?</h2>
-<lf-options id="second" choose>
-  <lf-option id="se-rota"><strong>A rota</strong></lf-option>
-  <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
-</lf-options></lf-ask>
+<lf-group id="first-decision" label="Where should the feeders go?"><h2 id="first-decision-h">Where should the feeders go?</h2>
+<lf-options id="first">
+  <lf-option id="fi-hedge" label="Along the hedge"><strong>Along the hedge</strong></lf-option>
+  <lf-option id="fi-lawn" label="Out on the lawn"><strong>Out on the lawn</strong></lf-option>
+</lf-options></lf-group>
+<lf-group id="second-decision" label="Who fills them?"><h2 id="second-decision-h">Who fills them?</h2>
+<lf-options id="second">
+  <lf-option id="se-rota" label="A rota"><strong>A rota</strong></lf-option>
+  <lf-option id="se-camera" label="Whoever the camera calls"><strong>Whoever the camera calls</strong></lf-option>
+</lf-options></lf-group>
 """,
         ),
         comments=2,
@@ -1017,12 +1125,12 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "And one for you in here.",
-            "markup": '<lf-ask id="reply-decision"><h3>Which baffle?</h3>'
-            '<lf-options id="reply-ask" choose>'
-            '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
-            '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
-            "</lf-options></lf-ask>",
+            "text": "And one for you in here.\n\n"
+            '<lf-group id="reply-decision" label="Which baffle?">\n<h3 id="reply-decision-h">Which baffle?</h3>'
+            '<lf-options id="reply-ask">'
+            '<lf-option id="re-dome" label="A dome"><strong>A dome</strong></lf-option>'
+            '<lf-option id="re-cone" label="A cone"><strong>A cone</strong></lf-option>'
+            "</lf-options></lf-group>",
         },
     )
     page = open_page(browser, live_url(url))
@@ -1060,30 +1168,30 @@ OBLIGATION_THREAD_PAGE = leaf_page(
     "an ask and its thread",
     """<h1>Cache review</h1>
 <p id="lead">The budget note covers latency budgets for the cache.</p>
-<lf-ask id="cache-ask">
-  <h2>Which cache should we keep?</h2>
-  <lf-options id="cache" choose>
+<lf-group id="cache-ask" label="Which cache should we keep?">
+  <h2 id="cache-ask-h">Which cache should we keep?</h2>
+  <lf-options id="cache">
     <lf-option id="cache-disk">Keep the disk cache</lf-option>
     <lf-option id="cache-memory">Keep the memory cache</lf-option>
   </lf-options>
-</lf-ask>
-<lf-ask id="ship-ask">
-  <h2>Ship on Friday?</h2>
-  <lf-options id="ship" choose>
+</lf-group>
+<lf-group id="ship-ask" label="Ship on Friday?">
+  <h2 id="ship-ask-h">Ship on Friday?</h2>
+  <lf-options id="ship">
     <lf-option id="ship-friday">Ship Friday</lf-option>
     <lf-option id="ship-wait">Wait a week</lf-option>
   </lf-options>
-</lf-ask>
+</lf-group>
 <lf-test-tasks id="tasks">
   <lf-test-task id="retry" status="review" owner="infra">
     <strong>Retry budget</strong> The retry budget doubles under load.
-    <lf-ask id="retry-ask">
-      <h3>Raise the retry budget?</h3>
-      <lf-options id="retry-pick" choose>
+    <lf-group id="retry-ask" label="Raise the retry budget?">
+      <h3 id="retry-ask-h">Raise the retry budget?</h3>
+      <lf-options id="retry-pick">
         <lf-option id="retry-raise">Raise it</lf-option>
         <lf-option id="retry-keep">Keep it</lf-option>
       </lf-options>
-    </lf-ask>
+    </lf-group>
   </lf-test-task>
 </lf-test-tasks>""",
 )
@@ -1125,7 +1233,7 @@ def test_walking_to_an_obligation_shows_its_discussion_clear_of_its_choices(
             or card["y"] >= box["y"] + box["height"]
         ), (card, box)
     page.keyboard.press("1")
-    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
     page.keyboard.press("c")
     expect(thread.locator("leaf-text")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
@@ -1147,7 +1255,7 @@ def test_walking_to_an_obligation_on_a_phone_continues_its_discussion_in_the_pan
     expect(page.locator("#cache-ask")).to_be_focused()
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_have_count(0)
     page.keyboard.press("1")
-    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
     page.keyboard.press("c")
     thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(thread).to_be_visible()
@@ -1161,7 +1269,7 @@ def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
     stands at, taking over from the passage's card. Working the obligation's controls keeps it
     there, and `c` continues it."""
     if family == "decision":
-        item = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision" choose><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
+        item = '<lf-group id="work" label="Keep the plan?"><h2 id="work-h">Keep the plan?</h2><lf-options id="decision"><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-group>'
     else:
         item = '<lf-suggestion id="work"><lf-old>Old plan</lf-old><lf-new>New plan</lf-new></lf-suggestion>'
     source = leaf_page(
@@ -1270,18 +1378,18 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
 
 def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser, serve):
     """The card a block's thread opens beside an obligation inside the block is the
-    thread the user is at, so `c` writes in its reply. It once closed that card and
-    opened a box on the obligation, answering a reply with a new thread."""
+    thread the user is at, so `c` writes in its reply. Closing that card and opening a
+    box on the obligation would answer a reply with a new thread."""
     url = serve(
         leaf_page(
             "calls",
             """<h1>Review</h1>
 <section id="calls"><h2>Judgment calls</h2>
-<lf-ask id="mark-ask"><h3>Cut the mark?</h3>
-<lf-options id="mark" choose>
+<lf-group id="mark-ask" label="Cut the mark?"><h3 id="mark-ask-h">Cut the mark?</h3>
+<lf-options id="mark">
   <lf-option id="mark-keep">Keep it</lf-option>
   <lf-option id="mark-cut">Remove it</lf-option>
-</lf-options></lf-ask></section>""",
+</lf-options></lf-group></section>""",
         )
     )
     root = answered_comment(
@@ -1298,12 +1406,12 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
     expect(thread.locator("leaf-text")).to_be_focused()
 
 
-def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, serve):
-    """A question's frame holds what it asks about, so a press on a control there is the
+def test_c_from_a_shot_in_a_questions_group_comments_on_the_question(browser, serve):
+    """A question's group holds what it asks about, so a press on a control there is the
     user reading the question. After `m`, a click that flips the shot or drags its divider
-    once moved `c` onto the shot, because it put focus on the shot's own controls, while
-    a press on its Pixels button left `c` on the question, and once the question was
-    answered every press named the shot. The control is the same press on a shot
+    puts focus on the shot's own controls, which would move `c` onto the shot, while
+    a press on its Pixels button would leave `c` on the question, and once the question
+    was answered every press would name the shot. The control is the same press on a shot
     outside any question, where `c` names the shot."""
     shot = (
         f'alt="the board before and after" before="{SHOT_SRC["before"]}" '
@@ -1314,12 +1422,12 @@ def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, se
             "calls",
             f"""<h1>Review</h1>
 <section id="calls"><h2>Judgment calls</h2>
-<lf-ask id="count-ask"><h3>Show the card count?</h3>
+<lf-group id="count-ask" label="Show the card count?"><h3 id="count-ask-h">Show the card count?</h3>
 <lf-shot id="count-shot" {shot}
-<lf-options id="count" choose>
+<lf-options id="count">
   <lf-option id="count-keep">Keep it</lf-option>
   <lf-option id="count-cut">Remove it</lf-option>
-</lf-options></lf-ask></section>
+</lf-options></lf-group></section>
 <section id="loose"><h2>Loose</h2><lf-shot id="loose-shot" {shot}</section>""",
         ),
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1338,16 +1446,16 @@ def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, se
     page.keyboard.press("m")
     expect(page.locator("#count-ask")).to_be_focused()
     comment_after_flipping("count-shot")
-    expect(composer).to_contain_text("question · Show the card count?")
+    expect(composer).to_contain_text("group · Show the card count?")
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
     # Answered, the frame still holds what the question is about.
     option = page.locator("#count-keep")
     option.click()
-    expect(option).to_have_attribute("chosen", "")
+    expect(option).to_have_attribute("selected", "")
     comment_after_flipping("count-shot")
-    expect(composer).to_contain_text("question · Show the card count?")
+    expect(composer).to_contain_text("group · Show the card count?")
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
@@ -1359,14 +1467,15 @@ def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, se
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     browser, serve
 ):
-    """An obligation frozen into a reply sits in a thread about a page lf-ask. Located in the
-    reply's obligation keeps that location whether or not it is answered: the thread leads to
-    its page obligation only from a node inside no obligation, so a user back on the answered option
-    does not have the page obligation's ring and digits. A contributed control for a widget in
-    the reply stands where that widget does: in no obligation, it stands where the thread's
-    view does, at the page obligation the thread is about, which wears the ring and takes
-    the digits, and `m` from it steps on from that obligation to the question in the reply
-    rather than from behind every obligation on the page."""
+    """An obligation in a reply sits in a thread about a page question. Located in the
+    reply's obligation keeps that location whether or not it is answered, so a user back
+    on the answered option does not have the page obligation's ring and digits. A
+    contributed control for a widget in the reply stands where that widget does: in no
+    obligation, it stands where the thread's view does, at the page obligation the thread
+    is about. While the reply's question is open, the control is in it, as the whole view
+    is, so that question wears the ring and takes the digits, and `m` from it steps on
+    past it. Once it is answered, the thread asks nothing, and the page question wears
+    the ring and takes the digits."""
     url = serve(
         OBLIGATION_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1384,12 +1493,12 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
             "revision": 1,
             "parent": about_obligation,
             "responds": about_obligation,
-            "text": "One question first.",
-            "markup": '<lf-ask id="follow-ask"><h3>Measure it first?</h3>'
-            '<lf-options id="follow" choose>'
+            "text": "One question first.\n\n"
+            '<lf-group id="follow-ask" label="Measure it first?">\n<h3 id="follow-ask-h">Measure it first?</h3>'
+            '<lf-options id="follow">'
             '<lf-option id="follow-yes">Measure first</lf-option>'
             '<lf-option id="follow-no">Decide now</lf-option>'
-            "</lf-options></lf-ask>"
+            "</lf-options></lf-group>"
             f'<lf-shot id="follow-shot" alt="the cache before and after" '
             f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
         },
@@ -1419,31 +1528,117 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
         )
         == "cache-ask"
     ), "a control on a widget in a reply does not stand where its thread is about"
-    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("m")
-    expect(page.locator("#follow-ask")).to_be_focused()
+    expect(page.locator("#ship-ask")).to_be_focused()
+    open_panel_thread(page, about_obligation)
     option = page.locator("#follow-yes")
     option.click()
-    expect(option).to_have_attribute("chosen", "")
-    # Back on the answered option, the user is located in the reply's lf-ask. Answering moves
-    # focus to the message, which is inside no obligation and so does stand at the page lf-ask.
+    expect(option).to_have_attribute("selected", "")
+    # Back on the answered option, the user is located in the reply's question.
     round_trip(page)
     option.locator(".lf-pick").focus()
     expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#cache-disk")).not_to_have_attribute("selected", "")
 
-    # From the control on the reply's widget, which stands at the page lf-ask, its digit
-    # answers it, and the answered obligation keeps its ring there: the control is a
-    # review route to it, as an On card is.
+    # That digit took the pick back, so from the control on the reply's widget the
+    # reply's question, open again, wears the ring and takes the digits.
+    expect(option).not_to_have_attribute("selected", "")
     contributed.focus()
+    expect(page.locator("#follow-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(option).to_have_attribute("selected", "")
+
+    # Answered, the thread asks nothing, and the control stands at the page question: its
+    # digit answers it, and the answered obligation keeps its ring there: the control is a
+    # review route to it, as an On card is.
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
+    expect(page.locator("#follow-yes")).to_have_attribute("selected", "")
     expect(contributed).to_be_focused()
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+
+
+def test_a_thread_takes_the_digits_of_the_questions_it_asks_in_turn(browser, serve):
+    """A thread whose agent's latest message asks questions is in the first still open:
+    `t` lands on the thread, that question wears the ring and its options their digits,
+    and a digit picks one there, leaving the question an earlier message asked alone and
+    the user on the thread. The thread then moves on to the next, as a form does, and
+    the panel's view of the thread answers it too. Once both are answered the thread asks
+    nothing, so a further digit revises neither answer."""
+    source = leaf_page(
+        "Release charts",
+        '<section id="release"><h2 id="release-h">The release page</h2>'
+        "<p>It draws ten charts as images.</p></section>",
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "id": "ask",
+            "anchor": {"section": "release"},
+            "text": "Should the charts stay images?\n\n"
+            '<lf-options id="first"><lf-option id="first-keep">Keep them</lf-option>'
+            '<lf-option id="first-inline">Inline them</lf-option></lf-options>',
+        },
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "id": "why",
+            "parent": "ask",
+            "text": "What would inlining take?",
+        },
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": "ask",
+            "responds": "why",
+            "text": "A script the release page's session runs. Who should run it?\n\n"
+            '<lf-options id="second"><lf-option id="second-send">Its session</lf-option>'
+            '<lf-option id="second-here">This session</lf-option></lf-options>\n\n'
+            "And when?\n\n"
+            '<lf-options id="third"><lf-option id="third-now">Now</lf-option>'
+            '<lf-option id="third-later">After the release</lf-option></lf-options>',
+        },
+    ]
+    page = open_page(browser, serve(source, events=events))
+    page.keyboard.press("t")
+    thread = page.locator(f'{CARD} .lf-page-thread[data-lf-thread="ask"]')
+    expect(thread).to_be_focused()
+    expect(page.locator("#second")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#second-here .lf-key-badge")).to_have_text("2")
+    page.keyboard.press("2")
+    expect(page.locator("#second-here")).to_have_attribute("selected", "")
+    round_trip(page)
+    expect(page.locator("#first lf-option[selected]")).to_have_count(0)
+    expect(thread).to_be_focused()
+    expect(page.locator("#third")).to_have_attribute("data-lf-obligation", "1")
+
+    # The panel's view of the thread draws its reply row apart from its messages, and a
+    # digit from that row's Dictate answers the same question.
+    open_panel_thread(page, "ask")
+    expect(panel_field(page)).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-field .lf-compose-dictate")).to_be_focused()
+    page.keyboard.press("1")
+    expect(page.locator("#third-now")).to_have_attribute("selected", "")
+    round_trip(page)
+    page.keyboard.press("2")
+    round_trip(page)
+    expect(page.locator("lf-option[selected]")).to_have_count(2)
+    expect(page.locator("#second-here")).to_have_attribute("selected", "")
+    expect(page.locator("#third-now")).to_have_attribute("selected", "")
 
 
 OBLIGATION_IN_A_PANE_PAGE = leaf_page(
@@ -1460,13 +1655,13 @@ OBLIGATION_IN_A_PANE_PAGE = leaf_page(
       <div>
         <p>Evidence the user reads before the question.</p>
         <div style="height: 700px"></div>
-        <lf-ask id="pane-decision">
-          <h3>How should the probe page?</h3>
-          <lf-options id="pane-choice" choose>
-            <lf-option id="pane-a"><strong>Require three failures</strong> Quieter.</lf-option>
-            <lf-option id="pane-b"><strong>Keep one failure</strong> Louder.</lf-option>
+        <lf-group id="pane-decision" label="How should the probe page?">
+          <h3 id="pane-decision-h">How should the probe page?</h3>
+          <lf-options id="pane-choice">
+            <lf-option id="pane-a" label="Require three failures"><strong>Require three failures</strong> Quieter.</lf-option>
+            <lf-option id="pane-b" label="Keep one failure"><strong>Keep one failure</strong> Louder.</lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-group>
         <div style="height: 900px"></div>
       </div>
     </lf-pane>
@@ -1480,9 +1675,9 @@ OBLIGATION_IN_A_PANE_PAGE = leaf_page(
 def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
     """An obligation walk lands the decision at the start of the pane that scrolls it, and the
     obligation wears the ring outside its box. The landing keeps the ring's room at the pane's
-    edge, as the browser's own landing does for a box asking for it: the obligation stood
-    flush with the pane's top, the top of its ring cut off under the pane's header
-    rule."""
+    edge, as the browser's own landing does for a box asking for it, where otherwise the
+    obligation would stand flush with the pane's top, the top of its ring cut off under
+    the pane's header rule."""
     page = open_page(browser, serve(OBLIGATION_IN_A_PANE_PAGE))
     resized(page, 1440, 900)
     pane_scroll_behavior(page, page.locator("#ask-detail"), "bounded")
@@ -1504,7 +1699,7 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
 
 ASK_WORDS = """() => {
   const words = document.createRange();
-  words.selectNodeContents(document.querySelector('lf-ask[data-lf-obligation] h2'));
+  words.selectNodeContents(document.querySelector('#rollout h2'));
   return {words: words.getClientRects()[0].left};
 }"""
 
@@ -1514,14 +1709,14 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     obligation's does, so it does not run over the first letter of each line. A
     question that is a full-height workspace's body has only the workspace's gutter
     round it, so its ring stands at a control's gap (layouts.css), inside the window
-    on top and at the sides: inside the question it ran over the heading's first letter
-    and under the panes the question holds."""
+    on top and at the sides: inside the question it would run over the heading's first
+    letter and under the panes the question holds."""
     ask = (
-        '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
+        '<lf-group id="rollout" label="Include self-hosted runners?"><h2 id="rollout-h">Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"
-        '<lf-options id="rollout-options" choose>'
+        '<lf-options id="rollout-options">'
         '<lf-option id="include">Include them</lf-option>'
-        '<lf-option id="later">Later</lf-option></lf-options></lf-ask>'
+        '<lf-option id="later">Later</lf-option></lf-options></lf-group>'
     )
     page = open_page(browser, serve(leaf_page("a question", ask)))
     resized(page, 1280, 800)

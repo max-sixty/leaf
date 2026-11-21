@@ -89,11 +89,10 @@ if (child) {
     return document.hasFocus();
   });
   // The containing page's check asks for all near work (presentation.js,
-  // `startNearWork`); this document starts its own and answers once it has taken it
-  // in, so the containing page counts it as arriving until then.
-  registerSampleCommand("near-work", async () => {
+  // `startNearWork`); this document starts its own and answers at once, and the check
+  // waits for each document's readiness itself (render_checks.py, `start_near_work`).
+  registerSampleCommand("near-work", () => {
     startNearWork();
-    await whenArrived();
     return null;
   });
   // The containing page's image shows this part of the viewport where the frame stands.

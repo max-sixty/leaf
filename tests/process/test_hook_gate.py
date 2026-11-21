@@ -2,7 +2,6 @@
 without starting Leaf, in unclaimed sessions and for worker tool batches, and
 the pages follower, which ends with the signal that stopped it."""
 
-import hashlib
 import json
 import os
 import signal
@@ -114,24 +113,13 @@ def test_a_terminated_pages_follower_exits_with_its_signal(claimed, spawn):
         stderr=subprocess.PIPE,
         text=True,
     )
-    # As the module asks, the follower is also the session's forks lane, so it
-    # waits on the page's changes between reads.
-    follower.stdin.write(
-        json.dumps(
-            {
-                "hook_event_name": "Pages",
-                "session_id": "s1",
-                "forks": True,
-                "module": hashlib.sha256(
-                    (ROOT / "hooks" / "claude-code.ts").read_bytes()
-                ).hexdigest(),
-            }
-        )
-    )
+    # The follower is also the session's forks lane, so it waits on the page's
+    # changes between reads.
+    follower.stdin.write(json.dumps({"hook_event_name": "Pages", "session_id": "s1"}))
     follower.stdin.close()
     # The claimed page has no server, so the follower lists nothing and goes on
     # following it.
-    assert json.loads(follower.stdout.readline()) == {"pages": [], "completions": []}
+    assert json.loads(follower.stdout.readline()) == {"pages": [], "do": []}
     assert follower.poll() is None
     follower.send_signal(signal.SIGTERM)
     assert follower.wait(timeout=STATED_TIMEOUT) == 128 + signal.SIGTERM, (

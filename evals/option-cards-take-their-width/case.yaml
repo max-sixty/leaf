@@ -1,20 +1,16 @@
-# From session 2f10f4a1, whose user found three option cards set `across` in an
-# lf-ask "quite thin" at 1728px: `across` shares the group's width, the question keeps
-# the 720px column, so each card got 229px and its four-word title broke in two. None
-# of the six pages before it that set cards across gave the group a `data-width`.
-# The fix is guidance: the lf-options entry says a card of words reads at about 18rem,
-# so a row of three needs `data-width="wide"`. As a probe told to read the entries,
-# base a2773d828 set `data-width` on the row in 1 of 4 Claude Code runs, and the entry
-# stating the rule in 4 of 4; every run set `across`. The case now authors the page
-# and names nothing to read: at 0e538e29d each of 4 Claude Code authors read the
-# entries through `leaf page instructions --use` and set the width, as 4 of 4 told
-# probes did.
+# A session's user found three option cards set `across` in a question's lf-group "quite thin"
+# at 1728px: `across` shares the group's width, the question keeps the 720px column,
+# so each card got 229px and its four-word title broke in two. Other pages that set
+# cards across gave the group no `data-width` either.
+# The fix is guidance: the lf-options entry says a card of words reads at about
+# 18rem, so a row of three needs `data-width="wide"`. The case is a probe given a
+# page with its packages.
 description: option-cards-take-their-width
 metadata:
   purpose:
     "Asks: a row of option cards set side by side takes the width its cards need to
     read, rather than a share of the reading column too small for a card's title."
-  authoring: true
+  page: []
   tags:
     - asks
 vars:

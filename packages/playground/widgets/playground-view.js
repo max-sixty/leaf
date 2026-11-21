@@ -1,23 +1,64 @@
-/* The playground's retained Lit view reads native controls and draws their values.
- * Its live widget owns commands, working state and delivery.
+/* The playground's retained Lit view draws its regions around the author's form and
+ * reads and writes the native fields it holds. Its live widget owns commands, working
+ * state and delivery (lf-playground.js).
  *
- * A playground needs no control: a preview whose script declares contributor slices
- * is a whole configuration (lf-playground.js). With `actions="page"` the page draws
- * the submission and Reset and hands them to the playground, so this view draws no bar
- * of actions, and the instruction stays where it was written, after the stage, as a
- * quoted playground's does, for the page to show or place. This view still writes the
- * words of the page's submission, from the one template its own submission uses. The
- * markup says so, not only the page's call, because this drawing is the first paint: a
- * bar drawn here and withdrawn once the page's script registered its own would move
- * the page as it loads.
+ * The author writes the form: each `input`, `select` or `textarea` with a `name` in the
+ * playground is one field, and radios that share a name are one field. An `<aside>`
+ * directly inside stands in the rail beside the preview, as a sidebar page's aside
+ * does, and the rest of what the playground holds is its preview. The view draws the
+ * regions, presets and actions, and never a control or its label. The fields stand in
+ * the one `<form>` the view draws around both, so a playground's radio groups are its
+ * own, and a control that belongs to a form of its own, such as a candidate's or an
+ * inspection setting's, is no field, nor is one a widget in the preview generated
+ * (`data-lf-gen`), such as a motion study's transport. The browser's value sanitization decides which
+ * values a field can hold. An `<output for="NAME">` shows field NAME's value.
+ * Rejected: Leaf's own control tags, whose kind, bounds, step and unit the view copied
+ * into the native inputs it drew, and whose values it checked again itself.
+ *
+ * A press on the body of the box that holds one radio, and no other of its group, such
+ * as a candidate's card, selects that radio, as a press on its label does; the browser
+ * answers presses on the label itself and on whatever operates inside the box.
+ *
+ * A playground needs no field: a preview whose script declares contributor slices is
+ * a whole configuration (lf-playground.js). A `<button type="submit">` written in the
+ * playground is its submission, with a `<button type="reset">` as its Reset, and this
+ * view then draws no bar of actions, and the instruction stays where it was written,
+ * after the stage, as a quoted playground's does, for the page to show or place. This
+ * view still writes the words of that submission, from the one template its own
+ * submission uses, so they say what the press will do. The markup says the page draws
+ * them, not a script's call, because this drawing is the first paint: a bar drawn here
+ * and withdrawn once a script handed over its own would move the page as it loads.
  */
-import { offerElement, offeredAction, generatedElement } from "/runtime/widget-api.js";
+import { offeredAction, generatedElement, keepsText } from "/runtime/widget-api.js";
 
-import { html, nothing, ref, render } from "/vendor/lit.js";
+import { html, nothing, render } from "/vendor/lit.js";
 
-/** @typedef {string | number | boolean} ControlValue */
+/** @typedef {string | number | boolean | null} FieldValue */
+/** @typedef {HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement} FieldControl */
+/**
+ * One field: the controls that share a name, what they hold now, and what they held as
+ * authored, as a form's reset restores them. `read` is undefined while a number field
+ * holds no number.
+ * @typedef {{
+ *   name: string,
+ *   controls: FieldControl[],
+ *   radios: boolean,
+ *   quoted: boolean,
+ *   initial: FieldValue,
+ *   read: () => FieldValue | undefined,
+ *   holds: (value: unknown) => boolean,
+ *   write: (value: FieldValue) => void,
+ *   parse: (raw: string) => FieldValue,
+ * }} Field
+ */
 /** @typedef {Readonly<Record<string, unknown>>} Configuration */
-/** @typedef {{submit: HTMLButtonElement, reset: HTMLButtonElement}} PlaygroundActions */
+
+const NAME = /^[a-z0-9][a-z0-9-]*$/;
+// Input types that press rather than hold a value, and a file, which no record holds.
+const UNHELD = new Set(["button", "submit", "reset", "image", "file"]);
+// Text the user types reaches CSS as a string, for `content`; any other value as is.
+const TYPED = new Set(["text", "search", "url", "email", "tel", "password"]);
+
 /** @param {Element} root @param {string} tag @returns {HTMLElement[]} */
 const own = (root, tag) => {
   /** @type {NodeListOf<HTMLElement>} */
@@ -33,194 +74,259 @@ function requiredAttribute(element, name) {
 /** @param {Element} host @param {Element} member */
 const belongsTo = (host, member) =>
   member.parentElement?.closest("lf-playground, [data-lf-exhibit]") === host;
-// A control stands in the rail as a direct child, or where the preview's markup puts
-// it, beside the item it changes (x-within). Nested playgrounds and quotations
-// enclose their own content rather than supplying controls to this playground.
-/** @param {Element} host @param {Element | undefined} preview */
-const ownControls = (host, preview) => {
-  /** @type {NodeListOf<HTMLElement> | undefined} */
-  const nested = preview?.querySelectorAll("lf-playground-control");
-  return [
-    ...own(host, "lf-playground-control"),
-    ...[...(nested ?? [])].filter((control) => belongsTo(host, control)),
-  ];
-};
+/** @param {FieldValue} value */
+const words = (value) => (value === null ? "" : String(value));
+
+/** @param {HTMLInputElement} input */
+const number = (input) =>
+  Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : null;
+
+/** A detached copy that sanitizes a value as its control does, leaving the control be.
+ * @template {HTMLInputElement} T @param {T} control @param {string} value */
+function probe(control, value) {
+  const copy = /** @type {T} */ (control.cloneNode());
+  copy.value = value;
+  return copy;
+}
+
+/** @param {string} name @param {FieldControl[]} controls @returns {Field} */
+function field(name, controls) {
+  const [control, ...others] = controls;
+  if (!control) throw new Error(`field ${name} has no control`);
+  const radios = controls.filter(
+    /** @returns {each is HTMLInputElement} */
+    (each) => each instanceof HTMLInputElement && each.type === "radio",
+  );
+  if (radios.length === controls.length) {
+    return {
+      name,
+      controls,
+      radios: true,
+      quoted: false,
+      initial: radios.findLast((radio) => radio.defaultChecked)?.value ?? null,
+      read: () => radios.find((radio) => radio.checked)?.value ?? null,
+      holds: (value) => value === null || radios.some((radio) => radio.value === value),
+      write: (value) => {
+        for (const radio of radios) radio.checked = radio.value === value;
+      },
+      parse: (raw) => raw,
+    };
+  }
+  if (others.length)
+    throw new Error(`field ${name} names more than one control that isn't a radio`);
+  const base = { name, controls, radios: false, quoted: false };
+  if (control instanceof HTMLInputElement && control.type === "checkbox")
+    return {
+      ...base,
+      initial: control.defaultChecked,
+      read: () => control.checked,
+      holds: (value) => typeof value === "boolean",
+      write: (value) => {
+        control.checked = value === true;
+      },
+      parse: (raw) => {
+        if (raw !== "true" && raw !== "false")
+          throw new Error(`checkbox ${name} takes true or false, not ${raw}`);
+        return raw === "true";
+      },
+    };
+  if (control instanceof HTMLInputElement && ["range", "number"].includes(control.type))
+    return {
+      ...base,
+      initial: number(probe(control, control.defaultValue)),
+      read: () => number(control) ?? undefined,
+      holds: (value) => {
+        if (typeof value !== "number") return false;
+        const copy = probe(control, String(value));
+        return number(copy) === value && copy.validity.valid;
+      },
+      write: (value) => {
+        control.value = words(value);
+      },
+      parse: (raw) => Number(raw.trim() || NaN),
+    };
+  const options = control instanceof HTMLSelectElement ? [...control.options] : null;
+  return {
+    ...base,
+    quoted:
+      control.localName === "textarea" ||
+      (control instanceof HTMLInputElement && TYPED.has(control.type)),
+    initial: options
+      ? ((options.findLast((option) => option.defaultSelected) ?? options[0])?.value ??
+        "")
+      : control instanceof HTMLInputElement
+        ? probe(control, control.defaultValue).value
+        : /** @type {HTMLTextAreaElement} */ (control).defaultValue,
+    read: () => control.value,
+    holds: (value) =>
+      typeof value === "string" &&
+      (options
+        ? options.some((option) => option.value === value)
+        : !(control instanceof HTMLInputElement) ||
+          probe(control, value).value === value),
+    write: (value) => {
+      control.value = words(value);
+    },
+    // A colour reads the same in either case, and its field holds it lowercase.
+    parse: (raw) =>
+      control instanceof HTMLInputElement && control.type === "color"
+        ? raw.toLowerCase()
+        : raw,
+  };
+}
 
 /** @param {HTMLElement} host */
 export function createPlayground(host) {
   const presets = own(host, "lf-playground-preset");
-  const outputs = own(host, "lf-playground-output");
-  const previews = own(host, "lf-playground-preview");
-  const controls = ownControls(host, previews[0]);
-  const [output, extraOutput] = outputs,
-    [preview, extraPreview] = previews;
-  if (!output || extraOutput || !preview || extraPreview)
-    throw new Error("playground needs one preview and one output");
-  /** @type {Map<string, HTMLElement>} */
-  const controlByName = new Map();
-  /** @type {Map<HTMLElement, {name: string, kind: string, choices: HTMLElement[]}>} */
-  const readings = new Map();
-  /** @type {Map<string, HTMLElement[]>} */
-  const choicesByName = new Map();
+  const [output, extraOutput] = own(host, "lf-playground-output");
+  if (!output || extraOutput)
+    throw new Error("playground needs one lf-playground-output");
+  const asides = own(host, "aside");
+  // A control that belongs to a form of its own, one inside the playground or one its
+  // `form` attribute names, is that form's; one in no form, or in a form around the
+  // whole playground, joins the playground's form (render).
+  /** @param {FieldControl | HTMLOutputElement | HTMLButtonElement} control */
+  const member = (control) =>
+    belongsTo(host, control) &&
+    !control.hasAttribute("form") &&
+    !(control.form && host.contains(control.form));
+  /** @type {Map<string, FieldControl[]>} */
+  const named = new Map();
+  /** @type {NodeListOf<FieldControl>} */
+  const controls = host.querySelectorAll("input[name], select[name], textarea[name]");
   for (const control of controls) {
-    const name = requiredAttribute(control, "name"),
-      kind = requiredAttribute(control, "kind");
-    const choices = own(control, "lf-playground-choice");
-    if ((kind === "choice") !== Boolean(choices.length))
-      throw new Error(`control ${name} needs choices only for kind choice`);
-    readings.set(control, { name, kind, choices });
-    choicesByName.set(name, choices);
-    controlByName.set(name, control);
+    // A field control a widget in the preview generated, such as a motion study's
+    // scrubber, is that widget's inspection and no field, though it stands in the
+    // playground's form. A page's own submit or reset button, or an output, stays the
+    // page's wherever a script moves it, so the mark excludes only fields.
+    if (!member(control) || host.contains(control.closest("[data-lf-gen]"))) continue;
+    if (control instanceof HTMLInputElement && UNHELD.has(control.type)) continue;
+    if (!NAME.test(control.name))
+      throw new Error(
+        `field name ${control.name} needs lowercase letters, digits and hyphens`,
+      );
+    named.set(control.name, [...(named.get(control.name) ?? []), control]);
   }
-  /** @param {HTMLElement} control */
-  const reading = (control) => {
-    const record = readings.get(control);
-    if (!record) throw new Error("A playground value needs its declared control");
-    return record;
-  };
-  /** @param {HTMLElement} control @param {unknown} raw @returns {ControlValue} */
-  const parse = (control, raw) => {
-    const { name, kind, choices } = reading(control);
-    if (kind === "range") {
-      const value = Number(raw),
-        min = Number(control.getAttribute("min"));
-      const max = Number(control.getAttribute("max")),
-        step = Number(control.getAttribute("step") ?? "1");
-      if (!Number.isFinite(value) || min >= max || value < min || value > max)
-        throw new Error(`control ${name} has a value outside its range`);
-      if (Math.abs((value - min) / step - Math.round((value - min) / step)) > 1e-9)
-        throw new Error(`control ${name} has a value off its step`);
-      return value;
-    }
-    if (kind === "toggle") {
-      if (raw !== "true" && raw !== "false")
-        throw new Error(`toggle control ${name} needs true or false`);
-      return raw === "true";
-    }
-    if (typeof raw !== "string") throw new Error(`control ${name} needs text`);
-    if (
-      kind === "choice" &&
-      !choices.some((choice) => choice.getAttribute("value") === raw)
-    )
-      throw new Error(`control ${name} has no choice ${raw}`);
-    if (kind === "color") {
-      if (!/^#[0-9a-f]{6}$/i.test(raw))
-        throw new Error(`color control ${name} needs #rrggbb`);
-      return raw.toLowerCase();
-    }
-    return raw;
-  };
-  /** @param {HTMLElement} control @param {unknown} value */
-  const typed = (control, value) => {
-    const { name, kind } = reading(control);
-    const type = kind === "range" ? "number" : kind === "toggle" ? "boolean" : "string";
-    if (typeof value !== type) throw new Error(`control ${name} needs a ${type}`);
-    return parse(control, String(value));
-  };
-  const defaults = Object.freeze(
-    Object.fromEntries(
-      controls.map((control) => [
-        reading(control).name,
-        parse(control, control.getAttribute("value")),
-      ]),
+  /** @type {Map<string, Field>} */
+  const fields = new Map(
+    [...named].map(([name, members]) => [name, field(name, members)]),
+  );
+  /** @type {Map<Element, Field>} */
+  const fieldByControl = new Map(
+    [...fields.values()].flatMap((each) =>
+      each.controls.map((control) => [control, each]),
     ),
   );
+  const defaults = Object.freeze(
+    Object.fromEntries([...fields].map(([name, each]) => [name, each.initial])),
+  );
+  // The fields are live from the first paint, before this view is built, so what each
+  // shows now may differ from its authored value: the user's edit before the upgrade,
+  // or the browser's restoration of their last one. The drawing leaves those in place,
+  // and the live widget takes them as edits (lf-playground.js). Until the drawing puts
+  // them in this playground's form, its radios share a group with every radio of their
+  // name on the page that no form holds either, so one reading none checked lost its
+  // check to that other group, as no press can clear a group: the drawing restores it.
+  // So is a number field holding no number.
+  /** @type {Map<string, FieldValue>} */
+  const shown = new Map();
+  for (const [name, each] of fields) {
+    const value = each.read();
+    if (value !== undefined && !(each.radios && value === null)) shown.set(name, value);
+  }
+  const edited = Object.freeze(
+    Object.fromEntries(
+      [...shown].filter(([name, value]) => !Object.is(value, defaults[name])),
+    ),
+  );
+  /** @param {string} type @returns {HTMLButtonElement | null} */
+  const pageButton = (type) => {
+    /** @type {NodeListOf<HTMLButtonElement>} */
+    const buttons = host.querySelectorAll(`button[type="${type}"]`);
+    return [...buttons].find(member) ?? null;
+  };
+  const pageSubmit = pageButton("submit"),
+    pageReset = pageButton("reset");
+  if (pageReset && !pageSubmit)
+    throw new Error(
+      "a playground whose page writes its reset button needs its submit button",
+    );
+  const pageActions = Boolean(pageSubmit);
   const interactive = !host.closest("[data-lf-exhibit]");
   const authored = [...host.childNodes];
-  const railed = controls.filter((control) => control.parentElement === host);
-  /** @type {Set<HTMLElement>} */
-  const candidates = new Set();
-  /** @type {Map<HTMLElement, ChildNode[]>} */
-  const bodies = new Map();
-  for (const [name, choices] of choicesByName) {
-    if (
-      choices.some((choice) =>
-        [...choice.childNodes].some(
-          (child) =>
-            child.nodeType === Node.ELEMENT_NODE ||
-            (child instanceof Text && child.data.trim()),
-        ),
-      )
-    ) {
-      const control = controlByName.get(name);
-      if (control) candidates.add(control);
-    }
-    for (const choice of choices) bodies.set(choice, [...choice.childNodes]);
-  }
-  host.classList.toggle("lf-playground-quoted", !interactive);
-  for (const control of controls) {
-    if (candidates.has(control)) control.classList.add("lf-playground-candidates");
-    if (interactive)
-      control.classList.add(`lf-playground-${control.getAttribute("kind")}`);
-  }
-  if (!interactive) {
-    const bare = new Set(controls.filter((control) => !candidates.has(control)));
-    /** @param {Element} box */
-    const holdsOnlyBare = (box) =>
-      [...box.childNodes].every((child) =>
-        child instanceof Text
-          ? !child.data.trim()
-          : child.nodeType === Node.COMMENT_NODE ||
-            (child instanceof HTMLElement && bare.has(child)),
-      );
-    for (const control of bare)
+  const kept = new Set([...presets, output, ...asides]);
+  const stage = authored.filter((node) => !kept.has(/** @type {HTMLElement} */ (node)));
+  // The box around each radio that holds no other radio of its group, past the radio's
+  // own label, up to its fieldset, the rail or the playground (the header says why).
+  /** @type {Map<Element, HTMLInputElement>} */
+  const candidates = new Map();
+  for (const each of fields.values()) {
+    if (!each.radios) continue;
+    for (const radio of /** @type {HTMLInputElement[]} */ (each.controls)) {
+      /** @type {Element} */
+      let box = radio.closest("label") ?? radio;
       for (
-        let box = control.parentElement;
-        box && box !== preview && box !== host && !bare.has(box) && holdsOnlyBare(box);
-        box = box.parentElement
+        let up = box.parentElement;
+        up &&
+        up !== host &&
+        !up.matches("fieldset, aside") &&
+        each.controls.every((other) => other === radio || !up?.contains(other));
+        up = up.parentElement
       )
-        bare.add(box);
-    for (const hidden of [...bare, ...presets]) hidden.hidden = true;
+        box = up;
+      if (box !== radio && box.localName !== "label") candidates.set(box, radio);
+    }
+  }
+  // A quotation takes no input and sends nothing: its fields show the values it quotes,
+  // and its own submission and Reset are gone.
+  if (!interactive) {
+    for (const control of fieldByControl.keys())
+      /** @type {FieldControl} */ (control).disabled = true;
+    for (const button of [pageSubmit, pageReset]) if (button) button.hidden = true;
   }
   const presetSettings = new Map(
     presets.map((preset) => {
+      const label = preset.getAttribute("label");
       const settings = own(preset, "lf-playground-setting");
-      if (!settings.length)
-        throw new Error(`preset ${preset.getAttribute("label")} is empty`);
+      if (!settings.length) throw new Error(`preset ${label} is empty`);
       return [
         preset,
         Object.freeze(
           Object.fromEntries(
             settings.map((setting) => {
               const name = requiredAttribute(setting, "for");
-              const control = controlByName.get(name);
-              if (!control) throw new Error(`Preset names unknown control ${name}`);
-              return [name, parse(control, setting.getAttribute("value"))];
+              const target = fields.get(name);
+              if (!target) throw new Error(`preset ${label} names no field ${name}`);
+              const raw = requiredAttribute(setting, "value");
+              const value = target.parse(raw);
+              if (!target.holds(value))
+                throw new Error(
+                  `preset ${label} sets ${name} to ${raw}, which it can't hold`,
+                );
+              return [name, value];
             }),
           ),
         ),
       ];
     }),
   );
-  /** @param {HTMLElement} control @param {unknown} value */
-  const formatted = (control, value) => `${value}${control.getAttribute("unit") ?? ""}`;
-  // Each value is generated separately from the authored instruction around it,
-  // and remains quotable as the configuration's words.
-  /** @type {NodeListOf<HTMLElement>} */
-  const outputSlots = output.querySelectorAll("lf-playground-value");
-  const slots = [...outputSlots].filter((slot) => belongsTo(host, slot));
-  const slotReadings = slots.map((slot) => {
-    const name = requiredAttribute(slot, "for");
-    const control = controlByName.get(name);
-    if (!control) throw new Error(`Playground output names unknown control ${name}`);
+  // Each value is generated separately from the authored words around it, and remains
+  // quotable as the configuration's words.
+  /** @type {NodeListOf<HTMLOutputElement>} */
+  const outputs = host.querySelectorAll("output[for]");
+  const slots = [...outputs].filter(member).map((slot) => {
+    const name = requiredAttribute(slot, "for").trim();
+    if (!fields.has(name)) throw new Error(`<output for="${name}"> names no field`);
     generatedElement(slot, { says: true });
-    return { slot, name, control };
+    return { slot, name };
   });
   const presetWords = new Map(
     presets.map((preset) => [preset, [...preset.childNodes]]),
   );
-  // These are independent authored roots, including controls inside arbitrary preview
-  // markup. Each retains its node and has one Lit template, on delivery and live updates.
-  for (const root of [...controls, ...bodies.keys(), ...presets, ...slots])
-    root.replaceChildren();
+  // Each preset retains its node and has one Lit template, on delivery and live
+  // updates; the controls and outputs keep theirs and take their values in place.
+  for (const preset of presets) preset.replaceChildren();
   host.replaceChildren();
-  /** @param {(element: Element) => void} apply */
-  const offered = (apply) =>
-    ref((element) => {
-      if (element) apply(element);
-    });
-  const inputOffer = offered((element) => offerElement(element, "lf-playground-input"));
-  const radioOffer = offered((element) => offerElement(element, ""));
   const resetOffer = offeredAction("symbol", "lf-playground-reset", undefined, {
     action: "reset",
   });
@@ -234,33 +340,30 @@ export function createPlayground(host) {
   );
   const submitOffer = offeredAction("commit", "lf-playground-submit");
   const presetOffer = offeredAction("word", "lf-playground-preset");
-  /** @param {HTMLElement} control @returns {(HTMLInputElement | HTMLSelectElement)[]} */
-  const nativeInputs = (control) => {
-    /** @type {NodeListOf<HTMLInputElement | HTMLSelectElement>} */
-    const inputs = control.querySelectorAll(
-      ":scope > input, :scope > select, :scope > .lf-choice > input, :scope > .lf-playground-choices > lf-playground-choice > .lf-choice > input",
-    );
-    return [...inputs];
-  };
   const split = () => host.querySelector(":scope > .lf-playground-split");
   const actions = () =>
     split()?.querySelector(
       ":scope > .lf-playground-rail > .lf-playground-instruction-region > .lf-playground-actions",
     );
   const instructionId = `${host.id}-instruction`;
-  const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+  const submitLabel =
+    pageSubmit?.textContent?.trim() ||
+    host.getAttribute("submit-label") ||
+    "Use these settings";
   // The submission says what pressing it does: send the working values, or withdraw
   // the choice they match (lf-playground.js). One room holds both words.
   const submitRoom = `${submitLabel}\nUndo choice`;
   /** @param {boolean} chosen */
   const submitWords = (chosen) =>
     html`<span data-lf-gen="1">${chosen ? "Undo choice" : submitLabel}</span>`;
-  const pageActions = host.getAttribute("actions") === "page";
-  const offline = Boolean(document.querySelector("script[data-lf-offline]"));
+  if (pageSubmit && interactive) {
+    pageSubmit.replaceChildren();
+    pageSubmit.dataset.lfRoom = submitRoom;
+  }
   const presetBar = () =>
     !presets.length
       ? nothing
-      : railed.length
+      : asides.length
         ? html`<header
             class="lf-playground-presets"
             role="group"
@@ -283,42 +386,33 @@ export function createPlayground(host) {
       role="region"
       aria-label="Controls"
     >
-      ${presetBar()}${
-        railed.length
-          ? html`<div class="lf-playground-controls" role="group" aria-label="Controls">
-              ${railed}
-            </div>`
-          : nothing
-      }
+      ${presetBar()}${asides}
     </div>`;
   const view = {
-    controls,
-    controlByName,
+    fields,
     presets,
     presetSettings,
     defaults,
+    edited,
     output,
-    preview,
-    parse,
-    controlName: (/** @type {HTMLElement} */ control) => reading(control).name,
-    typed,
     interactive,
     pageActions,
     /** @type {ReturnType<typeof import("/runtime/widget-api.js").copyControl> | null} */
     copy: null,
-    // Under `actions="page"`, the page's own two buttons once it registers them.
-    /** @type {PlaygroundActions | null} */
-    given: null,
+    /** @returns {HTMLElement | null} */
+    get preview() {
+      return split()?.querySelector(".lf-playground-stage") ?? null;
+    },
     /** @returns {HTMLButtonElement | null} */
     get submit() {
       return pageActions
-        ? (view.given?.submit ?? null)
+        ? pageSubmit
         : (actions()?.querySelector(":scope > .lf-playground-submit") ?? null);
     },
     /** @returns {HTMLButtonElement | null} */
     get reset() {
       return pageActions
-        ? (view.given?.reset ?? null)
+        ? pageReset
         : (actions()?.querySelector(":scope > .lf-playground-reset") ?? null);
     },
     /** @returns {HTMLElement | null} */
@@ -336,7 +430,7 @@ export function createPlayground(host) {
         [
           "controls",
           ":scope > .lf-playground-controls-region, :scope > .lf-playground-rail > .lf-playground-controls-region",
-          railed.length ? ".lf-playground-controls" : ".lf-playground-presets",
+          asides.length ? ":scope > aside" : ".lf-playground-presets",
         ],
         [
           "instruction",
@@ -359,29 +453,39 @@ export function createPlayground(host) {
         return [{ name, host: region, body: readingBody }];
       });
     },
-    // The page's buttons under `actions="page"`; render writes the submission's words.
-    /** @param {PlaygroundActions} given */
-    give(given) {
-      view.given = given;
-      given.submit.replaceChildren();
-      given.submit.dataset.lfRoom = submitRoom;
+    /** @param {Element | null} element */
+    isField: (element) => Boolean(element && fieldByControl.has(element)),
+    // The next drawing writes these fields, or all of them, as a gesture that sets them
+    // from outside (Reset, a preset) requires: a field may show what the configuration
+    // doesn't hold, such as a number field the user cleared.
+    /** @param {Iterable<string>} [names] */
+    forget: (names = fields.keys()) => {
+      for (const name of names) shown.delete(name);
     },
-    /** @param {HTMLElement} control @param {EventTarget | null} target */
-    isInput(control, target) {
-      return nativeInputs(control).some((input) => input === target);
+    // The field a control the user changed belongs to, with the value it now holds,
+    // which the drawing then leaves in place; null for any other control, and while a
+    // number field holds no number.
+    /** @param {EventTarget | null} target */
+    input(target) {
+      const changed = target instanceof Element ? fieldByControl.get(target) : null;
+      const value = changed?.read();
+      if (!changed || value === undefined) return null;
+      shown.set(changed.name, value);
+      return { name: changed.name, value };
     },
-    /** @param {HTMLElement} control */
-    readInput(control) {
-      const inputs = nativeInputs(control),
-        input = inputs[0];
-      if (!input)
-        throw new Error("A rendered playground control needs its native input");
-      return input instanceof HTMLInputElement && input.type === "radio"
-        ? inputs.find((radio) => radio instanceof HTMLInputElement && radio.checked)
-            ?.value
-        : control.getAttribute("kind") === "toggle"
-          ? input instanceof HTMLInputElement && input.checked
-          : input.value;
+    /** The radio a press on `target` selects: one whose box holds it, outside a label.
+     * @param {Element} target */
+    candidate(target) {
+      for (
+        let at = /** @type {Element | null} */ (target);
+        at && at !== host;
+        at = at.parentElement
+      ) {
+        if (at.localName === "label") return null;
+        const radio = candidates.get(at);
+        if (radio) return { box: at, radio };
+      }
+      return null;
     },
     /** @param {Configuration} next */
     reflection(next) {
@@ -390,133 +494,38 @@ export function createPlayground(host) {
       /** @type {Record<string, string>} */
       const properties = {};
       for (const [name, value] of Object.entries(next)) {
-        const control = controlByName.get(name);
-        if (!control) continue;
-        attributes[`data-playground-${name}`] = String(value);
-        const content = formatted(control, value);
-        properties[`--playground-${name}`] =
-          control.getAttribute("kind") === "text" ? JSON.stringify(content) : content;
+        const each = fields.get(name);
+        if (!each) continue;
+        const text = words(/** @type {FieldValue} */ (value));
+        attributes[`data-playground-${name}`] = text;
+        properties[`--playground-${name}`] = each.quoted ? JSON.stringify(text) : text;
       }
       return { attributes, properties };
     },
-    /** @param {{values?: Configuration, instruction?: string | null, chosen?: () => boolean}} [options] */
-    render({ values: next = defaults, instruction = null, chosen = () => false } = {}) {
+    /** @param {{values?: Configuration, instruction?: string | null, chosen?: () => boolean, unavailable?: string | null}} [options] */
+    render({
+      values: next = defaults,
+      instruction = null,
+      chosen = () => false,
+      unavailable = null,
+    } = {}) {
+      // A field takes a value only where it differs from what the field last showed,
+      // so the words being typed and a number being cleared stay as they are.
+      for (const [name, each] of fields) {
+        const value = /** @type {FieldValue} */ (next[name] ?? null);
+        if (shown.has(name) && Object.is(shown.get(name), value)) continue;
+        shown.set(name, value);
+        each.write(value);
+      }
       if (instruction === null) {
-        for (const { slot, control, name } of slotReadings)
-          render(html`${formatted(control, next[name])}`, slot);
+        for (const { slot, name } of slots)
+          keepsText(slot, words(/** @type {FieldValue} */ (next[name] ?? null)));
       } else {
         if (!output.hasAttribute("data-lf-gen")) {
           output.replaceChildren();
           generatedElement(output, { says: true });
         }
         render(html`${instruction}`, output);
-      }
-      for (const control of controls) {
-        const { name, kind, choices } = reading(control);
-        const label = control.getAttribute("label");
-        // The words beside the input name it, so its preview, which says only what
-        // its face and labels don't, repeats none of them. A span rather than a
-        // `<label>`, since a press on the words selects them and works no control.
-        // Its id takes `lf-`, so a comment aimed at the words names the control
-        // rather than this generated span (anchor-resolution.js, `ADDRESSABLE`).
-        const labelId = `lf-${host.id}-${name}-label`;
-        const select =
-          kind === "choice" && control.getAttribute("appearance") === "select";
-        if (!select)
-          for (const choice of choices)
-            render(
-              html`
-                ${
-                  interactive
-                    ? html`<label class="lf-choice" data-lf-gen="1"
-                        ><input
-                          ${radioOffer}
-                          type="radio"
-                          name=${`${host.id}-${name}`}
-                          value=${choice.getAttribute("value")}
-                          .checked=${next[name] === choice.getAttribute("value")}
-                        /><span class="lf-playground-choice-label" data-lf-gen="1"
-                          >${choice.getAttribute("label")}</span
-                        ></label
-                      >`
-                    : html`<p class="lf-playground-choice-heading" data-lf-gen="1">
-                        ${choice.getAttribute("label")}
-                      </p>`
-                }
-                ${
-                  candidates.has(control)
-                    ? html`<div class="lf-playground-choice-preview">
-                        ${bodies.get(choice)}
-                      </div>`
-                    : nothing
-                }
-              `,
-              choice,
-            );
-        if (!interactive) {
-          render(html`${choices}`, control);
-          continue;
-        }
-        const field = html`<input
-          type=${kind === "toggle" ? "checkbox" : kind}
-          ${inputOffer}
-          id=${`${host.id}-${name}-input`}
-          name=${`${host.id}-${name}`}
-          aria-labelledby=${labelId}
-          role=${kind === "toggle" ? "switch" : nothing}
-          min=${control.getAttribute("min") ?? nothing}
-          max=${control.getAttribute("max") ?? nothing}
-          step=${control.getAttribute("step") ?? nothing}
-          placeholder=${control.getAttribute("placeholder") ?? nothing}
-          .checked=${kind === "toggle" ? next[name] : false}
-          .value=${kind === "toggle" ? "on" : next[name]}
-        />`;
-        render(
-          html`<span class="lf-playground-control-label" id=${labelId} data-lf-gen="1"
-              >${label}</span
-            >
-            ${
-              select
-                ? html`<select
-                    ${inputOffer}
-                    name=${`${host.id}-${name}`}
-                    aria-labelledby=${labelId}
-                    .value=${next[name]}
-                  >
-                    ${choices.map(
-                      (choice) =>
-                        html`<option
-                          value=${choice.getAttribute("value")}
-                          .selected=${next[name] === choice.getAttribute("value")}
-                        >
-                          ${choice.getAttribute("label")}
-                        </option>`,
-                    )}
-                  </select>`
-                : kind === "choice"
-                  ? // A group, not a radiogroup, which may hold only radios: a
-                    // candidate's preview keeps its own buttons, fields and media. The
-                    // radios share a name, so the browser walks them as one set.
-                    html`<div
-                      class="lf-playground-input lf-playground-choices"
-                      role="group"
-                      aria-labelledby=${labelId}
-                    >
-                      ${choices}
-                    </div>`
-                  : kind === "toggle"
-                    ? html`<label class="lf-choice" data-lf-gen="1">${field}</label>`
-                    : field
-            }
-            ${
-              kind === "range"
-                ? html`<output class="lf-playground-reading"
-                    >${formatted(control, next[name])}</output
-                  >`
-                : nothing
-            } `,
-          control,
-        );
       }
       if (!interactive) return html`${authored}`;
       for (const [preset, settings] of presetSettings)
@@ -531,7 +540,7 @@ export function createPlayground(host) {
             </button>`,
           preset,
         );
-      if (view.given) render(submitWords(chosen()), view.given.submit);
+      if (pageSubmit) render(submitWords(chosen()), pageSubmit);
       const instructionPane = html`<div
         class="lf-playground-instruction-region"
         data-lf-reading-role="pane"
@@ -570,25 +579,25 @@ export function createPlayground(host) {
             <div class="lf-playground-instruction-body">${output}</div>
           </div>
           ${
-            offline
+            unavailable
               ? html`<span class="lf-playground-unavailable" data-lf-gen="1"
-                  >Submission unavailable: no agent or server is available.</span
+                  >Submission unavailable: ${unavailable}.</span
                 >`
               : nothing
           }
         </footer>
       </div>`;
-      // The rail holds the controls written there and the bar of actions; a page that
-      // draws its own actions and writes no control there leaves it out.
+      // The rail holds the aside and the bar of actions; a page that draws its own
+      // actions and writes no aside leaves it out.
       const rail =
-        railed.length || !pageActions
+        asides.length || !pageActions
           ? html`<div class="lf-playground-rail" data-lf-track>
-              ${railed.length ? controlsPane() : nothing}
+              ${asides.length ? controlsPane() : nothing}
               ${pageActions ? nothing : instructionPane}
             </div>`
           : nothing;
-      return html`<div class="lf-playground-split">
-          ${!railed.length && presets.length ? controlsPane() : nothing}
+      return html`<form class="lf-playground-split">
+          ${!asides.length && presets.length ? controlsPane() : nothing}
           <div
             class="lf-playground-preview-region"
             data-lf-reading-role="pane"
@@ -596,10 +605,12 @@ export function createPlayground(host) {
             role="region"
             aria-label="Preview"
           >
-            <div class="lf-playground-preview-body">${preview}</div>
+            <div class="lf-playground-preview-body">
+              <div class="lf-playground-stage">${stage}</div>
+            </div>
           </div>
           ${rail}
-        </div>
+        </form>
         ${pageActions ? output : nothing}`;
     },
   };

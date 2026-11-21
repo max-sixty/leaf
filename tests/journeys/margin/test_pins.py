@@ -7,6 +7,7 @@ from browser.margin import _comment_on
 from playwright.sync_api import expect
 from render_cases_widgets import RAIL_BAND_PAGE
 from render_harness import (
+    CHROME_ROOT,
     RELEASE_FOCUS,
     margins_laid_out,
     open_page,
@@ -57,7 +58,9 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
 
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("o")
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     expect(pin).to_be_hidden()
     expect(rail).to_be_visible()
     assert page.evaluate(marked) == ""
@@ -70,7 +73,9 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
     page.reload()
     page.wait_for_selector("body[data-lf-presented]")
     margins_laid_out(page)
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     expect(pin).to_be_hidden()
     assert page.evaluate(marked) == ""
 
@@ -81,10 +86,10 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
     )
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("w")
-    expect(field).to_have_attribute("data-lf-says", "stance")
     expect(field).to_have_attribute(
-        "placeholder", re.compile("^In Draw mode · Annotations hidden")
+        "placeholder", re.compile(r"^Annotations hidden · \S")
     )
+    expect(page.locator(".lf-fp-mode")).to_have_text("Draw")
     page.keyboard.press("Escape")
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 
@@ -97,13 +102,15 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
     expect(pin).to_be_visible()
     page.evaluate(RELEASE_FOCUS)
     expect(pin).to_be_hidden()
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
 
     page.keyboard.press("o")
     expect(pin).to_be_visible()
     assert page.evaluate(marked) == passage
-    expect(page.locator("html")).not_to_have_attribute(
-        "data-lf-annotations", re.compile(".*")
+    expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
+        "data-lf-annotations-hidden", re.compile(".*")
     )
     # The notice saying the annotations are shown passes, and the status stands alone.
     expect(field).to_have_attribute("data-lf-says", "status")

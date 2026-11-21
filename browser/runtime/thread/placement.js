@@ -22,17 +22,15 @@ import {
   headed,
   HEADING,
   inPage,
-  keptAnswer,
   leafSurface,
   pageDocument,
-  pageReadingVersion,
-  runsIntoLine,
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, overIn, upFrom } from "../shadow.js";
+import { byRenderedOrder, overIn, upFrom } from "../shadow-tree.js";
 import { threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
+import { kept } from "../kept.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -91,9 +89,6 @@ export const inPageOrder = (threads, placedAt) =>
 // (`documentOutline`).
 /** @param {Node} node */
 const outlineOf = (node) => documentOutline(authoredScope(node));
-/** @param {readonly unknown[] | undefined} kept @param {readonly unknown[]} key */
-const current = (kept, key) =>
-  kept?.every((part, index) => part === key[index]) ?? false;
 /** The heading after `heading` in its document's outline, or null.
  * @param {Element} heading */
 export function headingAfter(heading) {
@@ -114,35 +109,28 @@ export function headingAfter(heading) {
 // leading heading or disclosure's summary, its caption, or the `aria-label` or <label>
 // its author gave it. So a <section> the author wrote names what stands in it before
 // its heading, a sub-heading inside it heads what follows the sub-heading, a captioned
-// figure or table names what it holds, and a region the author labelled is a part. A
-// run-in label, a leading <strong> that words follow before a <br> or a block element,
-// as a paragraph's or a titled option's is, names its own element and makes no part: a
-// bold label opening a line is no place a reader groups by, so On Me's bands and a
-// preview's name go on to the part holding the line. A <strong> alone on its line, over
-// a <br> or a container's blocks, names that container as a part, as a heading would.
-// Which it is is the markup's (`runsIntoLine`), not the line the browser draws: a
-// drawn line moved with every style a page could set, a box-less wrapper, kept
-// newlines, hidden words, and renamed a part as the reader opened a disclosure, where
-// Python's names, read off the document, never move. The contract stops short of the document the node stands in and the
-// page's column, whose leading heading titles the page, and passes a
-// slot, whose own children are the fallback its assignment replaces, and what Leaf
-// generates in the document, whose labels are Leaf's. A heading in a `header` or
-// `hgroup` heads what holds that, so a page's title in its header heads the page's
-// sections. The container is what "the heading over this" means: a question's own
-// heading stands inside the question, so it heads neither the question, which it
-// follows, nor the next question, which its container does not hold. The question
-// stands in the part around it, which is where On Me groups it; what a heading counts
-// as its own also takes in the element it titles (`conversationsAbout`). A heading the
-// reader cannot see, as in a tab not selected, still heads its part, so a part's name
-// does not change as the page shows or hides it; an arrival measures what it lands on
-// and passes one that shows nothing. On the corpus page, whose pages stand in tabs with
-// their titles in headers and their last sections untitled, the container alone sent
-// every item to the corpus's own title.
+// figure or table names what it holds, a region the author labelled is a part, and so is
+// a widget its `label` names, such as an option card or a tab. A <strong> names nothing,
+// so it makes no part. The contract stops
+// short of the document the node stands in and the page's column, whose leading heading
+// titles the page, and passes a slot, whose own children are the fallback its
+// assignment replaces, and what Leaf generates in the document, whose labels are
+// Leaf's. A heading in a `header` or `hgroup` heads what holds that, so a page's title
+// in its header heads the page's sections. The container is what "the heading over
+// this" means: a question's own heading stands inside the question, so it heads neither
+// the question, which it follows, nor the next question, which its container does not
+// hold. The question stands in the part around it, which is where On Me groups it; what
+// a heading counts as its own also takes in the element it titles
+// (`conversationsAbout`). A heading the reader cannot see, as in a tab not selected,
+// still heads its part, so a part's name does not change as the page shows or hides it;
+// an arrival measures what it lands on and passes one that shows nothing. On the corpus
+// page, whose pages stand in tabs with their titles in headers and their last sections
+// untitled, the container alone would send every item to the corpus's own title.
 //
-// Replaced: only a declared name or a leading heading named a container, while the
-// preview named a place by its nearest named holder first (`holderNaming`). The two
-// rules disagreed under a sub-heading inside a titled section, the preview saying the
-// section and On Me the sub-heading; one rule now says the sub-heading for both.
+// Rejected: only a declared name or a leading heading naming a container, while the
+// preview names a place by its nearest named holder first (`holderNaming`). The two
+// rules disagree under a sub-heading inside a titled section, the preview saying the
+// section and On Me the sub-heading; one rule says the sub-heading for both.
 //
 // The reading records what stood over each element as its walk reached it, so a call
 // costs the node's depth: On Me asks it of every item it lists. A node the reading never
@@ -162,25 +150,14 @@ export function partOver(node) {
     if (!namesWhatItHolds(container, scope)) continue;
     const naming = ownNaming(container);
     if (!naming) continue;
-    // A heading that titles its container heads what the container holds; any other
+    // A heading that titles its container heads what the container holds, and any other
     // name makes the container the part.
     if (!("by" in naming)) return container;
-    if (
-      naming.by === node ||
-      (naming.by.localName === "strong" && runsIn(naming.by, container))
-    )
-      continue;
+    if (naming.by === node) continue;
     return naming.by.matches(HEADING) ? naming.by : container;
   }
   return null;
 }
-// Whether a title runs into words on its own line, as a paragraph's bold lead-in runs
-// into its sentence, read off the markup (`runsIntoLine`), so a place is the same part
-// whatever the reader opens or the page draws. A title alone on its line heads what
-// follows it. Kept as long as its document's reading stands, as the markup does.
-/** @param {Element} title @param {Element} container */
-const runsIn = (title, container) =>
-  keptAnswer(title, "runs into its line", () => runsIntoLine(title, container));
 // Whether the contract's name for `container` names what it holds: short of the document
 // it stands in and the page's column, never a slot, and never what Leaf generated there.
 /** @param {Element} container @param {Element} scope */
@@ -220,24 +197,18 @@ export function partTrail(node) {
 // conversation about a heading, or about the whole question or section it titles, is
 // its part's, not the part before it.
 //
-// Replaced: a heading counted only what `partOver` put under it, which places a
-// question in the part around it, so a thread about a whole question counted under the
-// heading before the question, and the question's own heading previewed none.
+// Rejected: a heading counting only what `partOver` puts under it, which places a
+// question in the part around it, so a thread about a whole question counts under the
+// heading before the question, and the question's own heading previews none.
 //
-// Kept against exactly what it reads: the threads as the thread reading publishes them,
-// a new value whenever any thread's contents change, its turns included; the agent's
-// name the turns are said in; and the page's reading, since an anchor names an element
-// of the page.
-/** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations
- * @typedef {{key: readonly unknown[], inside: Map<Element, Conversations>, headed: Map<Element, Conversations>}} Gathered */
-/** @type {Gathered | null} */
-let gathered = null;
-/** @returns {Gathered} */
-function gatherConversations() {
+// Kept until something it read changes (kept.js, `kept`): the threads, a new value
+// whenever any thread's contents change, its turns included; the agent's name the
+// turns are said in; and the page's reading, since an anchor names an element of the
+// page.
+/** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations */
+const gatherConversations = kept(() => {
   const { all, bySection } = threadState();
   const agent = agentName();
-  const key = [all, agent, pageReadingVersion()];
-  if (gathered && current(gathered.key, key)) return gathered;
   /** @type {Map<Element, Conversations>} */
   const inside = new Map();
   /** @type {Map<Element, Conversations>} */
@@ -270,9 +241,8 @@ function gatherConversations() {
     for (let at = headingOf(element); at; at = parentHeading(at, parents))
       add(headed, at, these);
   }
-  gathered = { key, inside, headed };
-  return gathered;
-}
+  return { inside, headed };
+});
 /** The open conversations about `place`: for a heading, about the part it heads; for
  * any other element, about it or anything it holds. Null where there are none.
  * @param {Element} place */
@@ -282,10 +252,9 @@ export function conversationsAbout(place) {
 }
 // The heading that heads `element`, the later in the page of two: the first heading met
 // climbing the parts over it (`partOver`), and the heading titling the nearest element
-// around it that a heading titles (`titlingHeading`). So a thread about a question, or
-// about the section wrapping it, is its heading's, though `partOver` puts the question
-// in the part around it, and a sub-heading inside a titled section still heads what
-// follows it there.
+// around it that a heading titles (`titlingHeading`). So a thread about a question is
+// its heading's, though `partOver` puts the question in the part around it, and a
+// sub-heading inside a titled section still heads what follows it there.
 /** @param {Element} element @returns {Element | null} */
 function headingOf(element) {
   let over = element.matches(HEADING) ? element : partOver(element);

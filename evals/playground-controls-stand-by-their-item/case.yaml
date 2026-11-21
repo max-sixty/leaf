@@ -1,21 +1,19 @@
-# Added when a playground control could stand inside the preview beside the item it
-# changes, after judges of the plain HTML comparison preferred configuration pages that
-# kept each alert's settings beside its evidence over a rail of fourteen settings.
-# Claude Code: base 0/2 (every control in the rail), head 2/2.
+# A playground control can stand inside the preview beside the item it changes: a
+# configuration page that keeps each alert's settings beside its evidence reads
+# better than a rail of fourteen settings.
 # playground-presets-are-whole-designs holds the other side: controls that change the
 # whole preview stay in the rail.
-# workspace-premise-is-short came with the short-premise guidance in the playground's
-# author.md, after a 900x700 study page spent three lines of premise above the stage.
-# Claude Code: base 0/2 (three sentences), the rule in page-layout.md 0/2 (read, not
-# followed), the rule in author.md 2/2.
-# Those scores used the historical sentence-count rubric. The revised premise
-# rubric grades useful context and task prominence. Both saved Codex answers passed
-# when regraded for context anywhere on the page rather than repeated in its intro.
-# The case now authors the page and names nothing to read; it hasn't run in this form.
+# premise-supports-the-task scores the short-premise guidance in the playground's
+# author.md; a 900x700 study page spent three lines of premise above the stage. The
+# rule sits in author.md, since authors read it in page-layout.md without following
+# it. The premise rubric grades useful context and task prominence, not a sentence
+# count. There is no rail recipe for a setting every item shares, so each control
+# stays within sight of what it changes; the rubric takes the budget in the rail or
+# once in the preview beside the month's page count.
 description: playground-controls-stand-by-their-item
 metadata:
-  purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail."
-  authoring: true
+  purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting every item shares stands once, within sight of the total it changes."
+  page: [playground]
   tags:
     - playground
     - layout
@@ -43,13 +41,13 @@ assert:
   - type: llm-rubric
     metric: controls-stand-by-their-item
     value: |
-      Pass only if each alert's threshold and route are `lf-playground-control`
-      elements written inside `lf-playground-preview`, next to that alert's own replay,
-      and the page budget is an `lf-playground-control` that is a direct child of
-      `lf-playground`, outside the preview. Fail if every control is a direct child of
-      `lf-playground` (so all of them stand together in the rail), if the per-alert
-      settings are hand-built inputs rather than playground controls, or if the budget
-      is repeated beside each alert.
+      Pass only if each alert's threshold and route are playground fields written
+      in the preview, next to that alert's own replay, and the page budget is one
+      field, either in the playground's `<aside>` in the rail or in the preview beside
+      the month's page count it is compared with. Fail if every field stands in the
+      aside (so all of them stand together in the rail), if the per-alert settings
+      are controls outside the playground's configuration, such as unnamed inputs a
+      script reads, or if the budget is repeated beside each alert.
   - type: llm-rubric
     metric: premise-supports-the-task
     value: |

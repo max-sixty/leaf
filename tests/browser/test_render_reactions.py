@@ -520,10 +520,13 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
         expect(focused).to_be_focused()
         assert focused.evaluate(face)["outline"] == "solid"
         assert focused.evaluate(face)["ring"] != resting_face["ring"]
-    expect_panel_says(page, "Response 7 of 7")
     page.keyboard.press("ArrowRight")
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
-    expect_panel_says(page, "Response 1 of 7")
+    # The options stand whole around the ring, so a step says no position.
+    assert (
+        page.evaluate("async () => (await window.__lfCheckApi()).walkPosition()")
+        is None
+    )
     assert (
         surface.locator(".lf-fab-input:visible, .lf-react:visible").evaluate_all(
             """els => new Set(els.map(el => {
@@ -558,7 +561,7 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
         page.locator('.lf-command-reference-command[data-lf-command="history.undo"]')
     )
     assert any(
-        re.match("^Undo: shorten reaction on “The store is capped.* · ", line)
+        re.match("^Undo: shorten reaction on “The store is capped.*” \\S", line)
         for line in said
     ), said
     page.keyboard.press("Escape")
@@ -615,7 +618,6 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     choices.first.focus()
     page.keyboard.press("ArrowRight")
     expect(reaction).to_be_focused()
-    expect_panel_says(page, "Reaction 2 of 6")
     if opener == "click":
         with sending(page, "the direct reaction"):
             reaction.click()
@@ -636,8 +638,8 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
 def test_reactions_raised_from_a_folded_pin_s_toggle_take_the_focus(browser, serve):
     """The reactions unfold a folded pin, whose face then hides the toggle the user
     pressed `e` on. They land on the first choice and the choices stay up, rather than
-    the hidden toggle reading as the user leaving the pin, which put the choices away
-    in the same frame and dropped focus to the page."""
+    the hidden toggle reading as the user leaving the pin, which would put the choices
+    away in the same frame and drop focus to the page."""
     page = open_page(browser, serve(FOLDING_PAGE))
     resized(page, 390, 844)
     margins_laid_out(page)
@@ -1171,14 +1173,16 @@ graph LR
     page.locator("#figure svg").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile(r"figure"))
-    write(field, "Carry this explicit draft.")
+    write(field, "Words about the figure.")
     page.evaluate("document.activeElement.blur()")
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "Carry this explicit draft.")
+    expect(field).to_have_attribute("aria-label", re.compile(r"Start request"))
+    # The part's own draft opens; the figure's words stay with the figure.
+    expect(field).to_have_js_property("value", "")
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
@@ -1391,9 +1395,9 @@ def test_one_semantic_visual_target_takes_one_proxy_and_hands_back_its_subject(
     """Sibling anonymous pictures under one authored item are one durable target, with
     one keyboard proxy, and proxy and pointer entry share that item as their Escape
     parent. Opening the bar's other responses re-places it on the anchor already in
-    place. That is the same gesture continuing, not a fresh one that stood the user
-    nowhere, so the way out still ends on the bar's subject, as it does for a user who
-    goes straight back out."""
+    place. That is the same gesture continuing, not a fresh one that would stand the
+    user nowhere, so the way out still ends on the bar's subject, as it does for a user
+    who goes straight back out."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1466,7 +1470,7 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
         == "40px"
     )
     # An unnamed drawing takes the name of the section holding it (addressableLabel).
-    assert accessible_details(page, "#pic") == ["Responses to svg · Gallery"]
+    assert accessible_details(page, "#pic") == ["Responses to figure · Gallery"]
     assert control.evaluate(
         "button => button.closest('.lf-chrome') !== null && button.tabIndex === -1"
     )
@@ -1868,9 +1872,9 @@ def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_com
     flight, which is the state the press leaves behind: opening Comment marks the
     handoff at once and lands the focus on a later frame. Holding the page's frames
     keeps that gap open for the whole of the selection rather than leaving its width to
-    the machine — measured here, the handoff lands about eight milliseconds after the
-    press returns, which is the same span the driver spends making the next call. The
-    passage is offered whether or not the handoff has landed.
+    the machine — the handoff can land about as long after the press returns as the
+    driver spends making the next call. The passage is offered whether or not the
+    handoff has landed.
     """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
@@ -2145,9 +2149,8 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
 
 def test_a_margin_card_offers_a_reply_s_reactions(browser, serve):
     """A margin card offers reactions on an agent's reply as the panel's view of the
-    thread does: by the reply's own trigger and by `e` from the card. The card once
-    drew no reactions at all, so a thread about a passage took them only in the
-    panel."""
+    thread does: by the reply's own trigger and by `e` from the card, so a thread about
+    a passage doesn't take them only in the panel."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Why this cap?", {"section": "how-cap"})
     reply = append_carried_log_record(
@@ -2538,9 +2541,9 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
 
 
-def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
+def test_undo_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
     """A reaction someone has answered is the user's to take back, as one nobody has
-    answered is, where the log used to refuse it and `z` did nothing. Taking it back
+    answered is. Taking it back
     draws its place in the thread Deleted in the press, before the log answers, above
     the answer, which stays, as does the thread; the mark stays off the page."""
     url = serve(PANEL_PAGE)
@@ -2568,7 +2571,7 @@ def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serv
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
     expect(root.locator(".lf-react-said")).to_have_count(0)
     expect(thread).to_contain_text("Which part — the case, or the answer?")
@@ -2605,10 +2608,10 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
 
 def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, serve):
     """At a phone's width the panel's thread view covers the page, and the keyboard
-    answers only what stands inside it. The reaction mode stood nowhere, so every one of
-    its rows fell below the view's floor: an arrow reached no row, read as a stray key,
-    and closed the thread the user was reading. The open thread is where the mode
-    stands."""
+    answers only what stands inside it. A reaction mode standing nowhere would leave
+    every one of its rows below the view's floor: an arrow would reach no row, read as a
+    stray key, and close the thread the user was reading. The open thread is where the
+    mode stands."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)

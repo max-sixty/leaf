@@ -60,7 +60,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
 
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b|\blf-pending\b"))
-    assert target.get_attribute("chosen") is None
+    assert target.get_attribute("selected") is None
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
     write(field, "This bend is the part I mean.")
@@ -283,14 +283,14 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     write(field, "Here.")
 
     # With the box put away, ⌘Z or `z` takes back the strokes of the parked drawing,
-    # and the last one takes the drawing; the pick `z` undoes outside the mode stands.
+    # and the last one takes the drawing; the pick ⌘Z undoes outside the mode stands.
     page.keyboard.press("Escape")
     page.keyboard.press("ControlOrMeta+z")
     expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
     page.keyboard.press("z")
     expect(parked).to_have_count(0)
     page.keyboard.press("z")
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     assert len(events_model.read_events(serve.page_dir)) == picked
 
     # The composer's controls: one stroke back, then the drawing off, the words kept.

@@ -22,14 +22,15 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
     """A data package needs no rendered reset, in the document or a shadow stage."""
     source = {
         "description": "Source that a reader draws.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "data",
-        "x-upgrade": True,
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "data",
     }
-    stage = {**source, "x-content": "markup", "x-shadow": True}
+    stage = {**source, "content": "markup", "shadow": True}
     url = serve(
         leaf_page(
             "Source states",
@@ -38,7 +39,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
             '<lf-source-stage id="stage"><p id="stage-face">Stage words.</p>'
             '<lf-source-view id="nested"><pre>source data</pre></lf-source-view>'
             "</lf-source-stage>"
-            '<lf-code id="code" language="python"><pre>print(1)</pre></lf-code>'
+            '<lf-code id="code"><pre><code class="language-python">print(1)</code></pre></lf-code>'
             '<lf-diagram id="diagram"><pre>flowchart LR\nA --> B</pre></lf-diagram>'
             '<lf-diff id="diff"><pre>diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n'
             "@@ -1 +1 @@\n-old\n+new\n</pre></lf-diff>",
@@ -374,12 +375,11 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     """One rule, read off the marker `offer` already writes, rather than each widget
     deciding for itself whether the user can press what it drew.
 
-    The measured fault was that they could not tell: on the command hub a chip that
-    opened a section and a badge that counted something computed the same ground, the
-    same ink, the same 999px corner and the same 11.5px size, so the only way to learn
-    which was which was to press one. That is not a fact about chips — it is what happens
-    when "this is pressable" has no owner, and every widget that draws a small filled
-    shape has to remember to say it again.
+    The fault is that they cannot tell: a chip that opens a section and a badge that
+    counts something can compute the same ground, the same ink, the same corner and the
+    same size, so the only way to learn which is which is to press one. That is not a
+    fact about chips — it is what happens when "this is pressable" has no owner, and
+    every widget that draws a small filled shape has to remember to say it again.
 
     So the layer says it once, against `data-lf-offer`, and the value is what it reads:
     `offer` writes the tag, input type, or role for a thing to press and the empty string
@@ -398,7 +398,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     muted ring on paper at full opacity, so that a field with nothing in it reads as
     quiet rather than as broken. Pinning the number would pin whichever of the two
     happened to be on this page. The badges are
-    read outside a choose group on purpose: a card group makes the whole option the
+    read outside an option group on purpose: a card group makes the whole option the
     press, so a chip inside one inherits the hand from the control it is sitting in and
     would be answering this question about its parent. The wash is the aim, read as a
     change against each control's own resting shadow rather than against a constant: a
@@ -440,8 +440,10 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         return {cursor: cs.cursor, opacity: cs.opacity, off,
                 face: face(el), armed: off ? armed(el) : null};
       };
+      // The resting comment box stands in for the field it opens and wears that field's
+      // face, its text cursor included (annotation-chrome.css).
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
-        .filter((el) => el.dataset.lfOffer !== '');
+        .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest'));
       const said = [document.querySelector('#intro > .tag'),
                     document.querySelector('#owner-fact > .tag')];
       return {

@@ -15,9 +15,7 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce, offerPress } from "./notifications.js";
-import { inputCount } from "./focus.js";
-import { pressCommand } from "./keyboard/dispatch.js";
+import { announce } from "./notifications.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
@@ -37,7 +35,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions, onUserCount } from "./queue-api.js";
+import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
@@ -45,7 +43,6 @@ import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
-import { threadBox as buildThreadBox } from "./thread/box.js";
 import { isMessageEvent } from "./pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
@@ -69,7 +66,7 @@ import { raiseError } from "./errors.js";
  * activeActionAnchor: ThreadPresentationOptions["activeActionAnchor"],
  * targetPickerOpen: () => boolean,
  * anchorPlacement: ThreadPresentationOptions["anchorPlacement"],
- * anchorPaint: ReturnType<typeof import("./annotation-overlay/anchor-paint.js").createAnchorPaint> | null,
+ * anchorPaint: ReturnType<typeof import("./anchor-paint.js").createAnchorPaint>,
  * anchorControls: ThreadPresentationOptions["anchorControls"],
  * drawingPaint: ThreadPresentationOptions["drawingPaint"],
  * pageGeometry: ThreadPresentationOptions["pageGeometry"],
@@ -77,49 +74,20 @@ import { raiseError } from "./errors.js";
  * anchorTravel: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>,
  * wireInput: ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"],
  * landInThread: typeof import("./thread/landing.js").landInThread,
- * landSent: typeof import("./thread/landing.js").returnToThread,
+ * landSent: typeof import("./thread/landing.js").landSent,
  * sendReaction: Parameters<typeof createThreadActions>[0]["sendReaction"],
  * registerReactSurface: ReturnType<typeof import("./reactions.js").createReactionController>["registerReactSurface"],
  * compositionSurface: ThreadPresentationOptions["surfaceView"]["composition"],
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
+ * showTodo: import("./thread/messages.js").MessageCommands["showTodo"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
+ * goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation">,
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string) => Promise<void>},
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * }} ApplicationDependencies */
 
 const commandDispatch = createCommandDispatch();
-
-// After a gesture of the user's answers something On Me lists, while On Me still lists
-// anything, the floating panel's field offers the next item there, `m`'s press, at its
-// end (notifications.js, `offerPress`). The user chose this on 6 November 2026 over the
-// field's Comment… and c, from three weeks of their keys, in which `m` came next after
-// 29% of picks and 21% of comments and replies. Which items a gesture answered is the
-// server's reading, each obligation's `answer.event` (obligations.py), so a pick, a
-// settling reaction and a reply count alike, and a playground's unsent settings never
-// do; the offer waits for that reading, so it never offers the item just answered, and
-// only while the user hasn't moved since. It goes at their next input, or once nothing
-// is left On Me. A reply or comment sent from the panel's field keeps the caret there,
-// whose end then says the keys that send, so leaving it is the input that withdraws the
-// offer: the press follows picks, settling reactions and replies sent from a card.
-/** @type {import("./notifications.js").NoticePress} */
-const nextOnMe = {
-  action: "next-on-me",
-  command: "queue.next",
-  run: () => pressCommand("queue.next"),
-  stands: () => onUserCount() > 0,
-};
-/** @param {import("./pending/state.js").DeliveryHandle} entry */
-const offerNextOnMe = (entry) => {
-  const since = inputCount();
-  void entry.read.then((logged) => {
-    if (inputCount() !== since || !nextOnMe.stands()) return;
-    const answered = readObligations().all.some(
-      (obligation) => obligation.answer?.event?.id === logged.id,
-    );
-    if (answered) offerPress(nextOnMe);
-  });
-};
 
 /** @type {ReturnType<typeof createApplication> | null} */
 let application = null;
@@ -231,7 +199,6 @@ function createApplication(dependencies) {
 
   /** @param {import("./pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
-    offerNextOnMe(entry);
     // Enqueue has already published and claimed its presentation, whose coordinator
     // reports any failed paint. The entry's answer describes the server's durable
     // decision, so a local announcement failure is reported here rather
@@ -330,6 +297,8 @@ function createApplication(dependencies) {
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
+    // Where a promise's word in a message's head leads: its to-do's row in On <agent>.
+    showTodo: dependencies.showTodo,
   };
   const surfaceView = {
     ...inlineView,
@@ -339,8 +308,10 @@ function createApplication(dependencies) {
   const annotations = createAnnotationInventory({
     readObligations,
     placedAt: dependencies.anchorPlacement.placedAt,
+    savedAt: dependencies.anchorPlacement.savedAt,
     openThread: openPageThread,
-    goToObligation: dependencies.annotationCommands.goToObligation,
+    goToObligation: dependencies.goToObligation,
+    resumeDraft: dependencies.annotationCommands.resumeDraft,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -453,7 +424,7 @@ function createApplication(dependencies) {
     renderMarginThread: (host, thread, outlets) =>
       follow(() => renderMarginThread(host, thread, inlineView, outlets)),
     placedAt: dependencies.anchorPlacement.placedAt,
-    marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
+    marksFor: (id) => dependencies.anchorPaint.marksFor(id),
     currentLocationObligation:
       dependencies.annotationCommands.currentLocationObligation,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
@@ -469,7 +440,6 @@ function createApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
-    inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,
     anchorPaint: dependencies.anchorPaint,
@@ -570,13 +540,6 @@ function createApplication(dependencies) {
     receiveState,
   });
 
-  /** @type {(...args: [Parameters<typeof buildThreadBox>[0], Parameters<typeof buildThreadBox>[1]]) => ReturnType<typeof buildThreadBox>} */
-  const threadBox = (owner, hint) =>
-    buildThreadBox(owner, hint, {
-      createComment: (command) => threadActions.create(command)?.delivery ?? null,
-      onDraftChanged: invalidateDom,
-      wireInput: dependencies.wireInput,
-    });
   const threadSurfaceCommands = {
     invalidate: invalidateDom,
     composition: dependencies.compositionSurface,
@@ -607,8 +570,8 @@ function createApplication(dependencies) {
       throw error;
     }
   };
-  // The widgets declaring x-thread-surface, registered for as long as they stand, once
-  // the registry that names them has loaded.
+  // The widgets whose element has `threadOutlets` (thread/surfaces.js), registered
+  // for as long as they stand.
   const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
   /** @type {(...args: [Parameters<typeof registerPageConsumer>[0], Parameters<typeof registerPageConsumer>[1]]) => ReturnType<typeof registerPageConsumer>} */
   const placePageThreads = (owner, render) => {
@@ -736,7 +699,6 @@ function createApplication(dependencies) {
   const mounted = {
     withdraw: undo.withdraw,
     midComposition: engagement.midComposition,
-    threadBox,
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
@@ -780,10 +742,7 @@ function createApplication(dependencies) {
           part: "message",
         });
       }
-      return dependencies.annotationCommands.goToObligation(
-        item,
-        readObligations().all,
-      );
+      return dependencies.goToObligation(item);
     },
     // The On Me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (
@@ -795,8 +754,6 @@ function createApplication(dependencies) {
   return mounted;
 }
 
-/** @type {ReturnType<typeof createApplication>["threadBox"]} */
-export const threadBox = (...args) => app().threadBox(...args);
 /** @type {ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["dispatchWidget"]} */
 export const dispatchWidget = commandDispatch.dispatchWidget;
 /** @type {ReturnType<typeof createApplication>["invalidateDom"]} */

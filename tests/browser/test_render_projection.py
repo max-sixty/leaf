@@ -240,9 +240,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ]
     expect(group).to_have_attribute("open", "")
     expect(groups).to_have_count(2)
-    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    # A root the capture adds opens as it arrives, as the first did.
+    expect(groups.nth(1)).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
-        "aria-label", "Expand all 2 call-tree roots"
+        "aria-label", "Collapse all 2 call-tree roots"
     )
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
         "gateway/limits.py:40"
@@ -401,7 +402,7 @@ def test_a_widget_current_location_out_of_place_is_a_page_the_gate_reports(
 )
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
-    authored `needed` condition and its obligation, so incorporating its state into source
+    authored `required` condition and its obligation, so incorporating its state into source
     cannot turn the input back into a decision."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
@@ -421,35 +422,36 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect_obligations_answered(page, "1/5")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On Me: [1-9]")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · [1-9]\d* waiting on me")
     )
 
     honoring = re.sub(
-        r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
+        r'<lf-draft id="ledger-cargo" required>.*?</lf-draft>',
         # The authoring contract adds only the opening LF consumed by HTML.
         f'<lf-draft id="ledger-cargo"><pre>\n{provided}</pre></lf-draft>',
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not an obligation framed by an `lf-ask`.
-    honoring = honoring.replace(
-        '<lf-ask id="decision-ledger-fixture-region">',
+    # A draft without `required` is optional editing, not an obligation its group asks.
+    honoring = re.sub(
+        r'<section\s+id="decision-ledger-fixture-region"[^>]*>',
         '<div id="decision-ledger-fixture-region">',
+        honoring,
     ).replace(
-        "</lf-draft>\n              </lf-ask>",
+        "</lf-draft>\n              </section>",
         "</lf-draft>\n              </div>",
     )
-    assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
+    assert '<section id="decision-ledger-fixture-region"' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
     # The saved answer remains in the reviewable obligation inventory after the source
-    # drops `needed`; it is completed, not newly owed to the user.
+    # drops `required`; it is completed, not newly owed to the user.
     expect_obligations_answered(page, "1/5")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On Me: [1-9]")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · [1-9]\d* waiting on me")
     )
-    expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
+    expect(page.locator("#ledger-cargo")).not_to_have_attribute("required")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture")).to_be_visible()
     draft_control(page, "edit", "ledger-cargo").click()
@@ -466,11 +468,14 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url)
     goal = page.locator("#goal-parser")
-    seat = goal.locator(":scope > .lf-thread-seat")
-    write(seat.get_by_role("textbox"), "Finish the current hunk, then park here.")
+    seat = goal.locator(":scope > .atlas-task-threads")
+    goal.locator(":scope > .atlas-task-comment").click()
+    write(seat.locator(".lf-fab-input"), "Finish the current hunk, then park here.")
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
     expect(goal).to_have_attribute("data-lf-held")
+    # Leaf says what the press did beyond a comment, in words that hold for any widget.
+    expect(page.locator(".lf-live")).to_have_text("Held until resolved")
     page.locator("#atlas-record .lf-activity-news").click()
     paused = page.locator("#atlas-record .lf-activity-row").first
     # The goal is named by its leading <strong>, not the words under it.

@@ -51,7 +51,7 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
     )
     newer = freeze_events(page_dir, [first, second])
     runner = CliRunner()
-    missing = runner.invoke(cli_model.cli, ["delivery", "ack", "00000000"])
+    missing = runner.invoke(cli_model.cli, ["delivery", "ack", "0000000000000000"])
     assert missing.exit_code == 1
     assert "unknown delivery" in missing.output
     assert acknowledged_through(page_dir) == 0
@@ -107,7 +107,7 @@ def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "Original"}
     )
     payload = freeze_events(page_dir, [original])
-    (page_dir / "events.jsonl").write_text("")
+    events_model.start_log(page_dir)
     replacement = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Replacement"}
     )

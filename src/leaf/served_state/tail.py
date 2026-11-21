@@ -43,35 +43,40 @@ changes through its objects:
 A list whose items are not all named one of those ways, or whose names repeat, is a
 value like any other.
 
-#5271 sent only the history after the held reading and re-read it at the held
-sequence, which keeps no record of what each tab holds and is exact, since it sent
-everything else whole. Remembering readings, as this module does instead, reverses
-that, and buys the rest: the threads and workflows also read the claim, the live
+Sending only the history after the held reading and re-reading it at the held
+sequence keeps no record of what each tab holds and is exact, since it sends
+everything else whole. Remembering readings, as this module does instead, buys the
+rest: the threads and workflows also read the claim, the live
 stream and the clock, so the same log sequence can read two ways and re-reading
 can't give what the tab holds of them, while a content name can, so those records
-travel as changes too. Readings are remembered in this process alone, each as the
-JSON of its records and the values of its other fields (`_parts`), one copy shared by
-every remembered reading that holds a part unchanged. A restarted server, or another
-process, answers whole, as it does a key it never served or has forgotten; that
-answer leaves out the data a tab names by `Leaf-Data-Version` (`http.sent`).
+travel as changes too. Readings are remembered in the page's memory in this process
+(`page_memory`), each as the JSON of its records and the values of its other fields
+(`_parts`), one copy shared by every remembered reading that holds a part unchanged.
+A restarted server, another process, or one that has dropped the page's memory answers
+whole, as it does a key it never served or has forgotten; that answer leaves out the
+data a tab names by `Leaf-Data-Version` (`http.sent`).
 """
 
 import hashlib
 import json
 import threading
 from collections import OrderedDict
+from pathlib import Path
+
+from leaf.page_memory import memo
 
 # How many readings this process remembers of each page: a reading for each of a few
 # tabs, and the answers each received but had not adopted yet when it next asked.
 REMEMBERED = 16
-# How many pages it remembers readings of: a multiplexed server's pages, and the live
-# samples in them, so one page's answers never push out another's readings.
-PAGES = 8
 
-# Each page's remembered readings, by key, each its log position and parts (`_parts`);
-# pages and their readings both oldest first.
-_served: OrderedDict[str, OrderedDict[str, tuple[int, tuple]]] = OrderedDict()
-_lock = threading.Lock()
+
+class _Served:
+    """The readings this process served of one page most recently, by key, each its
+    log position and parts (`_parts`), oldest first."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.readings: OrderedDict[str, tuple[int, tuple]] = OrderedDict()
 
 
 def _json(value) -> bytes:
@@ -302,10 +307,11 @@ def _compared(reading: dict) -> dict:
     return {**reading, "data": {**data, "sources": sources}}
 
 
-def answer(state: dict, held: str | None, page: str) -> dict:
-    """Name `state`, a whole reading of `page`, in `browser.basis.key`, remember it, and
-    return what a tab holding the reading `held` names is sent: the patch from that
-    reading where this process remembers it, else `state` itself."""
+def answer(state: dict, held: str | None, page_dir: Path) -> dict:
+    """Name `state`, a whole reading of the page at `page_dir`, in `browser.basis.key`,
+    remember it in the page's memory, and return what a tab holding the reading `held`
+    names is sent: the patch from that reading where this process remembers it, else
+    `state` itself."""
     browser = state["browser"]
     if browser is None:
         return state
@@ -313,16 +319,14 @@ def answer(state: dict, held: str | None, page: str) -> dict:
     basis.pop("key", None)
     # The log only grows, so it travels as the events after the held reading's.
     patched = {key: value for key, value in state.items() if key != "events"}
-    with _lock:
-        readings = _served.setdefault(page, OrderedDict())
-        _served.move_to_end(page)
-        while len(_served) > PAGES:
-            _served.popitem(last=False)
+    served = memo(page_dir, _Served)
+    readings = served.readings
+    with served.lock:
         before = readings.get(held) if held is not None else None
         latest = next(reversed(readings.values()), None)
     current = _parts(_compared(patched), (before or latest or (0, None))[1])
     key = basis["key"] = current[1].hex()
-    with _lock:
+    with served.lock:
         if held is not None and held in readings:
             readings.move_to_end(held)
         readings[key] = (basis["through_seq"], current)

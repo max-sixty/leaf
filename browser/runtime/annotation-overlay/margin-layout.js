@@ -22,7 +22,10 @@
    controls. Every pass seats every row, each against only the footprints level with
    its seats (`Footprints`, margin-placement.js), and reads only what its change can have
    moved (`seatings`): a change to the rows alone, such as a comment's new row, reads only
-   the rows it changes, and one that may have moved the page reads every row.
+   the rows it changes; a box changing size reads where each row's subject stands now,
+   and reads again in full only the rows whose band of the page that box reaches or
+   whose neighbours it moved; and any other change that may have moved the page reads
+   every row.
    Scrolling moves a row with its target in the frame that scrolls it, whether the
    document scrolls or a pane does, with no pass at all.
    Mutation checkpoints and resize deliveries settle placement before native paint;
@@ -49,7 +52,12 @@
    chooses a seat again.
    No row names a CSS anchor of its own: such dependencies made unrelated editor and
    chrome reads lay out every margin row again, even with unchanged page content. A
-   carrier is one anchor for every row its scroller holds.
+   carrier is one anchor for every row its scroller holds. So a change that moves the
+   page moves the root lane's rows by the pass's writes, not by carriers anchored to the
+   blocks they stand by: Chromium 158 lays out every anchored fixed or absolute box again
+   on each layout of the document, whatever changed, so a carrier for each section
+   would add its cost to every layout of the page, as each keystroke into a field
+   brings.
    Rows whose targets scroll with
    the document stand in the root lane; each
    bounded reading region (one whose body scrolls on its own) gets a lane of its own,
@@ -82,23 +90,21 @@ import {
   stuckShift,
 } from "../geometry.js";
 import {
-  composedParentNode,
-  renderedParent,
-  renderedUnder,
-  upFrom,
-} from "../shadow.js";
-import {
   eachRenderedChild,
   eachRenderedElement,
   isText,
   skipped,
+  skipper,
+  composedParentNode,
+  renderedParent,
+  renderedUnder,
+  upFrom,
 } from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
 import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
 import { closestAcross, layoutBox, pageDocument } from "../passages.js";
-import { pageHeads } from "../root-headers.js";
 import {
   Footprints,
   arrivals,
@@ -116,6 +122,7 @@ import { layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { offerActionElement } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
+import { registry } from "../registry.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
@@ -155,12 +162,17 @@ import {
  * target?: never, home?: Element, container?: Element | null}} HiddenRead
  * @typedef {import("../../types/contract.js").CompleteUnion<TargetRead | HiddenRead>} Read
  * @typedef {import("./margin-placement.js").Pin} Pin
- * @typedef {{frame: {x: number, y: number}, read: ShownRead, home: Box, pin: Pin | null,
- * fold: Fold | null}} Seating
+ * @typedef {{x: number, y: number}} Move
+ * @typedef {{top: number, bottom: number}} Band
+ * @typedef {{frame: Move, read: ShownRead, home: Box, pin: Pin | null,
+ * fold: Fold | null, band: Band, neighbours: Neighbours, moved: Move}} Seating
+ * @typedef {{node: Element, box: Box | null}[]} Neighbours
  * @typedef {{key: HTMLElement, rect: Box, held: boolean, came: number | undefined,
  * pushed: number | undefined, read: ShownRead, holding?: Box, step?: number,
  * visualLeft?: number, fold?: Fold | null, pin?: Pin | null, push?: number,
- * home?: Box, kept?: Seating, dx?: number, dy?: number}} PlacedRow
+ * home?: Box, kept?: Seating, dx?: number, dy?: number, band?: Band,
+ * neighbours?: Neighbours}} PlacedRow
+ * @typedef {{box: Element, reach: Band, own: boolean}} Resized
  */
 /** @param {Read} read @returns {read is ShownRead} */
 const shownRead = (read) => read.shown;
@@ -199,7 +211,10 @@ let wantedGeometry = new Set();
 /** @param {Layer} layer */
 function subscribe(layer) {
   for (const node of observedGeometry)
-    if (!wantedGeometry.has(node)) layer.sizes.unobserve(node);
+    if (!wantedGeometry.has(node)) {
+      layer.sizes.unobserve(node);
+      sizesSeen.delete(node);
+    }
   for (const node of wantedGeometry)
     if (!observedGeometry.has(node)) layer.sizes.observe(node);
   observedGeometry = wantedGeometry;
@@ -222,6 +237,43 @@ function watchGeometry(geometry, layer) {
     subscribe(layer);
   });
 }
+
+// The size of each box the layer watches as the observer last delivered it.
+/** @type {WeakMap<Element, {width: number, height: number}>} */
+const sizesSeen = new WeakMap();
+// A delivery of the boxes the layer watches, each of which changed size, or is delivered
+// for the first time since it was watched, which may have changed since the pass that
+// chose to watch it. The pass learns how far down the page each reaches, grown back to
+// its height before where it shrank, and whether its own content may have changed
+// anywhere in it (`own`): no box it holds was delivered with it, so nothing smaller says
+// where; its width changed, which rewraps all it holds; or its size before is unknown.
+/** @param {ResizeObserverEntry[]} entries */
+function heardSizes(entries) {
+  const named = entries.map(({ target: box }) => {
+    const rect = box.getBoundingClientRect();
+    const was = sizesSeen.get(box);
+    sizesSeen.set(box, { width: rect.width, height: rect.height });
+    return { box, rect, was };
+  });
+  const parents = new Set(
+    named.flatMap(({ box }) => [renderedParent(box), upFrom(box)]),
+  );
+  /** @type {Resized[]} */
+  const resized = named.map(({ box, rect, was }) => {
+    const shrink = Math.max(0, (was?.height ?? 0) - rect.height);
+    return {
+      box,
+      reach: {
+        top: rect.top - shrink + scrollY,
+        bottom: rect.bottom + shrink + scrollY,
+      },
+      own: !parents.has(box) || !was || was.width !== rect.width,
+    };
+  });
+  seatingsAfter(resized);
+  layoutMarginRows();
+}
+
 const GAP = 4;
 // Leaf's own surfaces in and over the page, which no seat reads and no row stands by: the
 // chrome, and the key hints command hints lend into a widget (`.lf-binding-seat`), which
@@ -243,27 +295,44 @@ export const THREAD_CARD = "lf-margin-preview";
 // The selector names a held row or the part inside it that holds it (`heldRows`), so
 // one query over the layer finds them all without asking `:has()` of every row.
 const ROW = ".lf-margin-cluster";
-const HELD = `${ROW}:is(:hover, :focus-within, [data-lf-options-expanded]), ${ROW} :is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HOLDS_ROW = ":is(:hover, :focus-within, [data-lf-options-expanded])";
+const HOLDS_PART = `:is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HELD = `${ROW}${HOLDS_ROW}, ${ROW} ${HOLDS_PART}`;
 /** @param {Layer} layer */
 const heldRows = (layer) =>
   new Set(
     [...layer.projection.querySelectorAll(HELD)].map((part) => part.closest(ROW)),
   );
 let pending = 0;
+// The rows the last pass held (`layoutMountedRows`), which `letGo` asks after.
+/** @type {ReturnType<typeof heldRows>} */
+let heldAtPass = new Set();
 
 // What the last pass read to seat each row it can seat again without reading: the row's
-// read, its home before any push and a pin's prepared seats and cover, as they stood at
-// that pass's scroll (`frame`). Every pass seats every row in the one shared order, a row
-// with a record from it, carried by the scroll since, and any other from a fresh read, so
-// a pass for a change to the rows alone reads only the rows that change names, and ends
-// with every row where a pass that read them all would stand it. Each change's owner
-// says what it moves: a change that may move the page, which every page observer here
-// hears, clears every record (`scheduleMarginLayout`, `layoutMovedPage`), as a box
-// scrolled inside the page and a transition or animation ending there do
-// (`hearTargetChanges`), and one to a row
-// alone, registered with another target, let go, or drawn at another size, drops that
-// row's. Only a row the document alone scrolls, one no carrier, header or pane holds,
-// and nothing holds or withholds, keeps a record.
+// read, its home before any push, a pin's prepared seats and cover, and the band of the
+// page they were read from (`band`), as they stood at that pass's scroll (`frame`), and
+// how far the row's subject has moved across the page since (`moved`). Every pass seats
+// every row in the one shared order, a row with a record from it, carried by the scroll
+// and its subject's move since, and any other from a fresh read, so a pass for a change
+// to the rows alone reads only the rows that change names, and ends with every row where
+// a pass that read them all would stand it. Each change's owner says what it moves. A box
+// the layer watches changing size moves what stands past it and what it holds, so its
+// pass reads where each kept row's subject stands now, and keeps each record whose band
+// no box that changed size reaches, whose neighbours, the boxes beside its subject that
+// the band met, moved with it, and which, wherever the change was, meets no new
+// neighbour (`heardSizes`, `seatingMove`): a comment box opening
+// in a patch at the top of the page moves every row below it and reads none of them
+// again. Any other change that may move the page, which every page observer here hears,
+// clears every record (`scheduleMarginLayout`, `layoutMovedPage`), as a box scrolled
+// inside the page and a transition or animation ending there do (`hearTargetChanges`),
+// and one to a row alone, registered with another target, let go, or drawn at another
+// size, drops that row's. Only a row the document alone scrolls, one no carrier, header
+// or pane holds, and nothing holds or withholds, keeps a record.
+//
+// A box beside the target's path stands for all it holds, so what one holds outside its
+// own box, as an absolute box placed from elsewhere or one a transform moves, can come
+// into a kept row's band unread, and a pin seated before it came keeps its seat until a
+// pass reads the row again.
 /** @type {Map<HTMLElement, Seating>} */
 const seatings = new Map();
 /** @type {Layer | null} */
@@ -425,10 +494,9 @@ function scrollSources(node) {
 // A row takes a carrier only where the root lane can't carry it. Layout moves the root
 // lane in the task that scrolls the document, but a carrier only as the next frame
 // renders, so until then a script reading the row's box or hit-testing it finds it where
-// it stood (`paintedBox`; notes/browser-support.md, "A cached `elementFromPoint` answer
-// in Chromium"). Painting and the user's presses are right either way, so what the root
+// it stood (`paintedBox`). Painting and the user's presses are right either way, so what the root
 // lane buys is a row scripts, Playwright's actions and probes find where it is drawn.
-// Rejected: a carrier anchored to every passage's words, as #3091 had it, which in
+// Rejected: a carrier anchored to every passage's words, which in
 // Chromium and WebKit also carried a row through a transform moving its words while the
 // transform ran. A row in the root lane trails such a transform, as a row on an element
 // does, and both are placed again once a CSS transition or animation ends
@@ -614,16 +682,18 @@ function passageBlock(words, target) {
 // at its right edge (`pinSeating`): a passage's level with its line, the block's own
 // above its top-right corner. `at` is the box holding a passage's words, or the
 // target of a row about the block itself: preformatted where it keeps its spaces and
-// doesn't wrap its lines, since wrapped lines reach that edge however long they are.
+// either doesn't wrap its lines or stands in a <pre>, whose lines the reading face
+// wraps only where they run past the block (reading.css, `pre`). Other text that keeps
+// its spaces and wraps, as a quoted message might, reaches that edge on every line.
 // The answer is the nearest block from `at` out, cut by every box around it, its own
 // clip included; null for text that isn't preformatted, which takes prose seats.
 /** @param {Element | null} at @param {import("../geometry.js").ClipCache} bands @param {Element} stop */
 function preformattedBlock(at, bands, stop) {
-  const style = at && getComputedStyle(at);
+  if (!at) return null;
+  const style = getComputedStyle(at);
   if (
-    !style ||
     !/^(preserve|break-spaces)$/.test(style.whiteSpaceCollapse) ||
-    style.textWrapMode !== "nowrap"
+    (style.textWrapMode !== "nowrap" && !at.closest("pre"))
   )
     return null;
   while (at && /^(inline|contents)$/.test(getComputedStyle(at).display))
@@ -655,7 +725,7 @@ export function syncMarginContentLayout(changed) {
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 /** @param {HTMLElement} root @param {HTMLElement} projection */
 export function mountMarginLayer(root, projection) {
-  layer = { root, projection, lanes: new Map(), sizes: sizeObserver(layoutMovedPage) };
+  layer = { root, projection, lanes: new Map(), sizes: sizeObserver(heardSizes) };
   seatings.clear();
   // Where the root does not scroll, the window bounds a pin's seat (`pinSeating`), and a
   // window resized around a page of fixed size resizes no box the margin watches.
@@ -716,14 +786,14 @@ function heardFaces(records) {
   });
 }
 const faces = new MutationObserver(heardFaces);
-// Whether a restyled face measures another size than its row was seated at, dropping the
-// record of each that does.
+// Whether a restyled face measures another size than its row was seated at, or belongs
+// to a row the last pass held that is held no longer, dropping the record of each.
 function resizedFaces() {
   let resized = false;
   for (const row of restyled) {
     if (!rows.has(row)) continue;
     const face = seatedFaces.get(row);
-    if (face) {
+    if (face && !letGo(row)) {
       const { width, height } = row.getBoundingClientRect();
       if (width === face.width && height === face.height) continue;
     }
@@ -733,6 +803,16 @@ function resizedFaces() {
   restyled.clear();
   return resized;
 }
+// Whether a row the last pass held, as an open card or options hold one, is held no
+// longer. A held row keeps no record and stands where it stood, as a row since gone
+// pushed it, so a pass seats it afresh beside its target. The attribute that lets it go
+// changes the row's own face but no size, so `resizedFaces` asks it of that row, in the
+// rendering of the gesture that let it go, rather than leaving the row at its old seat
+// until some later change takes it there with no input. Another row's change asks it of
+// no held row, so it moves no row the user isn't acting on.
+/** @param {HTMLElement} row */
+const letGo = (row) =>
+  heldAtPass.has(row) && !row.matches(HOLDS_ROW) && !row.querySelector(HOLDS_PART);
 // Takes in the face records a pass would otherwise drop with its own (`heardFaces`).
 function takeFaceRecords() {
   heardFaces(faces.takeRecords());
@@ -743,6 +823,13 @@ function takeFaceRecords() {
 // Leaf's own surfaces moves no seat. The marks the runtime draws on page boxes stand in
 // attributes this does not hear (page-paint.js); an anchor name it writes inline into a
 // box's style is heard as any other restyle.
+//
+// TODO(#5194): any attribute write heard here places every pin again, 59 ms at 256
+// sections and most of it `coverIn`, so a key in a diff's file filter pays for the whole
+// page. A prototype that read again only the pins within a window's height of the screen,
+// shifted the rest with their targets and read those when a scroll brought them near,
+// took that key from 70 to 17 ms in 120 fewer lines; a pin far off-screen could then
+// stand over a control a change brought until a scroll nears it.
 /** @param {MutationRecord[]} records */
 function heardPage(records) {
   const page = records.filter((record) => !onSurface(record.target));
@@ -1061,29 +1148,32 @@ function childIndex() {
 }
 
 // A box that stands still in the window as the document scrolls past it: one fixed
-// there, or one of the page's heads, which sticks at its top (root-headers.js,
-// `pageHeads`). What
-// it holds and what scrolls under it move apart with every scroll, so a pin reads the
-// room in the one it stands in (`coverIn`), and the window bounds the seats of a pin in
-// such a box, since no scroll brings any other into view.
-/** @param {Element} box @param {ReadonlyMap<Element, unknown>} heads */
-const standsStill = (box, heads) => heads.has(box) || inWindow(box);
-/** @param {Element} target @param {ReadonlyMap<Element, unknown>} heads */
-function stillBox(target, heads) {
+// there. What it holds and what scrolls under it move apart with every scroll, so a pin
+// reads the room in the one it stands in (`coverIn`), and the window bounds the seats of
+// a pin in such a box, since no scroll brings any other into view.
+/** @param {Element} target */
+function stillBox(target) {
   /** @type {Element | null} */
   let at = target;
-  for (; at; at = renderedParent(at)) if (standsStill(at, heads)) return at;
+  for (; at; at = renderedParent(at)) if (inWindow(at)) return at;
   return null;
 }
 
-/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) @param {ReturnType<typeof childIndex>} children the pass's index of what each parent holds @param {ReadonlyMap<Element, unknown>} heads the page's heads (`standsStill`) */
-function coverIn(root, band, target, bands, stop, standing, children, heads) {
+/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) @param {ReturnType<typeof childIndex>} children the pass's index of what each parent holds @param {Element} subject what the row stands level with: a pointed row inside the target, or the target */
+function coverIn(root, band, target, bands, stop, standing, children, subject) {
   /** @type {Box[]} */
   const cover = [];
   /** @type {Box[]} */
   const controls = [];
   /** @type {{node: Element, box: Box, by: Shift}[]} */
   const boxes = [];
+  // The boxes beside the subject's path down from `root` that meet the band, each where
+  // it was drawn: a sibling of the subject or of a box holding it, or a box in a wrapper
+  // that draws none (`display: contents`) standing there. Everything the band reads
+  // stands in one of them, the subject or a box holding it, so a record of this reading
+  // holds while each of them stands where it did beside the subject (`seatingMove`).
+  /** @type {{node: Element, box: Box | null}[]} */
+  const neighbours = [];
   /** @param {Box} box */
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   // What a sticky box holds is read where it is drawn and moved to the box's own place
@@ -1092,8 +1182,8 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
   // is read where it is drawn.
   /** @param {Box} box @param {Shift} by */
   const moved = (box, by) => (by.x || by.y ? shifted(box, by.x, by.y) : box);
-  /** @param {Element} parent @param {() => Iterable<Node>} held @param {Shift} by */
-  const visit = (parent, held, by) => {
+  /** @param {Element} parent @param {() => Iterable<Node>} held @param {Shift} by @param {boolean} path whether `parent` stands on the target's path */
+  const visit = (parent, held, by, path) => {
     const drawn = { top: band.top - by.y, bottom: band.bottom - by.y };
     for (const child of children(parent, held, drawn)) {
       if (child.lines) {
@@ -1108,9 +1198,14 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
       }
       const { node, box } = child;
       // A box standing still holds its own pins' room, not this one's.
-      if (standsStill(node, heads)) continue;
+      if (inWindow(node)) continue;
       const boxless = !box.width && !box.height;
       const holds = node !== target && renderedUnder(target, node);
+      const leads = node === subject || renderedUnder(subject, node);
+      // A sticky one stands elsewhere at every scroll, so it is no place to hold to.
+      if (path && !leads && !boxless)
+        neighbours.push({ node, box: child.shift ? null : box });
+      const wrapper = path && !leads && boxless;
       const at =
         child.shift && !holds
           ? { x: by.x + child.shift.x, y: by.y + child.shift.y }
@@ -1144,13 +1239,19 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
       // skipped content's layout (`skipped`).
       if (node instanceof HTMLDetailsElement && !node.open) {
         const summary = node.querySelector(":scope > summary");
-        if (summary) visit(node, () => [summary], at);
+        if (summary)
+          visit(node, () => [summary], at, (leads && node !== subject) || wrapper);
         continue;
       }
-      visit(node, () => drawnChildren(node), at);
+      visit(
+        node,
+        () => drawnChildren(node),
+        at,
+        (leads && node !== subject) || wrapper,
+      );
     }
   };
-  visit(root, () => drawnChildren(root), { x: 0, y: 0 });
+  visit(root, () => drawnChildren(root), { x: 0, y: 0 }, renderedUnder(subject, root));
   for (const box of standing)
     if (box.width && meets(box)) {
       cover.push(box);
@@ -1168,7 +1269,7 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
       const shown = clippedRect(box, node, bands, stop);
       return shown !== null && overlaps(moved(shown, by), seat);
     });
-  return { cover, controls, beside };
+  return { cover, controls, beside, neighbours };
 }
 
 // The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is
@@ -1267,7 +1368,6 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
     const shown = shownWindow({ viewport: "layout" });
     return {
       page: pageDocument(),
-      heads: pageHeads(),
       shown,
       // A scrollable document can reveal seats beyond the viewport, but none above its
       // own top. A root whose overflow prevents user scrolling cannot, so its window
@@ -1287,10 +1387,14 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
     if (read.place !== "pin") {
       standFolded(read.row, read.options.fold, false);
       entry.pin = null;
+      // A rail row reads the page only level with itself, for a note it would cover.
+      const around = entry.rect.bottom - entry.rect.top + GAP;
+      entry.band = { top: entry.rect.top - around, bottom: entry.rect.bottom + around };
+      entry.neighbours = [];
       continue;
     }
     shared ??= readShared();
-    const { page, heads, shown, rootBounds, children, standing } = shared;
+    const { page, shown, rootBounds, children, standing } = shared;
     const { target, point, words, row, preformatted } = read;
     const height = entry.rect.bottom - entry.rect.top;
     const width = entry.rect.right - entry.rect.left;
@@ -1343,6 +1447,7 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
       top: Math.min(...spans.map((box) => box.top)) - around,
       bottom: Math.max(...spans.map((box) => box.bottom)) + around,
     };
+    entry.band = band;
     // Only what scrolls with the pin is read: on the page, all of it, what stands beside
     // `main` included; in a pane, the pane's own content. The pane's
     // header, standing still above it, would enter the band as the pane scrolled the
@@ -1350,7 +1455,7 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
     // page reads nothing standing still in the window, and one in such a box reads only
     // that box, where the window shows it (`stillBox`).
     const stop = read.scroller;
-    const still = stillBox(target, heads);
+    const still = stillBox(target);
     const room = coverIn(
       still ?? (stop === pageScroller ? page : stop),
       band,
@@ -1359,9 +1464,10 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
       stop,
       still ? [] : standing,
       children,
-      heads,
+      point ?? target,
     );
     const { cover, controls } = room;
+    entry.neighbours = room.neighbours;
     const end = parts.at(-1);
     const inline =
       Boolean(words) ||
@@ -1467,6 +1573,29 @@ function scheduleMarginLayout() {
 function scheduleRowLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
+}
+// Whether `target` stands in content the browser skips (`skipped`), whose row is
+// withheld until a pass after it is drawn. Revealing a panel or opening a disclosure
+// resizes what holds it, which brings that pass. A box that skips what it holds while
+// it is out of view (`content-visibility: auto`), as a run of a long text document's
+// lines, keeps its size as it draws them (notes/browser-support.md, "A skipped
+// `content-visibility: auto` box keeps its drawn height"), and a scroll that brings it
+// into view is read before it draws, so the box is heard saying it drew. A withheld row
+// keeps no record (`seatings`), so a pass for the rows reads it again.
+/** @param {Element} target */
+function skippedUntilDrawn(target) {
+  const skipping = skipper(target);
+  skipping?.addEventListener("contentvisibilityautostatechange", drawnAgain);
+  return Boolean(skipping);
+}
+/** @param {Event} event */
+function drawnAgain(event) {
+  if (/** @type {ContentVisibilityAutoStateChangeEvent} */ (event).skipped) return;
+  event.currentTarget?.removeEventListener(
+    "contentvisibilityautostatechange",
+    drawnAgain,
+  );
+  scheduleRowLayout();
 }
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
@@ -1629,6 +1758,8 @@ function scheduleStirReading() {
       const options = rows.get(row);
       const target = options?.anchor();
       if (!options || !target?.isConnected) continue;
+      const withheld = row.classList.contains("lf-withheld");
+      if (withheld && skippedUntilDrawn(target)) continue;
       const words = quotedBoxes(options);
       const start = words.length ? wordsStart(options) : null;
       // A box inside the target that scrolls a passage's words moves them too.
@@ -1641,7 +1772,6 @@ function scheduleStirReading() {
           return false;
         });
       if (!moving) continue;
-      const withheld = row.classList.contains("lf-withheld");
       if (!withheld && documentOnly) continue;
       // A transform that moved the row's subject brings the pass, which stands the row
       // by it again.
@@ -1686,10 +1816,114 @@ function layoutMovedPage() {
   layoutMarginRows();
 }
 
+// The records a resize leaves (`seatings`): each one whose band it left as the record read
+// it, carried by its subject's move since, and none of the others.
+/** @param {Resized[]} resized */
+function seatingsAfter(resized) {
+  if (!seatings.size) return;
+  const byBox = new Map(resized.map((change) => [change.box, change]));
+  // The boxes holding one that changed size, which changed with it.
+  /** @type {Set<Element>} */
+  const holders = new Set();
+  for (const { box } of resized)
+    for (let at = /** @type {Element | null} */ (box); at && !holders.has(at);) {
+      holders.add(at);
+      at = renderedParent(at);
+    }
+  const reading = { children: childIndex(), root: pageDocument() };
+  for (const [row, seating] of seatings) {
+    const move = seatingMove(seating, resized, byBox, holders, reading);
+    if (move) seating.moved = move;
+    else seatings.delete(row);
+  }
+}
+
+// How far down the page the subject of a record's row, what the row stands level with, has
+// moved since the record read it, where a resize left the record's band as it read it;
+// null where it may not have: the subject is no longer drawn, changed size or holds a box
+// that did; a box holding it changed size with nothing smaller saying where, or changed
+// width (`heardSizes`); another box that changed size reaches the band, carried with the
+// subject; a box beside the subject's path that the band met (`coverIn`, `neighbours`) no
+// longer stands where it did beside the subject, as a column beside it that the change
+// left where it was; at a level of that path holding a box that changed size, the band
+// now meets a box it didn't; or the subject moved across, which a rail row doesn't
+// follow, or moved where a box clipping it bounds what the record read.
+/** @param {Seating} seating @param {Resized[]} resized @param {Map<Element, Resized>} byBox @param {Set<Element>} holders @param {{children: ReturnType<typeof childIndex>, root: Element}} reading what every record's check reads alike @returns {Move | null} */
+function seatingMove(seating, resized, byBox, holders, reading) {
+  const { read, frame, band } = seating;
+  const subject = read.point ?? read.anchor;
+  if (holders.has(read.point ?? read.target)) return null;
+  if (!subject.isConnected || !subject.checkVisibility({ contentVisibilityAuto: true }))
+    return null;
+  const was = read.point ? read.subject : read.box;
+  const now = subject.getBoundingClientRect();
+  if (Math.abs(now.left + scrollX - (was.left + frame.x)) > 0.5) return null;
+  const move = { x: 0, y: now.top + scrollY - (was.top + frame.y) };
+  const view = read.view;
+  if (
+    move.y &&
+    view &&
+    [view.left, view.top, view.right, view.bottom].some(Number.isFinite)
+  )
+    return null;
+  /** @type {Set<Element>} */
+  const changedHolders = new Set();
+  /** @type {Set<Element>} */
+  const path = new Set([read.point ?? read.target]);
+  for (
+    let at = renderedParent(read.point ?? read.target);
+    at && at !== pageScroller;
+    at = renderedParent(at)
+  ) {
+    path.add(at);
+    const change = byBox.get(at);
+    if (!change) continue;
+    if (change.own) return null;
+    changedHolders.add(at);
+  }
+  const top = band.top + frame.y + move.y;
+  const bottom = band.bottom + frame.y + move.y;
+  for (const { box, reach } of resized)
+    if (!changedHolders.has(box) && reach.bottom > top && reach.top < bottom)
+      return null;
+  for (const { node, box } of seating.neighbours) {
+    if (!box || !node.isConnected) return null;
+    const stands = node.getBoundingClientRect();
+    if (
+      Math.abs(stands.left + scrollX - (box.left + frame.x)) > 0.5 ||
+      Math.abs(stands.top + scrollY - (box.top + frame.y) - move.y) > 0.5 ||
+      Math.abs(stands.width - (box.right - box.left)) > 0.5 ||
+      Math.abs(stands.height - (box.bottom - box.top)) > 0.5
+    )
+      return null;
+  }
+  // Where a box holding the subject also holds one that changed size, the band can now
+  // meet a box beside the path that it didn't meet before, which the change left where it
+  // was, as a short column beside the target's that the target moved down to. Inside a
+  // box holding no change, what the band meets moved with the subject.
+  const recorded = new Set(seating.neighbours.map(({ node }) => node));
+  const shift = frame.y - scrollY + move.y;
+  const drawn = { top: band.top + shift, bottom: band.bottom + shift };
+  /** @param {Element} parent @returns {boolean} */
+  const newcomer = (parent) =>
+    reading
+      .children(parent, () => drawnChildren(parent), drawn)
+      .some((child) => {
+        if (child.lines) return true;
+        const { node, box } = child;
+        if (path.has(node) || inWindow(node)) return false;
+        if (!box.width && !box.height) return newcomer(node);
+        return !recorded.has(node);
+      });
+  for (const at of path)
+    if (holders.has(at) && renderedUnder(at, reading.root) && newcomer(at)) return null;
+  return move;
+}
+
 // A pass reads only the rows whose records a change dropped (`seatings`), but it still
 // seats every row, a kept one from its record: `pinSeating` and `seatEntry` run over
-// all of them, and each row's seat is set again. That is about 8 ms a pass on the
-// 1,024-section page `leaf-dev bench` generates. Not yet built: seat only the rows
+// all of them, and each row's seat is set again, a cost that grows with the page
+// (`leaf-dev bench` measures it). Not yet built: seat only the rows
 // whose records were dropped and the rows their new seats push, and leave every other
 // row as it stands.
 /** @param {Layer} layer */
@@ -1699,6 +1933,7 @@ function layoutMountedRows(layer) {
   const { scrollX: windowX, scrollY: windowY } = window;
   // A row the user holds is read afresh, so it is seated from where it stands.
   const holding = heldRows(layer);
+  heldAtPass = holding;
   /** @param {HTMLElement} row */
   const keptSeating = (row) => (holding.has(row) ? null : seatings.get(row));
   /** @type {Map<HTMLElement, Seating>} */
@@ -1709,7 +1944,6 @@ function layoutMountedRows(layer) {
   const present = [];
   const main = marginColumn();
   const columnRect = proseRect(main);
-  const columnHeight = main.scrollHeight;
   const shell = shellRight();
   const stands = railStands(main);
   const rootStyle = getComputedStyle(document.documentElement);
@@ -1728,13 +1962,6 @@ function layoutMountedRows(layer) {
     );
     return (railEntry ??= nativeEntry?.offsetWidth || restingRail(layer).entry);
   };
-  // The notes hanging in the margin the rail stands in (layouts.css, layout-note): a
-  // marker level with one would be drawn over it.
-  const notes = [...main.querySelectorAll(".layout-note > aside")]
-    .filter((note) => !skipped(note))
-    .map((note) => note.getBoundingClientRect())
-    .filter((note) => note.width && note.left >= columnRect.right - 1);
-
   // Every read before any write: a write between two reads forces a layout per row.
   /** @type {import("../geometry.js").ClipCache} */
   const bands = new Map();
@@ -1746,21 +1973,37 @@ function layoutMountedRows(layer) {
   // of its boxes resize meanwhile.
   const geometry = new Set(seatings.size ? wantedGeometry : []);
   const parents = new Set();
+  // What a picture draws (a tag declaring `visual`) is the picture's to report as it
+  // moves (visual-parts.js, `update`), and the picture may draw it afresh inside a size
+  // delivery (lf-chart.js), where a box the layer watched leaving the page is a
+  // ResizeObserver loop error. So a row standing by a part of a picture has the
+  // picture's box watched, and those around it, never a box the picture draws.
   /** @param {Element} target */
   function observeGeometry(target) {
+    /** @type {Element[]} */
+    let boxes = [];
+    /** @type {ParentNode[]} */
+    let around = [];
     /** @type {Element | null} */
     let at = target;
     for (; at && at !== pageScroller; at = renderedParent(at)) {
       if (at instanceof Element) {
-        geometry.add(at);
+        if (registry[at.localName]?.visual) {
+          boxes = [];
+          around = [];
+        }
+        boxes.push(at);
         // Scroll and slot changes stay in their shadow tree. A slotted target's
         // own root is the document; the rendered walk reaches the roots that
         // actually move and clip it, and re-arms them after a slot or parent move.
         const root = at.getRootNode();
         if (root instanceof ShadowRoot) hearTargetChanges(root);
       }
-      const parent = at.parentNode;
-      if (!parent || parents.has(parent)) continue;
+      if (at.parentNode) around.push(at.parentNode);
+    }
+    for (const box of boxes) geometry.add(box);
+    for (const parent of around) {
+      if (parents.has(parent)) continue;
       parents.add(parent);
       for (const sibling of parent.children ?? [])
         if (!inChrome(sibling)) geometry.add(sibling);
@@ -1785,13 +2028,13 @@ function layoutMountedRows(layer) {
       reads.push({ row, options, lane: layer.root, shown: false });
       continue;
     }
-    // A target in skipped content — a tab not chosen, a closed disclosure — has nowhere
-    // to stand, and every reading below would force that content's style and layout to
-    // say so (`skipped`). Withheld like a target that has gone, it is anchored by the
-    // pass that runs once it is drawn, and keeps the lane it stands in meanwhile, so a
-    // tab switch does not move the rows of a reading region's hidden panels between
-    // lanes.
-    if (skipped(target)) {
+    // A target in skipped content — a tab not chosen, a closed disclosure, lines out of
+    // view — has nowhere to stand, and every reading below would force that content's
+    // style and layout to say so. Withheld like a target that has gone, it is anchored
+    // by the pass that runs once it is drawn (`skippedUntilDrawn`), and keeps the lane
+    // it stands in meanwhile, so a tab switch does not move the rows of a reading
+    // region's hidden panels between lanes.
+    if (skippedUntilDrawn(target)) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
       const container = isCarrier(home) ? home.parentElement : home;
@@ -1842,7 +2085,6 @@ function layoutMountedRows(layer) {
     const line = point?.getBoundingClientRect() ?? words[0];
     const top =
       extent && line ? clamp(line.top, extent.top, extent.bottom) : extent?.top;
-    const level = line ? top : box.top;
     const besideRail = railBeside(scroller);
     const size = stands && besideRail ? railEntrySize() : 0;
     const place = rowPlacement({
@@ -1851,9 +2093,6 @@ function layoutMountedRows(layer) {
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
-      noted: notes.some(
-        (note) => note.top < Number(level) + size && note.bottom > Number(level),
-      ),
     });
     const view = targetView(target, bands);
     const shown = shownWithin(view, extent, place === "pin" ? null : { top });
@@ -1905,8 +2144,8 @@ function layoutMountedRows(layer) {
   const placed = reads.filter(shownRead).map((read) => {
     const seating = keeping.get(read.row);
     if (seating) {
-      const dx = seating.frame.x - windowX;
-      const dy = seating.frame.y - windowY;
+      const dx = seating.frame.x - windowX + seating.moved.x;
+      const dy = seating.frame.y - windowY + seating.moved.y;
       return {
         key: read.row,
         rect: shifted(seating.home, dx, dy),
@@ -1964,9 +2203,12 @@ function layoutMountedRows(layer) {
   for (const entry of inSeatingOrder(placed)) {
     const { kept: seating, dx = 0, dy = 0 } = entry;
     if (seating) {
-      // Seated from its record, the scroll since carrying what it read.
+      // Seated from its record, the scroll and its subject's move since carrying what it
+      // read.
+      const scroll = { x: seating.frame.x - windowX, y: seating.frame.y - windowY };
       const pin =
-        seating.pin && (dx || dy ? shiftedPin(seating.pin, dx, dy) : seating.pin);
+        seating.pin &&
+        (dx || dy ? shiftedPin(seating.pin, scroll, seating.moved) : seating.pin);
       entry.pin = pin && { ...pin, folded: folded.has(entry.key) };
       entry.fold = seating.fold;
     }
@@ -2266,6 +2508,9 @@ function layoutMountedRows(layer) {
         home: entry.home ?? entry.rect,
         pin: entry.pin ?? null,
         fold: entry.fold ?? null,
+        band: /** @type {Band} */ (entry.band),
+        neighbours: entry.neighbours ?? [],
+        moved: { x: 0, y: 0 },
       });
   };
   // A pin seated beside its target can stand outside what its pane shows though the
@@ -2356,11 +2601,5 @@ function layoutMountedRows(layer) {
     setStyle(row, "margin-top", layoutPx(top + windowY));
   }
 
-  // With the column's box and height as the pass read them, so a listener measuring
-  // against the column need not read it again.
-  document.dispatchEvent(
-    new CustomEvent("lf-margin-layout", {
-      detail: { column: columnRect, height: columnHeight },
-    }),
-  );
+  document.dispatchEvent(new CustomEvent("lf-margin-layout"));
 }

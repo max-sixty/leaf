@@ -125,7 +125,7 @@ def test_server_round_trip(server, page_dir):
     source = page_dir / "index.html"
     source.write_text(
         source.read_text()
-        .replace("</section>", registry["lf-board"]["x-example"] + "\n</section>")
+        .replace("</section>", registry["lf-board"]["example"] + "\n</section>")
         .replace(
             "</head>",
             '<style>.probe::before { content: "</head>"; }</style>\n</head>',
@@ -750,7 +750,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     assert not server_rows_model.row_path(neighbor).exists()
 
 
-def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
+def test_pages_lists_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """Both discovery homes supply compact publications of live server owners.
 
     Dead servers stay out; a corrupt neighbor cannot make this page parse its
@@ -793,8 +793,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
 
     for directory in (pages / "live", malformed, scratch):
         server_rows_model.RowPublisher(directory, "fixture-server").refresh()
-    state = json.loads(fetch(f"{server}/api/state")[1])
-    rows = {row["title"]: row for row in state["others"]}
+    rows = {row["title"]: row for row in json.loads(fetch(f"{server}/api/pages")[1])}
     assert list(rows) == [
         "A corrupted page",
         "Malformed stream",
@@ -970,6 +969,66 @@ def test_server_start_names_the_running_payload(page_dir):
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
+
+
+def test_a_start_serves_the_page_with_its_own_leaf(page_dir, persistent_server):
+    """`server start` serves the page with the Leaf that runs it, the one whose
+    `page check` the agent read. A running server this Leaf started is handed back
+    as it is. One another Leaf started, here one whose record names another
+    checkout, is restarted under this Leaf at the same URL, unless this Leaf can't
+    serve the page, which is refused while the other Leaf goes on serving it."""
+    from leaf.registry.storage import LAYER, layer_record
+
+    runner = CliRunner()
+
+    def start():
+        return runner.invoke(
+            cli_model.cli,
+            ["server", "start", "--lifetime", "persistent", str(page_dir)],
+        )
+
+    def running():
+        server = server_model.running_server(page_dir)
+        assert server is not None
+        return server
+
+    def started_by_another_leaf():
+        service = read_record(page_dir / "service.json")
+        another = {**service["runtime"], "path": "/elsewhere/leaf", "commit": "0" * 12}
+        write_record(page_dir / "service.json", {**service, "runtime": another})
+
+    first = persistent_server(page_dir)
+    serving = running()
+    leaf = {key: serving["runtime"][key] for key in ("path", "commit")}
+    try:
+        kept = start()
+        assert kept.exit_code == 0, kept.output
+        assert running()["server_id"] == serving["server_id"]
+
+        started_by_another_leaf()
+        restarted = start()
+        assert restarted.exit_code == 0, restarted.output
+        replaced = running()
+        assert replaced["server_id"] != serving["server_id"]
+        assert json.loads(restarted.stdout)["url"] == serving["url"]
+        assert {key: replaced["runtime"][key] for key in leaf} == leaf
+        first.wait(timeout=STATED_TIMEOUT)
+
+        # A page selecting a package this Leaf doesn't have, as a newer Leaf's might.
+        # The record is replaced in one step, as `page init` writes it, since the
+        # server goes on reading it and must never find it missing.
+        record = layer_record(page_dir)
+        assert record is not None
+        LAYER.write(
+            page_dir / schema_model.LAYER_FILE, {**record, "packages": ["absent"]}
+        )
+        started_by_another_leaf()
+        refused = start()
+        assert refused.exit_code != 0, refused.output
+        assert "absent" in refused.output
+        assert running()["server_id"] == replaced["server_id"]
+    finally:
+        hosting_model.cmd_stop(page_dir)
 
 
 def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_dir):

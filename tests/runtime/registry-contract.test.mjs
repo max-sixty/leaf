@@ -14,7 +14,7 @@ for (const entry of servedStateDefinitions())
 const current = {
   origin: "lf-options",
   unit: "widget",
-  record: { kind: "attribute", attr: "chosen" },
+  record: { kind: "attribute", attr: "selected" },
   creates: null,
   decides: false,
   detail: { type: "object" },

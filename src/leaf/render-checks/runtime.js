@@ -26,8 +26,8 @@ export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 // scroll-driven animation, such as the contents map's lens or a margin card's message
 // heads, moves only while something scrolls, which `scrolling` reads, and a paused one
 // isn't running, so neither is in it. Only an animation on a document timeline runs
-// on the clock: Firefox 159 gave a message head's view-timeline animation a finite end
-// (30769 ms on 2026-11-11), where Chromium gives a percentage.
+// on the clock: Firefox 159 gave a message head's view-timeline animation a finite end,
+// where Chromium gives a percentage.
 const finiteMotion = () =>
   openRoots(document)
     .flatMap((root) => root.getAnimations())

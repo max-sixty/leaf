@@ -1,19 +1,16 @@
-# From Claude Code session b183bf1f-f4ac-4d43-a4c8-2715f434c4d9: a playground
-# compared today's thread card with four candidates in an auto-fill grid, each
-# column a heading, a one-line note and the card stacked by content height. At
-# the 1440px window the author checked, every note took one line; in the user's
-# wider window some notes wrapped, so the cards in one row started at different
-# heights and the user marked the misalignment.
-# On 29e0cfd65 the cards lined up in 3 of 17 runs across both hosts; the
-# shared-lines sentence passed 4/4. A wording that named no parts ("line up part
-# for part") let one Claude Code run subgrid the card's own rows and stretch
-# every card to one height, which cards-keep-their-height catches.
-# The case now authors the page and names nothing to read; it hasn't run in this form.
+# A Claude Code session's playground compared today's thread card with four
+# candidates in an auto-fill grid, each column a heading, a one-line note and the
+# card stacked by content height. At the 1440px window the author checked, every
+# note took one line; in the user's wider window some notes wrapped, so the cards in
+# one row started at different heights and the user marked the misalignment.
+# The shared-lines sentence addresses it. A wording that names no parts ("line up
+# part for part") lets an author subgrid the card's own rows and stretch every card
+# to one height, which cards-keep-their-height catches.
 description: playground-candidates-line-up
 metadata:
   purpose: "Playground: candidates compared side by side line up part for part, whatever
     their labels and notes wrap to."
-  authoring: true
+  page: [playground]
   tags:
     - playground
 vars:

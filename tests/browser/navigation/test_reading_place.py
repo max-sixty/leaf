@@ -130,6 +130,30 @@ def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
     assert page.evaluate(reading) == before
 
 
+def test_a_link_to_a_shape_in_an_authored_picture_puts_focus_on_it(browser, serve):
+    """A link to a shape an author named inside their own image is an arrival there,
+    as a link to any other element on the page is, though the image says its shapes
+    only as one picture."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A shape to point at",
+                """
+<h1>A shape to point at</h1>
+<p><a id="to-shape" href="#loop">See the loop</a></p>
+<svg role="img" aria-label="A loop beside a line" viewBox="0 0 200 80" width="200">
+  <circle id="loop" cx="40" cy="40" r="30" fill="none" stroke="currentColor"></circle>
+  <line x1="90" y1="40" x2="190" y2="40" stroke="currentColor"></line>
+</svg>
+""",
+            )
+        ),
+    )
+    page.locator("#to-shape").click()
+    expect(page.locator("#loop")).to_be_focused()
+
+
 def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serve):
     """Back and Forward restore the place commands read, not just its pixels."""
     page = open_page(
@@ -178,9 +202,9 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
 <details id="source-fold" open><summary>The source</summary>
 <p id="source">Read this source passage before the question.</p></details>
 <div style="height:1600px"></div>
-<lf-ask id="question"><h2>Where should we build?</h2>
-<lf-options id="places" choose><lf-option id="here">Here</lf-option>
-<lf-option id="there">There</lf-option></lf-options></lf-ask>
+<lf-group id="question" label="Where should we build?"><h2 id="question-h">Where should we build?</h2>
+<lf-options id="places"><lf-option id="here">Here</lf-option>
+<lf-option id="there">There</lf-option></lf-options></lf-group>
 """,
             )
         ),
@@ -212,28 +236,30 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
 ITEMS_LAYER = {
     "lf-items": {
         "description": "Items drawn one at a time, each part addressed by item/part.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-example": '<lf-items id="items"></lf-items>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
+        "example": '<lf-items id="items"></lf-items>',
     },
     "lf-item-link": {
         "description": "A button that travels to one part of the items it refers to.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "for": {"type": "string"},
-            "key": {"type": "string", "minLength": 1},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "for": {"type": "string"},
+                "key": {"type": "string", "minLength": 1},
+            },
+            "required": ["id", "for", "key"],
+            "additionalProperties": False,
         },
-        "required": ["id", "for", "key"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-refers": {"for": {}},
-        "x-upgrade": True,
-        "x-example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
+        "content": "empty",
+        "refers": {"for": {}},
+        "example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
     },
 }
 ITEMS_WIDGETS = {
@@ -1076,17 +1102,17 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
             f"""
 <h1 id="h">Back from an ask</h1>
 <section id="near"><p>A question sits at the top.</p></section>
-<lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
-<lf-options id="first" choose>
-  <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
-  <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
-</lf-options></lf-ask>
+<lf-group id="first-decision" label="Where should the feeders go?"><h2 id="first-decision-h">Where should the feeders go?</h2>
+<lf-options id="first">
+  <lf-option id="fi-hedge" label="Along the hedge"><strong>Along the hedge</strong></lf-option>
+  <lf-option id="fi-lawn" label="Out on the lawn"><strong>Out on the lawn</strong></lf-option>
+</lf-options></lf-group>
 <section id="above">{filler}</section>
-<lf-ask id="second-decision"><h2>Who fills them?</h2>
-<lf-options id="second" choose>
-  <lf-option id="se-rota"><strong>A rota</strong></lf-option>
-  <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
-</lf-options></lf-ask>
+<lf-group id="second-decision" label="Who fills them?"><h2 id="second-decision-h">Who fills them?</h2>
+<lf-options id="second">
+  <lf-option id="se-rota" label="A rota"><strong>A rota</strong></lf-option>
+  <lf-option id="se-camera" label="Whoever the camera calls"><strong>Whoever the camera calls</strong></lf-option>
+</lf-options></lf-group>
 <section id="below">{filler}</section>
 """,
         )
@@ -1152,7 +1178,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
 
     # Answering the obligation takes it out of On Me, so no walk's Shift reaches it again.
     page.keyboard.press("1")
-    expect(page.locator("#se-rota[chosen]")).to_have_count(1)
+    expect(page.locator("#se-rota[selected]")).to_have_count(1)
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
     page.wait_for_function(
@@ -1172,8 +1198,8 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
 ):
     """An obligation in front of the user whose arrival region is not still moves the page,
     since the arrival puts the region's start at the top of the window, and a press
-    that moves the page records where the user was reading. A draft declares no region,
-    so its region runs up from the heading its context starts under."""
+    that moves the page records where the user was reading. A draft's region is the
+    group its question declares, which runs up from the heading that names it."""
     context = "".join(f"<p>Context paragraph {n}.</p>" for n in range(8))
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(40))
     url = serve(
@@ -1182,9 +1208,11 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
             f"""
 <h1 id="h">Back from a draft</h1>
 <section id="above">{filler}</section>
+<lf-group id="invitation" label="The invitation">
 <h2 id="context">The invitation</h2>
 {context}
-<lf-draft id="note" needed><pre>The sample workshop is in the blue room.</pre></lf-draft>
+<lf-draft id="note" required><pre>The sample workshop is in the blue room.</pre></lf-draft>
+</lf-group>
 <section id="below">{filler}</section>
 """,
         )
@@ -1201,7 +1229,7 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
     entries = page.evaluate("history.length")
 
     page.keyboard.press("m")
-    expect(page.locator("#note")).to_be_focused()
+    expect(page.locator("#invitation")).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 100
     assert page.evaluate("history.length") == entries + 1
@@ -1266,9 +1294,9 @@ def _word_point(locator, word):
 ALIGN_CURRENT_PAGE = leaf_page(
     "Align the current item",
     '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
-    '<lf-ask id="align-ask"><h2>Which plan should we keep?</h2>'
-    '<lf-options id="align-options" choose><lf-option id="align-yes">Yes</lf-option>'
-    '<lf-option id="align-no">No</lf-option></lf-options></lf-ask>'
+    '<lf-group id="align-ask" label="Which plan should we keep?"><h2 id="align-ask-h">Which plan should we keep?</h2>'
+    '<lf-options id="align-options"><lf-option id="align-yes">Yes</lf-option>'
+    '<lf-option id="align-no">No</lf-option></lf-options></lf-group>'
     '<h2 id="align-heading" tabindex="0">The current heading</h2>'
     '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
     '<textarea id="native" aria-label="Native editor">Editor words</textarea>'
@@ -1486,10 +1514,10 @@ def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests)
             "agent": "Codex",
             "parent": roots[4],
             "revision": 1,
-            "text": "Choose the follow-up.",
-            "markup": '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
-            '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
-            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
+            "text": "Choose the follow-up.\n\n"
+            '<lf-group id="reply-ask" label="Which follow-up should be ready?">\n<h3 id="reply-ask-h">Which follow-up should be ready?</h3>'
+            '<lf-options id="reply-options"><lf-option id="reply-yes">Ready</lf-option>'
+            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-group>',
         },
     )
     page = open_page(browser, url)
@@ -1999,8 +2027,9 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
-    page.locator(".lf-fp-on-user").tap()
-    panel_settled(page, view="queue")
+    # Nothing is on the user, so the leaf opens Threads, where the put-away draft waits.
+    page.locator(".lf-fp-leaf").tap()
+    panel_settled(page, view="threads")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function(

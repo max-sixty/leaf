@@ -23,7 +23,7 @@ from leaf import exporting as exporting_model
 from leaf import server as server_model
 from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
-from leaf.served_state.service import PageStateService
+from leaf.served_state.service import LivePage
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -34,8 +34,7 @@ def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
     serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
     neighbor = cleanup_model.state_home() / "pages" / "private-neighbor"
     url = neighbour_page(neighbor, title="Private neighboring page")
-    live = PageStateService(serve.page_dir).page_state(1)
-    assert any(row["url"] == url for row in live["others"])
+    assert any(row["url"] == url for row in LivePage(serve.page_dir).other_pages())
 
     output = tmp_path / "offline.html"
     result = CliRunner().invoke(
@@ -46,10 +45,7 @@ def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
     exported = output.read_text(encoding="utf-8")
     assert server_model.host_key() not in exported
     assert "Private neighboring page" not in exported
-    assert any(
-        row["url"] == url
-        for row in PageStateService(serve.page_dir).page_state(1)["others"]
-    )
+    assert any(row["url"] == url for row in LivePage(serve.page_dir).other_pages())
 
 
 def _reachable(url: str) -> bool:
@@ -82,7 +78,8 @@ def requested_documents(page):
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { html, LeafElement } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;
@@ -120,25 +117,24 @@ customElements.define("lf-offline-test", class extends LeafElement {
 OFFLINE_REGISTRY = {
     "lf-offline-test": {
         "description": "A page-owned offline export test widget.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "choice": {"type": "string"},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "choice": {"type": "string"},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-state": {
+        "content": "empty",
+        "verbs": {
             "choose": {
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "choice"},
             }
         },
-        "x-example": (
-            '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>'
-        ),
+        "example": '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>',
     },
 }
 
@@ -197,22 +193,7 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
                 arg=selector,
             )
             assert player.evaluate("el => el.duration") == pytest.approx(8, abs=0.2)
-            if selector == "#video":
-                # Leaf's bar replaces the browser's controls, the same in each engine.
-                assert player.get_attribute("controls") is None
-                bar = page.get_by_role("group", name="Test pattern")
-                bar.get_by_role("button", name="Play recording").click()
-                page.wait_for_function(
-                    "selector => document.querySelector(selector).currentTime > 0",
-                    arg=selector,
-                )
-                bar.get_by_role("button", name="Pause recording").click()
-                assert player.evaluate("el => el.paused")
-                expect(
-                    bar.get_by_role("slider", name="Recording position")
-                ).to_have_attribute("aria-valuetext", re.compile(r"^0:0\d of 0:08$"))
-                player.evaluate("el => { el.currentTime = 0; }")
-            # Reach the player through ordinary sequential focus.
+            # Reach the browser's player controls through ordinary sequential focus.
             for _ in range(20):
                 page.keyboard.press("Tab")
                 if player.evaluate("el => document.activeElement === el"):
@@ -237,13 +218,8 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
         for selector in ("#video", "#audio"):
             player = touch.locator(selector)
             bounds = player.bounding_box()
-            # A finger plays a recording by tapping its picture, and the audio player
-            # by its own button.
-            spot = (
-                {"x": bounds["width"] / 2, "y": bounds["height"] / 3}
-                if selector == "#video"
-                else {"x": 24, "y": 27}
-            )
+            # A finger plays each by its player's own play button.
+            spot = {"x": 24, "y": bounds["height"] - 48 if selector == "#video" else 27}
             player.tap(position=spot)
             touch.wait_for_function(
                 "selector => !document.querySelector(selector).paused", arg=selector

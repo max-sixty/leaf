@@ -11,6 +11,7 @@ from render_cases_layout import MARK
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
+    WORDS_RECTS,
     assert_follows_in_every_frame,
     leaf_page,
     margins_laid_out,
@@ -127,9 +128,9 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     user leaves goes at once, and the obligation's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
     item = (
-        '<lf-ask id="work"><h2>Choose</h2><lf-options id="options" choose>'
+        '<lf-group id="work" label="Choose"><h2 id="work-h">Choose</h2><lf-options id="options">'
         '<lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-group>"
     )
     url = serve(PANE_PIN_PAGE.replace('<p id="pane-end">The last finding.</p>', item))
     left = answered_comment(serve.page_dir, "First finding", {"section": "pane-top"})
@@ -285,9 +286,9 @@ WIDENED_TABLE_PAGE = leaf_page(
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     """A table granted room is translated into place (layouts.css), and Firefox leaves
-    an anchor's transforms out of `anchor()`, so every box anchored in one stood the
-    translation away from what it marked: at 1728px a comment's pin on a header sat
-    over the column beside it, and the Alt outline 300px left of the table. In each
+    an anchor's transforms out of `anchor()`, so every box anchored in one would stand
+    the translation away from what it marked: at 1728px a comment's pin on a header
+    over the column beside it, and the Alt outline left of the table. In each
     engine the pin stands on the header it marks and keeps that place through a
     scroll, the outline Alt raises after the scroll stands on the table, and a code
     block's Copy, which CSS anchors alone, stands inside the block's top-right
@@ -356,10 +357,10 @@ SCALED_DECK_PAGE = leaf_page(
 def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
     """A deck such as reveal.js translates and scales its slides to fit its stage, and
     Firefox leaves the anchor's transforms out of `anchor()` and `anchor-size()`, so a
-    comment's row stood 257px below the words it marked and Copy stood past the right
-    edge of its code block. A scroll inside the slide moves the words by less than the
-    scroll, and Firefox moved the row by all of it until something else placed the
-    rows again. In each engine the row stands level with its words and keeps that place
+    comment's row would stand below the words it marked and Copy past the right edge of
+    its code block. A scroll inside the slide moves the words by less than the scroll,
+    and Firefox would move the row by all of it until something else placed the rows
+    again. In each engine the row stands level with its words and keeps that place
     through a scroll of the page and, once it ends, through a scroll of the box holding
     the words; the outline Alt raises stands on that box, and Copy stands inside its
     block's top-right corner."""
@@ -411,14 +412,16 @@ def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
 
 def _listing(lines, layout="workspace"):
     """A page holding `lines` in a code block that scrolls inside its `pre`, as
-    reveal.js's theme makes every long one."""
+    reveal.js's theme makes every long one, keeping its lines as an author who wants
+    them scrolled says (reading.css, `pre`)."""
     return leaf_page(
         "a code block that scrolls",
         "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
         'column it stands in from one edge to the other.</p><pre id="listing"><code>'
         + "\n".join(lines)
         + "</code></pre></div>",
-        head="<style>pre code { display: block; overflow: auto; max-height: 400px; }"
+        head="<style>pre code { display: block; overflow: auto; max-height: 400px;"
+        " white-space: pre; }"
         "</style>",
         layout=layout,
     )
@@ -438,14 +441,12 @@ LONG_NEIGHBOURS = [
     f"    total += step_{i:02d}(sample_values, weight={i})" for i in range(1, 41)
 ]
 # Where a row's pin stands against its quoted words' first line and the code box.
-PIN_ON_LINE = """quote => {
+PIN_ON_LINE = (
+    """quote => {
   const code = document.querySelector('#listing code');
-  const text = code.firstChild;
-  const at = text.data.indexOf(quote);
-  const range = document.createRange();
-  range.setStart(text, at);
-  range.setEnd(text, at + quote.length);
-  const line = range.getClientRects()[0];
+  const line = ("""
+    + WORDS_RECTS
+    + """)(code, quote)[0];
   const box = code.getBoundingClientRect();
   const row = document.querySelector('[data-lf-margin-for="listing"]');
   const pin = row.getBoundingClientRect();
@@ -456,6 +457,7 @@ PIN_ON_LINE = """quote => {
           pin: pin.toJSON(), line: line.toJSON(), box: box.toJSON(),
           shown: !row.classList.contains('lf-withheld')};
 }"""
+)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -472,14 +474,14 @@ def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
     request, serve, engine, lines, quote, width, layout
 ):
     """reveal.js's theme scrolls every long code block inside its `pre` (`pre code {
-    overflow: auto; max-height: 400px }`). A comment on one of its lines stood its pin
-    above the block's corner after a layout pass, and a scroll of the code then carried
-    the pin away with the lines, so where it stood depended on what moved it last; it
-    also kept standing while its line was scrolled out of the code's view. Seated as
-    prose, it then hung off the end of the line above, and at a phone's width it slid to
-    the window's edge. The pin stands level with its line inside the code box, in the
-    same place after a scroll of the code as after a fresh pass, and is withheld while
-    the line is out of the code's view."""
+    overflow: auto; max-height: 400px }`). A pin standing above the block's corner after
+    a layout pass would be carried away with the lines by a scroll of the code, so where
+    it stood would depend on what moved it last, and it would keep standing while its
+    line was scrolled out of the code's view. Seated as prose, it would hang off the end
+    of the line above, and at a phone's width slide to the window's edge. The pin stands
+    level with its line inside the code box, in the same place after a scroll of the
+    code as after a fresh pass, and is withheld while the line is out of the code's
+    view."""
     browser = request.getfixturevalue(engine)
     comment = _comment_on("listing", quote=quote)
     page = open_page(browser, serve(_listing(lines, layout), events=[comment]))
@@ -531,7 +533,7 @@ def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
     scrolls the first of them out past an edge of its box, the pin stands level with
     the first quoted line still in view, at the block's right edge, the same after a
     fresh pass, and the row hides only once none of them shows. Seated by its first line
-    wherever that line had gone, the pin stood above the code box with five quoted
+    wherever that line had gone, the pin would stand above the code box with quoted
     lines in view, or below it with one line just showing at its foot."""
     browser = request.getfixturevalue(engine)
     quote = "\n".join(LONG_NEIGHBOURS[first - 1 : first + 7]).strip()
@@ -540,14 +542,11 @@ def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
     resized(page, 1280, 800)
     margins_laid_out(page)
     # The boxes of the quoted lines, as JavaScript taking the quote.
-    lines = """(quote) => {
-      const text = document.querySelector('#listing code').firstChild;
-      const at = text.data.indexOf(quote);
-      const range = document.createRange();
-      range.setStart(text, at);
-      range.setEnd(text, at + quote.length);
-      return [...range.getClientRects()].filter((box) => box.width);
-    }"""
+    lines = (
+        """(quote) => ("""
+        + WORDS_RECTS
+        + """)(document.querySelector('#listing code'), quote)"""
+    )
     reading = f"""quote => {{
       const lines = ({lines})(quote);
       const code = document.querySelector('#listing code');
@@ -665,12 +664,9 @@ def test_a_code_block_s_own_pin_stands_above_its_corner(request, serve, engine):
     reading = page.evaluate(
         """() => {
           const block = document.getElementById('listing').getBoundingClientRect();
-          const text = document.querySelector('#listing code').firstChild;
-          const at = text.data.indexOf('short_second = 1');
-          const range = document.createRange();
-          range.setStart(text, at);
-          range.setEnd(text, at + 16);
-          const line = range.getClientRects()[0];
+          const line = ("""
+        + WORDS_RECTS
+        + """)(document.querySelector('#listing code'), 'short_second = 1')[0];
           const rows = [...document.querySelectorAll('[data-lf-margin-for="listing"]')]
             .map((row) => ({quoted: row.getAttribute('aria-label').includes('short_second'),
                             box: row.getBoundingClientRect()}));
@@ -861,16 +857,18 @@ SEATED_PANE_PAGE = leaf_page(
     '<lf-pane id="seat-pane" label="Left"><div>'
     + _PARAGRAPH
     * 2
-    + '<lf-ask id="seat-ask"><h3>Should the nightly export keep writing one file per'
+    + '<lf-group id="seat-ask" label="Should the nightly export keep writing one file per'
+    ' tenant or roll every tenant up into one archive tonight">'
+    '<h3 id="seat-ask-h">Should the nightly export keep writing one file per'
     " tenant or roll every tenant up into one archive tonight</h3>"
-    '<lf-options id="seat-choice" choose>'
-    '<lf-option id="sa"><strong>One file per tenant</strong></lf-option>'
-    '<lf-option id="sb"><strong>One archive</strong></lf-option>'
-    "</lf-options></lf-ask>" + _PARAGRAPH * 8 + "</div></lf-pane>"
+    '<lf-options id="seat-choice">'
+    '<lf-option id="sa" label="One file per tenant"><strong>One file per tenant</strong></lf-option>'
+    '<lf-option id="sb" label="One archive"><strong>One archive</strong></lf-option>'
+    "</lf-options></lf-group>" + _PARAGRAPH * 8 + "</div></lf-pane>"
     '<lf-pane id="seat-beside" label="Right"><div><p>A short pane beside it.</p></div>'
     "</lf-pane></div>",
     head="<style>#seat-panes { display: grid; grid-template-columns: 1fr 1fr;"
-    " gap: var(--lf-sp-4); } lf-ask h3 { text-align: justify; }</style>",
+    " gap: var(--lf-sp-4); } #seat-ask h3 { text-align: justify; }</style>",
     layout="workspace",
 )
 
@@ -967,9 +965,9 @@ def test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll(
     never moves it (margin-layout.js: remeasuring after a scroll writes the same
     insets). A sticky header inside the target is drawn wherever the scroll sticks it,
     so it is read at its own place in the target: read where it was drawn, a pass made
-    while the header stuck far down the target left the seat by its top clear, and the
-    next unrelated pass after scrolling back found the header's control there and moved
-    the pin, with no input (#5165). A sticky box inside the header moves with the
+    while the header sticks far down the target leaves the seat by its top clear, and
+    the next unrelated pass after scrolling back finds the header's control there and
+    moves the pin, with no input. A sticky box inside the header moves with the
     header's offset as well as its own, which is counted once."""
     page = open_page(
         request.getfixturevalue(engine),
@@ -1422,7 +1420,10 @@ def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(
     """A section of fixed height that the browser skips until it nears the window
     (`content-visibility: auto`) withholds the row on a target inside it, and scrolling
     the page alone, which resizes and rewrites nothing, brings the row back once the
-    section is drawn."""
+    section is drawn: whether the reader wheels toward it, which draws it before it
+    shows, or jumps to it, as a key or the scrollbar does, which the page reads before
+    it draws. The section keeps its size as it draws, so after a jump the row stayed
+    withheld until some other change laid the margin out."""
     source = leaf_page(
         "a far section",
         '<h1 id="t">Far</h1><div style="height: 3000px"></div>'
@@ -1435,13 +1436,31 @@ def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(
     resized(page, 1280, 720)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="far"]')
-    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    withheld = re.compile(r"\blf-withheld\b")
+    far_drawn = (
+        "document.getElementById('far').checkVisibility({contentVisibilityAuto: true})"
+    )
+    expect(row).to_have_class(withheld)
     page.mouse.move(640, 360)
     for _ in range(12):
         page.mouse.wheel(0, 250)
         page.wait_for_timeout(50)
     expect(page.locator("#far")).to_be_in_viewport()
-    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    expect(row).not_to_have_class(withheld)
+
+    # A pass while the section is skipped withholds the row again.
+    page.evaluate("() => scrollTo(0, 0)")
+    page.wait_for_function(f"() => !{far_drawn}")
+    margins_laid_out(page)
+    expect(row).to_have_class(withheld)
+    page.evaluate(
+        "() => scrollTo(0, document.getElementById('far-section').offsetTop - 200)"
+    )
+    page.wait_for_function(f"() => {far_drawn}")
+    rendered(page)
+    # Read once: a later pass for another change would stand the row whether or not
+    # the section's drawing brought one.
+    assert not withheld.search(row.get_attribute("class"))
 
 
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):
@@ -1486,7 +1505,7 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_constrained_target_carries_its_row_through_scroll(
     request, serve, subtests, engine
 ):
@@ -1495,17 +1514,16 @@ def test_a_constrained_target_carries_its_row_through_scroll(
     carries the row in the first frame after every scroll with no pass to reseat it.
 
     Sticky constraints can belong to the target or an ancestor, and a fixed target
-    stays put through the document's scroll. Firefox draws a stuck target's row where
-    the target would stand unstuck, and WebKit moves a fixed target's row with the
-    document's scroll (notes/browser-support.md, "A stuck sticky anchor in Firefox",
-    "An anchor under a fixed box in WebKit"). Chromium also reads the compositor's frames,
-    which only it traces; WebKit checks the rectangles after each scroll.
+    stays put through the document's scroll. A fixed scroller, such as a page of parts'
+    title column, stays put too, and its row rides what its own scroll carries. Chromium
+    also reads the compositor's frames, which only it traces; Firefox and WebKit check
+    the rectangles after each scroll.
     """
     page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)
     # Each case adds its own scroller and row, replacing the case before; the fixed
-    # target, which also lengthens the document, goes last.
-    for position in ("sticky", "sticky-ancestor", "fixed"):
+    # cases, which also lengthen the document, go last.
+    for position in ("sticky", "sticky-ancestor", "fixed", "fixed-scroller"):
         with subtests.test(position=position):
             # The last case left the pointer where this case's target will stand.
             page.mouse.move(0, 0)
@@ -1530,15 +1548,20 @@ def test_a_constrained_target_carries_its_row_through_scroll(
                   document.querySelector('main').prepend(host);
                   const target = host.querySelector('p');
                   if (position === 'sticky') host.querySelector('#constraint').replaceWith(target);
-                  const constrained = position === 'sticky-ancestor'
-                    ? host.querySelector('#constraint') : target;
-                  constrained.style.position = position === 'fixed' ? 'fixed' : 'sticky';
-                  constrained.style.top = position === 'fixed' ? '300px' : '0';
+                  const constrained = {sticky: target, fixed: target,
+                    'sticky-ancestor': host.querySelector('#constraint'),
+                    'fixed-scroller': host}[position];
+                  const fixed = position.startsWith('fixed');
+                  constrained.style.position = fixed ? 'fixed' : 'sticky';
+                  constrained.style.top = fixed ? '300px' : '0';
+                  if (fixed) {
+                    constrained.style.left = '180px';
+                    document.body.style.minHeight = '2000px';
+                  }
                   if (position === 'fixed') {
-                    target.style.left = '180px'; target.style.width = '300px';
+                    target.style.width = '300px';
                     document.querySelector('main').append(target);
                     host.remove();
-                    document.body.style.minHeight = '2000px';
                   }
                   const contribution = registerContribution({key: 'nonlinear', target,
                     read: () => ({entries: [contributionEntry({key: 'nonlinear',
@@ -1566,8 +1589,12 @@ def test_a_constrained_target_carries_its_row_through_scroll(
                 page.evaluate(
                     """scroll => {
                       const {host, position} = window.__nonlinear;
-                      if (position === 'fixed') window.scrollTo(0, scroll);
-                      else host.scrollTop = scroll;
+                      // The document scrolls under a fixed box. The fixed target has
+                      // left its host; a fixed scroller scrolls a third as far,
+                      // keeping the target inside it.
+                      if (position.startsWith('fixed')) window.scrollTo(0, scroll);
+                      if (position !== 'fixed')
+                        host.scrollTop = position === 'fixed-scroller' ? scroll / 3 : scroll;
                     }""",
                     scroll,
                 )

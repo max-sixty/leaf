@@ -26,7 +26,6 @@ artifact. When a browser test is slow, or fails on timing or geometry outside it
 contract, repair its setup or move its contract to a lower boundary.
 
 Each helper's docstring owns its contract, and code cites the sections below by heading.
-Message delivery has one shared journey, `leaf_dev.thread_journey`.
 
 ## Failing tests
 
@@ -39,6 +38,24 @@ uploads; look at it before reading the cause off the assertion alone.
 
 A failure that comes and goes on the same code is a defect. Find whether the product
 races, so a user could hit it, or the test's setup does ("Races"), and fix that cause.
+
+When a change turns a test red, the change and the behavior the test protects
+disagree. Choose the repair by what it keeps of each:
+
+- **The change's intent**: what its author meant it to do, read from the pull
+  request's description, discussion and diff. Undoing part of it reverses a
+  decision someone made.
+- **The interface**: what users see and do, and what callers rely on, such as a
+  gesture's effect, a layout, a command or a file format. A repair that moves it
+  further than the change meant to makes a product decision nobody asked for.
+
+The existing assertion is evidence about both, not authority. Prefer a repair that
+keeps both: update the test whose expectation the change replaced, or fix the code
+so the change's intent holds without moving the interface further. Where no repair
+keeps both, revert the change, or the part of it at fault. When the test itself is
+wrong, validate the intended behavior with corrected or replacement checks, and
+justify removing a test that protects no user behavior rather than claiming it
+passed.
 
 ## Run what the change needs
 
@@ -121,9 +138,10 @@ required check on `main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
 Tend repairs what CI (`ci.yaml`) fails on main: the `test` job on Ubuntu, and
-`test-macos`, which runs every tier on macOS in the daily scheduled run and a dispatch.
-A failed run opens or updates a `tend-ci-failure` report issue, and triage files a
-`tend-ci-cause` issue for each cause and fixes it there.
+`test-macos`, which runs every tier on macOS in the daily scheduled run and a dispatch
+without `flake`; a dispatch given `flake` reproduces one of its failures on its runner
+("Races"). A failed run opens or updates a `tend-ci-failure` report issue, and triage
+files a `tend-ci-cause` issue for each cause and fixes it there.
 The user accepted that a pull request can land green and break a test it never ran, so
 a red main is no reason to widen a change or its tests. A newer push cancels main's
 waiting run, as intended, so to learn what main fails, read the latest run that
@@ -135,8 +153,7 @@ Tend's triage marks the issue with an eyes reaction while it works, then fixes t
 cause in a pull request that links the issue; a cause issue with neither is still
 waiting, and a failure only a local run shows never reaches Tend. If no pull request,
 Tend run, session or worktree (Codex's under `~/.codex/worktrees` included) is fixing
-a failure and the user you work for maintains Leaf, start a local session for it (for
-example with `/dispatch`).
+a failure and the user you work for maintains Leaf, start a local session for it.
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for
@@ -166,7 +183,7 @@ which calls the server's own `served_records.py`. A fixture carries every field 
 server sends and changes only the fields the
 case is about. `fixtures/pages/` holds full-page regressions under
 `examples/AGENTS.md`'s rules, and `fixtures/plain/` ordinary web pages
-(`browser/test_plain_pages.py`).
+(`journeys/test_plain_pages.py`).
 A result that depends on a primitive Node and Chrome implement differently, such as
 `Intl.Segmenter`, is tested in the browser.
 
@@ -178,8 +195,7 @@ such as DOM a script changes after load, puts the page in
 that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a question, use its answer: `root_overflow` for
-sideways scroll, `draft_key` and `stored_draft`
-for drafts, `event_log.read_events` for the log. Read the page through its public
+sideways scroll, `stored_draft` for drafts, `event_log.read_events` for the log. Read the page through its public
 entries (`window.__lfWidgetApi()`, `__lfCheckApi()`, `__lfClientApi()`, and
 `__lfOverlayApi()` for overlay geometry); tests can't import private source
 paths.
@@ -190,7 +206,8 @@ once. Test a reading made from declarations on a widget that declares them, pass
 `serve` as `layer_registry` and `layer_widgets`.
 
 A test over prose compares it with something the machine states: a shown command
-against the click tree, an `x-` key against the guide, a table against its registry.
+against the click tree, a declaration key against the guide, a table against its
+registry.
 Leave wording with no machine side to review.
 
 Current location and visible focus are separate (`focus.js` owns their contract):
@@ -270,10 +287,11 @@ check a new held process, make the test fail right after starting it, then confi
 
 ### Browser storage
 
-Panel state and drafts live in `localStorage` and reading position in `sessionStorage`,
-so a reload keeps them;
-clear both for a first visit. Each `Browser.new_page` is its own context, so two tabs of
-one user share `one_user`.
+Panel state lives in `localStorage` and reading position in `sessionStorage`, so a
+reload keeps them; clear both for a first visit. Each `Browser.new_page` is its own
+context, so two tabs of one user share `one_user`. Drafts are the page's server's,
+which every context reaches (`stored_drafts`); another tab's or device's write is
+`write_draft_elsewhere`.
 
 ## Driving the browser
 
@@ -323,11 +341,10 @@ allowance list.
   with `watch_shifts`. Playwright's clicks, keys, viewport resizes, and Back and
   Forward are input; a script's `click()`, a value set by script and server news are
   not. It ignores first
-  presentation, whose remaining defects `known_widget_findings.py` records. Chrome
-  hides a shift for half a second after a click, so a test of a news update's stability
-  delivers the news after that. An input also owns the first frame that reads its
-  rendering settled, which can paint after `rendered` returns, so a test that moves
-  the page itself after an input, to see the move reported, first waits for
+  presentation, whose remaining defects `known_widget_findings.py` records. An input
+  owns every move its rendering makes, up to the first frame that reads that rendering
+  settled, which can paint after `rendered` returns. So a test that delivers news after
+  an input, or moves the page itself, to see the move judged, first waits for
   `lfInputRenderingOpen()` to read false.
 - `words_watch.js` reports typed words leaving the screen without a key or press
   (`browser/AGENTS.md`, "Typed words survive"). A test that closes a box
@@ -367,9 +384,13 @@ its situation on a machine ten times slower than the one it was written on, sinc
 runner and a host running other sessions' suites are both slower than an idle
 development machine. So no test asserts a duration, and no test passes or fails on a
 benchmark's reading: a benchmark reports its readings (`leaf-dev bench`, charted
-daily), and a reader judges them. Check a test against the rule with
-`--cpu-throttle 10` ("Races"). It slows only Chromium's renderer, not the server, Python
-or the driver, and doesn't reach a page from `browser.unwatched`.
+daily), and a reader judges them. A slower machine also reorders work that runs on
+independent clocks, such as the page's timers, its rendering updates, the server and the
+test's own steps, so a test makes every order it relies on between them itself, by
+holding or stepping one clock or by waiting for the event that ends the other's work
+(below, and "Races"). Check a test against the rule by running it starved of CPU,
+which slows every process at once ("Races"). CI's daily macOS job runs the suite that
+way, with more workers than the runner has cores; no landing gate does.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
@@ -418,7 +439,7 @@ matching frame even if the gesture goes on to another result. The helpers in
 - `told` waits until the page has applied what the server holds now; call it after
   changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
-- `undo` presses `z` once the dispatcher would take it and waits for the undo's round
+- `undo` presses ⌘Z once the dispatcher would take it and waits for the undo's round
   trip;
 - `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
   and `available_commands` reads the dispatcher once after it;
@@ -450,10 +471,25 @@ alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
 so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
 server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
-copy: it reproduced ten of the nightly macOS
-job's failures that `--cpu-throttle 8` reproduced none of. Run the merge
-base under the same condition to learn whether the change caused it. A test whose subject
-is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.
+copy on a shared Mac: it reproduced ten of the nightly macOS
+job's failures that `--cpu-throttle 8` reproduced none of.
+`leaf-dev suite flake --load N` runs N busy loops beside the copies, in the same band,
+which starve a test more steadily than more copies do. Run the merge base under the
+same condition to learn whether the change caused it. A test whose subject is a slow
+CPU slows its own page with `leaf_dev.browser.slow_cpu`.
+
+A failure the nightly macOS job (`test-macos`) shows and this machine doesn't reproduces
+on that job's runner, from any machine. Dispatch `ci` on a branch with `flake` set to `leaf-dev suite
+flake`'s arguments, and `test-macos` runs them in place of the suite, at normal
+priority as the nightly runs, ending its log with each test's counts:
+
+```sh
+gh workflow run ci --ref BRANCH -f flake="--workers 1 --load 4 'NODE_ID'"
+```
+
+To run `main` or a merge base this way, push it to a branch of its own
+(`git push origin BASE:refs/heads/NAME`) and delete that branch afterwards, since a red
+`ci` run on `main` itself files a CI failure report, which starts Tend's triage.
 
 - A route handler that returns without resolving holds the request before the server.
   Call `holding` before reading the list of held requests, since the ledger counts a

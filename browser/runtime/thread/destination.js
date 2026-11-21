@@ -4,15 +4,15 @@
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
    passage, which opens beside its passage. A message whose widgets the primary holds
    goes there even where it declines (messages.js, `authoredHolders`). A part the
-   primary declined uses the page's nearest drawing of its thread: the exact outlet, or
-   the seat an `x-thread-seat` widget holds it in (surfaces.js, `surfaceFocusTarget`),
-   whose Resolved disclosure opens for a resolved thread; then a page preview. A message
+   primary declined uses the page's nearest drawing of its thread: the outlet a widget
+   seats it in (surfaces.js, `surfaceFocusTarget`), whose Resolved disclosure opens for
+   a resolved thread; then a page preview. A message
    part lands on its message there. Where neither shows it, the primary is asked again
    with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. That is every thread about a passage on a
    window with no room for the rail, where no margin card stands (margin-projection.js,
-   the user's choice of 31 October 2026). The primary holds such a thread only until
+   the user's choice). The primary holds such a thread only until
    the page can draw it again, as when a wider window brings the rail, or shows the
    passage a narrow one hid: once a thread pass has drawn every surface, it goes back to
    the page, and the user in it goes with it, a reply they are writing carried with its
@@ -29,8 +29,8 @@
    A route shows one thread at a time: the primary taking a thread closes the page's
    card, and the page drawing one has the floating panel put away its view of any
    thread as it declines (floating-panel.js, `reveal`), so the reply the field holds
-   and a walk's position name the thread the user arrived at. The user chose this on
-   23 October 2026, after a `t` walk left the panel's thread open under a card.
+   and a walk's position name the thread the user arrived at. The user chose this,
+   so a `t` walk doesn't leave the panel's thread open under a card.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
    no destination policy. A command retains its original intent through placement
@@ -73,8 +73,8 @@ import { surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { closestAcross } from "../passages.js";
-import { renderedUnder } from "../shadow.js";
-import { discussed } from "./model.js";
+import { renderedUnder } from "../shadow-tree.js";
+import { deleted, discussed, editable } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
@@ -569,11 +569,16 @@ export function createThreadDestinations({
     return card ? openMessageEditIn(card, name) : null;
   }
   // The thread a thread-held draft is written under: the thread a reply is keyed by, or
-  // the one holding the message a rewrite is of; none once it has left the log's reading.
+  // the one holding the message a rewrite is of; none once it has left the log's
+  // reading, and none for a rewrite of a message the user may no longer rewrite, as one
+  // taken back while an answer stands on it, which opens no editor.
   /** @param {string} context */
   function threadHolding(context) {
     const route = threadDraft(context);
-    return route ? threadNamed(route.name) : null;
+    const thread = route ? threadNamed(route.name) : null;
+    if (!thread || route?.part !== "rewrite") return thread;
+    const message = thread.msgs.find(({ id }) => id === route.name);
+    return message && editable(message) && !deleted(message) ? thread : null;
   }
 
   return {

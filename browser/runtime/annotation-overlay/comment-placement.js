@@ -16,10 +16,11 @@
    the unclipped box: the top of a clipped box is the window's edge, and a card level
    with it in the page's plane would be carried by each scroll frame and placed back.
    `column` is the passage's inline start when it quotes words;
-   without one, the card's width ends at `clear`'s right edge. Under or over, a surface
-   stands at the measure (`--lf-thread-card`), or the boundary's width where that is
-   narrower, so where that start would carry it past the boundary's right edge it
-   starts further left rather than narrowing (`place-under-or-over`). `margin` is where
+   without one, the card's width ends at `clear`'s right edge. Under or over, a card's
+   start keeps room for the measure (`--lf-thread-card`), or the boundary's width where
+   that is narrower, so where that start would carry it past the boundary's right edge
+   it starts further left rather than narrowing (`place-under-or-over`), a slim card
+   widens without moving its start, and the comment box starts where its card will. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
    or nothing where no row stands and its rows would be pins. A caller requesting
@@ -82,7 +83,14 @@
    view as scrolling approaches it. A surface that outgrows the room on its side slides
    inside the boundary, over its passage or element if it must, and once it fills the
    boundary scrolls its own content. Only `makeRoom` scrolls, for a card opening under
-   or over its target (`size-page-still`).
+   or over its target (`size-page-still`). A surface is opening until it first
+   stands. The first move Leaf then starts in its scroller before any later input
+   (scrolling.js, `scrollStarts`) opens it once more, until it stands again. A walk
+   opens its card before its landing brings the card's words in from beyond the
+   window, so the card makes its room again where that landing leaves them, on the
+   side it chose. A scroll a later input makes, or one Leaf doesn't start, such as a
+   keeper holding the reader's place, makes no room, so a card growing as an answer
+   arrives never moves the page.
 
    A surface may choose which edge of its last rectangle to hold (`edge`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
@@ -110,8 +118,8 @@
    grows out of the field (annotation-chrome.css) stands where the frame stood and no
    word moves. Near the window's foot the field therefore rises while room still shows
    below it. Rejected: letting the reserved row the box grows toward stand past the
-   window's edge (#3139), which kept the words still while typing but moved them at
-   Send by that row; and painting the frame as the card while it is written (#3157),
+   window's edge, which kept the words still while typing but moved them at
+   Send by that row; and painting the frame as the card while it is written,
    which left Send nothing to grow.
 
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
@@ -143,7 +151,15 @@ import {
   shownRect,
 } from "../geometry.js";
 import { clamp, union } from "../rect.js";
-import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
+import {
+  glideTo,
+  moveScrollerBy,
+  pageScroller,
+  scrollGoal,
+  scrollLimit,
+  scrollStarts,
+} from "../scrolling.js";
+import { inputs } from "../inputs.js";
 
 import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
@@ -167,7 +183,8 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{clear: Extent | null, row: number, lastRow?: number,
  * column?: number | null, margin?: Columns | null, boundary: Boundary,
  * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
- * stood: number, stationary: boolean, scale: {x: number, y: number}}) => void,
+ * stood: number, stationary: boolean, fromSubject: boolean,
+ * scale: {x: number, y: number}}) => void,
  * edge?: "top" | "foot", rises?: boolean}} PlacementRequest */
 /** @typedef {{reference: DOMRect,
  * placement: import("@floating-ui/dom").Placement,
@@ -344,15 +361,14 @@ const vertical = (side) => side === "top" || side === "bottom";
 // Vertical room is read in viewport pixels, while the browser scrolls in local CSS
 // pixels. Project available travel through the scroller's actual transformed axis;
 // an inverted axis reverses which local end can expose room on the requested side.
-/** @param {Side} side @param {Element} scroller */
-function roomTravel(side, scroller) {
+// The travel is counted from `from`, the scroller's offset where it stands unless the
+// caller reads it where it is headed.
+/** @param {Side} side @param {Element} scroller @param {number} [from] */
+function roomTravel(side, scroller, from = scroller.scrollTop) {
   const projection = scrollAxes(scroller).y.y;
   const direction = side === "top" ? -1 : 1;
   const localDirection = direction * Math.sign(projection);
-  const local =
-    localDirection < 0
-      ? scroller.scrollTop
-      : Math.max(0, scrollLimit(scroller) - scroller.scrollTop);
+  const local = localDirection < 0 ? from : Math.max(0, scrollLimit(scroller) - from);
   return { projection, direction, available: local * Math.abs(projection) };
 }
 
@@ -378,20 +394,32 @@ function reachableRoom(side, extent, boundary, scroller) {
 // Scrolls `scroller` to make the room a surface `height` tall needs on `side` of `clear`,
 // under or over it, as far as the scroller travels; whether it moved. Where `extent`
 // and this surface cannot show together, no scroll makes that room. The boundary
-// then holds the surface over its subject instead of scrolling the subject away.
+// then holds the surface over its subject instead of scrolling the subject away. The
+// room is read where the scroller is headed (scrolling.js, `scrollGoal`), as a key
+// pressed while the page glides acts as though the glide had landed, and a glide under
+// way takes the move into its goal (`glideTo`), so the page lands once, with the room
+// made.
 /** @param {Side} side @param {Extent} clear @param {Extent} extent @param {number} height @param {Boundary} boundary @param {Element} scroller */
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
   const gap = subjectGap();
   if (extent.height + gap + height > boundary.height) return false;
+  const goal = scrollGoal(scroller);
+  const { available: travel, projection, direction } = roomTravel(side, scroller, goal);
+  // How far the glide under way will still carry `clear` up the window.
+  const ahead = (goal - scroller.scrollTop) * projection;
   const overflow =
     side === "top"
-      ? boundary.top - (clear.top - gap - height)
-      : clear.bottom + gap + height - boundary.bottom;
-  const { available: travel, projection, direction } = roomTravel(side, scroller);
+      ? boundary.top - (clear.top - ahead - gap - height)
+      : clear.bottom - ahead + gap + height - boundary.bottom;
   const movement = Math.max(0, Math.min(overflow, travel));
   if (movement <= 0.5) return false;
+  const by = (direction * movement) / projection;
+  if (goal !== scroller.scrollTop) {
+    glideTo(scroller, goal + by);
+    return true;
+  }
   const before = scroller.scrollTop;
-  moveScrollerBy(scroller, (direction * movement) / projection);
+  moveScrollerBy(scroller, by);
   return Math.abs((scroller.scrollTop - before) * projection) > 0.5;
 }
 
@@ -418,14 +446,34 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
 }
 
 // The minimum width chooses the side: a side whose room holds less stands nothing. The
-// measure is the width every surface takes where its room holds it (`size-width`), and
-// decides whether clearing the margin row would sacrifice it. `commentPlacement` reads
-// both, so the comment box and its sent card share the same placement rule.
+// measure is the width a card takes once a message outgrows the minimum, or where its
+// start stands away from its text (`size-width`), and decides whether clearing the
+// margin row would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
+// card share the same placement rule.
 /** @param {string} name */
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--lf-thread-card-min");
 export const cardMeasure = () => rootLength("--lf-thread-card");
+// Where `size-width` widens a card by its text: a block of words wider than it is tall
+// reads at a glance at the least width; a taller one reads as a column, which the
+// measure's lines halve. The shape needs no constant, so it follows the card's width
+// and face (thread-preview.js records the choice).
+/** Whether any of `texts`, laid out at the width it stands at, stands taller than wide.
+ * @param {Iterable<Element>} texts */
+export const standsTall = (texts) => {
+  for (const text of texts) {
+    const style = getComputedStyle(text);
+    const height =
+      text.scrollHeight -
+      parseFloat(style.paddingTop) -
+      parseFloat(style.paddingBottom);
+    const width =
+      text.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    if (height > width) return true;
+  }
+  return false;
+};
 // How far a surface stands from what it is about (`place-clear`): the room a mark on a
 // region takes (`--lf-focus-region-room`), then the gap it keeps from the edge of its room,
 // so the mark's line and the surface's edge have that gap between them too. It holds
@@ -441,8 +489,8 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
 /* One surface's placement: the side it holds and its inline attachment.
 
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
-   width has changed, and says whether it chose afresh, and whether the surface has
-   yet to land (`opening`). `options` then gives
+   width has changed, and says whether it chose afresh, and whether the surface is
+   opening (`opening`). `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
    `landed` takes the answer's inline start and where the rule stood the surface's top
    and foot before the boundary shifted it in, from the rule's line. `options` holds
@@ -467,7 +515,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, room, stood, scale, stationary })` sizes the surface for the room its
+   `fit({ side, width, height, room, stood, scale, stationary, fromSubject })` sizes the surface for the room its
    side gives, in its positioning space; `room` is the client rectangle that room stands
    in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
    is the height a held surface caps no lower than, or 0. `stationary` says its
@@ -475,7 +523,13 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    boundary, never by its passage's column. Under or over, it stands at the intended
    inline start, which reserves that width (`size-width`). On the left, it instead holds
    its right edge clear of the target, so a change of its room moves its far edge and
-   never carries it across the words it comments on. */
+   never carries it across the words it comments on. `fromSubject` says its inline
+   start stands by what it is about: beside it on the right, under or over quoted words
+   at their first character, or at the room's edge with nothing to stand by. A surface
+   narrower than the measure, as the box and a slim card are, stands by its subject
+   and widens away from it only there. Elsewhere its start is the measure's far end
+   from its subject, where a narrower surface would stand apart from it and widen by
+   moving its words, so the box and card take the measure there. */
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
@@ -497,10 +551,19 @@ export function commentPlacement() {
   // The tallest the surface has stood since its line last moved, and that line.
   /** @type {{height: number, line: number} | null} */
   let tallest = null;
+  // The input that opened the surface, and how many moves Leaf had started in its
+  // scroller when it opened or last made room, until that input's landing reopens it.
+  /** @type {{input: number, starts: number} | null} */
+  let opened = null;
+  // Whether that landing has reopened the surface, and no placement has stood it
+  // since.
+  let reopened = false;
   const forget = () => {
     side = null;
     inline = null;
     input = null;
+    opened = null;
+    reopened = false;
     pending = null;
     carriedInline = null;
     initialHold = null;
@@ -558,6 +621,11 @@ export function commentPlacement() {
       const span = Math.min(cardMeasure() * scale.x, boundary.width);
       return clamp(column ?? box.right - span, boundary.left, boundary.right - span);
     };
+    /** @param {{x: number}} scale */
+    const fromSubject = (scale) =>
+      unanchored ||
+      side === "right" ||
+      (across && column !== null && Math.abs(inlineStart(scale) - column) < 0.5);
     let heldIn = false;
     const attachment = ui.limitShift(() => ({
       mainAxis: !across,
@@ -683,6 +751,7 @@ export function commentPlacement() {
           room: shown,
           stationary: Boolean(tallest && Math.abs(tallest.line - line) < 0.5),
           stood,
+          fromSubject: fromSubject(scale),
           scale,
         });
       },
@@ -863,15 +932,28 @@ export function commentPlacement() {
           Math.abs(key.right - input.right) > 0.5)
       ) {
         forget();
+      } else if (!input && opened) {
+        // The scroll the surface asked for (`scrolled`) is no landing of the input's.
+        opened.starts = scrollStarts(scroller);
       }
       input = key;
       // A choice is fresh where it picks the side. The surface is opening until it
       // first lands: a placement a newer one supersedes before it fits never opened it,
       // and a card opened while Floating UI first loads is placed again before that, so
       // only `opening` says it has yet to make room clear of its target. A choice after
-      // the first keeps what that one began, such as the transcript's reading.
+      // the first keeps what that one began, such as the transcript's reading, until
+      // the landing of the input that opened it, as a walk's, takes its subject
+      // somewhere else, and it opens there once more (`size-page-still`).
       const fresh = side === null;
-      const opening = held === null && initialHold === null;
+      if (
+        opened &&
+        opened.input === inputs.count &&
+        scrollStarts(scroller) > opened.starts
+      ) {
+        opened = null;
+        reopened = true;
+      }
+      const opening = (held === null && initialHold === null) || reopened;
       side ??= unanchored
         ? "bottom"
         : commentSide({
@@ -882,6 +964,8 @@ export function commentPlacement() {
             scroller,
             coarse,
           });
+      if (fresh && !unanchored)
+        opened = { input: inputs.count, starts: scrollStarts(scroller) };
       return {
         side,
         fresh,
@@ -893,6 +977,7 @@ export function commentPlacement() {
     /** @param {Position} answer */
     landed({ x, y, middlewareData }) {
       initialHold = null;
+      reopened = false;
       const { scale, column, attachmentInline, line } = middlewareData.scaled;
       // A left-side surface keeps its right edge beside the target, so a change of its
       // room moves its left edge, never the edge by the words.

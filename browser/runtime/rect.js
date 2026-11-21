@@ -10,6 +10,11 @@
 export const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
+// Whether a box holds a point, its edges included.
+/** @param {Box} box @param {number} x @param {number} y */
+export const holds = (box, x, y) =>
+  x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+
 // Whether two boxes share any column: they would collide if they stood level.
 /** @param {Pick<Box, "left" | "right">} a @param {Pick<Box, "left" | "right">} b */
 export const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;

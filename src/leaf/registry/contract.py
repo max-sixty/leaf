@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +11,7 @@ from leaf.files import read_json
 from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID, WIDGET_NAME
 
 from ..findings import Finding, Rejected, element_at
-from .kernel import verb_writers
+from .kernel import kernel_marks, verb_writers
 
 
 def same_state_definition(recorded, current) -> bool:
@@ -45,10 +46,46 @@ def matches_when(attrs: dict, when: dict | None) -> bool:
     )
 
 
+def fact_condition(rule) -> dict | None:
+    """The `when` of a fact declared to hold only for some occurrences,
+    `{when: {attribute: [values]}}`, or None for a fact declared outright. The
+    declaration schema says which facts may take that form (`schema.FACTS`)."""
+    return (
+        rule["when"] if isinstance(rule, Mapping) and rule.keys() == {"when"} else None
+    )
+
+
+def holds_for(attrs: dict, rule):
+    """A declared fact as it holds for one occurrence, given its authored attributes.
+    A fact declared with `{when}` is `True` while those attributes match `when` and
+    `False` otherwise; any other declaration is returned as declared. Delivery's paint
+    and every reader asking of one occurrence read a fact through this, as `exhibits`
+    does; a reader asking whether the tag declares the fact at all reads the
+    declaration whatever its condition, as `obligations.shown_in` does."""
+    when = fact_condition(rule)
+    return rule if when is None else matches_when(attrs, when)
+
+
 def exhibits(attrs: dict, entry: dict) -> bool:
     """Whether this occurrence quotes its descendants."""
-    rule = entry.get("x-exhibit", False)
-    return matches_when(attrs, rule["when"]) if isinstance(rule, dict) else rule
+    return bool(holds_for(attrs, entry.get("exhibit")))
+
+
+def authored_inert(
+    key: str, declaration: Mapping, attrs: dict, *, content: bool
+) -> str | None:
+    """Why an occurrence's authored override of the mark `key` means nothing on its
+    element, or None where it holds. A width means nothing on an element that takes
+    none of its own (`flow`, where its `flow` holds); otherwise the override
+    holds where its `authored_on` says, and the condition it fails is the reason
+    (`content`, a block in the page's flow, which `main`, `body` and `html` aren't;
+    `declared`, a tag declaring the mark). Delivery paints only an override that holds
+    (`revision_delivery.mark_declared`), and `page check` names the rest."""
+    if key == "space" and holds_for(attrs, declaration.get("flow")):
+        return "flow"
+    condition = kernel_marks()[key]["authored_on"]
+    holds = content if condition == "content" else bool(declaration.get(key))
+    return None if holds else condition
 
 
 def is_element_name(name: str) -> bool:
@@ -63,8 +100,51 @@ def is_element_name(name: str) -> bool:
 
 
 def element_declarations(registry: dict) -> dict:
-    """The element schemas from one registry's authored vocabulary."""
+    """The element declarations from one registry's authored vocabulary."""
     return {name: entry for name, entry in registry.items() if is_element_name(name)}
+
+
+# The path of each element's module, by tag, in a composed vocabulary. Composition
+# derives it from the files it composes (`registry.layer.merged_registry`,
+# `registry.page.compose_page_registry`), so no declaration says whether a module
+# upgrades its element: the module's presence at `widgets/<tag>.js` does.
+MODULES = "$modules"
+
+
+def complete_declarations(registry: dict) -> dict:
+    """Write into a merged vocabulary's element declarations the default each may
+    leave unsaid, so every reader reads a complete entry: an element's content is its
+    author's markup (`content`) unless it declares another."""
+    for entry in element_declarations(registry).values():
+        if isinstance(entry, dict):
+            entry.setdefault("content", "markup")
+    return registry
+
+
+def upgraded(registry: dict, tag: str) -> bool:
+    """Whether a module upgrades `tag` in the browser (`MODULES`)."""
+    return tag in registry.get(MODULES, ())
+
+
+def module_paths(registry: dict, available, *directories: str) -> dict[str, str]:
+    """`MODULES` for a vocabulary: each declared element whose `<tag>.js` stands in
+    one of `directories`, the earliest directory winning, among the `available`
+    paths."""
+    return {
+        tag: path
+        for tag in registry
+        if is_element_name(tag)
+        and (
+            path := next(
+                (
+                    candidate
+                    for directory in directories
+                    if (candidate := f"{directory}/{tag}.js") in available
+                ),
+                None,
+            )
+        )
+    }
 
 
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
@@ -115,7 +195,9 @@ class VisualParts:
 
     A widget admits its complete registered inventory when its opt-in attribute is
     present, or ids beginning its declared prefixes. Admission does not say a part
-    is on screen; the browser resolves that, and an admitted id nothing renders detaches.
+    is on screen; the browser resolves that. An admitted id nothing renders detaches,
+    unless the widget's module draws parts on request or finds them by id, as a chart
+    finds its points; then it stands on the whole element.
     """
 
     prefixes: tuple[str, ...] = ()
@@ -142,7 +224,7 @@ class VisualParts:
 
 def visual_parts(record: dict, registry: dict) -> VisualParts:
     """The visual-part ids one authored Leaf element admits."""
-    visual = registry.get(record.get("tag"), {}).get("x-visual")
+    visual = registry.get(record.get("tag"), {}).get("visual")
     if not isinstance(visual, dict):
         return VisualParts()
     if "prefixes" in visual:
@@ -163,17 +245,8 @@ def registry_path(registry: dict, path: str):
 def reference_relation_problem(
     reference: dict, registry: dict, declarations: dict
 ) -> tuple[str, dict] | None:
-    """Why one `{via, where}` or `{tag, key}` target relation cannot name a declared
-    widget, as a finding's code and values. A keyed relation needs its key declared
-    unique on the member, which also supplies the owner it resolves within, so one
-    reference names at most one member."""
-    if member := reference.get("tag"):
-        key = reference["key"]
-        if member not in declarations:
-            return "refers-unknown-member", {"member": member}
-        if key not in declarations[member].get("x-unique", {}):
-            return "refers-unkeyed", {"member": member, "key": key}
-        return None
+    """Why one `{via, where}` target relation cannot name a declared widget, as a
+    finding's code and values."""
     via = reference.get("via")
     if via is None:
         return None
@@ -194,11 +267,11 @@ def reference_relation_problem(
 class RegistryError(Rejected):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an
-    answer, and `sys.exit` inside its request handler killed the connection mid-POST
-    while every other rejection beside it returned a 400 — so a page whose
-    stamp had fallen behind the running layer met the user's click with a dead socket
-    and no words. The CLI renders it with Click's standard Error prefix, while the
-    server catches the same rejection and answers the request.
+    answer, and `sys.exit` inside its request handler would kill the connection mid-POST
+    while every other rejection beside it returns a 400 — so a page whose stamp has
+    fallen behind the running layer would meet the user's click with a dead socket and
+    no words. The CLI renders it with Click's standard Error prefix, while the server
+    catches the same rejection and answers the request.
 
     It carries the first finding in each unit the check holds independent of the
     others (`gathering`), which `page check` and `package check` report as they are,
@@ -341,7 +414,7 @@ def detail_schema(
         return {**detail, "properties": properties}
     kind = record["kind"]
     if kind == "value":
-        value = entry["properties"][record["attr"]]
+        value = entry["attributes"]["properties"][record["attr"]]
     elif kind == "attribute":
         value = {"type": "array", "items": _IDENTITY, "uniqueItems": True}
     elif kind == "body":
@@ -366,20 +439,21 @@ def detail_schema(
 
 def decides(spec: dict) -> bool:
     """Whether a verb declares the role that selects retirable members
-    (x-retired-when, x-withdrawn-as). Its required `outcome` carries that choice;
-    the same field name on any other verb is ordinary domain data.
+    (`retired-when`) or declines the proposal (its `withdraws`). Its required
+    `outcome` carries that choice; the same field name on any other verb is
+    ordinary domain data.
     The browser reads the role from `$decisions`
     (`registry.contract.stamp_decisions`)."""
     return spec.get("decides", False)
 
 
 def deciding_verbs(entry: dict) -> list[str]:
-    """Every x-state verb of one declaration that decides; validation holds it to one."""
-    return [verb for verb, spec in entry.get("x-state", {}).items() if decides(spec)]
+    """Every verb (`verbs`) of one declaration that decides; validation holds it to one."""
+    return [verb for verb, spec in entry.get("verbs", {}).items() if decides(spec)]
 
 
 def deciding_verb(entry: dict) -> str | None:
-    """The one deciding x-state verb, or None."""
+    """The one deciding verb (`verbs`), or None."""
     return next(iter(deciding_verbs(entry)), None)
 
 
@@ -391,21 +465,28 @@ def deciding_outcomes(entry: dict) -> list[str]:
     verb = deciding_verb(entry)
     if verb is None:
         return []
-    detail = entry["x-state"][verb].get("detail") or {}
+    detail = entry["verbs"][verb].get("detail") or {}
     schema = detail.get("properties", {}).get("outcome")
     return list(schema.get("enum", [])) if isinstance(schema, dict) else []
 
 
+def withdrawing_outcome(entry: dict) -> str | None:
+    """The outcome of one declaration's deciding verb that declines the proposal
+    (`withdraws`), or None."""
+    verb = deciding_verb(entry)
+    return entry["verbs"][verb].get("withdraws") if verb is not None else None
+
+
 def verb_writer(spec: dict) -> str:
-    """The side that writes one x-state verb: `agent` where it says so, else `user`.
+    """The side that writes one verb (`verbs`): `agent` where it says so, else `user`.
     The browser reads it from `$states` (`stamp_states`)."""
     return spec.get("writer", "user")
 
 
 def state_specs(entry: dict, *, writer: str | None = None):
-    """The x-state verb declarations on one element declaration, as (verb, spec),
+    """The verb (`verbs`) declarations on one element declaration, as (verb, spec),
     narrowed to the verbs one side writes when `writer` names it."""
-    for verb, spec in entry.get("x-state", {}).items():
+    for verb, spec in entry.get("verbs", {}).items():
         if writer is None or verb_writer(spec) == writer:
             yield verb, spec
 
@@ -501,10 +582,10 @@ def state_definition(
 def same_state_operation(recorded, current) -> bool:
     """The same fold destination and construction, independent of payload domain.
 
-    The operation is the fields `state_definition` writes now, `detail` aside. A
-    field an earlier Leaf recorded beside them, such as the verb flag it recorded
-    as `update` and then `report`, is how that version wrote the definition, not
-    part of the operation, so it never retracts a decision. A missing field still
+    The operation is the fields `state_definition` writes, `detail` aside. A field
+    another Leaf version recorded beside them, such as a verb flag, is how that version
+    wrote the definition, not part of the operation, so it never retracts a decision. A
+    missing field still
     fails."""
     return (
         isinstance(recorded, dict)
@@ -518,11 +599,11 @@ def same_state_operation(recorded, current) -> bool:
 
 
 def event_spec(entry: dict, event: dict) -> dict | None:
-    """The x-state verb an action or report names, when its writer sent it: a verb
+    """The verb (`verbs`) an action or report names, when its writer sent it: a verb
     declares one writer, and the kind that carries it says which side sent it
     (`registry.kernel.verb_writers`), so its coordinate is only ever written from one
     side."""
-    spec = entry.get("x-state", {}).get(event["action"])
+    spec = entry.get("verbs", {}).get(event["action"])
     if spec is None or verb_writer(spec) != verb_writers()[event["kind"]]:
         return None
     return spec
@@ -530,16 +611,16 @@ def event_spec(entry: dict, event: dict) -> dict | None:
 
 def retirement_slots(registry: dict) -> dict:
     """owner tag → {outcome verb → the tags that leave the page under it}: every
-    owner/member pair `x-retired-when` relates, the member naming the outcome and
-    `x-owners` the widgets whose decision reaches it. Read out of the merged
+    owner/member pair `retired-when` relates, the member naming the outcome and
+    `owners` the widgets whose decision reaches it. Read out of the merged
     registry rather than known here, so which widgets a decision settles is a
     fact about this page's vocabulary and never a list in the code."""
     slots = {}
     for tag, entry in registry.items():
-        if not is_element_name(tag) or not entry.get("x-retired-when"):
+        if not is_element_name(tag) or not entry.get("retired-when"):
             continue
-        outcome = entry["x-retired-when"]
-        for owner in entry["x-owners"]:
+        outcome = entry["retired-when"]
+        for owner in entry["owners"]:
             slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
     return slots
 
@@ -547,7 +628,7 @@ def retirement_slots(registry: dict) -> dict:
 def stamp_states(registry: dict) -> dict:
     """Write `$states` into a validated vocabulary: tag → verb → {`writer`, the side
     `verb_writer` names; `definition`, the operation `state_definition` records on an
-    admitted event}, for every x-state verb.
+    admitted event}, for every verb (`verbs`).
 
     Each composition stamps it (`registry.layer.stamp_composition`), so the browser
     compares an event's recorded operation with this definition, and reads a verb's
@@ -561,37 +642,40 @@ def stamp_states(registry: dict) -> dict:
             for verb, spec in state_specs(entry)
         }
         for tag, entry in registry.items()
-        if is_element_name(tag) and entry.get("x-state")
+        if is_element_name(tag) and entry.get("verbs")
     }
     return registry
 
 
-# A word a widget declares that its layer has to know, as two things: the x- key
-# naming the attribute that carries it, and the layer-wide fact listing the words the
-# layer has. A misspelt language colors nothing and a misspelt tone paints nothing,
-# and each renders as a page that otherwise looks perfectly well, so the attribute's
-# schema has to refuse any other word. The list is the layer's ($languages, $tones)
-# rather than any widget's, and which attribute carries the word is the entry's to
-# say, so a new tag that takes a tone needs only its x-tone. A third such word is a
+# A word a widget takes that its layer has to know, as two things: the attribute that
+# carries it, the same on every widget (the registry's `$attributes`), and the
+# layer-wide fact listing the words the layer has. A misspelt tone paints nothing, and
+# renders as a page that otherwise looks perfectly well, so the attribute's schema has
+# to refuse any other word. The list is the layer's ($tones) rather than any widget's,
+# so a new tag that takes a tone needs only to declare `tone`. A second such word is a
 # row here.
-DECLARED_WORDS = (("x-language", "$languages"), ("x-tone", "$tones"))
+DECLARED_WORDS = (("tone", "$tones"),)
+# The attribute that holds an element's title on every widget that takes it
+# (`$attributes`), which names the element away from itself
+# (`gesture_words.element_name`, the browser's `addressableName`).
+NAME_ATTRIBUTE = "label"
 
 
 def stamp_words(registry: dict) -> dict:
-    """Write into a validated vocabulary each declared attribute's words
-    (`DECLARED_WORDS`) as its schema's `enum`, so the attribute's schema is complete:
-    validation refuses any other word, and an author reading the entry sees which it
-    may write.
+    """Write into a validated vocabulary the words of each attribute that takes the
+    layer's (`DECLARED_WORDS`) as its schema's `enum`, so the attribute's schema is
+    complete: validation refuses any other word, and an author reading the entry sees
+    which it may write.
 
     An attribute's schema may be `true`, which then becomes the words alone, or
     `false`, which admits no word already and is left as it is.
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
-    for key, fact in DECLARED_WORDS:
-        for tag, entry in registry.items():
-            if not (is_element_name(tag) and (attr := entry.get(key))):
+    for attr, fact in DECLARED_WORDS:
+        for entry in element_declarations(registry).values():
+            properties = entry["attributes"].get("properties", {})
+            if attr not in properties:
                 continue
-            properties = entry["properties"]
             if properties[attr] is True:
                 properties[attr] = {}
             if isinstance(properties[attr], dict):
@@ -601,12 +685,12 @@ def stamp_words(registry: dict) -> dict:
 
 def _named_attributes(entry: dict):
     """(attribute, grammar) for each attribute of one element declaration whose value
-    is a name Leaf looks up: the element's own `id`, an `x-data` input's source
-    attribute and a verb's `contract` attribute. An `x-refers` attribute is left out:
-    `page check` resolves its value to the element it names, whatever that element's
-    id or key."""
+    is a name Leaf looks up: the element's own `id`, an input's source attribute
+    (`inputs`) and a verb's `contract` attribute. A `refers` attribute is
+    left out: `page check` resolves its value to the element it names, whatever that
+    element's id or key."""
     yield "id", ELEMENT_ID
-    for spec in entry.get("x-data", {}).values():
+    for spec in entry.get("inputs", {}).values():
         if source := spec.get("source"):
             yield source, DATA_SOURCE_NAME
     for _verb, spec in state_specs(entry):
@@ -624,7 +708,7 @@ def stamp_grammars(registry: dict) -> dict:
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for entry in element_declarations(registry).values():
-        properties = entry.get("properties", {})
+        properties = entry["attributes"].get("properties", {})
         for attr, grammar in _named_attributes(entry):
             if properties.get(attr) is True:
                 properties[attr] = {}
@@ -635,8 +719,8 @@ def stamp_grammars(registry: dict) -> dict:
 
 def stamp_decisions(registry: dict) -> dict:
     """Write `$decisions` into a validated vocabulary: owner tag → {`verb`, its deciding
-    x-state verb; `retires`, `retirement_slots`' outcome → member tags}, for every tag
-    that declares a deciding verb.
+    verb (`verbs`); `retires`, `retirement_slots`' outcome → member tags}, for every
+    tag that declares a deciding verb.
 
     Each composition stamps it (`registry.layer.stamp_composition`), so the browser
     reads which verb decides a widget and what its outcome takes off the page rather
@@ -650,3 +734,36 @@ def stamp_decisions(registry: dict) -> dict:
         if is_element_name(tag) and (verb := deciding_verb(entry)) is not None
     }
     return registry
+
+
+def validate_modules(registry: dict, path) -> None:
+    """Refuse each declaration of what only a module provides whose tag has none
+    (`contract.MODULES`), the first finding in each. Validation asks it of every
+    declaration, and a composition that reuses an earlier validation asks it again
+    (`registry.page.compose_page_registry`): the declarations it validated can stand
+    unchanged while a module file goes. It lives here, beside `MODULES`, because that
+    reuse runs in a harness hook, which loads no schema validator."""
+    with gathering() as unit:
+        for tag, entry in element_declarations(registry).items():
+            with unit():
+                require_module(tag, entry, registry, path)
+
+
+def require_module(tag: str, entry: dict, registry: dict, path) -> None:
+    # A declaration of one of these without its module is a widget that reads as
+    # working and does nothing. Declarations validated apart from the files they
+    # compose with carry no `MODULES`, and there nothing can say.
+    needs_module = [
+        key
+        for key in (
+            "verbs",
+            "verbatim",
+            "shadow",
+            "history",
+        )
+        if entry.get(key)
+    ] + (["visual"] if isinstance(entry.get("visual"), dict) else [])
+    if needs_module and MODULES in registry and not upgraded(registry, tag):
+        raise registry_error(
+            "needs-module", path, tag, keys=needs_module, module=f"widgets/{tag}.js"
+        )

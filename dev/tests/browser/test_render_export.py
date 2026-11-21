@@ -1,19 +1,13 @@
-"""Developer tooling checks; run explicitly from dev/tests."""
+"""Developer tooling checks."""
 
 from contextlib import ExitStack
+from pathlib import Path
 
 from interact_support import (
     COMPOSITE_TIMEOUT,
     wait_for,
 )
-from journeys.test_render_export import (  # noqa: F401 (fixtures)
-    OFFLINE_REGISTRY,
-    OFFLINE_WIDGET,
-    PIXEL,
-    POLICY_ATTEMPTS,
-    _reachable,
-    requested_documents,
-)
+from journeys.test_render_export import requested_documents
 from playwright.sync_api import expect
 from render_harness import (
     is_problem,
@@ -40,7 +34,7 @@ def test_preview_watches_source_without_losing_user_state(browser, watched_previ
     page = open_page(browser, url)
     with sending(page, "the watched user option pick"):
         page.locator("#opt-shim .lf-pick").click()
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     feedback = (directory / "events.jsonl").read_bytes()
     assert b'"kind": "action"' in feedback
     inode = (directory / "events.jsonl").stat().st_ino
@@ -52,7 +46,7 @@ def test_preview_watches_source_without_losing_user_state(browser, watched_previ
     expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
         timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
     source.write_text("<p>invalid source</p>", encoding="utf-8")
@@ -74,27 +68,42 @@ def test_preview_watches_source_without_losing_user_state(browser, watched_previ
     expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
         timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
+
+
+# A runtime edit's mark: a custom property no layer sets, so the tab that runs the
+# edited layer reads it whatever order the layer's sheets rank in.
+EDITED_THEME = "\n:root { --runtime-edit: 1; }\n"
+
+
+def edit_sheet(sheet: Path) -> None:
+    """Append `EDITED_THEME` to `sheet` by replacing it, as an editor saves."""
+    updated = sheet.with_name(sheet.name + ".next")
+    updated.write_text(sheet.read_text() + EDITED_THEME)
+    updated.replace(sheet)
 
 
 def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     """A runtime edit replaces the server, and every tab of the page follows it.
 
-    An open tab takes the new layer with the user's state and log intact. A tab whose
-    start failed hears the replacement too: supervision precedes the kernel and
-    registry requests. One restart serves them all at the recorded port.
+    The edit is to a bundled package, whose files the server composes into the
+    page's layer rather than serves as they stand. An open tab takes the new layer
+    with the user's state and log intact. A tab whose start failed hears the
+    replacement too: supervision precedes the kernel and registry requests. One
+    restart serves them all at the recorded port.
     """
     _, runtime, directory, _, url, _ = watched_preview
     open_tab = open_page(browser, url)
     with sending(open_tab, "the user option pick in force"):
         open_tab.locator("#opt-shim .lf-pick").click()
-    expect(open_tab.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(open_tab.locator("#opt-shim")).to_have_attribute("selected", "")
     feedback = (directory / "events.jsonl").read_bytes()
     inode = (directory / "events.jsonl").stat().st_ino
     resources = ("leaf.js", "registry.json")
     pages = {}
+    replaced = []
     # The interruption and the replacement server between them are a restart, and
     # what the browser says inside one is the fetch that was in flight rather than
     # the condition: a refused resource, a connection to a server that has gone, a
@@ -104,44 +113,42 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
         restarts.enter_context(restarting(open_tab))
         for resource in resources:
             page = browser.new_page()
-            failures = []
             documents = requested_documents(page)
 
-            def interrupt_resource(route, resource=resource, failures=failures):
-                if failures:
+            # Every load fails until the replacement, the one document recovery asks
+            # the same server for included, so the tab waits on the server.
+            def interrupt_resource(route):
+                if replaced:
                     route.continue_()
-                    return
-                failures.append(True)
-                route.abort()
+                else:
+                    route.abort()
 
             page.route("**/" + resource, interrupt_resource)
             restarts.enter_context(restarting(page))
             page.goto(url, wait_until="load")
             status = page.get_by_text(
-                "Leaf couldn't start. Waiting for the server to update."
+                "Leaf couldn't start. Waiting for Leaf to update."
             )
             expect(status).to_be_visible()
-            assert len(documents) == 1, resource
-            pages[resource] = (page, status, documents)
+            pages[resource] = (page, status, documents, len(documents))
         # A changed layer replaces the server. An invalid input is now refused
         # before that replacement, so change a valid theme to test recovery.
-        theme = runtime / "browser" / "base.css"
-        updated = runtime.parent / "base.css.next"
-        updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
-        updated.replace(theme)
-        expect(open_tab.locator("h1")).to_have_css(
-            "color", "rgb(0, 0, 128)", timeout=HANDOVER_DEADLINE_MS
+        replaced.append(True)
+        edit_sheet(runtime / "packages" / "reading" / "defaults.css")
+        expect(open_tab.locator("html")).to_have_css(
+            "--runtime-edit", "1", timeout=HANDOVER_DEADLINE_MS
         )
-        for page, status, _ in pages.values():
+        for page, status, _, _ in pages.values():
             expect(page.locator("body")).to_have_attribute(
                 "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
             )
             # Rebuilding the installation can outlast the default browser wait.
             expect(status).not_to_be_visible(timeout=HANDOVER_DEADLINE_MS)
-    for resource, (page, _, documents) in pages.items():
-        assert len(documents) >= 2, resource
-        expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    expect(open_tab.locator("#opt-shim")).to_have_attribute("chosen", "")
+    for resource, (page, _, documents, failed) in pages.items():
+        assert len(documents) > failed, resource
+        expect(page.locator("html")).to_have_css("--runtime-edit", "1")
+        expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
+    expect(open_tab.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
 
@@ -166,7 +173,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     interrupted = []
     page.add_init_script(
         """(() => {
-          const words = "Leaf couldn't start. Waiting for the server to update.";
+          const words = "Leaf couldn't start. Waiting for Leaf to update.";
           const check = () => {
             if (![...document.querySelectorAll('[role="status"]')]
                 .some(node => node.textContent === words && node.checkVisibility())) return;
@@ -184,10 +191,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         # makes must find a server that answers.
         if not interrupted:
             interrupted.append(True)
-            theme = runtime / "browser" / "base.css"
-            updated = runtime.parent / "base.css.next"
-            updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
-            updated.replace(theme)
+            edit_sheet(runtime / "browser" / "base.css")
             route.abort("failed")
         else:
             route.continue_()
@@ -212,4 +216,4 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             failure="the preview did not bring its service back",
             timeout=COMPOSITE_TIMEOUT,
         )
-        expect(page.locator("h1")).to_have_css("color", "rgb(0, 0, 128)")
+        expect(page.locator("html")).to_have_css("--runtime-edit", "1")

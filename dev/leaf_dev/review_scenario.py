@@ -4,7 +4,7 @@ Every harness starts with the same request and one stamped, undecided document. 
 scenario uses only the current triage source on the default layer: the catalog's
 packages, companion history and prior versions are outside the delivery experiment.
 The runners own transport, timing and assertions. The journey's harness steps
-(`journey.Terminal` and each harness's own) also share the comments a step sends,
+(`_journey.Terminal` and each harness's own) also share the comments a step sends,
 and the readings of the page they check: its claim, the turns that picked up a
 comment, its status, and what holds between steps.
 """
@@ -26,49 +26,74 @@ from leaf_dev.eval_cases import definition
 
 REQUEST = definition("delivery_eval")["prompts"]["initial"]
 
-# Each step's comment, on the section it is posted on.
+# Each step's comment, on the section it is posted on. A Claude Code session does a
+# request for a change to the page itself, and may give a question it could answer by
+# reading to a subagent (`references/harness-claude-code.md`, "Subagents"), so each
+# of the claude-code journey's delivery steps asks to reword one phrase, and so do
+# `mid-turn` and `escape` on the other harnesses, which share them. A rewording keeps
+# the page's meaning and shape, which leaves the session and Claude Code's turn-end
+# check (`leaf.clerk`) nothing more to raise with the user. Each quotes words found
+# once in its section of `examples/triage-board.html`, and no two steps touch the
+# same words.
 COMMENTS = {
-    "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
+    "mid-turn": ("triage-why", "In this section, change “a no-op” to “harmless”."),
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
     "reconnect": ("triage-lede", "Is the same review still connected?"),
-    "escape": ("triage-why", "Did the interrupted check change anything?"),
+    "escape": ("triage-why", "In this section, change “exits non-zero” to “fails”."),
     "resume": ("triage-why", "Did resuming the check change anything?"),
     "unload": ("triage-lede", "Who signs off once the migration is fixed?"),
     "held-escape": (
         "triage-lede",
         "If the migration slips, which work can still ship?",
     ),
-    "woken": ("triage-lede", "Which item would you cut if we had to ship today?"),
-    "after-wake": ("triage-why", "And which one would you keep at any cost?"),
-    "dropped": ("triage-why", "Does the export bug block the release too?"),
-    "deferred": ("triage-lede", "Could the export fix ship in a patch release?"),
-    "first-wake": ("triage-lede", "Which card should I read first?"),
-    "boundary": ("triage-why", "Is the timezone bug a regression?"),
-    "first": ("triage-lede", "Who owns the migration fix?"),
-    "ending": ("triage-why", "When could that fix land?"),
-    "compacting": ("triage-lede", "Which risk worries you most for this release?"),
-    # A question the conversation already answers and a request for work, on each of
-    # which a fork posts the agent's working line before the session answers.
-    "fork-idle": ("triage-lede", "What did I ask you to do with this page?"),
-    "fork-work": (
+    "woken": (
+        "triage-lede",
+        "In this paragraph, change “Once 0042 ships” to “When 0042 ships”.",
+    ),
+    "after-wake": (
         "triage-why",
-        "Rename this heading to ‘Why the migration alone blocks the release’.",
+        "In this section, change “billed twice in March” to “double-billed in March”.",
     ),
-    # A question a fork takes and looks up in the page's source, which the user
-    # follows up in its thread as the fork starts (`FOLLOW_UP`).
-    "fork-lookup": (
-        "triage-lede",
-        "How many cards does this page's source hold? Count them in the file.",
+    "dropped": (
+        "triage-why",
+        "In this section, change “it pays twice” to “it pays out twice”.",
     ),
-    # A question a fork takes, whose rest the user leaves as work for later, which
-    # the fork answers with a to-do on the thread for the session. Asking for the
-    # change itself, even after the session's current work, the line fork judged
-    # the session's on 11 Nov, as a change to the page is.
-    "fork-todo": (
+    "deferred": (
         "triage-lede",
-        "Which cards on this page mention customers or partners? List them here. "
-        "Tagging those cards on the page is a bigger job for later: don't do it now, "
-        "keep it as a to-do.",
+        "In this paragraph, change “the same failure” to “that same failure”.",
+    ),
+    "first-wake": (
+        "triage-lede",
+        "In this paragraph, change “ship differently” to “ship another way”.",
+    ),
+    "boundary": (
+        "triage-why",
+        "In this section, change “by waiting a week” to “if it waits a week”.",
+    ),
+    "first": (
+        "triage-lede",
+        "In this paragraph, change “Today that is harmless.” to “Today that does no "
+        "harm.”",
+    ),
+    "ending": (
+        "triage-why",
+        "In this section, change “has few reports” to “has few reports so far”.",
+    ),
+    "compacting": (
+        "triage-lede",
+        "In this paragraph, change “the only release blocker” to “the one release "
+        "blocker”.",
+    ),
+    # A question answered by reading the page's source, sent while the session runs
+    # the user's own turn, which the session gives a subagent, and which the user
+    # follows up in its thread once it is answered (`FOLLOW_UP`). The session judges
+    # whether a lookup is worth a fork, and does a one-step count itself, so the user
+    # asks for this beside its work.
+    "fork-busy": (
+        "triage-lede",
+        "Look into this beside your own work, no rush: read the cards in this page's "
+        "source and tell me which one a release manager would ask about first, and "
+        "why.",
     ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (

@@ -133,10 +133,10 @@ def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, regi
         else lines
     )
     question = (
-        '<lf-ask id="ask"><h2>Which way?</h2><lf-options id="way" choose>'
-        '<lf-option id="way-one"><strong>One</strong> the first way.</lf-option>'
-        '<lf-option id="way-two"><strong>Two</strong> the second way.</lf-option>'
-        "</lf-options></lf-ask>"
+        '<lf-group id="ask" label="Which way?"><h2 id="ask-h">Which way?</h2><lf-options id="way">'
+        '<lf-option id="way-one" label="One"><strong>One</strong> the first way.</lf-option>'
+        '<lf-option id="way-two" label="Two"><strong>Two</strong> the second way.</lf-option>'
+        "</lf-options></lf-group>"
     )
     opening = "".join(
         f"<p>Paragraph {n} opens the page with enough words that it rewraps to more "

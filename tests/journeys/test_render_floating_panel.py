@@ -23,6 +23,7 @@ from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
     PREVIEW,
+    latest_press,
     open_page,
     panel_menu,
     panel_settled,
@@ -40,8 +41,7 @@ from leaf_dev import browser as dev_browser
 
 def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
     """A draft taller than the field shows no scrollbar, whose overlay flashed with each
-    line; its words fade at whichever edge they run past, read from the field's scroll
-    rather than a scroll timeline, which Firefox lacks."""
+    line; its words fade at whichever edge they run past."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
     for line in range(30):
@@ -69,6 +69,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
+    all_pages_offered,
     open_threads,
     panel_view,
     sending,
@@ -79,10 +80,11 @@ from render_harness import (
 def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     """An open view's foot keeps no room for anything but its padding, and nothing lies
     over it: not the line over the field, which would repeat where the words go, nor
-    news arriving in it, which the view shows. At the view's end its last words stand
-    just above its padding, in a long Threads list and a long thread the user types at
-    the end of. New reply alone stands at its foot, on the panel's ground and inside the
-    view, clear of the user's own last turn while the answer to it waits below."""
+    news arriving in it, which the view shows. At the view's end a long Threads list's
+    last row stands just above its padding, and the last words of a long thread the user
+    types at the end of stand a message's gap above the field, as over a next message.
+    New reply alone stands at its foot, on the panel's ground and inside the view, clear
+    of the user's own last turn while the answer to it waits below."""
     url = serve(LONG_PAGE, comments=12)
     long_root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
     for step in range(8):
@@ -100,14 +102,15 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
         )
     page = floating(browser, url)
 
-    def at_end(parts):
+    def at_end(parts, *, gap=False):
         page.locator(".lf-fp-view:not([data-lf-leaving])").evaluate(
             "view => view.scrollTop = view.scrollHeight"
         )
         settled(page)
         foot = page.evaluate(FOOT, [parts, 0])
         assert foot["said"] == [], foot
-        assert 0 <= foot["below"] < 10, foot
+        room = foot["gap"] - foot["pad"] if gap else 0
+        assert 0 <= foot["below"] - room < 10, foot
 
     open_threads(page)
     inventory = page.locator(panel_view("threads"))
@@ -125,7 +128,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     field(page).click()
     page.keyboard.type("Could")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
-    at_end(".lf-msg")
+    at_end(".lf-msg", gap=True)
 
     # The answer to the user's turn waits below the fold behind New reply, and its
     # arrival goes unsaid over the view that holds it.
@@ -175,7 +178,7 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     words = page.locator(".lf-fp-field").bounding_box()
     leaf = page.locator(".lf-fp-leaf").bounding_box()
     mark = expand.bounding_box()
-    assert mark["x"] + mark["width"] <= words["x"] + 0.5, (words, mark)
+    assert words["x"] + words["width"] <= mark["x"] + 0.5, (words, mark)
     assert words["y"] <= mark["y"] + 0.5, (words, mark)
     assert mark["y"] + mark["height"] <= leaf["y"] + 0.5, (leaf, mark)
     page.keyboard.press("Escape")
@@ -186,7 +189,7 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     words = page.locator(".lf-fp-field").bounding_box()
     leaf = page.locator(".lf-fp-leaf").bounding_box()
     mark = expand.bounding_box()
-    assert mark["x"] + mark["width"] <= words["x"] + 0.5, (words, mark)
+    assert words["x"] + words["width"] <= mark["x"] + 0.5, (words, mark)
     assert mark["y"] + mark["height"] <= leaf["y"] + 0.5, (leaf, mark)
     page.keyboard.press("Escape")
     field(page).click()
@@ -392,9 +395,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     page.clock.set_fixed_time(now)
     ticked(page)
     assert peek.inner_text() == words
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
-    )
+    page.evaluate("async () => (await window.__lfCheckApi()).notice('Saved for later')")
     expect(page.locator(".lf-fp-peek")).to_have_text("Saved for later")
 
 
@@ -450,43 +451,49 @@ def test_versions_opens_at_the_version_the_page_shows(browser, serve, route):
 def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     browser, serve
 ):
-    """While the page shows a version older than the latest, the row says which beside
-    the On Me mark, which keeps its seat, since the field gives up the room; its one
-    press, which the keyboard reaches in the row's order, opens the latest, and the
-    notice goes with it: in place on a tab the agent has since revised, and from a
-    version the user travelled back to."""
+    """While the page shows a version older than the latest, the field's words say which
+    before the status, and its end offers Open latest in Comment's place, so nothing in
+    the row moves and the leaf keeps its place; the press opens the latest, and the
+    words and the press go with it: in place on a tab the agent has since revised, and
+    from a version the user travelled back to, where the press wears its keys, Versions'
+    `g V` and then its `l`, which make it too, leaving Versions."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
-    notice = page.locator(".lf-fp-row-notice")
-    marks = page.locator(".lf-fp-quick")
+    latest = latest_press(page)
+    marks = page.locator(".lf-fp-leaf")
     settled(page)
     seats = marks.bounding_box()
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
 
     # The agent revises the page under the open tab, which keeps what it shows.
     stamp_page(
         serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "two"
     )
     told(page)
-    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^v1 of 2 · "))
+    expect(latest).to_be_visible()
     settled(page)
     assert marks.bounding_box() == seats
-    notice.locator("button").click()
+    latest.click()
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile(r"of 2"))
 
     panel_menu(page, "versions").locator(
         ".lf-fp-version:not([data-lf-current]) .lf-fp-label"
     ).click()
     expect(page).to_have_url(re.compile(r"/versions/v1\b"))
-    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
-    page.locator(".lf-fp-on-user").focus()
-    page.keyboard.press("Shift+Tab")
-    expect(notice.locator("button")).to_be_focused()
-    page.keyboard.press("Enter")
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^v1 of 2 · "))
+    expect(latest).to_be_visible()
+    expect(latest.locator("kbd")).to_have_text(["g", "V", "l"])
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    panel_settled(page, view="versions")
+    page.keyboard.press("l")
     expect(page).not_to_have_url(re.compile(r"/versions/"))
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
 
 
 def test_all_pages_in_the_menu_counts_the_pages_it_lists(
@@ -496,16 +503,16 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
     included, and follows the page list while it stands open: a neighbour that closes leaves the count."""
     _, closing_dir = live_leaf("closing", "The closing leaf")
     page = floating(browser, serve(LONG_PAGE))
+    all_pages_offered(page)
     row = panel_menu(page, "navigate").locator('.lf-fp-item[data-lf-row="leaves"]')
     expect(row.locator(".lf-fp-value")).to_have_text("3")
     declare(closing_dir, "idle")
-    told(page)
     expect(row.locator(".lf-fp-value")).to_have_text("2")
 
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
-    leaf and the counts at rest, Dictate as the user opens the field, and Send while
+    leaf at rest, Dictate as the user opens the field, and Send while
     they type, each centred on the field's last line of words, however many lines it
     holds. Send floats in the field's end corner, as an anchored comment box's does,
     and under a mouse the words take its column (drafts/test_send_corner.py follows
@@ -513,8 +520,7 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
-    for mark in ("leaf", "count"):
-        assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
+    assert abs(seats["leaf"] - seats["line"]) < 0.5, seats
     field(page).click()
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
@@ -538,9 +544,9 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
 
 
 def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
-    """With a view open, its Close ends its controls and the field reaches the row's
-    end, at rest and widened alike, so widening the field leaves Close beside the
-    controls."""
+    """With a view open, its Close ends its controls and the field reaches the leaf at
+    the row's end, at rest and widened alike, so widening the field leaves Close beside
+    the controls."""
     page = floating(browser, serve(LONG_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
@@ -551,19 +557,16 @@ def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
     expect(close).to_have_count(1)
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
 
-    def reaches_the_row_s_end():
+    def reaches_the_leaf():
         settled(page)
-        row = page.locator(".lf-fp-row").bounding_box()
+        leaf = page.locator(".lf-fp-leaf").bounding_box()
         words = page.locator(".lf-fp-field").bounding_box()
-        assert row["x"] + row["width"] - (words["x"] + words["width"]) < 12, (
-            row,
-            words,
-        )
+        assert leaf["x"] - (words["x"] + words["width"]) < 12, (leaf, words)
 
-    reaches_the_row_s_end()
+    reaches_the_leaf()
     page.locator(".lf-fp-expand").click()
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
-    reaches_the_row_s_end()
+    reaches_the_leaf()
     page.locator(".lf-fp-expand").click()
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
     close.click()
@@ -574,8 +577,8 @@ def test_a_long_reply_takes_its_room_from_the_thread_s_top(browser, serve):
     """Once the panel reaches the window's top, each line a reply gains takes its room
     from the open thread's view, which gives way at its top and keeps the message the
     user is answering beside the field; taking the lines away gives the room back the
-    same way. The view once kept its scroll and gave way at its foot, so a long reply
-    covered the agent's last line."""
+    same way. A view that kept its scroll and gave way at its foot would let a long
+    reply cover the agent's last line."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")
     thread_model.post_reply(
@@ -618,6 +621,7 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     page, each other one a link that opens it in a tab of its own. `g L` puts it away
     again."""
     page = floating(browser, serve(LONG_PAGE))
+    all_pages_offered(page)
     pages = page.locator(panel_view("leaves"))
     panel_menu(page, "navigate").locator('.lf-fp-item[data-lf-row="leaves"]').click()
     expect(page.locator(".lf-fp-title")).to_have_text("All pages")
@@ -629,19 +633,6 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     expect(rows.first).not_to_have_attribute("href", re.compile("."))
     other = pages.locator("a.lf-fp-page", has_text="The other leaf")
     expect(other).to_have_attribute("target", "_blank")
-    # A page's title and what its agent is doing stand on one baseline, though the
-    # title is set larger (floating-panel.css, `.lf-fp-page`).
-    for row in (rows.first, other):
-        baselines = row.evaluate(
-            """row => [...row.querySelectorAll('.lf-fp-label, .lf-fp-value')].map(words => {
-              const mark = words.appendChild(document.createElement('span'));
-              mark.style.cssText = 'display: inline-block; block-size: 0';
-              const y = mark.getBoundingClientRect().top;
-              mark.remove();
-              return y;
-            })"""
-        )
-        assert len(baselines) == 2 and max(baselines) - min(baselines) < 0.1, baselines
     page.keyboard.press("Escape")
     expect(pages).to_have_count(0)
 
@@ -669,7 +660,7 @@ def test_a_finger_reads_a_neighbouring_page_s_whole_account(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, serve(LONG_PAGE), context=context)
-    told(page, until=lambda state: bool(state["others"]))
+    all_pages_offered(page)
     panel_menu(page, "navigate", touch=True).locator(
         '.lf-fp-item[data-lf-row="leaves"]'
     ).tap()
@@ -768,8 +759,7 @@ def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, se
     """A draft past the field's cap scrolls inside it; deleting its last lines until
     the rest fits stops that scroll, and the lines still shown stay where they stood
     on the tween's first frame, then travel down as the lines scrolled away come into
-    view, carrying on from where they are drawn when another line goes midway. They
-    used to jump down by the scroll the field gave up."""
+    view, carrying on from where they are drawn when another line goes midway."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     page.emulate_media(reduced_motion="no-preference")
     field(page).click()

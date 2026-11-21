@@ -121,7 +121,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
 def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):
     """A margin card's heads end short of its edge, where the first message's head
     leaves the thread's actions their room, so Copy at a later message's head end
-    stood mid-card. It stands at the card's edge, in the actions' column, and copies
+    would stand mid-card. It stands at the card's edge, in the actions' column, and copies
     the message's Markdown source; with nothing selected, the copy key in the thread
     presses the Copy of the message whose words the user clicked."""
     url = serve(PANEL_PAGE)
@@ -219,7 +219,7 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     browser, serve, subtests
 ):
     """A message's Edit and Copy show only under the pointer or focus, and its head
-    lends their room to its words while they hide: a card's head that held it read
+    lends their room to its words while they hide: a card's head that held it would read
     "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
     queued message says its whole receipt; under the pointer the controls stand over
     the receipt's end, which neither moves nor changes its size. A head too narrow for
@@ -229,8 +229,14 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     "Me ju… · Que…", and each gives all it can before the head reaches nothing. The
     user's queued message holds each part."""
     url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
-    # The margin at this width caps the card short of the head's words and controls.
+    # A comment that stands taller than it is wide widens the card from its least
+    # width, and the margin at this width caps it short of the head's words and
+    # controls.
+    panel_comment(
+        serve.page_dir,
+        "Can it wait until the ceiling is settled? " * 16,
+        {"section": "lede"},
+    )
     context = browser.new_context(viewport={"width": 1456, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
@@ -268,7 +274,10 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
-    """The last translated frame and rest keep Copy on the message's head line."""
+    """The last translated frame and rest keep Copy on the message's head line, ending
+    where the card's own controls end (annotation-chrome.css, `--lf-margin-symbol-end`),
+    less the transcript's scrollbar: where scrollbars take room, the reply makes the
+    transcript scroll and its bar stands between the message and the card's edge."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Opening turn.", {"section": "how-store"})
     append_agent_reply(serve.page_dir, root, "A reply with words to copy. " * 8)
@@ -299,10 +308,20 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         edges = """m => {
           const box = m.getBoundingClientRect();
           const copy = m.querySelector('.lf-msg-copy').getBoundingClientRect();
-          return {right: copy.right - box.right, top: copy.top - box.top};
+          const transcript = m.closest('.lf-thread-transcript');
+          const card = m.closest('.lf-margin-thread')
+            .querySelector('.lf-margin-thread-controls > :last-child')
+            .getBoundingClientRect();
+          return {
+            right: copy.right - box.right,
+            top: copy.top - box.top,
+            cardEnd: card.right - box.right
+              - (transcript.offsetWidth - transcript.clientWidth),
+          };
         }"""
         moving = message.evaluate(edges)
-        assert moving == pytest.approx({"right": 0, "top": 0}, abs=1), moving
+        assert moving["top"] == pytest.approx(0, abs=1), moving
+        assert moving["right"] == pytest.approx(moving["cardEnd"], abs=1), moving
         page.evaluate(
             "() => __lfHeld.slice().filter(a => a.playState !== 'idle')"
             ".forEach(a => a.finish())"
@@ -313,12 +332,16 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         page.context.close()
 
 
-def test_a_message_says_its_age_only_where_it_changes(browser, serve):
-    """A thread says each message's age only where that age, as displayed, differs
-    from the message above, the first always saying it: three messages written on one
-    day three days ago read one age, and a reply written now reads its own."""
+def test_every_message_says_when_it_was_said(browser, serve):
+    """Every message in a thread says when it was said (presence.js, `saidAt`): replies
+    hours apart three days ago each read their own time of day and day, as the reader's
+    locale writes them, where an age would read "3d ago" over all of them, and a reply
+    written now reads "just now", where its time of day would read like any other."""
     url = serve(PANEL_PAGE)
-    then = datetime.now().astimezone() - timedelta(days=3)
+    # Local wall times, each with its own offset, so a change of daylight saving
+    # between them moves no clock reading.
+    now = datetime.now()
+    then = (now - timedelta(days=3)).replace(hour=15, minute=29, second=0).astimezone()
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -330,31 +353,37 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve):
             "anchor": {"section": "lede"},
         },
     )["id"]
-    for at, (author, text) in enumerate(
-        [("agent", "Yes, three tries."), ("user", "Then park it after.")], start=1
-    ):
+    for text, at in [
+        ("Yes, three tries; I'm parking it now.", then + timedelta(minutes=6)),
+        ("Parked after the third.", then + timedelta(hours=2, minutes=23)),
+    ]:
         append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": author,
-                **({"agent": "Claude"} if author == "agent" else {}),
+                "author": "agent",
+                "agent": "Claude",
                 "parent": root,
                 "revision": 1,
                 "text": text,
-                "ts": (then + timedelta(minutes=at)).isoformat(),
+                "ts": at.isoformat(),
             },
         )
-    append_agent_reply(serve.page_dir, root, "Parked after the third.")
-    page = open_page(browser, url)
+    append_agent_reply(serve.page_dir, root, "And the backoff doubles.")
+    context = browser.new_context(locale="en-US")
+    page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     card = page.locator(".lf-margin-preview .lf-page-thread")
     expect(card).to_be_visible()
-    ages = card.locator(".lf-msg-head")
-    expect(ages).to_have_count(4)
-    assert ages.evaluate_all(
-        "heads => heads.map((head) => head.querySelector('time')?.textContent ?? null)"
-    ) == ["3d ago", None, None, "just now"]
+    times = card.locator(".lf-msg-head > .lf-msg-meta > time")
+    expect(times).to_have_count(4)
+    day = f"{then:%b} {then.day}" + ("" if then.year == now.year else f", {then.year}")
+    assert [" ".join(time.split()) for time in times.all_text_contents()] == [
+        f"{day} 3:29 PM",
+        f"{day} 3:35 PM",
+        f"{day} 5:52 PM",
+        "just now",
+    ]
 
 
 # Where a message's words may run to, and the thread's inset before its words.
@@ -372,9 +401,9 @@ WORDS_END = """message => {
 def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     """The user's own message runs to the thread's column, as the agent's under it
     does, keeping at its end only the inset its words start with, where its rewrite's
-    frame stands. In the panel the user's lines stopped 86px short of the agent's, and
-    41px in a thread on the page, the room Send takes in the field they were typed in,
-    so every message the user sent wrapped narrower than the reply under it."""
+    frame stands. Keeping the room Send takes in the field they were typed in, the
+    user's lines would stop short of the agent's, so every message the user sent would
+    wrap narrower than the reply under it."""
     words = (
         "Check that these balance robust interfaces with code simplicity, deferring "
         "to standards and the browser wherever they can, and keeping the code simple."
@@ -406,9 +435,9 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
     """The picker floats from its message corner without moving the thread.
 
-    A reaction list used to add forty pixels to its thread only while open. That moved
-    every later message under the pointer and made choosing a reaction change the
-    layout being acted on. The next message is the single-factor neighbor: opening the
+    A reaction list that added room to its thread only while open would move every
+    later message under the pointer and make choosing a reaction change the layout
+    being acted on. The next message is the single-factor neighbor: opening the
     picker is the only change between these two frames."""
     url = serve(PANEL_PAGE)
     first = panel_comment(serve.page_dir, "Keep the route visible.")
@@ -544,8 +573,8 @@ def test_a_sheet_a_page_script_writes_later_stops_at_the_chrome(browser, serve):
     """A CSS framework such as Tailwind builds its sheet in the head after the page
     loads and rewrites it as classes change, and each rewrite is a new sheet. Its
     element rules reach the page's prose and stop at the chrome, as the page's own
-    stylesheet's and its imports' do: Tailwind's reset once took the family of every
-    chrome button."""
+    stylesheet's and its imports' do: Tailwind's reset would otherwise take the family
+    of every chrome button."""
     url = serve(
         leaf_page(
             "t",
@@ -599,12 +628,13 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             {
                 "lf-theme-box": {
                     "description": "A widget beside a page-wide theme.",
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                    "additionalProperties": False,
-                    "x-content": "markup",
-                    "x-upgrade": False,
+                    "attributes": {
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                        "additionalProperties": False,
+                    },
+                    "content": "markup",
                 }
             }
         )
@@ -650,7 +680,8 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     """Every declared shadow tree receives the layer's composed shadow sheet in every
     engine, so a package's `widget-shadow.css` rule naming its host, `:host(lf-own-tree)
     span`, dresses that widget's tree and not another package's. Each engine reads the
-    composed sheet itself: Firefox once applied none of a generated `:host` scope."""
+    composed sheet itself: Firefox can apply none of a generated `:host` scope, which
+    Leaf doesn't write."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"
@@ -752,8 +783,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of
-    them: lf-tabs once marked itself lf-live — the chrome's name for its
-    visually-hidden live region — and every tabbed page clipped to a pixel. An
+    them: lf-tabs marking itself lf-live — the chrome's name for its
+    visually-hidden live region — would otherwise clip every tabbed page to a pixel. An
     element in the page wearing every private class at once must render exactly as
     its unclassed twin.
 
@@ -895,7 +926,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
     assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
     # At the scroll limit a sliver of the previous author can precede a clear gap,
-    # with the next turn's own visible name below it (the known edge from #1763).
+    # with the next turn's own visible name below it (a known edge).
     assert landed["under"] == landed["named"] or (
         landed["under"] == -1 and landed["endGap"]
     ), landed

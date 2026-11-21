@@ -72,8 +72,8 @@
      command answers it, and so, with `false`, does every page-scope row with a `run`
      that is not its stance's `exit`: a scope row takes no words. `touchValue` is a
      terse reading that row shows at its end, past words the row may cut, such as how
-     long ago the gesture Undo would take back was made; the row's hover reads the
-     description whole.
+     long ago the gesture Undo would take back was made; the row's hover reads words it
+     cuts whole (preview.js), and never its description.
    - `travels: true` says the command takes the user somewhere, as a walk, a scroll or
      a Go-to destination does, so its result may move what they pressed it on. Every
      other command leaves the control it was pressed on where it stood on screen
@@ -91,6 +91,11 @@
      repeated keydowns must also run — off by default, because a held `]` was a page
      navigation per repeat and a held pick a `choose` per repeat, and it applies to native
      rows too, independently of whether their platform default repeats.
+   - `waits` marks what Leaf does with a key only once nothing else has taken it, as
+     Escape lets go of a control in the page; a function where the row's step varies.
+     Every other row is read ahead of the page's listeners on the document and the
+     window. This one is read after them, and not at all where one of them prevented
+     the key (controller.js).
 
    `live` answers the declared liveness once for every projection. Do not repeat a guard
    inside `run` if the guard changes whether the key should be shown. When the command reference
@@ -152,6 +157,7 @@ import { runtime } from "../context.js";
  * @property {boolean} [recommended]
  * @property {boolean} [travels]
  * @property {boolean} [native]
+ * @property {Cell<boolean>} [waits]
  * @property {boolean} [repeat]
  * @property {boolean} [exit]
  * @property {boolean} [retainCurrentLocation]
@@ -745,10 +751,12 @@ export function checked(rows, where, ready) {
     )
       throw new Error(`leaf: ${where} declares ${command.id} twice`);
     ids.set(command.id, command);
-    if (!(
-      typeof command.title === "function" ||
-      (typeof command.title === "string" && command.title.trim())
-    ))
+    if (
+      !(
+        typeof command.title === "function" ||
+        (typeof command.title === "string" && command.title.trim())
+      )
+    )
       throw new Error(`leaf: ${command.id} has no command title`);
     if (
       command.description !== undefined &&

@@ -6,18 +6,17 @@
  * presentation puts after "Copy" and capitalizes to head a line), a terse `value` such as
  * a count, the `shortcut` that reaches it from the keyboard as its steps, each spelled as
  * a key chip spells it (keyboard/control-keys.js, `commandSteps`), the `group` of
- * controls it belongs with, the whole words a pointer resting on it reads where its
- * label may be cut, or, for a row that copies, what its text grants that the text
- * doesn't say, which About shows under it (`title`), the text it copies where it
- * copies one (`copies`), whether
+ * controls it belongs with, what a row that copies grants that its text doesn't say,
+ * which a pointer resting on the row reads and About shows under it (`title`), the text
+ * it copies where it copies one (`copies`), whether
  * it is `offered` now, whether its news is `urgent` (the words that say so, or null),
  * whether it is `disabled`, and the `press` that runs it, given the place the
  * presentation held when the user opened it (history.js, `readPlace`). A row that is a
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
  * An `exit` row is the way out of the stance the user is in, such as page search or
- * Draw mode (keyboard/touch-controls.js), which stands at the row's end beside its
- * counts as a ✕. No other row stands in the panel's row: what a gesture does next, a
+ * Draw mode (keyboard/touch-controls.js), which stands in the panel's row before the
+ * leaf as a ✕. No other row stands in the panel's row: what a gesture does next, a
  * finger does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
@@ -57,7 +56,7 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // Navigate only where no keyboard is there to reach it, so the menu a keyboard user
 // reads stays short and a finger keeps a way to each. A row that says which session,
 // preview or Leaf the page runs (`about`) stands in About this page alone, which lists
-// every row that copies (page-inspection.js); the user chose that on 30 October, over
+// every row that copies (page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
 /** @typedef {"page" | "navigate" | "annotate" | "keys" | "about"} PageControlGroup */
 

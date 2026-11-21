@@ -10,7 +10,7 @@ lf-chart .lf-chart-drawing {
   font: var(--lf-font-fine);
   color: var(--lf-muted);
 }
-/* Where the runtime runs, the chart's box is laid out before it draws (x-height), and the source
+/* Where the runtime runs, the chart's box is laid out before it draws (`height`), and the source
  * waiting in it is code for the drawing rather than words for the reader. */
 @scope (html[data-lf-interactive] lf-chart) {
   :scope:is(lf-chart):not(.lf-rendered) > pre {
@@ -49,4 +49,13 @@ lf-chart .lf-chart-at circle {
 lf-chart .lf-chart-at line {
   stroke: var(--lf-muted);
   stroke-dasharray: 2 3;
+}
+/* A dot or a line's vertex a comment names, and the one the reader is on, wear a ring
+   round them, wider than the reader's own, that draws nothing of its own: Leaf strokes
+   it while its aim or the comment is in play, as it strokes a bar Plot drew
+   (surfaces.css). It takes no pointer, so the pointer reads the drawing beneath. */
+lf-chart .lf-chart-marks {
+  fill: none;
+  stroke: none;
+  pointer-events: none;
 }

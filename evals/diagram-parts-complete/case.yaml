@@ -1,16 +1,12 @@
-# Issue #1455: a partial `parts` list made adjacent diagram boxes respond differently
-# to Comment. This case checks the author's choice at page creation.
-# The 2026-10-07 Claude Code comparison kept all five parts on both arms;
-# accessible metadata was absent on the base and meaningful on the head.
-# Guidance survey #18 now checks that the renderer owns the node inventory rather
-# than making the author duplicate it in a synchronized roster.
-# The case now authors the page and names no entry to read: at 0e538e29d each of 4
-# Claude Code authors added the diagram package, read lf-diagram's instructions through
-# `leaf page instructions --use` and passed both grades, as 4 of 4 told probes did.
+# A `parts` list naming only some nodes would make adjacent diagram boxes respond
+# differently to Comment, so `parts` takes only "all" and the renderer owns the node
+# inventory rather than making the author duplicate it in a synchronized roster.
+# This case checks the author's choice at page creation. It is a probe given a page
+# with its packages.
 description: diagram-parts-complete
 metadata:
   purpose: A diagram exposes every named box through its renderer-owned inventory.
-  authoring: true
+  page: [diagram]
   tags:
     - diagram
     - comments

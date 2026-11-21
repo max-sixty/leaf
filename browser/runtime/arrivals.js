@@ -1,8 +1,8 @@
 /* Elements of one kind, held while they stand in the page, and the stages they stand in.
 
    Some of the runtime's paint belongs to an element for as long as it stands, whoever
-   put it there: an external link's mark and note, and the bounded block that is a
-   reading region. What produces those elements is open-ended (the served document, a
+   put it there: an external link's mark, and the bounded block that is a reading
+   region. What produces those elements is open-ended (the served document, a
    revision patched in, a thread's message, any widget's render), so no list of
    producers can call each owner. `watchArrivals(selector, attributes, { arrive, leave })`
    watches for them instead:
@@ -11,9 +11,9 @@
      since, however deep in what was added, shadow stages included. It runs again when
      a watched attribute changes, and when the nodes beside the element change: its own
      children, or a sibling added or removed next to it. That is where an owner's paint
-     stands (a link's mark inside it, its note after it), so a render that keeps the
-     element and drops the paint hands the element back to be painted again. `arrive`
-     is therefore idempotent, and cheap for an element whose paint still stands.
+     stands, so a render that keeps the element and drops the paint hands the element
+     back to be painted again. `arrive` is therefore idempotent, and cheap for an
+     element whose paint still stands.
    - `leave(el)` runs once for an element that has arrived and no longer stands or
      matches. Mutation records describe intermediate moves: an element removed and added
      back in one batch has not left, so leaving is decided once the batch is read, from
@@ -346,11 +346,11 @@ function announceScroll(box) {
 // may restate a position as often as it likes, as `keeps` lets one restate a DOM value.
 // The write's only effect would be one nobody asked for: it stops the scroll the browser
 // drives, and in Firefox it cancels the rubber band of a flick into an edge, which runs
-// after the box's scroll has ended (a margin card that put its transcript back at its
-// end at every scroll's end flattened each flick's band). Stopping a scroll is a write
+// after the box's scroll has ended (a margin card putting its transcript back at its
+// end at every scroll's end would flatten each flick's band). Stopping a scroll is a write
 // of its own (`stopWhereItStands`). Where the box stands is read to the pixel: its
 // scroll size is a whole number of pixels, so an end read from it stands up to a pixel
-// short of the browser's own, as 314 did of Firefox's 314.25 at a 2x display.
+// short of the browser's own.
 /** @param {Element} box @param {ScrollToOptions} options */
 export function setScroll(box, options) {
   const { scrollTop, scrollLeft } = box;
@@ -369,10 +369,10 @@ export function setScroll(box, options) {
 // takes the write only as that update lays the page out (notes/browser-support.md, "A
 // reveal of an anchored fixed box before the next frame in Chromium"), and Chromium can
 // apply one last compositor scroll after a stop (`stopWhereItStands`). Read in between,
-// the card a walk was bringing over its margin entry still stood where the walk had left
-// it, so the Go-to map `g` armed as the walk landed named the entry the card covers, and
-// read again at the scroll's end, which comes before that update, named it again
-// (keyboard/hints.js). Two frame callbacks enclose the update. A reader waits for the
+// the card a walk is bringing over its margin entry still stands where the walk left
+// it, so the Go-to map `g` armed as the walk lands would name the entry the card covers,
+// and read again at the scroll's end, which comes before that update, would name it
+// again (keyboard/hints.js). Two frame callbacks enclose the update. A reader waits for the
 // writes made before it asks, not for later ones, so a log a stream keeps at its end
 // holds no reading back for as long as it streams.
 /** @type {PromiseWithResolvers<void> | null} */
@@ -517,10 +517,16 @@ export function watchScrolls(listener) {
 }
 
 // Each box's scroll sequence, from its first scroll until it ends: at its `scrollend`,
-// or, since a scroll restoration that replaces what was scrolling ends without one,
-// after a quiet spell of SETTLE_MS and two rendering updates with no scroll in the box.
-// The spell needs both: Firefox's main thread hears its smooth scroll's frames late,
-// and a busy page delays the updates that carry a scroll's events past any clock.
+// or, where none will come, after a quiet spell of SETTLE_MS and two rendering updates
+// with no scroll in the box. Chromium, Firefox and WebKit send one for every move that
+// lands, a script's, a clamp's and an anchoring adjustment's included, but none for an
+// input that moves nothing, a box that leaves mid-scroll or Chromium's stop of a smooth
+// scroll, nor for Playwright's wheel in Firefox and WebKit. The spell needs
+// both: Firefox's main thread hears its smooth scroll's frames late, and a busy page
+// delays the updates that carry a scroll's events past any clock. A Firefox starved of
+// CPU can outlast both, applying a key's scroll well after the key and pausing
+// longer than the spell between its frames, so there the spell can end the reader's
+// scroll before or while it moves.
 // WebKit ends a keyboard scroll on each of its frames (notes/browser-support.md), so
 // there one keypress makes several sequences. A script that moves a
 // box a frame at a time, as the runtime's glide does (scrolling.js, `glideTo`), gets a
@@ -575,14 +581,17 @@ function endSequence(box) {
   placed.delete(box);
   for (const listener of endListeners) listener(box);
 }
-// Hold `box`'s sequence open from now until the returned release, after which it ends
-// as a glide's last frame ends it.
-/** @param {Element} box @returns {() => void} */
+// Hold `box`'s sequence open from now until the returned release. A holder that has
+// landed, its last write leaving the box where it stood, as a glide's last frames move
+// it less than a pixel, owes the box no scroll event and no `scrollend`, so its release
+// ends the sequence. Any other release ends it as a glide's last frame would: at the
+// `scrollend` the last write owes, or after the quiet spell.
+/** @param {Element} box @returns {(landed?: boolean) => void} */
 export function holdScroll(box) {
   holds.set(box, (holds.get(box) ?? 0) + 1);
   sequenceIn(box);
   let held = true;
-  return () => {
+  return (landed = false) => {
     if (!held) return;
     held = false;
     const left = (holds.get(box) ?? 1) - 1;
@@ -591,7 +600,8 @@ export function holdScroll(box) {
       return;
     }
     holds.delete(box);
-    inSequence(box);
+    if (landed) endSequence(box);
+    else inSequence(box);
   };
 }
 // Start `box`'s sequence at the reader's input asking the browser to scroll it

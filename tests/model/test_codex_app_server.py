@@ -19,6 +19,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _codex_delivery,
     _delivery_item,
@@ -60,7 +61,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf_dev.commands.logs.response_times import page_timings
+from leaf_dev.page_timings import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -247,11 +248,11 @@ def codex_app_server(app_server):
 
 
 def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
-    pointer = delivery_model.delivery_pointer_prompt("aaaaaaaa")
+    pointer = delivery_model.delivery_pointer_prompt("aaaaaaaaaaaaaaaa")
     invalid_pointer = delivery_model.delivery_pointer_prompt("../status")
     payload = {
         "format": delivery_model.DELIVERY.format,
-        "id": "bbbbbbbb",
+        "id": "bbbbbbbbbbbbbbbb",
         "batches": [],
     }
 
@@ -288,12 +289,20 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
         "name": "leaf_delivery",
         "output": json.dumps(payload),
     }
-    assert codex_model.app_server_delivery_id(started_turn(said(pointer))) == "aaaaaaaa"
+    assert (
+        codex_model.app_server_delivery_id(started_turn(said(pointer)))
+        == "aaaaaaaaaaaaaaaa"
+    )
     assert (
         codex_model.app_server_delivery_id(started_item(said(invalid_pointer))) is None
     )
-    assert codex_model.app_server_delivery_id(started_turn(delivery)) == "bbbbbbbb"
-    assert codex_model.app_server_delivery_id(started_item(said(pointer))) == "aaaaaaaa"
+    assert (
+        codex_model.app_server_delivery_id(started_turn(delivery)) == "bbbbbbbbbbbbbbbb"
+    )
+    assert (
+        codex_model.app_server_delivery_id(started_item(said(pointer)))
+        == "aaaaaaaaaaaaaaaa"
+    )
     assert (
         codex_model.app_server_delivery_id(
             started_turn(said(pointer + "\nPlease do this."))
@@ -2128,7 +2137,7 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
     end a second time.
     """
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     action = append_command(
@@ -2641,10 +2650,10 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
     """A turn id has to be a turn, or nothing ever clears what it was written on.
 
     `thread/resume` can report a task active without naming its running turn: full
-    history is deprecated for paginated threads, so `turns` may not carry it. The
-    word "active" used to be recorded in its place, and no `turn/completed`
-    matches that, so the page's activity reading and the fold the delivery loop
-    waits on both stood until the next reconnect.
+    history is deprecated for paginated threads, so `turns` may not carry it. Were
+    the word "active" recorded in its place, no `turn/completed` would match it, so
+    the page's activity reading and the fold the delivery loop waits on would both
+    stand until the next reconnect.
     """
     observer = _observer()
     observer.started = True
@@ -2682,6 +2691,39 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
 
     assert observer.working() is False
     assert updates == []
+
+
+def test_a_connection_that_came_up_retries_its_next_drop_promptly(monkeypatch, capsys):
+    """Each drop after a connection came up is a first failure again.
+
+    A provider restart is over by the time anything notices, so the first retry is
+    prompt (`retry_delay`); a long-lived connection that drops a few times over a
+    session waits a second each time and says so, not a growing half-minute.
+    """
+    observer = _observer()
+    observer.started = True
+    waits = []
+
+    class StopAfterThreeDrops:
+        def is_set(self):
+            return len(waits) == 3
+
+        def wait(self, timeout):
+            waits.append(timeout)
+            return len(waits) == 3
+
+    observer.stop_event = cast(threading.Event, StopAfterThreeDrops())
+
+    def connect_then_drop():
+        observer.connected.set()
+        raise ConnectionError("dropped")
+
+    monkeypatch.setattr(observer, "_connect", connect_then_drop)
+
+    observer._run()
+
+    assert waits == [1, 1, 1]
+    assert capsys.readouterr().err.count("Codex App Server stream retry: dropped") == 3
 
 
 def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
@@ -2880,9 +2922,7 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
         prepared = _codex_delivery(page_dir)
     else:
         (page_dir / "index.html").write_text(
-            PAGE.replace(
-                "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-            )
+            PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
         )
         publish(page_dir)
         append_command(
@@ -3104,7 +3144,7 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
     """An action delivery has no reply reservation that could prevent a duplicate
     start."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     append_command(
@@ -3300,7 +3340,6 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
             page_dir,
             target,
             text="Manual answer",
-            markup="",
         )
     assert codex_model.recover_codex_receipt("codex-thread")
     assert not thread_model.delivery_reply_reserved(
@@ -3464,7 +3503,7 @@ def test_a_backlog_of_notifications_leaves_keepalive_pongs_readable(app_server):
     # The follower folds each notification before receiving the next, so a burst of
     # them waits in the connection's queue. A bounded queue pauses socket reads when
     # it fills, and the pongs behind the burst then go unread until the keepalive
-    # closes a connection whose server answered (#3895).
+    # closes a connection whose server answered.
     notifications = 64
     sent = threading.Event()
 
@@ -3795,7 +3834,6 @@ def test_manual_answer_retires_an_unknown_start_before_the_provider_becomes_idle
         page_dir,
         target,
         text="Manual winner",
-        markup="",
     )
     # The watcher settles the harness attempt without contacting the provider;
     # prolonged disconnect cannot block later input behind the manual winner.

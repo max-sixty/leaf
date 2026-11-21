@@ -221,6 +221,9 @@ export const scrollChoices = () => choices;
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 /** @param {Element} box */
 const chooseScroll = (box) => chosen.set(box, ++choices);
+// How many moves Leaf has started in `box` (`startScroll`).
+/** @param {Element} box */
+export const scrollStarts = (box) => starts.get(box) ?? 0;
 // Record an explicit landing or a glide before native scroll events: an instant move
 // can coincide with layout, and a new gesture can interrupt a glide before its first
 // frame.
@@ -399,10 +402,10 @@ watchScrollEnds((box) => {
   kept.delete(box);
 });
 
-// Boxes whose content is drawn away from where its layout stands it. A send's stream
-// (box-motion.js) draws a scroller's content where it stood, below where its layout now
-// stands it, and the browser counts that drawing in the box's scroll height while the
-// content rides (`contentRides`, false when the ride ends). Meanwhile the box's height
+// Boxes whose content is drawn away from where its layout stands it. A stream a send
+// or news joins (box-motion.js) draws a scroller's content where it stood, below where
+// its layout now stands it, and the browser counts that drawing in the box's scroll
+// height while the content rides (`contentRides`, false when the ride ends). Meanwhile the box's height
 // is read from its layout each time it is asked, so its end stays where its layout puts
 // it, content arriving mid-ride included, and a landing at the end doesn't chase the
 // ride.
@@ -447,9 +450,17 @@ export const SCROLL_SLACK = 2;
 /** @param {Element} box @param {number} [top] */
 export const atScrollEnd = (box, top = box.scrollTop) =>
   scrollLimit(box) - top <= SCROLL_SLACK;
+// A glide under way to the end takes the box to the end as it now stands: a move there,
+// instant or not, leaves a glide already headed there alone and turns one whose end has
+// moved toward the new end. Owners that keep a box at its end, such as a card's keeper
+// and a send's landing (`followEnd`, reply-landing.js), move it there at every fit, and
+// a glide following an answer into sight (thread-card.js, `#fitAnswer`) runs through
+// those fits.
 /** @param {Element} box @param {ScrollBehavior} behavior */
 export const scrollToEnd = (box, behavior = "instant") => {
-  if (glides(box, behavior)) return glideTo(box, scrollLimit(box));
+  const glide = holding(box);
+  if (glide?.end && glide.goal === scrollLimit(box)) return;
+  if (glides(box, behavior) || glide?.end) return glideTo(box, scrollLimit(box));
   stopGlide(box);
   setScroll(box, { top: scrollLimit(box), behavior: "instant" });
 };
@@ -532,7 +543,7 @@ export const reachable = (box, top, from = box.scrollTop) =>
 // stands down too the moment the box moves under any other hand, such as a scrollbar's
 // drag, and a return takes the box from it (history.js).
 const SCROLL_MS = 140;
-/** @typedef {{goal: number, wrote: number | null, raf: ReturnType<typeof nextFrame>, release: () => void}} Glide */
+/** @typedef {{goal: number, end: boolean, wrote: number | null, raf: ReturnType<typeof nextFrame>, release: (landed?: boolean) => void}} Glide */
 // The glide under way in each box, which holds the box's scroll sequence open from its
 // press to its end, so every frame it writes makes one scroll (arrivals.js,
 // `holdScroll`).
@@ -580,14 +591,15 @@ function landGlide(box) {
   stopGlide(box);
 }
 // A spatial command takes the page where it is now, so it stops a glide in the box even
-// where it moves nothing itself.
-/** @param {Element} box */
-export function stopGlide(box) {
+// where it moves nothing itself. A glide stops itself `landed` where its last write left
+// the box where it stood (arrivals.js, `holdScroll`).
+/** @param {Element} box @param {boolean} [landed] */
+export function stopGlide(box, landed = false) {
   const glide = glideIn.get(box);
   if (!glide) return;
   cancelRender(glide.raf);
   glideIn.delete(box);
-  glide.release();
+  glide.release(landed);
 }
 // A glide's claim on its box: it holds only while the box is where the glide last wrote
 // it. The tick asks before every write, and a press asks the same question before
@@ -637,7 +649,13 @@ export function afterBrowserScroll(box, then) {
   return true;
 }
 // The goal is clamped here, so a step pressed on at the foot banks no debt for u to press
-// back through, and an edge may be asked for as the height it cannot exceed. Motion the
+// back through, and an edge may be asked for as the height it cannot exceed. The goal and
+// every write are whole pixels, where the box stands, since a write within a pixel of
+// where the box stands moves nothing (arrivals.js, `setScroll`): a fractional goal would
+// leave the box on whichever pixel the glide's last frame reached, and a step back from
+// there, such as `u` after `d`, would stop a pixel short of the edge. A goal at the end
+// stays the end, which `scrollToEnd` and a glide's `end` compare with `scrollLimit`
+// exactly. Motion the
 // browser drives in the box at the press, or that the glide this replaces had yet to
 // take, is this glide's to take over, and stops where the box stands. Otherwise the
 // glide holds the box from the press, and a hand that moves it before the glide's first
@@ -646,7 +664,8 @@ export function afterBrowserScroll(box, then) {
 export function glideTo(box, top) {
   const replaced = glideIn.get(box);
   const takesOver = replaced ? replaced.wrote === null : browserScrolls(box);
-  const goal = Math.max(0, Math.min(scrollLimit(box), top));
+  const limit = scrollLimit(box);
+  const goal = top >= limit ? limit : Math.max(0, Math.min(limit, Math.round(top)));
   if (!replaced && !takesOver && Math.abs(goal - box.scrollTop) < 0.5) return;
   startScroll(box);
   if (takesOver) stopWhereItStands(box);
@@ -679,8 +698,9 @@ export function glideTo(box, top) {
     // Firefox's smooth scroll runs on ahead of a busy page, whose next frame is the first
     // to say where the stop left the box.
     if (current.wrote === null) start = box.scrollTop;
+    const from = box.scrollTop;
     setScroll(box, {
-      top: goal - (goal - start) * (1 - t) ** 3,
+      top: Math.round(goal - (goal - start) * (1 - t) ** 3),
       behavior: "instant",
     });
     // Where the write left the box, not what it asked for: the box clamps at its ends
@@ -688,10 +708,11 @@ export function glideTo(box, top) {
     if (current.wrote !== null || box.scrollTop !== start)
       current.wrote = box.scrollTop;
     if (t < 1) current.raf = nextFrame(tick);
-    else stopGlide(box);
+    else stopGlide(box, box.scrollTop === from);
   };
   glideIn.set(box, {
     goal,
+    end: goal === scrollLimit(box),
     wrote: takesOver ? null : box.scrollTop,
     raf: nextFrame(tick),
     release: replaced?.release ?? holdScroll(box),
@@ -794,7 +815,10 @@ export function keepFoot(box) {
 // back from where that reading stood it, or headed back by a glide that has yet to move
 // it, as a press of u starts one up a log a stream feeds, stays where it was sent: a
 // keeper that read only the box's offset put that log back at its end and stopped the
-// glide, so the press did nothing. A wheel or key heading the box up, or across a log's
+// glide, so the press did nothing. A glide headed to the end stands the reader there
+// from its start, as a thread's glide to follow an answer does (thread-card.js,
+// `#fitAnswer`): read from the offset, a picture loading under the glide left the
+// reader short of the new end. A wheel or key heading the box up, or across a log's
 // long lines, takes it from the keeper at the input (`readerScroll`): the browser applies
 // that scroll a frame or more later, Firefox each wheel's and key's, and the keeper's
 // write of the end in between cancelled every one, a horizontal wheel's too. So the
@@ -848,12 +872,7 @@ export function followEnd(box, yields = () => false) {
   const stand = ({ extent, limit }) => {
     const top = box.scrollTop;
     const goal = holding(box)?.goal ?? top;
-    stood = {
-      top,
-      extent,
-      limit,
-      end: limit - top <= SCROLL_SLACK && limit - goal <= SCROLL_SLACK,
-    };
+    stood = { top, extent, limit, end: limit - goal <= SCROLL_SLACK };
   };
   const extentNow = () => ({ extent: box.scrollHeight, limit: scrollLimit(box) });
   const drawn = () => box.checkVisibility({ contentVisibilityAuto: true });

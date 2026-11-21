@@ -43,7 +43,7 @@ legendRoot.setAttribute("aria-hidden", "true");
  * picker: a remark on it has no reader who can act on it, and a mode that took it
  * would take the way out of whatever the mode's own send opened. Prose keeps the
  * browser's selection — words are still the way to point at words — and a plain click on
- * prose comments on the block it is in. `designModeOn` is the state; the body marker, the toggle's
+ * prose comments on the block it is in. `designModeOn` is the state; the legend, the toggle's
  * pressed face and the name under the pointer are its renderings,
  * written by the one setter, and every comment opened while it stands carries
  * `about: "design"`, which is how the agent tells design intent from a remark about
@@ -85,7 +85,6 @@ export function createDesignMode({
       closeReactionMode();
     }
     designModeOn = on;
-    document.body.toggleAttribute("data-lf-design-mode", on);
     tabStore.set(DESIGN_MODE_KEY, on ? "1" : null);
     // The renderings above are the eye's copy; the mode change is spoken, or it is silent
     // to exactly the user who can't see them. Restoring after a reload changes nothing
@@ -164,7 +163,6 @@ export function createDesignMode({
     proxied,
     location,
     overMark,
-    aiming,
     overItem,
     crosshair,
     markedWords,
@@ -176,7 +174,6 @@ export function createDesignMode({
     proxied,
     location,
     overMark,
-    aiming,
     overItem,
     crosshair,
     markedWords,
@@ -231,11 +228,11 @@ export function createDesignMode({
         legendBoxes.delete(addressable);
         legendSizes.unobserve(addressable);
       }
-    // A widget's part is what its declaration says it is — a tag declaring x-owners has a
-    // compound owner, and is what the owner is made of — rather than what stands inside a
-    // widget: a tab holds a whole page, and every heading and paragraph of that page is
-    // the author's, and named.
-    const parts = new Set(tagsDeclaring((e) => e["x-owners"]));
+    // A widget's part is what its declaration says it is — a tag declaring
+    // `owners` has a compound owner, and is what the owner is made of — rather
+    // than what stands inside a widget: a tab holds a whole page, and every heading and
+    // paragraph of that page is the author's, and named.
+    const parts = new Set(tagsDeclaring((e) => e.owners));
     /** @type {LegendEntry[]} */
     const entries = [];
     for (const addressable of addressables) {
@@ -255,8 +252,8 @@ export function createDesignMode({
     }
     // Hidden targets retain their frames until scrolling brings them back. A box takes
     // its element's corners, read once the element shows: Chromium answers a style read
-    // inside a closed tab by styling everything the tab holds, which took 38 s on a page
-    // of thirty text documents in closed tabs.
+    // inside a closed tab by styling everything the tab holds, which can take tens of
+    // seconds on a page of large text documents in closed tabs.
     const shown = entries
       .filter(({ addressable }) => addressable.checkVisibility())
       .map((entry) => ({
@@ -388,7 +385,6 @@ export function createDesignMode({
     legend.clear();
     legendBoxes.clear();
     legendRoot.replaceChildren();
-    document.body.removeAttribute("data-lf-design-mode");
     designModeOn = false;
   }
 
@@ -397,6 +393,7 @@ export function createDesignMode({
   // line, the way the ⌥ aim's row does.
   pageScope("design mode", {
     title: "In Design mode",
+    says: "Design",
     at: () => designModeOn,
     rows: [
       {

@@ -17,7 +17,7 @@ import { hasObligationSource } from "./source.js";
 /** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update"}}>} AnswerableObligation */
 
 const awaitingWidgets = perVocabulary(() =>
-  tagsDeclaring((entry) => entry["x-awaits"]).join(","),
+  tagsDeclaring((entry) => entry.awaits).join(","),
 );
 /** @param {Element} source @param {Element} commandSource */
 export function ownedObligationControl(source, commandSource) {
@@ -25,8 +25,8 @@ export function ownedObligationControl(source, commandSource) {
   return !selector || closestAcross(commandSource, selector) === source;
 }
 
-/* What a row or a walk calls an obligation on the user's list: a widget's own word, so
-   lf-options reads Options. */
+/* What On Me's By kind groups call an obligation on the user's list: a widget's own
+   word, so lf-options reads Options. */
 /** @param {AnswerableObligation} item */
 export function obligationWord(item) {
   if (answeredInWords(item)) return "Reply";
@@ -45,15 +45,13 @@ export function answerWords(item) {
   return labelWords(source && formatter ? formatter(item.answer.value, source) : "");
 }
 
-/* How a finished obligation ended, in the words a Done row and the floating panel show,
-   as does the line under a thread message whose question the agent ended (thread-card.js):
-   its answer, after a colon so the two never read as one phrase, an answer given
-   elsewhere, or its withdrawal. Leaf says what became of what the page asked of the
-   user (voice.js); the answer itself is the user's value, in the interface's face. */
+/* How a finished obligation ended, in the words a Done row and the floating panel show:
+   its answer, after a colon so the two never read as one phrase, or its withdrawal.
+   Leaf says what became of what the page asked of the user (voice.js); the answer
+   itself is the user's value, in the interface's face. */
 /** @param {AnswerableObligation} item */
 export function obligationEnding(item) {
   if (item.status === "withdrawn") return leafSays("Withdrawn");
-  if (item.status === "answered_elsewhere") return leafSays("Answered elsewhere");
   const words = answerWords(item);
   return words ? [leafSays("Answered: "), words] : leafSays("Answered");
 }

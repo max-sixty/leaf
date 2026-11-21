@@ -34,6 +34,7 @@ from render_harness import (
     PANEL,
     PREVIEW,
     RELEASE_FOCUS,
+    all_pages_offered,
     command_reference_rows,
     expect_obligations_answered,
     expect_open_threads,
@@ -86,13 +87,13 @@ QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
     """
 <h1 id="title">Field day</h1>
-<lf-ask id="map-ask">
-  <h3>Which map should the sample team carry?</h3>
-  <lf-options id="map" choose>
+<lf-group id="map-ask" label="Which map should the sample team carry?">
+  <h3 id="map-ask-h">Which map should the sample team carry?</h3>
+  <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
-</lf-ask>
+</lf-group>
 <div id="local-shortcuts" tabindex="0">
   <button id="shortcut-focus-note" type="button">Write sample note</button>
   <label>Sample note <input id="shortcut-note" type="text" /></label>
@@ -117,10 +118,11 @@ commandsChanged(document.querySelector("#local-shortcuts"));
 
 def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     """A let-go lands on what the user is reading in the page region they last acted
-    in. Opening Threads over a pane once replaced that region with the panel's list, so
-    closing it landed on the workspace header; and a pane showing no words where it
-    stood (a figure, a spacer) had no block to land on, so the user was dropped on the
-    body and the pane forgotten. Either way `d` and `u` stopped moving the pane.
+    in. It guards two failures: opening Threads over a pane replacing that region with
+    the panel's list, so closing it lands on the workspace header; and a pane showing
+    no words where it stands (a figure, a spacer) having no block to land on, so the
+    user is dropped on the body and the pane forgotten. Either way `d` and `u` stop
+    moving the pane.
 
     A pane that flows inside a scrolling workspace body keeps answering after it scrolls
     out of the window, which a test of the pane's own visibility must not mistake for a
@@ -187,16 +189,16 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
     expect_obligations_answered(page, "2/2")
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("selected", "")
     page.close()
 
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
     expect_obligations_answered(page, "0/2")
-    expect(page.locator("#review-cache-auto")).not_to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).not_to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).not_to_have_attribute("selected", "")
     expect(page.locator("#review-cache")).to_contain_text(
         "A failed copy leaves the old keys authoritative"
     )
@@ -213,7 +215,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-cache-decision")).to_be_focused()
     with sending(page, "the cache rollback decision"):
         page.keyboard.press("1")
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
 
     page.keyboard.press("m")
     expect(page.locator("#review-billing-decision")).to_be_focused()
@@ -225,8 +227,8 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     page.goto(live_url(newest))
     rendered(page)
     expect_showing(page, 2)
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("selected", "")
     expect(page.locator("#review-cache")).to_contain_text(
         "returns readers to the old keys automatically"
     )
@@ -281,7 +283,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("m")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator("lf-ask[data-lf-obligation]")).to_be_focused()
+    expect(card.locator("lf-group[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -295,6 +297,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     """All pages is a destination of the panel's and follows the same focus contract."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ADDRESSED_PAGE))
+    all_pages_offered(page)
 
     page.keyboard.press("g")
     expect(
@@ -599,12 +602,12 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     )
     page.keyboard.press("1")
     rendered(page)
-    expect(street).not_to_have_attribute("chosen", "")
+    expect(street).not_to_have_attribute("selected", "")
     street.locator(".lf-pick").focus()
     page.keyboard.press("ArrowDown")
     expect(trail.locator(".lf-pick")).to_be_focused()
     page.keyboard.press("Space")
-    expect(trail).to_have_attribute("chosen", "")
+    expect(trail).to_have_attribute("selected", "")
     button.focus()
     button.press("Enter")
     expect(note).to_be_focused()
@@ -627,7 +630,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
         "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
     )
     page.keyboard.press("1")
-    expect(street).to_have_attribute("chosen", "")
+    expect(street).to_have_attribute("selected", "")
     sample.focus()
     expect(button).to_have_attribute("aria-keyshortcuts", "1")
     page.keyboard.press("1")
@@ -749,8 +752,10 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
+    # The gallery waits on the user, so the leaf opens On Me, and its name ends in the
+    # status.
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", re.compile(r"^Page menu · \S")
+        "aria-label", re.compile(r"^On Me · .+ · \S")
     )
     panel_control(page, "queue").click()
     map_obligation = page.locator(".lf-fp-on-item").filter(
@@ -857,6 +862,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     expect(page.locator(".lf-fp-version").filter(has_text="v1")).to_be_visible()
     page.locator(".lf-fp-leaf").click()
 
+    all_pages_offered(page)
     panel_control(page, "leaves", at="navigate").click()
     expect(page.locator("a.lf-fp-page")).to_contain_text("A second Leaf page")
     page.locator(".lf-fp-close").click()
@@ -924,7 +930,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     grammar = page.evaluate(
         """async () => {
           const {CONTRIBUTION_ENTRY_SCHEMA} =
-            await window.__lfWidgetApi();
+            await window.__lfCheckApi();
           return CONTRIBUTION_ENTRY_SCHEMA;
         }"""
     )
@@ -937,7 +943,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     glyph = sample("glyph face")
     expect(glyph.locator(".lf-margin-entry-glyph")).to_have_text("🤔")
     count = sample("count badge")
-    expect(count.locator(":scope > .lf-margin-count")).to_have_text("3")
+    expect(count.locator(":scope > .lf-badges > .lf-badge-count")).to_have_text("3")
     label = sample("label + context")
     label.hover()
     preview = page.locator(PREVIEW)
@@ -1099,7 +1105,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     )
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
-    expect(child.get_by_role("button", name="On Me", exact=True)).to_be_visible()
+    expect(child.locator(".lf-fp-leaf")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
         sample.scroll_into_view_if_needed()
@@ -1280,9 +1286,9 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
 ):
     """Contents must be available before the reader works through this long review.
 
-    The former sidebar placed the outline after the complete PR facts and history;
-    when the tracks stacked, it also came after the entire article. The authored
-    reading order now puts navigation first and supporting evidence in the article.
+    The authored reading order puts navigation first and supporting evidence in the
+    article. An outline placed after the complete PR facts and history would, when the
+    tracks stack, also come after the entire article.
     """
     source = named_source("pr-walkthrough")
     url = serve(source)
@@ -1379,12 +1385,12 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         {
             "command": "navigation.target.filter.margin-entries",
             "keys": ["g", "m"],
-            "action": "Show only visible margin targets",
+            "action": "Show only visible margin entries",
         },
         {
             "command": "navigation.target.filter.threads",
             "keys": ["g", "t"],
-            "action": "Show only visible Thread controls",
+            "action": "Show only visible threads",
         },
         {
             "command": "navigation.target.filter.hyperlinks",
@@ -1495,8 +1501,8 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("g")
     page.keyboard.press("h")
     expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
-    expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks.")
-    expect_panel_says(page, "No visible hyperlinks.")
+    expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks")
+    expect_panel_says(page, "No visible hyperlinks")
     page.evaluate(
         """async () => {
           window.__liveChanges = [];
@@ -1507,13 +1513,13 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             childList: true,
             subtree: true,
           });
-          (await window.__lfWidgetApi())
+          (await window.__lfCheckApi())
             .notice('Agent replied — open Threads', {background: true});
         }"""
     )
     expect(page.locator(".lf-live")).to_have_text("Agent replied — open Threads")
     # The empty filter's word stands in the panel while Go-to does; the news waits.
-    assert "No visible hyperlinks." in panel_says(page)
+    assert "No visible hyperlinks" in panel_says(page)
     assert "Agent replied" not in panel_says(page)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
@@ -1523,7 +1529,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     resized(page, 1200, 800)
-    expect_panel_says(page, "No visible hyperlinks.")
+    expect_panel_says(page, "No visible hyperlinks")
     expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
@@ -1819,8 +1825,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A press a widget built joins the same namespace, declared by the constructor that
     # made it rather than by an entry here. A pick spends no page letter of its own — the
-    # register holds capabilities, and a control is a route to one — so before this the
-    # only keyboard way to it was Tab. The arrival is the press, so the option is chosen.
+    # register holds capabilities, and a control is a route to one — so without that
+    # declaration the only keyboard way to it would be Tab. The arrival is the press, so
+    # the option is chosen.
     page.evaluate(
         """() => document.scrollingElement.scrollTo(
              0, document.getElementById('opts-decision').offsetTop - 80)"""
@@ -1843,7 +1850,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     )
     assert pick_code, "the pick mark the widget built got no Go-to hint"
     page.keyboard.type(pick_code)
-    expect(page.locator("#opt-a")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-a")).to_have_attribute("selected", "")
 
     # The two completions that take no digit: an edge of the page is one place, so the
     # second key completes the route — G glides to the bottom, g to the top.
@@ -2078,10 +2085,12 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.wait_for_function(shown)
     # A card the page has carried half past the window's top, Reply with it, is as
     # unseen there as one scrolled off: a landing in it brings it back all the same.
+    # The box goes more than the pixel of slack past the top that reads a card held
+    # flush at the edge as shown (off-flow.js, `unseen`).
     reply.evaluate(
         """async (box) => {
           const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-          while (box.getBoundingClientRect().top >= 0) {
+          while (box.getBoundingClientRect().top >= -1) {
             scrollBy(0, 10);
             await frame();
           }
@@ -2133,8 +2142,9 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     """A generated link hint completes the navigation step it names.
 
     A fragment lands focus on its target, so the user does not remain at the place they
-    left. An external link keeps its new-tab behavior and names that context change even
-    though the sequence activates the link without first moving focus through it."""
+    left. A link its author sends to a new tab opens there and names that context change
+    even though the sequence activates the link without first moving focus through
+    it."""
     other_url, _ = other_leaf
     destination = f"{other_url}/?t={server_model.host_key()}"
     page = open_page(
@@ -2145,7 +2155,8 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
                 f"""
 <h1>Addressed links</h1>
 <p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
-<p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
+<p><a id="external" href="{destination}" target="_blank" aria-label="Leaf guide"
+  >Open the guide</a>.</p>
 <div style="height: 1600px"></div>
 <h2 id="arrival">Conclusion</h2>
 <p>The internal navigation step ends here.</p>
@@ -2170,9 +2181,11 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
 
 
-def test_an_external_link_says_and_opens_where_it_goes(
+def test_an_external_link_wears_its_mark_and_opens_where_its_author_says(
     browser, serve, other_leaf, one_user
 ):
+    """A link that leaves the page wears the mark after it and keeps the attributes its
+    author wrote, so with no `target` it opens in the page's own tab."""
     other_url, _ = other_leaf
     destination = f"{other_url}/?t={server_model.host_key()}"
     url = serve(
@@ -2193,25 +2206,23 @@ def test_an_external_link_says_and_opens_where_it_goes(
     page = open_page(browser, url, context=one_user)
     external = page.locator("#external")
 
-    expect(external).to_have_attribute("target", "_blank")
-    expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
+    expect(external).not_to_have_attribute("target", re.compile(".*"))
     expect(external).to_have_accessible_name("other leaf documentation")
-    expect(external).to_have_accessible_description("curated source opens in a new tab")
-    # The treatment stands inside the link, so the paragraph ends where it was written.
+    expect(external).to_have_accessible_description("curated source")
+    # The mark stands inside the link, so the paragraph ends where it was written: an
+    # empty inline box whose padding the icon fills (surfaces.css).
     expect(page.locator("#external ~ *")).to_have_count(0)
     expect(external).to_have_attribute("data-lf-external", "")
     mark = external.evaluate("""link => {
       const style = getComputedStyle(link, '::after');
-      return {display: style.display, width: parseFloat(style.width), mask: style.maskImage};
+      return {display: style.display, room: parseFloat(style.paddingInlineStart),
+        mask: style.maskImage};
     }""")
-    assert mark["display"] == "inline-block"
-    assert mark["width"] > 0
+    assert mark["display"] == "inline"
+    assert mark["room"] > 0
     assert "data:image/svg+xml" in mark["mask"]
     expect(page.locator("#fragment")).not_to_have_attribute("data-lf-external", "")
-    expect(page.locator("#fragment")).not_to_have_attribute("target", "_blank")
     expect(page.locator("#svg-external")).not_to_have_attribute("data-lf-external", "")
-    expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
 
-    tab = opened_tab(page, destination, external.click)
-    expect(tab).to_have_url(f"{other_url}/")
-    expect(page).to_have_url(url.split("?", 1)[0])
+    external.click()
+    expect(page).to_have_url(f"{other_url}/")

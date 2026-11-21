@@ -6,14 +6,14 @@ A test earns its place when it fails without the change it pins. This runs the n
 tests on the working tree as it stands, uncommitted edits included, as a control, then
 again with the branch's change reverted, and reports each as `caught` (its call failed
 reverted) or `blind` (it passed reverted); any other reading is the test's outcome
-(`leaf_dev.suite`) with its message, such as `error` where the revert broke its setup
+(`_runs`) with its message, such as `error` where the revert broke its setup
 or its module's import, which is red but not by its own assertion. The revert
 restores, from the merge base with `main`, every path but the tests, the tooling they
 import, and the environment's manifests and locks (`KEPT`). Compiled bundles are
 committed, so they revert with their sources.
 
-Both runs happen in one checkout (`suite.checkout`) of a snapshot of the working tree
-taken as the command starts (`suite.snapshot`), removed when it ends, so an edit made
+Both runs happen in one checkout (`_runs.checkout`) of a snapshot of the working tree
+taken as the command starts (`_runs.snapshot`), removed when it ends, so an edit made
 during the runs reaches neither. Output and reports stay under `.tmp/bugback/`. Exits 1
 unless every test is caught.
 
@@ -24,14 +24,13 @@ working tree's tests over the merge base's code.
 
 import subprocess
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.arms import merge_base
-from leaf_dev.suite import Outcome, checkout, collect, run, snapshot
+from leaf_dev.arms import merge_base, run_directory
+from leaf_dev.commands.suite._runs import Outcome, checkout, collect, run, snapshot
 
 OUT = ROOT / ".tmp" / "bugback"
 # What the revert leaves as the working tree has it: the tests, the tooling they
@@ -71,9 +70,7 @@ def bugback(selection: tuple[str, ...]) -> None:
             f"the working tree changes nothing outside {', '.join(KEPT)} "
             f"since {base[:12]}"
         )
-    OUT.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
-    out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
+    out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-bugback-") as directory:
         candidate, tree = Path(directory) / "snapshot", Path(directory) / "checkout"
         snapshot(candidate)

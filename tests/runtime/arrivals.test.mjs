@@ -345,7 +345,8 @@ test("a frame refuses to paint after removal even before departure delivery", as
 
 test("a clock render reports its failure once and recovers on the next reading", async () => {
   const { reportCarried } = await import("/runtime/layer-client.js");
-  const { LeafElement, html } = await import("/runtime/widget-api.js");
+  const { LeafElement } = await import("/runtime/widget-api.js");
+  const { html } = await import("/vendor/lit.js");
   const { setPresentationFailureReporter } = await import("/runtime/semantic-state.js");
   setPresentationFailureReporter(reportCarried);
   let clock = 0;
@@ -444,6 +445,14 @@ test("a scroll a script holds ends once, after its release, and stays the script
     box.dispatchEvent(new window.Event("scroll"));
     assert.equal(browserScrolls(box), true);
     box.dispatchEvent(new window.Event("scrollend"));
+    // A holder that has landed, its last write leaving the box where it stood, owes it
+    // no further scroll event, so its release ends the scroll then and there.
+    const landing = holdScroll(box);
+    frame(40);
+    await renderFrame();
+    landing(true);
+    assert.deepEqual(ended, [box, box, box]);
+    assert.equal(scrolling(), false);
   } finally {
     stop();
     box.remove();

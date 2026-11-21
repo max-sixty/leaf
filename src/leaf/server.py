@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
 from .files import read_json
+from .findings import Finding
 from .leases import end_if_terminated, lock_is_held
 from .refusals import Refused
 from .schema import (
@@ -137,6 +138,29 @@ def running_server(page_dir: Path) -> RunningService | None:
         **service,
         "url": page_url(service["host"], service["port"], host_key()),
     }
+
+
+def another_leaf_serving(page_dir: Path) -> list[Finding]:
+    """A note that the page's live server runs another commit of Leaf than this
+    process (`layer.running_leaf`). A server keeps the runtime and layer it started
+    with, so what this process checks may not be what the user's tab draws until
+    the server restarts. It compares commits alone: two checkouts at one commit
+    draw no note, even with uncommitted edits, and neither does a server or process
+    whose commit is unknown."""
+    from .layer import running_leaf
+
+    server = running_server(page_dir)
+    if server is None:
+        return []
+    served, own = server["runtime"].get("commit"), running_leaf().get("commit")
+    if not served or not own or served == own:
+        return []
+    return [
+        Finding(
+            "another-leaf-serving",
+            values={"page": str(page_dir), "server": served, "checked": own},
+        )
+    ]
 
 
 def preview_metadata(page_dir: Path) -> dict | None:
@@ -326,7 +350,7 @@ def host_key() -> str:
     One key for the machine rather than one per page, because every page here
     goes to the same user — the one person the agent is working with. A page
     has nothing to keep from another page's user, which is what lets the
-    `others` menu link them with that key. The cookie name derives from the key
+    list of other pages (`/api/pages`) link them with that key. The cookie name derives from the key
     (`PageEndpoint.key_cookie`), so a keyed arrival authorizes bare links to
     other same-key listeners on the host. Temporary previews with different keys
     get different cookie names and cannot overwrite one another's authorization.

@@ -168,7 +168,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     """One file boots the captured runtime, but never resurrects its host boundary.
 
     The file keeps the choice recorded on the page's widget and leaves out the thread on
-    another, whose seat offers no box to start one in."""
+    another, which offers no comment box to start one in."""
     source = leaf_page(
         "offline interactive",
         """
@@ -206,7 +206,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(live.locator("#seated .lf-msg")).to_contain_text(
         "A remark the export leaves behind"
     )
-    expect(live.locator("#seated > .lf-thread-seat")).to_have_count(1)
+    expect(live.locator("#seated > .lf-test-comment")).to_be_visible()
     live.close()
 
     # Export resolves the stamped artifact, never the page's mutable source.
@@ -250,7 +250,8 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(page.locator(".lf-floating-panel")).to_have_count(0)
     expect(page.locator("#seated")).to_contain_text("Discuss this.")
     expect(page.locator("#seated .lf-msg")).to_have_count(0)
-    expect(page.locator("#seated > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#seated > .lf-test-comment")).to_be_hidden()
+    expect(page.locator("#seated .lf-fab-input")).to_have_count(0)
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"
@@ -628,8 +629,8 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
             "Reachable modules",
             '<h1>Reachable</h1><lf-chart id="c"><pre>'
             '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
-            '</pre></lf-chart><lf-code id="m" language="python" hi="1">'
-            "<pre>ship()</pre></lf-code>",
+            '</pre></lf-chart><lf-code id="m" hi="1">'
+            '<pre><code class="language-python">ship()</code></pre></lf-code>',
         )
     )
     root = append_carried_log_record(
@@ -643,8 +644,8 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
             "author": "agent",
             "parent": root["id"],
             "revision": 1,
-            "text": "Here:",
-            "markup": '<lf-diagram id="sketch"><pre>flowchart LR\n  A --> B\n'
+            "text": "Here:\n\n"
+            '<lf-diagram id="sketch">\n<pre>flowchart LR\n  A --> B\n'
             "</pre></lf-diagram>",
         },
     )
@@ -767,8 +768,8 @@ def test_a_gloss_keeps_its_explanation_in_print(browser, serve):
         "gloss export",
         """
 <h1>Rollout</h1>
-<p>Start with a <lf-gloss tip="A thin path through the real system."
-  >walking skeleton</lf-gloss> before parallelizing.</p>
+<p>Start with a <lf-gloss
+  >walking skeleton<span popover>A thin path through the real system.</span></lf-gloss> before parallelizing.</p>
 """,
     )
     url = serve(source)
@@ -910,41 +911,6 @@ def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
         context.route("https://outside.invalid/**", outside)
         page = open_page(browser, url, context=context)
         assert page.evaluate("() => window.policyOutcomes") == expected, url
-
-
-def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp_path):
-    """Offline reading shares the same initial and width-dependent composition."""
-    serve(
-        leaf_page(
-            "Exported notes",
-            '<h1 id="title">Migration</h1>'
-            '<div class="layout-note"><p id="passage">Advance the migration one cohort at a time.</p>'
-            '<aside class="note" id="note">Keep earlier readers available.</aside></div>',
-        ).replace(
-            '<main class="layout-column">', '<main class="layout-column layout-notes">'
-        )
-    )
-    interactive = tmp_path / "margin-notes.html"
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "export", str(serve.page_dir), "--out", str(interactive), "--runtime"],
-        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
-    )
-    assert result.exit_code == 0, result.output
-    page = browser.new_page(viewport={"width": 1600, "height": 900})
-    page.goto(interactive.as_uri(), wait_until="load")
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
-    )
-    wide = page.locator("#note").bounding_box()
-    prose = page.locator("#passage").bounding_box()
-    assert wide["x"] >= prose["x"] + prose["width"]
-    page.set_viewport_size({"width": 390, "height": 900})
-    narrow = page.locator("#note").bounding_box()
-    prose = page.locator("#passage").bounding_box()
-    assert narrow["y"] >= prose["y"] + prose["height"]
-    page.set_viewport_size({"width": 1600, "height": 900})
-    assert page.locator("#note").bounding_box() == pytest.approx(wide)
 
 
 def test_an_export_s_preview_takes_escape_before_the_dialog_around_it(

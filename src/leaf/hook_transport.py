@@ -15,8 +15,8 @@ output continues the turn (`Harness.hook_context`). Leaf's Pi extension
 (`hooks/pi.ts`) calls both hooks and commits their output to the session.
 
 The Stop hook continues the turn for a page with no running watcher that has
-input pending or a status other than idle, and for each owed answer the turn has
-not started (`activity.turn_obligations`) where no watch follows the turn
+input pending or a status other than idle, and for each owed answer no start
+holds (`activity.turn_obligations`) where no watch follows the turn
 (`stop_continues`). A repeated Stop (`stop_hook_active`) continues only for a
 newly delivered update that owes an answer. Where a watch follows the turn, the
 turn ends on the answer it wrote rather than on one more message about the owed
@@ -113,20 +113,17 @@ boundary keeps Codex's tool hook, which runs after every call, from reading its 
 each time (`state.status_check_due`). Only a working status, at a tool boundary, is reminded: a turn waiting
 on the user or between turns runs none, and a closed or listening page shows no
 line to renew. Whether the work has moved on is the agent's judgement; the hook only
-says how long the line has stood. This was the user's choice (28 October 2026) over
+says how long the line has stood. This was the user's choice over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, and what each fork that took a thread's work did with it
-(`forks.ended`), one line each (`clerk.queued`), and take them off the queue once
-printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn has
-ended.
+the last turn's end, and what a summary fork wrote (`summary_fork`), one line each
+(`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn
+has ended.
 
-A tool boundary of an agent the session runs beside its main thread, such as a fork
-that took a thread's work, carries only that agent's turn: the user's further
-messages in the threads it took (`carry_agent_turn`). Claude Code names the agent in
-the payload of a subagent's PostToolBatch, which every other subagent's skips
-(`state.worker_tool_batch`).
+A subagent's tool boundary carries nothing: Claude Code names the subagent in its
+PostToolBatch's payload, which the hook skips (`state.worker_tool_batch`), so the
+session's input reaches only its main thread, which passes a subagent what it needs.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -153,6 +150,7 @@ from .delivery import (
 )
 from .findings import Finding
 from .harness import HOOK_TIMEOUT_S, Harness, claim_harness
+from .json_block import json_block, read_json_block
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
@@ -179,7 +177,11 @@ from .state import (
 
 def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
     """A line for each page whose working status has stood `STATUS_RENEWAL`,
-    recording the check (`state.status_check_due`)."""
+    recording the check (`state.status_check_due`). A page working with no line
+    from the agent is reminded only while the agent owes it an update: the
+    harness's word that the session is busy reaches every page the session holds,
+    and an open to-do may be one the agent left for later while it works
+    elsewhere."""
     session_file(session_id, STATUS_CHECKED_SUFFIX).touch()
     now = datetime.now().astimezone()
     lines = []
@@ -199,7 +201,7 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
                 f'`leaf task start {plan.page} {source["item"]} --text "<what you '
                 'are doing now>"`, in new words if your work has moved on.'
             )
-        else:
+        elif activity["obligations"]:
             lines.append(
                 f"Leaf: {plan.page} has shown no status line from you for {minutes} "
                 f"min while you work on its updates. Say what you are doing with "
@@ -210,10 +212,11 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
 
 
 def restart(obligations: list[dict]) -> str:
-    """What to do about owed updates a start covers that this turn did not write since
-    their pickup, which hold the turn until it answers them or starts them again
-    (`activity.turn_obligations`): named only for such updates, so an update nobody is at
-    work on is never offered a start in place of its answer."""
+    """What to do about owed updates a start covers that no longer holds them, which
+    hold the turn until it answers them or starts them again
+    (`activity.turn_obligations`, `activity.start_holds`): named only for such updates,
+    so an update nobody is at work on is never offered a start in place of its
+    answer."""
     items = list(
         dict.fromkeys(
             start["item"]
@@ -224,9 +227,11 @@ def restart(obligations: list[dict]) -> str:
     if not items:
         return ""
     return (
-        f"; your start on {', '.join(items)} predates this turn or the pickup of "
-        "a newer update in its thread. Answer once that work is done, or, while it runs, start it "
-        'again with `leaf task start <page> <id> --text "<what is still running>"`'
+        f"; your start on {', '.join(items)} lapsed when its turn ended with no agent "
+        "of yours reported working in the background, or predates the pickup of a "
+        "newer update in its thread. Answer once that work is done, or, while it runs, "
+        'start it again with `leaf task start <page> <id> --text "<what is still '
+        'running>"`'
     )
 
 
@@ -447,10 +452,12 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
-    Debt the main thread doesn't owe, which a running fork or the line fork holds,
-    is theirs, so the pickup leaves it out (`holding.pickable`).
+    The pickup leaves out debt a start holds (`activity.in_hand`), such as a message
+    a background agent is answering: the prompt doesn't name it, and a pickup in this
+    turn would put the update past its start's reach and count as the reminder it
+    never got (`delivery.reminded`).
     """
-    from .activity import acknowledged_obligations
+    from .activity import acknowledged_obligations, in_hand
     from .served_state.context import read_page
 
     for plan in plans:
@@ -473,7 +480,9 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                 work = read_page(plan.page, page.events).work
                 current = {**work.presence, "activity": work.activity}
                 still_owed = {
-                    item["input"] for item in acknowledged_obligations(current)
+                    item["input"]
+                    for item in acknowledged_obligations(current)
+                    if not in_hand(item, current)
                 }
                 by_id = {event["id"]: event for event in page.events}
                 record_pickup(
@@ -504,6 +513,26 @@ CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
+
+
+def inline_context(delivery: dict) -> str:
+    """The context that hands `delivery` over inline: its opening line
+    (`INLINE_OPENING`), a blank line and the delivery's block (`json_block`), which
+    `inline_delivery` reads back."""
+    return "\n\n".join([INLINE_OPENING, json_block(delivery)])
+
+
+def inline_delivery(context: str) -> tuple[dict, str] | None:
+    """The delivery a hook's `context` handed over inline (`inline_context`) and the
+    lines after its block, or None where it handed none over: a pointer, a reminder,
+    or a context cut short."""
+    opening, _, rest = context.partition("\n\n")
+    if opening != INLINE_OPENING:
+        return None
+    try:
+        return read_json_block(rest)
+    except ValueError:
+        return None
 
 
 def pointer_opening(delivery: dict) -> str:
@@ -563,18 +592,16 @@ def pointed(session_id: str, turn: str, opened: str) -> dict[str, int]:
 def note_pointer(
     session_id: str, turn: str, opened: str, pages: dict[str, int], *, deadline: float
 ) -> None:
-    """Note that the turn `turn`, which opened at `opened`, was pointed at each
-    page's input through the log position `pages` gives it, unless that turn has
-    since ended or opened again: the main thread's turn (`session_record`) or an
-    agent's open one (`state.open_agent_turns`). Entries of turns no longer current
-    go. A session lock still held at `deadline` leaves the note unwritten, since a
-    hook that waited on it could outlive its timeout and lose the pointer itself."""
-    from .state import open_agent_turns
-
+    """Note that the main thread's turn `turn`, which opened at `opened`, was pointed
+    at each page's input through the log position `pages` gives it, unless that turn
+    has since ended or opened again (`session_record`). Entries of turns no longer
+    current go. A session lock still held at `deadline` leaves the note unwritten,
+    since a hook that waited on it could outlive its timeout and lose the pointer
+    itself."""
     path = session_file(session_id, POINTED.kind)
     try:
         with flocked(session_lock_path(session_id), deadline=deadline):
-            current = {t: e["opened"] for t, e in open_agent_turns(session_id).items()}
+            current = {}
             if (lifecycle := session_record(session_id)) is not None:
                 current[lifecycle["turn"]] = lifecycle["turn_opened"]
             if current.get(turn) != opened:
@@ -606,9 +633,8 @@ def carry_turn(
     could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
     output its harness reads, recording a delivery it hands over inline by
     `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
-    # What Leaf's clerk wrote or found, and what forks that took a thread's work did,
-    # since the agent last heard (`clerk.queued`), which the next prompt or tool
-    # boundary carries.
+    # What Leaf's clerk wrote or found, and what summary forks wrote, since the agent
+    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)
     if event == "PostToolBatch" and not told and not due and not new_input(sid):
@@ -690,7 +716,7 @@ def carry_turn(
         attention.extend(
             [
                 "Read these unanswered updates and their exact answer references:",
-                *(delivery_pointer_prompt(identity) for identity in reminders),
+                *(f"\n{delivery_pointer_prompt(identity)}" for identity in reminders),
             ]
         )
     delivery = freeze_delivery(batches) if batches else None
@@ -703,11 +729,7 @@ def carry_turn(
 
         def inline(batches: list[dict]) -> str:
             return "\n".join(
-                [
-                    INLINE_OPENING,
-                    json.dumps({**delivery, "batches": batches}, ensure_ascii=False),
-                    *attention,
-                ]
+                [inline_context({**delivery, "batches": batches}), *attention]
             )
 
         # Record only input the model will see whole, while the hook can still
@@ -741,7 +763,7 @@ def carry_turn(
             message = "\n".join(
                 [
                     pointer_opening(delivery),
-                    delivery_pointer_prompt(delivery["id"]),
+                    f"\n{delivery_pointer_prompt(delivery['id'])}",
                     *attention,
                 ]
             )
@@ -749,73 +771,3 @@ def carry_turn(
         assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)
         heard(sid, told)
-
-
-def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) -> None:
-    """At a tool boundary of an agent the session runs beside its main thread, which
-    the hook's payload names `agent` (Claude Code's PostToolBatch in a subagent):
-    renew the agent's turn (`state.renew_agent_turn`), and hand it the user's
-    further messages in the threads it took (`holding.to_carry`), as a
-    tool boundary of the main thread hands it new input. The delivery goes inline
-    and is recorded as opened in the agent's turn with its receipt
-    (`delivery.receive_one`). One too large for the hook's context, or not recorded
-    by `CONFIRM_WITHIN`, goes by pointer, as the main thread's does, and the agent's
-    own `leaf delivery ack` records it into its turn (`delivery.receive_delivery`);
-    its later boundaries hand nothing it carries again (`note_pointer`).
-    Nothing else of the main thread's, its input, debt, reminders or the clerk's
-    lines, reaches an agent."""
-    from .delivery import current_responses
-    from .forks import page_holding
-    from .holding import to_carry
-    from .state import agent_turns, renew_agent_turn
-
-    turn = renew_agent_turn(sid, agent)
-    if turn is None:
-        return
-    opened = agent_turns(sid)[turn]["opened"]
-    through = pointed(sid, turn, opened)
-    batches = []
-    for page_dir in owned_pages(sid):
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if claim is None or claim["id"] != sid:
-                    continue
-                if inputs := [
-                    event
-                    for event in to_carry(page_holding(page), turn)
-                    if event["seq"] > through.get(str(page_dir), 0)
-                ]:
-                    batches.append(
-                        batch_data(
-                            page_dir,
-                            page,
-                            inputs,
-                            responses=current_responses(page_dir, page.events),
-                        )
-                    )
-        except FileNotFoundError:
-            continue
-    if not batches:
-        return
-    delivery = freeze_delivery(batches)
-    message = "\n".join([INLINE_OPENING, json.dumps(delivery, ensure_ascii=False)])
-    deadline = started + CONFIRM_WITHIN
-    recorded = (
-        receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
-        if harness.fits_hook_context(message) and time.monotonic() < deadline
-        else []
-    )
-    if recorded:
-        inline = {**delivery, "batches": recorded}
-        message = "\n".join([INLINE_OPENING, json.dumps(inline, ensure_ascii=False)])
-    else:
-        note_pointer(
-            sid,
-            turn,
-            opened,
-            {batch["page"]: batch["through_seq"] for batch in delivery["batches"]},
-            deadline=deadline,
-        )
-        message = delivery_pointer_prompt(delivery["id"])
-    print(json.dumps(harness.hook_context("PostToolBatch", message)), flush=True)

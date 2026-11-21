@@ -82,7 +82,8 @@ function patches(...files) {
 /**
  * An esbuild plugin editing upstream modules as they load. Each adaptation names
  * the modules it edits by path, one adaptation to a module; one that edits nothing in
- * a build fails it.
+ * a build fails it. An edited module loads as the build's `loader` option says for its
+ * extension, as a stylesheet bundled as text does.
  */
 export function adapt(adaptations) {
   const used = new Set();
@@ -95,6 +96,8 @@ export function adapt(adaptations) {
           return {
             contents: await edit(await readFile(at, "utf8"), at),
             resolveDir: path.dirname(at),
+            // esbuild reads what a plugin returns as JavaScript unless told otherwise.
+            loader: builder.initialOptions.loader?.[path.extname(at)],
           };
         }),
       );
@@ -395,14 +398,44 @@ const bundles = {
       // exhaust the measurement loop as each newly rendered line corrects that guess.
       // Compare against the oracle's measured line length, with its five-column
       // floor, so sub-character resizes accumulate until they warrant a measurement.
+      //
+      // CodeMirror scroll walk: the view finds the boxes that scroll an editor by
+      // walking up from it until `body`, and takes the window where it finds none. A
+      // drag selection scrolls the nearest one on each axis while the pointer stands
+      // past its edge, and the view's measure keeps the nearest vertical one at its
+      // end, if it stood there, as the editor changes height. No scroll outside a box
+      // fixed to the window moves the words inside it, so the walk ends at such a box
+      // and takes it for each axis it found no scroller on. That box doesn't scroll, so
+      // the page stays still under every editor in Leaf's chrome, each of which stands
+      // in one. A fixed box whose containing block is an ancestor, as a transform or
+      // paint containment makes one, has that ancestor for its `offsetParent` and
+      // moves with that ancestor's scrollers, so the walk passes it. Walking on from
+      // the chrome, which stands after `body` (runtime/chrome.js), the walk would reach
+      // the root, whose own box moves up as the page scrolls: a press whose pointer
+      // drifted a pixel would read the pointer as far below that box and scroll the
+      // page to its end. Ending the walk at the root would give these editors the
+      // window, which a drag at the window's foot would scroll, and which the measure
+      // would scroll by the height a draft gives up at the page's end.
+      // CodeMirror 6.43.15.
       {
         file: /@codemirror\/view\/dist\/index\.js$/,
         edit: (source) =>
           seam(
-            source,
-            "Math.abs(contentWidth - this.contentDOMWidth) > oracle.charWidth",
-            "Math.abs(Math.max(5, contentWidth / oracle.charWidth) - oracle.lineLength) > 1",
-            "CodeMirror wrapping measurement",
+            seam(
+              source,
+              "Math.abs(contentWidth - this.contentDOMWidth) > oracle.charWidth",
+              "Math.abs(Math.max(5, contentWidth / oracle.charWidth) - oracle.lineLength) > 1",
+              "CodeMirror wrapping measurement",
+            ),
+            "                x = cur;\n            cur = cur.assignedSlot || cur.parentNode;",
+            `                x = cur;
+            if (getComputedStyle(cur).position == "fixed" && !cur.offsetParent) {
+                y = y || cur;
+                if (getX) x = x || cur;
+                break;
+            }
+            cur = cur.assignedSlot || cur.parentNode;`,
+            "CodeMirror scroll walk",
           ),
       },
       // CodeMirror's style-mod provider expands its selectors and mounts its sheets,
@@ -429,17 +462,24 @@ const bundles = {
   }),
 
   // File editing extensions sharing the runtime's CodeMirror implementation. Merge
-  // and autocomplete live in this optional package; their state/view/language
+  // and autocomplete live in this optional package, and each language the editor
+  // highlights beyond the core's Markdown in a module of its own, loaded when a file
+  // of it opens (file-editor's editor.js). Their state/view/language and Lezer
   // imports bind to the core Leaf's composers use, so extensions never mix
-  // CodeMirror identities.
+  // CodeMirror identities: a second Lezer tree would read none of the core's node
+  // props, and a language parsed with it would highlight nothing.
   "file-editor": () => ({
     out: `${packageVendor("file-editor")}/extensions.esm.js`,
-    entryPoints: [input("entries/file-editor/entry.mjs")],
+    entryPoints: {
+      "extensions.esm": input("entries/file-editor/entry.mjs"),
+      "codemirror-yaml.esm": input("entries/file-editor/yaml.mjs"),
+    },
+    outdir: packageVendor("file-editor"),
     platform: "browser",
     target: "es2022",
     plugins: [
       bindTo(
-        /^(?:@codemirror\/(?:state|view|language)|@lezer\/highlight)$/,
+        /^(?:@codemirror\/(?:state|view|language)|@lezer\/(?:highlight|common))$/,
         "/vendor/codemirror.esm.js",
       ),
     ],
@@ -484,6 +524,32 @@ const bundles = {
     splitting: true,
     platform: "browser",
     target: "chrome105",
+  }),
+
+  // Temml typesets the LaTeX in a page's `<code class="language-math">` as MathML the
+  // browser draws itself (`runtime/formulas.js`). Its sheet travels in the module as
+  // text, as PhotoSwipe's does, so only a page that shows a formula loads it, and the
+  // font that sheet names for primes and script capitals travels inside the sheet, so
+  // an export needs no file beside the module.
+  temml: () => ({
+    out: `${assets}/vendor/temml.esm.js`,
+    entryPoints: [input("entries/temml/entry.mjs")],
+    loader: { ".css": "text" },
+    banner: { js: `/*! Temml ${version("temml")} — MIT — temml.org */` },
+    adapt: [
+      {
+        file: /temml\/dist\/Temml-Local\.css$/,
+        edit: (source, at) =>
+          seam(
+            source,
+            "url('Temml.woff2')",
+            `url(data:font/woff2;base64,${readFileSync(
+              path.join(path.dirname(at), "Temml.woff2"),
+            ).toString("base64")})`,
+            "Temml font",
+          ),
+      },
+    ],
   }),
 
   // Bundle only jsdiff's array comparison for the core browser runtime.
@@ -674,6 +740,42 @@ const bundles = {
           ),
       },
       {
+        file: /@pierre\/trees\/dist\/render\/scrollTarget\.js$/,
+        // Trees measures its viewport with getBoundingClientRect, so a reveal target
+        // can be fractional (138.16) where the browser holds the box at a device
+        // pixel (138). Compared exactly, the target never equals where the box
+        // stands, so each focus change writes a scroll that moves nothing and stops
+        // one under way. A target within a pixel is where the box already stands.
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "return nextScrollTop === currentScrollTop ? null : nextScrollTop;",
+              "return Math.abs(nextScrollTop - currentScrollTop) < 1 ? null : nextScrollTop;",
+              "Trees scroll-target comparison",
+              3,
+            ),
+            "return preservedScrollTop === currentScrollTop ? null : preservedScrollTop;",
+            "return Math.abs(preservedScrollTop - currentScrollTop) < 1 ? null : preservedScrollTop;",
+            "Trees preserved scroll-target comparison",
+          ),
+      },
+      {
+        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
+        // The viewport's clamp compares the box's scrollTop with a maximum computed
+        // from the same fractional measure. At the list's end Chrome holds the box at
+        // 1039 while the maximum comes out at 1038.94, so every scroll event and
+        // model change there would write a scroll that moves nothing. A box within a
+        // pixel of the maximum already stands at it.
+        edit: (source) =>
+          seam(
+            source,
+            "if (scrollElement.scrollTop > maxScrollTop) scrollElement.scrollTop = maxScrollTop;",
+            "if (scrollElement.scrollTop - maxScrollTop >= 1) scrollElement.scrollTop = maxScrollTop;",
+            "Trees viewport clamp",
+          ),
+      },
+      {
         file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
         edit: (source) =>
           seam(
@@ -834,9 +936,11 @@ async function bundle(spec) {
 /**
  * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
  * a literal import for each, so an export binds it, and each name and alias Shiki
- * gives a grammar, which a native Markdown fence uses, read here so that identifying a
+ * gives a grammar, which a `language-…` class names, read here so that identifying a
  * block loads no grammar. Both come from this build, which a page's grammars need
- * anyway, so the browser doesn't read `$languages.names` itself.
+ * anyway, so the browser doesn't read `$languages.names` itself. `page check` reads the
+ * names too, as the one line of JSON `syntaxLanguageNames` is written on
+ * (`leaf.validation.markup.COLOURED_LANGUAGES`).
  */
 async function syntaxLoaders() {
   const names = languages();

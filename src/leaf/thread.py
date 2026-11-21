@@ -17,7 +17,7 @@ from leaf.delivery import (
 )
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
-from leaf.events import build_threads, is_answer, taken_back
+from leaf.events import active_summaries, build_threads, is_answer, taken_back
 from leaf.files import (
     latest_revision,
     require_revision,
@@ -578,6 +578,7 @@ def post_reply(
     runs under. A `Receipt`'s progress takes nothing in hand.
     """
     title = agent_title(title)
+    todo = agent_title(todo)
     text = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(text):
         from leaf.render_gate.command import message_check
@@ -1042,6 +1043,13 @@ def _compose_and_append(
             )
     else:
         record, _ = append_admitted(page, event)
+    if title is not None:
+        # A thread keeps the first title it was given (`events.build_threads`), so
+        # the agent hears which one stands. Admission has refused a reply whose
+        # thread is taken back, so the thread is there to read.
+        standing = build_threads(events, active_enclosing(page_dir))[thread_id]["title"]
+        if standing not in (None, title):
+            note(Finding("title-kept", values={"title": standing}, severity="advice"))
     return record, published
 
 
@@ -1241,7 +1249,9 @@ def cmd_edit(
     message's does, under the revision the user is looking at, which the edit names
     as such a message does. Where the message
     holds a widget the user has acted on, the edit goes in and Leaf says what becomes
-    of their answer (`_answered_widgets`). Admission refuses a message another voice
+    of their answer (`_answered_widgets`). A summary folding the message stands, and
+    Leaf names it (`_folding_summaries`), since only the agent knows whether its
+    edit changes what the summary reports. Admission refuses a message another voice
     wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
     obligation. Under one lease, the rename is admitted before the edit is appended,
     so a refused title leaves the text unedited.
@@ -1297,7 +1307,10 @@ def cmd_edit(
                     )
                     if revision is not None:
                         edit["revision"] = revision
-                answered = _answered_widgets(events, message, fragment)
+                answered = [
+                    *_answered_widgets(events, message, fragment),
+                    *_folding_summaries(page_dir, events, message),
+                ]
             records.append(append_admitted(page, edit)[0])
         if named is not None:
             records.append(append_admitted(page, named)[0])
@@ -1337,6 +1350,29 @@ def _answered_widgets(
             severity="advice",
         )
         for widget, ids in rests.items()
+    ]
+
+
+def _folding_summaries(page_dir: Path, events: list, message: str) -> list[Finding]:
+    """The summary in force that folds `message`, as advice the agent reads after
+    editing it: the summary stands as written (`events.active_summaries`)."""
+    thread = thread_names(events).get(message)
+    if thread is None:
+        return []
+    threads = build_threads(events, active_enclosing(page_dir))
+    return [
+        Finding(
+            "edit-under-summary",
+            values={
+                "message": message,
+                "summary": summary["id"],
+                "from": summary["from"],
+                "through": summary["through"],
+            },
+            severity="advice",
+        )
+        for summary in active_summaries(events, threads)[thread]
+        if message in summary["covers"]
     ]
 
 

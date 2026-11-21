@@ -258,6 +258,48 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert browser_thread["summaries"] == [projected]
 
 
+def test_the_agents_edit_leaves_its_summary_standing_and_names_it(page_dir):
+    """Only the agent knows whether its edit changes what a summary reports, so the
+    summary folding the message stands, and the edit names it and the range to
+    summarize again."""
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which cache?"}
+    )
+    reply = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "text": "LRU, capped at 100.",
+        },
+    )
+    summary = thread_model.cmd_summarize(
+        page_dir, root["id"], reply["id"], "Settled on LRU."
+    )
+    edited = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "edit",
+            str(page_dir),
+            reply["id"],
+            "--text",
+            "LRU, capped at 1,000.",
+        ],
+    )
+    assert edited.exit_code == 0, edited.output
+    [named] = json.loads(edited.output)["findings"]
+    assert (named["code"], named["severity"]) == ("edit-under-summary", "advice")
+    assert summary["id"] in named["text"] and "leaf thread summarize" in named["text"]
+    read = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert [s["text"] for s in json.loads(read.output)["thread"]["summaries"]] == [
+        "Settled on LRU."
+    ]
+
+
 def test_a_summary_folds_the_range_its_agent_names(page_dir):
     """Admission takes the range the agent names, though older discussion stays in
     full above it: which messages the user still needs in full is the agent's to
@@ -540,7 +582,7 @@ def test_summary_hint_leaves_no_older_discussion_above_it(page_dir):
 def test_a_summary_hint_takes_in_the_run_a_retired_summary_left(
     page_dir, reply_text, widened
 ):
-    """A hint never leaves older discussion in full above a summary. A rewrite that
+    """A hint never leaves older discussion in full above a summary. The user's rewrite that
     retires a summary leaves its run uncovered above a later one. Where that run is
     long enough, the hint names it and the later summary. Where it is too short, the
     hint names the next long-enough run widened over it, so a short stretch left above
@@ -560,7 +602,15 @@ def test_a_summary_hint_takes_in_the_run_a_retired_summary_left(
     folded = [say("agent", "z") for _ in range(2)]
     thread_model.cmd_summarize(page_dir, root["id"], reply["id"], "The opening.")
     later = thread_model.cmd_summarize(page_dir, folded[0]["id"], folded[-1]["id"], "")
-    thread_model.cmd_edit(page_dir, reply["id"], f"{reply_text} Revised.")
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": root["id"],
+            "text": "x" * 1000 + " Revised.",
+        },
+    )
     newer = [
         say(author, "Next?")
         for author in ("agent", "user", "agent", "agent", "user", "agent", "user")
@@ -698,8 +748,17 @@ def test_a_summary_hint_replaces_whole_the_summaries_it_reaches_into(page_dir):
     thread_model.cmd_summarize(page_dir, root["id"], first["id"], "The opening.")
     thread_model.cmd_summarize(page_dir, m[2]["id"], m[5]["id"], "The middle.")
     thread_model.cmd_summarize(page_dir, m[6]["id"], progress["id"], "")
-    # Retiring the opening summary leaves its two long messages to suggest.
-    thread_model.cmd_edit(page_dir, first["id"], "y" * 1000 + " Revised.")
+    # The user's rewrite retires the opening summary, leaving its two long messages
+    # to suggest.
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": root["id"],
+            "text": root["text"] + " Revised.",
+        },
+    )
 
     [digest] = thread_context_model.batch_threads(
         events_model.read_events(page_dir),

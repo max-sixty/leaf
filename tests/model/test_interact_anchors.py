@@ -1113,6 +1113,22 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
     assert moved.exit_code != 0
     assert refused_on(moved.stdout).code == "withdrawn-parent"
 
+    titled = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            root["id"],
+            "--title",
+            "Shorter flow",
+            "--text",
+            "Name the withdrawn mark's thread.",
+        ],
+    )
+    assert titled.exit_code != 0
+    assert refused_on(titled.stdout).code == "withdrawn-parent"
+
 
 def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     """A hold's exact-section anchor is part of the command request's meaning, not

@@ -54,7 +54,7 @@ Every rule that asks whether the claimant's turn is running reads one answer,
 decide. Its docstring says how the harness's own record adds what no hook sees: an
 interrupt, a dialog open now, and that the session is busy, in its turn or, after
 the turn closed, in the background. The fold counts busy as observed work, so a
-page reads `working` while its Claude Code turn runs, whatever the agent has started.
+page reads `running` while its Claude Code turn runs, whatever the agent has started.
 Browser-event admission reads the same answer (`presence.claimant_reading`) and
 nudges only after an ending something saw, since a turn Leaf merely stopped believing
 in may still be running a long step.

@@ -35,16 +35,16 @@ export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 
 // Each standing's word, said by whoever says it (glossary.md, "Reader-facing words";
 // voice.js). Leaf speaks in the agent's voice where what the agent would say is
-// reliable: it started the update, or a fork of its conversation took the update on
-// (On it), its reply is streaming in (Replying), or it answered. Everything else is
+// reliable: it started the update, or a progress message of its own stands after it,
+// such as a line fork's working line (On it), its reply is streaming in (Replying), or
+// it answered. Everything else is
 // what Leaf observed of the update's way to the agent, through the harness or the
 // clock, so Leaf says it in its own voice: the update waiting for the agent whether or
 // not the server has logged it yet, a turn taking it in, and every reason it is
 // blocked. The user chose this over words in the agent's voice such as "Got it", which
 // put Leaf's inference in the agent's mouth, and gave the agent the reply it is
-// streaming; they chose Leaf's "Queued for Claude" over the agent's "Not seen yet".
-// They gave a
-// fork's taking an update on the agent's On it, from the moment the fork starts.
+// streaming; they chose Leaf's "Queued for Claude" over the agent's "Not seen yet",
+// and gave a line fork's working line the agent's On it.
 // On leaf.page a write to a page whose agent isn't running waits seconds while its
 // container starts, a wait only that first write pays, so a send that launches it says
 // so until the server has it. The user asked for these words.

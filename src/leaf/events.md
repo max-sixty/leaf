@@ -296,9 +296,8 @@ exact id rather than log order, so answering older work cannot erase newer user
 input. A `--done` answer to an update the agent's earlier answer already settled
 with a to-do still open carries no `responds`, and the command names that to-do
 for `leaf task end` (`thread.post_reply`). A substantive reply reopens a resolved
-thread and restores its unanswered widget and message obligations, as an `unresolve`
-does;
-reactions and failure receipts leave it closed.
+thread, and brings back none of the questions the resolve ended; reactions and
+failure receipts leave it closed.
 
 The user's `resolve` takes a thread off their list. It retires the questions the agent
 asked them there and settles nothing the agent owes: a turn of theirs, or an answer of

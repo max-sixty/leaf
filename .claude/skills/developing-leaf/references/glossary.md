@@ -26,7 +26,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has handed it into the agent's turn (**Delivered**, a `waiting` update a turn has `seen`), both in Leaf's italic voice. Delivered doesn't mean work has begun |
 | **Queued for Claude** | An update no turn has taken in (`waiting` and not `seen`), whether or not the log has accepted it or a harness queue holds it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
 | **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (a `local` send that is `launching`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
-| **On it** | The agent has explicitly started this update or to-do, or a fork of its conversation has taken the update on (state `running`); page activity alone doesn't mean it has |
+| **On it** | The agent has explicitly started this update or to-do, or a progress message of its own stands after the update in its thread, such as a line fork's working line (state `running`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The On view's tab in Leaf's panel, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with an entry where it is about |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
@@ -39,7 +39,7 @@ as a script sets a stage direction apart from the lines. A surface sets only the
 which ranks them among its other words. The agent says what it wrote: its status line
 (“running the browser suite”), its messages and a to-do's title. Leaf also speaks in
 the agent's voice where what the agent would say is reliable, because the agent's own
-command or its reply's stream shows it: **On it** once it or a fork of it took an update on,
+command or its reply's stream shows it: **On it** once it started an update or wrote a progress line after it,
 **Replying** while its reply streams in, **Your turn** once it asked, **Still to do**
 for a to-do it opened, **Answered**, **Replied** or **Edited** once it did, and how it
 ended a to-do of its own (**Done**, **Dropped**). Everything else is Leaf's: what it

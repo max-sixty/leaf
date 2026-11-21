@@ -744,7 +744,8 @@ def canonical_activity(
     (`served_state.work.lined`).
 
     `counts` are the answers owed by where their update stands, and of them all the
-    `unseen` ones no turn has taken in.
+    `unseen` ones: no turn has taken them in and nothing is at work on them, so one a
+    line fork's line stands after counts as `running` alone.
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
@@ -998,7 +999,9 @@ def canonical_activity(
             "running": sum(item["state"] == "running" for item in obligations),
             "waiting": sum(item["state"] == "waiting" for item in obligations),
             "blocked": sum(item["state"] == "blocked" for item in obligations),
-            "unseen": sum(not item["seen"] for item in obligations),
+            "unseen": sum(
+                not item["seen"] and item["state"] != "running" for item in obligations
+            ),
         },
         "ts": ts,
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,

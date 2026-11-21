@@ -457,7 +457,7 @@
           "anyOf": [{ "$ref": "#/$defs/WorkKind" }, { "type": "null" }]
         },
         "counts": {
-          "description": "The answers the agent owes, by where their update stands, and of them all the `unseen` ones no turn has taken in.",
+          "description": "The answers the agent owes, by where their update stands, and of them all the `unseen` ones: no turn has taken them in and nothing is at work on them.",
           "type": "object",
           "properties": {
             "running": { "type": "integer" },

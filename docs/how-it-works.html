@@ -1542,9 +1542,9 @@ sequenceDiagram
                 <tr id="ontology-workflow">
                   <td>Workflow</td>
                   <td>
-                    An unsettled update's delivery and work stage: Queued for Claude, Up
-                    next, Delivered, On it, Replying or Answered. Conditions report
-                    interruptions or failures. The workflow names its thread and owed
+                    Where an unsettled update's delivery stands: Queued for Claude,
+                    Delivered, On it or Replying, or the reason it is blocked, such as
+                    Stopped or Gone quiet. The workflow names its thread and owed
                     answer, if any.
                   </td>
                   <td>the update's event id</td>
@@ -1553,7 +1553,8 @@ sequenceDiagram
                   <td>Obligation</td>
                   <td>
                     An input or answer owed by the user or agent. It holds its source,
-                    typed answer, next actor, and status: open, answered or withdrawn.
+                    typed answer, next actor, and where it stands: waiting, running,
+                    blocked or done.
                   </td>
                   <td>
                     <code>widget:</code>, <code>message:</code> or <code>update:</code>,

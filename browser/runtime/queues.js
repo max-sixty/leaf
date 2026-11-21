@@ -65,7 +65,7 @@ export const itemOutcome = (item) =>
       );
 
 // When a finished list item ended, and the detail its ending gave: the agent's end of
-// a question or a to-do, or the answer's own time.
+// a to-do, or the answer's own time.
 /** @param {import("./framework/snapshot.js").Immutable<import("./framework/application.js").CurrentQueueItem>} item */
 export const itemEnding = ({ obligation }) =>
   Object.freeze({

@@ -1305,9 +1305,9 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     profile.acknowledged = [0.250]
     profile.event_ids = ["test-comment"]
     profile.activities = [
-        (0.250, "queued", ""),
-        (1.0, "working", "Editing the page"),
-        (12.5, "away", ""),
+        (0.250, "waiting", ""),
+        (1.0, "running", "Editing the page"),
+        (12.5, "done", ""),
     ]
     monkeypatch.setattr(
         journey,

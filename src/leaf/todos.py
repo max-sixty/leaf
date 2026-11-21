@@ -195,7 +195,7 @@ def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
     prompt, the start in force on an open one as its `line`, and how it ended, by its
     `todo_end` in force (`ends`) or by the first stamped version whose `--completes`
     names it, whichever came first. Its `thread` is the one it was opened on; a reader
-    holding the frozen thread document adds a widget's (`WorkReading.todo_records`)."""
+    holding the thread markup adds a widget's (`served_state.work.work_state`)."""
     todos: dict[str, dict] = {}
     threads = thread_names(events)
     for event in events:

@@ -117,7 +117,7 @@ import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
-import { pressCommand } from "./keyboard/dispatch.js";
+import { commandPress } from "./keyboard/control-keys.js";
 import { signal } from "./framework.js";
 import { takesNoWords } from "./composing/input.js";
 
@@ -631,13 +631,11 @@ const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 export function noticeDraftKept() {
   notice("Draft kept", { press: writingPlace && RESUME_WRITING });
 }
-/** @type {import("./notifications.js").Press} */
-const RESUME_WRITING = {
+const RESUME_WRITING = commandPress({
   action: "resume-writing",
   command: "writing.resume",
-  run: () => pressCommand("writing.resume"),
   stands: () => writingPlace !== null,
-};
+});
 
 // A generation this document has sent and not heard back on. Its words are shown
 // wherever the gesture drew them, so the box they were written in reads empty, while
@@ -1132,10 +1130,10 @@ export function giveBackWords(ctx, text, payload, under = null) {
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing
 // destination, a content change to that draft like any other, and the refusal's error
-// says they are kept and offers Resume writing as its press (`press`, delivery.js). Only
-// the panel's field draws an error's press (errors.js), so that error is about no box;
-// otherwise it is about the box on screen the sending gesture's words came back to,
-// where there is one (`field`).
+// says they are kept. The error stands over the box on screen the sending gesture's
+// words came back to, where there is one (`field`); otherwise it is about no box and
+// offers Resume writing as its press (`press`, delivery.js), since a box's cover draws
+// no press (errors.js).
 //
 // Resume writing comes back to words a refusal handed back at their end (`atEnd`), as a
 // press on the error over them does (composing/input.js), so Enter sends them.
@@ -1185,11 +1183,11 @@ export function keepRefusedWords(attempts) {
     hidden.length && "Draft kept",
     held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
-  const press = hidden.length && writingPlace ? RESUME_WRITING : null;
+  const field = returned.map(shownIn).find(Boolean) ?? null;
   return {
     said: sentences.length ? sentences.join(". ") : null,
-    field: press ? null : (returned.map(shownIn).find(Boolean) ?? null),
-    press,
+    field,
+    press: hidden.length && writingPlace && !field ? RESUME_WRITING : null,
   };
 }
 const writingEditor = () =>

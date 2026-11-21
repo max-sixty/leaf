@@ -36,7 +36,7 @@
    (glossary.md, "Reader-facing words"). */
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
-import { pressCommand } from "../keyboard/dispatch.js";
+import { commandPress } from "../keyboard/control-keys.js";
 import { notice } from "../notifications.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -56,12 +56,11 @@ const NAMED = 48;
  * @returns {import("../notifications.js").Press} */
 const nextStep = (resolving, undo) =>
   resolving && anyOpenThread()
-    ? {
+    ? commandPress({
         action: "next-thread",
         command: "thread.next",
-        run: () => pressCommand("thread.next"),
         stands: () => undo.stands() && anyOpenThread(),
-      }
+      })
     : undo;
 
 /** @typedef {() => boolean | void | Promise<boolean | void>} Landing */

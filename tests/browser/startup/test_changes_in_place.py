@@ -254,7 +254,7 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     revise(d, DELTA)
 
     visibility(page, "visible")
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes, v")
     expect_panel_says(page, "2 changes since v1")
     show = field_press(page).filter(has_text="Show changes")
     expect(show.locator("kbd")).to_have_text(["v"])
@@ -266,6 +266,36 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     # once the press has drawn, well before its moment would end.
     rendered(page)
     assert show.count() == 0
+
+
+def test_a_pointer_resting_on_the_panel_holds_news_s_press_until_the_next_key(
+    browser, serve
+):
+    """News's words pass on time, but while the pointer rests on the panel, the press
+    news offers neither comes to the field's end nor leaves it until the user's next
+    input, as any press arriving on its own (floating-panel.js, `pagePress`)."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    revise(d, DELTA)
+    field = panel_field(page).bounding_box()
+    assert field
+    page.mouse.move(field["x"] + field["width"] / 2, field["y"] + field["height"] / 2)
+    show = field_press(page).filter(has_text="Show changes")
+
+    visibility(page, "visible")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes, v")
+    expect_panel_says(page, "2 changes since v1")
+    expect(show).to_have_count(0)
+    page.keyboard.press("Shift")
+    expect(show).to_have_count(1)
+    expect_panel_says(page, "2 changes since v1", says=False)
+    expect(show).to_have_count(1)
+    page.keyboard.press("Shift")
+    expect(show).to_have_count(0)
 
 
 def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
@@ -286,7 +316,7 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     wait_for_revision(page, 3)
 
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("1 change since v2")
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2. Show changes, v")
     page.keyboard.press("v")
     expect(page.locator("main .lf-ins-block")).to_have_count(1)
     assert marked_ids(page) == ["d"]
@@ -313,7 +343,7 @@ def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serv
     revise(d, DELTA)
     wait_for_revision(page, 3)
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1. Show changes, v")
     assert len(counts) == 1, "a return to the draft the user watched counted changes"
 
 

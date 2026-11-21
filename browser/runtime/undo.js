@@ -107,6 +107,7 @@ import {
 } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { pageCommand } from "./keyboard/register.js";
+import { commandPress } from "./keyboard/control-keys.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import { reactionPlace } from "./reactions.js";
 import { PENDING } from "./thread/identity.js";
@@ -520,17 +521,18 @@ export function createUndo({
   // back that gesture as ⌘Z takes the list's head, never what ⌘Z would take by then,
   // and stands while the page can still take the gesture back, so the log refusing it,
   // or its withdrawal by any route, takes the notice away.
-  /** @param {string} attempt @returns {import("./notifications.js").Press} */
-  const offerUndo = (attempt) => ({
-    action: "undo",
-    command: "history.undo",
-    run() {
-      if (!settled()) return null;
-      const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
-      return entry ? walkTo(entry.event) : null;
-    },
-    stands: () => takeable()?.has(attempt) ?? true,
-  });
+  /** @param {string} attempt */
+  const offerUndo = (attempt) =>
+    commandPress({
+      action: "undo",
+      command: "history.undo",
+      run() {
+        if (!settled()) return null;
+        const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
+        return entry ? walkTo(entry.event) : null;
+      },
+      stands: () => takeable()?.has(attempt) ?? true,
+    });
 
   // The last thing the user did to this page, put back, on the platform's undo chord
   // rather than a letter, the user's decision: an undo can change what is out of view,

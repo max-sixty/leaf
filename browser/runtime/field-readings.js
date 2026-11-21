@@ -35,17 +35,19 @@
  * holds stays in it, unwritable, until the stance ends.
  *
  * The field's end offers one press, the one that matters most at that moment (`end`).
- * Where the words a reading says offer a press of their own (`press`), the end offers
- * that one: a notice's, such as a Resolve's Next thread and t or Show changes and v
- * after news of what changed (notifications.js, `press`), or an error's, such as Resume
- * writing and g i after a refused send (errors.js). Otherwise it offers, by the
- * reading's `end`:
+ * Where the words a reading says answer the user's gesture with a press of their own
+ * (`press`), the end offers that one: a notice's, such as a Resolve's Next thread and t
+ * (notifications.js, `press`), or an error's, such as Resume writing and g i after a
+ * refused send (errors.js). So no notice's or error's words spell a key: the end says
+ * the key only while it would make the press, and a finger the word alone. Otherwise
+ * it offers, by the reading's `end`:
  * - "key": the key that enters the field, alone after the words, as after an error;
  * - "comment": Comment… and that key, as the field says at rest;
- * - "moment": in a stance its Close; else the page's own press, Open latest on an older
- *   version or Next On Me while On Me lists anything (floating-panel.js, `pagePress`);
- *   else Comment… and its key. In a thread, Reply… and its key, after whose turn it is
- *   or a notice's words;
+ * - "moment": in a stance its Close; else a press arriving on its own, which holds
+ *   still under a resting pointer: news's, as Show changes after news of what changed,
+ *   Open latest on an older version, or Next On Me while On Me lists anything
+ *   (floating-panel.js, `pagePress`); else Comment… and its key. In a thread, Reply…
+ *   and its key, after whose turn it is or a notice's words;
  * - "none": nothing.
  * While the page holds keys pressed before it was ready, the end offers nothing, since a
  * key there would only join them. The end shows the page's shortcuts, so a press stands
@@ -93,7 +95,7 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @property {string | null} held keys pressed before the page was ready, which wait
  * @property {string | null} selected the words selected on the page, as quoted
  * @property {{message: Words, press: BoxPress | null} | null} notice a notice while it
- * shows
+ * shows, with the press it offers in answer to the user's gesture
  * @property {string | null} goTo the Go-to filter's word while its sequence waits
  * @property {string | null} step a walk's position for its step's moment, in the words
  * the field's own leave unsaid
@@ -103,7 +105,7 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @property {() => Words} destination where words typed in the field go
  * @property {() => Words} status the status's words
  * @property {() => BoxPress | null} close the stance's Close
- * @property {() => BoxPress | null} pagePress the page's own press
+ * @property {() => BoxPress | null} pagePress the press arriving on its own
  */
 
 /** @typedef {"standing" | null} Lead
@@ -119,10 +121,10 @@ export const FIELD_READINGS = Object.freeze([
   // user did, or the page, went wrong. One about the field's editor covers the words, as
   // at any box (composing/input.js). The user chose this over errors riding the
   // passing notice, which would fade after four seconds and go unsaid while the user
-  // writes. A notice offering a press is newer, so while it passes with the caret
-  // elsewhere the error waits in the menu's Errors, as one the field has passed does,
-  // and the field says it again once the notice has gone or the caret comes back, since
-  // the field says nothing that passes under the caret.
+  // writes. A notice offering a press answers a gesture the user made since, so while
+  // it passes with the caret elsewhere the error waits in the menu's Errors, as one the
+  // field has passed does, and the field says it again once the notice has gone or the
+  // caret comes back, since the field says nothing that passes under the caret.
   {
     says: "error",
     claims: (f) =>

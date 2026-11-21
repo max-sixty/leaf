@@ -11,12 +11,12 @@
    Resolve, the undo that takes a gesture back (thread/folding.js, `nextStep`; undo.js,
    `offerUndo`), or Show changes after news of what changed while the user was away
    (since-seen.js). The floating panel's field says it at its end with the key of the
-   page command that makes it too, after the words, as "Resolved “One reconnect in about
-   40” … Next thread t" (floating-panel.js, `noticePress`), and an error offers one the
-   same way (errors.js). So no notice spells a key in its words: the press says its key
-   only while that key would make it, and its word stands for a finger, which is shown
-   no keys (eslint.config.mjs, `spelledKeysRule`). A notice of the user's own gesture
-   stands no longer than that gesture does, so its press never acts for anything else.
+   page command that makes it, after the words, as "Resolved “One reconnect in about
+   40” … Next thread t" (floating-panel.js, `noticePress`), so the words name no key
+   (field-readings.js, `press`). The live region hears the press and its shortcut after
+   the words, as "Draft kept. Resume writing, g i" (`heard`), since a listener has no
+   field's end to read. A notice of the user's own gesture stands no longer than that
+   gesture does, so its press never acts for anything else.
    Any notice stands no longer than what its words say holds (`stands`), shown or
    waiting: news that a comparison would show changes goes once a comparison stands, and
    "No changes marked" once one marks some, rather than saying for the rest of its
@@ -45,6 +45,7 @@ import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
 import { onUserInput } from "./focus.js";
+import { actionName } from "./icon-paths.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./semantic-news.js").SemanticNews} SemanticNews
@@ -54,7 +55,8 @@ import { onUserInput } from "./focus.js";
  * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
  * @typedef {SemanticBackground | {key: "text", value: Words, stands: (() => boolean) | null,
  * press: Press | null}} Background
- * @typedef {{action: string, command: string, run: () => unknown, stands: () => boolean}} Press
+ * @typedef {{action: string, command: string, run: () => unknown, stands: () => boolean,
+ * shortcut: () => readonly string[]}} Press
  */
 
 export const liveEl = el("div", "lf-ui lf-live");
@@ -70,22 +72,20 @@ let noticeTimer = 0;
 let stopWatching = () => {};
 // Whether the standing notice stands until the user's next input (`holds`, below).
 let holding = false;
-// Whether the pointer rests on the surface that draws the seat (`restOnSeat`), and
-// whether the press of news ran out of time meanwhile.
-let resting = false;
-let overdue = false;
 /** @type {Background | null} */
 let showingBackground = null;
 /** @type {Background[]} */
 const waitingBackground = [];
 let userContext = false;
-// What the seat says, whether it shows, and the press it offers, or null: the action
-// it is, the page command whose key makes the same press, what it does, and whether it
-// still can, as `{action, command, run, stands}`. Errors are no notices: they go
-// through errors.js, which keeps them until they are dealt with.
-/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: Press | null, about: string | null}>>} */
+// What the seat says, whether it shows, the press it offers, or null, and whether it is
+// news, which answers no gesture of the user's. A press is the action it is, the page
+// command whose key makes the same press, what it does, whether it still can, and that
+// command's shortcut, as a page command's press is made (keyboard/control-keys.js,
+// `commandPress`). Errors are no notices: they go through errors.js, which keeps them
+// until they are dealt with.
+/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: Press | null, about: string | null, news: boolean}>>} */
 const noticePresentation = signal(
-  Object.freeze({ message: "", visible: false, press: null, about: null }),
+  Object.freeze({ message: "", visible: false, press: null, about: null, news: false }),
 );
 
 export const noticeReading = () => noticePresentation.value;
@@ -111,10 +111,20 @@ export const noticeWords = (message) =>
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
 /** @param {Words} message @param {boolean} visible @param {Press | null} [press]
- * @param {string | null} [about] */
-const presentNotice = (message, visible, press = null, about = null) => {
-  noticePresentation.value = Object.freeze({ message, visible, press, about });
+ * @param {string | null} [about] @param {boolean} [news] */
+const presentNotice = (message, visible, press = null, about = null, news = false) => {
+  noticePresentation.value = Object.freeze({ message, visible, press, about, news });
 };
+
+// What a listener hears of a notice or an error: its words, then the press it offers
+// with that press's shortcut, which the field's end shows a reader.
+/** @param {Words} msg @param {Press | null} press @returns {Words} */
+export function heard(msg, press) {
+  if (!press) return msg;
+  const shortcut = press.shortcut().join(" ");
+  const step = `. ${actionName(press.action)}${shortcut ? `, ${shortcut}` : ""}`;
+  return [noticeWords(msg), leafSays(step)].flat();
+}
 
 /** @param {Words} msg */
 export function announce(msg) {
@@ -145,14 +155,13 @@ function showNotice(
   about = null,
   holds = false,
 ) {
-  presentNotice(msg, true, press, about);
+  presentNotice(msg, true, press, about, Boolean(background));
   if (!background) gesture("notice");
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatching();
-  overdue = false;
   holding = holds || Boolean(press && !background);
-  if (!holding) noticeTimer = setTimeout(expire, NOTICE_MS);
+  if (!holding) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
   // What the words say, and that the press can still act.
   const premises = [stands, press?.stands].filter((premise) => premise != null);
   if (!premises.length) return;
@@ -163,15 +172,8 @@ function showNotice(
       untracked(retireNotice);
   });
 }
-// A press of news that runs out of time under the pointer leaves once the pointer
-// does (`restOnSeat`).
-function expire() {
-  if (resting && noticePresentation.peek().press) overdue = true;
-  else retireNotice();
-}
 function retireNotice() {
   stopWatching();
-  overdue = false;
   if (!userContext && !stepping.peek() && showBackground(waitingBackground.shift()))
     return;
   presentNotice(noticePresentation.peek().message, false);
@@ -181,12 +183,11 @@ function retireNotice() {
 // (`holds`), as an undo's is (undo.js), stands until the user's next input rather than
 // for its time: the panel says the press at the field's end (field-readings.js,
 // `end`), so one leaving on a timer would take it from under a hand on its way there.
-// News passes on its time, press or not, since it answers nothing the user did, but its
-// press neither comes nor goes while the pointer rests on the surface that draws it
-// (`restOnSeat`; browser/AGENTS.md, "The page holds still under the user's aim"). A
-// press stands no longer than it can act: a gesture the log refused, or one taken back
-// by any route, takes its notice away. An input on the press itself, which
-// `keepsNotice` marks, keeps it.
+// News passes on its time, press or not, since it answers nothing the user did; the
+// panel holds its press still under a resting pointer, as it holds every press that
+// arrives on its own (floating-panel.js, `pagePress`). A press stands no longer than it
+// can act: a gesture the log refused, or one taken back by any route, takes its notice
+// away. An input on the press itself, which `keepsNotice` marks, keeps it.
 const NOTICE_PRESS = "data-lf-notice-press";
 export const keepsNotice = elementDirective("keepsNotice", (element) =>
   keeps(element, NOTICE_PRESS, ""),
@@ -209,10 +210,6 @@ function showBackground(entry) {
     const stands = entry.key === "text" ? entry.stands : null;
     const press = entry.key === "text" ? entry.press : null;
     if (wordsText(message) && (stands?.() ?? true)) {
-      if (press && resting) {
-        queueBackground(entry, true);
-        return false;
-      }
       showNotice(message, entry, press, stands);
       return true;
     }
@@ -276,7 +273,7 @@ export function notice(
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
-  if (speak) announce(msg);
+  if (speak) announce(heard(msg, press));
   if (background) {
     const entry = group ?? textBackground(msg, stands, press);
     if (userContext || stepping.peek() || noticeVisible())
@@ -295,7 +292,6 @@ function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
   clearTimeout(noticeTimer);
   stopWatching();
-  overdue = false;
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
@@ -335,16 +331,4 @@ export function setNoticeContext(active) {
   ) {
     showBackground(waitingBackground.shift());
   }
-}
-
-// The floating panel says when the pointer comes to rest on the surface that draws the
-// seat and when it leaves, so a press of news neither comes nor goes under it (above).
-/** @param {boolean} on */
-export function restOnSeat(on) {
-  if (on === resting) return;
-  resting = on;
-  if (on) return;
-  if (overdue) retireNotice();
-  else if (!userContext && !stepping.peek() && !noticeVisible())
-    showBackground(waitingBackground.shift());
 }

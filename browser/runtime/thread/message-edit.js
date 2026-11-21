@@ -118,7 +118,7 @@ import { seenRect } from "../geometry.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
-import { pressCommand } from "../keyboard/dispatch.js";
+import { commandPress } from "../keyboard/control-keys.js";
 import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -152,13 +152,11 @@ const sending = new Set();
 /** @type {{id: string, text: string, over: string} | null} */
 let discarded = null;
 // The press the notice after a discard offers (`close`).
-/** @type {import("../notifications.js").Press} */
-const RESTORE_EDIT = {
+const RESTORE_EDIT = commandPress({
   action: "restore-edit",
   command: "message.edit.restore",
-  run: () => pressCommand("message.edit.restore"),
   stands: () => discarded !== null,
-};
+});
 
 // Restore discarded edit: the words go back to the rewrite's draft, and its message
 // opens on them as it does on words a reload kept, the editor raising its warning where

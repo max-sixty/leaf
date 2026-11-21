@@ -1060,14 +1060,14 @@ const topLevelAwaitRule = {
   },
 };
 
-// No words Leaf shows spell a key: the step a notice or an error points to is a press
-// the panel's field offers at its end with its key (notifications.js, `press`;
-// errors.js), which shows the key only while it would make the press and shows a
-// finger the word alone. The rule reads every string a module writes for the form
-// Leaf's notices took, a dash or a semicolon and then a shortcut, one character or `g`
-// and one, doing something ("— v shows them", "; g D restores it"). What a screen
-// reader hears from `announce` may name a key, since no press reaches it.
-const SPELLED_KEY = /(?:—|;)\s+(?:g\s+)?\S\s+[a-z]+s\b/u;
+// A notice's or an error's words name no key: the step they point to is a press the
+// panel's field offers (field-readings.js, `press`). The rule reads every string a
+// module writes for the form such words took before, a dash or a semicolon and then a
+// shortcut, a character or `g` and one, doing something ("— v shows them", "; g D
+// restores it"), past a count or the article ("— 3 changes", "— a process exited"). It
+// catches that form, not every way of spelling a key. What a screen reader hears from
+// `announce` may name a key.
+const SPELLED_KEY = /(?:—|;)\s+(?:g\s+)?[^\s\daAI]\s+[a-z]+s\b/u;
 export const spelledKeysRule = {
   meta: { type: "problem", schema: [] },
   create(context) {

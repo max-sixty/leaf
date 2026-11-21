@@ -2389,10 +2389,10 @@ def expect_panel_says(page, words, *, says=True):
         ) from None
 
 
-def expect_error_waits_in_menu(page, message, *, press=None):
+def expect_error_waits_in_menu(page, message, *, press=None, run=False):
     """Expect the newest error to say exactly `message` from the leaf's menu, under
     Errors, with the leaf's dot marking it unseen, and to offer the press named `press`
-    there, or none; the menu is put away again.
+    there, or none; the menu is put away again, by that press where `run` is set.
 
     That is where an error waits that the panel's field cannot say (errors.js): one
     about a box outside the panel, such as a passage's composer, or about nothing while
@@ -2406,7 +2406,11 @@ def expect_error_waits_in_menu(page, message, *, press=None):
         expect(offered).to_have_count(0)
     else:
         expect(offered).to_have_text(press)
-    close_panel_menu(page)
+    if run:
+        offered.click()
+        panel_settled(page, open=False)
+    else:
+        close_panel_menu(page)
 
 
 # How many of the page's active obligations are answered, as "answered/total": the publisher's

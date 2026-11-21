@@ -29,9 +29,10 @@
    with `v`, the key that marks them (notifications.js, `press`). A return to a
    draft they watched land says nothing, though it differs from that version, since
    nothing in it is news. The notice is news, as a version's arrival is: it waits behind
-   the user's own commands and passes after a notice's time, its press with it, which
-   stays only while the pointer rests on the panel (notifications.js, `restOnSeat`), and
-   the leaf's menu keeps Show changes as the lasting route. A
+   the user's own commands and passes after a notice's time, its press with it, though a
+   pointer resting on the panel keeps the press there until the user's next input, as it
+   keeps every press arriving on its own (floating-panel.js, `pagePress`). The leaf's
+   menu keeps Show changes as the lasting route. A
    revision landing while the notice is counted starts the count again. The page arrives unmarked: the user chose
    to call the marks up with a key rather than have them waiting, and to be told
    on return that there is something to call up, in a
@@ -60,7 +61,7 @@ import { whenDocumentPresented } from "./semantic-state.js";
 import { tabStore } from "./tab-store.js";
 import { notice } from "./notifications.js";
 import { pageCommand } from "./keyboard/register.js";
-import { pressCommand } from "./keyboard/dispatch.js";
+import { commandPress } from "./keyboard/control-keys.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import {
   changesSince,
@@ -74,13 +75,11 @@ import { counted } from "./words.js";
 
 const HANDOFF_KEY = "lf-seen-handoff";
 // The press the notice of what changed offers: `v`, while it would mark the changes.
-/** @type {import("./notifications.js").Press} */
-const SHOW_CHANGES = {
+const SHOW_CHANGES = commandPress({
   action: "show-changes",
   command: "changes.toggle",
-  run: () => pressCommand("changes.toggle"),
   stands: () => !selectedBase(),
-};
+});
 
 /** @typedef {import("../types/contract.js").ServedRevision} Seen
  * @typedef {import("../types/contract.js").ServedReading["versions"][number]} Version */

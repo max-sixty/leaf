@@ -12,11 +12,12 @@
    ends.
 
    An error may offer the one press that recovers from it (`press`), as a refused send
-   whose words came back out of view offers Resume writing. The floating panel's field
-   says it after the error's words, with the key that makes it, as it says a notice's
-   (notifications.js, `press`; field-readings.js), and the Errors list offers it beside
-   Dismiss, so an error spells no key in its words. A text field's cover draws no
-   press, so an error that offers one is about no text field.
+   whose words came back out of view offers Resume writing, while that press can still
+   act (its `stands`). The floating panel's field says it after the error's words, with
+   the key that makes it, as it says a notice's (field-readings.js, `press`), the Errors
+   list offers it beside Dismiss, and a listener hears it after the words
+   (notifications.js, `heard`). A text field's cover draws no press, so only an error
+   about no text field offers one.
 
    An error about a text field stands at that field, wherever it is, covering the
    field's words and actions until the user comes back to them, by a key or an image
@@ -44,7 +45,8 @@
 import { signal, untracked } from "/runtime/framework.js";
 import { runtime } from "./context.js";
 import { recordInteraction } from "./interaction-log.js";
-import { announce, gesture } from "./notifications.js";
+import { announce, gesture, heard } from "./notifications.js";
+import { wordsText } from "./voice.js";
 
 /**
  * @typedef {Readonly<{
@@ -111,7 +113,7 @@ function raise(message, subject, speak, replaced, press = null) {
       announce(unsaid.map((said) => said.replace(/\.$/, "")).join(". "));
       unsaid = [];
     });
-  if (speak) unsaid.push(message);
+  if (speak) unsaid.push(wordsText(heard(message, press)));
   const stack = new Error(message).stack ?? "";
   recordInteraction("error", { message, stack });
   publish([

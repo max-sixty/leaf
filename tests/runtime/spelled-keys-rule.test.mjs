@@ -1,8 +1,6 @@
-/* What `architecture/spelled-keys` refuses (eslint.config.mjs).
-
-   A notice's or an error's words name no key: the step they point to is a press the
-   panel's field offers with its key. What a screen reader hears from `announce` may
-   name one, since no press reaches it. */
+/* What `architecture/spelled-keys` refuses (eslint.config.mjs): the form a notice's
+   or an error's words took to name a key for their step, which a press the panel's
+   field offers says now (field-readings.js, `press`). */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -32,6 +30,9 @@ test("words that name no key, or that a screen reader hears, are admitted", () =
   for (const code of [
     'notice("Draft kept", { press });',
     "raiseError(`Couldn't send — attempt ${attempt} is already in use`);",
+    // A count or the article after a dash is no key.
+    'notice("Saved — 3 changes since v2");',
+    'raiseError("Couldn\'t start — a process exited");',
     'notice("Its box is gone, so its words moved to a comment on the page");',
     "announce(`Draw mode: each stroke adds to one drawing, and z takes one back. ${'Escape leaves.'}`);",
     "announce(`${title} — g t opens it`);",

@@ -48,7 +48,7 @@ import {
   spell,
   word,
 } from "./bindings.js";
-import { availableCommandRoutes } from "./dispatch.js";
+import { availableCommandRoutes, pressCommand } from "./dispatch.js";
 import { ELEMENTS, pageScopes } from "./register.js";
 import { projectControlShortcuts, reflectElementShortcuts } from "./scopes.js";
 import { nativeActivationAt } from "./text-entry.js";
@@ -75,6 +75,20 @@ export function commandSteps(id) {
       if (row.id === id && bindings(row).length) return stepsIn(scope, row);
   return [];
 }
+
+/** A press of a page command, as a notice, an error or the floating panel's field offers
+ * it (notifications.js, `Press`): the action it is, the command whose key makes the
+ * same press, what it does, which is that command's press unless `run` says otherwise,
+ * whether it can still act, and the command's shortcut (`commandSteps`), which a
+ * listener hears after the notice's words.
+ * @param {{action: string, command: string, run?: () => unknown, stands?: () => boolean}} press
+ * @returns {import("../notifications.js").Press} */
+export const commandPress = ({
+  action,
+  command,
+  run = () => pressCommand(command),
+  stands = () => true,
+}) => ({ action, command, run, stands, shortcut: () => commandSteps(command) });
 
 /** @typedef {{revision: number, available: ReturnType<typeof availableCommandRoutes>, controls: Map<Element, string[]>}} Reaching */
 /** @type {Reaching | null} */

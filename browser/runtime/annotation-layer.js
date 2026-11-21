@@ -25,20 +25,18 @@ import { signal } from "/runtime/framework.js";
 import { tabStore } from "./tab-store.js";
 import { chromeRoot } from "./chrome.js";
 import { pageCommand } from "./keyboard/register.js";
-import { pressCommand } from "./keyboard/dispatch.js";
+import { commandPress } from "./keyboard/control-keys.js";
 import { notice } from "./notifications.js";
 
 import { ANNOTATIONS_KEY } from "./restore-state.js";
 
 const hidden = signal(false);
 // The press the notice of hidden annotations offers: `o` again, which brings them back.
-/** @type {import("./notifications.js").Press} */
-const SHOW_ANNOTATIONS = {
+const SHOW_ANNOTATIONS = commandPress({
   action: "show-annotations",
   command: "annotations.toggle",
-  run: () => pressCommand("annotations.toggle"),
   stands: () => hidden.value,
-};
+});
 /** @type {Set<(hidden: boolean) => void>} */
 const watchers = new Set();
 

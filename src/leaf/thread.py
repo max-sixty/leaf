@@ -1030,12 +1030,8 @@ def _compose_and_append(
         event["revision"] = revision
     if relocating:
         event["anchor"] = anchor
-    standing = None
     if title is not None:
         event["title"] = title
-        # A thread keeps the first title it was given (`events.build_threads`), so
-        # the agent hears which one stands.
-        standing = build_threads(events, active_enclosing(page_dir))[thread_id]["title"]
     published = None
     if checked is not None:
         from leaf.revisioning import publish_checked_event
@@ -1047,8 +1043,13 @@ def _compose_and_append(
             )
     else:
         record, _ = append_admitted(page, event)
-    if standing is not None:
-        note(Finding("title-kept", values={"title": standing}, severity="advice"))
+    if title is not None:
+        # A thread keeps the first title it was given (`events.build_threads`), so
+        # the agent hears which one stands. Admission has refused a reply whose
+        # thread is taken back, so the thread is there to read.
+        standing = build_threads(events, active_enclosing(page_dir))[thread_id]["title"]
+        if standing not in (None, title):
+            note(Finding("title-kept", values={"title": standing}, severity="advice"))
     return record, published
 
 

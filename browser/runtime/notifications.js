@@ -44,7 +44,6 @@ import { keeps } from "./keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
-import { onUserInput } from "./focus.js";
 import { actionName } from "./icon-paths.js";
 
 /** @typedef {import("./voice.js").Words} Words
@@ -180,8 +179,9 @@ function retireNotice() {
   showingBackground = null;
 }
 // A notice of the user's own gesture that offers a press, or one its caller holds
-// (`holds`), as an undo's is (undo.js), stands until the user's next input rather than
-// for its time: the panel says the press at the field's end (field-readings.js,
+// (`holds`), as an undo's is (undo.js), stands until the user's first input while the
+// panel shows it, which the panel passes to `endHeldNotice` (floating-panel.js), rather
+// than for its time: the panel says the press at the field's end (field-readings.js,
 // `end`), so one leaving on a timer would take it from under a hand on its way there.
 // News passes on its time, its press with it, since it answers nothing the user did.
 // A press stands no longer than it
@@ -191,13 +191,14 @@ const NOTICE_PRESS = "data-lf-notice-press";
 export const keepsNotice = elementDirective("keepsNotice", (element) =>
   keeps(element, NOTICE_PRESS, ""),
 );
-onUserInput((event) => {
+/** @param {Event} event an input of the user's while the panel shows the notice */
+export function endHeldNotice(event) {
   if (!holding || !noticeVisible()) return;
   const path = event.composedPath?.() ?? [];
   if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
     return;
   retireNotice();
-});
+}
 
 // A producer may retire a deferred assertion before it reaches the seat, as news whose
 // words no longer hold has. Skip it without spending a visible interval, then take the

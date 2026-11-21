@@ -304,6 +304,7 @@ import { UPGRADE } from "./presentation.js";
 import {
   announce,
   answeringStep,
+  endHeldNotice,
   gestureReading,
   noticeReading,
   noticeWords,
@@ -328,6 +329,7 @@ import {
   inputCount,
   letGo,
   onCurrentLocation,
+  onUserInput,
   onPressAway,
   openLayer,
   pressHolds,
@@ -1322,6 +1324,19 @@ export function createFloatingPanel({
     if (shownOffer === "latest") return latestPress();
     return shownOffer ? noticePress(shownOffer) : null;
   }
+  // A held notice ends at the user's first input while the panel shows it
+  // (notifications.js, `endHeldNotice`): the field says it, or, folded, the leaf's
+  // peek. The caret in the field hides it, so an input there, the Escape that takes
+  // the caret out included, leaves it for the field to show once the caret has gone.
+  onUserInput((event) => {
+    if (!noticeReading().visible) return;
+    const shown =
+      host.dataset.lfRest === "mark" ||
+      (!activeSearch() &&
+        fieldReading(trail.value.at(-1)?.thread ?? null, fieldInput()).says ===
+          "notice");
+    if (shown) endHeldNotice(event);
+  });
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
   // walk's position. The thread walk standing on this thread says only its place,

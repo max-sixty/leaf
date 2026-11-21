@@ -745,7 +745,9 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
     long rewrite for good. Restore discarded edit opens the message on those exact words
     again, without sending them, by `g D`; Save then sends them as any rewrite, and nothing is left to restore.
     A listener hears that shortcut with the notice, though the caret is in the reply box
-    where it types letters, since the words are said once."""
+    where it types letters, since the words are said once. The field says nothing that
+    passes under the caret, so the notice waits there, and the Escape that leaves the
+    box shows it rather than ending it."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     editor = message.locator(".lf-msg-editor leaf-text")
     rewritten = "  Fit both brackets and keep the longer explanation.  "
@@ -765,7 +767,9 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
     expect(page.locator(".lf-live")).to_have_text(
         "Edit discarded. Restore edit, g Shift+d"
     )
+    expect_panel_says(page, "Restore edit", says=False)
     page.keyboard.press("Escape")
+    expect_panel_says(page, "Edit discarded · Restore edit g D")
     page.keyboard.press("g")
     page.keyboard.press("Shift+d")
     expect(editor).to_be_focused()

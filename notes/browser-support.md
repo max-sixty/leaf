@@ -352,6 +352,24 @@ Recheck: give an inline `<i>` 40px of inline padding, a red background and
 `mask: <a black square> center / 10px no-repeat` in a 40px font, and count the red
 pixels; 100 is right. Once WebKit draws 100, drop the gradient layer.
 
+### A custom state set's own contents in WebKit
+
+`ElementInternals.states` is `[SameObject]`, but WebKit doesn't keep the set alive
+while a script holds only the `ElementInternals`. On 2026-11-20, Playwright 1.65.2's
+WebKit 27.2 (build 2388) on macOS 26.5.1 collected it within a few garbage
+collections, and `states` then read as a new, empty set: `has` said false for a state
+the element still matched with `:state()`. Chromium 159.0.8154.6 (build 1255) and
+Firefox 159.0 (build 1572) kept one set. A write that skips a state already in place
+never deletes a state `has` has forgotten, so the element keeps drawing it: in a
+floating panel's field, `:state(more-above)` stayed on a one-line draft. Holding the
+set itself keeps it whole, so the text field holds it (`composing/text-field.js`,
+`#states`) and every write and read goes through that.
+
+Recheck: on an element holding only its `ElementInternals`, add a state, make
+garbage for a few event-loop turns, and compare `internals.states.has(name)` with
+`matches(":state(name)")`. Once they agree in WebKit, this entry and the comment at
+`#states` go.
+
 ### Font style in syntax highlights
 
 `lf-text-document` colours its source with CSS custom highlights

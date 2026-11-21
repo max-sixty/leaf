@@ -528,8 +528,8 @@ makes Leaf harder to develop than it is worth:
   by refusing it, by overriding what the agent wrote, by reading a meaning off the
   form of the agent's act rather than its declaration, or by binding the agent to a
   cutoff. Each stays or goes by "Leaf's role", whoever asked for it. Only a refusal
-  prints a finding the agent reads; `/developing-leaf`, "Survey what Leaf decides for
-  the agent", says where the others show.
+  prints a finding the agent reads, so find the others by comparing what the page
+  draws with what the agent's write declared.
 - **Several implementations of one capability.** Consolidate them into one, and move
   every caller to it ("Fix the underlying issue"). The other copies seldom sit beside
   the file you're reading, so search for them as **What it repeats** says.

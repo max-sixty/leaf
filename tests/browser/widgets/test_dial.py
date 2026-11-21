@@ -6,7 +6,15 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import PREVIEW, leaf_page, open_page, preview_parts, resized
+from render_harness import (
+    PREVIEW,
+    clocked,
+    dwelt,
+    leaf_page,
+    open_page,
+    preview_parts,
+    resized,
+)
 
 from leaf.render_checks import one_frame
 from leaf_dev.example_data import named_source
@@ -155,9 +163,10 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     """Each depth says under its word how long it takes to read. Pointing at one hangs
     each depth's page under its own button, Skim's shortest and Everything's longest,
     with Leaf's own preview face unseen, and fades on the page what Skim would fold. A
-    press on another depth keeps them up the whole time it is held,
-    and moves the frame to it; Escape puts them away and leaves focus on the depth."""
-    page = open_page(request.getfixturevalue(engine), serve(DIAL_PAGE))
+    press on another depth keeps them up the whole time it is held and as it is let go,
+    however long it was held, and moves the frame to it; Escape puts them away and
+    leaves focus on the depth."""
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(DIAL_PAGE))
     buttons = page.locator("lf-dial .lf-dial-depth")
     expect(buttons.locator(".lf-dial-time")).to_have_text([re.compile(r"\d+ min")] * 3)
     panel = page.locator(".lf-dial-hang-panel")
@@ -184,9 +193,20 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     one_frame(page)
     one_frame(page)
     expect(panel).to_have_attribute("data-lf-open", "")
+    # Held past the warmth the put-away preview leaves, after which the pointer's next
+    # preview there would wait for its dwell.
+    dwelt(page, "WARM")
+    panel.evaluate(
+        """panel => new MutationObserver(() => {
+          if (!panel.hasAttribute("data-lf-open")) panel.dataset.closed = "";
+        }).observe(panel, {attributes: true, attributeFilter: ["data-lf-open"]})"""
+    )
     page.mouse.up()
     expect(page.locator("details[open]")).to_have_count(len(SECTIONS))
+    # Past the dwell that would bring back sheets the release had put away.
+    dwelt(page)
     expect(panel).to_have_attribute("data-lf-open", "")
+    assert panel.get_attribute("data-closed") is None
     page.wait_for_function("() => document.getAnimations().length === 0")
     assert centre_x(frame) == pytest.approx(centre_x(everything), abs=1)
 

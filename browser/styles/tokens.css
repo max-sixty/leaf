@@ -499,6 +499,10 @@
   --lf-code-ink: light-dark(#24292f, #e8e7e3);
   --lf-code-muted: light-dark(#57606a, #9b9992); /* near-neutral, as its canvas is */
   --lf-code-border: light-dark(#d0d7de, #3b3a37);
+  /* The mark on each row a code line wraps onto (reading.css, `pre`): Menlo's ↪ in its
+     em box, a mask so it takes the colour drawn through it. A shape rather than the
+     character, since SF Mono, the face's monospace on a Mac, has no ↪. */
+  --lf-wrap-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -1556 1233 2048'%3E%3Cpath transform='scale(1 -1)' d='M365 643H946L786 803L876 893L1167 602V520L876 229L786 319L946 479H325Q294 479 246 500Q188 526 151 564Q107 610 87 660Q66 713 66 769Q66 829 88 881Q110 934 152 974Q197 1017 246 1038Q295 1059 357 1059V895Q332 895 309 885Q283 874 267 858Q249 840 239 817Q230 796 230 769Q230 744 240 720Q250 697 267 680Q286 662 309 653Q335 643 365 643Z'/%3E%3C/svg%3E");
   /* A neutral chip's ground. */
   --lf-chip: light-dark(
     oklab(

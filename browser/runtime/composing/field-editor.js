@@ -12,6 +12,7 @@
  * compartments are shared by every field's state, as a compartment names a slot in a
  * state's configuration rather than holding one.
  */
+import { indentColumns } from "../code-lines.js";
 import { opensElsewhere } from "../declared-words.js";
 
 import { leafEditorView } from "../editor-view.js";
@@ -884,8 +885,16 @@ function fieldEditor(
             last ? " lf-md-code-last" : "",
             last && markers.length < 2 ? " lf-md-code-pad-end" : "",
           ].join("");
-          out.push(line(`lf-md-code-block${ends}`).range(each.from));
           const kept = body[each.number - opened];
+          // A code line's rows hang from its indent, as the sent block's do
+          // (code-lines.js), which the line states as the block's boxes do.
+          const indent = kept === undefined ? 0 : indentColumns(kept);
+          out.push(
+            Decoration.line({
+              class: `lf-md-code-block${ends}`,
+              ...(indent && { attributes: { style: `--lf-code-indent: ${indent}` } }),
+            }).range(each.from),
+          );
           if (kept === undefined) return;
           const start = after(each.from, token.level);
           const lead = indentation(state.doc.sliceString(start, each.to));

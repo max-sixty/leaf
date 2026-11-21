@@ -806,6 +806,8 @@ const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
 // what is assigned to it, and a declared root's host what the root holds. Native
 // `contains` stops at the first and is wrong for the second.
 export { readingUnder };
+// The values of `white-space-collapse` under which a newline in the text breaks the line.
+const BREAKS_KEPT = ["preserve", "break-spaces", "preserve-breaks"];
 // One named reading's segments under `root`, carrying their reading block (`blockAt`),
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
@@ -857,6 +859,15 @@ export function textNodesUnder(
   };
   let breakBefore = false;
   let lineBefore = "";
+  // Whether the words read so far end on a line break their own text draws, as a boxed
+  // code line's do (code-lines.js): a block's edge there starts no further line.
+  const lineEnded = () => {
+    const last = segments.at(-1);
+    return (
+      last?.node.data[last.end - 1] === "\n" &&
+      BREAKS_KEPT.includes(last.whiteSpace ?? "")
+    );
+  };
   const styles = new Map();
   /** @param {Element} element */
   const style = (element) => {
@@ -889,9 +900,7 @@ export function textNodesUnder(
         if (wordAfter(text, 0)) cutShort();
         return;
       }
-      const newlines =
-        breaks !== Infinity &&
-        ["preserve", "break-spaces", "preserve-breaks"].includes(whiteSpace);
+      const newlines = breaks !== Infinity && BREAKS_KEPT.includes(whiteSpace);
       if (wanted !== Infinity || newlines) {
         const marks = newlines ? /\S|\n/gu : /\S/gu;
         for (let mark; (mark = marks.exec(text));) {
@@ -929,7 +938,8 @@ export function textNodesUnder(
           if (display === "table-cell") {
             if (!entering && lineBefore !== "\n") lineBefore = "\t";
           } else if (
-            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)
+            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display) &&
+            !lineEnded()
           ) {
             lineBefore = "\n";
           }

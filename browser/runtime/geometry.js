@@ -591,7 +591,8 @@ export const landingBand = (scroller, across = null) => {
       : coverBoxes(scroller).some((box) => overlapsAcross(box, across));
   if (scroller === root && crossed === false)
     inset.bottom =
-      Number.parseFloat(getComputedStyle(root).getPropertyValue("--lf-landing-room")) || 0;
+      Number.parseFloat(getComputedStyle(root).getPropertyValue("--lf-landing-room")) ||
+      0;
   const band = insetBand(scroller, inset);
   if (!band || !crossed || scroller === root || footBand === null) return band;
   if (root.scrollHeight - root.clientHeight > 1 && !stuckBox(scroller)) return band;

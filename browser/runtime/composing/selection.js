@@ -742,7 +742,9 @@ export function createSelectionComposer({
       input: () =>
         composerOpen && composerCtx(pendingAnchor) === ctx ? composerInput : null,
       frame: () =>
-        composerOpen && composerCtx(pendingAnchor) === ctx ? composer : null,
+        composerOpen && composerCtx(pendingAnchor) === ctx
+          ? syncComposer.composition().field
+          : null,
       close: () => {
         if (composerOpen && composerCtx(pendingAnchor) === ctx) leaveForThread();
       },

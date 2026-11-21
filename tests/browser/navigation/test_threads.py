@@ -475,7 +475,7 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve):
     )
     page = open_page(browser, url)
     field = page.locator(".lf-fab-input")
-    box = page.locator("#lf-composer")
+    box = page.locator("#lf-composer .lf-compose-field")
     page.locator("#first").click(modifiers=["Alt"])
     write(field, "About the first.")
     page.keyboard.press("Escape")

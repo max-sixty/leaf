@@ -16,8 +16,9 @@
    thread and `r` resolving it.
    The floating panel's comment field never leaves the window and needs none.
 
-   The beacon stands while the user sees none of the box (geometry.js, `seenRect`), at
-   the edge toward it, in the box's column, inside what the page shows of the window
+   The beacon stands while the user sees none of the box (geometry.js, `seenRect`), as
+   the surface holding it draws it (off-flow.js, `floatingBox`), at the edge toward it,
+   in the box's column, inside what the page shows of the window
    there: below a sticky strip at the head, and above the panel where it covers the
    column at the foot. It wears a thread entry's face at the aim floor, with an
    arrowhead toward the box, and previews its word. A press stands for a press in the
@@ -41,7 +42,7 @@ import {
 } from "../contribution-controls.js";
 import { KINDS } from "../contribution-model.js";
 import { onCurrentLocation, standsFor, typesText } from "../focus.js";
-import { floatingSurface, bringBackSurfaceOf } from "../off-flow.js";
+import { floatingBox, bringBackSurfaceOf } from "../off-flow.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { keeps, layoutPx, inlineStyle } from "../keeps.js";
 import { offerActionElement } from "../widget-elements.js";
@@ -86,13 +87,13 @@ export function createWritingBeacon() {
   const crossing = new IntersectionObserver(schedule);
 
   onCurrentLocation((node) => {
-    const surface = node && typesText(node) ? floatingSurface(node) : null;
-    const next = surface ? node : null;
+    const box = node && typesText(node) ? floatingBox(node) : null;
+    const next = box ? node : null;
     if (next === field) return;
     field = next;
     crossing.disconnect();
-    if (surface) {
-      crossing.observe(surface);
+    if (box) {
+      crossing.observe(box);
       if (!unwatch) {
         const stops = [watchRoom(schedule), watchScrollEnds(schedule)];
         unwatch = () => {
@@ -109,9 +110,9 @@ export function createWritingBeacon() {
   function stand() {
     cancelRender(pending);
     pending = 0;
-    const surface = field && floatingSurface(field);
-    const box = surface?.getBoundingClientRect();
-    if (!surface || !box?.width || seenRect(surface, new Map())) return draw(null);
+    const frame = field && floatingBox(field);
+    const box = frame?.getBoundingClientRect();
+    if (!frame || !box?.width || seenRect(frame, new Map())) return draw(null);
     const view = layoutWindow();
     const left = Math.min(Math.max(box.left, view.left), view.right);
     const shown = shownWindow({

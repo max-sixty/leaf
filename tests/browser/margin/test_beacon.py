@@ -58,3 +58,28 @@ def test_a_comment_box_holding_the_caret_off_the_window_shows_a_beacon_toward_it
     scroll_settled(page)
     expect(card).not_to_be_in_viewport()
     expect(beacon).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_beacon_stands_once_the_comment_box_s_field_leaves_the_window(
+    request, serve, engine
+):
+    """The anchored comment box paints only its field, inside a frame as tall as the
+    card it grows into, so the beacon stands as soon as the field leaves the window,
+    while the frame's transparent rows still reach into it."""
+    page = open_page(request.getfixturevalue(engine), serve(PAGE))
+    resized(page, 1440, 800)
+    page.locator("#early").click(modifiers=["Alt"], position={"x": 40, "y": 8})
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    beacon = page.locator(BEACON)
+    expect(beacon).to_be_hidden()
+
+    field = page.locator(".lf-fab-bar .lf-compose-field")
+    page.mouse.move(700, 400)
+    page.mouse.wheel(0, field.bounding_box()["y"] + field.bounding_box()["height"] + 2)
+    scroll_settled(page)
+    bar = page.locator(".lf-fab-bar").bounding_box()
+    assert bar["y"] + bar["height"] > 0, bar
+    expect(field).not_to_be_in_viewport()
+    expect(beacon).to_be_visible()
+    expect(beacon).to_have_attribute("data-lf-towards", "up")

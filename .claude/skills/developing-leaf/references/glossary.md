@@ -191,7 +191,7 @@ dialog**. The margin projection has its own terms:
 | **Margin row** | One row tied to a target and aligned with it, placed in the `rail`, as a `pin`, or `withheld` (`groupFor` in `annotation-inventory.js` says which rows a target gets) |
 | **Pin** | A margin row drawn over the page beside its target, used where the row can't sit in the rail (`rowPlacement`; `seatRows` in `margin-placement.js` places it) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its full face found no room |
-| **Beacon** | An active thread's chevron at the window's edge nearest its margin entry, standing while the entry is scrolled out of the window; a thread is *active* while it holds an unread reply, the user's turn or the agent's work in progress (`margin-beacons.js`) |
+| **Beacon** | A small copy of an active thread's margin entry, with an arrowhead toward the thread, at the window's edge nearest the entry, standing while the entry is scrolled out of the window; a thread is *active* while it holds an unread reply, the user's turn or the agent's work in progress (`margin-beacons.js`) |
 | **Margin lane** | The layer holding one scroller's margin rows: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |
 | **Margin contribution** | One provider's registered bundle of margin content |

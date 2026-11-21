@@ -50,20 +50,24 @@
     inline-size: 12px;
     block-size: 12px;
   }
+  /* The arrowhead is a glyph masked into the press and painted in the ink its face
+     gives it, as a disclosure's arrow is (controls.css), so it chooses no ink of its own. */
   .lf-margin-beacon::before {
     content: "";
     position: absolute;
     left: 50%;
     translate: -50% 0;
-    border: var(--lf-beacon-head) solid transparent;
+    inline-size: calc(2 * var(--lf-beacon-head));
+    block-size: var(--lf-beacon-head);
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2 1' preserveAspectRatio='none'%3E%3Cpath d='M0 1 1 0 2 1z'/%3E%3C/svg%3E")
+      center / 100% 100% no-repeat;
   }
   .lf-margin-beacon[data-lf-towards="up"] {
     top: calc(var(--lf-top-covered) + var(--lf-beacon-inset));
   }
   .lf-margin-beacon[data-lf-towards="up"]::before {
     top: 2px;
-    border-top-width: 0;
-    border-bottom-color: currentColor;
   }
   .lf-margin-beacon[data-lf-towards="up"] > .lf-margin-entry-icon {
     translate: 0 2px;
@@ -75,8 +79,7 @@
   }
   .lf-margin-beacon[data-lf-towards="down"]::before {
     bottom: 2px;
-    border-bottom-width: 0;
-    border-top-color: currentColor;
+    scale: 1 -1;
   }
   .lf-margin-beacon[data-lf-towards="down"] > .lf-margin-entry-icon {
     translate: 0 -2px;

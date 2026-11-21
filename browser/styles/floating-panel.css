@@ -588,20 +588,18 @@
      words (floating-panel.js, `saying`), so no face stands over another reading's words
      for a frame, as the notice's weight would over the status, carrying it sideways.
 
-     A press the field's words offer, an open thread's Reply, stands with the key that
-     makes it, dim as every comment box's word is (`offers`,
-     and composing/input.js, `hintLead`). The user chose dim in every box over the ink
-     the panel's Reply wore to stand apart from the agent's words, the one box whose
-     word was inked. Once the caret is in, the
-     field's word stands dim with the key that sends them and the key for a new line, as
-     in every box that holds lines (response.css).
+     Once the caret is in, the field's word stands dim with the key that sends them and
+     the key for a new line, as in every box that holds lines (response.css).
 
-     Any other reading keeps its words, the words selected on the page included, and
-     ends in the press the moment offers, else in Comment and its key while c enters
-     the field (composing/surface.js, `commentHint`; composing/input.js, `enters`), so
-     the row says that c goes here and, by losing them, that it goes elsewhere. The user chose the word, so every key in a box
+     Every reading keeps its words, the words selected on the page included, and ends
+     in the press the moment offers, else in Comment, or an open thread's Reply, and
+     its key while c enters the field (composing/surface.js, `commentHint`;
+     composing/input.js, `enters`), so the row says that c goes here and, by losing
+     them, that it goes elsewhere. The user chose the word, so every key in a box
      stands with its word, over the key alone, which a reader took for the shortcut of
-     the mark beside it. */
+     the mark beside it. Reply is dim, as every comment box's word is: the user chose
+     dim in every box over the ink the panel's Reply wore to stand apart from the
+     agent's words, the one box whose word was inked. */
   /* The served row's words, which stand in the editor's place until the panel mounts
      (floating-panel.js, `panelTemplate`), wear the ink every empty box's words do
      (theme, `--quiet`), where the editor says them. */
@@ -658,12 +656,6 @@
       align-self: center;
       visibility: hidden;
     }
-  }
-  /* In an open thread, whose turn it is stands beside the leaf, the agent's words as
-     the status is at rest, and Reply stands at the field's end (floating-panel.js,
-     `turnLead`). */
-  .lf-fp-field leaf-text[data-lf-says="turn"] .lf-compose-placeholder-words {
-    margin-inline-start: auto;
   }
   .lf-fp-field leaf-text[data-lf-says="notice"]::part(placeholder) {
     color: var(--lf-muted);

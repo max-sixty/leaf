@@ -74,10 +74,6 @@ Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`. A render check of a page last shown in
 Firefox uses the installed Firefox instead, where there is one.
 
-Leaf needs Claude Code 2.1.196 or later, the first release whose hooks name the
-turn they run in. On an earlier one, an update handed into a prompt you interrupt
-waits until that turn ends before it is offered again.
-
 In Claude Code, a background Stop hook watches the session's pages between turns.
 Leaf's hooks module shows a line above the prompt for each page the session owns,
 with a link, items waiting on you, the number of open threads and how many contain

@@ -26,7 +26,6 @@ from leaf_dev.example_data import named_source, published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
-ASSETS = ROOT / "browser"
 DEFAULT_PACKAGE = ROOT / "packages" / "default"
 
 

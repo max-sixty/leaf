@@ -91,7 +91,7 @@ test("a walk's step takes the page field's words, and leaves a thread's Reply", 
   const thread = readField(facts({ ...step, thread: true }));
   assert.deepEqual(
     [thread.says, wordsText(thread.words), thread.end, thread.offers],
-    ["turn", "Reply…", "", true],
+    ["turn", "", "Reply…", true],
   );
   const goTo = readField(facts({ ...step, thread: true, goTo: "No visible threads" }));
   assert.deepEqual([goTo.says, goTo.end], ["notice", "Reply…"]);

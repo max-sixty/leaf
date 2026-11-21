@@ -1333,7 +1333,7 @@ export function createFloatingPanel({
   // lacks with no words standing before it (walk-position.js, `walkWords`), so a
   // comparison's changes are named here, "Change 1 of 5 since v2". The agent's own
   // line, a to-do's title or a start's, stays in the thread, where the working message
-  // says it. A notice or the Go-to word, which pass in a moment, take the reply's place.
+  // says it. A notice or the Go-to word, which pass in a moment, take its place.
   // The thread's word is the one its view draws (`drawn`), held news included, as its
   // Resolve says it. The stance the user is in stands in the mode chip, beside its ✕
   // (`panelTemplate`).

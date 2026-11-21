@@ -59,5 +59,8 @@ To list the items open to an agent that no pull request has claimed, start with
 gh issue list --search "label:backlog label:now no:assignee -linked:pr"
 ```
 
+An agent that takes an item opens its pull request early, as a draft if need be,
+with `Closes #N` in the body, so the query above stops listing it for the next agent.
+
 A new item is an issue labelled `backlog` and its priority, with a theme where one
 fits.

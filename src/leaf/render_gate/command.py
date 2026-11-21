@@ -166,8 +166,7 @@ class BrowserCheck:
 
     @property
     def status(self) -> int:
-        failed = (self.page_code or []) + (self.render.failures if self.render else [])
-        return 1 if failed else 0
+        return 1 if any(f.refuses for f in self.findings()) else 0
 
     def findings(self) -> list[Finding]:
         return [*(self.page_code or []), *(self.render.findings if self.render else [])]
@@ -268,7 +267,7 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     layer, the one the thread will draw the message with. Where the host has no
     browser the message posts unrun, and reports any failure when its thread draws."""
     from leaf.files import latest_revision
-    from leaf.findings import Rejected
+    from leaf.findings import Rejected, note
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import ArtifactError, capture_artifact
     from leaf.structure import SourceDocument
@@ -276,7 +275,7 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
 
     from .page_code import message_page, places_judged_widget
 
-    if structure_errors(SourceDocument(markup, fragment=True)):
+    if any(f.refuses for f in structure_errors(SourceDocument(markup, fragment=True))):
         # Markup the HTML parser repairs, such as a widget a `<pre>` closed along
         # with the paragraph Markdown drew around it, is the markup gate's to
         # refuse, showing the HTML Markdown drew, where a run would report only
@@ -306,7 +305,13 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     )
     ran = browser_check(page_dir, snapshot, page_code=True, render=False)
     if ran.status:
-        raise Rejected(ran.findings(), f"the HTML in the {kind} doesn't draw")
+        # What explains a failure without deciding one, such as a request that
+        # failed, goes beside the refusal.
+        note(*(f for f in ran.findings() if not f.refuses))
+        raise Rejected(
+            [f for f in ran.findings() if f.refuses],
+            f"the HTML in the {kind} doesn't draw",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -323,7 +328,7 @@ class WidgetQuality:
 
     @property
     def status(self) -> int:
-        return 1 if any(f.severity == "error" for f in self.findings) else 0
+        return 1 if any(f.refuses for f in self.findings) else 0
 
     def json(self) -> dict:
         """The browser reading, in the shape `BrowserCheck.json` gives it."""

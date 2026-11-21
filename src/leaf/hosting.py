@@ -484,7 +484,7 @@ def started_server(page_dir: Path, url: str) -> dict:
     """A started server's URL and reading (`server_reading`) as one object, noting
     an address that stays on this machine (`server.loopback_only`)."""
     if loopback_only(page_dir):
-        note(Finding("loopback-only", severity="advice"))
+        note(Finding("loopback-only"))
     return {"url": url} | server_reading(page_dir)
 
 

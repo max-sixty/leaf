@@ -76,10 +76,7 @@ OBSTACLES = {
 }
 KNOWN = {
     "dashboard": {
-        "sideways-refusal": {
-            "page-scrolls ",
-            "past-column <table> in <section id=shards>",
-        },
+        "sideways-refusal": {"page-scrolls "},
     },
 }
 

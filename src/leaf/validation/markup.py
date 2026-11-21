@@ -71,7 +71,6 @@ def language_advice(parser) -> list[Finding]:
                 "language": name,
                 "names": sorted(set(COLOURED_LANGUAGES.values())),
             },
-            severity="advice",
         )
         for tag, line, name in parser.authoring.code_languages
         if name not in COLOURED_LANGUAGES
@@ -131,9 +130,7 @@ def markdown_advice(parser: SourceDocument) -> list[Finding]:
         visit(node)
     if not elements:
         return []
-    return [
-        Finding("literal-markdown", values={"elements": elements}, severity="advice")
-    ]
+    return [Finding("literal-markdown", values={"elements": elements})]
 
 
 def id_errors(parser) -> list[Finding]:
@@ -212,8 +209,7 @@ def unpointable_blocks(parser: SourceDocument) -> list[Finding]:
             {"tag": block["tag"], "line": block["line"], **extra}
         )
     return [
-        Finding(code, values={"elements": elements}, severity="advice")
-        for code, elements in found.items()
+        Finding(code, values={"elements": elements}) for code, elements in found.items()
     ]
 
 

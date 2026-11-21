@@ -177,7 +177,7 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
     ):
         return None
     if message.type == "warning" and warnings:
-        return Finding("console-warning", values=said, severity="advice")
+        return Finding("console-warning", values=said)
     if message.type != "error":
         return None
     return Finding("console-error", values=said)

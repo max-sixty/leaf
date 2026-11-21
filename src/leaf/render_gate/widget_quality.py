@@ -98,9 +98,7 @@ WRAPPERS = {
 def _finding(check: str, tag: str, id: str = "", **values) -> Finding:
     """One check's reading of one widget, named by its instance where the check read
     one."""
-    return Finding(
-        check, element_at(tag, id), {"tag": tag, **values}, severity="advice"
-    )
+    return Finding(check, element_at(tag, id), {"tag": tag, **values})
 
 
 class UnreadablePage(Exception):

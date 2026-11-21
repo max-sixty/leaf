@@ -2,6 +2,7 @@
 
 from jsonschema.exceptions import SchemaError
 
+from leaf.findings import note
 from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA
 
 from .contract import (
@@ -11,6 +12,7 @@ from .contract import (
     gathering,
     reference_relation_problem,
     registry_error,
+    registry_finding,
     require_module,
     state_specs,
 )
@@ -154,8 +156,10 @@ def _validate_widget_structure(
                 "data-contract", path, tag, input=input_name, contract=contract
             )
         if source_attr and not _typed(properties, source_attr, "string"):
-            raise registry_error(
-                "data-source", path, tag, input=input_name, attr=source_attr
+            note(
+                registry_finding(
+                    "data-source", path, tag, input=input_name, attr=source_attr
+                )
             )
     for output_name, spec in entry.get("outputs", {}).items():
         if spec["contract"] not in data["contracts"]:
@@ -182,8 +186,10 @@ def _validate_widget_structure(
             continue
         source_attr = spec.get("source")
         if source_attr not in required:
-            raise registry_error(
-                "measured-source", path, tag, input=input_name, attr=source_attr
+            note(
+                registry_finding(
+                    "measured-source", path, tag, input=input_name, attr=source_attr
+                )
             )
         run_schema = properties.get(run_attr)
         if not (
@@ -192,11 +198,13 @@ def _validate_widget_structure(
             and run_schema.get("type") == "string"
             and run_schema.get("minLength", 0) >= 1
         ):
-            raise registry_error(
-                "measured-run", path, tag, input=input_name, attr=run_attr
+            note(
+                registry_finding(
+                    "measured-run", path, tag, input=input_name, attr=run_attr
+                )
             )
     if entry.get("awaits") is not None and not _typed(properties, "id", "string"):
-        raise registry_error("addressable-id", path, tag, key="awaits")
+        note(registry_finding("addressable-id", path, tag, key="awaits"))
     for key in ATTRIBUTE_FACTS:
         declared = entry.get(key) or ()
         named = {declared} if isinstance(declared, str) else set(declared)
@@ -321,16 +329,7 @@ def _validate_widget_interactions(
     awaits: dict,
     path,
 ) -> None:
-    if entry.get("work"):
-        if entry.get("inline"):
-            raise registry_error("work-inline", path, tag)
-        if entry.get("content") != "markup":
-            raise registry_error(
-                "work-content", path, tag, content=entry.get("content")
-            )
     answered = awaits.get("answered", {})
-    if entry.get("awaits") is not None and not answered:
-        raise registry_error("awaits-unanswered", path, tag)
     # The user answers their own obligation, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):

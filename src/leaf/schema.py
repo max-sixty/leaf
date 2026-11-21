@@ -383,7 +383,6 @@ FACTS: dict[str, dict] = {
         "required": ["reference", "value"],
         "additionalProperties": False,
     },
-    "work": {"const": True},
     "history": {"const": True},
     "owners": _TAGS,
     "unique": {

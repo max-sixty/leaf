@@ -21,6 +21,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     command_findings,
+    command_notes,
     delivered_ref,
     delivery_through,
     last_deliverable_seq,
@@ -129,26 +130,27 @@ def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
     }
 
 
-def test_a_message_asks_by_its_widget_or_its_words_not_both(page_dir):
+def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
+    page_dir,
+):
     """Only the user's words answer `--obligation`, so beside a widget that asks it
-    would keep the message on On Me after the user picks. Both writers refuse it."""
+    keeps the message on On Me after the user picks. Both writers post the message,
+    which may ask in words what the widget doesn't, and say beside it that it asks
+    twice."""
     revisioning_model.activate_source(page_dir)
     asked = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Which one?"},
     )
-    before = events_model.read_events(page_dir)
-    for command in (
-        ["thread", "reply", response_reference(page_dir, asked)],
-        ["thread", "create", str(page_dir)],
+    for command, question in (
+        (["thread", "reply", response_reference(page_dir, asked)], QUESTION),
+        (["thread", "create", str(page_dir)], QUESTION.replace("question", "again")),
     ):
-        refused = CliRunner().invoke(
-            cli_model.cli,
-            [*command, "--obligation", "--text", f"Which?\n\n{QUESTION}"],
+        noted = command_notes(
+            *command, "--obligation", "--text", f"Which?\n\n{question}"
         )
-        assert refused.exit_code != 0
-        assert refused_on(refused.stdout).code == "obligation-beside-widget"
-    assert events_model.read_events(page_dir) == before
+        assert [f.code for f in noted] == ["obligation-beside-widget"]
+        assert events_model.read_events(page_dir)[-1].get("obligation") is True
 
 
 def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_the_page(

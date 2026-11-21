@@ -29,6 +29,7 @@ from interact_support import (
     add_test_widget,
     available_loopback_port,
     command_findings,
+    command_notes,
     declare_on_page,
     element_declaration,
     fetch,
@@ -4074,16 +4075,15 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
             "duplicate-ids",
         ),
         ('<lf-toned-note id="lf-example">One</lf-toned-note>', "reserved-ids"),
-        (
-            '<lf-toned-note id="note"><p id="two words">One</p></lf-toned-note>',
-            "spaced-ids",
-        ),
     ],
-    ids=["duplicate", "table-duplicate", "reserved", "spaced"],
+    ids=["duplicate", "table-duplicate", "reserved"],
 )
-def test_init_refuses_invalid_ids_in_a_registry_example(
+def test_init_advises_on_invalid_ids_in_a_registry_example(
     tmp_path, monkeypatch, example, code
 ):
+    """An example whose ids a page could not hold is documentation that misleads,
+    not a vocabulary that breaks, so `page init` composes the layer and names the
+    example and the refusal a page holding it would meet."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
@@ -4094,12 +4094,12 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    [refused] = command_findings(
+    [advice] = command_notes(
         "page", "init", "--package", "./.leaf", str(tmp_path / "page")
     )
 
-    assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
-    assert refused.values["finding"]["code"] == code
+    assert (advice.code, advice.at) == ("invalid-example", "<lf-toned-note>")
+    assert advice.values["finding"]["code"] == code
 
 
 def test_explicit_package_order_is_registry_file_and_theme_precedence(
@@ -4405,7 +4405,7 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
     )
 
 
-def test_package_check_refuses_a_registry_example_that_violates_its_schema(
+def test_package_check_advises_on_a_registry_example_that_violates_its_schema(
     tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
@@ -4421,11 +4421,11 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     entry["attributes"]["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
-    status, [refused] = package_findings(".leaf")
-    assert status == 1
+    status, [advice] = package_findings(".leaf")
+    assert status == 0
 
-    assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
-    example = Finding.loads(refused.values["finding"])
+    assert (advice.code, advice.at) == ("invalid-example", "<lf-toned-note>")
+    example = Finding.loads(advice.values["finding"])
     assert (example.code, example.values["keyword"]) == ("attribute-schema", "required")
     assert "'tone'" in example.values["reason"]
 
@@ -4651,7 +4651,9 @@ def test_package_init_widget_cannot_overwrite_a_member_created_during_init(
     assert (package / "registry.json").read_bytes() == before_registry
 
 
-def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monkeypatch):
+def test_package_init_widget_checks_its_candidate(tmp_path, monkeypatch):
+    """`package init --widget` validates the declaration it writes, and says where
+    its example is one a page could not hold."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
     declaration = element_declaration("lf-risk-note", upgrade=True)
@@ -4660,12 +4662,12 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
 
-    [refused] = command_findings(
+    [advice] = command_notes(
         "package", "init", str(package), "--widget", "lf-risk-note"
     )
 
-    assert (refused.code, refused.at) == ("invalid-example", "<lf-risk-note>")
-    assert not package.exists()
+    assert (advice.code, advice.at) == ("invalid-example", "<lf-risk-note>")
+    assert (package / "registry.json").exists()
 
 
 @pytest.mark.parametrize(

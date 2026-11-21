@@ -1801,10 +1801,11 @@ def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
     ]
 
 
-def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
+def test_a_page_of_parts_advises_against_a_main_that_carries_a_layout(page_dir):
     """A page's parts arrange the page themselves, each part's child carrying its own
-    Layout, so a `main` holding them with a Layout of its own is refused; the same
-    parts under a `main` with none pass."""
+    Layout. Under a `main` with a Layout of its own they draw as a strip of tabs inside
+    it, which works, so `page check` passes the page and says what it draws; the same
+    parts under a `main` with none draw no advice."""
     parts = (
         '<lf-parts id="parts"><lf-part id="read" label="Read">'
         '<article class="layout-column"><p>Words.</p></article></lf-part></lf-parts>'
@@ -1813,10 +1814,11 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
         PAGE.replace("<main>", '<main class="layout-column">' + parts)
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
+    assert status == 0
+    [advice] = found(
         findings, "parts-in-layout", "<lf-parts id=parts>", layout="layout-column"
     )
+    assert advice.severity == "advice"
     (page_dir / "index.html").write_text(PAGE.replace("<main>", "<main>" + parts))
     _, findings = check_findings(page_dir)
     assert not found(findings, "parts-in-layout")
@@ -1923,8 +1925,11 @@ def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, w
     )
     (page_dir / "index.html").write_text(source)
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(findings, "unknown-thread", f"<{widget} id=answer>", resolves="plan")
+    assert status == 0
+    [advice] = found(
+        findings, "unknown-thread", f"<{widget} id=answer>", resolves="plan"
+    )
+    assert advice.severity == "advice"
 
     append_carried_log_record(
         page_dir,
@@ -1934,7 +1939,8 @@ def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, w
         source.replace('resolves="plan"', 'resolves="c1"')
     )
     status, findings = check_findings(page_dir)
-    assert status == 0, [f.json() for f in findings]
+    assert status == 0
+    assert not found(findings, "unknown-thread")
 
 
 def test_message_widget_thread_references_use_the_same_namespace(page_dir):
@@ -2234,28 +2240,31 @@ def test_check_accepts_authored_body_content_beside_main(page_dir):
     assert passages.enclosing["footer"] == ("footer",)
 
 
-def test_check_requires_exactly_one_main(page_dir):
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</main>", '</main><main><p id="tail">Second main</p></main>')
-    )
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert found(findings, "main-count", mains=2)
-
-
-def test_check_requires_main_to_be_a_direct_body_child(page_dir):
-    """A main nested in an authored wrapper is not selected by `body > main`."""
-    wrapped = PAGE.replace("<main>", "<div>\n<main>").replace(
-        "</main>", "</main>\n</div>"
-    )
-    (page_dir / "index.html").write_text(wrapped)
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert found(findings, "main-count", direct=0)
+def test_check_advises_one_main_for_a_layout(page_dir):
+    """A Layout arranges the one `main` directly under `body`. A page with a second
+    `main`, or a `main` an authored wrapper holds, which `body > main` doesn't select,
+    draws as the browser lays out its body, so `page check` passes it and says so."""
+    for source, values in [
+        (
+            PAGE.replace("</main>", '</main><main><p id="tail">Second main</p></main>'),
+            {"mains": 2},
+        ),
+        (
+            PAGE.replace("<main>", "<div>\n<main>").replace(
+                "</main>", "</main>\n</div>"
+            ),
+            {"direct": 0},
+        ),
+    ]:
+        (page_dir / "index.html").write_text(source)
+        status, findings = check_findings(page_dir)
+        assert status == 0
+        [advice] = [
+            f
+            for f in found(findings, "main-count")
+            if all(f.values[key] == value for key, value in values.items())
+        ]
+        assert advice.severity == "advice"
 
 
 def test_check_requires_an_explicit_head_for_delivery(page_dir):
@@ -2280,10 +2289,10 @@ def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
     assert found(findings, "head-count", tags=2)
 
 
-def test_check_rejects_an_id_containing_whitespace(page_dir):
+def test_check_advises_on_an_id_containing_whitespace(page_dir):
     """An id generated from a label (`f"layout-{label}"`) can carry a space. The browser
     still resolves it, so a comment anchors on it and nothing looks wrong until the id
-    has a thread to move; the version has to be refused before it goes out."""
+    has a thread to move; `page check` says so while renaming it costs nothing."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '<section id="plan">',
@@ -2292,8 +2301,9 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
         )
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(findings, "spaced-ids", ids=["layout-no class"])
+    assert status == 0
+    [advice] = found(findings, "spaced-ids", ids=["layout-no class"])
+    assert advice.severity == "advice"
 
 
 def test_any_id_names_one_subject_for_every_command(page_dir):

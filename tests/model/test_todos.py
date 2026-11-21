@@ -3,7 +3,6 @@ hand, and the two queues say what is on the user and what is on the agent."""
 
 import json
 import threading
-from pathlib import Path
 
 import pytest
 from click.testing import CliRunner, Result
@@ -22,7 +21,6 @@ from interact_support import (
     freeze_events,
     obligations_on_user,
     owed_answers,
-    page_packages,
     page_state,
     publish,
     record_claim,
@@ -39,7 +37,6 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as contracts_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as state_model
@@ -47,10 +44,8 @@ from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.event_contracts import append_admitted
 from leaf.findings import Rejected
-from leaf.registry import storage as registry_storage
 from leaf.served_state.page import full_state
 from leaf.state import EVENTS_FILE
-from leaf_dev.page_fixtures import package_selection_args
 
 
 def leaf(*args):
@@ -824,16 +819,19 @@ WORK_PAGE = FLOW_PAGE.replace(
 )
 
 
-def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
-    """A to-do on a page widget needs a widget that declares `work` or holds an
-    unsettled move. Dropping its widget leaves it open; `page stamp --completes`
-    ends it done, citing that version."""
+def test_a_widget_todo_stands_on_any_live_widget_and_a_completing_stamp_ends_it(
+    page_dir,
+):
+    """A to-do stands on any live widget on the page, as on any other element.
+    Dropping its widget leaves it open; `page stamp --completes` ends it done, citing
+    that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
-    [no_seat] = command_findings(
-        "task", "create", page_dir, "flow", "--title", "Redraw the graph"
+    drawing = written(
+        leaf("task", "create", page_dir, "flow", "--title", "Redraw the graph")
     )
-    assert no_seat.code == "no-work-seat"
+    assert drawing["subject"] == {"kind": "widget", "id": "flow"}
+    written(leaf("task", "end", page_dir, drawing["id"], "dropped", "--text", "No"))
 
     todo = written(
         leaf("task", "create", page_dir, "rollout-card", "--title", "Check the rollout")
@@ -864,7 +862,10 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     note = events_model.read_events(page_dir)[-1]
     assert note["settles"] == [{"kind": "todo", "id": todo["id"]}]
     assert state_json(page_dir)["todos"] == []
-    [ended] = todos_model.TodoReading(events_model.read_events(page_dir)).todos
+    ended = {
+        item["id"]: item
+        for item in todos_model.TodoReading(events_model.read_events(page_dir)).todos
+    }[todo["id"]]
     assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v4")
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v4</title>")
@@ -1610,57 +1611,6 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     assert page_state(page_dir)["workflows"] == []
 
 
-def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_dir):
-    """`work` admits a task on a widget; it is not the task's only later seat.
-
-    Re-vendoring can remove that declaration while the live widget remains, because
-    the page-edge margin entry continues to present the task already admitted.
-    """
-    work_page = PAGE.replace(
-        "</section>",
-        '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
-        '  <lf-card id="rollout-card" label="Ship the rollout"><strong>Ship the rollout</strong></lf-card>\n'
-        "</lf-column></lf-board>\n</section>",
-    )
-    (page_dir / "index.html").write_text(work_page)
-    publish(page_dir)
-    opened = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "task",
-            "create",
-            str(page_dir),
-            "rollout-card",
-            "--title",
-            "Check the rollout",
-        ],
-    )
-    assert opened.exit_code == 0, opened.output
-    card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
-        "lf-card"
-    ]
-    card.pop("work")
-    layer = Path.cwd() / ".leaf"
-    layer.mkdir()
-    (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*page_packages(), "./.leaf")),
-            str(page_dir),
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    registry = registry_storage.load_registry(page_dir)
-    assert "work" not in registry["lf-card"]
-    [todo] = state_json(page_dir)["todos"]
-    assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}
-
-
 def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_dir):
     """A completion move can arrive from a live revision after another is active.
 
@@ -1725,26 +1675,6 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
 
     acknowledgments = page_state(page_dir)["workflows"]
     assert not any(receipt["input"] == answer["id"] for receipt in acknowledgments)
-
-
-@pytest.mark.parametrize("target", ["effort", "flag-first"])
-def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
-    """A content model says what authors may put inside a widget, not whether core
-    may add local chrome there. Inline prose has no block slot, and a prose option is
-    itself the click target of its holder; neither becomes a seat by inference."""
-    version = page_dir / "index.html"
-    version.write_text(
-        PAGE.replace(
-            '<small class="tag">effort: low</small>',
-            '<lf-gloss id="effort">effort: low<span popover>A short task.</span></lf-gloss>',
-        )
-    )
-    publish(page_dir)
-
-    [claimed] = command_findings(
-        "task", "create", page_dir, target, "--title", "Check the estimate"
-    )
-    assert claimed.code == "no-work-seat"
 
 
 def test_a_start_is_settled_by_log_order_not_a_second_precision_clock(page_dir):

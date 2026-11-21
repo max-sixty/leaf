@@ -582,7 +582,7 @@ def test_a_dropped_declaration_is_advice(page_dir):
     """A declaration a browser drops is one delivery's reader reads whole, so it
     refuses nothing of Leaf's: the check reports it beside a passing result, and a
     message carrying it is admitted with the same advice beside the command's result
-    (`styles.DROPPED_SEVERITY`)."""
+    (`styles.dropped_css`)."""
     (page_dir / "index.html").write_text(styled("p { color: red; broken; }"))
     status, findings = check_findings(page_dir)
     [dropped] = found(findings, "css-dropped")
@@ -720,7 +720,7 @@ SAMPLE_FIXTURE_REFUSALS = [
         '[{"kind": []}]',
         'type="application/json"',
         'data-sample-events="fixture"',
-        "fixture-kind",
+        "fixture-event",
         {"event": 1},
     ),
     (

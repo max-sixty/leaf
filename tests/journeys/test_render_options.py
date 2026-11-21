@@ -6,7 +6,6 @@ import re
 
 import pytest
 from interact_support import (
-    command_findings,
     end_work_on,
     working,
 )
@@ -165,11 +164,9 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     """A page widget is a first-class work subject even before anybody comments.
 
-    A board card declares a local work seat and receives its page-edge margin entry without
-    inventing a comment thread. An options group deliberately has no such seat: adding
-    an option changes decision state, and any discussion starts as a separate thread
-    once that option exists. Unrelated versions leave the board claim in force, while
-    a claim made on v2 does not leak backward into a pinned v1 tab.
+    A board card receives its page-edge margin entry without inventing a comment
+    thread. Unrelated versions leave the board claim in force, while a claim made on v2
+    does not leak backward into a pinned v1 tab.
     """
     work_page = OBLIGATION_PAGE.replace(
         '<h1 id="h">Three jobs</h1>',
@@ -189,10 +186,6 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         told(page)
 
     claim("card-migration", "checking the shard")
-    [unsupported] = command_findings(
-        "task", "create", d, "jobs", "--title", "Price the alternatives"
-    )
-    assert unsupported.code == "no-work-seat"
 
     card_button = page.locator(
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'

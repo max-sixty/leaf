@@ -189,7 +189,7 @@ def check_markup(
         thread,
         replacing=replacing,
     )
-    if errors := [finding for finding in found if finding.severity == "error"]:
+    if errors := [finding for finding in found if finding.refuses]:
         raise Rejected(
             errors, f"the HTML in the {kind} doesn't validate{drawn(markup, errors)}"
         )
@@ -303,7 +303,7 @@ def message_markup_findings(
         thread_id,
         replacing,
     ):
-        if any(finding.severity == "error" for finding in found):
+        if any(finding.refuses for finding in found):
             return found
         advice += found
     return advice

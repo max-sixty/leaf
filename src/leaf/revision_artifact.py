@@ -939,10 +939,8 @@ def _capture_artifact(
             path = admit(
                 resolve_dependency, script["attrs"]["src"], "/index.html", module=True
             )
-            if path is None:
-                continue
-            if not path.startswith("/page/"):
-                refused.append(_capture_finding("script-outside-page", path))
+            # A public runtime module, which delivery serves, is no file of the page's.
+            if path is None or not path.startswith("/page/"):
                 continue
             entries.append(path)
         for link in links_with_rel(authored.authoring.links, "stylesheet"):

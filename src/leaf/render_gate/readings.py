@@ -124,7 +124,6 @@ class DevtoolsIssues:
                     "devtools-issue",
                     node["at"] if node else "",
                     {"issue": issue["code"], "details": details},
-                    severity="advice",
                 )
             )
         return list(dict.fromkeys(found))
@@ -266,10 +265,7 @@ def _page_findings(context: _PageContext) -> list[Finding]:
     found += context.devtools.findings()
     found += map(Finding.read, retired)
     found += context.unsettled
-    found += (
-        Finding.read(block, severity="advice")
-        for block in evaluate_probe(page, "uncolouredCode")
-    )
+    found += (Finding.read(block) for block in evaluate_probe(page, "uncolouredCode"))
     found += _unreduced_motion(page)
     return found
 
@@ -285,10 +281,7 @@ def _unreduced_motion(page) -> list[Finding]:
         return []
     page.emulate_media(reduced_motion="reduce")
     one_frame(page)
-    found = [
-        Finding.read(m, severity="advice")
-        for m in evaluate_probe(page, "unreducedMotion")
-    ]
+    found = [Finding.read(m) for m in evaluate_probe(page, "unreducedMotion")]
     page.emulate_media(reduced_motion="null")
     return found
 
@@ -367,13 +360,13 @@ def thread_findings(context: _PageContext, known: list[Finding]) -> list[Finding
     return [finding for finding in found if finding not in known]
 
 
-def _keyed(records: list, severity: str = "error") -> dict[tuple[str, str], Finding]:
+def _keyed(records: list) -> dict[tuple[str, str], Finding]:
     """Width-dependent readings, such as overlay track collisions and clipped
     controls, each keyed by its element's place and kind. Covered words name the
     places of both elements as theirs."""
     return {
         (json.dumps(record["place"], sort_keys=True), record["code"]): Finding.read(
-            record, severity=severity
+            record
         )
         for record in records
     }
@@ -520,8 +513,8 @@ def swept_faults(samples) -> list[Finding]:
     def faults(reading):
         return (
             _overflow(reading["overflow"], reading["misplaced"])
-            | _keyed(reading["scrollbars"], severity="advice")
-            | _keyed(reading["contained"], severity="advice")
+            | _keyed(reading["scrollbars"])
+            | _keyed(reading["contained"])
             | _keyed(reading["clipped"])
             | _keyed(reading["covered"])
         )
@@ -564,7 +557,7 @@ def squeezed_advice(readings) -> list[Finding]:
         readings,
         lambda reading: {
             (json.dumps(table["place"], sort_keys=True), table["code"]): Finding.read(
-                table, severity="advice"
+                table
             )
             for table in [*reading["squeezed"], *reading["broken"]]
         },
@@ -593,7 +586,6 @@ def shrunk_label_advice(readings) -> list[Finding]:
                     "drawn": d["drawn"],
                     "set": d["set"],
                 },
-                severity="advice",
             )
             for d in reading["labels"]["drawings"]
         }
@@ -611,7 +603,4 @@ def drawn_height_advice(page) -> list[Finding]:
     (`desktop_viewport` in command.py). A drawing laid out for its width, as a diagram
     is, has another height at another width, and the one `data-height` that holds it
     still holds it at one width, so it is read only as the page loaded."""
-    return [
-        Finding.read(height, severity="advice")
-        for height in evaluate_probe(page, "drawnHeights")
-    ]
+    return [Finding.read(height) for height in evaluate_probe(page, "drawnHeights")]

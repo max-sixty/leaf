@@ -118,7 +118,6 @@ def revision_reanchors(
                     "thread": thread["id"],
                     "section": section if surviving else None,
                 },
-                severity="advice",
             )
         )
     return moves, advice

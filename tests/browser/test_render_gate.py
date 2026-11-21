@@ -3577,9 +3577,7 @@ cd ..         </code></pre>
 
             reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
 
-            squeezed = {
-                f["at"]: Finding.read(f, severity="advice") for f in reading["squeezed"]
-            }
+            squeezed = {f["at"]: Finding.read(f) for f in reading["squeezed"]}
             blocks = ["start", "serve", "tracked", "labelled", "fitted", "celled"]
             assert {at: f.code for at, f in squeezed.items()} == {
                 **{f"<pre id={b}>": "squeezed-code" for b in blocks},

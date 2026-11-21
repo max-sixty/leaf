@@ -42,11 +42,8 @@ def test_a_turn_hands_a_failing_version_over_and_hears_about_it(
         )
         assert told["attention"] is True
         assert told["revision"] == latest_revision(claimed)
-        failed = [
-            f
-            for f in told["findings"]
-            if f["severity"] == "error" and "too-wide" in f.get("at", "")
-        ]
+        # The wide box scrolls the page sideways, which refuses the version.
+        failed = [f for f in told["findings"] if f["severity"] == "error"]
         assert failed, json.dumps(told)
 
         # The agent's own check of its fix leaves the reading the server would have

@@ -189,42 +189,6 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
 
 
 @pytest.mark.parametrize(
-    ("mutate", "code", "at", "values"),
-    [
-        (
-            lambda registry: registry["lf-gloss"].update(
-                {
-                    "work": True,
-                }
-            ),
-            "work-inline",
-            "<lf-gloss>",
-            {},
-        ),
-        (
-            lambda registry: registry["lf-diagram"].update(
-                {
-                    "work": True,
-                }
-            ),
-            "work-content",
-            "<lf-diagram>",
-            {"content": "data"},
-        ),
-    ],
-)
-def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, code, at, values):
-    registry = vocabulary(page_dir)
-    mutate(registry)
-    declare_vocabulary(page_dir, registry)
-
-    status, findings = check_findings(page_dir)
-
-    assert status != 0
-    assert found(findings, code, at, **values), findings
-
-
-@pytest.mark.parametrize(
     ("mutate", "code", "values"),
     [
         # A report moves declared state only, never body words — the schema is
@@ -497,7 +461,7 @@ def test_a_declaration_refusal_names_the_fact_it_is_about(page_dir, tag, change,
     finding = registry_refusal(
         lambda: registry_validation.validate_registry(registry, "test registry")
     )
-    assert str(finding).endswith(f"<{tag}> is not a valid declaration ($keys) {says}")
+    assert finding.said.endswith(f"<{tag}> is not a valid declaration ($keys) {says}")
 
 
 def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
@@ -836,13 +800,22 @@ def test_a_typed_reference_names_a_reachable_package_role(
     assert found([finding], code, "<lf-option>", attr="for", **values)
 
 
-def test_an_obligation_role_declares_an_addressable_instance(page_dir):
+def test_an_obligation_role_without_a_declared_id_is_advised(page_dir):
+    """An instance of a widget that asks must carry an id, which each instance's own
+    check refuses where it stands, so a declaration that leaves `id` undeclared works
+    and `page check` advises declaring it."""
     registry = vocabulary(page_dir)
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True, exist_ok=True)
+    (widgets / "lf-idless-decision.js").write_text("export function upgrade() {}\n")
     registry["lf-idless-decision"] = {
         "description": "A decision without an address.",
         "attributes": {
             "type": "object",
-            "properties": {"open": {"type": "boolean"}},
+            "properties": {
+                "open": {"type": "boolean"},
+                "restated": {"type": "boolean"},
+            },
             "additionalProperties": False,
         },
         "content": "markup",
@@ -862,8 +835,9 @@ def test_an_obligation_role_declares_an_addressable_instance(page_dir):
 
     status, findings = check_findings(page_dir)
 
-    assert status == 1
-    assert found(findings, "addressable-id", "<lf-idless-decision>", key="awaits")
+    assert status == 0
+    [advice] = found(findings, "addressable-id", "<lf-idless-decision>", key="awaits")
+    assert advice.severity == "advice"
 
 
 @pytest.mark.parametrize(

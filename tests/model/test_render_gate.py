@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from leaf import render_checks, user_views
-from leaf.findings import Finding
+from leaf.findings import Finding, Rejected
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import (
@@ -152,7 +152,7 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     )
     assert json.loads(json.dumps(finding.json())) == {
         "code": "past-column",
-        "severity": "error",
+        "severity": "advice",
         "at": "<div id=wide>",
         "widths": [360, 400],
         "values": {"place": "#wide", "past": 74},
@@ -163,6 +163,17 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     assert len({finding, finding.but(values={})}) == 1
     with pytest.raises(ValueError):
         Finding("no-such-code")
+    # A refusing code's words end with the guarantee its declaration names, and
+    # only such a code refuses.
+    scrolls = Finding("page-scrolls", values={"past": 12})
+    assert (scrolls.severity, str(scrolls)) == (
+        "error",
+        "the page scrolls sideways by 12px (refused so that the page fits every"
+        " window width without scrolling sideways)",
+    )
+    assert scrolls.said == "the page scrolls sideways by 12px"
+    with pytest.raises(ValueError):
+        Rejected([finding])
 
 
 def test_page_check_json_names_only_the_gates_that_read_the_page():
@@ -297,7 +308,6 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         "grows-with-content",
         "<lf-x id=a>",
         {"layout": "column", "box": "div", "height": 20},
-        severity="advice",
     )
 
     def attempt(failures=(), notices=(), complete=True, advice=()):
@@ -331,7 +341,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     # On every rendering, which is a layout feedback loop.
     recurring = policy(attempt(notices=[notice]), attempt(notices=[notice])).failures
     assert recurring == [confirmed("recurred")]
-    assert str(recurring[0]) == (
+    assert recurring[0].said == (
         "window error: ResizeObserver loop completed"
         " (recurred on the confirming render attempt)"
     )
@@ -382,7 +392,7 @@ def test_output_contract_failures_refuse_page_and_package_checks():
         },
     )
     assert len(found) == 1
-    assert str(found[0]) == (
+    assert found[0].said == (
         "<lf-counter id=count> (package producer): output 'total' value is invalid "
         "for contract 'counts' at $.count: 'wrong' is not of type 'integer'"
     )

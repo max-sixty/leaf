@@ -262,18 +262,6 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
             "<lf-local>",
         ),
         (
-            json.dumps(
-                {
-                    "lf-local": {
-                        **element_declaration("lf-local"),
-                        "example": '<lf-local id="bad" unknown="bad">Example</lf-local>',
-                    }
-                }
-            ),
-            "invalid-example",
-            "<lf-local>",
-        ),
-        (
             json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)}),
             "needs-module",
             "<lf-local>",
@@ -295,6 +283,37 @@ def test_page_registry_rejects_invalid_authored_contracts(
 
 def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
     return {**element_declaration(tag, upgrade=upgrade), **keys}
+
+
+def test_one_check_advises_on_each_example_a_page_could_not_hold(page_dir):
+    """An example is documentation no reader the user relies on needs valid, so
+    `page check` passes a page whose declarations' examples break and names each, by
+    the first refusal a page holding it would meet."""
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-gamma": _faulty(
+                    "lf-gamma", example='<lf-gamma id="g" tone="x">G</lf-gamma>'
+                ),
+                "lf-delta": _faulty(
+                    "lf-delta", example='<lf-delta id="d" tone="x">D</lf-delta>'
+                ),
+            }
+        )
+    )
+
+    status, findings = check_findings(page_dir)
+
+    assert status == 0
+    assert {
+        (finding.code, finding.at, finding.severity)
+        for finding in findings
+        if "registry" in finding.values
+    } == {
+        ("invalid-example", "<lf-gamma>", "advice"),
+        ("invalid-example", "<lf-delta>", "advice"),
+    }
 
 
 @pytest.mark.parametrize(
@@ -344,24 +363,6 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
                 ("requires", "<lf-eps>"),
                 ("needs-module", "<lf-delta>"),
             ],
-        ),
-        # Each example, once the vocabulary holds.
-        (
-            {
-                "lf-gamma": _faulty(
-                    "lf-gamma",
-                    **{
-                        "example": '<lf-gamma id="g" tone="x">G</lf-gamma>',
-                    },
-                ),
-                "lf-delta": _faulty(
-                    "lf-delta",
-                    **{
-                        "example": '<lf-delta id="d" tone="x">D</lf-delta>',
-                    },
-                ),
-            },
-            [("invalid-example", "<lf-gamma>"), ("invalid-example", "<lf-delta>")],
         ),
     ],
 )

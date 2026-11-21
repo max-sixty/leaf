@@ -679,7 +679,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     )
     failures = render_gate_model.render_version(
         browser, serve(source.replace("</main>", framed + "</main>"))
-    ).failures
+    ).findings
 
     assert [
         f

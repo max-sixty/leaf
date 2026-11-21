@@ -67,7 +67,7 @@ class SourceCheck(NamedTuple):
     `reading` is the document under `registry` (none where the page has no
     vocabulary), read once for the whole check; the revision activation writes from
     it adopts it (`revision_artifact.write_artifact`). `errors` holds what refuses
-    the source and `notes` what the check found at a lesser severity, which
+    the source and `notes` what the check advises, which
     `source_advice` reports. `advice` names the threads the revision would
     relocate; `source_advice` reads the source's other drift."""
 
@@ -282,7 +282,6 @@ def moved_threads(
                 "thread": thread,
                 "section": (event["anchor"] or {}).get("section"),
             },
-            severity="advice",
         )
         for thread, event in placed.items()
         if event["kind"] == "reanchor"
@@ -310,7 +309,6 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
             Finding(
                 "unreadable-data",
                 values={"source": source, "error": reading["error"]},
-                severity="advice",
             )
             for source, reading in stored_data["sources"].items()
             if "error" in reading
@@ -325,7 +323,7 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
 def check_source(page_dir: Path, events: list) -> SourceCheck:
     """Validate current source declarations and derive automatic anchor moves.
 
-    Each finding's severity decides whether it refuses the source (`errors`) or is
+    Each finding's code decides whether it refuses the source (`errors`) or is
     reported beside it (`notes`)."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
@@ -386,8 +384,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
             errors.extend(error.findings)
     errors.extend(document_drops(document))
     errors.extend(_page_file_drops(page_dir))
-    notes = tuple(error for error in errors if error.severity != "error")
-    errors = [error for error in errors if error.severity == "error"]
+    notes = tuple(error for error in errors if not error.refuses)
+    errors = [error for error in errors if error.refuses]
     if errors:
         artifact = None
     revision = predecessor_reading(page_dir, data, events, artifact)

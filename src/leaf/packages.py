@@ -324,7 +324,6 @@ def unset_properties(package: Path, composition: LayerComposition) -> list:
             Finding(
                 "unset-property",
                 values={"sheet": str(package / path), "property": name, "rows": lines},
-                severity="advice",
             )
             for name, lines in sorted(rows.items())
         ]

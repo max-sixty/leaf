@@ -1,7 +1,6 @@
 """Registry-declared markup instance validation."""
 
 import re
-from dataclasses import replace
 
 from leaf.findings import Finding, element_at
 from leaf.obligations import group_tags, shown_in, widget_groups
@@ -490,7 +489,7 @@ def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
         body = [child for child in direct if child not in {"header", "footer"}]
         if len(body) > 1 or body == ["#text"]:
             findings.append(found_at("pane-body", rec, role=role, body=body))
-    return [replace(finding, severity="advice") for finding in findings]
+    return findings
 
 
 def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
@@ -525,7 +524,6 @@ def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Fi
                         "value": item["value"],
                         "holds": holds,
                     },
-                    severity="advice",
                 )
             )
     return findings
@@ -554,7 +552,6 @@ def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Findin
                         "unnamed-card",
                         element_at(rec["tag"], rec["attrs"].get("id", "")),
                         {"line": rec["line"]},
-                        severity="advice",
                     )
                 )
                 break

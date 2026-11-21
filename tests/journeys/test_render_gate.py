@@ -1402,7 +1402,7 @@ body { max-width: 768px; margin-inline: auto; }
     url = serve(source)
     failures = render_gate_model.render_version(
         primed(browser, scroll_it), url
-    ).failures
+    ).findings
 
     def reported(code, at):
         return [f for f in failures if f.code == code and f.at == at]

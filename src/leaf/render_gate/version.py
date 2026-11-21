@@ -31,11 +31,11 @@ class RenderReading:
 
     @property
     def failures(self) -> list[Finding]:
-        return [f for f in self.findings if f.severity == "error"]
+        return [f for f in self.findings if f.refuses]
 
     @property
     def advice(self) -> list[Finding]:
-        return [f for f in self.findings if f.severity == "advice"]
+        return [f for f in self.findings if not f.refuses]
 
 
 def _render_version_attempt(

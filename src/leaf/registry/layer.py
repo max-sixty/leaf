@@ -8,6 +8,7 @@ composes the layer's files (`layer._composition`)."""
 import json
 from pathlib import Path
 
+from leaf.findings import note
 from leaf.state import KERNEL_REGISTRY
 
 from .contract import (
@@ -15,7 +16,7 @@ from .contract import (
     complete_declarations,
     module_paths,
     read_registry_declarations,
-    registry_error,
+    registry_finding,
     stamp_decisions,
     stamp_grammars,
     stamp_states,
@@ -55,14 +56,14 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
             continue
         if name in KERNEL_FACTS:
             if _canonical(entry) != _canonical(earlier):
-                raise registry_error("fixed-kernel-fact", name=name)
+                note(registry_finding("fixed-kernel-fact", name=name))
             continue
         if name == "$events":
             # Only the kernel's own value passes, compared as JSON so that `true` or
             # `1.0` is not taken for a protocol of 1, and the kernel's copy is kept.
             for key in entry.keys() - LAYER_OWNED_EVENTS:
                 if _canonical(entry[key]) != _canonical(earlier.get(key)):
-                    raise registry_error("fixed-events", key=key)
+                    note(registry_finding("fixed-events", key=key))
             entry = {key: entry[key] for key in entry.keys() & LAYER_OWNED_EVENTS}
         combined = {**earlier, **entry}
         for key, value in entry.items():
@@ -98,8 +99,6 @@ def merged_registry(packages: list[Path]) -> tuple[dict, str]:
             continue
         paths.append(path)
         merge_layer_declarations(merged, read_registry_declarations(path))
-    if not paths:
-        raise registry_error("no-incoming-registry")
     merged[MODULES] = module_paths(merged, widgets, "widgets")
     complete_declarations(merged)
     return merged, "merged registry (" + ", ".join(str(path) for path in paths) + ")"

@@ -137,15 +137,16 @@
     }
     /* A line the runtime boxed. Its wrapped rows start two columns past its indent
      * (`--lf-code-indent`, its leading columns), up to the 24 columns lf-code's lines
-     * stop at (code.css), and the first of the two holds the mark on each of them. */
-    [data-lf-line] {
+     * stop at (code.css), and the first of the two holds the mark on each of them. The
+     * hang indents the rows after the first, and so leaves the first row's tab stops
+     * where the block's are. */
+    [data-lf-pre-line] {
       display: block;
       position: relative;
       --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
-      padding-inline-start: var(--lf-code-hang);
-      text-indent: calc(-1 * var(--lf-code-hang));
+      text-indent: var(--lf-code-hang) hanging;
     }
-    [data-lf-line]::before {
+    [data-lf-pre-line]::before {
       content: "";
       position: absolute;
       inset-block: 1lh 0;

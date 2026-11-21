@@ -307,8 +307,7 @@ sheet.replaceSync(`
     font-variant-ligatures: none; border-inline: 1px solid var(--lf-code-border);
     padding-inline: var(--lf-pre-inset); position: relative;
     --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
-    padding-inline-start: calc(var(--lf-pre-inset) + var(--lf-code-hang));
-    text-indent: calc(-1 * var(--lf-code-hang)); }
+    text-indent: var(--lf-code-hang) hanging; }
   .lf-md-code-block::before { content: ""; position: absolute; inset-block: 1lh 0;
     inset-inline-start: calc(var(--lf-pre-inset) + var(--lf-code-hang) - 2ch);
     inline-size: 1ch; background: var(--lf-code-muted);

@@ -322,21 +322,21 @@ def test_a_revision_that_rewrites_a_code_block_boxes_its_new_lines(browser, serv
         "alpha\n  beta\n", "alpha\n  beta\n    gamma\n"
     )
     page = open_page(browser, live_url(serve(first)))
-    expect(page.locator("#rewritten [data-lf-line]")).to_have_count(2)
+    expect(page.locator("#rewritten [data-lf-pre-line]")).to_have_count(2)
     page.evaluate(
-        "() => { window.__kept = document.querySelector('#kept [data-lf-line]'); }"
+        "() => { window.__kept = document.querySelector('#kept [data-lf-pre-line]'); }"
     )
     (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page).to_have_title("Boxes second")
-    lines = page.locator("#rewritten [data-lf-line]")
+    lines = page.locator("#rewritten [data-lf-pre-line]")
     expect(lines).to_have_count(3)
     assert lines.evaluate_all(
         "(lines) => lines.map((line) => line.style.getPropertyValue('--lf-code-indent'))"
     ) == ["", "2", "4"]
     assert page.locator("#rewritten").text_content() == "alpha\n  beta\n    gamma\n"
     assert page.evaluate(
-        "() => window.__kept === document.querySelector('#kept [data-lf-line]')"
+        "() => window.__kept === document.querySelector('#kept [data-lf-pre-line]')"
     ), "the block the revision left alone lost its boxes"
 
 

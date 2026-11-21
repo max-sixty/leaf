@@ -356,8 +356,11 @@ def test_a_wrapped_row_hangs_from_its_line_s_indent_behind_a_mark(browser, serve
     rows a long line wraps onto start two columns past that line's own indent, and the
     first of those columns holds a mark on each of them, which a line that fits never
     shows (reading.css, `pre`). The boxes change no text: the block reads, selects and
-    copies as its source. A block where an element holds a newline before its end stays
-    as authored, its wrapped rows two columns from the block's edge, unmarked."""
+    copies as its source, and a line indented by a tab starts where one indented by
+    spaces to the same column does. A block where an element holds a newline before its
+    end stays as authored, its wrapped rows two columns from the block's edge, unmarked,
+    and so does one whose `<code>` shares it with other text, which keeps its
+    colouring."""
     long = "compute(value, retries=3, timeout=5000, backoff=2.5, jitter=True, report=False)"
     source = f"def run(value):\n    return {long}\n"
     page = open_page(
@@ -368,12 +371,17 @@ def test_a_wrapped_row_hangs_from_its_line_s_indent_behind_a_mark(browser, serve
                 f"""<h1>Wrapped rows</h1>
 <pre id="code"><code class="language-python">{source}</code></pre>
 <pre id="crossed">short <mark>marked
-and on</mark> {long}</pre>""",
+and on</mark> {long}</pre>
+<pre id="tabs"><code>\talpha
+        beta
+</code></pre>
+<pre id="beside"><code class="language-python">print(1)</code>
+</pre>""",
             )
         ),
     )
     resized(page, 390, 844)
-    lines = page.locator("#code [data-lf-line]")
+    lines = page.locator("#code [data-lf-pre-line]")
     expect(lines).to_have_count(2)
     read = """(line) => {
         const range = document.createRange();
@@ -407,8 +415,25 @@ and on</mark> {long}</pre>""",
           return [pre.textContent, selection.toString().replace(/\\n?$/, '\\n')];
         }"""
     ) == [source, source]
+    assert page.locator("#tabs").evaluate(
+        """(pre) => {
+          const starts = [];
+          const words = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+          for (let node; (node = words.nextNode()); ) {
+            const at = node.data.search(/[a-z]/);
+            if (at < 0) continue;
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + 1);
+            starts.push(Math.round(range.getBoundingClientRect().left));
+          }
+          return starts.length === 2 && starts[0] === starts[1];
+        }"""
+    ), "a tab-indented line should start where a space-indented one does"
+    expect(page.locator("#beside > code")).to_have_attribute("data-lf-syntax", "python")
+    expect(page.locator("#beside [data-lf-pre-line]")).to_have_count(0)
     crossed = page.locator("#crossed")
-    expect(crossed.locator("[data-lf-line]")).to_have_count(0)
+    expect(crossed.locator("[data-lf-pre-line]")).to_have_count(0)
     assert crossed.evaluate(
         """(pre) => {
           const range = document.createRange();

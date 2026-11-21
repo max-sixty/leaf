@@ -203,7 +203,10 @@ def test_page_check_json_names_only_the_gates_that_read_the_page():
     # No browser at all reads the same way, and says what went unchecked for it.
     missing = Finding("no-browser", values={"error": "no browser launched: none"})
     assert missing.unread and missing.said.startswith("no browser launched: none; ")
-    assert "shows only once a browser draws the page" in missing.said
+    assert missing.said.endswith(
+        "; the browser checks did not run, so a failure only they would find shows"
+        " when a browser first draws the page"
+    )
     # So with the widget quality gate, where a crash once failed the package check.
     quality = WidgetQuality(1, "Chrome", findings=(crashed,))
     assert (quality.status, quality.json()["ran"]) == (0, [])

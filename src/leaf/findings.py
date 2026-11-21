@@ -781,8 +781,8 @@ _TEXT = {
     ),
     "no-browser": _Unread(
         lambda at, v: (
-            f"{v['error']}; so what only a browser checks went unchecked here, and a"
-            " failure it would find shows only once a browser draws the page"
+            f"{v['error']}; the browser checks did not run, so a failure only they"
+            " would find shows when a browser first draws the page"
         )
     ),
     "server-stopped": _Unread(

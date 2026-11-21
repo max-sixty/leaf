@@ -655,6 +655,7 @@ export function boxMotion({
     // A box no placement stands has nothing to move from.
     if (placement && !held()) return forget();
     timing = { duration, easing };
+    globalThis.__lf6609?.log.push([performance.now(), "follow", "start", root.localName, theirs(), Boolean(rests)]);
     rebase();
     if (drawnFrom) {
       rests = new Map([[box, drawnFrom]]);
@@ -701,8 +702,10 @@ export function boxMotion({
         const rest = rests?.get(element);
         return rest !== undefined && same(rest, at);
       })
-    )
+    ) {
+      globalThis.__lf6609?.log.push([performance.now(), "follow", "unchanged", root.localName]);
       return;
+    }
     for (const scroller of streams.keys()) contentRides(scroller, false);
     for (const animation of running) animation.cancel();
     running = [];
@@ -768,6 +771,7 @@ export function boxMotion({
         `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
       );
     const previousBox = was?.get(box);
+    globalThis.__lf6609?.log.push([performance.now(), "follow", "read", root.localName, gesture, Boolean(previous), Boolean(was), Math.round(drawnBox?.top ?? -1), Math.round(boxAt.top)]);
     if (!was || !previousBox) {
       restoreTranslations();
       standStreams(scrollers);

@@ -49,6 +49,11 @@ _RECORDER = r"""
   };
   for (const kind of ["keydown", "pointerdown", "input", "focusin"])
     addEventListener(kind, (e) => log.push([performance.now(), "input", kind, name(e.target)]), true);
+  new PerformanceObserver((list) => {
+    for (const e of list.getEntries())
+      log.push([e.startTime, "shift", e.value, e.hadRecentInput,
+        e.sources.map((x) => [x.node ? name(x.node) : null, Math.round(x.previousRect.top), Math.round(x.currentRect.top)])]);
+  }).observe({ type: "layout-shift", buffered: true });
   let last = "";
   let observed = null;
   const tick = () => {

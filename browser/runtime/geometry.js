@@ -132,17 +132,21 @@ export const coverBoxes = (item = null, { rest = false } = {}) =>
 // floating panel under the page column leaves a thread card in the margin the window's
 // whole height. `item` names the node the room is read for, so a surface's own box
 // takes no room from what it holds (`coverBoxes`), as the floating panel's open view
-// covers none of the thread it shows. A chrome owner that changes the box it covers
-// says so (`announceRoom`), since no scroll or resize tells a reader.
+// covers none of the thread it shows. `rest` reads each surface where its motion will
+// end rather than where it is drawn now, for a box that sizes itself to the room once
+// rather than following the surface's slide. A chrome owner that changes the box it
+// covers says so (`announceRoom`), since no scroll or resize tells a reader.
 /** @param {{within?: Partial<import('./rect.js').Box> | null,
  * gap?: number, viewport?: "visual" | "layout",
- * across?: {left: number, right: number} | null, item?: Node | null}} [options] */
+ * across?: {left: number, right: number} | null, item?: Node | null,
+ * rest?: boolean}} [options] */
 export function shownWindow({
   within = null,
   gap = 0,
   viewport = "visual",
   across = null,
   item = null,
+  rest = false,
 } = {}) {
   const layout = layoutWindow();
   const { offsetLeft, offsetTop, width, height } =
@@ -153,7 +157,7 @@ export function shownWindow({
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
   let top = Math.max(offsetTop, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
-  for (const box of coverBoxes(item)) {
+  for (const box of coverBoxes(item, { rest })) {
     if (!overlapsAcross(box, across ?? { left, right })) continue;
     ({ top, bottom } = coverCut(box, top, bottom, { offsetTop, height }));
   }
@@ -822,8 +826,10 @@ export function frameView(frame, within) {
 // scroll, a shadow stage's included (`watchScrolls`); a resize; the visual viewport,
 // which a soft keyboard or a pinch-pan moves without either; a native layer opening or
 // closing, which changes what a modal admits (`watchLayerChanges`); and chrome the room
-// is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
-// that stops watching.
+// is measured against changing the box it covers, which its owner announces as the
+// change starts (`ROOM_MOVED`), so a reader that needs the room the chrome leaves once
+// its slide ends reads it there (`shownWindow`, `rest`). Returns the call that stops
+// watching.
 const ROOM_MOVED = "lf-room-moved";
 /** @param {EventTarget} [target] */
 export const announceRoom = (target = document) =>

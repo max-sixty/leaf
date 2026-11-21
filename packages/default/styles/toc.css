@@ -256,15 +256,14 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
  * past it, toward the body, faded out and taking no pointer until it reveals them.
  * Pointing at the map, focus inside it or the go-to sequence reveals them over the
  * page. The track sticks, so the map stays beside the reading as the document
- * scrolls. The map hangs out of flow from the top of its track, so the track's box is
- * only its focus room tall and stays stuck to the end of its sidebar, and the map's
- * start stays in the window through the page's end. The map runs down to the window's
- * foot, less the track's gap (`--lf-track-room`, layouts.css), and keeps the floating
- * panel's band clear only where the panel stands across the map's columns, labels
- * included (`data-lf-panel-clear`, lf-toc.js); the user asked for it to reach close to
- * the window's foot. Rejected: a map in flow as tall as the track can stick, which kept
- * the panel's band across the whole window, though the panel stands only in its middle,
- * and let the map's start scroll out of the window at the page's end; and a map short
+ * scrolls, to its sidebar's end (layouts.css, `--lf-track-end-room`). The map is as
+ * tall as the stuck track may be (`--lf-track-room`, layouts.css), which keeps the
+ * floating panel's band clear across the whole window, and runs on through that band
+ * to the window's foot, less the track's gap, where the panel stands clear of the
+ * map's columns, labels included (`data-lf-panel-clear`, lf-toc.js); the user asked
+ * for it to reach close to the window's foot. Rejected: the map hung out of flow from a
+ * track only its focus room tall, which a window too short to stick the track left
+ * over the body, and which hung over a footer below the sidebar; and a map short
  * enough to stay whole where the document's end padding stops the track, which left it
  * about 100px short of the panel's room at every other scroll position. */
 @media screen {
@@ -277,8 +276,6 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
         var(--lf-track-room, var(--lf-view-height)) + var(--lf-foot-room) *
           var(--lf-toc-panel-clear) - 2 * var(--lf-focus-region-room)
       );
-      position: absolute;
-      inset-inline: var(--lf-focus-region-room);
       height: var(--lf-toc-height);
       margin: 0;
     }

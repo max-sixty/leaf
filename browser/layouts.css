@@ -138,6 +138,10 @@
       > [data-lf-views="parts"]
       > :not([role="tablist"], [hidden]) {
       padding-block-end: var(--lf-foot-room);
+      /* A sidebar that is the part's box may reach into that room (below). */
+      :where(&) > .layout-sidebar {
+        --lf-track-end-room: calc(var(--lf-page-pad-end) + var(--lf-foot-room));
+      }
     }
     html[data-lf-interactive]
       body
@@ -792,8 +796,10 @@
       & > aside {
         z-index: 1;
       }
+      /* The element sets its own height (toc.css), so the track is as tall as it. */
       & > aside > .layout-track {
         overflow: visible;
+        max-block-size: none;
         --lf-track-spine: 1;
       }
       & > .layout-column {
@@ -876,6 +882,29 @@
         100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--lf-sp-4)
       );
     }
+    /* The room below a sidebar's aside that holds nothing of the page's, which its stuck
+     * track may reach through (below): the sidebar's own end padding, and, where the
+     * sidebar is its shell's box (the body's or a part's) and nothing follows it, the
+     * panel's room that the shell keeps at its end (base.css; the rule above that gives a
+     * part that room sets its sidebar's end room too). A footer below the aside leaves no
+     * room. The first rule has no specificity, so each condition overrides it, and a
+     * footer overrides what follows the sidebar.
+     * Rejected: moving the body's room into the sidebar's end, as a workspace keeps it in
+     * its regions (below). It would hold where a browser extension adds an element after
+     * `main`, which stops this reach, but it leaves a footer the page writes after
+     * `main` under the panel, and a page rule on `main`'s padding drops the panel's room. */
+    :where(.layout-sidebar) {
+      --lf-track-end-room: var(--lf-page-pad-end);
+    }
+    :where(body > main).layout-sidebar {
+      --lf-track-end-room: calc(var(--lf-page-pad-end) + var(--lf-foot-room));
+    }
+    .layout-sidebar:has(~ :not(script, template)) {
+      --lf-track-end-room: var(--lf-page-pad-end);
+    }
+    .layout-sidebar:has(> footer) {
+      --lf-track-end-room: 0px;
+    }
     @container not style(--lf-track-scroll-behavior: flow) {
       .layout-track,
       [data-lf-track] {
@@ -899,7 +928,20 @@
         max-block-size: calc(max(0px, var(--lf-track-room)) / var(--lf-track-beside));
         box-sizing: border-box;
         padding: var(--lf-focus-region-room);
-        margin-block: calc(-1 * var(--lf-focus-region-room));
+        /* Sticking keeps the track's margin box inside its aside, and the track's
+         * focus room hangs past the aside's edges. Beside the body, its end hangs as
+         * far as the room below the aside (`--lf-track-end-room`) where that is more,
+         * so the track stays where it sticks to its sidebar's end, rather than the end
+         * padding pushing its start out of the window. Stacked above the body, the
+         * track keeps its whole box in the aside, which the body follows. */
+        margin-block: calc(-1 * var(--lf-focus-region-room))
+          calc(
+            -1 *
+              max(
+                var(--lf-focus-region-room),
+                var(--lf-track-end-room, 0px) * var(--lf-track-beside)
+              )
+          );
         scroll-padding: var(--lf-focus-region-room);
       }
     }

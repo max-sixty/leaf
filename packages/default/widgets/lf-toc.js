@@ -15,12 +15,13 @@ import { sectionMarks } from "./toc-marks.js";
  * use that one fitted scale. A marker's center is its coordinate; its label's first line
  * is centered there too, and the viewport lens reads those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
- * the document's origin to make room for type. The map hangs from its stuck track to
+ * the document's origin to make room for type. The map runs down its stuck track to
  * the window's foot (toc.css), short of the floating panel's band only where the panel
  * stands across the map's columns, labels included: the module reads that from the
- * room Leaf's chrome leaves (`shownWindow`) whenever it may change (`watchRoom`), and
- * states it on the map (`data-lf-panel-clear`). The labels keep their measure while
- * faded out, so revealing them neither moves the map nor refits it.
+ * room Leaf's chrome leaves where the panel comes to rest (`shownWindow`) whenever it
+ * may change (`watchRoom`), and states it on the map (`data-lf-panel-clear`). The
+ * labels keep their measure while faded out, so revealing them neither moves the map
+ * nor refits it.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport. The scroll moves it, as
@@ -278,7 +279,11 @@ customElements.define(
     // measured again at its new height.
     #schedulePanelRoom = frameFor(this, () => {
       const { left, right } = this.#nav.getBoundingClientRect();
-      const { bottom } = shownWindow({ across: { left, right }, viewport: "layout" });
+      const { bottom } = shownWindow({
+        across: { left, right },
+        viewport: "layout",
+        rest: true,
+      });
       const clear = bottom >= document.documentElement.clientHeight;
       if (clear === this.hasAttribute("data-lf-panel-clear")) return;
       this.toggleAttribute("data-lf-panel-clear", clear);

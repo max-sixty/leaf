@@ -408,9 +408,9 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     pointer. Outside the narrowed sidebar, the same links open through a native
     disclosure.
 
-    The track sticks, so once the reader scrolls the map stands still to the page's end,
-    reaching down to the window's foot, short of the floating panel's row only where the
-    panel stands across the map."""
+    The track sticks, so once the reader scrolls the map stands still until its sidebar
+    ends, or a footer below the sidebar comes in, reaching down to the window's foot,
+    short of the floating panel's row only where the panel stands across the map."""
     source = leaf_page(
         "contents map",
         """
@@ -768,17 +768,21 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         for item, resting in zip(marker_alignment, resting_marker_centers, strict=True)
     ), f"hovering the contents map moved a marker: {marker_alignment}"
 
-    # Once its track sticks, the map stays put to the page's end, its start in view and
-    # its foot above the window's foot by the track's gap and focus room, past the
-    # panel's row, which stands clear of the map's columns at this width.
+    # Once its track sticks, the map stays put through the rest of its sidebar, its
+    # start in view where the sidebar ends and its foot above the window's foot by the
+    # track's gap and focus room, past the panel's row, which stands clear of the map's
+    # columns at this width.
     panel_box = page.locator(".lf-fp-card").bounding_box()
     assert panel_box is not None
     window_height = page.evaluate("innerHeight")
+    sidebar_end = page.locator("#route").evaluate(
+        "node => node.parentElement.getBoundingClientRect().bottom "
+        "+ document.scrollingElement.scrollTop - innerHeight"
+    )
     stuck = []
-    for position in (750, None):
+    for position in (750, sidebar_end):
         page.evaluate(
-            "top => document.scrollingElement.scrollTo({"
-            "top: top ?? document.scrollingElement.scrollHeight, behavior: 'instant'})",
+            "top => document.scrollingElement.scrollTo({top, behavior: 'instant'})",
             position,
         )
         scroll_settled(page)
@@ -799,8 +803,35 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     assert narrow_panel is not None and box is not None
     foot = box["y"] + box["height"]
     assert narrow_panel["y"] - 48 <= foot <= narrow_panel["y"] + 1, (box, narrow_panel)
+    # Folded to its leaf, the panel stands clear of the map, which runs on to the
+    # window's foot without waiting for a scroll; unfolded, its row crosses the map again.
+    panel = page.locator(".lf-floating-panel")
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-lf-rest", "mark")
+    expect(toc).to_have_attribute("data-lf-panel-clear", "")
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-lf-rest", "row")
+    expect(toc).not_to_have_attribute("data-lf-panel-clear", re.compile(".*"))
     resized(page, 1400, 900)
     expect(toc).to_have_attribute("data-lf-panel-clear", "")
+
+    # A footer below the sidebar ends the room its track sticks in, so at the page's end
+    # the map stands above the footer rather than over it.
+    page.locator(".layout-sidebar").evaluate(
+        "sidebar => sidebar.insertAdjacentHTML('beforeend', "
+        "'<footer id=\"route-end\"><p>Last revised in March.</p></footer>')"
+    )
+    page.evaluate(
+        "document.scrollingElement.scrollTo({"
+        "top: document.scrollingElement.scrollHeight, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    footer_box = page.locator("#route-end").bounding_box()
+    box = nav.bounding_box()
+    assert footer_box is not None and box is not None
+    assert box["y"] + box["height"] <= footer_box["y"], (box, footer_box)
+    page.locator("#route-end").evaluate("node => node.remove()")
 
     # A wheel over the map stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")

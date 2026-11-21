@@ -137,9 +137,10 @@ scrolling reports its positions through the browser's scroll events.
 there. `landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its
 chrome, which holds while the user writes in a floating box.
-`shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
-fixed chrome, narrowed to `within` and inset by `gap`; with `across` (`{left, right}`),
-only chrome standing across those columns takes room. `watchRoom(callback)` calls back
+`shownWindow({within, gap, across, rest})` is the window's visible rectangle clear of
+Leaf's fixed chrome, narrowed to `within` and inset by `gap`; with `across`
+(`{left, right}`), only chrome standing across those columns takes room, and with
+`rest: true`, the chrome counts where its motion ends. `watchRoom(callback)` calls back
 on each scroll, resize or change of that chrome, which can change what `shownWindow`
 reads, and returns the call that stops watching.
 

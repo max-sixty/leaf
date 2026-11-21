@@ -502,6 +502,15 @@
     grid-auto-rows: max-content;
     align-content: start;
   }
+  /* The card's symbols, its own controls and the controls at the end of each head that
+     spans the card, end their glyphs over the reply box's last control: the thread
+     text inset inside the messages' edge, each control's box reaching past its glyph
+     by `--lf-symbol-inset` (controls.css). Under a mouse the card's words end there
+     too (`--lf-comment-text-end`, response.css). A head beside the card's own controls
+     ends at their track, its controls before them. */
+  .lf-margin-thread {
+    --lf-margin-symbol-end: calc(var(--lf-thread-text-inset) - var(--lf-symbol-inset));
+  }
   /* The action track crosses the transcript and its retained message groups.
      Bodies keep both tracks; the head beside the actions stops at them without
      copying their measured width into every message. */
@@ -538,6 +547,9 @@
     > .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
     & > .lf-msg-head {
       grid-column: 1 / -1;
+    }
+    &:not([data-lf-beside-actions]) > .lf-msg-head .lf-msg-controls {
+      margin-inline-end: var(--lf-margin-symbol-end);
     }
     &[data-lf-beside-actions] > .lf-msg-head {
       grid-column: 1;
@@ -778,6 +790,7 @@
      Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
     --lf-line: var(--lf-msg-head-height);
+    margin-inline-end: var(--lf-margin-symbol-end);
     grid-column: 2;
     grid-row: 2;
     align-self: start;

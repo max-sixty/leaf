@@ -741,6 +741,13 @@ export function createSelectionComposer({
       where: anchorTravelAt(record.anchor) ?? composerInput,
       input: () =>
         composerOpen && composerCtx(pendingAnchor) === ctx ? composerInput : null,
+      frame: () =>
+        composerOpen && composerCtx(pendingAnchor) === ctx
+          ? syncComposer.composition().field
+          : null,
+      close: () => {
+        if (composerOpen && composerCtx(pendingAnchor) === ctx) leaveForThread();
+      },
       open: () => {
         openDraft(composerRecord(ctx), { focus: false });
         const handoff = beginFabFocus();

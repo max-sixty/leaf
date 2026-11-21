@@ -262,11 +262,12 @@ async function boot() {
   let floatingPanel;
   const navigation = createNavigation({
     placedAt: (id) => anchorPlacement.placedAt(id),
+    savedAt: (context) => anchorPlacement.savedAt(context),
+    showDraft: (context) => writingResume.showDraft(context),
     threadDestinations: {
       openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
       threadAtCurrentLocation: (node) =>
         app.threadDestinations.threadAtCurrentLocation(node),
-      threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
     },
   });
 

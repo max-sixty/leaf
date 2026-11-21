@@ -5,6 +5,16 @@ description: Develops Leaf itself from the current checkout, including its runti
 
 # Develop Leaf from this checkout
 
+Each section below gives the steps for one task that work on Leaf can include,
+in the order a change meets them, from running `leaf` to landing. Follow the
+sections for the tasks your work includes, and skip the rest. A fix to the server's
+Python may need only "Read the owning contract" and "Land a change", while a theme
+change also needs the sections on proving, handing off and reviewing it. Where root
+`AGENTS.md` requires a task, it names the task's section. The last section lists
+the tasks whose steps are in a file of their own.
+
+## Run `leaf` from this checkout
+
 Resolve the repository root three directories above this `SKILL.md`, check that
 `<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
 absolute launcher; a bare `leaf` may run the installed plugin instead.
@@ -22,30 +32,40 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   browser/registry.json packages/*/registry.json
 ```
 
-## Review a UI change
+## Measure a removal
 
-Whoever reviews a UI change, you or an independent reviewer, first uses the
-live candidate cold for the user's task, before reading its code or the author's
-account, reaching each result by every route Leaf gives to it and capturing each state
-those routes leave. A reviewer's brief gives the task and the candidate and asks for
-that pass before any code review. An agent that has driven, measured or read the
-change sees the screen through that work and misses flaws a first look catches; a
-fresh agent given only the captures and the user's request, and asked what looks
-wrong, is one way to get that look. A theme or shared-control change also gets a
-`/ui-sweep` pass (`../ui-sweep/SKILL.md`), which follows that skill's "Review a design
-system" section. This skill's `references/external-ui-skills.md` lists optional review
-skills from outside Leaf, such as visual critique and motion review, and `/ui-sweep`'s
-"External review" section says how to choose among them.
+Measure a removal or consolidation that root `AGENTS.md`'s "Regular maintenance"
+finds by making the change in a scratch worktree: `git diff --numstat` gives what it
+deletes, and a probe or capture of the affected journey shows what users lose. A count
+read off the code overstates the saving.
 
-## Checks and guidance for the authoring agent
+## Author or revise a page
 
-Read `references/checks-and-guidance.md` before adding or changing a rule, check,
-refusal or message that constrains or answers an authoring agent.
+Every authored Leaf source is a page: a site page under `docs/`, a shipped example or
+fixture, a playground, or a page for this conversation. Before writing its content,
+read `<root>/skills/leaf/SKILL.md` completely and follow its authoring, validation,
+handoff and conversation-loop routes, using the checkout launcher and resolving its
+references from `<root>/skills/leaf/`. Read it again after a compaction, before the
+page's next revision or handoff. A brief for a subagent that writes the page names the
+content and the decisions to put to the user, and leaves how to pose them to those
+instructions.
 
-## Explore an open design
+To make an existing page use the current checkout, serve it with the checkout
+launcher, and run that launcher's `page init` on a page at another protocol
+(`<root>/skills/leaf/references/serving-pages.md`, "Leaf updates"); fix or report a
+compatibility refusal rather than falling back to the installed plugin. A page built
+in another checkout, such as a subagent's worktree, was checked against that
+checkout's Leaf, and markup and layout contracts change between commits with no
+protocol change. Serve it with that checkout's launcher, and judge it against that
+checkout's instructions.
 
-To build the side-by-side choice root `AGENTS.md` asks for when the user is to choose
-among designs, follow `references/explore-a-design.md`.
+A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
+in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the
+demonstrated page and an `lf-activity` feed of its own log. Make the next gesture and
+its visible result clear as the user tries the sample, including Undo. Guidance beside
+the relevant step lets the user learn by operating the page. Before handoff, operate
+the sample using only its visible guidance and read each line the feed prints, so the
+review checks whether the user can work it without the author's knowledge.
 
 ## Choose what the user reviews
 
@@ -124,62 +144,20 @@ interaction-only change, compare the same journey on both versions ("Compare che
 versions"). A live preview handed to the user carries the fragment of the section it
 is about and stays running.
 
-## Preview a page
+## Review a UI change
 
-Read `references/previews.md` before you start, restart, drive or hand over a
-`uv run leaf-dev preview` of an example or an HTML file, or serve a scratch page.
-
-## Run the agent journey
-
-`uv run --project <root> leaf-dev journey run TARGET` runs one user's journey against a
-real agent. `references/agent-journey.md` names the target for each file a harness
-change touches, and covers benchmarking replies and tracing one message.
-
-## Compare checkout versions
-
-To serve this checkout beside its merge base, for an interaction-only change or one
-that can alter browser startup, read `references/previews.md`, "Compare checkout
-versions".
-
-## Author or revise a page
-
-Every authored Leaf source is a page: a site page under `docs/`, a shipped example or
-fixture, a playground, or a page for this conversation. Before writing its content,
-read `<root>/skills/leaf/SKILL.md` completely and follow its authoring, validation,
-handoff and conversation-loop routes, using the checkout launcher and resolving its
-references from `<root>/skills/leaf/`. Read it again after a compaction, before the
-page's next revision or handoff. A brief for a subagent that writes the page names the
-content and the decisions to put to the user, and leaves how to pose them to those
-instructions.
-
-To make an existing page use the current checkout, serve it with the checkout
-launcher, and run that launcher's `page init` on a page at another protocol
-(`<root>/skills/leaf/references/serving-pages.md`, "Leaf updates"); fix or report a
-compatibility refusal rather than falling back to the installed plugin. A page built
-in another checkout, such as a subagent's worktree, was checked against that
-checkout's Leaf, and markup and layout contracts change between commits with no
-protocol change. Serve it with that checkout's launcher, and judge it against that
-checkout's instructions.
-
-A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
-in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the
-demonstrated page and an `lf-activity` feed of its own log. Make the next gesture and
-its visible result clear as the user tries the sample, including Undo. Guidance beside
-the relevant step lets the user learn by operating the page. Before handoff, operate
-the sample using only its visible guidance and read each line the feed prints, so the
-review checks whether the user can work it without the author's knowledge.
-
-## Score an instruction change
-
-Before changing the instructions an authoring agent follows, or scoring a change as
-root `AGENTS.md` asks, read `references/instruction-changes.md`.
-
-## Measure a removal
-
-Measure a removal or consolidation that root `AGENTS.md`'s "Regular maintenance"
-finds by making the change in a scratch worktree: `git diff --numstat` gives what it
-deletes, and a probe or capture of the affected journey shows what users lose. A count
-read off the code overstates the saving.
+Whoever reviews a UI change, you or an independent reviewer, first uses the
+live candidate cold for the user's task, before reading its code or the author's
+account, reaching each result by every route Leaf gives to it and capturing each state
+those routes leave. A reviewer's brief gives the task and the candidate and asks for
+that pass before any code review. An agent that has driven, measured or read the
+change sees the screen through that work and misses flaws a first look catches; a
+fresh agent given only the captures and the user's request, and asked what looks
+wrong, is one way to get that look. A theme or shared-control change also gets a
+`/ui-sweep` pass (`../ui-sweep/SKILL.md`), which follows that skill's "Review a design
+system" section. This skill's `references/external-ui-skills.md` lists optional review
+skills from outside Leaf, such as visual critique and motion review, and `/ui-sweep`'s
+"External review" section says how to choose among them.
 
 ## Land a change
 
@@ -189,3 +167,28 @@ and lands it; `✗ Can't push to local main branch` means a fast-forward failed.
 Installed sessions load harness caches, not the checkout, and follow `main`: Claude
 Code picks up a push on its marketplace sweep, and Codex refreshes at startup. To
 refresh Codex in a running session, run `codex plugin marketplace upgrade leaf`.
+
+## Tasks with their own reference
+
+Each of these tasks has its steps in a file under this skill's `references/`. Read
+the file when the task arises.
+
+- **Preview a page**: `references/previews.md`, before you start, restart, drive or
+  hand over a `uv run leaf-dev preview` of an example or an HTML file, or serve a
+  scratch page.
+- **Compare checkout versions**: `references/previews.md`, "Compare checkout
+  versions", to serve this checkout beside its merge base for an interaction-only
+  change or one that can alter browser startup.
+- **Run the agent journey**: `uv run --project <root> leaf-dev journey run TARGET`
+  runs one user's journey against a real agent. `references/agent-journey.md` names
+  the target for each file a harness change touches, and covers benchmarking replies
+  and tracing one message.
+- **Score an instruction change**: `references/instruction-changes.md`, before
+  changing the instructions an authoring agent follows, or scoring a change as root
+  `AGENTS.md` asks.
+- **Explore an open design**: `references/explore-a-design.md`, to build the
+  side-by-side choice root `AGENTS.md` asks for when the user is to choose among
+  designs.
+- **Add a check or guidance for the authoring agent**:
+  `references/checks-and-guidance.md`, before adding or changing a rule, check,
+  refusal or message that constrains or answers an authoring agent.

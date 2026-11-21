@@ -376,17 +376,18 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
         if test["metadata"]["case"] == "page-reads-at-every-width/queue"
     )
     assert "ESC-4107" in queue["vars"]["prompt"]
+    # Each complete task's quality assertion names the authoring judge's file.
+    from leaf_dev import regrade
+
     for test in config["tests"]:
         if test["metadata"]["case"] in {
             "configuration",
             "page-reads-at-every-width/queue",
         }:
-            live = next(
-                a
-                for a in test["assert"]
-                if a["value"].endswith("/authoring_assertion.mjs")
-            )
-            assert live["config"]["judge"]["id"].endswith("/arrangement_eval.py")
+            (live,) = (a for a in test["assert"] if a["metric"] == "quality")
+            path, function = live["value"].removeprefix("file://").rsplit(":", 1)
+            assert Path(path).resolve() == Path(regrade.__file__).resolve()
+            assert live["type"] == "python" and function == "authoring"
 
     # A saved run can contain the same Python provider on different models. The
     # report must join labels and keep the saved model, even after pins change.
@@ -764,6 +765,56 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     assert "Investigate long decision premises" in prompt
     section = eval_report.discovery_section(tmp_path / "report", (judging,))
     assert section.count("Desktop navigation.") == 3
+
+
+def test_authoring_judge_grades_a_sample_on_its_saved_pages(tmp_path, monkeypatch):
+    """Only the live judge is replaced: a case's quality assertion hands it the
+    sample's saved pages under the names every judge reads, with the case's rubric
+    and the author's answer, and returns its grade. A sample with nothing to judge
+    never reaches it."""
+    from leaf_dev import regrade
+
+    run = saved_run(tmp_path / "saved")
+    saved = json.loads((run / "results.json").read_text())["results"]["results"]
+    sample = saved[0]["response"]
+    work = Path(sample["metadata"]["work"])
+    work.mkdir(parents=True)
+    current = module.grading(module.catalog()["configuration"], "leaf", lambda: {})
+    (assertion,) = (a for a in current["assert"] if a["metric"] == "quality")
+    judged = []
+
+    def judge(pages, widths, prompt, schema, evidence, *, handovers):
+        judged.append(pages)
+        assert evidence.parent == work
+        assert assertion["config"]["rubric"] in prompt
+        assert "base summary" in prompt
+        assert handovers == {"page": None}
+        return {
+            "output": {"status": "pass", "reason": "The final settings are readable."},
+            "metadata": {"evidence": str(evidence)},
+        }
+
+    monkeypatch.setattr(regrade, "judge_pages", judge)
+
+    def grade() -> dict:
+        return regrade.authoring(
+            sample["output"],
+            {"providerResponse": sample, "config": assertion["config"]},
+        )
+
+    passed = grade()
+    assert passed["pass"] and passed["metadata"]["authoring_grade"]["status"] == "pass"
+    assert set(judged[0]) == {"page", "page_before_decision", "page_before_revision"}
+
+    phases = sample["metadata"]["diagnostics"]["phases"]
+    del phases[next(iter(phases))]["page"]
+    missing = grade()
+    assert missing["metadata"]["authoring_grade"]["status"] == "insufficient_evidence"
+    sample["metadata"]["checks"]["completed"] = False
+    incomplete = grade()
+    assert not incomplete["pass"]
+    assert incomplete["metadata"]["authoring_grade"]["status"] == "unscored"
+    assert len(judged) == 1
 
 
 def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):

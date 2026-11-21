@@ -4569,9 +4569,10 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
             <h2>Threads and work waiting on the user</h2>
             <p id="navigation-thread-rule">
               <kbd>t</kbd> / <kbd>Shift</kbd> + <kbd>t</kbd> walk open threads in page
-              order. Focus on a thread or its accompanied passage makes that thread the
-              origin. Moving elsewhere changes the origin; Leaf keeps no separate “last
-              thread” cursor.
+              order, with each comment the user began and put away standing where it is
+              about, and a resolved thread holding an unsent reply. Focus on a thread or
+              its accompanied passage makes that thread the origin. Moving elsewhere
+              changes the origin; Leaf keeps no separate “last thread” cursor.
             </p>
             <details id="navigation-thread-cases">
               <summary>Focus, scrolling, order, and filters</summary>
@@ -4590,6 +4591,15 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                     <td>
                       Escape closes the card and leaves the user beside its passage, so
                       Tab goes on into it. The next t enters that thread again.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>t</kbd> reaching an unsent comment</td>
+                    <td>
+                      The walk opens the comment’s box beside its passage or element,
+                      holding its words, and stands the user on the box rather than in
+                      it. The next t walks on and puts the box away; c puts the caret
+                      after the words.
                     </td>
                   </tr>
                   <tr>
@@ -4629,15 +4639,15 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                       The search matches thread names, quoted passages and messages,
                       including resolved threads. Tab leaves the query box; arrow keys
                       walk result rows and Enter opens one. The page’s t walk still
-                      visits open threads.
+                      visits open threads and unsent comments.
                     </td>
                   </tr>
                   <tr>
                     <td>Threads shows Resolved</td>
                     <td>
                       The Resolved list lets the user open completed conversations. The
-                      t command remains “Next open thread”; it does not become a walk
-                      through resolved rows.
+                      t command remains “Next thread or draft”; it does not become a
+                      walk through resolved rows.
                     </td>
                   </tr>
                   <tr>
@@ -4667,13 +4677,13 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                 after it.
               </p>
               <p id="navigation-tab-rule">
-                Page walks through open threads (<kbd>t</kbd>), On Me (<kbd>m</kbd>) and
-                accepted page-text matches (<kbd>n</kbd>) wrap at either end; the count
-                flashes on wrapping. With nothing to walk, a press says so in the panel,
-                such as “No open threads”. Tab-strip arrows also wrap, and Tab leaves
-                the strip. Arrow-key navigation through menu rows, panel lists and
-                thread-search results stops at the ends; Home / End reach the first /
-                last row.
+                Page walks through open threads and unsent comments (<kbd>t</kbd>), On
+                Me (<kbd>m</kbd>) and accepted page-text matches (<kbd>n</kbd>) wrap at
+                either end; the count flashes on wrapping. With nothing to walk, a press
+                says so in the panel, such as “No open threads”. Tab-strip arrows also
+                wrap, and Tab leaves the strip. Arrow-key navigation through menu rows,
+                panel lists and thread-search results stops at the ends; Home / End
+                reach the first / last row.
               </p>
             </details>
           </section>

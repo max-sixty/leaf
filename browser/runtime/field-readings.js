@@ -40,12 +40,12 @@
  * after news of what changed (notifications.js, `press`), or an error's, such as Resume
  * writing and g i after a refused send (errors.js). Otherwise it offers, by the
  * reading's `end`:
- * - "key": the key that enters the field, after the words, as Reply's c;
+ * - "key": the key that enters the field, alone after the words, as after an error;
  * - "comment": Comment… and that key, as the field says at rest;
  * - "moment": in a stance its Close; else the page's own press, Open latest on an older
  *   version or Next On Me while On Me lists anything (floating-panel.js, `pagePress`);
- *   else Comment… and its key. In a thread, Reply… and its key, as the field says at
- *   rest, so the key never stands alone after a notice's words;
+ *   else Comment… and its key. In a thread, Reply… and its key, after whose turn it is
+ *   or a notice's words;
  * - "none": nothing.
  * While the page holds keys pressed before it was ready, the end offers nothing, since a
  * key there would only join them. The end shows the page's shortcuts, so a press stands
@@ -65,9 +65,10 @@
  * Comment and c at rest the rest of the time and waited on the server's reading of each
  * gesture to offer it.
  *
- * A reading whose words name what a press on the field does (`offers`), the reply or
- * the selected words, reads in full ink with its key, and every other reads dim
- * (floating-panel.css); a thread's in a stance says no words, so it names no press.
+ * A reading that names what a press on the field does (`offers`), in its words as the
+ * selected words do or at its end as a thread's Reply does, keeps the room of that
+ * press's key while the key stands elsewhere (floating-panel.css); a thread's in a
+ * stance offers the stance's Close at its end, so it names no press.
  * Every reading is said by the agent or by Leaf, each in its face (voice.js). The field carries the agent's words, so nothing in it is nobody's: Leaf
  * says a stance's name, where the user stands and the words quoted, since the
  * interface's upright face would read as the agent's (the user's choice). A draft hides
@@ -173,22 +174,19 @@ export const FIELD_READINGS = Object.freeze([
     press: (f) => f.notice?.press ?? null,
     end: "moment",
   },
-  // An open thread's reply box says Reply with the key that enters it, while the
-  // thread stands open, with whose turn it is and a walk's position beside the leaf
-  // (floating-panel.js, `turnLead`), since the field there says no status they would
-  // hide. The user chose this so the next action reads apart from the agent's words,
+  // An open thread's reply box, while the thread stands open, says whose turn it is and
+  // a walk's position beside the leaf (floating-panel.js, `turnLead`), since the field
+  // there says no status they would hide, and its end says Reply with the key that
+  // enters it, as the page's field says Comment (`end`), so the word goes with its key
+  // where `c` writes elsewhere, as when a walk goes on to a stop on the page and the
+  // thread's view stays open. The user chose this so the next action reads apart from
+  // the agent's words,
   // over the key beside Reply with the turn at the field's end in one face, Reply alone
   // with the turn left to the thread's messages, and the agent's words in a lane of
   // their own before the seat. Reply takes the one dim face the user chose for every
-  // comment box's word. While a stance stands the box takes no reply, so it says
-  // nothing after the turn (`still`).
-  {
-    says: "turn",
-    field: "thread",
-    claims: (f) => (f.still ? [] : leafSays(REPLY_HINT)),
-    end: "key",
-    offers: true,
-  },
+  // comment box's word. While a stance stands the box takes no reply, so its end offers
+  // the stance's Close (`still`).
+  { says: "turn", field: "thread", claims: () => [], end: "moment", offers: true },
   // The agent's status, always, in the status's words (page-status.js). One that
   // reports reads dimmer than anything written, with the one sheen that marks work under
   // way while the agent works; one that asks the user to act reads in its tone's ink,
@@ -221,8 +219,8 @@ const navigation = (f) => f.goTo ?? (f.thread ? null : f.step);
 
 /** What the field says: which reading (`says`), its words with what leads them
  * (`lead`), what its end offers (`end`: a press, the word its key enters with, the key
- * alone as "", or null), and whether the words name what a press on the field does
- * (`offers`).
+ * alone as "", or null), and whether its words or the word at its end name what a
+ * press on the field does (`offers`).
  * @param {FieldFacts} f */
 export function readField(f) {
   const field = f.thread ? "thread" : "page";
@@ -233,12 +231,15 @@ export function readField(f) {
     const leads = typeof reading.lead === "function" ? reading.lead(f) : reading.lead;
     const lead = leads === "standing" ? f.standing() : [];
     const words = [...lead, ...[said].flat()];
+    const end = endOf(reading, f, words);
     return {
       says: reading.says,
       words,
       lead,
-      end: endOf(reading, f, words),
-      offers: Boolean(reading.offers) && words.length > 0,
+      end,
+      offers:
+        Boolean(reading.offers) &&
+        (words.length > 0 || (typeof end === "string" && end !== "")),
     };
   }
   throw new Error("No reading claimed the field");
@@ -257,6 +258,6 @@ function endOf(reading, f, words) {
   if (kind === "comment") return COMMENT_HINT;
   if (f.still) return f.close();
   if (kind === "key") return "";
-  if (f.thread) return wordsText(words) ? REPLY_HINT : "";
+  if (f.thread) return REPLY_HINT;
   return f.pagePress() ?? (wordsText(words) ? COMMENT_HINT : "");
 }

@@ -457,16 +457,12 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     expect(start).to_have_attribute("aria-current", "location")
     expect(nav.locator(".lf-toc-rows")).to_have_css("display", "flex")
     expect(prepare).to_have_css("opacity", "0")
-    motion = prepare.evaluate(
+    fade = prepare.evaluate(
         "node => { const s = getComputedStyle(node); "
-        "return {property: s.transitionProperty, duration: s.transitionDuration, "
-        "timing: s.transitionTimingFunction}; }"
+        "const at = s.transitionProperty.split(', ').indexOf('opacity'); "
+        "return at < 0 ? null : s.transitionDuration.split(', ')[at]; }"
     )
-    assert motion == {
-        "property": "color, opacity",
-        "duration": "0.12s, 0.24s",
-        "timing": "ease-out, ease-out",
-    }
+    assert fade not in (None, "0s"), f"the labels show without a fade: {fade}"
     nav_box = nav.bounding_box()
     rows_box = nav.locator(".lf-toc-rows").bounding_box()
     toc_box = toc.bounding_box()

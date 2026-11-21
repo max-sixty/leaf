@@ -1296,7 +1296,8 @@
   /* Every row keeps the same final column for its copy icon or submenu arrow,
      so its shortcut ends at the same edge even when that column is empty. The column
      stands centred on the name's first line, its value with its keys and symbols, so
-     the smaller value's baseline stands under a pixel above the name's. */
+     the smaller value's baseline stands under a pixel above the name's, a gap Leaf
+     leaves (browser/AGENTS.md, "Words share a baseline by layout alone"). */
   .lf-fp-end {
     display: grid;
     grid-template-columns: auto auto 16px;

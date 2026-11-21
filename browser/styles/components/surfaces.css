@@ -979,7 +979,11 @@ summary {
 /* A long name is cut at 40% of its head, which leaves its time and receipt room, and a
    short one stands whole in a narrow head up to 5em. The head centres each of its
    boxes on its line, so the name, set larger than the time beside it, stands its
-   baseline up to a pixel lower than the time's. */
+   baseline up to a pixel lower than the time's, a gap Leaf leaves (browser/AGENTS.md,
+   "Words share a baseline by layout alone"). Rejected: aligning the head's boxes by
+   baseline. Alone, it stands the words at the top of the head, which is taller than
+   their line; with `flex-wrap: wrap` and `align-content: center` it keeps them
+   centred, but a narrow head then wraps its time below the name. */
 :is(.lf-msg-head, .lf-thread-working-head) b {
   max-inline-size: max(40%, 5em);
   min-width: 0;

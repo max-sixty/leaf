@@ -1303,8 +1303,15 @@ and shows again by its next target in one task, so two targets with the same wor
 turn would stand the second preview by the first. Where a new source comes with the
 words the last one had, it moves the preview to the other side of a sibling, its
 stage's mark, which re-lays it out and which the page's write watch reads as a change,
-as a re-insertion at the same place it would not. To recheck, run the page in Firefox;
-once it logs 0, drop the move in `open`.
+as a re-insertion at the same place it would not.
+
+On 2026-11-20 the page above logged 0 in Playwright Firefox 159.0 (build 1572) when it
+ran more than a few frames after load, but holding the first show for half a second
+before the hide and show, as a preview is held, still stood the popover 380 px off by
+`a`, a second after load and with or without a read of its box between; Chromium
+159.0.8154.6 and WebKit 27.2 stood it by `b`. To recheck, run the page a second after
+load with `await new Promise((r) => setTimeout(r, 500))` in place of the first frame;
+once Firefox logs 0, drop the move in `open`.
 
 ### A touch long press in WebKit
 

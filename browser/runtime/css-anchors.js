@@ -27,8 +27,7 @@
  * since they are where the user is writing.
  *
  * Rejected: a layer a scroll-driven animation translates, which Chrome can paint a frame
- * before or after the content it carries, so a pin can land off its mark, and Firefox
- * cannot run; and a script that measures and places the box again after each scroll,
+ * before or after the content it carries, so a pin can land off its mark; and a script that measures and places the box again after each scroll,
  * which paints a frame behind it. One browser gap is answered where every inset is
  * measured (`anchorBox`): Firefox leaves an anchor's transforms out. A second gets the
  * measuring script rejected above, once per scroll:

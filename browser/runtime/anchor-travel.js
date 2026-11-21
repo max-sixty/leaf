@@ -100,7 +100,7 @@ export const fragmentShown = (address) =>
  * @typedef {import("./focus.js").Caret} Caret
  * @typedef {{at: Destination, align?: Destination, block?: ScrollLogicalPosition | "fragment", behavior?: ScrollBehavior, when?: () => boolean}} ScrollPlacement
  * @typedef {{where: Destination, focus?: import("./focus.js").FocusDestination | null | false, caret?: Caret | null,
- * selection?: {range: Range, backward: boolean}, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
+ * selection?: {range: Range, backward: boolean} | null, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
  * @typedef {{plan: (where: Destination | null | undefined, options?: {there?: (readable: (where: Destination) => boolean) => boolean}) => boolean, commit: () => void}} NavigationStep
  * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions
  * @typedef {{anchors: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "placedAt">,
@@ -179,7 +179,9 @@ export function createAnchorTravel({
         const current = resolve();
         if (!current?.where) return;
         if (complete) departure?.commit();
-        if (current.selection) {
+        // A selection the arrival names becomes the page's; `null` clears the page's.
+        if (current.selection === null) getSelection()?.removeAllRanges();
+        else if (current.selection) {
           const { range, backward } = current.selection;
           /** @type {[Node, number]} */
           const head = [range.startContainer, range.startOffset];
@@ -242,7 +244,9 @@ export function createAnchorTravel({
   // supplies geometry without moving the viewport: the final arrival places editor and
   // passage together, taking over any native smooth travel still in progress. With
   // `onFrame`, the arrival puts the user on the box the editor stands in rather than in
-  // it (`frame`), and answers with that box.
+  // it (`frame`), and answers with that box. Words selected elsewhere go, as focusing
+  // the editor drops them (composing/surface.js, `commentOnTarget`), so the box is
+  // where the user is and where `c` writes.
   /** @param {() => EditorDestination | null | undefined} resolve
    * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("./focus.js").Caret | null, onFrame?: boolean}} options */
   async function arriveEditor(resolve, { intent, caret, onFrame = false }) {
@@ -261,6 +265,7 @@ export function createAnchorTravel({
           where: current.where,
           focus: box,
           caret: onFrame ? null : caret,
+          ...(onFrame && { selection: null }),
           // The place the words are about comes into view first and the editor
           // last, so a place taller than the window, as a reviewed case is on a
           // phone, never scrolls the caret back out of it.

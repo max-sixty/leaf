@@ -240,9 +240,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ]
     expect(group).to_have_attribute("open", "")
     expect(groups).to_have_count(2)
-    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    # A root the capture adds opens as it arrives, as the first did.
+    expect(groups.nth(1)).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
-        "aria-label", "Expand all 2 call-tree roots"
+        "aria-label", "Collapse all 2 call-tree roots"
     )
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
         "gateway/limits.py:40"

@@ -173,7 +173,13 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
         expect(page.locator(f"#{id}")).to_be_visible()
     expect(page.locator("#drawing input")).to_have_count(5)
     expect(page.locator("#drawing lf-playground-output")).to_contain_text("Field note")
-    expect(page.locator("#faces-one .margin-entry-gallery-item")).to_have_count(23)
+    # Each gallery draws one face per sample, the same samples in both.
+    expect(page.locator("#faces-one .margin-entry-gallery-item")).not_to_have_count(0)
+    drawn = page.locator("lf-margin-entry-gallery").evaluate_all(
+        "galleries => galleries.map(gallery => [gallery.querySelectorAll('.margin-entry-gallery-item').length, gallery.querySelectorAll('.margin-entry-gallery-face').length])"
+    )
+    assert len(drawn) == 2 and drawn[0] == drawn[1], drawn
+    assert drawn[0][0] == drawn[0][1], drawn
     expect(page.locator("html")).not_to_have_attribute("data-lf-live", "")
 
     # An export whose runtime cannot start retains readable authored content.

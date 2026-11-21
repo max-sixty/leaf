@@ -25,6 +25,7 @@ from render_harness import (
     draft_control,
     expect_error_waits_in_menu,
     expect_panel_says,
+    field_press,
     holding,
     http_error_console,
     open_page,
@@ -197,7 +198,8 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
 ):
     """The composer goes down with the send, so a refusal has to put the words back in
     the store rather than in whatever box was on screen — the one they were typed in has
-    gone with the thread they went to."""
+    gone with the thread they went to. The refusal says they are kept and offers Resume
+    writing, with its keys once the caret has left the box it types in."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     words = "The selection comment the server will refuse."
@@ -220,14 +222,15 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
                 "final": True,
             },
         )
-    # The words went back to a box out of view, so the refusal says where they are.
-    expect_panel_says(
-        page,
-        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
-    )
+    # The words went back to a box out of view, so the refusal says they are kept.
+    expect_panel_says(page, "Couldn't take this — refused before append. Draft kept")
 
     # Their passage still holds their draft, so opening it again finds the words.
     page.locator("h1").click()
+    expect(field_press(page).locator(".lf-compose-press-word")).to_have_text(
+        "Resume writing"
+    )
+    expect(field_press(page).locator("kbd")).to_have_text(["g", "i"])
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(page.locator(".lf-composer leaf-text")).to_be_focused()
@@ -450,7 +453,8 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     assert stored_draft_text(page, "general") == later
     expect_error_waits_in_menu(
         page,
-        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
+        "Couldn't take this — refused before append. Draft kept",
+        press="Resume writing",
     )
     consume_browser_errors(page, http_error_console(400))
 

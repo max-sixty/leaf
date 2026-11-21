@@ -1060,6 +1060,44 @@ const topLevelAwaitRule = {
   },
 };
 
+// No words Leaf shows spell a key: the step a notice or an error points to is a press
+// the panel's field offers at its end with its key (notifications.js, `press`;
+// errors.js), which shows the key only while it would make the press and shows a
+// finger the word alone. The rule reads every string a module writes for the form
+// Leaf's notices took, a dash or a semicolon and then a shortcut, one character or `g`
+// and one, doing something ("— v shows them", "; g D restores it"). What a screen
+// reader hears from `announce` may name a key, since no press reaches it.
+const SPELLED_KEY = /(?:—|;)\s+(?:g\s+)?\S\s+[a-z]+s\b/u;
+export const spelledKeysRule = {
+  meta: { type: "problem", schema: [] },
+  create(context) {
+    /** @param {any} node */
+    const announced = (node) => {
+      for (let at = node.parent; at; at = at.parent)
+        if (
+          at.type === "CallExpression" &&
+          at.callee.type === "Identifier" &&
+          at.callee.name === "announce"
+        )
+          return true;
+      return false;
+    };
+    /** @param {any} node @param {unknown} text */
+    const check = (node, text) => {
+      if (typeof text === "string" && SPELLED_KEY.test(text) && !announced(node))
+        context.report({
+          node,
+          message:
+            "Offer the step as a press (notifications.js, `press`; errors.js) rather than spelling its key in the words: the panel's field shows the key only while it would make the press, and a finger the word alone.",
+        });
+    };
+    return {
+      Literal: (node) => check(node, node.value),
+      TemplateElement: (node) => check(node, node.value.cooked),
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
@@ -1072,6 +1110,7 @@ const architecturePlugin = {
     moves: movesRule,
     "layer-returns": layerReturnsRule,
     "top-level-await": topLevelAwaitRule,
+    "spelled-keys": spelledKeysRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -1732,6 +1771,7 @@ export default [
           "browser/runtime/prepaint.js",
         ],
       ],
+      "architecture/spelled-keys": "error",
     },
   },
   {

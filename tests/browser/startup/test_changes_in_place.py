@@ -22,6 +22,7 @@ from render_harness import (
     compare_with,
     example_media,
     expect_panel_says,
+    field_press,
     open_page,
     panel_field,
     preview_parts,
@@ -240,8 +241,9 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
 
 def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     """Leaving says which revision the user saw. Coming back after the agent revised
-    says how much changed since the version they last saw and marks nothing, and `v`
-    marks those changes, though a newer version stands between."""
+    says how much changed since the version they last saw and marks nothing, offering
+    Show changes with `v`, and `v` marks those changes, though a newer version stands
+    between."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -252,8 +254,10 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     revise(d, DELTA)
 
     visibility(page, "visible")
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
-    expect_panel_says(page, "v shows them")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    expect_panel_says(page, "2 changes since v1")
+    show = field_press(page).filter(has_text="Show changes")
+    expect(show.locator("kbd")).to_have_text(["v"])
     expect(marked).to_have_count(0)
     page.keyboard.press("v")
     expect(marked).to_have_count(2)
@@ -261,7 +265,7 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     # Once the comparison stands, the news that v would show it goes with it, read
     # once the press has drawn, well before its moment would end.
     rendered(page)
-    assert "v shows them" not in (panel_field(page).get_attribute("placeholder") or "")
+    assert show.count() == 0
 
 
 def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
@@ -282,7 +286,7 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     wait_for_revision(page, 3)
 
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("1 change since v2 — v shows them")
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2")
     page.keyboard.press("v")
     expect(page.locator("main .lf-ins-block")).to_have_count(1)
     assert marked_ids(page) == ["d"]
@@ -309,7 +313,7 @@ def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serv
     revise(d, DELTA)
     wait_for_revision(page, 3)
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
     assert len(counts) == 1, "a return to the draft the user watched counted changes"
 
 

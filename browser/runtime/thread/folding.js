@@ -52,8 +52,8 @@ const NAMED = 48;
 // The press a settlement's notice offers (the header's second paragraph): `t`'s next
 // open thread after a Resolve while one stands open, standing no longer than the
 // Resolve does, else the settlement's undo.
-/** @param {boolean} resolving @param {import("../notifications.js").NoticePress} undo
- * @returns {import("../notifications.js").NoticePress} */
+/** @param {boolean} resolving @param {import("../notifications.js").Press} undo
+ * @returns {import("../notifications.js").Press} */
 const nextStep = (resolving, undo) =>
   resolving && anyOpenThread()
     ? {

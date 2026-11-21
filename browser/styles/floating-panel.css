@@ -1503,7 +1503,8 @@
   .lf-fp-error {
     --lf-line: var(--lf-fp-press);
   }
-  .lf-fp-dismiss {
+  .lf-fp-dismiss,
+  .lf-fp-error-press {
     flex: none;
     font: var(--lf-font-small);
   }

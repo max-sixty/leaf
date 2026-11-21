@@ -2389,17 +2389,23 @@ def expect_panel_says(page, words, *, says=True):
         ) from None
 
 
-def expect_error_waits_in_menu(page, message):
+def expect_error_waits_in_menu(page, message, *, press=None):
     """Expect the newest error to say exactly `message` from the leaf's menu, under
-    Errors, with the leaf's dot marking it unseen; the menu is put away again.
+    Errors, with the leaf's dot marking it unseen, and to offer the press named `press`
+    there, or none; the menu is put away again.
 
     That is where an error waits that the panel's field cannot say (errors.js): one
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
     expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
     panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
-    errors = page.locator(panel_view("errors"))
-    expect(errors.locator(".lf-fp-error-words b").first).to_have_text(message)
+    newest = page.locator(panel_view("errors")).locator(".lf-fp-error").first
+    expect(newest.locator(".lf-fp-error-words b")).to_have_text(message)
+    offered = newest.locator(".lf-fp-error-press")
+    if press is None:
+        expect(offered).to_have_count(0)
+    else:
+        expect(offered).to_have_text(press)
     close_panel_menu(page)
 
 

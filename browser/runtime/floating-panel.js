@@ -307,6 +307,7 @@ import {
   gestureReading,
   noticeReading,
   noticeWords,
+  restOnSeat,
 } from "./notifications.js";
 import {
   dismissError,
@@ -419,7 +420,7 @@ const PAGE_FIELD_NAME = "Comment on the page";
 // The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
 // takes (queue-walk.js). No notice carries it, so it has no `stands`; `pageOffer`
 // decides when it stands.
-/** @typedef {Omit<import("./notifications.js").NoticePress, "stands">} FieldPress */
+/** @typedef {Omit<import("./notifications.js").Press, "stands">} FieldPress */
 /** @type {FieldPress} */
 const NEXT_ON_ME = {
   action: "next-on-me",
@@ -989,12 +990,17 @@ export function createFloatingPanel({
       pointer.y <= box.top + CORNER.down;
     keeps(host, "data-lf-corner", near ? "" : null);
   };
+  // The pointer resting on the panel holds still what its field's end offers: the page's
+  // own press here (`pagePress`), and a press of news where it passes
+  // (notifications.js, `restOnSeat`).
   host.addEventListener("pointermove", (event) => {
     pointer = { x: event.clientX, y: event.clientY };
+    restOnSeat(true);
     readCorner();
   });
   host.addEventListener("pointerleave", () => {
     pointer = null;
+    restOnSeat(false);
     readCorner();
     // A press offered while the pointer stood on the panel stands once it leaves
     // (`pagePress`).
@@ -1210,10 +1216,14 @@ export function createFloatingPanel({
     const held = heldWords.value;
     const page = !key;
     const { notice, goTo, step } = passingFacts(page ? STANDING : NO_STANDING);
+    const error = fieldError();
     return readField({
       thread: !page,
       writing: input === focused(),
-      error: fieldError(),
+      error: error && {
+        message: error.message,
+        press: error.press ? noticePress(error.press) : null,
+      },
       held: held && heldText(held),
       selected: page && selectedWords ? excerptWords(selectedWords.quote, 60) : null,
       notice: notice && {
@@ -2976,9 +2986,10 @@ export function createFloatingPanel({
         .map((entry) => entry.copies),
     ].join("\n\n");
   // The errors the user has met, newest first, each saying what failed and when, with
-  // a press that copies it with its context (`errorReport`), where the browser can copy,
-  // and one that dismisses it, whose names carry both, since a list's keys reach only
-  // its presses. The list keeps the reading it opened with: new errors wait behind the
+  // the press that recovers from it where it offers one (errors.js, `press`), a press
+  // that copies it with its context (`errorReport`), where the browser can copy, and one
+  // that dismisses it, whose names carry both, since a list's keys reach only its
+  // presses. The list keeps the reading it opened with: new errors wait behind the
   // leaf's dot until reopening. An error whose cause ends
   // clears its words but keeps its space, so the next control stays under the reader.
   // A dismissal removes that space by the user's gesture and leaves them on the next
@@ -3035,6 +3046,19 @@ export function createFloatingPanel({
             <b>${error.message}</b
             ><span class="lf-fp-note">${timeOfDay(error.at)}</span>
           </p>
+          ${
+            error.press
+              ? html`<button
+                  type="button"
+                  ${offeredAction("word", "lf-fp-error-press")}
+                  ?disabled=${!live.has(error.id)}
+                  aria-label=${`${actionName(error.press.action)}: ${error.message}, ${timeOfDay(error.at)}`}
+                  @click=${error.press.run}
+                >
+                  ${actionName(error.press.action)}
+                </button>`
+              : nothing
+          }
           ${
             canCopy()
               ? guard([error.id], () => {
@@ -5132,7 +5156,7 @@ export function createFloatingPanel({
   }
 
   // ---------- the field's presses ----------
-  // A notice's press, or the page's own (`pageOffer`), as the
+  // A notice's or an error's press, or the page's own (`pageOffer`), as the
   // field's end offers it (composing/input.js, `BoxPress`): its word, the keys of the
   // page command that makes it, as the command reference spells them, and what it does.
   // The user chose that the right side of the box is for shortcuts,

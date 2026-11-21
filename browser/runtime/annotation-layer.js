@@ -25,12 +25,20 @@ import { signal } from "/runtime/framework.js";
 import { tabStore } from "./tab-store.js";
 import { chromeRoot } from "./chrome.js";
 import { pageCommand } from "./keyboard/register.js";
+import { pressCommand } from "./keyboard/dispatch.js";
 import { notice } from "./notifications.js";
-import { coarsePointer } from "./pointer.js";
 
 import { ANNOTATIONS_KEY } from "./restore-state.js";
 
 const hidden = signal(false);
+// The press the notice of hidden annotations offers: `o` again, which brings them back.
+/** @type {import("./notifications.js").Press} */
+const SHOW_ANNOTATIONS = {
+  action: "show-annotations",
+  command: "annotations.toggle",
+  run: () => pressCommand("annotations.toggle"),
+  stands: () => hidden.value,
+};
 /** @type {Set<(hidden: boolean) => void>} */
 const watchers = new Set();
 
@@ -48,23 +56,19 @@ export function mountAnnotationControls() {
     title: () => (hidden.value ? "show annotations" : "hide annotations"),
     touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",
-    // A notice while the press's result stands. Where its words say only what the page
-    // field's standing "Annotations hidden" says (floating-panel.js, `standing`), or
-    // that it went, it is about the annotations and shows where those words don't, as
-    // on the folded leaf; hiding them with a key names the key that brings them back,
-    // which the standing words don't, so that one shows in the field too.
+    // A notice while the press's result stands. Hiding offers Show annotations, the press
+    // that brings them back, which the page field's standing "Annotations hidden"
+    // doesn't (floating-panel.js, `standing`), so that notice shows in the field too.
+    // Showing them says only that those words went, so it is about the annotations and
+    // shows where those words don't, as on the folded leaf.
     run: () => {
       const on = !hidden.value;
       setAnnotationsHidden(on);
-      const key = on && !coarsePointer.matches;
-      notice(
-        !on
-          ? "Annotations shown"
-          : key
-            ? "Annotations hidden — o shows them"
-            : "Annotations hidden",
-        { about: key ? null : "annotations", stands: () => hidden.value === on },
-      );
+      notice(on ? "Annotations hidden" : "Annotations shown", {
+        press: on ? SHOW_ANNOTATIONS : null,
+        about: on ? null : "annotations",
+        stands: () => hidden.value === on,
+      });
     },
   });
 }

@@ -11,6 +11,13 @@
    `holdingError`, which raises it when the condition begins and clears it when it
    ends.
 
+   An error may offer the one press that recovers from it (`press`), as a refused send
+   whose words came back out of view offers Resume writing. The floating panel's field
+   says it after the error's words, with the key that makes it, as it says a notice's
+   (notifications.js, `press`; field-readings.js), and the Errors list offers it beside
+   Dismiss, so an error spells no key in its words. A text field's cover draws no
+   press, so an error that offers one is about no text field.
+
    An error about a text field stands at that field, wherever it is, covering the
    field's words and actions until the user comes back to them, by a key or an image
    there, a press on the cover or Resume writing (`g i`), or the field stops showing
@@ -49,6 +56,7 @@ import { announce, gesture } from "./notifications.js";
  *   stack: string,
  *   passed: boolean,
  *   seen: boolean,
+ *   press: import("./notifications.js").Press | null,
  * }>} RaisedError
  */
 
@@ -79,18 +87,24 @@ export const errorOver = (subject) =>
 
 /**
  * Tell the user something failed. `subject` is the text field it concerns, if any;
- * `announce: false` leaves the words to a producer that already says them aloud.
+ * `announce: false` leaves the words to a producer that already says them aloud;
+ * `press` is the press that recovers from it, for an error about no field.
  * @param {string} message
- * @param {{ subject?: Element | null, announce?: boolean }} [options]
+ * @param {{ subject?: Element | null, announce?: boolean,
+ *   press?: import("./notifications.js").Press | null }} [options]
  */
-export function raiseError(message, { subject = null, announce: speak = true } = {}) {
-  return raise(message, subject, speak, null);
+export function raiseError(
+  message,
+  { subject = null, announce: speak = true, press = null } = {},
+) {
+  return raise(message, subject, speak, null, press);
 }
 
 // Raise an error, taking the one `replaced` names down in the same reading, so the
 // chrome never draws the moment between them.
-/** @param {string} message @param {Element | null} subject @param {boolean} speak @param {number | null} replaced */
-function raise(message, subject, speak, replaced) {
+/** @param {string} message @param {Element | null} subject @param {boolean} speak @param {number | null} replaced
+ * @param {import("./notifications.js").Press | null} [press] */
+function raise(message, subject, speak, replaced, press = null) {
   const id = ++raised;
   if (speak && !unsaid.length)
     queueMicrotask(() => {
@@ -110,6 +124,7 @@ function raise(message, subject, speak, replaced) {
       stack,
       passed: false,
       seen: false,
+      press,
     }),
     ...errors.peek().filter((entry) => entry.id !== replaced),
   ]);

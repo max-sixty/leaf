@@ -24,18 +24,20 @@
 
    When the user comes back, by a load, a return to a hidden tab once its first
    refreshed reading is in, or focus returning to the window, to a revision newer than
-   any they saw, a notice says how much changed since the version they last saw and
-   names the key that marks it ("3 changes since v12 — v shows them"). A return to a
+   any they saw, a notice says how much changed since the version they last saw ("3
+   changes since v12") and offers Show changes, which the panel's field says at its end
+   with `v`, the key that marks them (notifications.js, `press`). A return to a
    draft they watched land says nothing, though it differs from that version, since
    nothing in it is news. The notice is news, as a version's arrival is: it waits behind
-   the user's own commands and passes after a notice's time (notifications.js), naming
-   its key in words, and the leaf's menu keeps Show changes as the lasting route. A
+   the user's own commands and passes after a notice's time, its press with it, which
+   stays only while the pointer rests on the panel (notifications.js, `restOnSeat`), and
+   the leaf's menu keeps Show changes as the lasting route. A
    revision landing while the notice is counted starts the count again. The page arrives unmarked: the user chose
    to call the marks up with a key rather than have them waiting, and to be told
    on return that there is something to call up, in a
    notice that passes like the others. Rejected: a notice standing until the user's
-   next input with a Show press, as an Undo does, which held the panel's seat for the
-   agent's status until the user acted. The count waits until the document is
+   next input, as one offering a press after the user's own gesture does, which held
+   the panel's seat for the agent's status until the user acted. The count waits until the document is
    presented, so the comparison it runs (version.js, `changesSince`) stays off the path
    to first showing the page.
 
@@ -58,6 +60,7 @@ import { whenDocumentPresented } from "./semantic-state.js";
 import { tabStore } from "./tab-store.js";
 import { notice } from "./notifications.js";
 import { pageCommand } from "./keyboard/register.js";
+import { pressCommand } from "./keyboard/dispatch.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import {
   changesSince,
@@ -70,6 +73,14 @@ import {
 import { counted } from "./words.js";
 
 const HANDOFF_KEY = "lf-seen-handoff";
+// The press the notice of what changed offers: `v`, while it would mark the changes.
+/** @type {import("./notifications.js").Press} */
+const SHOW_CHANGES = {
+  action: "show-changes",
+  command: "changes.toggle",
+  run: () => pressCommand("changes.toggle"),
+  stands: () => !selectedBase(),
+};
 
 /** @typedef {import("../types/contract.js").ServedRevision} Seen
  * @typedef {import("../types/contract.js").ServedReading["versions"][number]} Version */
@@ -152,9 +163,10 @@ export function createSinceSeen({ markSeen }) {
       if (n === undefined) return;
       if (n === null || runtime.currentRevision !== revision) continue;
       if (n && holds())
-        notice(`${counted(n, "change")} since v${since.version} — v shows them`, {
+        notice(`${counted(n, "change")} since v${since.version}`, {
           background: true,
           stands: holds,
+          press: SHOW_CHANGES,
         });
       return;
     }

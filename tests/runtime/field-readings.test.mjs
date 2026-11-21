@@ -12,6 +12,7 @@ const press = (word) => ({ word, keys: [], run: () => {} });
 const CLOSE = press("Close");
 const NEXT_ON_ME = press("Next On Me");
 const NEXT_THREAD = press("Next thread");
+const RESUME = press("Resume writing");
 
 // The page's field at rest: nothing of the user's stands, so the status claims it.
 const facts = (over = {}) => ({
@@ -149,6 +150,19 @@ test("a notice offering a press says it over an error, and offers its press", ()
   );
   assert.equal(readField(facts({ ...over, thread: true })).end, NEXT_THREAD);
   assert.equal(said({ ...over, writing: true }), "Couldn't load v3");
+});
+
+test("an error offering a press offers it at the end, ahead of the page's own", () => {
+  const refused = { message: "Couldn't take this. Draft kept", press: RESUME };
+  const reading = readField(facts({ error: refused, pagePress: () => NEXT_ON_ME }));
+  assert.deepEqual([reading.says, reading.end], ["error", RESUME]);
+  // In a stance its press stays, as a notice's does, over the stance's Close.
+  assert.equal(
+    readField(facts({ error: refused, still: true, close: () => CLOSE })).end,
+    RESUME,
+  );
+  // An error offering none offers the key that enters the field, as before.
+  assert.equal(readField(facts({ error: { message: "Couldn't load v3" } })).end, "");
 });
 
 test("the folded leaf's peek says what passes, in the field's order", () => {

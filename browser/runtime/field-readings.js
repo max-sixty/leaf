@@ -18,7 +18,7 @@
  *
  * What stands before a reading's words (`lead`) is where the user stands ("standing";
  * floating-panel.js, `standing`), or nothing. A notice takes nothing, since news often
- * announces a change to where the user stands ("Annotations hidden — o shows them"),
+ * announces a change to where the user stands ("Annotations hidden"),
  * which would otherwise be said twice; where the user stands comes back with the status
  * a moment later. The Go-to word and a walk's position take all of where the user
  * stands, which a walk over a list one of those facts is about counts on: it says its
@@ -28,21 +28,24 @@
  * stop writing in the field, and that its Reply… and microphone go, so the row reads the
  * field's words, then Close and esc at its end, then the mode's name and its ✕. Its
  * end offers the stance's Close (`close`) in place of a press that enters the field and
- * of the page's own; a press that acts elsewhere, a notice's after the user's gesture or
+ * of the page's own; a press that acts elsewhere, a notice's or an error's own or
  * commenting on selected words in a box of their own, stays. The user chose Close and
  * esc there over Next On Me, since the end shows the key for the press that matters
  * most, and in a stance that is the way out; `m` still walks On Me. A draft the field
  * holds stays in it, unwritable, until the stance ends.
  *
- * The field's end offers one press, the one that matters most at that moment (`end`):
+ * The field's end offers one press, the one that matters most at that moment (`end`).
+ * Where the words a reading says offer a press of their own (`press`), the end offers
+ * that one: a notice's, such as a Resolve's Next thread and t or Show changes and v
+ * after news of what changed (notifications.js, `press`), or an error's, such as Resume
+ * writing and g i after a refused send (errors.js). Otherwise it offers, by the
+ * reading's `end`:
  * - "key": the key that enters the field, after the words, as Reply's c;
  * - "comment": Comment… and that key, as the field says at rest;
- * - "moment": a notice's own press after the user's gesture, such as a Resolve's Next
- *   thread and t (notifications.js, `press`); else in a stance its Close; else the
- *   page's own press, Open latest on an older version or Next On Me while On Me lists
- *   anything (floating-panel.js, `pagePress`); else Comment… and its key. In a thread,
- *   Reply… and its key, as the field says at rest, so the key never stands alone after
- *   the notice's words;
+ * - "moment": in a stance its Close; else the page's own press, Open latest on an older
+ *   version or Next On Me while On Me lists anything (floating-panel.js, `pagePress`);
+ *   else Comment… and its key. In a thread, Reply… and its key, as the field says at
+ *   rest, so the key never stands alone after a notice's words;
  * - "none": nothing.
  * While the page holds keys pressed before it was ready, the end offers nothing, since a
  * key there would only join them. The end shows the page's shortcuts, so a press stands
@@ -84,7 +87,8 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
  * @typedef {object} FieldFacts
  * @property {boolean} thread whether the field is an open thread's reply box
  * @property {boolean} writing whether the caret is in the field
- * @property {{message: string} | null} error the newest error the field can say
+ * @property {{message: string, press: BoxPress | null} | null} error the newest error
+ * the field can say, with the press it offers
  * @property {string | null} held keys pressed before the page was ready, which wait
  * @property {string | null} selected the words selected on the page, as quoted
  * @property {{message: Words, press: BoxPress | null} | null} notice a notice while it
@@ -103,7 +107,8 @@ import { COMMENT_HINT, REPLY_HINT } from "./words.js";
 
 /** @typedef {"standing" | null} Lead
  * @typedef {{says: string, field?: "page" | "thread", claims: (f: FieldFacts) => Words | null,
- * lead?: Lead | ((f: FieldFacts) => Lead), end: End, offers?: boolean}} FieldReading */
+ * lead?: Lead | ((f: FieldFacts) => Lead), press?: (f: FieldFacts) => BoxPress | null,
+ * end: End, offers?: boolean}} FieldReading */
 
 /** The readings in the order they claim the field; each names how long it stands.
  * @type {readonly FieldReading[]} */
@@ -113,14 +118,15 @@ export const FIELD_READINGS = Object.freeze([
   // user did, or the page, went wrong. One about the field's editor covers the words, as
   // at any box (composing/input.js). The user chose this over errors riding the
   // passing notice, which would fade after four seconds and go unsaid while the user
-  // writes. A notice offering a press after the user's own gesture is newer, so while
-  // it passes with the caret elsewhere the error waits in the menu's Errors, as one the
-  // field has passed does, and the field says it again once the notice has gone or the
-  // caret comes back, since the field says nothing that passes under the caret.
+  // writes. A notice offering a press is newer, so while it passes with the caret
+  // elsewhere the error waits in the menu's Errors, as one the field has passed does,
+  // and the field says it again once the notice has gone or the caret comes back, since
+  // the field says nothing that passes under the caret.
   {
     says: "error",
     claims: (f) =>
       f.error && !(f.notice?.press && !f.writing) ? leafSays(f.error.message) : null,
+    press: (f) => f.error?.press ?? null,
     end: "key",
   },
   // Keys pressed while the page loads, which wait for it, until it is ready
@@ -164,6 +170,7 @@ export const FIELD_READINGS = Object.freeze([
       return passing ? noticeWords(passing) : null;
     },
     lead: (f) => (f.notice ? null : "standing"),
+    press: (f) => f.notice?.press ?? null,
     end: "moment",
   },
   // An open thread's reply box says Reply with the key that enters it, while the
@@ -230,7 +237,7 @@ export function readField(f) {
       says: reading.says,
       words,
       lead,
-      end: endOf(reading.end, f, words),
+      end: endOf(reading, f, words),
       offers: Boolean(reading.offers) && words.length > 0,
     };
   }
@@ -240,12 +247,14 @@ export function readField(f) {
 /** While the page holds keys, every reading's end offers nothing (`held`), and while a
  * stance stands, its Close in place of what enters the field or the page's own press
  * (`still`).
- * @param {End} kind @param {FieldFacts} f @param {readonly (string | Said)[]} words
- * @returns {BoxPress | string | null} */
-function endOf(kind, f, words) {
+ * @param {FieldReading} reading @param {FieldFacts} f
+ * @param {readonly (string | Said)[]} words @returns {BoxPress | string | null} */
+function endOf(reading, f, words) {
+  const kind = reading.end;
   if (kind === "none" || f.held) return null;
+  const own = reading.press?.(f);
+  if (own) return own;
   if (kind === "comment") return COMMENT_HINT;
-  if (kind === "moment" && f.notice?.press) return f.notice.press;
   if (f.still) return f.close();
   if (kind === "key") return "";
   if (f.thread) return wordsText(words) ? REPLY_HINT : "";

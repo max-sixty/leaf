@@ -520,7 +520,7 @@ export function createUndo({
   // back that gesture as ⌘Z takes the list's head, never what ⌘Z would take by then,
   // and stands while the page can still take the gesture back, so the log refusing it,
   // or its withdrawal by any route, takes the notice away.
-  /** @param {string} attempt @returns {import("./notifications.js").NoticePress} */
+  /** @param {string} attempt @returns {import("./notifications.js").Press} */
   const offerUndo = (attempt) => ({
     action: "undo",
     command: "history.undo",

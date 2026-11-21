@@ -117,6 +117,7 @@ import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
+import { pressCommand } from "./keyboard/dispatch.js";
 import { signal } from "./framework.js";
 import { takesNoWords } from "./composing/input.js";
 
@@ -623,9 +624,21 @@ export function threadDraft(ctx) {
 }
 /** @param {string} ctx */
 const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
-// What a box that stops showing the user's words says, once, with the address that
-// brings them back.
-export const DRAFT_KEPT = "Draft kept — g i resumes writing";
+// What a box that stops showing the user's words says, once: that they are kept, with
+// Resume writing, the press that brings them back, at the panel field's end, where the
+// user looks for a moment's next press and its key (notifications.js, `press`). A
+// refusal's error, which offers no press, names the key in its words instead
+// (`keepRefusedWords`).
+export function noticeDraftKept() {
+  notice("Draft kept", { press: writingPlace && RESUME_WRITING });
+}
+/** @type {import("./notifications.js").NoticePress} */
+const RESUME_WRITING = {
+  action: "resume-writing",
+  command: "writing.resume",
+  run: () => pressCommand("writing.resume"),
+  stands: () => writingPlace !== null,
+};
 
 // A generation this document has sent and not heard back on. Its words are shown
 // wherever the gesture drew them, so the box they were written in reads empty, while
@@ -1168,7 +1181,7 @@ export function keepRefusedWords(attempts) {
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
-    hidden.length && DRAFT_KEPT,
+    hidden.length && "Draft kept — g i resumes writing",
     held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
   return {

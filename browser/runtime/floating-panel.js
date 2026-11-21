@@ -1271,10 +1271,8 @@ export function createFloatingPanel({
   // facts they say (`STANDING`, `passingFacts`). They stand in the field's words, so
   // the field's width never follows them, and the status changing after them leaves
   // them where they stand. Each part carries its separator in its own speaker's face,
-  // so words all Leaf's keep the native placeholder (`saying`). The version stood in a
-  // tinted notice beside the On Me mark until #5642, which narrowed the field as it came
-  // and went and slid the press at the field's end from under the user's aim. A
-  // stance is named in the row's mode chip instead (`stanceName`).
+  // so words all Leaf's keep the native placeholder (`saying`). A stance is named in
+  // the row's mode chip (`stanceName`).
   /** @type {readonly [string, () => ReturnType<typeof leafSays> | null][]} */
   const STANDING_PARTS = [
     [

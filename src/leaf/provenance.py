@@ -6,9 +6,7 @@ revision names its bundle in `publication`; a read's activation, which no reply 
 note names, appends an `activation` that does (`revisioning.py`), except for a page's
 first revision, which no comparison shows against an earlier one and so needs no
 place. A revision's place in the log is the seq of the first event naming its bundle
-(`revision_places`). The activation event came with protocol 43, so a Leaf that skips
-it can't write the page. A page taken to 43 keeps the revisions an earlier Leaf
-activated without a place, and a comparison whose version spans one fails.
+(`revision_places`).
 
 **What a version was saved after** (`saved_after`). A comparison of a version with
 the one before it, as `v` makes, shows changes every one of which that version's

@@ -356,9 +356,11 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
 
         page.route("**/checks/index.js", never_finishes)
 
+    # A probe that never loads reads nothing of the page, which the check says
+    # beside a passing status, as a host with no browser does.
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=500
-    ).failures
+    ).findings
 
     assert asked, "the probe route was never requested, so no module load stalled"
     errors = [failure.values["error"] for failure in failures]
@@ -383,10 +385,12 @@ def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fau
             ),
         )
 
+    # A probe that fails reads nothing of the page, which the check says beside a
+    # passing status, as a host with no browser does.
     failures = render_gate_model.render_version(
         primed(browser.unwatched, failing_probe),
         serve(LONG_PAGE),
-    ).failures
+    ).findings
     assert len(failures) == 1, failures
     assert {failure.code for failure in failures} == {"probe-failed"}, failures
     # A dynamic import's failure is no page fault. The gate's own wait must not echo it
@@ -1402,7 +1406,7 @@ body { max-width: 768px; margin-inline: auto; }
     url = serve(source)
     failures = render_gate_model.render_version(
         primed(browser, scroll_it), url
-    ).failures
+    ).findings
 
     def reported(code, at):
         return [f for f in failures if f.code == code and f.at == at]
@@ -1462,14 +1466,12 @@ def test_the_render_gate_reports_a_compact_spill(browser, serve):
         head="<style>@media(max-width:600px){#compact-overflow{width:700px}}</style>",
     )
     reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    overflow = [
-        finding for finding in reading.failures if finding.code == "page-scrolls"
-    ]
-    assert [f.widths for f in overflow] == [(360, 600)], reading.failures
+    overflow = [finding for finding in reading.advice if finding.code == "page-scrolls"]
+    assert [f.widths for f in overflow] == [(360, 600)], reading.findings
 
 
 @pytest.mark.shifts_unsurveyed
-def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
+def test_the_render_gate_reads_a_page_that_scrolls_sideways_only_between_viewports(
     browser, serve
 ):
     """A body beside its track, and a row that spills only from 600 to 900px: the
@@ -1523,12 +1525,13 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     assert cut == {(f.values["by"], f.widths) for f in clipped}, reading.failures
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
         (f.code, f.at, f.widths) for f in clipped
-    } - {("clipped-content", *box) for box in cut} == {
-        ("page-scrolls", "", (600, 880)),
-    }, reading.failures
-    # A strip that leaves no room for an overlay scrollbar is advice: the bar covers its
-    # last line only under the pointer, and the room is the author's to choose.
-    [strip] = reading.advice
+    } - {("clipped-content", *box) for box in cut} == set(), reading.failures
+    # The row that spills between 600 and 880px scrolls the page sideways, which keeps
+    # every word in reach, and a strip that leaves no room for an overlay scrollbar
+    # covers its last line only under the pointer: both are the author's to judge.
+    [scrolls] = [f for f in reading.advice if f.code == "page-scrolls"]
+    assert (scrolls.at, scrolls.widths) == ("", (600, 880)), reading.advice
+    [strip] = [f for f in reading.advice if f.code == "scrollbar-clearance"]
     assert (strip.code, strip.at, strip.widths) == (
         "scrollbar-clearance",
         "<div id=strip>",

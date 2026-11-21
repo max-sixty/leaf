@@ -70,7 +70,7 @@ def cmd_waiting(page_dir: Path) -> dict:
         owed = read_page(page_dir, page.events).work.obligations
     if owed:
         answers = [answer_command(item["answer"], page_dir) for item in owed]
-        note(Finding("page-open-owes", values={"answers": answers}, severity="advice"))
+        note(Finding("page-open-owes", values={"answers": answers}))
     return status
 
 
@@ -355,7 +355,6 @@ class Watch:
                     Finding(
                         "revive-refused",
                         values={"page": str(page_dir), "error": str(error)},
-                        severity="advice",
                     )
                 )
                 started = None
@@ -525,7 +524,6 @@ def read_watch_pass[DeliveryResult](
                 Finding(
                     "server-restarted",
                     values={"page": str(reading.page_dir), "url": reading.restarted},
-                    severity="advice",
                 )
             )
         # A batch outranks the page's state: a wait already holding events owes
@@ -568,7 +566,7 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
             page = str(page_dir) if page_dir is not None else None
             note(Finding("nothing-to-watch", values={"page": page}))
         return 2
-    note(Finding("pages-idle", values={"pages": held}, severity="advice"))
+    note(Finding("pages-idle", values={"pages": held}))
     return 2
 
 

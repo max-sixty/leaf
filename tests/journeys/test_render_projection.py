@@ -372,13 +372,13 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             failures = render_gate_model.render_version(
                 browser,
                 f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
-            ).failures
+            ).findings
         finally:
             release.set()
 
     assert asked.is_set(), "nothing ever asked for the stalled file, so nothing stalled"
     assert failures and all(f.code == "server-stopped" for f in failures), (
-        f"a wedged server has to come back as a failure, and this came back as {failures}"
+        f"a wedged server has to come back as its finding, and this came back as {failures}"
     )
 
 

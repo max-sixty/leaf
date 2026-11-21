@@ -37,6 +37,7 @@ FAILED = {
     "page-exception",
     "page-report",
     "render-threw",
+    "thread-not-drawn",
     "window-error",
 }
 TAG = re.compile(r"<(lf-[a-z0-9-]+)")

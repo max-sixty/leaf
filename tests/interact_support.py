@@ -714,6 +714,14 @@ def command_findings(*args) -> list[Finding]:
     return list(cause.findings)
 
 
+def command_notes(*args) -> list[Finding]:
+    """What the leaf command `args`, run in process, notes beside the result it
+    prints (`findings.note`); the command must succeed."""
+    result = CliRunner().invoke(cli_model.cli, [*map(str, args)])
+    assert result.exit_code == 0, result.output
+    return [Finding.loads(f) for f in json.loads(result.stdout).get("findings", [])]
+
+
 def read_page_data(page_dir) -> dict:
     """Every source the page records, judged against the vocabulary a write to it
     takes: the page's layer with its own declarations (`data._write_source`)."""
@@ -1104,9 +1112,9 @@ def live_versions(d):
     return files_model.published_versions(d, events)
 
 
-def fragment_errors(html, registry):
+def markup_findings(html, registry):
     parser = structure_model.SourceDocument(html)
-    return validation_model.fragment_errors(parser, registry)
+    return validation_model.markup_findings(parser, registry)
 
 
 SUGGESTION = """<lf-suggestion id="sug-refill">

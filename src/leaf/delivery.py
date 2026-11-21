@@ -991,7 +991,6 @@ def earlier_pickup(payload: dict, session_id: str):
             "turns": sorted(turns, key=str),
             "answers": answers,
         },
-        severity="advice",
     )
 
 

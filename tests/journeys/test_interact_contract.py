@@ -388,7 +388,7 @@ def test_sample_references_see_only_selected_threads(
         )
     )
     status, findings = check_findings(page_dir)
-    assert (status == 0) == seeded, findings
+    assert status == 0, findings
     if not seeded:
         samples = ("practice", "nested") if nested else ("practice",)
         assert [(f.code, f.samples) for f in findings] == [("unknown-thread", samples)]

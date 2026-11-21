@@ -245,7 +245,8 @@ or an issue filed.
 Generally pass `--obligation` when a message hands the next move to the user,
 including an answer that informs a decision already on On Me. A message that asks a
 new question whose answers you can list usually asks with a widget in it instead
-(`threads.md`, "Ask for a pick"); the command refuses both together. Progress and
+(`threads.md`, "Ask for a pick"); with both, the message asks twice, as the
+command notes. Progress and
 information that need no response create no obligation.
 
 Obligation ids are `message:<message>` for an explicit message request,

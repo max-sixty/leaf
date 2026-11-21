@@ -40,6 +40,7 @@ from interact_support import (
     check,
     check_findings,
     command_findings,
+    command_notes,
     comment,
     declare_data_input,
     declare_on_page,
@@ -95,7 +96,7 @@ from leaf.runtime_selection import executing
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import composition as validation_model
-from leaf.validation.admission import message_markup_errors
+from leaf.validation.admission import message_markup_findings
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
@@ -1522,18 +1523,21 @@ def test_version_descriptors_select_only_available_stamped_revisions():
     ]
 
 
-def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
-    """In a scripting browser noscript is hidden, while the file reader takes its
-    content for page words. Refusal prevents anchoring on text no user can see."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            "<h2>Plan</h2><noscript>Fallback words.</noscript>",
-        )
+def test_check_advises_on_noscript_words_no_anchor_reaches(page_dir):
+    """In a scripting browser noscript is hidden, so the check says the user never
+    sees its words, and the file reader, like the browser, keeps them out of the
+    page's words, so no comment anchors on text no user can see."""
+    source = PAGE.replace(
+        "<h2>Plan</h2>", "<h2>Plan</h2><noscript>Fallback words.</noscript>"
     )
+    (page_dir / "index.html").write_text(source)
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(findings, "noscript", "<noscript>")
+    assert status == 0
+    [advice] = found(findings, "noscript", "<noscript>")
+    assert advice.severity == "advice"
+    text = passages_model.page_passages(structure_model.SourceDocument(source), {}).text
+    assert "Plan" in text
+    assert "Fallback words." not in text
 
 
 def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
@@ -1556,23 +1560,39 @@ def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
 
 
 def test_check_rejects_widget_violations(page_dir):
+    link = '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>'
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>',
-            '<lf-gloss id="short-gloss"/>'
-            "<figure/>"
-            "<lf-bogus></lf-bogus>"
-            '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
-            '<lf-option id="stray" label="S"><strong>S</strong></lf-option>'
-            '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
-            '<lf-diagram id="bare-body">graph LR</lf-diagram>',
-        ).replace('<lf-option id="flag-first"', "<lf-option")
+            link, '<lf-gloss id="short-gloss"/><figure/><lf-bogus></lf-bogus>'
+        ).replace(
+            "</main>",
+            '<lf-options id="loose"><lf-option id="loose-a">A</lf-option></lf-options>'
+            "</main>",
+        )
     )
     status, findings = check_findings(page_dir)
     assert status == 1
     # Both the widget and the plain <figure/>: the slash misleads a browser on
-    # any non-void tag, not only on the vocabulary's.
+    # any non-void tag, not only on the vocabulary's. The widget checks would read
+    # the tree the parser repaired, and so would the page's own, such as whether a
+    # question has words, so all of them wait for markup that parses as written.
     assert [f.at for f in found(findings, "self-closing")] == ["<lf-gloss>", "<figure>"]
+    assert not found(findings, "unknown-widget")
+    assert not found(findings, "unnamed-question")
+
+    # Block widgets stand outside the paragraph, where a <pre> would close it.
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            "<lf-bogus></lf-bogus>"
+            '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
+            '<lf-option id="stray" label="S"><strong>S</strong></lf-option>'
+            '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
+            '<lf-diagram id="bare-body">graph LR</lf-diagram></main>',
+        ).replace('<lf-option id="flag-first"', "<lf-option")
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
     assert found(findings, "unknown-widget", "<lf-bogus>")
     assert found(
         findings, "attribute-schema", "<lf-column>", keyword="enum", path=["tone"]
@@ -1771,17 +1791,14 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
 
 def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
     """A pane whose children aren't a header, one body and a footer, in that order,
-    still passes, and `page check` says what its grid does with each."""
-    version = page_dir / "index.html"
-    version.write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            """<h2>Plan</h2>
-<lf-pane id="queue" label="Queue"><p>Before.</p><header><h3>Queue</h3></header></lf-pane>
+    still passes, and `page check` says what its grid does with each. A message
+    holding the same panes is admitted, and its command says the same beside its
+    result."""
+    panes = """<lf-pane id="queue" label="Queue"><p>Before.</p><header><h3>Queue</h3></header></lf-pane>
 <lf-pane id="detail" label="Detail"><p>First</p><p>Split</p></lf-pane>
-<lf-pane id="loose" label="Loose">Loose text</lf-pane>""",
-        )
-    )
+<lf-pane id="loose" label="Loose">Loose text</lf-pane>"""
+    version = page_dir / "index.html"
+    version.write_text(PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{panes}"))
     status, findings = check_findings(page_dir)
     assert status == 0
     assert found(findings, "pane-header-first", "<lf-pane>", line=10)
@@ -1791,11 +1808,23 @@ def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
     ] == [(11, ["p", "p"]), (12, ["#text"])]
     assert {f.severity for f in findings if f.code.startswith("pane-")} == {"advice"}
 
+    version.write_text(PAGE)
+    publish(page_dir)
+    noted = command_notes(
+        "thread", "create", page_dir, "--text", f"Panes:\n\n<div>\n{panes}\n</div>"
+    )
+    assert [(f.code, f.values["line"]) for f in noted] == [
+        ("pane-header-first", 3),
+        ("pane-body", 4),
+        ("pane-body", 5),
+    ]
 
-def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
+
+def test_a_page_of_parts_advises_against_a_main_that_carries_a_layout(page_dir):
     """A page's parts arrange the page themselves, each part's child carrying its own
-    Layout, so a `main` holding them with a Layout of its own is refused; the same
-    parts under a `main` with none pass."""
+    Layout. Under a `main` with a Layout of its own they draw as a strip of tabs inside
+    it, which works, so `page check` passes the page and says what it draws; the same
+    parts under a `main` with none draw no advice."""
     parts = (
         '<lf-parts id="parts"><lf-part id="read" label="Read">'
         '<article class="layout-column"><p>Words.</p></article></lf-part></lf-parts>'
@@ -1804,10 +1833,11 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
         PAGE.replace("<main>", '<main class="layout-column">' + parts)
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
+    assert status == 0
+    [advice] = found(
         findings, "parts-in-layout", "<lf-parts id=parts>", layout="layout-column"
     )
+    assert advice.severity == "advice"
     (page_dir / "index.html").write_text(PAGE.replace("<main>", "<main>" + parts))
     _, findings = check_findings(page_dir)
     assert not found(findings, "parts-in-layout")
@@ -1914,8 +1944,11 @@ def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, w
     )
     (page_dir / "index.html").write_text(source)
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(findings, "unknown-thread", f"<{widget} id=answer>", resolves="plan")
+    assert status == 0
+    [advice] = found(
+        findings, "unknown-thread", f"<{widget} id=answer>", resolves="plan"
+    )
+    assert advice.severity == "advice"
 
     append_carried_log_record(
         page_dir,
@@ -1925,7 +1958,8 @@ def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, w
         source.replace('resolves="plan"', 'resolves="c1"')
     )
     status, findings = check_findings(page_dir)
-    assert status == 0, [f.json() for f in findings]
+    assert status == 0
+    assert not found(findings, "unknown-thread")
 
 
 def test_message_widget_thread_references_use_the_same_namespace(page_dir):
@@ -1939,7 +1973,7 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     page = structure_model.SourceDocument(PAGE)
 
     def errors(source):
-        return message_markup_errors(
+        return message_markup_findings(
             page_dir,
             structure_model.SourceDocument(source),
             events_model.read_events(page_dir),
@@ -1959,7 +1993,11 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     assert errors(markup.replace('resolves="plan"', 'resolves="c1"')) == []
 
 
-def test_reply_refuses_a_suggestion(page_dir):
+def test_a_reply_carrying_a_suggestion_posts_and_says_what_deciding_it_changes(
+    page_dir,
+):
+    """A suggestion in a message decides only the message's words, since no version
+    settles a message, so the reply posts and the agent hears that beside it."""
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
@@ -1971,11 +2009,11 @@ def test_reply_refuses_a_suggestion(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            'Fixed:\n\n<lf-suggestion id="sug-x"><lf-new><p>fixed</p></lf-new></lf-suggestion>',
+            'Fixed: read <lf-suggestion id="sug-x"><lf-old>daily</lf-old><lf-new>weekly</lf-new></lf-suggestion>.',
         ],
     )
-    assert result.exit_code != 0
-    assert "never a message's" in result.output
+    assert result.exit_code == 0, result.output
+    assert "proposes a change inside a message" in result.output
 
 
 @pytest.mark.parametrize("invalid", ["html", "dependency"])
@@ -2225,28 +2263,43 @@ def test_check_accepts_authored_body_content_beside_main(page_dir):
     assert passages.enclosing["footer"] == ("footer",)
 
 
-def test_check_requires_exactly_one_main(page_dir):
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</main>", '</main><main><p id="tail">Second main</p></main>')
-    )
+def test_check_advises_one_main_for_a_layout(page_dir):
+    """A Layout arranges the one `main` directly under `body`. A page with a second
+    `main`, or a `main` an authored wrapper holds, which `body > main` doesn't select,
+    draws as the browser lays out its body, so `page check` passes it and says so."""
+    for source, values in [
+        (
+            PAGE.replace("</main>", '</main><main><p id="tail">Second main</p></main>'),
+            {"mains": 2},
+        ),
+        (
+            PAGE.replace("<main>", "<div>\n<main>").replace(
+                "</main>", "</main>\n</div>"
+            ),
+            {"direct": 0},
+        ),
+    ]:
+        (page_dir / "index.html").write_text(source)
+        status, findings = check_findings(page_dir)
+        assert status == 0
+        [advice] = [
+            f
+            for f in found(findings, "main-count")
+            if all(f.values[key] == value for key, value in values.items())
+        ]
+        assert advice.severity == "advice"
+
+
+def test_check_requires_an_explicit_body_for_delivery_and_export(page_dir):
+    """Delivery and export insert into the page's one explicit `<body>`, so a page
+    without one is refused before it activates."""
+    source = PAGE.replace("<body>", "").replace("</body>", "")
+    (page_dir / "index.html").write_text(source)
 
     status, findings = check_findings(page_dir)
 
     assert status == 1
-    assert found(findings, "main-count", mains=2)
-
-
-def test_check_requires_main_to_be_a_direct_body_child(page_dir):
-    """A main nested in an authored wrapper is not selected by `body > main`."""
-    wrapped = PAGE.replace("<main>", "<div>\n<main>").replace(
-        "</main>", "</main>\n</div>"
-    )
-    (page_dir / "index.html").write_text(wrapped)
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert found(findings, "main-count", direct=0)
+    assert found(findings, "body-count", tags=0)
 
 
 def test_check_requires_an_explicit_head_for_delivery(page_dir):
@@ -2271,10 +2324,10 @@ def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
     assert found(findings, "head-count", tags=2)
 
 
-def test_check_rejects_an_id_containing_whitespace(page_dir):
+def test_check_advises_on_an_id_containing_whitespace(page_dir):
     """An id generated from a label (`f"layout-{label}"`) can carry a space. The browser
     still resolves it, so a comment anchors on it and nothing looks wrong until the id
-    has a thread to move; the version has to be refused before it goes out."""
+    has a thread to move; `page check` says so while renaming it costs nothing."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '<section id="plan">',
@@ -2283,8 +2336,9 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
         )
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(findings, "spaced-ids", ids=["layout-no class"])
+    assert status == 0
+    [advice] = found(findings, "spaced-ids", ids=["layout-no class"])
+    assert advice.severity == "advice"
 
 
 def test_any_id_names_one_subject_for_every_command(page_dir):
@@ -2381,13 +2435,13 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     ]
     assert (closed["kind"], closed["parent"]) == ("resolve", opened["id"])
 
-    # The log mints message ids in this shape, so a page may not author one.
+    # So a page may not author an id the log already gives an event.
     (page_dir / "index.html").write_text(
-        PAGE.replace('id="flag-first"', 'id="20260927"')
+        PAGE.replace('id="flag-first"', f'id="{opened["id"]}"')
     )
     refused = runner.invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert refused.exit_code != 0
-    assert "ids shaped like the event ids the log mints" in refused.output
+    assert "ids the page's log already gives its events" in refused.output
 
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):

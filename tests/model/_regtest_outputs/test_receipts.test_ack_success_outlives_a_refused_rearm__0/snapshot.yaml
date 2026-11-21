@@ -5,7 +5,7 @@ exit: 2
 stdout:
   findings:
     - code: wait-active
-      severity: error
+      severity: advice
       values:
         target: >-
           this session

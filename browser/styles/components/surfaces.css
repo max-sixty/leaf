@@ -705,21 +705,30 @@ button.lf-inline-action,
 summary {
   align-content: center;
 }
-/* --lf-entry-floor under every field, beside --lf-aim-floor under every aim. iOS Safari zooms
-   the page onto a text field set under 16px as the field takes focus, and leaves the page
+/* --lf-entry-floor under each of Leaf's own fields: its composers (`leaf-text`), and
+   every field in its chrome or offered by a widget (`.lf-ui`). iOS Safari zooms the
+   page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
    panning sideways across a page wider than the screen. The zoom answers the field's
-   computed size, so the floor outranks every face a field is given — the layer's own
-   13px find box and 14px response field among them — and 1em keeps a field no smaller
-   than the type around it. The query gates the rule rather than leaving it to the token,
-   because at a zero floor the rule would still pull every field to its surroundings.
-   A radio or checkbox takes no typing, so iOS doesn't zoom onto it, and its mark keeps
-   the size of its label's type (controls.css, `.lf-choice`). */
+   computed size, so the floor outranks every face Leaf gives a field — its 13px find
+   box and 14px response field among them — and 1em keeps a field no smaller than the
+   type around it. A field the page wrote takes the floor only from the default face
+   (control-face.css), so the size its author gives it stands. The query gates the rule
+   rather than leaving it to the token, because at a zero floor the rule would still
+   pull each field to its surroundings. A radio or checkbox takes no typing, so iOS
+   doesn't zoom onto it, and its mark keeps the size of its label's type (controls.css,
+   `.lf-choice`). */
 @media (pointer: coarse) {
-  input:not([type="radio"], [type="checkbox"]),
-  textarea,
   leaf-text,
-  select {
+  .lf-chrome input:not([type="radio"], [type="checkbox"]),
+  .lf-chrome textarea,
+  .lf-chrome select,
+  .lf-ui input:not([type="radio"], [type="checkbox"]),
+  .lf-ui textarea,
+  .lf-ui select,
+  input.lf-ui:not([type="radio"], [type="checkbox"]),
+  textarea.lf-ui,
+  select.lf-ui {
     font-size: max(var(--lf-entry-floor), 1em) !important;
   }
 }

@@ -33,8 +33,9 @@ from leaf.render_checks import one_frame, rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve):
-    """CSS paint and the root's accessible description survive a link's text render."""
+def test_a_render_of_an_external_links_words_keeps_its_mark(browser, serve):
+    """The mark after a link that leaves the page survives a render of its words and a
+    revision that leaves the link as written."""
     source = leaf_page(
         "kept link",
         '<h1 id="t">Links</h1><p id="holder">Read <a id="ext" '
@@ -43,7 +44,7 @@ def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve)
     )
     page = open_page(browser, live_url(serve(source)))
     link = page.locator("#ext")
-    expect(link).to_have_accessible_description("opens in a new tab")
+    expect(link).to_have_attribute("data-lf-external", "")
     expect(page.locator("#ext ~ *")).to_have_count(0)
     page.evaluate(
         """async () => {
@@ -54,10 +55,9 @@ def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve)
     )
     rendered(page)
     expect(link).to_have_attribute("data-lf-external", "")
-    expect(link).to_have_accessible_description("opens in a new tab")
 
     # A source revision compares authored hrefs, not the marker prepaint lent the
-    # first document. An unrelated edit leaves the same link and its treatment.
+    # first document. An unrelated edit leaves the same link and its mark.
     page.evaluate("window.keptLink = document.getElementById('ext')")
     (serve.page_dir / "index.html").write_text(
         source.replace("Other words.", "Revised other words.")
@@ -66,7 +66,6 @@ def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve)
     expect(page.locator("#other")).to_have_text("Revised other words.")
     assert page.evaluate("window.keptLink === document.getElementById('ext')")
     expect(link).to_have_attribute("data-lf-external", "")
-    expect(link).to_have_accessible_description("opens in a new tab")
 
 
 def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
@@ -96,14 +95,13 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
           await new Promise(requestAnimationFrame);
           await new Promise(requestAnimationFrame);
           return {
-            target: link.getAttribute('target'),
             marked: link.hasAttribute('data-lf-external'),
             scroller: scrollerFor(log.querySelector('p')) === log,
             atEnd: log.scrollHeight - log.scrollTop - log.clientHeight <= 2,
           };
         }"""
     )
-    assert held == {"target": "_blank", "marked": True, "scroller": True, "atEnd": True}
+    assert held == {"marked": True, "scroller": True, "atEnd": True}
 
 
 def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):

@@ -1,8 +1,8 @@
 /* Elements of one kind, held while they stand in the page, and the stages they stand in.
 
    Some of the runtime's paint belongs to an element for as long as it stands, whoever
-   put it there: an external link's mark and note, and the bounded block that is a
-   reading region. What produces those elements is open-ended (the served document, a
+   put it there: an external link's mark, and the bounded block that is a reading
+   region. What produces those elements is open-ended (the served document, a
    revision patched in, a thread's message, any widget's render), so no list of
    producers can call each owner. `watchArrivals(selector, attributes, { arrive, leave })`
    watches for them instead:
@@ -11,9 +11,9 @@
      since, however deep in what was added, shadow stages included. It runs again when
      a watched attribute changes, and when the nodes beside the element change: its own
      children, or a sibling added or removed next to it. That is where an owner's paint
-     stands (a link's mark inside it, its note after it), so a render that keeps the
-     element and drops the paint hands the element back to be painted again. `arrive`
-     is therefore idempotent, and cheap for an element whose paint still stands.
+     stands, so a render that keeps the element and drops the paint hands the element
+     back to be painted again. `arrive` is therefore idempotent, and cheap for an
+     element whose paint still stands.
    - `leave(el)` runs once for an element that has arrived and no longer stands or
      matches. Mutation records describe intermediate moves: an element removed and added
      back in one batch has not left, so leaving is decided once the batch is read, from

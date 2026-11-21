@@ -2,8 +2,6 @@
 and reduced motion beyond light DOM, reading regions, and the effective colour
 scheme."""
 
-import re
-
 import pytest
 from interact_support import wait_for
 from playwright.sync_api import expect
@@ -153,9 +151,10 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     expect(child.locator(PANEL)).to_have_attribute("data-lf-rest", "row")
 
 
-def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
-    """A data renderer runs after the initial page dressing, but what it contributes
-    is still part of the Leaf and should carry the same visible navigation contract."""
+def test_a_projected_external_link_wears_the_mark_its_href_earns(browser, serve):
+    """A data renderer runs after the initial page dressing, and a link it draws wears
+    the mark after a link that leaves the page while its href leaves it, as the page's
+    own links do. The target and rel the renderer wrote stand as written."""
     url = data_projection_page(serve)
     # The page's own module for the family, which takes the package's place.
     module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
@@ -185,14 +184,10 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     page = open_page(browser, live_url(url))
     links = page.locator('#deployments a[href="https://example.com/status"]')
     expect(links).to_have_count(2)
-    expect(links.first).to_have_attribute("target", "_blank")
     expect(links.first).to_have_attribute("data-lf-external", "")
+    expect(links.first).to_have_attribute("target", "_self")
+    expect(links.first).to_have_attribute("rel", "author")
     api = page.locator('[data-lf-datum="api"] a')
-    api.evaluate("link => { link.target = '_parent'; link.rel = 'author next'; }")
-    expect(api).to_have_attribute("target", "_blank")
-    expect(api).to_have_attribute(
-        "rel", re.compile(r"(?=.*\bnext\b)(?=.*\bnoopener\b)")
-    )
 
     data_model.cmd_data_set(
         serve.page_dir,
@@ -203,40 +198,10 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
         ],
     )
     expect(api).to_have_attribute("href", "#title")
-    expect(api).to_have_attribute("target", "_parent")
-    expect(api).to_have_attribute("rel", "author next")
-    expect(api).not_to_have_attribute("aria-describedby", re.compile(".+"))
     expect(api).not_to_have_attribute("data-lf-external", "")
-
-    worker = page.locator('[data-lf-datum="worker"] a')
-    detached_worker = worker.element_handle()
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "deployments",
-        [{"key": "api", "value": "Running"}],
-    )
-    expect(worker).to_have_count(0)
-    assert detached_worker.evaluate(
-        """link => ({
-          target: link.getAttribute('target'),
-          rel: link.getAttribute('rel'),
-          describedBy: link.getAttribute('aria-describedby'),
-          mark: link.hasAttribute('data-lf-external'),
-        })"""
-    ) == {"target": "_self", "rel": "author", "describedBy": None, "mark": False}
-
     api.evaluate("link => { link.href = 'https://example.com/again'; }")
-    expect(api).to_have_attribute("target", "_blank")
-    detached_api = api.element_handle()
-    detached_api.evaluate("link => { link.href = '#title'; link.remove(); }")
-    assert detached_api.evaluate(
-        """link => ({
-          target: link.getAttribute('target'),
-          rel: link.getAttribute('rel'),
-          describedBy: link.getAttribute('aria-describedby'),
-          mark: link.hasAttribute('data-lf-external'),
-        })"""
-    ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": False}
+    expect(api).to_have_attribute("data-lf-external", "")
+    expect(api).to_have_attribute("target", "_self")
 
 
 @pytest.mark.parametrize("initial_motion", ["no-preference", "reduce"])
@@ -372,7 +337,7 @@ customElements.define('{tag}', class extends HTMLElement {{
         )
 
 
-def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
+def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
     """The widget lifecycle has two presentation boundaries outside authored light DOM:
     async work finishes after the first dress, and declared shadow words live beyond it."""
     entry = {
@@ -455,9 +420,7 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
         (settled_link, "settled destination"),
         (shadow_link, "shadow destination"),
     ):
-        expect(link).to_have_attribute("target", "_blank")
         expect(link).to_have_accessible_name(name)
-        expect(link).to_have_accessible_description("opens in a new tab")
         expect(link).to_have_attribute("data-lf-external", "")
     # The mark reaches the shadow stage, where it is drawn the em wide its gap and icon
     # take, and at every width that holds the link's last word and the mark, it stays
@@ -488,9 +451,6 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
     wait_for_revision(page, 2)
     expect(page.locator("#settled-link")).to_have_attribute("data-lf-external", "")
     expect(page.locator("#settled-link")).to_have_accessible_name("settled destination")
-    expect(page.locator("#settled-link")).to_have_accessible_description(
-        "opens in a new tab"
-    )
 
 
 def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a_shift(

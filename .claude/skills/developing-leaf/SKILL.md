@@ -38,9 +38,8 @@ Leaf that `references/external-ui-skills.md` names.
 
 ## Checks and guidance for the authoring agent
 
-Read `references/checks-and-guidance.md`
-before adding or changing a rule, check, refusal or message that constrains or answers
-an authoring agent.
+Read `references/checks-and-guidance.md` before adding or changing a rule, check,
+refusal or message that constrains or answers an authoring agent.
 
 ## Explore an open design
 
@@ -136,16 +135,8 @@ change touches, and covers benchmarking replies and tracing one message.
 
 ## Compare checkout versions
 
-`uv run leaf-dev preview <example> --base` serves the merge-base runtime beside this checkout,
-in the foreground as a preview runs (`references/previews.md`); `--help` lists the flags. Keep
-the default shared source for a runtime change, pass `--authored` when the authored
-content changed, and pass `--user` only when the URLs go to the user.
-
-For a change that can alter browser startup, compare served previews for a runtime
-change, and `leaf-dev site verify website-worker` for site delivery, Worker routing or
-containers. Read the comparison by phase (the document arriving, widgets upgrading,
-the page first showing the server's state), and compare the requests and bytes loaded
-before that last phase directly; elapsed time is only diagnostic.
+To compare this checkout with its merge base, as for a change that can alter browser
+startup, read `references/previews.md`, "Compare checkout versions".
 
 ## Author or revise a page
 

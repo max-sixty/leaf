@@ -37,16 +37,6 @@ system" section. This skill's `references/external-ui-skills.md` lists optional 
 skills from outside Leaf, such as visual critique and motion review, and `/ui-sweep`'s
 "External review" section says how to choose among them.
 
-## Checks and guidance for the authoring agent
-
-Read `references/checks-and-guidance.md` before adding or changing a rule, check,
-refusal or message that constrains or answers an authoring agent.
-
-## Explore an open design
-
-To build the side-by-side choice root `AGENTS.md` asks for when the user is to choose
-among designs, follow `references/explore-a-design.md`.
-
 ## Choose what the user reviews
 
 Prefer outputs the user can review quickly. Do the reviews you can do as well as the
@@ -124,23 +114,6 @@ interaction-only change, compare the same journey on both versions ("Compare che
 versions"). A live preview handed to the user carries the fragment of the section it
 is about and stays running.
 
-## Preview a page
-
-Read `references/previews.md` before you start, restart, drive or hand over a
-`uv run leaf-dev preview` of an example or an HTML file, or serve a scratch page.
-
-## Run the agent journey
-
-`uv run --project <root> leaf-dev journey run TARGET` runs one user's journey against a
-real agent. `references/agent-journey.md` names the target for each file a harness
-change touches, and covers benchmarking replies and tracing one message.
-
-## Compare checkout versions
-
-To serve this checkout beside its merge base, for an interaction-only change or one
-that can alter browser startup, read `references/previews.md`, "Compare checkout
-versions".
-
 ## Author or revise a page
 
 Every authored Leaf source is a page: a site page under `docs/`, a shipped example or
@@ -169,11 +142,6 @@ the relevant step lets the user learn by operating the page. Before handoff, ope
 the sample using only its visible guidance and read each line the feed prints, so the
 review checks whether the user can work it without the author's knowledge.
 
-## Score an instruction change
-
-Before changing the instructions an authoring agent follows, or scoring a change as
-root `AGENTS.md` asks, read `references/instruction-changes.md`.
-
 ## Measure a removal
 
 Measure a removal or consolidation that root `AGENTS.md`'s "Regular maintenance"
@@ -189,3 +157,28 @@ and lands it; `✗ Can't push to local main branch` means a fast-forward failed.
 Installed sessions load harness caches, not the checkout, and follow `main`: Claude
 Code picks up a push on its marketplace sweep, and Codex refreshes at startup. To
 refresh Codex in a running session, run `codex plugin marketplace upgrade leaf`.
+
+## Tasks with their own reference
+
+Each of these tasks has its steps in a file under this skill's `references/`. Read
+the file when the task arises.
+
+- **Preview a page**: `references/previews.md`, before you start, restart, drive or
+  hand over a `uv run leaf-dev preview` of an example or an HTML file, or serve a
+  scratch page.
+- **Compare checkout versions**: `references/previews.md`, "Compare checkout
+  versions", to serve this checkout beside its merge base for an interaction-only
+  change or one that can alter browser startup.
+- **Run the agent journey**: `uv run --project <root> leaf-dev journey run TARGET`
+  runs one user's journey against a real agent. `references/agent-journey.md` names
+  the target for each file a harness change touches, and covers benchmarking replies
+  and tracing one message.
+- **Score an instruction change**: `references/instruction-changes.md`, before
+  changing the instructions an authoring agent follows, or scoring a change as root
+  `AGENTS.md` asks.
+- **Explore an open design**: `references/explore-a-design.md`, to build the
+  side-by-side choice root `AGENTS.md` asks for when the user is to choose among
+  designs.
+- **Add a check or guidance for the authoring agent**:
+  `references/checks-and-guidance.md`, before adding or changing a rule, check,
+  refusal or message that constrains or answers an authoring agent.

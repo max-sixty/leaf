@@ -335,7 +335,7 @@ def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
               inSidebar: await stops((footer) => sidebar.append(footer))};
     }""")
     # The track reaches the window's foot, short only by the gap it keeps there.
-    assert stood["bottom"] > stood["window"] - 24, stood
+    assert stood["bottom"] == pytest.approx(stood["window"] - 24, abs=1), stood
     assert stood["end"] == pytest.approx(stood["mid"], abs=0.5), stood
     assert stood["after"], stood
     assert stood["inSidebar"], stood

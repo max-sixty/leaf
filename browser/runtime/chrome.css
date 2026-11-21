@@ -1230,7 +1230,9 @@ html[data-lf-draw-mode] {
     border-radius: var(--lf-tip-r);
     background: var(--lf-tip-bg);
     color: var(--lf-tip-ink);
-    box-shadow: var(--lf-raise-1);
+    box-shadow:
+      0 0 0 1px var(--lf-tip-ring),
+      var(--lf-tip-lift);
     font: var(--lf-font-tip);
     text-align: start;
     white-space: normal;
@@ -1275,7 +1277,7 @@ html[data-lf-draw-mode] {
     flex-wrap: wrap;
     align-items: center;
     gap: 2px 8px;
-    font-weight: 600;
+    font-weight: var(--lf-tip-strong);
   }
   .lf-preview-keys {
     display: inline-flex;
@@ -1334,7 +1336,7 @@ html[data-lf-draw-mode] {
      tooltip's own ink rather than the paper's colours. */
   .lf-place-heading,
   .lf-place-cell[data-lf-head] {
-    font-weight: 600;
+    font-weight: var(--lf-tip-strong);
   }
   .lf-place-list {
     display: flex;
@@ -1355,7 +1357,7 @@ html[data-lf-draw-mode] {
   /* A member the widget's answer picks, checked as paper marks a chosen option
      (options.css). */
   .lf-place-item[data-lf-chosen] {
-    font-weight: 600;
+    font-weight: var(--lf-tip-strong);
   }
   .lf-place-item[data-lf-chosen]::before {
     content: "✓";

@@ -464,12 +464,18 @@
      ladder, so it is declared with the other derived tokens (below). */
   --lf-tip-bg: var(--lf-ink);
   --lf-tip-ink: var(--lf-paper);
+  /* Its edge: a hairline ring, none where the inverse ground sets it off the page, and
+     its height. */
+  --lf-tip-ring: transparent;
+  --lf-tip-lift: var(--lf-raise-1);
   /* The user's turn on a tooltip, whose ground is the page's ink: the turn's colour
      drawn halfway to the tooltip's ink, which holds it clear of that ground at 4.8:1 or
      more in either scheme, where the paper's turn ink would sink into it. */
   --lf-tip-turn-ink: color-mix(in srgb, var(--lf-turn) 50%, var(--lf-tip-ink));
   --lf-tip-pad: 4px 7px;
   --lf-tip-r: var(--lf-r-s);
+  /* The weight of its name, and of the heads in a block it quotes. */
+  --lf-tip-strong: 600;
   /* Inline code's ground is a step from the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over the reading theme's ivory is 1.01:1, so the chip
      would vanish and its side padding read as double spaces around every span. */

@@ -24,7 +24,7 @@ import { shownBox } from "../geometry.js";
 import { skipped } from "../shadow-tree.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
-import { intersect, union } from "../rect.js";
+import { holds, intersect, union } from "../rect.js";
 import { anchorFor } from "../css-anchors.js";
 import { paintSet } from "../target-paint-geometry.js";
 import {
@@ -1008,12 +1008,7 @@ export function createTargetPicker({
     const { clientX: x, clientY: y } = ev;
     return segmentPieces(segments).some(
       ({ block, lines }) =>
-        block &&
-        path.includes(block) &&
-        lines.some(
-          (rect) =>
-            x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
-        ),
+        block && path.includes(block) && lines.some((rect) => holds(rect, x, y)),
     );
   }
   /** @param {MouseEvent} ev */

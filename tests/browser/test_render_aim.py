@@ -5225,7 +5225,7 @@ def test_borrowed_scroll_stops_leave_code_selection_and_marks_with_their_owners(
     markup = leaf_page(
         "Code reachability",
         '<h1>Review code</h1><section id="snippets">'
-        f'<pre id="code"{attrs} style="width:260px"><code>'
+        f'<pre id="code"{attrs} style="width:260px; white-space: pre"><code>'
         "alpha_function_name = compute_the_overly_long_value(first_argument, second_argument, third_argument)"
         "</code></pre></section>",
     )

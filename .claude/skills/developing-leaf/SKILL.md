@@ -59,6 +59,17 @@ instructions as a goal with its reason. Read `references/checks-and-guidance.md`
 before adding or changing a rule, check, refusal or message that constrains or answers
 an authoring agent.
 
+## Survey what Leaf decides for the agent
+
+To survey where Leaf's code settles a choice the agent could make (root `AGENTS.md`,
+"Regular maintenance"), walk the two files that list what the server decides about an
+agent's writes. `src/leaf/findings.py` holds every finding Leaf prints, refusal or
+advice. The served-state schema (`src/leaf/served_state/state.schema.json`) holds
+every fact the server derives for the page to draw. Follow each of those facts to
+what the browser draws with it, and compare that with what the agent's write
+declared; an override shows only there, never in a transcript. Decisions the browser
+makes alone, such as its stylesheets', have no such list.
+
 ## Explore an open design
 
 To build the side-by-side choice root `AGENTS.md` asks for when the user is to choose

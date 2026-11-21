@@ -9,12 +9,6 @@ Resolve the repository root three directories above this `SKILL.md`, check that
 `<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
 absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-## Take a backlog item
-
-Pick an issue labelled `backlog`, assigned to nobody, that no pull request links
-(`notes/TODO.md` has the query), and open its pull request early, as a draft if need be,
-with `Closes #N` in the body, so the next session sees the item taken.
-
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python
@@ -30,10 +24,6 @@ jq 'select(has("lf-shot"))."lf-shot"' \
 
 ## Review a UI change
 
-Record browser API and rendering support gaps in
-[`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
-assessing a gap" section says.
-
 Whoever reviews a UI change, you or an independent reviewer, first uses the
 live candidate cold for the user's task, before reading its code or the author's
 account, reaching each result by every route Leaf gives to it and capturing each state
@@ -41,23 +31,16 @@ those routes leave. A reviewer's brief gives the task and the candidate and asks
 that pass before any code review. An agent that has driven, measured or read the
 change sees the screen through that work and misses flaws a first look catches; a
 fresh agent given only the captures and the user's request, and asked what looks
-wrong, is one way to get that look. The `/ui-sweep` pass (`../ui-sweep/SKILL.md`) a
-theme or shared-control change gets follows its "Review a design system" section, and
-its "External review" section says when to use the skills below.
-
-### External UI skills
-
-Optional reviews from outside Leaf, installed separately, cover visual critique,
-interface conventions, motion, worst-case content, and each composite control's
-keyboard and ARIA structure. `references/external-ui-skills.md` names them and says
-how to run each.
+wrong, is one way to get that look. A theme or shared-control change also gets a
+`/ui-sweep` pass (`../ui-sweep/SKILL.md`), which follows that skill's "Review a design
+system" section. This skill's `references/external-ui-skills.md` lists optional review
+skills from outside Leaf, such as visual critique and motion review, and `/ui-sweep`'s
+"External review" section says how to choose among them.
 
 ## Checks and guidance for the authoring agent
 
-Code enforces only what Leaf needs to work, and taste goes in the shipped
-instructions as a goal with its reason. Read `references/checks-and-guidance.md`
-before adding or changing a rule, check, refusal or message that constrains or answers
-an authoring agent.
+Read `references/checks-and-guidance.md` before adding or changing a rule, check,
+refusal or message that constrains or answers an authoring agent.
 
 ## Explore an open design
 
@@ -123,19 +106,14 @@ declarations behind them (its module header covers `--base`, `--authored` and
 such as its sheet, layer or selector, read those lists, with the corpus states
 covering every composed page, rather than writing a computed-style sweep. Cover states
 reached by interaction, including focus states where layout can cover a focus ring.
-Where no state reaches a surface the change touches, add one to `STATES`
-(`dev/leaf_dev/states.py`) rather than driving it by hand: one state per surface,
-never one per scheme, size or pointer, which a run chooses with `--scheme`,
-`--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
+Where no state reaches a surface the change touches, add one to `STATES` as the
+`dev/leaf_dev/states.py` header says, rather than driving the surface by hand.
 
-For a change to thread-card placement, also run `uv run leaf-dev placement cards --base`,
-a gallery of cards across subjects, messages, routes, windows and page Layouts, and add
-a case to its `CASES` for each new shape a reader meets.
-
-For a change to what the panel says in passing, a notice, a walk's position or the
-words standing in its field, run `uv run leaf-dev words --base`, a table of what the
-seat says and a listener hears after each press on a set of pages, and read each
-changed row beside its capture.
+Some `leaf-dev` commands run one surface through every case in a list they keep, such
+as `placement cards` for where thread cards stand and `words` for what the panel says
+after each key press; `leaf-dev --help` gives each command's subject. For a change to a
+surface one of them covers, run that command with `--base`, and read its module header
+for how to judge the output.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live
@@ -148,10 +126,8 @@ is about and stays running.
 
 ## Preview a page
 
-`uv run leaf-dev preview <example>` serves a live page that follows source and
-browser-runtime edits at one URL; `--source <file>` serves any HTML file. Read
-`references/previews.md` before you start, restart, drive or hand over a preview,
-or serve a scratch page.
+Read `references/previews.md` before you start, restart, drive or hand over a
+`uv run leaf-dev preview` of an example or an HTML file, or serve a scratch page.
 
 ## Run the agent journey
 
@@ -161,16 +137,9 @@ change touches, and covers benchmarking replies and tracing one message.
 
 ## Compare checkout versions
 
-`uv run leaf-dev preview <example> --base` serves the merge-base runtime beside this checkout,
-in the foreground as a preview runs (`references/previews.md`); `--help` lists the flags. Keep
-the default shared source for a runtime change, pass `--authored` when the authored
-content changed, and pass `--user` only when the URLs go to the user.
-
-For a change that can alter browser startup, compare served previews for a runtime
-change, and `leaf-dev site verify website-worker` for site delivery, Worker routing or
-containers. Read the comparison by phase (the document arriving, widgets upgrading,
-the page first showing the server's state), and compare the requests and bytes loaded
-before that last phase directly; elapsed time is only diagnostic.
+To serve this checkout beside its merge base, for an interaction-only change or one
+that can alter browser startup, read `references/previews.md`, "Compare checkout
+versions".
 
 ## Author or revise a page
 

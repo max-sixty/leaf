@@ -2583,6 +2583,15 @@ _TEXT = {
             " that answer"
         )
     ),
+    "edit-under-summary": lambda at, v: (
+        f"message {v['message']!r} is folded under summary {v['summary']!r}, which"
+        " stands as you wrote it; if this edit changes what it reports, summarize"
+        f" {v['from']!r} through {v['through']!r} again with `leaf thread summarize`"
+    ),
+    "title-kept": lambda at, v: (
+        f"the thread is already titled {v['title']!r}, so the reply's title went"
+        " unused; `leaf thread edit` with --title renames the thread"
+    ),
 }
 
 # What a browser shows the person whose gesture a refusal turned down, where the

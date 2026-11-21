@@ -345,6 +345,7 @@ leaf thread summarize <page> --from <first-message-id> --through <last-message-i
 Either form takes `--label <name>` where the range has a name worth giving it; the
 thread shows the name in bold ahead of the summary's words.
 
-Editing a message inside a summary with prose, or the user taking back a message
-the thread held when you wrote it, cancels that summary, so stale prose cannot hide
-the change; a fold without prose stays.
+The user rewriting a message inside a summary, or taking back a message the thread
+held when you wrote it, cancels that summary, words or label, so it cannot hide their
+change. Your own edit leaves the summary standing, and `thread edit` names it, so
+summarize the range again where your edit changes what the summary reports.

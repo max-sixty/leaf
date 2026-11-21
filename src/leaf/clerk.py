@@ -31,10 +31,9 @@ Four principles, the user's, bound what the fork may do:
   second entity on the page.
 - The agent stays sovereign. The agent hears each record at its next step, with its
   id and words, as its own, and keeps, withdraws or replaces it as it would one it
-  wrote. Leaf opens no thread whose title a thread the agent opened on the page to
-  ask something already has. It shows the fork the questions On Me no longer holds,
-  answered or closed, each with its id, so the fork doesn't
-  word one anew and asks one again under its id. It writes no record once a turn
+  wrote. Leaf shows the fork the questions On Me no longer holds, answered or
+  closed, each with its id, so the fork doesn't word one anew and asks one again
+  under its id. It writes no record once a turn
   has opened since the fork read the conversation (`basis`), since that turn's
   agent, or the user who opened it, has the newer reading. A finding still
   reaches the agent then, naming the turn it came from, since the agent judges
@@ -133,9 +132,11 @@ The fork asks a question again as the agent would, under its id in its thread,
 rather than asking a second one beside it, as the user asked: a fork that opens every
 ask in a new thread, and sees neither a question the user closed nor any way to ask
 it again, opens a second thread on the same subject when the agent restates the step
-only in chat. A new question on an old subject still opens a thread of its own. The
-title check above is needed too: without it the fork asks again, in a new thread
-under the same title, a question the agent withdrew as already asked on the page.
+only in chat. A new question on an old subject still opens a thread of its own. Leaf
+drops no ask for its title, as the user decided: matching it against the threads the
+agent opened to ask dropped, telling no one, a new question that shared an old
+one's title, while the ended questions the fork sees with their ids already keep it
+from wording a withdrawn one anew.
 
 The user asked for the routes a question asked well takes, a widget that asks or a
 thread, rather than an ask written as a to-do on the user titled from the chat line,
@@ -854,66 +855,45 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     the line, which the agent owes, hands the agent the ask and why, so it asks the
     user itself. One that asks an earlier question `again` asks it in its
     thread (`ask_again`), which the message reopens if it was closed; any other opens
-    a thread of its own, none whose title a thread the agent opened there to ask
-    something already has. Where Leaf can't ask the question again, as where its
+    a thread of its own. Where Leaf can't ask the question again, as where its
     thread owes the user a reply, the ask is taken as one naming none."""
     from .findings import Rejected
     from .registry.storage import require_registry
-    from .thread import fit_title, widget_asks
-    from .thread_context import thread_structure
+    from .thread import fit_title
     from .validation.admission import checked_text
 
     registry = require_registry(page_dir)
-    # The asks the agent made there, by title: the threads it opened to ask
-    # something, in words or with a widget that asks.
-    drawing = thread_structure(page.events).fragments
-    asked_in = {
-        event["title"].casefold()
-        for event in page.events
-        if event["kind"] == "comment"
-        and event["author"] == "agent"
-        and "title" in event
-        and (event.get("obligation") or widget_asks(drawing.get(event["id"]), registry))
-    }
     for item in asks:
         title, text = fit_title(item["title"]), item["text"]
         passage, again = item["passage"].strip(), item["again"].strip()
         ask = (page_dir, page, title, text, passage, again, identity, registry)
         try:
             checked_text(page_dir, text, html=True)
-            record = _ask_one(*ask, asked_in)
+            record = _ask_one(*ask)
         except Rejected as error:
             yield None, _unasked(str(page_dir), title, text, error)
             continue
-        if record is not None:
-            yield record, _told(str(page_dir), title, text, passage, record, again)
+        yield record, _told(str(page_dir), title, text, passage, record, again)
 
 
-def _ask_one(
-    page_dir, page, title, text, passage, again, identity, registry, asked_in
-) -> dict | None:
+def _ask_one(page_dir, page, title, text, passage, again, identity, registry) -> dict:
     """The message putting one ask On Me: in the thread of the question it asks
     `again` where Leaf can ask it there, and otherwise in a thread of its own, on
-    `passage` where the page shows it once, unless the agent opened one to ask
-    something under its title (`asked_in`), where there is none. A refusal of its
-    HTML reaches the caller from either thread (`_ask`)."""
+    `passage` where the page shows it once. A refusal of its HTML reaches the caller
+    from either thread (`_ask`)."""
     from .findings import Rejected
     from .thread import ask_again, drawn_markup, markup_asks
 
     if again and (record := ask_again(page, again, text, identity)):
         return record
-    if title.casefold() in asked_in:
-        return None
     asks = markup_asks(drawn_markup(text), registry)
     put = (page_dir, page, title, text, identity, not asks)
     try:
-        record = _put(*put, passage)
+        return _put(*put, passage)
     except Rejected:
         if not passage:
             raise
-        record = _put(*put, "")
-    asked_in.add(title.casefold())
-    return record
+        return _put(*put, "")
 
 
 def _found(

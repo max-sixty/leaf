@@ -289,11 +289,12 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled `title` on what `subject` names: a page widget, thread,
     any other element of the page by its id, or `page` for the page as a whole; the
     record. A thread attachment supplies discussion context without making a reply
-    complete the task."""
+    complete the task. A long title is fitted (`thread.agent_title`)."""
     from .event_contracts import append_admitted
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
+    from .thread import agent_title
     from .work import page_element, page_subject
 
     @contract_writer
@@ -317,7 +318,12 @@ def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
                 )
             record, _ = append_admitted(
                 page,
-                {"kind": "todo", "author": "agent", "subject": named, "title": title},
+                {
+                    "kind": "todo",
+                    "author": "agent",
+                    "subject": named,
+                    "title": agent_title(title),
+                },
             )
             return record
 

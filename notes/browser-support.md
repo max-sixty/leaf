@@ -359,11 +359,13 @@ while a script holds only the `ElementInternals`. On 2026-11-20, Playwright 1.65
 WebKit 27.2 (build 2388) on macOS 26.5.1 collected it within a few garbage
 collections, and `states` then read as a new, empty set: `has` said false for a state
 the element still matched with `:state()`. Chromium 159.0.8154.6 (build 1255) and
-Firefox 159.0 (build 1572) kept one set. A write that skips a state already in place
-never deletes a state `has` has forgotten, so the element keeps drawing it: in a
-floating panel's field, `:state(more-above)` stayed on a one-line draft. Holding the
-set itself keeps it whole, so the text field holds it (`composing/text-field.js`,
-`#states`) and every write and read goes through that.
+Firefox 159.0 (build 1572) kept one set. Writes through the new set still reach the
+element (deleting the state stopped the match), so only reads go wrong: a write that
+skips a state `has` reports absent never deletes it, and in a floating panel's field
+`:state(more-above)` stayed on a one-line draft. Holding the set itself keeps it
+whole, so the text field holds it (`composing/text-field.js`, `#states`) and every
+read and write goes through that. An element that only adds and deletes needs no such
+hold.
 
 Recheck: on an element holding only its `ElementInternals`, add a state, make
 garbage for a few event-loop turns, and compare `internals.states.has(name)` with

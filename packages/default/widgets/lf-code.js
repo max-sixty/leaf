@@ -27,7 +27,7 @@
  * same grammar. A number outside the block addresses nothing.
  *
  * `playhead` is the lines another widget is at, in that grammar too, or null: Leaf sets
- * it from the `playhead` output of the widget `follows` names (registry `x-data`), and
+ * it from the `source-lines` output of the widget `follows` names (registry `inputs`), and
  * a plain host sets the property itself. The block marks the rows those numbers address
  * (`data-lf-at`) in its own face, and as the value moves brings the first a third of the
  * way down the box that scrolls the block, never the page: a reader watching the widget

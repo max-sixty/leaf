@@ -29,9 +29,10 @@
    box stands on screen.
 
    It is fixed at the window's edge rather than following content, so a script stands
-   it: each rendering pass that a scroll, a scroll's end, a change in what the window
-   shows or the box crossing the window asks for reads where the box stands and then
-   writes the beacon, as `whenNone` (geometry.js) reads its watches. Rejected: a sticky
+   it: each rendering pass that a change in what the window shows (geometry.js,
+   `watchRoom`, a scroll included) or the box crossing the window asks for reads where
+   the box stands and then writes the beacon, as `whenNone` (geometry.js) reads its
+   watches. Rejected: a sticky
    box, which the browser stands with no script but which needs the box's place in the
    document, which a card's news and the reply's own lines move; and a box anchored to
    the card and held at the edge by `max()`, which Firefox leaves where it was laid
@@ -48,7 +49,6 @@ import { keeps, layoutPx, inlineStyle } from "../keeps.js";
 import { offerActionElement } from "../widget-elements.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
-import { watchScrollEnds } from "../arrivals.js";
 import { move } from "../dom-move.js";
 
 /** @typedef {"up" | "down"} Towards */
@@ -94,12 +94,7 @@ export function createWritingBeacon() {
     crossing.disconnect();
     if (box) {
       crossing.observe(box);
-      if (!unwatch) {
-        const stops = [watchRoom(schedule), watchScrollEnds(schedule)];
-        unwatch = () => {
-          for (const stop of stops) stop();
-        };
-      }
+      unwatch ??= watchRoom(schedule);
     } else {
       unwatch?.();
       unwatch = null;

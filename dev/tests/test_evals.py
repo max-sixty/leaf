@@ -926,16 +926,13 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch, brows
             expect(view.locator("#external")).to_have_attribute(
                 "href", "https://example.com/"
             )
-            with view.expect_popup() as opened:
-                view.get_by_role("link", name="Open handoff").click()
-            linked = opened.value
-            settle(linked)
+            view.get_by_role("link", name="Open handoff").click()
+            settle(view)
             expect(
-                linked.get_by_role("heading", name=f"Handoff phase {phase}")
+                view.get_by_role("heading", name=f"Handoff phase {phase}")
             ).to_be_visible()
-            with linked.expect_popup() as returned:
-                linked.get_by_role("link", name="Back to queue").click()
-            expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
+            view.get_by_role("link", name="Back to queue").click()
+            expect(view.locator("#keep .lf-pick")).to_have_attribute(
                 "aria-checked", "true"
             )
     assert {p: p.read_bytes() for p in originals} == originals

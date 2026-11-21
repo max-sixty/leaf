@@ -786,13 +786,14 @@ def test_a_session_holding_a_page_has_its_long_commands_moved_to_the_background(
     """While the session holds a page, the module sets Claude Code's own limit on how
     long a main-agent foreground command holds the turn to 90 s, after which Claude
     Code moves it to the background and the page's input reaches the session. A
-    `leaf` command may take a page on, so the limit is set before that command's
-    result returns, ahead of the session's next call, and taken back once the
-    follower finds the session holds no page. A limit the user set stays as it was."""
-    leaf_call = {"tool": "Bash", "command": "leaf page state p", "tool_use_id": "u1"}
+    `leaf` command may take a page on, however its launcher is spelled, so the limit
+    is set before that command's result returns, ahead of the session's next call,
+    and taken back once the follower finds the session holds no page. A limit the
+    user set stays as it was, Leaf's own value included."""
+    quoted = '"/opt/leaf/bin/leaf" server start p'
 
     pageless = ClaudeCode(spawn, "cc-pageless", {})
-    pageless.emit("tool.call", leaf_call)
+    pageless.emit("tool.call", {"tool": "Bash", "command": quoted, "tool_use_id": "u1"})
     assert pageless.environ.get_nowait() == {LIMIT: "90000"}
     assert pageless.environ.get(timeout=STATED_TIMEOUT) == {LIMIT: None}
     pageless.quit()
@@ -806,8 +807,13 @@ def test_a_session_holding_a_page_has_its_long_commands_moved_to_the_background(
     assert driven.environ.get(timeout=STATED_TIMEOUT) == {LIMIT: "90000"}
     driven.quit()
 
-    own = ClaudeCode(spawn, "cc-own-limit", {"env": {LIMIT: "30000"}})
-    own.emit("tool.call", leaf_call)
+    own = ClaudeCode(spawn, "cc-own-limit", {"env": {LIMIT: "90000"}})
+    own.emit(
+        "tool.call",
+        {"tool": "Bash", "command": "leaf page state p", "tool_use_id": "u2"},
+    )
+    # The follower finds no page and ends, and the band is drawn empty.
+    own.bands.get(timeout=STATED_TIMEOUT)
     own.settle()
     assert own.environ.empty()
     own.quit()

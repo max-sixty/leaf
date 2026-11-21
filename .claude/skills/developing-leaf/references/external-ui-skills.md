@@ -19,6 +19,16 @@ so check the harness's available skills before invoking one.
   motion and interruption, `/ui-design` Audit for visual quality and Break for extreme
   content, `/ui-verification` for browser reproduction, and `/product-design` for
   action scope, recovery and consistency across input routes.
+- [Gridlines](https://github.com/pritamux/gridlines): `/gridlines` for alignment. Its
+  probe finds the edges each container's items share and lists each item 2px or more
+  off its container's edge. As published it skips every `aria-hidden` element, which
+  covers every Leaf icon, and measures an icon by its box rather than its glyph
+  ([pritamux/gridlines#1](https://github.com/pritamux/gridlines/issues/1)), so fix both
+  in your copy first. Run it on a state by passing the probe, with a loop over the
+  containers to check, to `uv run leaf-dev probe --state NAME --js`, and append its
+  guides to `.lf-chrome` or the open dialog, since guides on the body paint under
+  both. Most of what it lists on Leaf is ragged text or a centred column, so confirm
+  each miss in a crop before fixing it.
 - [UI SDK](https://github.com/vercel-labs/ui)'s `checkPattern`, for keyboard and ARIA
   structure. This journey checks each composite the page shows, such as tabs, trees,
   toolbars and radio groups, against its WAI-ARIA Authoring Practices pattern;

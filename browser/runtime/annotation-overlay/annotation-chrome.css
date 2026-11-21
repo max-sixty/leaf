@@ -502,6 +502,19 @@
     grid-auto-rows: max-content;
     align-content: start;
   }
+  /* The card's symbols, its own controls and the controls at the end of each head that
+     spans the card, end their glyphs over the reply box's last control: the thread
+     text inset inside the messages' edge, each control's box reaching past its glyph
+     by `--lf-symbol-inset` (controls.css). Under a mouse the card's words end there
+     too (`--lf-comment-text-end`, response.css). Every head's controls end as far
+     inside the head, so a head beside the card's own controls ends at their track,
+     its controls as far before the track as the card's controls start past it. */
+  .lf-margin-thread {
+    --lf-margin-symbol-end: calc(var(--lf-thread-text-inset) - var(--lf-symbol-inset));
+  }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-head .lf-msg-controls {
+    margin-inline-end: var(--lf-margin-symbol-end);
+  }
   /* The action track crosses the transcript and its retained message groups.
      Bodies keep both tracks; the head beside the actions stops at them without
      copying their measured width into every message. */
@@ -770,14 +783,19 @@
   /* The actions draw no ground: the transcript covers their track on the heads'
      line (above), with the ground of the message whose head holds it, tinted while
      it arrives. Their padding keeps the head's own controls short of them, so a
-     focused control's ring stays whole. A notice of held news stands first in the
-     row (thread-preview.js); the card keeps its width while it holds news, so the
-     notice takes its room from the heads' track, and the actions after it keep their
-     places. */
+     focused control's ring stays whole. They end `--lf-margin-symbol-end` inside
+     their track (above) and give up as much of their padding, so the track keeps its
+     width, the first head beside it keeps its words' room, and the gap between the
+     head's controls and theirs keeps its width. Rejected: that end room widening the
+     track, which narrowed the head and cut a queued message's receipt in wider faces.
+     A notice of held news stands first in the row (thread-preview.js); the card keeps
+     its width while it holds news, so the notice takes its room from the heads'
+     track, and the actions after it keep their places. */
   /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
      Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
     --lf-line: var(--lf-msg-head-height);
+    margin-inline-end: var(--lf-margin-symbol-end);
     grid-column: 2;
     grid-row: 2;
     align-self: start;
@@ -786,7 +804,7 @@
     align-items: center;
     gap: 4px;
     min-height: var(--lf-msg-head-height);
-    padding-inline-start: var(--lf-sp-2);
+    padding-inline-start: calc(var(--lf-sp-2) - var(--lf-margin-symbol-end));
   }
   /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
      surfaces.css), and no more than the heads leave beside each one's name and time

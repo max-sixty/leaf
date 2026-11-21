@@ -1741,8 +1741,9 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     moves a row the user reads: the reopened row keeps its place, the new one waits,
     and a notice says what joined. Enter on it lets the list settle and lands on the
     first row it named, where K reads its preview. Later news holds the rows still
-    behind the notice, and that preview stands afresh clear of it. A tab press draws
-    the list whole, a row it held included."""
+    behind the notice, and that preview keeps its corner, its words fitted to the room
+    the notice leaves it (preview.js). A tab press draws the list whole, a row it held
+    included."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
     append_carried_log_record(
@@ -1790,6 +1791,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect(page.locator(PREVIEW)).to_be_visible()
     settled(page)
     landed = rows.evaluate_all(tops)
+    corner = page.locator(PREVIEW).bounding_box()
 
     append_carried_log_record(
         serve.page_dir,
@@ -1799,20 +1801,14 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect_preview_words(notice, "1 thread resolved")
     settled(page)
     assert rows.evaluate_all(tops) == landed
-    # The notice draws where the landed row's preview stood, and the preview
-    # stands afresh clear of it. A notice arriving under a preview is a rare path,
-    # which moves the preview rather than carrying a hold of its own (SOUL.md, "Keep
-    # the foundation small and extensible"), so the preview's words are the one move
-    # the watch reports here; the rows' are not.
+    # The notice draws under the landed row's preview, and the room above the notice
+    # holds a line of it, so the preview keeps its corner and its words are cut to
+    # that room, and the watch reports no move.
     page.wait_for_function(PREVIEW_CLEAR_OF_NOTICE)
+    held = page.locator(PREVIEW).bounding_box()
+    assert (held["x"], held["y"]) == (corner["x"], corner["y"]), (corner, held)
+    assert held["height"] < corner["height"], (corner, held)
     page.evaluate("() => window.lfShiftsJudged()")
-    consume_browser_errors(
-        page,
-        lambda problem: (
-            problem.code == "moved-without-input"
-            and any("lf-preview" in step for step in problem.values["node"])
-        ),
-    )
     expect(rows.first).to_have_text(re.compile("Is the opening right?"))
     panel_tab(page, "Threads").click()
     expect(notice).to_have_count(0)

@@ -286,6 +286,33 @@ def test_on_a_touchscreen_the_news_names_no_key(browser, serve):
     expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_text("Show changes")
 
 
+def test_news_s_press_stays_under_a_resting_pointer_until_the_next_input(
+    browser, serve
+):
+    """With the pointer parked on the panel, as after a return by Cmd-Tab, Show changes
+    stays at the field's end once the news's words pass, and goes at the user's next
+    input, though an arrow key that scrolls the page changes nothing else in the
+    panel (floating-panel.js, `steady`)."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    revise(d, DELTA)
+    field = panel_field(page).bounding_box()
+    assert field
+    page.mouse.move(field["x"] + field["width"] / 2, field["y"] + field["height"] / 2)
+    show = page.locator(".lf-fp-field .lf-compose-press", has_text="Show changes")
+
+    visibility(page, "visible")
+    expect_panel_says(page, "2 changes since v1")
+    expect_panel_says(page, "2 changes since v1", says=False)
+    expect(show).to_have_count(1)
+    page.keyboard.press("ArrowDown")
+    expect(show).to_have_count(0)
+
+
 def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     browser, serve
 ):

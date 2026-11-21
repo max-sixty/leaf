@@ -189,12 +189,16 @@ const NOTICE_PRESS = "data-lf-notice-press";
 export const keepsNotice = elementDirective("keepsNotice", (element) =>
   keeps(element, NOTICE_PRESS, ""),
 );
+/** Whether an input lands on a press `keepsNotice` marks: that press being made, which
+ * no hold it keeps should end before its click.
+ * @param {Event} event */
+export const pressesNotice = (event) =>
+  (event.composedPath?.() ?? []).some(
+    (node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS),
+  );
 onUserInput((event) => {
   const { holds, visible } = noticePresentation.peek();
-  if (!holds || !visible) return;
-  const path = event.composedPath?.() ?? [];
-  if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
-    return;
+  if (!holds || !visible || pressesNotice(event)) return;
   retireNotice();
 });
 

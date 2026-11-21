@@ -307,6 +307,7 @@ import {
   gestureReading,
   noticeReading,
   noticeWords,
+  pressesNotice,
   pressReading,
 } from "./notifications.js";
 import {
@@ -330,6 +331,7 @@ import {
   letGo,
   onCurrentLocation,
   onPressAway,
+  onUserInput,
   openLayer,
   pressHolds,
   pressLed,
@@ -1002,6 +1004,14 @@ export function createFloatingPanel({
       steadied = false;
       paint();
     }
+  });
+  // So does the user's next input, which may paint nothing else, as an arrow key that
+  // scrolls the page doesn't. An input on the kept press is that press being made, and
+  // a paint now would take it from under the click.
+  onUserInput((event) => {
+    if (!steadied || pressesNotice(event)) return;
+    steadied = false;
+    paint();
   });
   const leaf = shell("leaf");
   const field = shell("field");

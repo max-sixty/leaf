@@ -3783,23 +3783,29 @@ def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, se
 def test_a_press_at_the_field_s_end_stays_under_a_resting_pointer(browser, serve):
     """A notice's press passes with its moment, but not from under a pointer resting on
     the panel, where a hand may be on its way to press it: the field's end keeps the
-    press until the pointer leaves."""
+    press until the pointer leaves, and a click there makes it."""
     page = floating(clocked(browser), serve(LONG_PAGE, comments=1))
+    hidden = page.locator(".lf-chrome[data-lf-annotations-hidden]")
     offered = page.locator(
         ".lf-fp-field .lf-compose-press", has_text="Show annotations"
     )
-    page.locator("body").focus()
-    field(page).hover()
-    page.keyboard.press("o")
-    expect(offered).to_have_count(1)
-    page.clock.run_for(
-        page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS") + 1000
-    )
-    rendered(page)
-    expect(field(page)).not_to_have_attribute("data-lf-says", "notice")
-    expect(offered).to_have_count(1)
-    page.mouse.move(5, 5)
-    expect(offered).to_have_count(0)
+    moment = page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS") + 1000
+    for ends in ("pointer leaves", "click"):
+        page.locator("body").focus()
+        field(page).hover()
+        page.keyboard.press("o")
+        expect(offered).to_have_count(1)
+        page.clock.run_for(moment)
+        rendered(page)
+        expect(field(page)).not_to_have_attribute("data-lf-says", "notice")
+        expect(offered).to_have_count(1)
+        if ends == "pointer leaves":
+            page.mouse.move(5, 5)
+            expect(offered).to_have_count(0)
+            page.keyboard.press("o")
+        else:
+            offered.click()
+        expect(hidden).to_have_count(0)
 
 
 def test_a_refused_resolve_takes_next_thread_from_under_the_pointer(held_events, serve):
